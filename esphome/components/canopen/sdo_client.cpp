@@ -24,10 +24,12 @@ const LogString *sdo_result_to_string(SDOResult result) {
 }
 
 void CANopenComponent::add_sdo_client_od_() {
+  // read only: start_sdo_() sets the channel for every request (CO_SDOclient_setup()), so a write wouldn't take
+  // effect (no CO_CONFIG_FLAG_OD_DYNAMIC)
   this->od_.add_record(0x1280, {{0, ODA_SDO_R, &this->sdo_cli_highest_sub_, 1},
-                                {1, ODA_SDO_RW, &this->sdo_cli_cob_tx_, 4},
-                                {2, ODA_SDO_RW, &this->sdo_cli_cob_rx_, 4},
-                                {3, ODA_SDO_RW, &this->sdo_cli_node_, 1}});
+                                {1, ODA_SDO_R, &this->sdo_cli_cob_tx_, 4},
+                                {2, ODA_SDO_R, &this->sdo_cli_cob_rx_, 4},
+                                {3, ODA_SDO_R, &this->sdo_cli_node_, 1}});
 }
 
 void CANopenComponent::config_sdo_client_(CO_config_t &cfg) {

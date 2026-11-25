@@ -53,17 +53,24 @@ class CANopenComponent : public Component {
   // Other canopen nodes on the same canbus, as a ring (codegen): a frame one of them sends is also received by the
   // others, since a CAN controller doesn't receive its own frames. nullptr = no other local node.
   void set_next_local(CANopenComponent *next) { this->next_local_ = next; }
+#ifdef USE_CANOPEN_NODE
   void set_heartbeat_interval(uint32_t ms) { this->hb_producer_ms_ = ms; }
   // NMT state after boot: OPERATIONAL (default) or PRE_OPERATIONAL (until an NMT master, or set_nmt_state(), starts
   // the node)
   void set_start_operational(bool operational) { this->start_operational_ = operational; }
+#endif
   void set_response_timeout(uint16_t ms) { this->response_timeout_ms_ = ms; }
 
-  // Our own NMT state (UNKNOWN before setup) and its changes, by an NMT master or set_nmt_state()
+  // Our own NMT state (UNKNOWN before setup, and without a node id) and its changes, by an NMT master or
+  // set_nmt_state()
+#ifdef USE_CANOPEN_NODE
   NMTState get_nmt_state() const { return this->nmt_state_; }
   template<typename F> void add_on_nmt_state_callback(F &&callback) {
     this->nmt_state_callback_.add(std::forward<F>(callback));
   }
+#else
+  NMTState get_nmt_state() const { return NMTState::NMT_STATE_UNKNOWN; }
+#endif
   // Moves our own node to OPERATIONAL, PRE_OPERATIONAL or STOPPED (no NMT master needed)
   bool set_nmt_state(NMTState state);
 
@@ -76,6 +83,7 @@ class CANopenComponent : public Component {
   // does that: on ESP32 a refused frame can block for the controller's enqueue timeout).
   bool in_frame() const { return this->in_frame_; }
 
+#ifdef USE_CANOPEN_NODE
   // --- Identity and device information (device_info.cpp) ---
   // Identity (0x1018) and device information (0x1008 device name, 0x1009 hardware version, 0x100A software
   // version). Before setup() only; the strings must outlive the component. Defaults: identity 0, the node's name,
@@ -86,6 +94,7 @@ class CANopenComponent : public Component {
   void set_device_name(const char *name) { this->device_name_ = name; }
   void set_hardware_version(const char *version) { this->hardware_version_ = version; }
   void set_software_version(const char *version) { this->software_version_ = version; }
+#endif
 
   // --- Object dictionary (od.cpp) ---
   // Object dictionary for other components: entries are added before setup() only (see above), since CANopenNode
@@ -171,16 +180,17 @@ class CANopenComponent : public Component {
   CO_config_t config_{};  // must outlive co_
   ObjectDictionary od_;
 
+  bool in_frame_{false};
+  uint16_t response_timeout_ms_{500};
+
+#ifdef USE_CANOPEN_NODE
   uint8_t err_reg_{0};             // 0x1001
   uint32_t cob_emcy_{0x80};        // 0x1014, CANopenNode adds the node id
   uint16_t hb_producer_ms_{5000};  // 0x1017
-
-  uint32_t last_us_{0};  // the node's clock (CO_process())
+  uint32_t last_us_{0};            // the node's clock (CO_process())
   bool start_operational_{true};
-  bool in_frame_{false};
   NMTState nmt_state_{NMTState::NMT_STATE_UNKNOWN};
   LazyCallbackManager<void(NMTState)> nmt_state_callback_;
-  uint16_t response_timeout_ms_{500};
 
   // --- Identity and device information (device_info.cpp) ---
   void add_device_info_od_();
@@ -196,6 +206,7 @@ class CANopenComponent : public Component {
   uint8_t sdo_srv_highest_sub_{2};
   uint32_t sdo_srv_cob_rx_{0};
   uint32_t sdo_srv_cob_tx_{0};
+#endif  // USE_CANOPEN_NODE
 
   // --- Raw frames (frames.cpp) ---
   // frame listeners and heartbeat / EMCY callbacks for a received frame, after CANopenNode

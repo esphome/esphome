@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/canopen/canopen.h"
@@ -92,6 +93,40 @@ TEST_F(LocalPair, SdoReadFromTheOtherNode) {
 
 // buffer transfers are segmented (block transfer is optional in servers, and CANopenNode's client doesn't fall back
 // when a server rejects it): a 40-byte write and read back
+// Objects a write wouldn't change: the EMCY COB-ID (the producer isn't configurable) and the SDO client parameters
+// (the client sets its channel for every request). Writes are refused, reads work.
+TEST_F(LocalPair, ReadOnlyCommunicationObjects) {
+  start();
+  struct Result {
+    bool done{false};
+    SDOReply reply{};
+  };
+  auto on_reply = +[](void *context, const SDOReply &reply) {
+    auto *r = static_cast<Result *>(context);
+    r->done = true;
+    r->reply = reply;
+  };
+  auto run = [this](Result &r) {
+    for (int i = 0; i < 10 && !r.done; i++) {
+      b.loop();
+      a.loop();
+    }
+    ASSERT_TRUE(r.done);
+  };
+  for (auto [index, sub] : {std::pair<uint16_t, uint8_t>{0x1014, 0}, {0x1280, 1}, {0x1280, 3}}) {
+    Result write;
+    ASSERT_TRUE(b.write_sdo<uint32_t>(0x10, index, sub, 0x80000000, on_reply, &write));
+    run(write);
+    EXPECT_EQ(write.reply.result, SDOResult::SDO_RESULT_ABORT) << std::hex << index << ":" << +sub;
+    EXPECT_EQ(write.reply.abort_code, 0x06010002u) << std::hex << index << ":" << +sub;  // write to a read only object
+  }
+  Result read;
+  ASSERT_TRUE(b.read_sdo<uint32_t>(0x10, 0x1014, 0, on_reply, &read));
+  run(read);
+  ASSERT_TRUE(read.reply.ok());
+  EXPECT_EQ(read.reply.as<uint32_t>(), 0x90u);  // 0x80 + node id
+}
+
 TEST_F(LocalPair, SdoBufferTransfersAreSegmented) {
   uint8_t storage[40] = {};
   a.get_od().add_var(0x2000, OD_READ_WRITE, storage, sizeof(storage));

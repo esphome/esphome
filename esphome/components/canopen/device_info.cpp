@@ -1,6 +1,8 @@
 // Identity (0x1018), device information (0x1000, 0x1008-0x100A) and the default SDO server (0x1200).
 #include "canopen.h"
 
+#ifdef USE_CANOPEN_NODE
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
@@ -47,3 +49,5 @@ void CANopenComponent::dump_device_info_config_() {
 }
 
 }  // namespace esphome::canopen
+
+#endif  // USE_CANOPEN_NODE

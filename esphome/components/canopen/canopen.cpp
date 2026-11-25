@@ -25,6 +25,7 @@ const LogString *nmt_state_to_string(NMTState state) {
   return NMTStateStrings::get_log_str(NMTStateStrings::LAST_INDEX, NMTStateStrings::LAST_INDEX);
 }
 
+#ifdef USE_CANOPEN_NODE
 static NMTState to_nmt_state(CO_NMT_internalState_t state) {
   switch (state) {
     case CO_NMT_INITIALIZING:
@@ -39,6 +40,7 @@ static NMTState to_nmt_state(CO_NMT_internalState_t state) {
       return NMTState::NMT_STATE_UNKNOWN;
   }
 }
+#endif
 
 void CANopenComponent::setup() {
   if (this->canbus_->is_failed()) {
@@ -54,7 +56,8 @@ void CANopenComponent::setup() {
 #ifdef USE_CANOPEN_NODE
   auto &od = this->od_;
   od.add_var(0x1001, ODA_SDO_R, &this->err_reg_, sizeof(this->err_reg_));
-  od.add_var(0x1014, ODA_SDO_RW, &this->cob_emcy_, sizeof(this->cob_emcy_));
+  // read only: without CO_CONFIG_EM_PROD_CONFIGURABLE a write wouldn't reach the EMCY producer
+  od.add_var(0x1014, ODA_SDO_R, &this->cob_emcy_, sizeof(this->cob_emcy_));
   od.add_var(0x1017, ODA_SDO_RW, &this->hb_producer_ms_, sizeof(this->hb_producer_ms_));
   this->add_device_info_od_();
 #ifdef USE_CANOPEN_SDO_CLIENT
