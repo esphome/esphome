@@ -99,14 +99,6 @@ class Dsmr final : public Component, public uart::UARTDevice {
 
   void dump_config() override;
 
-  // Remove before 2026.8.0
-  ESPDEPRECATED("Use 'decryption_key' configuration parameter. This method will be removed in 2026.8.0", "2026.2.0")
-  void set_decryption_key(const std::string &decryption_key) {
-    // Some YAML configs pass a string longer than 32 symbols. We only need the first 32 symbols,
-    // otherwise `Aes128GcmDecryptionKey::from_hex` will fail.
-    this->set_decryption_key_(std::string(decryption_key, 0, 32).c_str());
-  }
-
 // Sensor setters
 #define DSMR_SET_SENSOR(s) \
   void set_##s(sensor::Sensor *sensor) { s_##s##_ = sensor; }

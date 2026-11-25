@@ -1,0 +1,33 @@
+substitutions:
+  name: wsev
+esp32:
+  variant: esp32s3
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          ESP_LOGI("heap", "free=%u min=%u largest=%u",
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+packages:
+  common: !include common.yaml
+button:
+  - platform: template
+    name: "Wifi Drop"
+    on_press:
+      - delay: 500ms
+      - logger.log: "wifi drop: disable"
+      - wifi.disable:
+      - delay: 8s
+      - logger.log: "wifi drop: enable"
+      - wifi.enable:

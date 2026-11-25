@@ -163,7 +163,12 @@ class CustomMQTTDevice {
    * @param qos The Quality of Service to publish with.
    * @param retain Whether to retain the message.
    */
-  bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain);
+  bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+    return global_mqtt_client->publish_json(topic, f, qos, retain);
+  }
+  template<json::JsonBuildCallable F> bool publish_json(const std::string &topic, F &&f, uint8_t qos, bool retain) {
+    return global_mqtt_client->publish_json(topic, f, qos, retain);
+  }
 
   /** Publish a JSON-encoded MQTT message.
    *
@@ -180,7 +185,12 @@ class CustomMQTTDevice {
    * @param topic The topic to publish to.
    * @param payload The payload to publish.
    */
-  bool publish_json(const std::string &topic, const json::json_build_t &f);
+  bool publish_json(const std::string &topic, const json::json_build_t &f) {
+    return global_mqtt_client->publish_json(topic, f);
+  }
+  template<json::JsonBuildCallable F> bool publish_json(const std::string &topic, F &&f) {
+    return global_mqtt_client->publish_json(topic, f);
+  }
 
   /// Check whether the MQTT client is currently connected and messages can be published.
   bool is_connected();

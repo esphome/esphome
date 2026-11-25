@@ -105,10 +105,8 @@ void EPaperT133A01::setup() {
   // Both chip-selects are driven directly by this driver (the dual-CS
   // protocol needs CS held HIGH while CS1 receives data, which the SPI
   // bus cannot do). Start both deselected (HIGH).
-  this->cs_pin_->setup();
-  this->cs_pin_->digital_write(true);
-  this->cs1_pin_->setup();
-  this->cs1_pin_->digital_write(true);
+  setup_output_pin(this->cs_pin_, true);
+  setup_output_pin(this->cs1_pin_, true);
 }
 
 bool EPaperT133A01::reset() {

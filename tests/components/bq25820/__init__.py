@@ -16,12 +16,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_BINARY_SENSOR")
         cg.add_define("USE_BINARY_SENSOR_RAW_CALLBACK")
-        cg.add_define("ESPHOME_ENTITY_BINARY_SENSOR_COUNT", 0)
         cg.add_define("USE_SENSOR")
-        cg.add_define("ESPHOME_ENTITY_SENSOR_COUNT", 0)
         cg.add_define("USE_BQ25820_SENSOR")
         cg.add_define("USE_TEXT_SENSOR")
-        cg.add_define("ESPHOME_ENTITY_TEXT_SENSOR_COUNT", 0)
         cg.add_define("USE_BQ25820_STATUS_PUBLISHER")
 
     manifest.to_code = to_code

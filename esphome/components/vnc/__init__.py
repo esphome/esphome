@@ -9,6 +9,7 @@ from esphome.components.const import (
     BYTE_ORDER_LITTLE,
     CONF_BUTTONS,
     CONF_HOST,
+    CONF_PIXEL_FORMAT,
     CONF_RECONNECT_INTERVAL,
 )
 from esphome.components.touchscreen import CONF_TOUCHSCREEN_ID, Touchscreen
@@ -47,7 +48,6 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_MAX_UPDATE_DELAY = "max_update_delay"
 CONF_UPDATE_DELAY = "update_delay"
-CONF_PIXEL_FORMAT = "pixel_format"
 
 VNC_PASSWORD_MAX_BYTES = 8
 
