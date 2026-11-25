@@ -2552,7 +2552,12 @@ async def build_grouped_callback_automations(
             if entry.filter is None:
                 body.append(run)
                 continue
-            last = MockObj(f"{entry.conf_key}_{index}_last")
+            # Unique against config ids and globals, so it cannot hide one the filter names
+            last_id = cg.unique_global_id(
+                f"{parent}_{entry.conf_key}_{index}_last", entry.last_type
+            )
+            last = MockObj(last_id)
+            CORE.register_variable(last_id, last)
             statics.append(
                 cg.statement(
                     VariableDeclarationExpression(

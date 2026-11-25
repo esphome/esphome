@@ -2021,10 +2021,10 @@ async def test_grouped_automations_run_in_order_with_their_own_statics(
     )
     assert definition == (
         "static void esphome__light__remote_values_callback() { "
-        "static bool on_turn_on_0_last; static bool on_turn_on_1_last; "
-        "if (esphome::entered(on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "static bool light_on_turn_on_0_last; static bool light_on_turn_on_1_last; "
+        "if (esphome::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
         "esphome__automation_1__fn(); "
-        "if (esphome::entered(on_turn_on_1_last, ::light->remote_values.is_on())) "
+        "if (esphome::entered(light_on_turn_on_1_last, ::light->remote_values.is_on())) "
         "esphome__automation_2__fn(); "
         "esphome__automation_3__fn(); }"
     )
@@ -2042,7 +2042,7 @@ async def test_grouped_automations_single_filtered_gets_a_function(
     assert registration == (
         "light->add_remote_values_callback(esphome__light__remote_values_callback)"
     )
-    assert "static bool on_turn_on_0_last;" in definition
+    assert "static bool light_on_turn_on_0_last;" in definition
 
 
 @pytest.mark.asyncio
@@ -2059,12 +2059,26 @@ async def test_grouped_automations_filter_then_when(mock_cg: MockCodegen) -> Non
     )
     _, definition = _registered_function(mock_cg)
     assert (
-        "if (esphome::entered(on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "if (esphome::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
         "esphome__automation_1__fn();"
     ) in definition
     assert "if (!(::light->is_ready())) return;" in _definition(
         mock_cg, "esphome__automation_1__fn"
     )
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_statics_avoid_taken_names(
+    mock_cg: MockCodegen,
+) -> None:
+    """A copy's name is unique against ids already taken, so it cannot hide a config ID."""
+    CORE.register_variable(ID("light_on_turn_on_0_last"), MockObj("taken"))
+    await build_grouped_callback_automations(
+        LIGHT, {"on_turn_on": [_conf(1)]}, "add_remote_values_callback", (ON_TURN_ON,)
+    )
+    _, definition = _registered_function(mock_cg)
+    assert "static bool light_on_turn_on_0_last;" not in definition
+    assert "static bool light_on_turn_on_0_last_" in definition
 
 
 def test_grouped_automation_filter_needs_watched() -> None:
@@ -2128,9 +2142,9 @@ async def test_grouped_automations_express_the_cover_state_triggers(
             ("on_idle", "::cover->current_operation == cover::COVER_OPERATION_IDLE"),
         )
     ):
-        assert f"static bool {key}_0_last;" in definition
+        assert f"static bool cover_{key}_0_last;" in definition
         assert (
-            f"if (esphome::entered({key}_0_last, ({test}))) esphome__automation_{i + 1}__fn();"
+            f"if (esphome::entered(cover_{key}_0_last, ({test}))) esphome__automation_{i + 1}__fn();"
         ) in definition
 
 
@@ -2177,22 +2191,22 @@ async def test_grouped_automations_express_the_fan_change_triggers(
     )
     _, definition = _registered_function(mock_cg)
     for declaration in (
-        "static bool on_turn_on_0_last;",
-        "static bool on_turn_off_0_last;",
-        "static fan::FanDirection on_direction_set_0_last;",
-        "static bool on_oscillating_set_0_last;",
-        "static int on_speed_set_0_last;",
-        "static const char * on_preset_set_0_last;",
+        "static bool fan_on_turn_on_0_last;",
+        "static bool fan_on_turn_off_0_last;",
+        "static fan::FanDirection fan_on_direction_set_0_last;",
+        "static bool fan_on_oscillating_set_0_last;",
+        "static int fan_on_speed_set_0_last;",
+        "static const char * fan_on_preset_set_0_last;",
     ):
         assert declaration in definition
     for i, test in enumerate(
         (
-            "esphome::entered(on_turn_on_0_last, ::fan->state)",
-            "esphome::left(on_turn_off_0_last, ::fan->state)",
-            "esphome::changed(on_direction_set_0_last, ::fan->direction)",
-            "esphome::changed(on_oscillating_set_0_last, ::fan->oscillating)",
-            "esphome::changed(on_speed_set_0_last, ::fan->speed)",
-            "esphome::changed(on_preset_set_0_last, ::fan->get_preset_mode())",
+            "esphome::entered(fan_on_turn_on_0_last, ::fan->state)",
+            "esphome::left(fan_on_turn_off_0_last, ::fan->state)",
+            "esphome::changed(fan_on_direction_set_0_last, ::fan->direction)",
+            "esphome::changed(fan_on_oscillating_set_0_last, ::fan->oscillating)",
+            "esphome::changed(fan_on_speed_set_0_last, ::fan->speed)",
+            "esphome::changed(fan_on_preset_set_0_last, ::fan->get_preset_mode())",
         )
     ):
         assert f"if ({test}) esphome__automation_{i + 1}__fn();" in definition
