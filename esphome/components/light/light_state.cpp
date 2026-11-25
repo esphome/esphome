@@ -214,7 +214,8 @@ bool LightState::set_external_state(const LightColorValues &values) {
   return true;
 }
 
-void LightState::publish_state() {
+// Flattened so the listener loop runs inline here, not in the call_all copy the other lists share
+__attribute__((flatten)) void LightState::publish_state() {
   this->remote_values_callback_.call();
 #if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_light_update(this);
