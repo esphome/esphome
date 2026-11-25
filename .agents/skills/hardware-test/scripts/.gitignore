@@ -29,6 +29,7 @@ climate_ir_loop/whirlpool/w??pr.yaml
 esp8266_edges/*-cap.txt
 esp8266_edges/*.log
 esp8266_flash_prefs/*-api.txt
+esp8266_flash_prefs/*-cap.err
 esp8266_flash_prefs/*-ping.txt
 esp8266_flash_prefs/*-results.txt
 esp8266_flash_prefs/*.log

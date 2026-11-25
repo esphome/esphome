@@ -38,7 +38,7 @@ ser.dtr = False
 ser.rts = False
 ser.open()
 log = pathlib.Path(out + "-cap.log").open("ab")  # noqa: SIM115
-st = {"tick": None, "tick_before": None, "boot": None, "keys": None}
+st = {"tick": None, "tick_before": None, "boot": None, "keys": None, "err": None}
 boot_ev = asyncio.Event()
 # Set by a pinsave trial: the reader resets the board 0 to 30 ms after the next "Saving" line
 arm_save = threading.Event()
@@ -49,6 +49,14 @@ BOOT_RE = re.compile(
 
 
 def reader(loop: asyncio.AbstractEventLoop) -> None:
+    try:
+        read_lines(loop)
+    except (OSError, serial.SerialException) as e:
+        st["err"] = e
+        loop.call_soon_threadsafe(boot_ev.set)
+
+
+def read_lines(loop: asyncio.AbstractEventLoop) -> None:
     buf = b""
     while True:
         d = ser.read(ser.in_waiting or 1)
@@ -75,12 +83,13 @@ def reader(loop: asyncio.AbstractEventLoop) -> None:
 
 async def trial(kind: str, i: int, res, prev_boots: int | None) -> int | None:
     c = None
-    boot_ev.clear()
     if kind == "pinrand":
         await asyncio.sleep(random.uniform(3, 8))
+        boot_ev.clear()
         reset_pulse(ser)
     elif kind == "pinsave":
         await asyncio.sleep(random.uniform(4, 8))
+        boot_ev.clear()
         arm_save.set()
     else:
         c = await connect(host, tries=90)
@@ -98,6 +107,9 @@ async def trial(kind: str, i: int, res, prev_boots: int | None) -> int | None:
         ok = True
     except TimeoutError:
         ok = False
+    arm_save.clear()
+    if st["err"] is not None:
+        sys.exit(f"serial reader stopped: {st['err']}")
     if c:
         with contextlib.suppress(Exception):
             await c.disconnect(force=True)

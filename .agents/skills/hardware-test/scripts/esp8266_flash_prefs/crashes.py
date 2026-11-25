@@ -1,4 +1,4 @@
-"""List the exceptions and hardware watchdog resets in a scan-repro capture, with the last heap line before each, or
+"""List the exceptions and soft and hardware watchdog resets in a scan-repro capture, with the last heap line before each, or
 with --trend the heap per boot: lowest heap and largest block, and the heap about once a minute.
 
 usage: crashes.py CAPTURE FIRMWARE_ELF
@@ -51,7 +51,12 @@ def crashes(lines: list[str], elf: str) -> None:
         if "repro:" in ln:
             last = ln
         m = EXC_RE.search(ln)
-        if not m and "rst cause:4" not in ln and "Reason: Hardware WDT" not in ln:
+        wdt = (
+            "Soft WDT reset" in ln
+            or "rst cause:4" in ln
+            or "Reason: Hardware WDT" in ln
+        )
+        if not m and not wdt:
             continue
         ep = EPC_RE.search(lines[i + 1]) if m and i + 1 < len(lines) else None
         ctx = next((x for x in lines[i : i + 8] if "ctx:" in x), "") if ep else ""
@@ -72,7 +77,11 @@ def crashes(lines: list[str], elf: str) -> None:
                 f"{t} exc {m.group(1)} pc {ep.group(1)} {frames[0][0]} excvaddr {ep.group(2)} {ctx}"
             )
         else:
-            print(f"{t} exc {m.group(1)}" if m else f"{t} hardware WDT")
+            print(
+                f"{t} exc {m.group(1)}"
+                if m
+                else f"{t} {'soft' if 'Soft WDT' in ln else 'hardware'} WDT"
+            )
         if last and (h := HEAP_RE.search(last)):
             print(
                 f"    last repro {stamp(last)} heap {h.group(1)} maxblock {h.group(2)} up {h.group(4)}"
