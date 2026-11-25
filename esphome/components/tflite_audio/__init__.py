@@ -117,7 +117,7 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def configure(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var: cg.MockObj, config: ConfigType, model_path: Path) -> None:
     """Pass the tuning values through and leave the load to the consumer."""
     model_feature_count = validate_model_io(model_path, config)
     cg.add(var.set_defer_load(True))
