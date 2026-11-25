@@ -91,6 +91,8 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
 // WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
+// loop() checks the handshake first; a shorter keepalive would ping a client still in its handshake
+static_assert(KEEPALIVE_TIMEOUT_MS >= HANDSHAKE_TIMEOUT_MS);
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
