@@ -159,6 +159,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 
 Per-topic scripts, each described in the matching `reference/recipes/<component>.md`:
 
+- `ac_dimmer/` (ESP8266 zero cross and gate timing loop harness with noise injection, per window and per phase
+  summaries, runner with a web_server load)
 - `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext,
   `overflow/` API overflow buffer counters with a sensor config generator)
 - `api_client_synced/` (on_client_synced config generator, API client and reboot timing drivers, late fire, shutdown and
@@ -189,6 +191,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `bmp390/` (config generator, probe and fault injection header, runner and stats)
 - `bt_proxy_ab/` (proxy A/B packages with a heap logger, scenario driver, suite, flash chain and crossed runner,
   on-device self test, burst client and drop counters, reports)
+- `canopen/` (CANopen SDO client suite header, client, server with slow objects and MCP2515 node configs, action paths
+  package, bus check, two-board capture with a reset hold)
 - `cc1101_long/` (long packet and lambda length driver for two CC1101 radios, begin_tx in packet mode, async serial OOK
   package and driver)
 - `cc1101_sleep/` (register and PATABLE snapshot header, sleep and setter checks)
@@ -206,6 +210,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `entity_transport/trcheck.py` (remote entity values against the sender's)
 - `esp8266_edges/` (GPIO edge logger and 8N1 decoder, `jsn_sr04t` probe and counters, I2C bus sniffer and decoder, SDA
   unstick, VL53L1X register logger)
+- `esp8266_flash_prefs/` (Wi-Fi scan versus flash erase repro, interrupt load during the flash sync, reset and
+  restore driver, API hold, crash, heap and pulse rate summaries)
 - `esp8266_lock_load/` (DS18B20 search and one-pin IR DUTs with a busy-wait control, UDP and HTTP load, runner)
 - `espnow_link/` and `tcp_link/` (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
 - `ezo_fake_bus/` (fake EZO I2C bus and step config, runner)
@@ -260,7 +266,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   loopback, CLASSIC window and bus-off configs, runner)
 - `mdns/` (unicast mDNS dump, hammer and latency)
 - `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards, AT commands for the UART
-  passthrough)
+  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow, OTA
+  flow, AT line filter, USB AT port client)
 - `mqtt/` (`ha_discovery/`, `disable/`, `retained_burst/` and `reconnect/` runners; broker config with TLS,
   client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner,
   flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards,
@@ -293,6 +300,9 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `rp2_sched_lock/` (IRQ context scheduler stress component, removed item race package, REST churn, loop timing and flow
   runner)
 - `rp2_uart_loop/` (RP2 UART pin owner and in-chip loopback check, config generator, runner)
+- `rp2_usbncm/` (RP2 USB NCM Ethernet: boot recorder build with panic capture, patched library and re-enumeration hammer
+  configs, OTA and restart cycle runner, macOS host log capture and enumeration summary, event ring reader, proposed
+  arduino-pico alt 0 patch)
 - `rp2_web_ble/` (RP2040/RP2350 web_server, API and BLE proxy A/B: role configs, soak, SSE stall and churn runners,
   churn and never completed connect heap flows, pcap summary, GATT hold, fallback AP flow)
 - `rs485_frame/` (simulated DLE/STX/ETX bus device, frame and gate cases, runner)
