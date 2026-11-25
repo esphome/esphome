@@ -133,7 +133,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(
                 CONF_MANUFACTURER_CODE,
-                default=0x134B,
                 visibility=cv.Visibility.YAML_ONLY,
             ): cv.All(
                 cv.requires_component(ESP32_DOMAIN),

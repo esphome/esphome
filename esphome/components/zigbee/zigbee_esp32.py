@@ -499,8 +499,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         cg.add(var.set_sleepy(True))
     if (keep_alive := config.get(CONF_POLLING_INTERVAL, 3000)) != 3000:
         cg.add(var.set_keep_alive(keep_alive))
-    if (manuf_code := config[CONF_MANUFACTURER_CODE]) > 0:
-        cg.add(var.set_manufacturer_code(manuf_code))
+    cg.optional(var.set_manufacturer_code, config.get(CONF_MANUFACTURER_CODE))
     cg.add(
         var.set_basic_cluster(
             config[CONF_MODEL],

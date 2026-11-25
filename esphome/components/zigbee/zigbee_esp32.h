@@ -133,7 +133,7 @@ class ZigbeeComponent final : public Component {
   uint32_t saved_keep_alive_{0};
   uint8_t link_failures_{0};
   uint8_t link_failure_seq_{0};
-  uint16_t manufacturer_code_{0};
+  uint16_t manufacturer_code_{0x134B};
 };
 
 template<typename T>
