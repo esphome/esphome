@@ -70,4 +70,33 @@ TEST(ProgmemStringTable, StrstrFindsTableEntryInRamString) {
   EXPECT_EQ(ESPHOME_strstr_P(line, cool), nullptr);
 }
 
+enum class SmallMode : uint8_t { SMALL_MODE_OFF, SMALL_MODE_HEAT, SMALL_MODE_COOL };
+enum class WideMode : uint16_t { WIDE_MODE_OFF, WIDE_MODE_HEAT, WIDE_MODE_COOL, WIDE_MODE_BIG = 0x101 };
+enum PlainMode { PLAIN_OFF, PLAIN_HEAT };
+
+TEST(ProgmemStringTable, TakesEnumsAndDefaultsToLastEntry) {
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(SmallMode::SMALL_MODE_COOL)), "COOL");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(PLAIN_HEAT)), "HEAT");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(static_cast<SmallMode>(9))), "UNKNOWN");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(static_cast<SmallMode>(9), SmallMode::SMALL_MODE_OFF)), "OFF");
+}
+
+TEST(ProgmemStringTable, WideAndNegativeValuesFallBack) {
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(WideMode::WIDE_MODE_HEAT)), "HEAT");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(WideMode::WIDE_MODE_BIG)), "UNKNOWN");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(-1)), "UNKNOWN");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(static_cast<int8_t>(-2))), "UNKNOWN");
+  EXPECT_STREQ(LOG_STR_ARG(SmallStrings::get_log_str(size_t{2})), "COOL");
+  EXPECT_STREQ(reinterpret_cast<const char *>(SmallStrings::get_progmem_str(uint32_t{0x10002})), "UNKNOWN");
+}
+
+static_assert(progmem_detail::table_index(int8_t{-128}) > UINT8_MAX);  // not 128, a valid index in a big table
+static_assert(progmem_detail::table_index(int16_t{-1}) > UINT8_MAX);
+static_assert(progmem_detail::table_index(int64_t{-1}) > UINT8_MAX);
+static_assert(progmem_detail::table_index(uint64_t{1}) == 1);
+// A 32-bit index type: 0x1'0000'0001 must clamp, not truncate to the valid index 1
+static_assert(progmem_detail::table_index<uint32_t>(uint64_t{0x1'0000'0001}) == UINT32_MAX);
+static_assert(progmem_detail::table_index<uint32_t>(int64_t{-1}) == UINT32_MAX);
+static_assert(progmem_detail::table_index<uint32_t>(int16_t{-2}) > UINT8_MAX);
+
 }  // namespace esphome::core::testing

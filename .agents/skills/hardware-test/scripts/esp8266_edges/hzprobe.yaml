@@ -1,0 +1,25 @@
+packages:
+  base: !include hz-base.yaml
+uart:
+  id: u
+  tx_pin: GPIO14
+  rx_pin: GPIO12
+  baud_rate: 9600
+  debug:
+    direction: BOTH
+    dummy_receiver: true
+    after:
+      timeout: 20ms
+    sequence:
+      - lambda: UARTDebug::log_hex(direction, bytes, ' ');
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          static uint32_t n = 0;
+          n++;
+          // phase: 1..15 silent, 16..35 0x55, 36..55 0x01, 56.. silent again
+          if (n <= 15) { ESP_LOGI("probe", "T%u silent", n); return; }
+          if (n <= 35) { ESP_LOGI("probe", "T%u req 55", n); id(u).write_byte(0x55); return; }
+          if (n <= 55) { ESP_LOGI("probe", "T%u req 01", n); id(u).write_byte(0x01); return; }
+          ESP_LOGI("probe", "T%u silent2", n);

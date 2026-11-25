@@ -20,8 +20,7 @@ void MicroNovaTextSensor::process_value_from_stove(int value_from_stove) {
   }
 
   // Values past the table read as "Undefined alarm"
-  this->publish_state(
-      StoveStateStrings::get_progmem_str(static_cast<uint8_t>(value_from_stove), StoveStateStrings::LAST_INDEX));
+  this->publish_state(StoveStateStrings::get_progmem_str(value_from_stove));
 }
 
 }  // namespace esphome::micronova
