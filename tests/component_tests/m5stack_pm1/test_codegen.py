@@ -2,32 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
-import pytest
 
-from esphome.__main__ import generate_cpp_contents
-from esphome.config import read_config
-from esphome.core import CORE
-
-
-@pytest.mark.parametrize(
-    ("config_file", "constructor"),
-    [
-        ("fast_mode.yaml", "M5StackPM1Component(true)"),
-        ("standard_mode.yaml", "M5StackPM1Component(false)"),
-    ],
-)
-def test_fast_mode_reaches_the_constructor(
-    request: pytest.FixtureRequest, config_file: str, constructor: str
+def test_pin_options_reach_the_hub(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
-    """fast_mode is a constructor argument, so the default must generate false."""
-    original_path = CORE.config_path
-    try:
-        CORE.config_path = Path(request.fspath).parent / "config" / config_file
-        CORE.config = read_config({})
-        generate_cpp_contents(CORE.config)
-        assert f"new(pm1) m5stack_pm1::{constructor}" in CORE.cpp_main_section
-    finally:
-        CORE.config_path = original_path
-        CORE.reset()
+    """fast_mode defaults to off, and the pins' interrupt and wake bits are folded into the hub's registers."""
+    main_cpp = generate_main(component_config_path("pins.yaml"))
+
+    assert "new(pm1) m5stack_pm1::M5StackPM1Component(false)" in main_cpp
+    # GPIO0 interrupt enabled, the IRQ output GPIO4 and the other pins masked.
+    assert "pm1->set_interrupt_gpio(4, 30);" in main_cpp
+    # GPIO2 and GPIO3 wake, GPIO2 on a rising edge.
+    assert "pm1->set_wake_config(12, 4);" in main_cpp

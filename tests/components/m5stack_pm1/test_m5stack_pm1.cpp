@@ -87,13 +87,15 @@ TEST_F(M5StackPM1Test, DigitalWriteSetsOnlyTheRequestedPin) {
   EXPECT_EQ(this->bus_.regs[REG_GPIO_OUT], 0x00);
 }
 
-TEST_F(M5StackPM1Test, PinModeInputAppliesWakeSource) {
-  this->component_.set_pin_wakeup(0, M5StackPM1WakeupEdge::M5STACK_PM1_WAKEUP_EDGE_RISING);
+TEST_F(M5StackPM1Test, SetupWritesTheWakeConfiguration) {
+  this->load_device_info_();
+  this->component_.set_wake_config(0x05, 0x01);
 
-  this->component_.pin_mode(0, gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN);
+  this->component_.setup();
 
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 0x05);
   EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_CFG], 0x01);
-  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 0x01);
 }
 
 TEST_F(M5StackPM1Test, LoopClearsIrqStatusAndWake) {
@@ -106,14 +108,15 @@ TEST_F(M5StackPM1Test, LoopClearsIrqStatusAndWake) {
 
   EXPECT_EQ(this->bus_.regs[REG_WAKE_SRC], 0x00);
   EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_1], 0x00);
-  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_2], 0x00);
+  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_1 + 1], 0x00);
   EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_3], 0x00);
 }
 
 TEST_F(M5StackPM1Test, SetupConfiguresIrqOutput) {
   this->load_device_info_();
   this->bus_.regs[REG_GPIO_WAKE_EN] = 0xFF;
-  this->component_.set_interrupt_gpio(4);
+  // GPIO0 and GPIO2 interrupts enabled, the IRQ output GPIO4 masked.
+  this->component_.set_interrupt_gpio(4, 0x1A);
   this->component_.set_interrupt_pin(&this->int_pin_);
   this->int_pin_.set_inverted(true);
 
@@ -123,9 +126,9 @@ TEST_F(M5StackPM1Test, SetupConfiguresIrqOutput) {
   EXPECT_EQ(this->bus_.regs[REG_I2C_CFG], 0x00);
   EXPECT_EQ(this->bus_.regs[REG_PWR_CFG], M5STACK_PM1_POWER_CONFIG_LED);
   EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 0x00);
-  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_1_MASK], 0x1F);
-  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_2_MASK], 0x3F);
-  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_3_MASK], 0x07);
+  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_1_MASK], 0x1A);
+  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_1_MASK + 1], M5STACK_PM1_IRQ_POWER_MASK);
+  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_1_MASK + 2], M5STACK_PM1_IRQ_SYSTEM_MASK);
   EXPECT_EQ(this->bus_.regs[REG_GPIO_DRV] & (1 << 4), 1 << 4);
   EXPECT_EQ(this->bus_.regs[REG_GPIO_FUNC_1] & 0b11,
             static_cast<uint8_t>(M5StackPM1PinFunction::M5STACK_PM1_PIN_FUNCTION_IRQ));
@@ -143,7 +146,6 @@ TEST_F(M5StackPM1Test, FailedComponentDoesNotWriteOutputsOrPinMode) {
 }
 
 TEST_F(M5StackPM1Test, MaskedInputReadsHardwareEveryTime) {
-  this->component_.set_gpio_interrupt_enabled(0, false);
   this->bus_.regs[REG_GPIO_IN] = 0x00;
 
   EXPECT_FALSE(this->component_.digital_read(0));
@@ -154,7 +156,7 @@ TEST_F(M5StackPM1Test, MaskedInputReadsHardwareEveryTime) {
 }
 
 TEST_F(M5StackPM1Test, InterruptInputUsesTheCacheUntilAnIrq) {
-  this->component_.set_gpio_interrupt_enabled(1, true);
+  this->component_.set_interrupt_gpio(4, 0x1D);
   this->bus_.regs[REG_GPIO_IN] = 0x02;
 
   EXPECT_TRUE(this->component_.digital_read(1));
@@ -164,28 +166,17 @@ TEST_F(M5StackPM1Test, InterruptInputUsesTheCacheUntilAnIrq) {
   EXPECT_TRUE(this->component_.digital_read(1));
 }
 
-TEST_F(M5StackPM1Test, WarningStaysWhileAnotherPinIsPending) {
+TEST_F(M5StackPM1Test, FailedPinModeKeepsTheWarningUntilReapplied) {
   this->bus_.fail_transactions = 1;
-  this->component_.pin_mode(0, gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-
-  EXPECT_TRUE(this->component_.status_has_warning());
-
-  this->component_.pin_mode(2, gpio::FLAG_INPUT);
-
-  EXPECT_TRUE(this->component_.status_has_warning());
-
-  this->component_.pin_mode(0, gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-
-  EXPECT_FALSE(this->component_.status_has_warning());
-}
-
-TEST_F(M5StackPM1Test, PinModeReappliesAfterAFailedTransaction) {
-  this->bus_.fail_transactions = 1;
-
   this->component_.pin_mode(0, gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 
   EXPECT_TRUE(this->component_.status_has_warning());
   EXPECT_EQ(this->bus_.regs[REG_GPIO_PU_PD_0], 0x00);
+
+  // Another pin succeeding does not hide the pending one.
+  this->component_.pin_mode(2, gpio::FLAG_INPUT);
+
+  EXPECT_TRUE(this->component_.status_has_warning());
 
   this->component_.pin_mode(0, gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 
@@ -213,52 +204,6 @@ TEST_F(M5StackPM1Test, FastModeSelectsThe400kMode) {
 
   EXPECT_FALSE(fast_mode.is_failed());
   EXPECT_EQ(this->bus_.regs[REG_I2C_CFG], M5STACK_PM1_I2C_CFG_SPD);
-}
-
-TEST_F(M5StackPM1Test, SetupWritesTheInterruptMasks) {
-  this->load_device_info_();
-  // Enabling an interrupt for a pin clears its mask bit, and the IRQ output stays masked.
-  this->component_.set_gpio_interrupt_enabled(0, true);
-  this->component_.set_gpio_interrupt_enabled(2, true);
-  this->component_.set_interrupt_gpio(4);
-  this->component_.set_interrupt_pin(&this->int_pin_);
-  this->int_pin_.set_inverted(true);
-
-  this->component_.setup();
-
-  EXPECT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_1_MASK], 0x1A);
-  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_2_MASK], 0x3F);
-  EXPECT_EQ(this->bus_.regs[REG_IRQ_STAT_3_MASK], 0x07);
-}
-
-TEST_F(M5StackPM1Test, ReservedInterruptGpioIsNotDriven) {
-  this->component_.set_interrupt_gpio(4);
-
-  this->component_.pin_mode(4, gpio::FLAG_OUTPUT);
-  this->component_.digital_write(4, true);
-
-  EXPECT_EQ(this->bus_.regs[REG_GPIO_MODE], 0x00);
-  EXPECT_EQ(this->bus_.regs[REG_GPIO_DRV], 0x00);
-  EXPECT_EQ(this->bus_.regs[REG_GPIO_OUT], 0x00);
-}
-
-TEST_F(M5StackPM1Test, WakeupConflictIsRejectedAtRuntime) {
-  // GPIO2 already wakes, and GPIO0 shares its wake line.
-  this->bus_.regs[REG_GPIO_WAKE_EN] = 1 << 2;
-  this->component_.set_pin_wakeup(0, M5StackPM1WakeupEdge::M5STACK_PM1_WAKEUP_EDGE_RISING);
-
-  this->component_.pin_mode(0, gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN);
-
-  EXPECT_TRUE(this->component_.status_has_warning());
-  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_CFG], 0x00);
-  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 1 << 2);
-
-  // Once the other wake source is gone the pin can be configured.
-  this->bus_.regs[REG_GPIO_WAKE_EN] = 0x00;
-  this->component_.pin_mode(0, gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN);
-
-  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 1 << 0);
 }
 
 TEST_F(M5StackPM1Test, SetupFailsOnAnUnexpectedDeviceId) {

@@ -1,14 +1,11 @@
 #pragma once
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 
 #include "esphome/components/gpio_expander/cached_gpio_component.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 #include "const.h"
 
 namespace esphome::m5stack_pm1 {
@@ -22,18 +19,21 @@ class M5StackPM1Component final : public gpio_expander::CachedGpioExpanderCompon
   void loop() override;
   void dump_config() override;
 
-  /// GPIO of this expander that drives the host interrupt line.
-  void set_interrupt_gpio(uint8_t pin) { this->interrupt_gpio_ = pin; }
-  /// Enable or disable one pin's interrupt; the mask bit is set to disable it.
-  void set_gpio_interrupt_enabled(uint8_t pin, bool enabled);
+  /// GPIO of this expander that drives the host interrupt line, and the GPIO IRQ mask (a set bit disables a pin).
+  void set_interrupt_gpio(uint8_t pin, uint8_t irq_gpio_mask) {
+    this->interrupt_gpio_ = pin;
+    this->irq_gpio_mask_ = irq_gpio_mask;
+  }
+  /// WAKE_EN and WAKE_CFG register values, written once in setup().
+  void set_wake_config(uint8_t enable, uint8_t rising) {
+    this->wake_enable_ = enable;
+    this->wake_rising_ = rising;
+  }
 
   /// A masked pin never raises an interrupt, so it has to refresh its own cache.
-  bool digital_read(uint8_t pin) { return this->cached_read_(pin, (this->irq_masks_.gpio & (1 << pin)) != 0); }
+  bool digital_read(uint8_t pin) { return this->cached_read_(pin, (this->irq_gpio_mask_ & (1 << pin)) != 0); }
 
   void pin_mode(uint8_t pin, gpio::Flags flags);
-  bool set_pin_function(uint8_t pin, M5StackPM1PinFunction function);
-  /// Store the wake setting applied from pin_mode() when the pin is set up as an input.
-  void set_pin_wakeup(uint8_t pin, M5StackPM1WakeupEdge edge);
 
  protected:
   static constexpr uint32_t PIN_CONFIG_RETRY_ID = 0;
@@ -42,32 +42,24 @@ class M5StackPM1Component final : public gpio_expander::CachedGpioExpanderCompon
   bool digital_read_hw(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
-  bool configure_i2c_speed_();
   void apply_pin_config_(uint8_t pin, gpio::Flags flags);
   void set_pin_config_pending_(uint8_t pin, bool pending);
   void retry_pin_config_();
-  bool set_power_config_(uint8_t mask, bool enable);
-  bool write_pin_field_(uint8_t pin, uint8_t reg0, uint8_t reg1, uint8_t value);
-  bool apply_pin_wakeup_(uint8_t pin);
   bool read_device_info_();
-  bool read_initial_state_();
   bool process_irq_();
-  bool read_irq_status_(M5StackPM1IRQStatus *status);
-  bool clear_irq_status_();
-  bool set_irq_masks_(const M5StackPM1IRQStatus &masks);
-  bool valid_pin_(uint8_t pin) const { return pin < M5STACK_PM1_GPIO_COUNT; }
 
-  M5StackPM1DeviceInfo device_info_{};
-  uint8_t output_mask_{0};
-  uint8_t power_config_{0};
-  uint8_t wakeup_mask_{0};
-  uint8_t wakeup_edge_mask_{0};
-  bool fast_mode_{false};
-  // M5Stack PM1 IRQ masks use 1 to disable an event. GPIO IRQs are enabled by input pins during code generation.
-  M5StackPM1IRQStatus irq_masks_{0x1F, 0x3F, 0x07};
+  /// Cached GPIO register window; the input byte is not kept up to date.
+  M5StackPM1GPIORegs gpio_regs_{};
   std::array<gpio::Flags, M5STACK_PM1_GPIO_COUNT> pin_flags_{};
+  uint8_t hardware_revision_{0};
+  uint8_t software_revision_{0};
+  uint8_t wake_enable_{0};
+  uint8_t wake_rising_{0};
+  // GPIO IRQ mask; a set bit disables that pin's interrupt.
+  uint8_t irq_gpio_mask_{0x1F};
   uint8_t pending_pin_config_mask_{0};
-  uint8_t interrupt_gpio_{0xFF};
+  uint8_t interrupt_gpio_{0};
+  bool fast_mode_{false};
 };
 
 using M5StackPM1GPIOPin = gpio_expander::ExpanderGPIOPin<M5StackPM1Component>;

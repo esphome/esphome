@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from esphome import final_validate
 from esphome.components import i2c
 from esphome.components.m5stack_pm1 import (
     CONF_FAST_MODE,
@@ -17,7 +18,8 @@ from esphome.components.m5stack_pm1 import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     M5STACK_PM1_PIN_SCHEMA,
-    validate_interrupt_config,
+    M5StackPM1HubPins,
+    _hub_pins,
     validate_pin_usage,
 )
 import esphome.config_validation as cv
@@ -42,146 +44,10 @@ HUB_ID = "pm1"
 BUS_ID = "i2c_bus"
 
 
-def _hub_config(*, fast_mode: bool = False) -> ConfigType:
-    return {
-        CONF_ID: ID(HUB_ID, is_declaration=True),
-        CONF_I2C_ID: ID(BUS_ID),
-        CONF_FAST_MODE: fast_mode,
-    }
-
-
-def _bus(frequency: int) -> ConfigType:
-    return {
-        CONF_ID: ID(BUS_ID, is_declaration=True, type=i2c.IDFI2CBus),
-        CONF_FREQUENCY: frequency,
-    }
-
-
-def _set_i2c_bus(
-    set_component_config: Callable[[str, Any], None], frequency: int = 100000
-) -> None:
-    set_component_config("i2c", [_bus(frequency)])
-
-
-def test_fast_mode_with_a_400k_bus_is_accepted(
-    set_component_config: Callable[[str, Any], None],
-) -> None:
-    _set_i2c_bus(set_component_config, 400000)
-
-    FINAL_VALIDATE_SCHEMA(_hub_config(fast_mode=True))
-
-
-@pytest.mark.parametrize("frequency", [50000, 100000, 200000])
-def test_fast_mode_with_a_slower_bus_is_rejected(
-    set_component_config: Callable[[str, Any], None], frequency: int
-) -> None:
-    _set_i2c_bus(set_component_config, frequency)
-
-    with pytest.raises(cv.Invalid, match="requires the I2C bus to run at 400kHz"):
-        FINAL_VALIDATE_SCHEMA(_hub_config(fast_mode=True))
-
-
-def test_standard_mode_accepts_any_bus_frequency(
-    set_component_config: Callable[[str, Any], None],
-) -> None:
-    _set_i2c_bus(set_component_config, 50000)
-
-    FINAL_VALIDATE_SCHEMA(_hub_config())
-
-
-def test_fast_mode_defaults_to_off() -> None:
-    assert CONFIG_SCHEMA({})[CONF_FAST_MODE] is False
-
-
-@pytest.mark.parametrize(
-    ("wakeup_edge", "expected_pull"),
-    [
-        ("rising", CONF_PULLDOWN),
-        ("falling", CONF_PULLUP),
-        (None, CONF_PULLUP),
-    ],
-)
-def test_wakeup_default_pull_opposes_edge(
-    wakeup_edge: str | None, expected_pull: str
-) -> None:
-    """The default pull keeps the line at the level the edge starts from."""
-    options: dict[str, object] = {CONF_WAKEUP: True}
-    if wakeup_edge is not None:
-        options[CONF_WAKEUP_EDGE] = wakeup_edge
-
-    result = M5STACK_PM1_PIN_SCHEMA(_pin_config(2, **options))
-
-    assert result[CONF_MODE][expected_pull] is True
-    other_pull = CONF_PULLUP if expected_pull == CONF_PULLDOWN else CONF_PULLDOWN
-    assert result[CONF_MODE][other_pull] is False
-
-
-def test_wakeup_keeps_explicit_pulldown() -> None:
-    config = _pin_config(2, wakeup=True, wakeup_edge="falling")
-    config[CONF_MODE][CONF_PULLDOWN] = True
-
-    result = M5STACK_PM1_PIN_SCHEMA(config)
-
-    assert result[CONF_MODE][CONF_PULLDOWN] is True
-    assert result[CONF_MODE][CONF_PULLUP] is False
-
-
-def test_wakeup_keeps_explicit_pull() -> None:
-    config = _pin_config(2, wakeup=True, wakeup_edge="rising")
-    config[CONF_MODE][CONF_PULLUP] = True
-
-    result = M5STACK_PM1_PIN_SCHEMA(config)
-
-    assert result[CONF_MODE][CONF_PULLUP] is True
-    assert result[CONF_MODE][CONF_PULLDOWN] is False
-
-
-@pytest.mark.parametrize(("first", "second"), [(0, 2), (3, 4)])
-def test_wake_pins_sharing_an_interrupt_line_are_rejected(
-    set_component_config: Callable[[str, Any], None], first: int, second: int
-) -> None:
-    _set_i2c_bus(set_component_config)
-    set_component_config(
-        "binary_sensor",
-        [
-            {CONF_M5STACK_PM1_ID: ID(HUB_ID), CONF_NUMBER: first, CONF_WAKEUP: True},
-            {CONF_M5STACK_PM1_ID: ID(HUB_ID), CONF_NUMBER: second, CONF_WAKEUP: True},
-        ],
-    )
-
-    with pytest.raises(cv.Invalid, match=f"GPIO{first} and GPIO{second}"):
-        FINAL_VALIDATE_SCHEMA(_hub_config())
-
-
-@pytest.mark.parametrize(("first", "second"), [(0, 3), (2, 4)])
-def test_wake_pins_on_different_lines_are_accepted(
-    set_component_config: Callable[[str, Any], None], first: int, second: int
-) -> None:
-    _set_i2c_bus(set_component_config)
-    set_component_config(
-        "binary_sensor",
-        [
-            {CONF_M5STACK_PM1_ID: ID(HUB_ID), CONF_NUMBER: first, CONF_WAKEUP: True},
-            {CONF_M5STACK_PM1_ID: ID(HUB_ID), CONF_NUMBER: second, CONF_WAKEUP: True},
-        ],
-    )
-
-    FINAL_VALIDATE_SCHEMA(_hub_config())
-
-
-def test_wake_pins_on_another_hub_are_ignored(
-    set_component_config: Callable[[str, Any], None],
-) -> None:
-    _set_i2c_bus(set_component_config)
-    set_component_config(
-        "binary_sensor",
-        [
-            {CONF_M5STACK_PM1_ID: ID(HUB_ID), CONF_NUMBER: 0, CONF_WAKEUP: True},
-            {CONF_M5STACK_PM1_ID: ID("other"), CONF_NUMBER: 2, CONF_WAKEUP: True},
-        ],
-    )
-
-    FINAL_VALIDATE_SCHEMA(_hub_config())
+def _hub_config(hub_id: str = HUB_ID, **options: object) -> ConfigType:
+    config: ConfigType = {CONF_ID: ID(hub_id, is_declaration=True)}
+    config.update(options)
+    return config
 
 
 def _pin_config(number: int, **options: object) -> ConfigType:
@@ -194,86 +60,161 @@ def _pin_config(number: int, **options: object) -> ConfigType:
     return config
 
 
+def _pin_usage(number: int, **options: object) -> ConfigType:
+    return {CONF_NUMBER: number, CONF_INTERRUPT: False, **options}
+
+
 @pytest.mark.parametrize(
-    ("mode", "message"),
+    ("fast_mode", "frequency", "error"),
     [
-        ({CONF_INPUT: True, CONF_OUTPUT: True}, "Mode must be either input or output"),
-        (
-            {CONF_INPUT: True, CONF_PULLUP: True, CONF_PULLDOWN: True},
-            "Only one of pullup and pulldown",
-        ),
-        (
-            {CONF_OUTPUT: True, CONF_PULLUP: True},
-            "Pull resistors are only supported in input mode",
-        ),
-        (
-            {CONF_INPUT: True, CONF_OPEN_DRAIN: True},
-            "Open-drain is only supported in output mode",
-        ),
+        (True, 400000.0, False),
+        (True, 50000.0, True),
+        (True, 100000.0, True),
+        (True, 200000.0, True),
+        (False, 50000.0, False),
     ],
 )
-def test_conflicting_pin_modes_are_rejected(
-    mode: dict[str, bool], message: str
+def test_fast_mode_needs_a_400k_bus(
+    set_component_config: Callable[[str, Any], None],
+    fast_mode: bool,
+    frequency: float,
+    error: bool,
 ) -> None:
-    with pytest.raises(cv.Invalid, match=message):
-        M5STACK_PM1_PIN_SCHEMA(_pin_config(3, mode=mode))
+    bus_id = ID(BUS_ID, is_declaration=True, type=i2c.IDFI2CBus)
+    set_component_config("i2c", [{CONF_ID: bus_id, CONF_FREQUENCY: frequency}])
+    final_validate.full_config.get().declare_ids.append((bus_id, ["i2c", 0, CONF_ID]))
+    config = _hub_config(**{CONF_I2C_ID: ID(BUS_ID), CONF_FAST_MODE: fast_mode})
+
+    if error:
+        with pytest.raises(cv.Invalid, match="requires a frequency between 400kHz"):
+            FINAL_VALIDATE_SCHEMA(config)
+    else:
+        FINAL_VALIDATE_SCHEMA(config)
 
 
-def test_output_pin_cannot_wake() -> None:
-    with pytest.raises(cv.Invalid, match="GPIO wakeup is only supported in input mode"):
-        M5STACK_PM1_PIN_SCHEMA(_pin_config(3, mode={CONF_OUTPUT: True}, wakeup=True))
-
-
-def test_output_pin_cannot_interrupt() -> None:
-    with pytest.raises(
-        cv.Invalid, match="GPIO interrupt is only supported in input mode"
-    ):
-        M5STACK_PM1_PIN_SCHEMA(_pin_config(3, mode={CONF_OUTPUT: True}, interrupt=True))
-
-
-def test_gpio1_cannot_wake() -> None:
-    with pytest.raises(cv.Invalid, match="GPIO1 does not support wakeup"):
-        M5STACK_PM1_PIN_SCHEMA(_pin_config(1, wakeup=True))
-
-
-def test_wakeup_edge_requires_wakeup() -> None:
-    with pytest.raises(cv.Invalid, match="wakeup_edge requires wakeup"):
-        M5STACK_PM1_PIN_SCHEMA(_pin_config(3, wakeup_edge="rising"))
-
-
-def test_interrupt_without_interrupt_pin_is_rejected() -> None:
-    with pytest.raises(cv.Invalid, match="requires 'interrupt_pin'"):
-        validate_pin_usage(
-            {CONF_NUMBER: 0, CONF_INTERRUPT: True},
-            {CONF_INTERRUPT_GPIO: 4},
-        )
-
-
-def test_reserved_interrupt_gpio_cannot_be_used_as_a_pin() -> None:
-    with pytest.raises(cv.Invalid, match="is used as 'interrupt_gpio'"):
-        validate_pin_usage(
-            {CONF_NUMBER: 4, CONF_INTERRUPT: False},
-            {CONF_INTERRUPT_GPIO: 4},
-        )
+def test_fast_mode_defaults_to_off() -> None:
+    assert CONFIG_SCHEMA({})[CONF_FAST_MODE] is False
 
 
 @pytest.mark.parametrize(
-    "config",
-    [{CONF_INTERRUPT_PIN: {"number": 2}}, {CONF_INTERRUPT_GPIO: 4}],
+    ("wakeup_edge", "explicit_pull", "expected_pull"),
+    [
+        ("rising", None, CONF_PULLDOWN),
+        ("falling", None, CONF_PULLUP),
+        (None, None, CONF_PULLUP),
+        # An explicit pull is kept even when it matches the wake edge.
+        ("falling", CONF_PULLDOWN, CONF_PULLDOWN),
+        ("rising", CONF_PULLUP, CONF_PULLUP),
+    ],
 )
-def test_interrupt_pin_and_gpio_must_be_configured_together(
-    config: ConfigType,
+def test_wakeup_pull(
+    wakeup_edge: str | None, explicit_pull: str | None, expected_pull: str
 ) -> None:
-    with pytest.raises(cv.Invalid, match="must be configured together"):
-        validate_interrupt_config(config)
+    """The default pull keeps the line at the level the edge starts from."""
+    options: dict[str, object] = {CONF_WAKEUP: True}
+    if wakeup_edge is not None:
+        options[CONF_WAKEUP_EDGE] = wakeup_edge
+    config = _pin_config(2, **options)
+    if explicit_pull is not None:
+        config[CONF_MODE][explicit_pull] = True
+
+    result = M5STACK_PM1_PIN_SCHEMA(config)
+
+    assert result[CONF_MODE][expected_pull] is True
+    other_pull = CONF_PULLUP if expected_pull == CONF_PULLDOWN else CONF_PULLDOWN
+    assert result[CONF_MODE][other_pull] is False
 
 
-def test_interrupt_pin_and_gpio_together_are_accepted() -> None:
-    validate_interrupt_config(
-        {CONF_INTERRUPT_PIN: {"number": 2}, CONF_INTERRUPT_GPIO: 4}
+@pytest.mark.parametrize(
+    ("first", "second", "second_hub", "error"),
+    [
+        (0, 2, HUB_ID, True),
+        (3, 4, HUB_ID, True),
+        (0, 3, HUB_ID, False),
+        (2, 4, HUB_ID, False),
+        (0, 2, "other", False),
+    ],
+)
+def test_wake_pins_sharing_an_interrupt_line(
+    first: int, second: int, second_hub: str, error: bool
+) -> None:
+    validate_pin_usage(_pin_usage(first, wakeup=True), _hub_config())
+
+    if error:
+        with pytest.raises(cv.Invalid, match=f"GPIO{first} and GPIO{second}"):
+            validate_pin_usage(_pin_usage(second, wakeup=True), _hub_config(second_hub))
+    else:
+        validate_pin_usage(_pin_usage(second, wakeup=True), _hub_config(second_hub))
+
+
+def test_pin_usage_records_wake_and_interrupt_bits() -> None:
+    hub = _hub_config(**{CONF_INTERRUPT_PIN: {}, CONF_INTERRUPT_GPIO: 4})
+    validate_pin_usage(_pin_usage(0, interrupt=True), hub)
+    validate_pin_usage(_pin_usage(2, wakeup=True, wakeup_edge="RISING"), hub)
+    validate_pin_usage(_pin_usage(3, wakeup=True, wakeup_edge="FALLING"), hub)
+
+    assert _hub_pins(HUB_ID) == M5StackPM1HubPins(
+        wake_enable=0b01100, wake_rising=0b00100, interrupt=0b00001
     )
 
 
-def test_pin_number_above_the_last_gpio_is_rejected() -> None:
-    with pytest.raises(cv.Invalid):
-        M5STACK_PM1_PIN_SCHEMA(_pin_config(5))
+@pytest.mark.parametrize(
+    ("number", "options", "message"),
+    [
+        (
+            3,
+            {CONF_MODE: {CONF_INPUT: True, CONF_OUTPUT: True}},
+            "Mode must be either input or output",
+        ),
+        (
+            3,
+            {CONF_MODE: {CONF_INPUT: True, CONF_PULLUP: True, CONF_PULLDOWN: True}},
+            "Only one of pullup and pulldown",
+        ),
+        (
+            3,
+            {CONF_MODE: {CONF_OUTPUT: True, CONF_PULLUP: True}},
+            "Pull resistors are only supported in input mode",
+        ),
+        (
+            3,
+            {CONF_MODE: {CONF_INPUT: True, CONF_OPEN_DRAIN: True}},
+            "Open-drain is only supported in output mode",
+        ),
+        (
+            3,
+            {CONF_MODE: {CONF_OUTPUT: True}, CONF_WAKEUP: True},
+            "GPIO wakeup is only supported in input mode",
+        ),
+        (
+            3,
+            {CONF_MODE: {CONF_OUTPUT: True}, CONF_INTERRUPT: True},
+            "GPIO interrupt is only supported in input mode",
+        ),
+        (1, {CONF_WAKEUP: True}, "GPIO1 does not support wakeup"),
+        (3, {CONF_WAKEUP_EDGE: "rising"}, "wakeup_edge requires wakeup"),
+        (5, {}, "must be at most 4"),
+    ],
+)
+def test_invalid_pin_configs_are_rejected(
+    number: int, options: ConfigType, message: str
+) -> None:
+    with pytest.raises(cv.Invalid, match=message):
+        M5STACK_PM1_PIN_SCHEMA(_pin_config(number, **options))
+
+
+@pytest.mark.parametrize(
+    ("pin", "message"),
+    [
+        (_pin_usage(0, interrupt=True), "requires 'interrupt_pin'"),
+        (_pin_usage(4), "is used as 'interrupt_gpio'"),
+    ],
+)
+def test_invalid_pin_usage_is_rejected(pin: ConfigType, message: str) -> None:
+    with pytest.raises(cv.Invalid, match=message):
+        validate_pin_usage(pin, _hub_config(**{CONF_INTERRUPT_GPIO: 4}))
+
+
+def test_interrupt_gpio_requires_interrupt_pin() -> None:
+    with pytest.raises(cv.Invalid, match="either none or all of"):
+        CONFIG_SCHEMA({CONF_INTERRUPT_GPIO: 4})
