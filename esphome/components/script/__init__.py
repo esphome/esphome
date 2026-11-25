@@ -239,15 +239,15 @@ async def to_code(config):
         template: cg.TemplateArguments,
         conf: ConfigType,
         plan: automation.AutomationPlan,
-        direct: bool = True,
+        direct: bool,
     ) -> None:
-        # The class or its constructor names the function, so it is declared in the script's place
-        fn = automation.automation_or_run_function(
-            plan, late.var, late.global_slot.add, direct=direct
-        )
         script_class = late.id.type
         ctor_args = []
-        if fn is not None:
+        if not direct:
+            plan.build(late.var)
+        else:
+            # The class or its constructor names the function, so it is declared in the script's place
+            fn = plan.run_function(late.var, late.global_slot.add)
             mode_class = MODES[conf[CONF_MODE]][1].template(
                 FunctionBody.template(template), *template
             )
@@ -271,7 +271,7 @@ async def to_code(config):
             pending.append((late, template, conf, plan))
         else:
             needs_automation.add((conf[CONF_MODE], str(template)))
-            define(late, template, conf, plan)
+            define(late, template, conf, plan, direct=False)
         if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
             await automation.build_automation(
                 late.var.get_stop_trigger(), [], stop_conf

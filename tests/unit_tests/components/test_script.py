@@ -1,8 +1,7 @@
 """Tests for the script component's config validation."""
 
-from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -23,12 +22,12 @@ from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
 from esphome.core import CORE, ID
 
 
-def _plan(*direct: bool) -> Any:
-    """A plan_automation stand-in whose plans report ``direct`` in turn."""
-    plans = iter(direct)
+def _plan(made: list[MagicMock]) -> Any:
+    """A plan_automation stand-in whose plans need an Automation; ``made`` collects them."""
 
     async def plan(args: Any, config: Any) -> Any:
-        return SimpleNamespace(direct=next(plans, direct[-1]))
+        made.append(MagicMock(direct=False))
+        return made[-1]
 
     return plan
 
@@ -139,11 +138,8 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
             "esphome.automation.build_automation", new_callable=AsyncMock
         ) as build_automation,
         patch(
-            "esphome.automation.plan_automation", side_effect=_plan(False)
+            "esphome.automation.plan_automation", side_effect=_plan(plans := [])
         ) as plan_automation,
-        patch(
-            "esphome.automation.automation_or_run_function", return_value=None
-        ) as build_or_run,
     ):
         await to_code(config)
 
@@ -153,7 +149,7 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
         ([], config[0]),
         ([], config[1]),
     ]
-    assert [str(c.args[1]) for c in build_or_run.call_args_list] == [
+    assert [str(plan.build.call_args.args[0]) for plan in plans] == [
         "my_script",
         "other_script",
     ]
@@ -175,8 +171,7 @@ async def test_no_on_stop_define_without_on_stop() -> None:
     with (
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
-        patch("esphome.automation.plan_automation", side_effect=_plan(False)),
-        patch("esphome.automation.automation_or_run_function", return_value=None),
+        patch("esphome.automation.plan_automation", side_effect=_plan([])),
     ):
         await to_code(config)
 
