@@ -30,6 +30,7 @@ using dmx_port_t = int;
 
 struct DmxConfigT {
   uint16_t root_device_parameter_count{32};
+  uint16_t product_category{0};
 };
 using dmx_config_t = DmxConfigT;
 
@@ -49,6 +50,8 @@ using dmx_personality_t = DmxPersonalityT;
 
 static constexpr size_t DMX_PACKET_SIZE = 513;
 static constexpr int DMX_OK = 0;
+static constexpr int DMX_ERR_NOT_ENOUGH_SLOTS = 4;
+static constexpr uint16_t RDM_PRODUCT_CATEGORY_DATA = 0x0800;
 static constexpr dmx_config_t DMX_CONFIG_DEFAULT{};
 
 inline bool dmx_driver_install(dmx_port_t, const dmx_config_t *, const dmx_personality_t *, int) { return true; }
