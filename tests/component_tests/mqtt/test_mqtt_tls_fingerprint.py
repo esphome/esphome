@@ -19,91 +19,64 @@ ESP8266_ESP_ASYNC_TCP_LIBRARY = "esphome/ESP8266AsyncTCP"
 ESP8266_ESP_ASYNC_TCP_VERSION = "2.1.2"
 
 
+@pytest.mark.parametrize(
+    ("extra", "fingerprints", "expected_port"),
+    [
+        # Fingerprint TLS picks the TLS port when none is given
+        ({}, [" 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33 "], 8883),
+        ({CONF_PORT: 1884}, "00112233445566778899aabbccddeeff00112233", 1884),
+    ],
+)
 def test_mqtt_esp8266_tls_fingerprint_validation(
     set_core_config: SetCoreConfigCallable,
+    extra: dict[str, int],
+    fingerprints: str | list[str],
+    expected_port: int,
 ) -> None:
-    """Test ESP8266 MQTT normalises a TLS fingerprint and defaults to port 8883."""
+    """Test ESP8266 MQTT normalises a TLS fingerprint and picks the port."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     CORE.name = "test-mqtt"
 
     from esphome.components.mqtt import CONFIG_SCHEMA
 
     config = CONFIG_SCHEMA(
-        {
-            "broker": "mqtt.example.test",
-            CONF_SSL_FINGERPRINTS: [
-                " 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33 ",
+        {"broker": "mqtt.example.test", CONF_SSL_FINGERPRINTS: fingerprints, **extra}
+    )
+
+    assert config[CONF_SSL_FINGERPRINTS] == ["00112233445566778899aabbccddeeff00112233"]
+    assert config[CONF_PORT] == expected_port
+
+
+@pytest.mark.parametrize(
+    ("fingerprints", "match"),
+    [
+        (
+            ["invalid-fingerprint"],
+            "fingerprint must be a SHA1 hash with 40 hexadecimal digits",
+        ),
+        (
+            [
+                "00112233445566778899aabbccddeeff00112233",
+                "ffeeddccbbaa99887766554433221100ffeeddcc",
             ],
-        }
-    )
-
-    assert config[CONF_SSL_FINGERPRINTS] == ["00112233445566778899aabbccddeeff00112233"]
-    # Fingerprint TLS picks the TLS port when none is given
-    assert config[CONF_PORT] == 8883
-
-
-def test_mqtt_esp8266_tls_fingerprint_keeps_explicit_port(
+            "ESP8266 MQTT TLS supports exactly one fingerprint",
+        ),
+    ],
+)
+def test_mqtt_esp8266_tls_fingerprint_rejects(
     set_core_config: SetCoreConfigCallable,
+    fingerprints: list[str],
+    match: str,
 ) -> None:
-    """Test an explicit port is kept when a TLS fingerprint is set."""
+    """Test ESP8266 MQTT rejects invalid or multiple TLS fingerprints."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     CORE.name = "test-mqtt"
 
     from esphome.components.mqtt import CONFIG_SCHEMA
 
-    config = CONFIG_SCHEMA(
-        {
-            "broker": "mqtt.example.test",
-            CONF_PORT: 1884,
-            CONF_SSL_FINGERPRINTS: "00112233445566778899aabbccddeeff00112233",
-        }
-    )
-
-    assert config[CONF_PORT] == 1884
-    assert config[CONF_SSL_FINGERPRINTS] == ["00112233445566778899aabbccddeeff00112233"]
-
-
-def test_mqtt_esp8266_tls_fingerprint_rejects_invalid_value(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """Test ESP8266 MQTT rejects invalid TLS fingerprints."""
-    set_core_config(PlatformFramework.ESP8266_ARDUINO)
-    CORE.name = "test-mqtt"
-
-    from esphome.components.mqtt import CONFIG_SCHEMA
-
-    with pytest.raises(
-        cv.Invalid, match="fingerprint must be a SHA1 hash with 40 hexadecimal digits"
-    ):
+    with pytest.raises(cv.Invalid, match=match):
         CONFIG_SCHEMA(
-            {
-                "broker": "mqtt.example.test",
-                CONF_SSL_FINGERPRINTS: ["invalid-fingerprint"],
-            }
-        )
-
-
-def test_mqtt_esp8266_tls_rejects_multiple_fingerprints(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """Test ESP8266 MQTT TLS only accepts one fingerprint."""
-    set_core_config(PlatformFramework.ESP8266_ARDUINO)
-    CORE.name = "test-mqtt"
-
-    from esphome.components.mqtt import CONFIG_SCHEMA
-
-    with pytest.raises(
-        cv.Invalid,
-        match="ESP8266 MQTT TLS supports exactly one fingerprint",
-    ):
-        CONFIG_SCHEMA(
-            {
-                "broker": "mqtt.example.test",
-                CONF_SSL_FINGERPRINTS: [
-                    "00112233445566778899aabbccddeeff00112233",
-                    "ffeeddccbbaa99887766554433221100ffeeddcc",
-                ],
-            }
+            {"broker": "mqtt.example.test", CONF_SSL_FINGERPRINTS: fingerprints}
         )
 
 

@@ -921,12 +921,15 @@ _BROKER_CERT = b"broker certificate"
 
 def _prepare_with_fingerprint(
     fingerprint: str,
+    connect_error: Exception | None = None,
 ) -> tuple[MagicMock, MagicMock, MagicMock]:
     """Runs prepare() with ssl_fingerprints against a broker presenting _BROKER_CERT."""
     with (
         patch("esphome.mqtt.mqtt.Client") as client_cls,
         patch("esphome.mqtt.ssl.create_default_context") as create_context,
-        patch("esphome.mqtt.socket.create_connection") as create_connection,
+        patch(
+            "esphome.mqtt.socket.create_connection", side_effect=connect_error
+        ) as create_connection,
     ):
         context = create_context.return_value
         tls_sock = context.wrap_socket.return_value.__enter__.return_value
@@ -963,19 +966,8 @@ def test_prepare_fingerprint_mismatch_refuses_to_connect() -> None:
 
 
 def test_prepare_fingerprint_check_connection_error() -> None:
-    with (
-        patch("esphome.mqtt.socket.create_connection", side_effect=OSError("boom")),
-        pytest.raises(EsphomeError, match="Cannot connect to MQTT broker: boom"),
-    ):
-        prepare(
-            _mqtt_config({CONF_SSL_FINGERPRINTS: ["00" * 20]}),
-            [],
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
+    with pytest.raises(EsphomeError, match="Cannot connect to MQTT broker: boom"):
+        _prepare_with_fingerprint("00" * 20, connect_error=OSError("boom"))
 
 
 @patch("esphome.mqtt.initialize")
