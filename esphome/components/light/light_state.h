@@ -239,11 +239,13 @@ class LightState : public EntityBase, public Component {
   /// Get all effects for this light state.
   const ConstVector<LightEffect *> &get_effects() const { return this->effects_; }
 
+#ifdef USE_LIGHT_EFFECTS
   /// Codegen only: point at the generated table of this light's effects, which must outlive it.
   /// Codegen caps the count at 65535, so an effect index always fits the uint16_t active index.
   void add_effects(LightEffect *const *effects, size_t count) {
     this->effects_ = ConstVector<LightEffect *>(effects, count);
   }
+#endif
 
   /// Get the total number of effects available for this light.
   size_t get_effect_count() const { return this->effects_.size(); }
@@ -383,8 +385,13 @@ class LightState : public EntityBase, public Component {
   LightOutput *output_;
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+#ifdef USE_LIGHT_EFFECTS
   /// List of effects for this light.
   ConstVector<LightEffect *> effects_;
+#else
+  // No light has effects; the effect paths fold away
+  static constexpr ConstVector<LightEffect *> effects_ PROGMEM{};
+#endif
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
 
@@ -425,8 +432,12 @@ class LightState : public EntityBase, public Component {
   const GammaTable *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
+#ifdef USE_LIGHT_EFFECTS
   /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
   uint16_t active_effect_index_{};
+#else
+  static constexpr uint16_t active_effect_index_{0};
+#endif
 #ifdef USE_LIGHT_RESUME_EFFECT
   /// The effect index that was active when the light was last turned off; shares the active index's word
   uint16_t previous_effect_index_{0};
