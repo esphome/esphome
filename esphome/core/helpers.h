@@ -2303,14 +2303,14 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   /// The null check is always inline so an empty list costs no call.
   inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
     if (this->callbacks_ != nullptr)
-      call_all_(this->callbacks_, args...);
+      call_all(this->callbacks_, args...);
   }
 
   /// Return the number of registered callbacks.
   size_t size() const { return this->callbacks_ ? this->callbacks_->size() : 0; }
 
   /// Check if any callbacks are registered.
-  bool empty() const { return !this->callbacks_ || this->callbacks_->size() == 0; }
+  bool empty() const { return this->callbacks_ == nullptr; }
 
   /// Call all callbacks in this manager.
   void operator()(Ts... args) { this->call(args...); }
@@ -2323,16 +2323,18 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
     }
     this->callbacks_->add_(cb);
   }
+  /// Allocated only by add_(), and nothing removes callbacks, so an allocated list is never empty.
+  CallbackManager<void(Ts...)> *callbacks_{nullptr};
+
+ private:
   /// Left to GCC to inline: one call site inlines it, several share it out of line.
-  /// cbs is allocated only by add_() and nothing removes callbacks, so it is never empty.
-  static void call_all_(CallbackManager<void(Ts...)> *cbs, Ts... args) {
+  static void call_all(CallbackManager<void(Ts...)> *cbs, const Ts &...args) {
     auto *it = cbs->data_;
     auto *end = it + cbs->size_;
     do {
       it->call(args...);
     } while (++it != end);
   }
-  CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
 /// Helper class to deduplicate items in a series of values.
