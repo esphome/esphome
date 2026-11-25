@@ -256,6 +256,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   coverage)
 - `lognorm.py` (strips colours, timestamps and source line numbers from logs before a diff)
 - `lt_platform.py` (newest LibreTiny platform for the flash wrappers)
+- `lzss_link/` (packet_interface compression config generator, checked JSON, hex and binary streams with wire
+  checks and codec timing, runner and summary)
 - `manual_ip/` (station and AP manual IP configs, DNS probe and runners)
 - `mcp23017/` (IOCON and INT test component, three interrupt wiring variants, runner)
 - `mcp251xfd/` (CAN FD loopback stream, queue, TX object, forced mode, chip reset and CS counter harness, package with
