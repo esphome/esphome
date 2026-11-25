@@ -2302,17 +2302,17 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
-  void call(Ts... args) {
-    if (this->callbacks_) {
-      this->callbacks_->call(args...);
-    }
+  /// The null check is always inline so an empty list costs no call.
+  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+    if (this->callbacks_ != nullptr)
+      call_all(this->callbacks_, args...);
   }
 
   /// Return the number of registered callbacks.
   size_t size() const { return this->callbacks_ ? this->callbacks_->size() : 0; }
 
   /// Check if any callbacks are registered.
-  bool empty() const { return !this->callbacks_ || this->callbacks_->size() == 0; }
+  bool empty() const { return this->callbacks_ == nullptr; }
 
   /// Call all callbacks in this manager.
   void operator()(Ts... args) { this->call(args...); }
@@ -2325,7 +2325,30 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
     }
     this->callbacks_->add_(cb);
   }
+  /// Allocated only by add_(), and nothing removes callbacks, so an allocated list is never empty.
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
+
+ private:
+  template<typename T> struct FitsInRegisters : std::bool_constant<(sizeof(T) <= 2 * sizeof(void *))> {};
+  /// Small trivially copyable arguments by value: a reference makes every caller spill them to the stack.
+  /// Anything else borrows call()'s own copy so it is not copied once more, and references pass through.
+  /// D defers the check to the first call, when Ts may be complete; the class itself accepts incomplete Ts.
+  template<typename T, typename D> struct Arg {
+    using type = std::conditional_t<
+        std::conjunction_v<std::negation<std::is_reference<T>>, std::is_trivially_copyable<T>, FitsInRegisters<T>>, T,
+        T &>;
+  };
+
+  /// Left to GCC to inline: one call site inlines it, several share it out of line.
+  template<typename D = void>
+  static void call_all(CallbackManager<void(Ts...)> *cbs, typename Arg<Ts, D>::type... args) {
+    auto *it = cbs->data_;
+    auto *end = it + cbs->size_;
+    do {
+      // Each listener copies from a const source, as CallbackManager::call() does; references pass through.
+      it->call(static_cast<std::conditional_t<std::is_reference_v<Ts>, Ts, const Ts &>>(args)...);
+    } while (++it != end);
+  }
 };
 
 /// Helper class to deduplicate items in a series of values.

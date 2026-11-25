@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "esphome/core/helpers.h"
 
 namespace esphome::core::testing {
@@ -115,6 +117,96 @@ TEST(CallbackCreateBoxed, FreeDestroysCaptureExactlyOnce) {
   // The Callback itself owns nothing, so going out of scope frees nothing more
   EXPECT_EQ(destroyed, 1);
   EXPECT_EQ(calls, 2);
+}
+
+TEST(LazyCallbackManager, CallWithoutCallbacksDoesNothing) {
+  LazyCallbackManager<void(int)> manager;
+  EXPECT_TRUE(manager.empty());
+  EXPECT_EQ(manager.size(), 0u);
+  manager.call(1);
+  manager(2);
+  EXPECT_TRUE(manager.empty());
+}
+
+TEST(LazyCallbackManager, CallRunsEveryCallbackInOrder) {
+  LazyCallbackManager<void(int)> manager;
+  std::vector<int> seen;
+  manager.add([&seen](int x) { seen.push_back(x); });
+  manager.call(1);
+  EXPECT_EQ(seen, (std::vector<int>{1}));
+  manager.add([&seen](int x) { seen.push_back(x * 10); });
+  EXPECT_FALSE(manager.empty());
+  EXPECT_EQ(manager.size(), 2u);
+  manager.call(2);
+  manager(3);
+  EXPECT_EQ(seen, (std::vector<int>{1, 2, 20, 3, 30}));
+}
+
+// Not trivially copyable, so LazyCallbackManager borrows it instead of copying it into call_all().
+// The callbacks take a mutable reference so clang-tidy does not flag the by-value Callback parameters.
+struct CopyCounter {
+  static int copies;
+  CopyCounter() = default;
+  CopyCounter(const CopyCounter & /*other*/) { ++copies; }
+  CopyCounter(CopyCounter &&) noexcept = default;
+};
+int CopyCounter::copies = 0;
+
+TEST(LazyCallbackManager, NonTrivialArgumentIsNotCopiedMoreThanCallbackManager) {
+  CopyCounter arg;
+  CallbackManager<void(CopyCounter)> plain;
+  plain.add([](CopyCounter & /*c*/) {});
+  CopyCounter::copies = 0;
+  plain.call(arg);
+  const int plain_copies = CopyCounter::copies;
+
+  LazyCallbackManager<void(CopyCounter)> lazy;
+  lazy.add([](CopyCounter & /*c*/) {});
+  CopyCounter::copies = 0;
+  lazy.call(arg);
+  // The one extra copy is the by-value parameter of call(), as before call_all() existed.
+  EXPECT_EQ(CopyCounter::copies, plain_copies + 1);
+}
+
+// A copy from a mutable source marks that source, so a listener only sees a clean value if it was
+// copied from a const one. Listeners take a mutable reference for the same clang-tidy reason as above.
+struct SourceMarker {
+  bool marked{false};
+  SourceMarker() = default;
+  SourceMarker(const SourceMarker &other) = default;
+  SourceMarker(SourceMarker &other) : marked(other.marked) {
+    other.marked = true;  // NOLINT(bugprone-copy-constructor-mutates-argument,cert-oop58-cpp)
+  }
+  SourceMarker(SourceMarker &&) noexcept = default;
+};
+
+TEST(LazyCallbackManager, EveryListenerCopiesFromConstSource) {
+  LazyCallbackManager<void(SourceMarker)> lazy;
+  std::vector<bool> seen;
+  lazy.add([&seen](SourceMarker &m) { seen.push_back(m.marked); });
+  lazy.add([&seen](SourceMarker &m) { seen.push_back(m.marked); });
+  lazy.call(SourceMarker{});
+  EXPECT_EQ(seen, (std::vector<bool>{false, false}));
+}
+
+// The argument type may still be incomplete where the manager is declared; it is only checked by call().
+struct SelfEvent {
+  LazyCallbackManager<void(SelfEvent)> callbacks;
+};
+struct LateEvent;
+struct LateEventSource {
+  LazyCallbackManager<void(LateEvent)> callbacks;
+};
+struct LateEvent {
+  int value;
+};
+
+TEST(LazyCallbackManager, ArgumentTypeMayBeIncompleteAtDeclaration) {
+  LateEventSource source;
+  int seen = 0;
+  source.callbacks.add([&seen](LateEvent e) { seen = e.value; });
+  source.callbacks.call(LateEvent{7});
+  EXPECT_EQ(seen, 7);
 }
 
 }  // namespace esphome::core::testing
