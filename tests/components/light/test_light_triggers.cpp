@@ -49,10 +49,10 @@ class Triggers {
         action();
     });
     state->add_target_state_reached_callback([this]() {
-      if (this->state_->current_values.is_on())
-        return;
-      for (auto &action : this->on_turn_off_)
-        action();
+      for (auto &action : this->on_turn_off_) {
+        if (!this->state_->current_values.is_on())
+          action();
+      }
     });
   }
 
