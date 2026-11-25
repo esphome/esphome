@@ -55,6 +55,7 @@ void SHT3XDComponent::update() {
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
     this->write_command(SHT3XD_COMMAND_SOFT_RESET);
+    delay(2);  // Soft reset takes up to 1.5 ms; a command sent sooner is lost
   }
   if (!this->status_comm_check(this->write_command(SHT3XD_COMMAND_POLLING_H)))
     return;
