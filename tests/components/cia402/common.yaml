@@ -1,0 +1,39 @@
+canopen:
+  - canbus_id: cia402_test_bus
+    id: cia402_test_hub
+
+cia402:
+  canopen_id: cia402_test_hub
+  id: cia402_test_drive
+  node_id: 32
+  profile_velocity: 1000
+  acceleration: 2000
+  deceleration: 2000
+  quick_stop_deceleration: 3000
+  min_position: -1000
+  max_position: 1000
+  on_result:
+    - logger.log: "Drive command completed"
+button:
+  - platform: template
+    name: Enable
+    on_press:
+      - cia402.enable: cia402_test_drive
+  - platform: template
+    name: Stop
+    on_press:
+      - cia402.quick_stop: cia402_test_drive
+  - platform: template
+    name: Move
+    on_press:
+      - cia402.move_to:
+          id: cia402_test_drive
+          position: -100
+  - platform: template
+    name: Apply Configuration
+    on_press:
+      - cia402.apply_configuration: cia402_test_drive
+  - platform: template
+    name: Controlled Stop
+    on_press:
+      - cia402.controlled_stop: cia402_test_drive

@@ -2,6 +2,7 @@
 
 // Public types; no CANopenNode headers here.
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -12,6 +13,20 @@ struct LogString;
 }  // namespace esphome
 
 namespace esphome::canopen {
+
+enum class NMTCommand : uint8_t {
+  NMT_COMMAND_START = 1,
+  NMT_COMMAND_STOP = 2,
+  NMT_COMMAND_PRE_OPERATIONAL = 128,
+  NMT_COMMAND_RESET_NODE = 129,
+  NMT_COMMAND_RESET_COMMUNICATION = 130,
+};
+
+struct Emergency {
+  uint16_t error_code;
+  uint8_t error_register;
+  std::array<uint8_t, 5> manufacturer_data;
+};
 
 enum class SDOResult : uint8_t {
   SDO_RESULT_SUCCESS,

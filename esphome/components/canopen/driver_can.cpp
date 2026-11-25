@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome::canopen {
 
@@ -27,6 +28,21 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   const uint8_t len = frame.payload_length();
   if (frame.use_extended_id || len > 8)
     return;
+  if (!frame.remote_transmission_request) {
+    const auto id = frame.can_id;
+    const auto *data = frame.data;
+    if (id >= 0x701 && id <= 0x77F && len == 1) {
+      if (data[0] == 0 || data[0] == 4 || data[0] == 5 || data[0] == 127)
+        this->heartbeat_callback_.call(id - 0x700, data[0]);
+      return;
+    }
+    if (id >= 0x81 && id <= 0xFF && len == 8) {
+      const Emergency emergency{
+          encode_uint16(data[1], data[0]), data[2], {data[3], data[4], data[5], data[6], data[7]}};
+      this->emcy_callback_.call(id - 0x80, emergency);
+      return;
+    }
+  }
   CO_CANmodule_t *mod = this->co_->CANmodule;
   CO_CANrxMsg_t msg{};
   msg.ident = (frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0);
@@ -45,6 +61,27 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
     this->process_sdo_(0);
     this->last_ms_ = App.get_loop_component_start_time();
   }
+}
+
+bool CANopenComponent::send_nmt(uint8_t node, NMTCommand command) {
+  if (this->is_failed() || node > 127)
+    return false;
+  switch (command) {
+    case NMTCommand::NMT_COMMAND_START:
+    case NMTCommand::NMT_COMMAND_STOP:
+    case NMTCommand::NMT_COMMAND_PRE_OPERATIONAL:
+    case NMTCommand::NMT_COMMAND_RESET_NODE:
+    case NMTCommand::NMT_COMMAND_RESET_COMMUNICATION:
+      break;
+    default:
+      return false;
+  }
+  const uint8_t data[]{static_cast<uint8_t>(command), node};
+  const bool sent = this->canbus_->send_data(0, false, false, data, sizeof(data)) == canbus::ERROR_OK;
+  if (!sent) {
+    ESP_LOGW("canopen", "Node %u NMT send failed", node);
+  }
+  return sent;
 }
 
 bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len) {
