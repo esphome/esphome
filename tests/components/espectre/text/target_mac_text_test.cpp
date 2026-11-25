@@ -1,9 +1,20 @@
 #include "gtest/gtest.h"
-#include "esphome/components/espectre/text/target_mac_text.h"
+#include "esphome/components/espectre/espectre.h"
+#include "esphome/components/text/text.h"
 
 #ifdef ESPECTRE_SDK_TEST_DOUBLE
 
 namespace esphome::espectre::testing {
+
+// What text.ApplyText with apply="request_traffic_generator_target_mac(value)" generates
+class TargetMacText final : public text::Text {
+ public:
+  explicit TargetMacText(ESPectreComponent *parent) : parent_(parent) {}
+
+ protected:
+  void control(const std::string &value) override { this->parent_->request_traffic_generator_target_mac(value); }
+  ESPectreComponent *parent_;
+};
 
 class ESPectreTargetMacTest : public ::testing::Test {
  protected:
