@@ -17,19 +17,16 @@ namespace esphome::midea_portasplit {
 
 static constexpr uint8_t FAN_AUTO = 102;
 
-static constexpr size_t MAX_FRAME = 128;
 // Ten header bytes plus CRC8 and checksum.
 static constexpr size_t FRAME_OVERHEAD = 12;
 
-// LEN counts every byte after the 0xAA start marker
+// LEN counts every byte after the 0xAA start marker. Every frame carries the appliance type 0xAC; anything else is
+// a false start.
 struct PortaSplitLength {
-  static constexpr size_t KNOWN_AT = 2;
-  static constexpr size_t get(const uint8_t *buf) { return size_t(buf[1]) + 1; }
+  static constexpr size_t KNOWN_AT = 3;
+  static constexpr size_t get(const uint8_t *buf) { return buf[2] == 0xAC ? size_t(buf[1]) + 1 : 0; }
 };
-// Every frame carries the appliance type 0xAC; anything else is a false start.
-inline bool is_ac_frame(const uint8_t *buf) { return buf[2] == 0xAC; }
-using PortaSplitFrame =
-    FrameFormat<FrameHeader<0xAA>, CheckedLength<PortaSplitLength, 3, is_ac_frame>, FrameMinLength<FRAME_OVERHEAD>>;
+using PortaSplitFrame = FrameFormat<FrameHeader<0xAA>, PortaSplitLength, FrameMinLength<FRAME_OVERHEAD>>;
 
 class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, public Component {
  public:
@@ -41,6 +38,8 @@ class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, publ
   void control(const climate::ClimateCall &call) override;
 
  protected:
+  static constexpr size_t MAX_FRAME = 128;
+
   // The payload may live in PROGMEM.
   void send_frame_(uint8_t proto, uint8_t type, const uint8_t *payload, size_t len);
   void send_set_command_();
