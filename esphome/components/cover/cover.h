@@ -92,18 +92,6 @@ enum CoverOperation : uint8_t {
 
 const LogString *cover_operation_to_str(CoverOperation op);
 
-#ifdef USE_COVER_STATE_TRIGGERS
-/// States a publish moved the cover into, passed to add_on_state_entered_callback() callbacks.
-enum CoverEntered : uint8_t {
-  COVER_ENTERED_OPEN = 1 << 0,
-  COVER_ENTERED_CLOSED = 1 << 1,
-  // The operations follow, in CoverOperation order.
-  COVER_ENTERED_IDLE = 1 << 2,
-  COVER_ENTERED_OPENING = 1 << 3,
-  COVER_ENTERED_CLOSING = 1 << 4,
-};
-#endif
-
 /** Base class for all cover devices.
  *
  * Covers currently have three properties:
@@ -130,14 +118,6 @@ class Cover : public EntityBase {
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};
-#ifdef USE_COVER_STATE_TRIGGERS
-
- protected:
-  // CoverEntered bits of the last published state; sits in the padding before position.
-  uint8_t last_state_bits_{0};
-
- public:
-#endif
   /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
    *
    * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
@@ -150,20 +130,7 @@ class Cover : public EntityBase {
   /// Construct a new cover call used to control the cover.
   CoverCall make_call() { return {this}; }
 
-#ifdef USE_COVER_STATE_TRIGGERS
-  template<typename F> void add_on_state_callback(F &&f) {
-    using DecayF = std::decay_t<F>;
-    if constexpr (std::is_invocable_v<const DecayF &>) {
-      this->state_callback_.add([f = DecayF(std::forward<F>(f))](uint8_t) { f(); });
-    } else {
-      this->state_callback_.add([f = DecayF(std::forward<F>(f))](uint8_t) mutable { f(); });
-    }
-  }
-  /// Like add_on_state_callback(), but the callback receives the CoverEntered bits of this publish.
-  template<typename F> void add_on_state_entered_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
-#else
   template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
-#endif
 
   /** Publish the current state of the cover.
    *
@@ -188,11 +155,7 @@ class Cover : public EntityBase {
 
   optional<CoverRestoreState> restore_state_();
 
-#ifdef USE_COVER_STATE_TRIGGERS
-  LazyCallbackManager<void(uint8_t)> state_callback_{};
-#else
   LazyCallbackManager<void()> state_callback_{};
-#endif
 
   ESPPreferenceObject rtc_;
 };
