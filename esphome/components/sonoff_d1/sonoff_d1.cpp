@@ -42,7 +42,10 @@
  *  M                                                 6C - CRC over bytes 2 to F (Addition)
 \*********************************************************************************************/
 #include "sonoff_d1.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+
+#include <cstring>
 
 namespace esphome::sonoff_d1 {
 
@@ -50,7 +53,6 @@ ESPHOME_LOG_TAG(TAG, "sonoff_d1");
 
 // Protocol constants
 static constexpr size_t SONOFF_D1_ACK_SIZE = 7;
-static constexpr size_t SONOFF_D1_MAX_CMD_SIZE = 17;
 
 uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) { return sum_bytes(cmd + 2, len - 3); }
 
@@ -74,7 +76,7 @@ void SonoffD1Output::skip_command_() {
   }
 }
 
-// This assumes some data is already available
+// Blocking read of the acknowledgement after a write
 bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
   // Do consistency check
   if (cmd == nullptr || len < 7) {
@@ -166,6 +168,10 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
     return false;
   }
   this->populate_checksum_(cmd, len);
+  if (needs_ack) {
+    // The ack is read straight from the UART, so a partial frame held by the reader would be cut short
+    this->reader_.reset();
+  }
 
   // Need retries here to handle the following cases:
   // 1. On power up companion MCU starts to respond with a delay, so few first commands are ignored
@@ -293,16 +299,30 @@ void SonoffD1Output::dump_config() {
 }
 
 void SonoffD1Output::loop() {
-  // Read commands from the dimmer
   // RF chip notifies ESP about remotely changed state with the same commands as we send
-  if (this->available()) {
-    ESP_LOGV(TAG, "Have some UART data in loop()");
-    uint8_t buffer[17] = {0};
-    size_t len = sizeof(buffer);
-    if (this->read_command_(buffer, len)) {
-      this->process_command_(buffer, len);
-    }
-  }
+  uint8_t frame[SONOFF_D1_MAX_CMD_SIZE];
+  size_t frame_len = 0;
+  this->read_frames(
+      this->reader_,
+      [this, &frame, &frame_len](const uint8_t *data, size_t len) {
+        ESP_LOGV_HEX(TAG, data, len, SONOFF_D1_MAX_CMD_SIZE, "[%04d] Reading from dimmer: %s", this->write_count_);
+        const uint8_t valid_checksum = this->calc_checksum_(data, len);
+        if (valid_checksum != data[len - 1]) {
+          ESP_LOGW(TAG, "[%04d] RX: checksum mismatch (%d, expected %d)", this->write_count_, data[len - 1],
+                   valid_checksum);
+          return false;
+        }
+        // One command per pass, as before; the dimmer repeats a command until it is acked
+        if (frame_len == 0) {
+          std::memcpy(frame, data, len);
+          frame_len = len;
+        }
+        return true;
+      },
+      App.get_loop_component_start_time(), this->last_rx_ms_);
+  // Handled after reading: answering it writes to the dimmer and waits for the ack on the same UART
+  if (frame_len != 0)
+    this->process_command_(frame, frame_len);
 }
 
 }  // namespace esphome::sonoff_d1

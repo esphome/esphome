@@ -32,6 +32,7 @@
 */
 
 #include "esphome/core/component.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
@@ -40,6 +41,10 @@
 #include "esphome/components/light/light_traits.h"
 
 namespace esphome::sonoff_d1 {
+
+static constexpr size_t SONOFF_D1_MAX_CMD_SIZE = 17;
+// AA 55, two command bytes, a 16-bit payload length (only its low byte is used), the payload and a checksum
+using SonoffD1Frame = FrameFormat<FrameHeader<0xAA, 0x55>, PayloadLengthU8<LengthField{.offset = 5, .trailer = 1}>>;
 
 class SonoffD1Output final : public light::LightOutput, public uart::UARTDevice, public Component {
  public:
@@ -67,6 +72,8 @@ class SonoffD1Output final : public light::LightOutput, public uart::UARTDevice,
   int write_count_{0};
   int read_count_{0};
   light::LightState *light_state_{nullptr};
+  uint32_t last_rx_ms_{0};
+  LengthFrameReader<SONOFF_D1_MAX_CMD_SIZE, SonoffD1Frame> reader_;
 
   uint8_t calc_checksum_(const uint8_t *cmd, size_t len);
   void populate_checksum_(uint8_t *cmd, size_t len);
