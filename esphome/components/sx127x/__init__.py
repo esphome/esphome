@@ -130,16 +130,18 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
 
 
 MAX_PACKET_SIZE = 255
+FIFO_SIZE = 64
+MAX_LONG_PACKET_LENGTH = 1024
 # The radio's payload length register is 8 bits, and empty packets are rejected.
 validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
 def is_long_packet(config: ConfigType) -> bool:
-    """Whether config uses long packet RX (FSK/OOK packet mode, payload_length > 64 or a lambda)."""
+    """Whether config uses long packet RX (payload_length above FIFO_SIZE or lambda)."""
     if config[CONF_MODULATION] == "LORA" or not config.get(CONF_PACKET_MODE):
         return False
     payload_length = config[CONF_PAYLOAD_LENGTH]
-    return cg.is_template(payload_length) or payload_length > 64
+    return cg.is_template(payload_length) or payload_length > FIFO_SIZE
 
 
 def validate_config(config: ConfigType) -> ConfigType:
@@ -167,8 +169,8 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("payload_length as a lambda is not available with LORA")
         if config[CONF_SPREADING_FACTOR] == 6 and config[CONF_PAYLOAD_LENGTH] == 0:
             raise cv.Invalid("Payload length must be set when spreading factor is 6")
-        if config[CONF_PAYLOAD_LENGTH] > 255:
-            raise cv.Invalid("Payload length must be <= 255 with LORA")
+        if config[CONF_PAYLOAD_LENGTH] > MAX_PACKET_SIZE:
+            raise cv.Invalid(f"Payload length must be <= {MAX_PACKET_SIZE} with LORA")
         if CONF_DIO1_PIN in config:
             raise cv.Invalid("dio1_pin is not available with LORA")
     else:
@@ -190,26 +192,28 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
         if (
             not payload_length_is_lambda
-            and config[CONF_PAYLOAD_LENGTH] > 64
+            and config[CONF_PAYLOAD_LENGTH] > FIFO_SIZE
             and not config[CONF_PACKET_MODE]
         ):
             raise cv.Invalid(
-                "payload_length must be <= 64 when packet_mode is disabled"
+                f"payload_length must be <= {FIFO_SIZE} when packet_mode is disabled"
             )
         if payload_length_is_lambda and not config[CONF_PACKET_MODE]:
             raise cv.Invalid("packet_mode is required when payload_length is a lambda")
         long_packet = is_long_packet(config)
         if long_packet and CONF_DIO1_PIN not in config:
             raise cv.Invalid(
-                "dio1_pin is required when payload_length > 64 or is a lambda"
+                f"dio1_pin is required when payload_length > {FIFO_SIZE} or is a lambda"
             )
         if long_packet and config[CONF_CRC_ENABLE]:
             raise cv.Invalid(
-                "crc_enable is not available with payload_length > 64 or a lambda"
+                f"crc_enable is not available with payload_length > {FIFO_SIZE}"
+                " or a lambda"
             )
         if not long_packet and CONF_DIO1_PIN in config:
             raise cv.Invalid(
-                "dio1_pin is only used in packet mode with payload_length > 64 or a lambda"
+                "dio1_pin is only used in packet mode with payload_length >"
+                f" {FIFO_SIZE} or a lambda"
             )
     if CONF_AFC_BANDWIDTH in config and config[CONF_MODULATION] != "FSK":
         raise cv.Invalid(
@@ -248,7 +252,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
             cv.Optional(CONF_PACKET_MODE): cv.boolean,
             cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.templatable(
-                cv.int_range(min=0, max=1024)
+                cv.int_range(min=0, max=MAX_LONG_PACKET_LENGTH)
             ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=0): cv.int_range(min=0, max=3),
             cv.Optional(CONF_PREAMBLE_ERRORS, default=0): cv.int_range(min=0, max=31),

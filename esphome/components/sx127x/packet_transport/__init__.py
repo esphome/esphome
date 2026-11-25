@@ -12,6 +12,7 @@ from esphome.types import ConfigType
 from .. import (
     CONF_PAYLOAD_LENGTH,
     CONF_SX127X_ID,
+    FIFO_SIZE,
     SX127x,
     SX127xListener,
     is_long_packet,
@@ -32,8 +33,8 @@ CONFIG_SCHEMA = transport_schema(SX127xTransport).extend(
 def _validate_parent(parent_config: ConfigType) -> ConfigType:
     if is_long_packet(parent_config):
         raise cv.Invalid(
-            f"packet_transport is not supported with {CONF_PAYLOAD_LENGTH} > 64 or a"
-            " lambda, long packets are receive-only"
+            f"packet_transport is not supported with {CONF_PAYLOAD_LENGTH} >"
+            f" {FIFO_SIZE} or a lambda, long packets are receive-only"
         )
     return parent_config
 

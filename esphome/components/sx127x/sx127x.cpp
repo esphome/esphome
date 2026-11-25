@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <utility>
@@ -38,6 +39,7 @@ static constexpr uint8_t BW_FSK_OOK[22] PROGMEM = {
 
 static const int32_t RSSI_OFFSET_HF = 157;
 static const int32_t RSSI_OFFSET_LF = 164;
+static constexpr uint8_t FIFO_SIZE = 64;
 static constexpr uint16_t MAX_PACKET_LENGTH = 1024;
 static constexpr uint16_t PACKET_IDLE_TIMEOUT_BYTES = 64;
 static constexpr uint32_t PACKET_IDLE_TIMEOUT_MIN_MS = 5;
@@ -99,12 +101,10 @@ void SX127x::setup() {
 
 #ifdef USE_SX127X_LONG_PACKET
   // setup dio1 (FifoEmpty falling edge during long packet RX)
-  if (this->dio1_pin_ != nullptr) {
-    this->dio1_pin_->setup();
-    if (this->dio1_pin_->is_internal()) {
-      static_cast<InternalGPIOPin *>(this->dio1_pin_)
-          ->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-    }
+  this->dio1_pin_->setup();
+  if (this->dio1_pin_->is_internal()) {
+    static_cast<InternalGPIOPin *>(this->dio1_pin_)
+        ->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 #endif
 
@@ -228,9 +228,6 @@ const LogString *SX127x::configure_radio_() {
     this->packet_.reserve(this->payload_length_func_ ? MAX_PACKET_LENGTH + FIFO_THRESHOLD_HALF + 1
                                                      : this->payload_length_);
     this->reset_long_packet_rx_();
-    if (this->dio1_pin_ == nullptr) {
-      ESP_LOGW(TAG, "Long packets need dio1_pin");
-    }
   }
 #endif
 
@@ -270,8 +267,9 @@ void SX127x::configure_fsk_ook_() {
     const bool long_packet = this->is_long_packet_mode_();
 #else
     const bool long_packet = false;
-    if (this->payload_length_ > 64) {
-      ESP_LOGW(TAG, "Payload length %" PRIu32 " needs a configured payload_length above 64", this->payload_length_);
+    if (this->payload_length_ > FIFO_SIZE) {
+      ESP_LOGW(TAG, "Payload length %" PRIu32 " needs a configured payload_length above %u", this->payload_length_,
+               FIFO_SIZE);
     }
 #endif
     if (long_packet) {
@@ -585,7 +583,7 @@ void SX127x::set_payload_length(uint32_t payload_length) {
 #ifdef USE_SX127X_LONG_PACKET
 bool SX127x::is_long_packet_mode_() const {
   return this->applied_.packet_mode && this->applied_.modulation != MOD_LORA &&
-         (this->applied_.payload_length > 64 || this->applied_.payload_length_func);
+         (this->applied_.payload_length > FIFO_SIZE || this->applied_.payload_length_func);
 }
 
 void SX127x::reset_long_packet_rx_() {
@@ -687,10 +685,6 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
 }
 
 void SX127x::loop_long_packet_() {
-  if (this->dio1_pin_ == nullptr) {
-    this->disable_loop();
-    return;
-  }
   uint8_t irq2 = this->read_register_(REG_IRQ_FLAGS2);
   if (irq2 & FIFO_EMPTY) {
     if (this->packet_.empty()) {
