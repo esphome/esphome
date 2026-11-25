@@ -178,7 +178,8 @@ void LightState::apply_effect_and_transformer_() {
         this->publish_state();
       }
 #endif
-      this->target_state_reached_callback_.call();
+      if (!this->target_state_reached_callback_.empty())
+        this->target_state_reached_callback_.call();
 
       // Disable loop if idle (no transformer and no effect)
       this->disable_loop_if_idle_();
@@ -209,13 +210,16 @@ bool LightState::set_external_state(const LightColorValues &values) {
   this->remote_values = values;
   // Reached at once, as after an instant call, and told before the publish like there: an
   // automation run by the publish may change the light again, and its own call reports that
-  this->target_state_reached_callback_.call();
+  if (!this->target_state_reached_callback_.empty())
+    this->target_state_reached_callback_.call();
   this->publish_state();
   return true;
 }
 
 void LightState::publish_state() {
-  this->remote_values_callback_.call();
+  // Checked here: call() is outlined, so a light without listeners would otherwise pay for the call
+  if (!this->remote_values_callback_.empty())
+    this->remote_values_callback_.call();
 #if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_light_update(this);
 #endif
