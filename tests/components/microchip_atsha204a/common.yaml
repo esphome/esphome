@@ -9,6 +9,14 @@ binary_sensor:
     atsha204a_id: atsha204a_i2c
     name: ATSHA204A Present
 
+text_sensor:
+  - platform: microchip_atsha204a
+    atsha204a_id: atsha204a_i2c
+    serial_number:
+      name: ATSHA204A Serial Number
+    chip_revision:
+      name: ATSHA204A Chip Revision
+
 script:
   - id: atsha204a_test_commands
     then:

@@ -1,7 +1,6 @@
 #include "microchip_atsha204a.h"
 
 #include <algorithm>
-#include <utility>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -18,6 +17,7 @@ static constexpr uint32_t WAKE_DELAY_US = 3000;
 static constexpr uint32_t WATCHDOG_MIN_MS = 700;
 static constexpr uint8_t STATUS_PACKET_SIZE = 4;
 static constexpr uint8_t WAKE_STATUS = 0x11;
+static constexpr uint8_t READ_32_BYTES = 0x80;
 static constexpr uint32_t RESPONSE_TIMEOUT_MS = 30;
 static constexpr uint32_t SESSION_TIMEOUT_MS = 500;
 
@@ -60,6 +60,25 @@ static constexpr uint32_t execution_ms(Opcode opcode) {
   return 0;
 }
 
+#ifdef USE_TEXT_SENSOR
+template<size_t N> static void publish_hex(text_sensor::TextSensor *sensor, const std::array<uint8_t, N> &bytes) {
+  if (sensor == nullptr)
+    return;
+  char result[format_hex_size(N)];
+  format_hex_to(result, bytes);
+  for (char &c : result) {
+    if (c >= 'a' && c <= 'f')
+      c -= 'a' - 'A';
+  }
+  publish_text_sensor(sensor, StringRef(result));
+}
+
+void publish_text_sensor(text_sensor::TextSensor *sensor, StringRef value) {
+  if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
+    sensor->publish_state(value.empty() ? "" : value.c_str(), value.size());
+}
+#endif
+
 void ATSHA204A::setup() {
   this->disable_loop();
   if (!this->transport_->setup()) {
@@ -74,6 +93,10 @@ void ATSHA204A::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Serial number", this->serial_number_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Chip revision", this->chip_revision_text_sensor_);
 #endif
 }
 
@@ -174,6 +197,18 @@ void ATSHA204A::send_user_() {
     this->finish_user_(IO_ERROR);
 }
 
+void ATSHA204A::read_block(Zone zone, uint16_t address, BlockCallback callback) {
+  if (this->state_ != State::STATE_POLL_CALLBACK || !callback)
+    return;
+  if (!this->send_frame_(Opcode::OPCODE_READ, READ_32_BYTES | static_cast<uint8_t>(zone), address, nullptr, 0)) {
+    this->finish_poll_(false);
+    callback(nullptr);
+    return;
+  }
+  this->state_ = State::STATE_BLOCK;
+  this->block_callback_ = std::move(callback);
+}
+
 void ATSHA204A::loop() {
   if (this->state_ == State::STATE_IDLE)
     return;
@@ -250,12 +285,57 @@ void ATSHA204A::handle_response_(const uint8_t *packet, int status) {
       }
       return;
     case State::STATE_REVISION:
-      this->finish_poll_(packet != nullptr && packet[0] == 7);
+      if (packet == nullptr || packet[0] != 7) {
+        this->finish_poll_(false);
+        return;
+      }
+      std::copy_n(packet + 1, this->revision_.size(), this->revision_.begin());
+      this->state_ = State::STATE_CONFIG;
+      if (!this->send_frame_(Opcode::OPCODE_READ, READ_32_BYTES, 0, nullptr, 0))
+        this->finish_poll_(false);
       return;
+    case State::STATE_CONFIG: {
+      if (packet == nullptr || packet[0] != MAX_RESPONSE) {
+        this->finish_poll_(false);
+        return;
+      }
+      std::array<uint8_t, 9> serial;
+      std::copy_n(packet + 1, 4, serial.begin());
+      std::copy_n(packet + 9, 5, serial.begin() + 4);
+      if (this->has_serial_ && this->serial_ != serial) {
+        this->finish_poll_(false);
+        return;
+      }
+      if (!this->has_serial_) {
+#ifdef USE_TEXT_SENSOR
+        publish_hex(this->serial_number_text_sensor_, serial);
+        publish_hex(this->chip_revision_text_sensor_, this->revision_);
+#endif
+        this->serial_ = serial;
+        this->has_serial_ = true;
+      }
+      if (this->poll_callback_) {
+        this->publish_presence_(true);
+        this->state_ = State::STATE_POLL_CALLBACK;
+        this->poll_callback_();
+      }
+      if (this->state_ == State::STATE_CONFIG || this->state_ == State::STATE_POLL_CALLBACK)
+        this->finish_poll_(true);
+      return;
+    }
+    case State::STATE_BLOCK: {
+      auto callback = std::exchange(this->block_callback_, {});
+      this->state_ = State::STATE_POLL_CALLBACK;
+      callback(packet != nullptr && packet[0] == MAX_RESPONSE ? packet + 1 : nullptr);
+      if (this->state_ == State::STATE_POLL_CALLBACK)
+        this->finish_poll_(true);
+      return;
+    }
     case State::STATE_USER:
       this->finish_user_(status, packet != nullptr && packet[0] > STATUS_PACKET_SIZE ? packet + 1 : nullptr,
                          packet != nullptr && packet[0] > STATUS_PACKET_SIZE ? packet[0] - 3 : 0);
       return;
+    case State::STATE_POLL_CALLBACK:
     case State::STATE_IDLE:
     case State::STATE_HELD:
       return;
@@ -265,6 +345,18 @@ void ATSHA204A::handle_response_(const uint8_t *packet, int status) {
 void ATSHA204A::finish_poll_(bool present) {
   const bool slept = !this->awake_ || this->transport_->power_down(false);
   this->awake_ = false;
+  this->block_callback_ = {};
+  if (!present || !slept) {
+    if (this->has_serial_) {
+      this->has_serial_ = false;
+#ifdef USE_TEXT_SENSOR
+      publish_text_sensor(this->serial_number_text_sensor_, {});
+      publish_text_sensor(this->chip_revision_text_sensor_, {});
+#endif
+      if (this->disconnect_callback_)
+        this->disconnect_callback_();
+    }
+  }
   this->set_idle_();
   this->publish_presence_(present && slept);
 }

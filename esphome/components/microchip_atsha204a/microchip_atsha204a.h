@@ -5,14 +5,33 @@
 #include "esphome/core/helpers.h"
 #include "transport.h"
 
+#include <array>
 #include <functional>
+#include <utility>
 #include <span>
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/core/string_ref.h"
+#endif
 
 namespace esphome::microchip_atsha204a {
+
+#ifdef USE_TEXT_SENSOR
+void publish_text_sensor(text_sensor::TextSensor *sensor, StringRef value);
+
+template<typename T>
+  requires requires(const T &value) {
+    value.data();
+    value.size();
+  }
+void publish_text_sensor(text_sensor::TextSensor *sensor, const T &value) {
+  publish_text_sensor(sensor, StringRef(value.data(), value.size()));
+}
+#endif
 
 enum class Opcode : uint8_t {
   OPCODE_PAUSE = 0x01,
@@ -47,12 +66,25 @@ enum HostStatus : int {
 
 class ATSHA204A : public PollingComponent {
  public:
+  enum class Zone : uint8_t { CONFIG = 0, OTP = 1, DATA = 2 };
+  using BlockCallback = std::function<void(const uint8_t *)>;
   using ResultCallback = std::function<void(int, const CommandResponse &, uint32_t)>;
 
   explicit ATSHA204A(Transport *transport) : transport_(transport) {}
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(presence)
 #endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(serial_number)
+  SUB_TEXT_SENSOR(chip_revision)
+#endif
+  template<typename F> void set_poll_callback(F &&callback) { this->poll_callback_ = std::forward<F>(callback); }
+  template<typename F> void set_disconnect_callback(F &&callback) {
+    this->disconnect_callback_ = std::forward<F>(callback);
+  }
+
+  // Only callable inside the poll or block callback. Payload is valid for that callback only.
+  void read_block(Zone zone, uint16_t address, BlockCallback callback);
   void command(Opcode opcode, uint8_t param1, uint16_t param2, std::span<const uint8_t> data, EndMode end_mode,
                uint32_t session, bool expect_response, ResultCallback callback);
   // Returns whether Sleep was sent or a wake before Sleep was started.
@@ -64,7 +96,16 @@ class ATSHA204A : public PollingComponent {
   void loop() override;
 
  protected:
-  enum class State : uint8_t { STATE_IDLE, STATE_WAKE, STATE_REVISION, STATE_USER, STATE_HELD };
+  enum class State : uint8_t {
+    STATE_IDLE,
+    STATE_WAKE,
+    STATE_REVISION,
+    STATE_CONFIG,
+    STATE_POLL_CALLBACK,
+    STATE_BLOCK,
+    STATE_USER,
+    STATE_HELD
+  };
 
   bool start_wake_();
   bool send_frame_(Opcode opcode, uint8_t param1, uint16_t param2, const uint8_t *data, size_t size);
@@ -86,7 +127,13 @@ class ATSHA204A : public PollingComponent {
   bool user_active_{};
   bool closing_session_{};
   bool awake_{};
+  bool has_serial_{};
   bool expect_response_{};
+  std::array<uint8_t, 9> serial_{};
+  std::array<uint8_t, 4> revision_{};
+  std::function<void()> poll_callback_;
+  std::function<void()> disconnect_callback_;
+  BlockCallback block_callback_;
   ResultCallback result_callback_;
   Opcode user_opcode_{};
   uint8_t user_param1_{};

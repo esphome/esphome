@@ -141,17 +141,27 @@ TEST(ATSHA204A, PauseWithoutResponseRequiresSleep) {
   EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false, false}));
 }
 
-TEST(ATSHA204A, PresencePollCompletesAfterDeviceRevision) {
+TEST(ATSHA204A, PollBlockSendFailureCompletesRead) {
   TestTransport transport;
   TestChip chip(transport);
+  unsigned callbacks = 0;
+  chip.set_poll_callback([&] {
+    transport.command_ok = false;
+    chip.read_block(ATSHA204A::Zone::CONFIG, 0, [&](const uint8_t *data) {
+      EXPECT_EQ(data, nullptr);
+      callbacks++;
+    });
+  });
 
   chip.update();
   chip.advance({0x04, 0x11, 0x33, 0x43});
-  ASSERT_EQ(transport.commands.size(), 1U);
-  EXPECT_EQ(transport.commands.front(), (std::vector<uint8_t>{0x07, 0x30, 0, 0, 0, 0x03, 0x5D}));
-
   chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
-  EXPECT_EQ(transport.commands.size(), 1U);
+  std::vector<uint8_t> identity(MAX_RESPONSE);
+  identity[0] = MAX_RESPONSE;
+  put_le16(identity.data() + MAX_RESPONSE - 2, reverse_bits(crc16(identity.data(), MAX_RESPONSE - 2, 0)));
+  chip.advance(std::move(identity));
+
+  EXPECT_EQ(callbacks, 1U);
   EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false}));
 }
 
