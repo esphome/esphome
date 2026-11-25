@@ -180,22 +180,22 @@ bool MipiCsiCamera::is_better_sensor_format_(const esp_cam_sensor_format_t &cand
   if ((candidate.isp_info != nullptr) != (current.isp_info != nullptr))
     return candidate.isp_info != nullptr;
 
-  // Prefer a sensor rate the configured rate divides into, because that is the only way the driver
-  // can reach the configured rate exactly.
-  const bool candidate_fits = candidate.fps != 0 && candidate.fps % this->framerate_ == 0;
-  const bool current_fits = current.fps != 0 && current.fps % this->framerate_ == 0;
-  return candidate_fits && !current_fits;
+  // Prefer the rate closest to the configured one that the driver can reach by dropping frames
+  return this->reachable_framerate_(candidate.fps) > this->reachable_framerate_(current.fps);
 }
 
-uint8_t MipiCsiCamera::resolve_framerate_(uint8_t sensor_fps) const {
+uint8_t MipiCsiCamera::reachable_framerate_(uint8_t sensor_fps) const {
   if (sensor_fps == 0)
     return this->framerate_;
-
-  // The driver slows the stream down by dropping whole frames, so it can only divide the sensor's
-  // rate. Step down to the closest rate that divides it evenly.
+  // The driver can only divide the sensor's rate
   uint8_t fps = std::min(this->framerate_, sensor_fps);
   while (sensor_fps % fps != 0)
     fps--;
+  return fps;
+}
+
+uint8_t MipiCsiCamera::resolve_framerate_(uint8_t sensor_fps) const {
+  const uint8_t fps = this->reachable_framerate_(sensor_fps);
   if (fps != this->framerate_) {
     ESP_LOGW(TAG, "The sensor runs at %u fps, so %u fps is used instead of %u fps", sensor_fps, fps, this->framerate_);
   }
@@ -458,6 +458,9 @@ void MipiCsiCamera::loop() {
       for (auto *listener : this->listeners_) {
         listener->on_camera_image(this->current_image_);
       }
+#ifdef USE_MIPI_CSI_IMAGE_CALLBACK
+      this->image_callback_.call(CameraImageData{this->current_image_->get_data_buffer(), length});
+#endif
       return;
     }
   }
@@ -484,15 +487,23 @@ void MipiCsiCamera::loop() {
 
 /* ---------------- MipiCsiCamera: requests ---------------- */
 
-void MipiCsiCamera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
+// Called from the web server's task too: wake the loop so a long loop interval does not delay the frame
+void MipiCsiCamera::request_image(camera::CameraRequester requester) {
+  this->single_requesters_ |= (1U << requester);
+  App.wake_loop_threadsafe();
+}
 
 void MipiCsiCamera::start_stream(camera::CameraRequester requester) {
   this->defer([this]() {
     for (auto *listener : this->listeners_) {
       listener->on_stream_start();
     }
+#ifdef USE_MIPI_CSI_STREAM_CALLBACK
+    this->stream_callback_.call(true);
+#endif
   });
   this->stream_requesters_ |= (1U << requester);
+  App.wake_loop_threadsafe();
 }
 
 void MipiCsiCamera::stop_stream(camera::CameraRequester requester) {
@@ -500,6 +511,9 @@ void MipiCsiCamera::stop_stream(camera::CameraRequester requester) {
     for (auto *listener : this->listeners_) {
       listener->on_stream_stop();
     }
+#ifdef USE_MIPI_CSI_STREAM_CALLBACK
+    this->stream_callback_.call(false);
+#endif
   });
   this->stream_requesters_ &= ~(1U << requester);
 }

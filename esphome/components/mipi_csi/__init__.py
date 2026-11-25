@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_RESOLUTION,
     CONF_SENSOR,
-    CONF_TRIGGER_ID,
     Framework,
 )
 from esphome.core import CORE
@@ -49,15 +48,6 @@ AUTO_LOAD = ["camera"]
 mipi_csi_ns = cg.esphome_ns.namespace("mipi_csi")
 MipiCsiCamera = mipi_csi_ns.class_("MipiCsiCamera", cg.Component, cg.EntityBase)
 CameraImageData = mipi_csi_ns.struct("CameraImageData")
-MipiCsiImageTrigger = mipi_csi_ns.class_(
-    "MipiCsiImageTrigger", automation.Trigger.template()
-)
-MipiCsiStreamStartTrigger = mipi_csi_ns.class_(
-    "MipiCsiStreamStartTrigger", automation.Trigger.template()
-)
-MipiCsiStreamStopTrigger = mipi_csi_ns.class_(
-    "MipiCsiStreamStopTrigger", automation.Trigger.template()
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -108,6 +98,13 @@ def _validate_resolution(config: ConfigType) -> ConfigType:
     return config
 
 
+def _whole_framerate(value: float) -> float:
+    """The capture rate is a whole number of frames per second."""
+    if value != int(value):
+        raise cv.Invalid("framerate must be a whole number of fps")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
@@ -119,7 +116,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_JPEG_QUALITY, default=40): cv.int_range(min=10, max=100),
             cv.Optional(CONF_FRAMERATE, default="10 fps"): cv.All(
-                cv.framerate, cv.Range(min=1, max=60)
+                cv.framerate, cv.Range(min=1, max=60), _whole_framerate
             ),
             cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
                 cv.framerate, cv.Range(min=0, max=1)
@@ -141,28 +138,31 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-            cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MipiCsiStreamStartTrigger
-                    )
-                }
-            ),
-            cv.Optional(CONF_ON_STREAM_STOP): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MipiCsiStreamStopTrigger
-                    )
-                }
-            ),
-            cv.Optional(CONF_ON_IMAGE): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MipiCsiImageTrigger)}
-            ),
+            cv.Optional(CONF_ON_STREAM_START): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STREAM_STOP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_IMAGE): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_resolution,
     cv.only_with_framework(Framework.ESP_IDF),
     esp32.only_on_variant(supported=[VARIANT_ESP32P4]),
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STREAM_START,
+        "add_on_stream_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STREAM_STOP,
+        "add_on_stream_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_IMAGE, "add_on_image_callback", [(CameraImageData, "image")]
+    ),
 )
 
 
@@ -216,14 +216,11 @@ async def to_code(config: ConfigType) -> None:
     ):
         cg.add_define("USE_MIPI_CSI_EXTERNAL_LDO")
 
-    for conf_key, args in (
-        (CONF_ON_STREAM_START, []),
-        (CONF_ON_STREAM_STOP, []),
-        (CONF_ON_IMAGE, [(CameraImageData, "image")]),
-    ):
-        for conf in config.get(conf_key, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, args, conf)
+    if CONF_ON_IMAGE in config:
+        cg.add_define("USE_MIPI_CSI_IMAGE_CALLBACK")
+    if CONF_ON_STREAM_START in config or CONF_ON_STREAM_STOP in config:
+        cg.add_define("USE_MIPI_CSI_STREAM_CALLBACK")
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     _add_idf_config(config)
 

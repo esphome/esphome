@@ -111,6 +111,18 @@ class MipiCsiCamera final : public camera::Camera {
   float get_setup_priority() const override { return setup_priority::LATE; }
 
   void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
+#ifdef USE_MIPI_CSI_IMAGE_CALLBACK
+  /// on_image: the frame is valid only during the call
+  template<typename F> void add_on_image_callback(F &&callback) {
+    this->image_callback_.add(std::forward<F>(callback));
+  }
+#endif
+#ifdef USE_MIPI_CSI_STREAM_CALLBACK
+  /// on_stream_start (true) / on_stream_stop (false)
+  template<typename F> void add_on_stream_callback(F &&callback) {
+    this->stream_callback_.add(std::forward<F>(callback));
+  }
+#endif
   camera::CameraImageReader *create_image_reader() override { return new MipiCsiImageReader(); }  // NOLINT
   void request_image(camera::CameraRequester requester) override;
   void start_stream(camera::CameraRequester requester) override;
@@ -142,6 +154,7 @@ class MipiCsiCamera final : public camera::Camera {
   bool is_better_sensor_format_(const esp_cam_sensor_format_t &candidate, const esp_cam_sensor_format_t &current) const;
   /// Reduces the configured frame rate to one the driver can actually produce.
   uint8_t resolve_framerate_(uint8_t sensor_fps) const;
+  uint8_t reachable_framerate_(uint8_t sensor_fps) const;
   /// Applies a V4L2 user control, logging a warning if the sensor does not support it.
   void apply_control_(uint32_t id, int32_t value, const LogString *name);
   /// Reads back the format the driver settled on, which the JPEG encoder has to match exactly.
@@ -165,6 +178,13 @@ class MipiCsiCamera final : public camera::Camera {
   std::shared_ptr<MipiCsiImage> reusable_image_;
   std::shared_ptr<MipiCsiImage> current_image_;
   std::vector<camera::CameraListener *> listeners_;
+  // Compiled only when the automation is configured, so never empty
+#ifdef USE_MIPI_CSI_IMAGE_CALLBACK
+  CallbackManager<void(CameraImageData)> image_callback_;
+#endif
+#ifdef USE_MIPI_CSI_STREAM_CALLBACK
+  CallbackManager<void(bool)> stream_callback_;
+#endif
   uint32_t last_request_{0};
   uint32_t last_idle_request_{0};
   uint16_t width_{0};
@@ -180,26 +200,6 @@ class MipiCsiCamera final : public camera::Camera {
   std::atomic<uint8_t> stream_requesters_{0};
   /// Set by the main loop to ask the capture task for one frame, cleared by the task when done.
   std::atomic<bool> frame_wanted_{false};
-};
-
-class MipiCsiImageTrigger final : public Trigger<CameraImageData>, public camera::CameraListener {
- public:
-  explicit MipiCsiImageTrigger(MipiCsiCamera *parent) { parent->add_listener(this); }
-  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {
-    this->trigger(CameraImageData{image->get_data_buffer(), image->get_data_length()});
-  }
-};
-
-class MipiCsiStreamStartTrigger final : public Trigger<>, public camera::CameraListener {
- public:
-  explicit MipiCsiStreamStartTrigger(MipiCsiCamera *parent) { parent->add_listener(this); }
-  void on_stream_start() override { this->trigger(); }
-};
-
-class MipiCsiStreamStopTrigger final : public Trigger<>, public camera::CameraListener {
- public:
-  explicit MipiCsiStreamStopTrigger(MipiCsiCamera *parent) { parent->add_listener(this); }
-  void on_stream_stop() override { this->trigger(); }
 };
 
 }  // namespace esphome::mipi_csi
