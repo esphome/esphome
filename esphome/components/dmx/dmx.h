@@ -51,33 +51,15 @@ static constexpr size_t DMX_PACKET_SIZE = 513;
 static constexpr int DMX_OK = 0;
 static constexpr dmx_config_t DMX_CONFIG_DEFAULT{};
 
-inline bool dmx_driver_install(dmx_port_t, const dmx_config_t *, const dmx_personality_t *, int) {
-  return true;
-}
-inline bool dmx_driver_delete(dmx_port_t) {
-  return true;
-}
-inline bool dmx_set_pin(dmx_port_t, int, int, int) {
-  return true;
-}
-inline size_t dmx_receive(dmx_port_t, dmx_packet_t *, int) {
-  return 0;
-}
-inline size_t dmx_read(dmx_port_t, void *, size_t) {
-  return 0;
-}
-inline size_t dmx_write(dmx_port_t, const void *, size_t) {
-  return 0;
-}
-inline size_t dmx_send_num(dmx_port_t, size_t) {
-  return 0;
-}
-inline bool dmx_wait_sent(dmx_port_t, int) {
-  return true;
-}
-inline bool uart_is_driver_installed(dmx_port_t) {
-  return false;
-}
+inline bool dmx_driver_install(dmx_port_t, const dmx_config_t *, const dmx_personality_t *, int) { return true; }
+inline bool dmx_driver_delete(dmx_port_t) { return true; }
+inline bool dmx_set_pin(dmx_port_t, int, int, int) { return true; }
+inline size_t dmx_receive(dmx_port_t, dmx_packet_t *, int) { return 0; }
+inline size_t dmx_read(dmx_port_t, void *, size_t) { return 0; }
+inline size_t dmx_write(dmx_port_t, const void *, size_t) { return 0; }
+inline size_t dmx_send_num(dmx_port_t, size_t) { return 0; }
+inline bool dmx_wait_sent(dmx_port_t, int) { return true; }
+inline bool uart_is_driver_installed(dmx_port_t) { return false; }
 
 static constexpr bool ESPHOME_DMX_HAS_RDM = false;
 #endif
@@ -86,17 +68,13 @@ static constexpr bool ESPHOME_DMX_HAS_RDM = false;
 #if !__has_include(<rdm/responder.h>)
 using rdm_pid_t = uint16_t;
 
-inline bool rdm_send_response(dmx_port_t) {
-  return false;
-}
+inline bool rdm_send_response(dmx_port_t) { return false; }
 inline size_t rdm_get_dmx_start_address(dmx_port_t, uint16_t *addr) {
   if (addr != nullptr)
     *addr = 1;
   return 0;
 }
-inline bool rdm_set_dmx_start_address(dmx_port_t, uint16_t) {
-  return false;
-}
+inline bool rdm_set_dmx_start_address(dmx_port_t, uint16_t) { return false; }
 #endif
 
 #ifndef DMX_STATIC_SENSOR_COUNT
@@ -144,36 +122,20 @@ class DMXComponent : public Component {
   void loop() override;
   void dump_config() override;
 
-  void set_tx_pin(int pin) {
-    this->tx_pin_ = pin;
-  }
-  void set_rx_pin(int pin) {
-    this->rx_pin_ = pin;
-  }
-  void set_rts_pin(int pin) {
-    this->rts_pin_ = pin;
-  }
-  void set_uart_num(int num) {
-    this->uart_num_ = num;
-  }
-  void set_mode(DMXMode mode) {
-    this->mode_ = mode;
-  }
-  void set_tx_interval(uint32_t ms) {
-    this->tx_interval_ms_ = ms;
-  }
-  void set_rdm_enabled(bool enabled) {
-    this->rdm_enabled_ = enabled;
-  }
+  void set_tx_pin(int pin) { this->tx_pin_ = pin; }
+  void set_rx_pin(int pin) { this->rx_pin_ = pin; }
+  void set_rts_pin(int pin) { this->rts_pin_ = pin; }
+  void set_uart_num(int num) { this->uart_num_ = num; }
+  void set_mode(DMXMode mode) { this->mode_ = mode; }
+  void set_tx_interval(uint32_t ms) { this->tx_interval_ms_ = ms; }
+  void set_rdm_enabled(bool enabled) { this->rdm_enabled_ = enabled; }
 
   // Received and transmitted universes are deliberately kept separate.
   uint8_t get_rx_channel(uint16_t channel) const;
   uint8_t get_tx_channel(uint16_t channel) const;
 
   // Backwards-compatible alias.
-  uint8_t get_channel(uint16_t channel) const {
-    return this->get_rx_channel(channel);
-  }
+  uint8_t get_channel(uint16_t channel) const { return this->get_rx_channel(channel); }
 
   void set_slot(uint16_t channel, uint8_t value);
   void set_slots(uint16_t first_channel, const uint8_t *values, size_t count);
@@ -205,8 +167,7 @@ class DMXComponent : public Component {
 
     if (channel_number != nullptr && channel_number->has_state()) {
       const float state = channel_number->state;
-      if (std::isfinite(state) && state >= 1.0f && state <= 512.0f &&
-          std::floor(state) == state) {
+      if (std::isfinite(state) && state >= 1.0f && state <= 512.0f && std::floor(state) == state) {
         binding.dmx_address = static_cast<uint16_t>(state);
       }
     }
@@ -264,15 +225,9 @@ enum class DMXLightType : uint8_t {
 
 class DMXLightOutput : public light::LightOutput {
  public:
-  void set_parent(DMXComponent *parent) {
-    this->parent_ = parent;
-  }
-  void set_first_channel(uint16_t channel) {
-    this->first_channel_ = channel;
-  }
-  void set_light_type(DMXLightType type) {
-    this->light_type_ = type;
-  }
+  void set_parent(DMXComponent *parent) { this->parent_ = parent; }
+  void set_first_channel(uint16_t channel) { this->first_channel_ = channel; }
+  void set_light_type(DMXLightType type) { this->light_type_ = type; }
 
   light::LightTraits get_traits() override;
   void write_state(light::LightState *state) override;

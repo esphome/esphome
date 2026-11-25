@@ -24,52 +24,35 @@ static constexpr rdm_pid_t RDM_CHANNEL_PID_BASE = 0x8001;
 
 // This handler is called for SET_COMMAND.
 // GET uses the library's simple response handler.
-static size_t dmx_dynamic_channel_set_handler(
-    dmx_port_t dmx_num,
-    const rdm_parameter_definition_t *,
-    const rdm_header_t *header) {
-
+static size_t dmx_dynamic_channel_set_handler(dmx_port_t dmx_num, const rdm_parameter_definition_t *,
+                                              const rdm_header_t *header) {
   if (header->pdl != sizeof(uint16_t)) {
-    return rdm_write_nack_reason(
-        dmx_num, header, RDM_NR_FORMAT_ERROR);
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_FORMAT_ERROR);
   }
 
   uint16_t address = 0;
 
-  const size_t read_size =
-      rdm_read_pd(dmx_num, "w", &address, header->pdl);
+  const size_t read_size = rdm_read_pd(dmx_num, "w", &address, header->pdl);
 
   if (read_size != sizeof(address)) {
-    return rdm_write_nack_reason(
-        dmx_num, header, RDM_NR_FORMAT_ERROR);
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_FORMAT_ERROR);
   }
 
   if (address < 1 || address > 512) {
-    return rdm_write_nack_reason(
-        dmx_num, header, RDM_NR_DATA_OUT_OF_RANGE);
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_DATA_OUT_OF_RANGE);
   }
 
-  if (dmx_parameter_set(
-          dmx_num,
-          header->sub_device,
-          header->pid,
-          &address,
-          sizeof(address)) != sizeof(address)) {
-    return rdm_write_nack_reason(
-        dmx_num, header, RDM_NR_HARDWARE_FAULT);
+  if (dmx_parameter_set(dmx_num, header->sub_device, header->pid, &address, sizeof(address)) != sizeof(address)) {
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_HARDWARE_FAULT);
   }
 
   return rdm_write_ack(dmx_num, header, nullptr, nullptr, 0);
 }
 
-static rdm_parameter_definition_t make_channel_definition(
-    RdmChannelType type,
-    const char *description) {
-
+static rdm_parameter_definition_t make_channel_definition(RdmChannelType type, const char *description) {
   rdm_parameter_definition_t definition{};
 
-  definition.pid_cc =
-      type == RdmChannelType::DYNAMIC ? RDM_CC_GET_SET : RDM_CC_GET;
+  definition.pid_cc = type == RdmChannelType::DYNAMIC ? RDM_CC_GET_SET : RDM_CC_GET;
 
   definition.ds = RDM_DS_UNSIGNED_WORD;
 
@@ -114,10 +97,7 @@ void DMXComponent::setup() {
 
 #ifdef USE_ESP32
   if (uart_is_driver_installed(static_cast<uart_port_t>(this->uart_num_))) {
-    ESP_LOGE(
-        TAG,
-        "UART%d is already in use. Check logger and UART configuration.",
-        this->uart_num_);
+    ESP_LOGE(TAG, "UART%d is already in use. Check logger and UART configuration.", this->uart_num_);
     this->mark_failed();
     return;
   }
@@ -127,29 +107,20 @@ void DMXComponent::setup() {
 
   if constexpr (ESPHOME_DMX_HAS_RDM) {
     // Built-in RDM parameters plus one parameter per RX sensor channel.
-    config.root_device_parameter_count =
-        static_cast<uint32_t>(32 + this->rdm_channels_.size());
+    config.root_device_parameter_count = static_cast<uint32_t>(32 + this->rdm_channels_.size());
   }
 
   dmx_personality_t personalities[] = {
       {1, "ESPHome DMX"},
   };
 
-  if (!dmx_driver_install(
-          this->dmx_port_,
-          &config,
-          personalities,
-          1)) {
+  if (!dmx_driver_install(this->dmx_port_, &config, personalities, 1)) {
     ESP_LOGE(TAG, "Failed to install DMX driver on UART%d", this->uart_num_);
     this->mark_failed();
     return;
   }
 
-  if (!dmx_set_pin(
-          this->dmx_port_,
-          this->tx_pin_,
-          this->rx_pin_,
-          this->rts_pin_)) {
+  if (!dmx_set_pin(this->dmx_port_, this->tx_pin_, this->rx_pin_, this->rts_pin_)) {
     ESP_LOGE(TAG, "Failed to configure DMX pins on UART%d", this->uart_num_);
     dmx_driver_delete(this->dmx_port_);
     this->mark_failed();
@@ -160,14 +131,8 @@ void DMXComponent::setup() {
     this->setup_rdm_();
   }
 
-  ESP_LOGI(
-      TAG,
-      "DMX started on UART%d (TX=%d RX=%d RTS=%d) RDM=%s",
-      this->uart_num_,
-      this->tx_pin_,
-      this->rx_pin_,
-      this->rts_pin_,
-      this->rdm_enabled_ ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off"));
+  ESP_LOGI(TAG, "DMX started on UART%d (TX=%d RX=%d RTS=%d) RDM=%s", this->uart_num_, this->tx_pin_, this->rx_pin_,
+           this->rts_pin_, this->rdm_enabled_ ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off"));
 }
 
 void DMXComponent::setup_rdm_() {
@@ -185,11 +150,9 @@ void DMXComponent::setup_rdm_() {
       const auto &channel = this->rdm_channels_[i];
 
       if (channel.sensor_entity != nullptr) {
-        this->rdm_descriptions_.push_back(
-            "ESPHome RX sensor: " + channel.sensor_entity->get_name());
+        this->rdm_descriptions_.push_back("ESPHome RX sensor: " + channel.sensor_entity->get_name());
       } else {
-        this->rdm_descriptions_.push_back(
-            "ESPHome RX channel " + std::to_string(i + 1));
+        this->rdm_descriptions_.push_back("ESPHome RX channel " + std::to_string(i + 1));
       }
     }
 
@@ -197,10 +160,7 @@ void DMXComponent::setup_rdm_() {
     for (size_t i = 0; i < count; i++) {
       const auto &channel = this->rdm_channels_[i];
 
-      this->rdm_definitions_.push_back(
-          make_channel_definition(
-              channel.type,
-              this->rdm_descriptions_[i].c_str()));
+      this->rdm_definitions_.push_back(make_channel_definition(channel.type, this->rdm_descriptions_[i].c_str()));
     }
 
     // Register all channels in their original sensor registration order.
@@ -211,49 +171,27 @@ void DMXComponent::setup_rdm_() {
         channel.dmx_address = 1;
       }
 
-      const rdm_pid_t pid =
-          static_cast<rdm_pid_t>(RDM_CHANNEL_PID_BASE + i);
+      const rdm_pid_t pid = static_cast<rdm_pid_t>(RDM_CHANNEL_PID_BASE + i);
 
       const int parameter_type =
-          channel.type == RdmChannelType::FIXED
-              ? DMX_PARAMETER_TYPE_STATIC
-              : DMX_PARAMETER_TYPE_DYNAMIC;
+          channel.type == RdmChannelType::FIXED ? DMX_PARAMETER_TYPE_STATIC : DMX_PARAMETER_TYPE_DYNAMIC;
 
-      if (!dmx_parameter_add(
-              this->dmx_port_,
-              RDM_SUB_DEVICE_ROOT,
-              pid,
-              parameter_type,
-              &channel.dmx_address,
-              sizeof(channel.dmx_address))) {
-        ESP_LOGW(
-            TAG,
-            "RDM: failed to add channel %u (PID 0x%04X)",
-            static_cast<unsigned>(i + 1),
-            static_cast<unsigned>(pid));
+      if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, parameter_type, &channel.dmx_address,
+                             sizeof(channel.dmx_address))) {
+        ESP_LOGW(TAG, "RDM: failed to add channel %u (PID 0x%04X)", static_cast<unsigned>(i + 1),
+                 static_cast<unsigned>(pid));
         continue;
       }
 
-      if (!rdm_definition_set(
-              this->dmx_port_,
-              RDM_SUB_DEVICE_ROOT,
-              pid,
-              &this->rdm_definitions_[i])) {
-        ESP_LOGW(
-            TAG,
-            "RDM: failed to define channel %u (PID 0x%04X)",
-            static_cast<unsigned>(i + 1),
-            static_cast<unsigned>(pid));
+      if (!rdm_definition_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, &this->rdm_definitions_[i])) {
+        ESP_LOGW(TAG, "RDM: failed to define channel %u (PID 0x%04X)", static_cast<unsigned>(i + 1),
+                 static_cast<unsigned>(pid));
         continue;
       }
 
-      ESP_LOGI(
-          TAG,
-          "RDM: channel %u registered, PID 0x%04X, DMX address %u, type %s",
-          static_cast<unsigned>(i + 1),
-          static_cast<unsigned>(pid),
-          channel.dmx_address,
-          channel.type == RdmChannelType::DYNAMIC ? "dynamic" : "fixed");
+      ESP_LOGI(TAG, "RDM: channel %u registered, PID 0x%04X, DMX address %u, type %s", static_cast<unsigned>(i + 1),
+               static_cast<unsigned>(pid), channel.dmx_address,
+               channel.type == RdmChannelType::DYNAMIC ? "dynamic" : "fixed");
     }
 
     // Synchronize any Number states that became available during setup.
@@ -265,9 +203,7 @@ void DMXComponent::setup_rdm_() {
 
 #endif
   } else {
-    ESP_LOGW(
-        TAG,
-        "RDM requested but rdm/responder.h not available in esp_dmx build");
+    ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
   }
 }
 
@@ -278,27 +214,19 @@ void DMXComponent::sync_rdm_to_numbers_() {
     for (size_t i = 0; i < this->rdm_channels_.size(); i++) {
       auto &channel = this->rdm_channels_[i];
 
-      if (channel.type != RdmChannelType::DYNAMIC ||
-          channel.number_entity == nullptr) {
+      if (channel.type != RdmChannelType::DYNAMIC || channel.number_entity == nullptr) {
         continue;
       }
 
-      const rdm_pid_t pid =
-          static_cast<rdm_pid_t>(RDM_CHANNEL_PID_BASE + i);
+      const rdm_pid_t pid = static_cast<rdm_pid_t>(RDM_CHANNEL_PID_BASE + i);
 
       uint16_t address = 0;
 
-      if (dmx_parameter_copy(
-              this->dmx_port_,
-              RDM_SUB_DEVICE_ROOT,
-              pid,
-              &address,
-              sizeof(address)) != sizeof(address)) {
+      if (dmx_parameter_copy(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, &address, sizeof(address)) != sizeof(address)) {
         continue;
       }
 
-      if (address < 1 || address > 512 ||
-          address == channel.dmx_address) {
+      if (address < 1 || address > 512 || address == channel.dmx_address) {
         continue;
       }
 
@@ -310,17 +238,11 @@ void DMXComponent::sync_rdm_to_numbers_() {
       // Update our mirror from the Number's resulting state.
       const float actual = channel.number_entity->state;
 
-      if (std::isfinite(actual) &&
-          actual >= 1.0f &&
-          actual <= 512.0f &&
-          std::floor(actual) == actual) {
+      if (std::isfinite(actual) && actual >= 1.0f && actual <= 512.0f && std::floor(actual) == actual) {
         channel.dmx_address = static_cast<uint16_t>(actual);
 
-        ESP_LOGI(
-            TAG,
-            "RDM → Number '%s' = %u",
-            LOG_STR_ARG(channel.number_entity->get_log_name()),
-            channel.dmx_address);
+        ESP_LOGI(TAG, "RDM → Number '%s' = %u", LOG_STR_ARG(channel.number_entity->get_log_name()),
+                 channel.dmx_address);
       }
     }
 
@@ -335,18 +257,14 @@ void DMXComponent::sync_numbers_to_rdm_() {
     for (size_t i = 0; i < this->rdm_channels_.size(); i++) {
       auto &channel = this->rdm_channels_[i];
 
-      if (channel.type != RdmChannelType::DYNAMIC ||
-          channel.number_entity == nullptr ||
+      if (channel.type != RdmChannelType::DYNAMIC || channel.number_entity == nullptr ||
           !channel.number_entity->has_state()) {
         continue;
       }
 
       const float state = channel.number_entity->state;
 
-      if (!std::isfinite(state) ||
-          state < 1.0f ||
-          state > 512.0f ||
-          std::floor(state) != state) {
+      if (!std::isfinite(state) || state < 1.0f || state > 512.0f || std::floor(state) != state) {
         continue;
       }
 
@@ -356,23 +274,13 @@ void DMXComponent::sync_numbers_to_rdm_() {
         continue;
       }
 
-      const rdm_pid_t pid =
-          static_cast<rdm_pid_t>(RDM_CHANNEL_PID_BASE + i);
+      const rdm_pid_t pid = static_cast<rdm_pid_t>(RDM_CHANNEL_PID_BASE + i);
 
-      if (dmx_parameter_set(
-              this->dmx_port_,
-              RDM_SUB_DEVICE_ROOT,
-              pid,
-              &address,
-              sizeof(address)) == sizeof(address)) {
+      if (dmx_parameter_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, &address, sizeof(address)) == sizeof(address)) {
         channel.dmx_address = address;
 
-        ESP_LOGD(
-            TAG,
-            "Number '%s' → RDM channel %u = %u",
-            LOG_STR_ARG(channel.number_entity->get_log_name()),
-            static_cast<unsigned>(i + 1),
-            address);
+        ESP_LOGD(TAG, "Number '%s' → RDM channel %u = %u", LOG_STR_ARG(channel.number_entity->get_log_name()),
+                 static_cast<unsigned>(i + 1), address);
       }
     }
 
@@ -387,8 +295,7 @@ void DMXComponent::loop() {
   if (this->mode_ == DMXMode::DMX_MODE_RX) {
     dmx_packet_t packet{};
 
-    const size_t received_size =
-        dmx_receive(this->dmx_port_, &packet, 1);
+    const size_t received_size = dmx_receive(this->dmx_port_, &packet, 1);
 
     if (received_size > 0) {
       // Handle valid RDM packets immediately.
@@ -403,26 +310,17 @@ void DMXComponent::loop() {
       }
 
       // Handle normal DMX packets.
-      if (packet.err == DMX_OK &&
-          !packet.is_rdm &&
-          packet.sc == 0x00) {
+      if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
         if (received_size > DMX_PACKET_SIZE) {
-          ESP_LOGW(
-              TAG,
-              "Ignoring oversized DMX packet (%u bytes)",
-              static_cast<unsigned>(received_size));
+          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)", static_cast<unsigned>(received_size));
         } else {
-          const size_t bytes_read =
-              dmx_read(this->dmx_port_, this->rx_data_, received_size);
+          const size_t bytes_read = dmx_read(this->dmx_port_, this->rx_data_, received_size);
 
           if (bytes_read == received_size) {
             this->publish_inputs_();
           } else {
-            ESP_LOGW(
-                TAG,
-                "Incomplete DMX read: expected %u bytes, received %u",
-                static_cast<unsigned>(received_size),
-                static_cast<unsigned>(bytes_read));
+            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size),
+                     static_cast<unsigned>(bytes_read));
           }
         }
       } else if (packet.err != DMX_OK) {
@@ -442,8 +340,7 @@ void DMXComponent::loop() {
 
   // TX mode: ESPHome is the DMX controller.
   if (this->mode_ == DMXMode::DMX_MODE_TX && this->tx_enabled_) {
-    if (this->tx_dirty_ ||
-        (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
+    if (this->tx_dirty_ || (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
       this->send_universe_();
     }
   }
@@ -456,42 +353,34 @@ void DMXComponent::publish_inputs_() {
       continue;
     }
 
-    const float value =
-        static_cast<float>(this->rx_data_[cs.channel]);
+    const float value = static_cast<float>(this->rx_data_[cs.channel]);
 
-    if (!cs.sensor->has_state() ||
-        cs.sensor->get_raw_state() != value) {
+    if (!cs.sensor->has_state() || cs.sensor->get_raw_state() != value) {
       cs.sensor->publish_state(value);
     }
   }
 
   // Dynamic RX channels.
   for (auto &ds : this->dynamic_sensors_) {
-    if (ds.channel_number == nullptr ||
-        !ds.channel_number->has_state()) {
+    if (ds.channel_number == nullptr || !ds.channel_number->has_state()) {
       continue;
     }
 
     const float channel_value = ds.channel_number->state;
 
-    if (!std::isfinite(channel_value) ||
-        channel_value < 1.0f ||
-        channel_value > 512.0f) {
+    if (!std::isfinite(channel_value) || channel_value < 1.0f || channel_value > 512.0f) {
       continue;
     }
 
-    const uint16_t channel =
-        static_cast<uint16_t>(channel_value);
+    const uint16_t channel = static_cast<uint16_t>(channel_value);
 
     if (static_cast<float>(channel) != channel_value) {
       continue;
     }
 
-    const float value =
-        static_cast<float>(this->rx_data_[channel]);
+    const float value = static_cast<float>(this->rx_data_[channel]);
 
-    if (!ds.sensor->has_state() ||
-        ds.sensor->get_raw_state() != value) {
+    if (!ds.sensor->has_state() || ds.sensor->get_raw_state() != value) {
       ds.sensor->publish_state(value);
     }
   }
@@ -504,27 +393,18 @@ void DMXComponent::send_universe_() {
     return;
   }
 
-  const size_t written =
-      dmx_write(this->dmx_port_, this->tx_data_, DMX_PACKET_SIZE);
+  const size_t written = dmx_write(this->dmx_port_, this->tx_data_, DMX_PACKET_SIZE);
 
   if (written != DMX_PACKET_SIZE) {
-    ESP_LOGW(
-        TAG,
-        "DMX write incomplete: %u / %u",
-        static_cast<unsigned>(written),
-        static_cast<unsigned>(DMX_PACKET_SIZE));
+    ESP_LOGW(TAG, "DMX write incomplete: %u / %u", static_cast<unsigned>(written),
+             static_cast<unsigned>(DMX_PACKET_SIZE));
     return;
   }
 
-  const size_t sent =
-      dmx_send_num(this->dmx_port_, DMX_PACKET_SIZE);
+  const size_t sent = dmx_send_num(this->dmx_port_, DMX_PACKET_SIZE);
 
   if (sent != DMX_PACKET_SIZE) {
-    ESP_LOGW(
-        TAG,
-        "DMX send incomplete: %u / %u",
-        static_cast<unsigned>(sent),
-        static_cast<unsigned>(DMX_PACKET_SIZE));
+    ESP_LOGW(TAG, "DMX send incomplete: %u / %u", static_cast<unsigned>(sent), static_cast<unsigned>(DMX_PACKET_SIZE));
     return;
   }
 
@@ -548,19 +428,10 @@ uint8_t DMXComponent::get_tx_channel(uint16_t channel) const {
   return this->tx_data_[channel];
 }
 
-void DMXComponent::set_slot(uint16_t channel, uint8_t value) {
-  this->set_slots(channel, &value, 1);
-}
+void DMXComponent::set_slot(uint16_t channel, uint8_t value) { this->set_slots(channel, &value, 1); }
 
-void DMXComponent::set_slots(
-    uint16_t first_channel,
-    const uint8_t *values,
-    size_t count) {
-
-  if (values == nullptr ||
-      count == 0 ||
-      first_channel < 1 ||
-      first_channel > 512) {
+void DMXComponent::set_slots(uint16_t first_channel, const uint8_t *values, size_t count) {
+  if (values == nullptr || count == 0 || first_channel < 1 || first_channel > 512) {
     return;
   }
 
@@ -573,8 +444,7 @@ void DMXComponent::set_slots(
   bool changed = false;
 
   for (size_t i = 0; i < count; i++) {
-    const size_t index =
-        static_cast<size_t>(first_channel) + i;
+    const size_t index = static_cast<size_t>(first_channel) + i;
 
     if (this->tx_data_[index] != values[i]) {
       this->tx_data_[index] = values[i];
@@ -598,41 +468,22 @@ void DMXComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RTS Pin: GPIO%d", this->rts_pin_);
   }
 
-  ESP_LOGCONFIG(
-      TAG,
-      "  TX interval: %u ms",
-      static_cast<unsigned>(this->tx_interval_ms_));
+  ESP_LOGCONFIG(TAG, "  TX interval: %u ms", static_cast<unsigned>(this->tx_interval_ms_));
 
-  ESP_LOGCONFIG(
-      TAG,
-      "  RDM: %s",
-      this->rdm_enabled_ ? LOG_STR_LITERAL("enabled")
-                        : LOG_STR_LITERAL("disabled"));
+  ESP_LOGCONFIG(TAG, "  RDM: %s", this->rdm_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 
-  ESP_LOGCONFIG(
-      TAG,
-      "  RDM RX channels: %u",
-      static_cast<unsigned>(this->rdm_channels_.size()));
+  ESP_LOGCONFIG(TAG, "  RDM RX channels: %u", static_cast<unsigned>(this->rdm_channels_.size()));
 
   for (size_t i = 0; i < this->rdm_channels_.size(); i++) {
     const auto &channel = this->rdm_channels_[i];
 
-    if (channel.type == RdmChannelType::DYNAMIC &&
-        channel.number_entity != nullptr) {
-      ESP_LOGCONFIG(
-          TAG,
-          "    [%u] '%s' → DMX address %u, dynamic, PID 0x%04X",
-          static_cast<unsigned>(i + 1),
-          LOG_STR_ARG(channel.number_entity->get_log_name()),
-          channel.dmx_address,
-          static_cast<unsigned>(RDM_CHANNEL_PID_BASE + i));
+    if (channel.type == RdmChannelType::DYNAMIC && channel.number_entity != nullptr) {
+      ESP_LOGCONFIG(TAG, "    [%u] '%s' → DMX address %u, dynamic, PID 0x%04X", static_cast<unsigned>(i + 1),
+                    LOG_STR_ARG(channel.number_entity->get_log_name()), channel.dmx_address,
+                    static_cast<unsigned>(RDM_CHANNEL_PID_BASE + i));
     } else {
-      ESP_LOGCONFIG(
-          TAG,
-          "    [%u] DMX address %u, fixed, PID 0x%04X",
-          static_cast<unsigned>(i + 1),
-          channel.dmx_address,
-          static_cast<unsigned>(RDM_CHANNEL_PID_BASE + i));
+      ESP_LOGCONFIG(TAG, "    [%u] DMX address %u, fixed, PID 0x%04X", static_cast<unsigned>(i + 1),
+                    channel.dmx_address, static_cast<unsigned>(RDM_CHANNEL_PID_BASE + i));
     }
   }
 }
@@ -642,18 +493,15 @@ light::LightTraits DMXLightOutput::get_traits() {
 
   switch (this->light_type_) {
     case DMXLightType::DMX_LIGHT_TYPE_DIMMER:
-      traits.set_supported_color_modes(
-          {light::ColorMode::BRIGHTNESS});
+      traits.set_supported_color_modes({light::ColorMode::BRIGHTNESS});
       break;
 
     case DMXLightType::DMX_LIGHT_TYPE_RGB:
-      traits.set_supported_color_modes(
-          {light::ColorMode::RGB});
+      traits.set_supported_color_modes({light::ColorMode::RGB});
       break;
 
     case DMXLightType::DMX_LIGHT_TYPE_RGBW:
-      traits.set_supported_color_modes(
-          {light::ColorMode::RGB_WHITE});
+      traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
       break;
   }
 
@@ -673,8 +521,7 @@ void DMXLightOutput::write_state(light::LightState *state) {
       float brightness;
       state->current_values_as_brightness(&brightness);
 
-      values[0] =
-          static_cast<uint8_t>(std::lroundf(brightness * 255.0f));
+      values[0] = static_cast<uint8_t>(std::lroundf(brightness * 255.0f));
 
       count = 1;
       break;
@@ -684,12 +531,9 @@ void DMXLightOutput::write_state(light::LightState *state) {
       float red, green, blue;
       state->current_values_as_rgb(&red, &green, &blue);
 
-      values[0] =
-          static_cast<uint8_t>(std::lroundf(red * 255.0f));
-      values[1] =
-          static_cast<uint8_t>(std::lroundf(green * 255.0f));
-      values[2] =
-          static_cast<uint8_t>(std::lroundf(blue * 255.0f));
+      values[0] = static_cast<uint8_t>(std::lroundf(red * 255.0f));
+      values[1] = static_cast<uint8_t>(std::lroundf(green * 255.0f));
+      values[2] = static_cast<uint8_t>(std::lroundf(blue * 255.0f));
 
       count = 3;
       break;
@@ -699,14 +543,10 @@ void DMXLightOutput::write_state(light::LightState *state) {
       float red, green, blue, white;
       state->current_values_as_rgbw(&red, &green, &blue, &white);
 
-      values[0] =
-          static_cast<uint8_t>(std::lroundf(red * 255.0f));
-      values[1] =
-          static_cast<uint8_t>(std::lroundf(green * 255.0f));
-      values[2] =
-          static_cast<uint8_t>(std::lroundf(blue * 255.0f));
-      values[3] =
-          static_cast<uint8_t>(std::lroundf(white * 255.0f));
+      values[0] = static_cast<uint8_t>(std::lroundf(red * 255.0f));
+      values[1] = static_cast<uint8_t>(std::lroundf(green * 255.0f));
+      values[2] = static_cast<uint8_t>(std::lroundf(blue * 255.0f));
+      values[3] = static_cast<uint8_t>(std::lroundf(white * 255.0f));
 
       count = 4;
       break;
