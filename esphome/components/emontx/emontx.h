@@ -66,8 +66,9 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void set_lock_on_reboot(LockOnReboot lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
 
 #ifdef USE_SENSOR
-  void init_sensors(size_t count) { this->sensors_.init(count); }
-  void register_sensor(const char *tag_name, sensor::Sensor *sensor);
+  /// Route the JSON value under `tag_name` (a string literal) to `sensor`
+  SLOT_LIST_REQUIRES(EMONTX_SENSOR_COUNT)
+  void register_sensor(const char *tag_name, sensor::Sensor *sensor) { this->sensors_.push_back({tag_name, sensor}); }
 #endif
 
  protected:
@@ -87,9 +88,6 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void parse_version_line_(const char *line, size_t len);
 #endif
 
-#ifdef USE_SENSOR
-  FixedVector<std::pair<const char *, sensor::Sensor *>> sensors_{};
-#endif
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
   std::atomic<bool> paused_{false};
@@ -102,6 +100,10 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint32_t last_msg_number_{0};
 #endif
   LineReader<MAX_LINE_LENGTH + 1> line_reader_;
+#ifdef USE_SENSOR
+  // Last, so the inline storage does not push the other members past short load offsets
+  [[no_unique_address]] SlotList<std::pair<const char *, sensor::Sensor *>, EMONTX_SENSOR_COUNT> sensors_;
+#endif
 };
 
 }  // namespace esphome::emontx

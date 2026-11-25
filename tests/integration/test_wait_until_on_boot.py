@@ -5,7 +5,7 @@ which runs at the same setup priority as WaitUntilAction itself. This was broken
 before the fix because WaitUntilAction::setup() would unconditionally disable_loop(),
 even if play_complex() had already been called and enabled the loop.
 
-The bug: on_boot fires during StartupTrigger::setup(), which calls WaitUntilAction::play_complex()
+The bug: on_boot fires during StartupCallback::setup(), which calls WaitUntilAction::play_complex()
 before WaitUntilAction::setup() has run. Then when WaitUntilAction::setup() runs, it calls
 disable_loop(), undoing the enable_loop() from play_complex(), causing wait_until to hang forever.
 """
