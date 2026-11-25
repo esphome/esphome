@@ -6,3 +6,5 @@ packages:
 camera_decoder:
   output_type: GRAYSCALE
   rotation: 90
+  width: 640
+  height: 480

@@ -3,7 +3,7 @@
 import pytest
 
 from esphome.components import camera
-from esphome.components.camera_decoder import CONFIG_SCHEMA
+from esphome.components.camera_decoder import CONFIG_SCHEMA, _preallocate_size
 from esphome.components.esp32 import (
     ARDUINO_ALLOWED_VARIANTS,
     KEY_VARIANT,
@@ -133,3 +133,55 @@ def test_unknown_output_type_rejected(
 
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA({"output_type": "GREY"})
+
+
+def _esp32_idf(set_core_config: SetCoreConfigCallable) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32},
+        full_config={CONF_ESPHOME: {}},
+    )
+
+
+@pytest.mark.parametrize(
+    ("output_type", "width", "height", "expected"),
+    [
+        # Whole 16x16 blocks, so 320x240 needs no padding and 3 bytes a pixel.
+        ("RGB888", 320, 240, 320 * 240 * 3),
+        # 100x50 rounds up to 112x64, 2 bytes a pixel.
+        ("RGB565", 100, 50, 112 * 64 * 2),
+        ("YUV422", 16, 16, 16 * 16 * 2),
+        # GRAYSCALE is decoded as RGB888 first.
+        ("GRAYSCALE", 64, 64, 64 * 64 * 3),
+    ],
+)
+def test_preallocate_size(
+    set_core_config: SetCoreConfigCallable,
+    output_type: str,
+    width: int,
+    height: int,
+    expected: int,
+) -> None:
+    """The reserved buffer covers the largest frame in whole blocks."""
+    _esp32_idf(set_core_config)
+    config = CONFIG_SCHEMA(
+        {"output_type": output_type, "width": width, "height": height}
+    )
+
+    assert _preallocate_size(config) == expected
+
+
+def test_no_size_reserves_nothing(set_core_config: SetCoreConfigCallable) -> None:
+    _esp32_idf(set_core_config)
+
+    assert _preallocate_size(CONFIG_SCHEMA({})) == 0
+
+
+@pytest.mark.parametrize("key", ["width", "height"])
+def test_size_needs_both_dimensions(
+    set_core_config: SetCoreConfigCallable, key: str
+) -> None:
+    _esp32_idf(set_core_config)
+
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({key: 64})

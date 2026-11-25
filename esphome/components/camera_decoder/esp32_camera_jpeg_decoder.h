@@ -43,7 +43,8 @@ class JpegBuffer final : public camera::Buffer {
 /// for RGB888, so peak RAM is 3x the grayscale frame size.
 class ESP32CameraJPEGDecoder final : public camera::Decoder {
  public:
-  ESP32CameraJPEGDecoder(camera::PixelFormat output_format, uint16_t rotation);
+  /// A non-zero `preallocate` reserves the output buffer at construction, so no frame up to that size allocates.
+  ESP32CameraJPEGDecoder(camera::PixelFormat output_format, uint16_t rotation, size_t preallocate);
   ~ESP32CameraJPEGDecoder() override;
 
   camera::DecoderError decode(const uint8_t *data, size_t length, camera::CameraImageSpec *spec) override;

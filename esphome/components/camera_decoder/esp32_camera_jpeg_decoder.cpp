@@ -47,8 +47,17 @@ JpegBuffer::~JpegBuffer() {
   }
 }
 
-ESP32CameraJPEGDecoder::ESP32CameraJPEGDecoder(camera::PixelFormat output_format, uint16_t rotation)
-    : output_format_(output_format), rotation_degrees_(rotation) {}
+ESP32CameraJPEGDecoder::ESP32CameraJPEGDecoder(camera::PixelFormat output_format, uint16_t rotation, size_t preallocate)
+    : output_format_(output_format), rotation_degrees_(rotation) {
+  if (preallocate == 0)
+    return;
+  this->output_ = std::make_unique<JpegBuffer>(preallocate);
+  if (!this->output_->valid()) {
+    // The first frame retries the allocation and reports the failure.
+    ESP_LOGW(TAG, "Failed to reserve %zu bytes for the JPEG output", preallocate);
+    this->output_.reset();
+  }
+}
 
 ESP32CameraJPEGDecoder::~ESP32CameraJPEGDecoder() {
   if (this->decoder_ != nullptr) {
