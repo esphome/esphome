@@ -37,6 +37,7 @@ IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
+cg.lazy_callback_methods(Select, "add_on_state_callback")
 SelectPtr = Select.operator("ptr")
 ApplySelect = select_ns.class_("ApplySelect", Select)
 

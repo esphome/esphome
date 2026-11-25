@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+logger:
+
+sensor:
+  - platform: template
+    id: with_automation
+    name: with automation
+    on_value:
+      - logger.log: first
+      - logger.log: second
+    on_raw_value:
+      - logger.log: raw
+  - platform: template
+    id: without_automation
+    name: without automation
+
+binary_sensor:
+  - platform: template
+    id: clicked
+    name: clicked
+    on_click:
+      - logger.log: click

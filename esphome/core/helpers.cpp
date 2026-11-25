@@ -54,6 +54,34 @@ __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t
   return new_data;
 }
 
+#ifdef ESPHOME_CALLBACK_MANAGER_POOL_SIZE
+namespace {
+struct alignas(CallbackManager<void()>) CallbackManagerSlot {
+  uint8_t bytes[sizeof(CallbackManager<void()>)];
+};
+CallbackManagerSlot callback_manager_pool[ESPHOME_CALLBACK_MANAGER_POOL_SIZE];
+uint16_t callback_manager_pool_used{0};
+}  // namespace
+#endif
+
+void *callback_manager_alloc() {
+#ifdef ESPHOME_CALLBACK_MANAGER_POOL_SIZE
+  if (callback_manager_pool_used < ESPHOME_CALLBACK_MANAGER_POOL_SIZE)
+    return &callback_manager_pool[callback_manager_pool_used++];
+#endif
+  return ::operator new(sizeof(CallbackManager<void()>));
+}
+
+bool callback_manager_is_static(const void *ptr) {
+#ifdef ESPHOME_CALLBACK_MANAGER_POOL_SIZE
+  auto addr = reinterpret_cast<uintptr_t>(ptr);
+  auto start = reinterpret_cast<uintptr_t>(callback_manager_pool);
+  return addr - start < sizeof(callback_manager_pool);
+#else
+  return false;
+#endif
+}
+
 static const uint16_t CRC16_A001_LE_LUT_L[] = {0x0000, 0xc0c1, 0xc181, 0x0140, 0xc301, 0x03c0, 0x0280, 0xc241,
                                                0xc601, 0x06c0, 0x0780, 0xc741, 0x0500, 0xc5c1, 0xc481, 0x0440};
 static const uint16_t CRC16_A001_LE_LUT_H[] = {0x0000, 0xcc01, 0xd801, 0x1400, 0xf001, 0x3c00, 0x2800, 0xe401,

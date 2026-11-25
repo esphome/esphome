@@ -42,6 +42,7 @@ _RealTimeClock = cg.esphome_ns.namespace("time").class_(
     "RealTimeClock", cg.PollingComponent
 )
 DateTimeBase = datetime_ns.class_("DateTimeBase", cg.EntityBase)
+cg.lazy_callback_methods(DateTimeBase, "add_on_state_callback")
 DateEntity = datetime_ns.class_("DateEntity", DateTimeBase)
 TimeEntity = datetime_ns.class_("TimeEntity", DateTimeBase)
 DateTimeEntity = datetime_ns.class_("DateTimeEntity", DateTimeBase)

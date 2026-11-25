@@ -75,11 +75,14 @@ def set_testing_manifest(domain: str, manifest: ComponentManifestOverride) -> No
     _replace_component_manifest(domain, manifest)
 
 
-def add_defines_to_code(manifest: ComponentManifestOverride, *defines: str) -> None:
+def add_defines_to_code(
+    manifest: ComponentManifestOverride, *defines: str | tuple[str, int]
+) -> None:
     """Keep the component's real ``to_code`` and add the given defines after it.
 
     For host test and benchmark builds of code that is gated on a platform
-    define, such as loops that only exist on boards with PSRAM.
+    define, such as loops that only exist on boards with PSRAM. A
+    ``(name, value)`` pair defines a value.
     """
     from esphome import codegen as cg
 
@@ -89,7 +92,10 @@ def add_defines_to_code(manifest: ComponentManifestOverride, *defines: str) -> N
     async def to_code(config: ConfigType) -> None:
         await original_to_code(config)
         for define in defines:
-            cg.add_define(define)
+            if isinstance(define, tuple):
+                cg.add_define(*define)
+            else:
+                cg.add_define(define)
 
     if hasattr(original_to_code, "priority"):
         to_code.priority = original_to_code.priority

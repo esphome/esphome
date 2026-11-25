@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from esphome import codegen as cg, const, cpp_helpers as ch, cpp_types as ct
-from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.core import ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import ComponentSourcePool, register_component_source
 
@@ -251,6 +251,42 @@ def test_slot_counter_request_after_emit_raises() -> None:
     assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
     with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
         request()
+
+
+_test_ns = cg.esphome_ns.namespace("pool_test")
+_PoolEntity = _test_ns.class_("PoolEntity", cg.EntityBase)
+_PoolChild = _test_ns.class_("PoolChild", _PoolEntity)
+ch.lazy_callback_methods(_PoolEntity, "add_on_state_callback")
+
+
+def _entity(name: str, type_: Any = _PoolChild) -> MockObj:
+    return MockObj(ID(name, is_declaration=True, type=type_), "->")
+
+
+def test_reserve_callback_manager_counts_each_manager_once() -> None:
+    """Several callbacks on one manager share its slot; subclasses use the base's methods."""
+    ch.reserve_callback_manager(_entity("a"), "add_on_state_callback")
+    ch.reserve_callback_manager(_entity("a"), "add_on_state_callback")
+    ch.reserve_callback_manager(_entity("b", _PoolEntity), "add_on_state_callback")
+    ch.CORE.flush_tasks()
+    assert _define_value(ch.CALLBACK_MANAGER_POOL_SIZE) == "2"
+
+
+def test_reserve_callback_manager_ignores_undeclared_methods() -> None:
+    """A method or class not declared lazy reserves nothing, so no pool is emitted."""
+    ch.reserve_callback_manager(_entity("a"), "add_on_press_callback")
+    ch.reserve_callback_manager(_entity("c", cg.Component), "add_on_state_callback")
+    ch.reserve_callback_manager(MockObj("raw", "->"), "add_on_state_callback")
+    ch.CORE.flush_tasks()
+    assert _define_value(ch.CALLBACK_MANAGER_POOL_SIZE) is None
+
+
+def test_reserve_callback_manager_after_emit_is_ignored() -> None:
+    """A late reservation keeps the emitted size; that manager falls back to the heap."""
+    ch.reserve_callback_manager(_entity("a"), "add_on_state_callback")
+    ch.CORE.flush_tasks()
+    ch.reserve_callback_manager(_entity("b"), "add_on_state_callback")
+    assert _define_value(ch.CALLBACK_MANAGER_POOL_SIZE) == "1"
 
 
 def _load_module(

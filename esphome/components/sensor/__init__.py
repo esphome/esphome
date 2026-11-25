@@ -307,6 +307,7 @@ def sensor_entity_category(value):
 
 # Base
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
+cg.lazy_callback_methods(Sensor, "add_on_state_callback", "add_on_raw_state_callback")
 SensorPtr = Sensor.operator("ptr")
 
 # Triggers

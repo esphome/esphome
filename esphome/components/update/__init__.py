@@ -29,6 +29,7 @@ IS_PLATFORM_COMPONENT = True
 
 update_ns = cg.esphome_ns.namespace("update")
 UpdateEntity = update_ns.class_("UpdateEntity", cg.EntityBase)
+cg.lazy_callback_methods(UpdateEntity, "add_on_state_callback")
 
 UpdateInfo = update_ns.struct("UpdateInfo")
 

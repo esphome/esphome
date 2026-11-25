@@ -64,6 +64,7 @@ DOMAIN = "cover"
 cover_ns = cg.esphome_ns.namespace("cover")
 
 Cover = cover_ns.class_("Cover", cg.EntityBase)
+cg.lazy_callback_methods(Cover, "add_on_state_callback")
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
@@ -197,6 +198,7 @@ async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
     for trigger_conf in TRIGGERS:
         for conf in config.get(trigger_conf, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            cg.reserve_callback_manager(var, "add_on_state_callback")
             await automation.build_automation(trigger, [], conf)
 
     mqtt_ = await entity_helpers.setup_entity_integrations(var, config)

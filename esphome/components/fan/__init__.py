@@ -43,6 +43,7 @@ IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
+cg.lazy_callback_methods(Fan, "add_on_state_callback")
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = FanDirection.options("FORWARD", "REVERSE")
@@ -278,6 +279,9 @@ async def setup_fan_core_(var, config):
         await automation.build_parent_callback_automation(
             var, "add_on_state_callback", (Fan.operator("ptr"), "x"), conf
         )
+    if any(config.get(key) for key, _ in _TRIGGER_AUTOMATIONS):
+        # the trigger constructors add state callbacks
+        cg.reserve_callback_manager(var, "add_on_state_callback")
     await automation.build_trigger_automations(var, config, _TRIGGER_AUTOMATIONS)
 
 

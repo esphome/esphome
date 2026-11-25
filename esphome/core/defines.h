@@ -37,6 +37,9 @@
 #define ESPHOME_THREAD_MULTI_ATOMICS
 #endif
 
+// Static CallbackManagers for LazyCallbackManager, one per manager codegen knows gets callbacks
+#define ESPHOME_CALLBACK_MANAGER_POOL_SIZE 8
+
 // logger
 #define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define ESPHOME_LOGGER_TX_BUFFER_SIZE 512

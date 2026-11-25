@@ -45,6 +45,7 @@ DEVICE_CLASSES = [
 
 button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
+cg.lazy_callback_methods(Button, "add_on_press_callback")
 ButtonPtr = Button.operator("ptr")
 ApplyButton = button_ns.class_("ApplyButton", Button)
 

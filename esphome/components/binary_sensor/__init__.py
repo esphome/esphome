@@ -128,6 +128,12 @@ DEFAULT_TIME_ON = "900ms"
 
 binary_sensor_ns = cg.esphome_ns.namespace("binary_sensor")
 BinarySensor = binary_sensor_ns.class_("BinarySensor", cg.EntityBase)
+cg.lazy_callback_methods(
+    BinarySensor,
+    "add_on_state_callback",
+    "add_full_state_callback",
+    "add_on_raw_state_callback",
+)
 BinarySensorInitiallyOff = binary_sensor_ns.class_(
     "BinarySensorInitiallyOff", BinarySensor
 )
@@ -598,6 +604,12 @@ async def _build_binary_sensor_automations(var, config):
     if config.get(CONF_ON_RAW_VALUE):
         cg.add_define("USE_BINARY_SENSOR_RAW_CALLBACK")
 
+    if any(
+        config.get(key)
+        for key in (CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK)
+    ):
+        # the click trigger constructors add state callbacks
+        cg.reserve_callback_manager(var, "add_on_state_callback")
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], var, conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH]

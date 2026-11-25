@@ -26,6 +26,7 @@ IS_PLATFORM_COMPONENT = True
 
 lock_ns = cg.esphome_ns.namespace("lock")
 Lock = lock_ns.class_("Lock", cg.EntityBase)
+cg.lazy_callback_methods(Lock, "add_on_state_callback")
 LockPtr = Lock.operator("ptr")
 LockCall = lock_ns.class_("LockCall")
 

@@ -161,6 +161,7 @@ IS_PLATFORM_COMPONENT = True
 
 number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
+cg.lazy_callback_methods(Number, "add_on_state_callback")
 NumberPtr = Number.operator("ptr")
 ApplyNumber = number_ns.class_("ApplyNumber", Number)
 

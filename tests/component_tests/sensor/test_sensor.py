@@ -3,6 +3,11 @@
 from collections.abc import Callable
 import re
 
+from esphome.core import CORE
+from esphome.cpp_helpers import (
+    _CALLBACK_MANAGER_POOL_DOMAIN,
+    CALLBACK_MANAGER_POOL_SIZE,
+)
 from tests.component_tests.helpers import extract_packed_value
 
 
@@ -42,3 +47,19 @@ def test_calibration_tables_are_shared_progmem(
     # Table names never reuse a user id.
     assert exact != "sensor_calibrate_linear"
     assert "sensor_calibratelinearfilter_id_data" not in (exact, least_squares)
+
+
+def test_callback_manager_pool_reserves_only_used_managers(
+    generate_main: Callable[[str], str],
+) -> None:
+    """An entity with automations gets static managers, one per add method; one without gets none."""
+    generate_main("tests/component_tests/sensor/test_callback_manager_pool.yaml")
+
+    state = CORE.data[_CALLBACK_MANAGER_POOL_DOMAIN]
+    assert state.managers == {
+        ("with_automation", "add_on_state_callback"),
+        ("with_automation", "add_on_raw_state_callback"),
+        ("clicked", "add_on_state_callback"),
+    }
+    pool = [d for d in CORE.defines if d.name == CALLBACK_MANAGER_POOL_SIZE]
+    assert [str(d.value) for d in pool] == ["3"]

@@ -12,6 +12,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLUSTER,
+    CONF_COMMAND_TOPIC,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -28,6 +29,7 @@ from esphome.const import (
     CONF_REPORT,
     CONF_SORTING_GROUP_ID,
     CONF_SORTING_WEIGHT,
+    CONF_STATE_TOPIC,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_USE_DEVICE_TYPE,
     CONF_VISUAL,
@@ -536,6 +538,7 @@ class FollowEntity:
         callback = LambdaExpression(
             [publish], list(self.params), capture="", return_type=cg.void
         )
+        cg.reserve_callback_manager(source, self.callback)
         add(getattr(source, self.callback)(*args, callback))
 
 
@@ -1178,6 +1181,14 @@ async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
     await hook(*args)
 
 
+def mqtt_publishes(config: ConfigType) -> bool:
+    """Whether the mqtt companion is not internal, so its setup() registers a state callback."""
+    for key in (CONF_STATE_TOPIC, CONF_COMMAND_TOPIC):
+        if key in config:
+            return bool(config[key])
+    return not config.get(CONF_INTERNAL, False)
+
+
 async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:
     """Register the mqtt companion and web_server entry for an entity.
 
@@ -1190,6 +1201,8 @@ async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj
 
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
+        if mqtt_publishes(config):
+            cg.reserve_callback_manager(var, "add_on_state_callback")
 
     if web_server_config := config.get(CONF_WEB_SERVER):
         from esphome.components import web_server

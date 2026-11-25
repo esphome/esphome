@@ -53,6 +53,7 @@ DEVICE_CLASSES = [
 
 switch_ns = cg.esphome_ns.namespace("switch_")
 Switch = switch_ns.class_("Switch", cg.EntityBase)
+cg.lazy_callback_methods(Switch, "add_on_state_callback")
 SwitchPtr = Switch.operator("ptr")
 ApplySwitch = switch_ns.class_("ApplySwitch", Switch)
 

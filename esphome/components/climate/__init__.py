@@ -73,6 +73,7 @@ DOMAIN = "climate"
 climate_ns = cg.esphome_ns.namespace("climate")
 
 Climate = climate_ns.class_("Climate", cg.EntityBase)
+cg.lazy_callback_methods(Climate, "add_on_state_callback", "add_on_control_callback")
 ClimateCall = climate_ns.class_("ClimateCall")
 ClimateTraits = climate_ns.class_("ClimateTraits")
 

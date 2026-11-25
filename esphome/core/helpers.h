@@ -2234,6 +2234,12 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   uint16_t capacity_{0};
 };
 
+/// Storage for LazyCallbackManager's CallbackManager: a slot of the static pool that codegen sizes to the
+/// managers it knows get callbacks, else the heap. Every CallbackManager has the same layout.
+void *callback_manager_alloc();
+/// Whether ptr is a pool slot from callback_manager_alloc(), which is never freed.
+bool callback_manager_is_static(const void *ptr);
+
 /** CallbackManager backed by StaticVector for compile-time-known callback counts.
  *
  * Drop-in replacement for CallbackManager that avoids std::vector template bloat
@@ -2288,7 +2294,13 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   LazyCallbackManager() = default;
   /// Destructor - clean up allocated CallbackManager if any.
   /// In practice this never runs (entities live for device lifetime) but included for correctness.
-  ~LazyCallbackManager() { delete this->callbacks_; }
+  ~LazyCallbackManager() {
+    if (this->callbacks_ == nullptr)
+      return;
+    this->callbacks_->~CallbackManager();
+    if (!callback_manager_is_static(this->callbacks_))
+      ::operator delete(this->callbacks_);
+  }
 
   // Non-copyable and non-movable (entities are never copied or moved)
   LazyCallbackManager(const LazyCallbackManager &) = delete;
@@ -2319,7 +2331,9 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   /// Non-template core to avoid code duplication per lambda type.
   void add_(Callback<void(Ts...)> cb) {
     if (!this->callbacks_) {
-      this->callbacks_ = new CallbackManager<void(Ts...)>();
+      static_assert(sizeof(CallbackManager<void(Ts...)>) == sizeof(CallbackManager<void()>) &&
+                    alignof(CallbackManager<void(Ts...)>) == alignof(CallbackManager<void()>));
+      this->callbacks_ = new (callback_manager_alloc()) CallbackManager<void(Ts...)>();
     }
     this->callbacks_->add_(cb);
   }

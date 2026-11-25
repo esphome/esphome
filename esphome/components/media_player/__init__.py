@@ -36,6 +36,7 @@ IS_PLATFORM_COMPONENT = True
 media_player_ns = cg.esphome_ns.namespace("media_player")
 
 MediaPlayer = media_player_ns.class_("MediaPlayer")
+cg.lazy_callback_methods(MediaPlayer, "add_on_state_callback")
 
 MediaPlayerSupportedFormat = media_player_ns.struct("MediaPlayerSupportedFormat")
 

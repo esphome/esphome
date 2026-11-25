@@ -6,4 +6,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # because it bootstraps the fundamental application infrastructure that all
     # components depend on (component registration, event loop, etc.).
     # USE_LINE_READER keeps line_reader.cpp in the build for its tests.
-    add_defines_to_code(manifest, "USE_LINE_READER")
+    # The callback manager pool is larger than the other tests use (test_callback.cpp).
+    add_defines_to_code(
+        manifest, "USE_LINE_READER", ("ESPHOME_CALLBACK_MANAGER_POOL_SIZE", 16)
+    )

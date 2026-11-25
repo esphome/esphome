@@ -17,6 +17,7 @@ from esphome.cpp_generator import (
     AssignmentExpression,
     BinOpExpression,
     MockObj,
+    MockObjClass,
     RawStatement,
     Statement,
     add,
@@ -260,6 +261,56 @@ async def emit_empty_slot_lists() -> None:
         if domain in built and define not in done:
             state.emitted.add(define)
             add_define(define, 0)
+
+
+CALLBACK_MANAGER_POOL_SIZE = "ESPHOME_CALLBACK_MANAGER_POOL_SIZE"
+_CALLBACK_MANAGER_POOL_DOMAIN = "callback_manager_pool"
+
+# Class -> its add_*_callback methods backed by a LazyCallbackManager. Filled at import time.
+_LAZY_CALLBACK_METHODS: list[tuple[MockObjClass, frozenset[str]]] = []
+
+
+@dataclass
+class _CallbackManagerPoolState:
+    """(object, add method) of every lazy manager known to get callbacks this run."""
+
+    managers: set[tuple[str, str]] = field(default_factory=set)
+    emitted: bool = False
+
+
+def lazy_callback_methods(cls: MockObjClass, *methods: str) -> None:
+    """Declare the add methods of ``cls`` that fill a LazyCallbackManager, one manager each."""
+    _LAZY_CALLBACK_METHODS.append((cls, frozenset(methods)))
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_callback_manager_pool() -> None:
+    state: _CallbackManagerPoolState = CORE.data[_CALLBACK_MANAGER_POOL_DOMAIN]
+    state.emitted = True
+    add_define(CALLBACK_MANAGER_POOL_SIZE, len(state.managers))
+
+
+def reserve_callback_manager(parent: MockObj, method: str) -> None:
+    """Reserve a static CallbackManager for the lazy manager ``parent.method()`` adds to.
+
+    Call it where codegen registers a callback, or creates what registers one in C++. Methods
+    not declared with ``lazy_callback_methods`` for the parent's class, and calls after the
+    pool size was emitted, are ignored: that manager then comes from the heap as before.
+    """
+    if not isinstance(id_ := parent.base, ID) or id_.type is None:
+        return
+    if not any(
+        method in methods and id_.type.inherits_from(cls)
+        for cls, methods in _LAZY_CALLBACK_METHODS
+    ):
+        return
+    state = CORE.data.get(_CALLBACK_MANAGER_POOL_DOMAIN)
+    if state is None:
+        state = CORE.data[_CALLBACK_MANAGER_POOL_DOMAIN] = _CallbackManagerPoolState()
+        CORE.add_job(_emit_callback_manager_pool)
+    elif state.emitted:
+        return
+    state.managers.add((id_.id, method))
 
 
 _HUB_FUNCTION_DOMAIN = "hub_function"

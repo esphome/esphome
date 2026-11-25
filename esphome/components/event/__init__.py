@@ -38,6 +38,7 @@ DEVICE_CLASSES = [
 
 event_ns = cg.esphome_ns.namespace("event")
 Event = event_ns.class_("Event", cg.EntityBase)
+cg.lazy_callback_methods(Event, "add_on_event_callback")
 EventPtr = Event.operator("ptr")
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
@@ -105,7 +106,10 @@ async def setup_event_core_(
 
     setup_device_class(config)
 
-    await entity_helpers.setup_entity_integrations(var, config)
+    if await entity_helpers.setup_entity_integrations(
+        var, config
+    ) is not None and entity_helpers.mqtt_publishes(config):
+        cg.reserve_callback_manager(var, "add_on_event_callback")
 
 
 async def register_event(

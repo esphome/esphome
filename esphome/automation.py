@@ -985,6 +985,7 @@ async def new_value_range_trigger(
     trigger = cg.new_Pvariable(
         trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
     )
+    cg.reserve_callback_manager(parent, "add_on_state_callback")
     config = {**IN_RANGE_DEFAULTS, **config}
     members = _VALUE_RANGE_BOUNDS.members
     bounds = await _render_call(
@@ -2386,6 +2387,7 @@ async def build_callback_automation(
         TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
         a single Automation pointer (e.g., TriggerOnTrueForwarder).
     """
+    cg.reserve_callback_manager(parent, callback_method)
     custom = params is not None or forward is not None or when is not None
     if not custom and (
         forwarder is TriggerOnTrueForwarder or forwarder is TriggerOnFalseForwarder

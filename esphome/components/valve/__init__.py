@@ -42,6 +42,7 @@ DEVICE_CLASSES = [
 valve_ns = cg.esphome_ns.namespace("valve")
 
 Valve = valve_ns.class_("Valve", cg.EntityBase)
+cg.lazy_callback_methods(Valve, "add_on_state_callback")
 
 VALVE_OPEN = valve_ns.VALVE_OPEN
 VALVE_CLOSED = valve_ns.VALVE_CLOSED

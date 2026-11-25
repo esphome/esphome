@@ -36,6 +36,13 @@ CONF_ON_READY = "on_ready"
 
 alarm_control_panel_ns = cg.esphome_ns.namespace("alarm_control_panel")
 AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.EntityBase)
+cg.lazy_callback_methods(
+    AlarmControlPanel,
+    "add_on_state_callback",
+    "add_on_cleared_callback",
+    "add_on_chime_callback",
+    "add_on_ready_callback",
+)
 
 StateAnyForwarder = alarm_control_panel_ns.class_("StateAnyForwarder")
 StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")

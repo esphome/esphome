@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <vector>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::core::testing {
@@ -158,6 +160,50 @@ TEST(LazyCallbackManager, ArgumentTypeMayBeIncompleteAtDeclaration) {
   source.callbacks.add([&seen](LateEvent e) { seen = e.value; });
   source.callbacks.call(LateEvent{7});
   EXPECT_EQ(seen, 7);
+}
+
+// Exposes where the manager keeps its callbacks.
+template<typename T> class PeekLazyCallbackManager : public LazyCallbackManager<T> {
+ public:
+  const void *storage() const { return this->callbacks_; }
+};
+
+TEST(LazyCallbackManager, StaticSlotKeepsCallbacksInOrder) {
+  PeekLazyCallbackManager<void(int)> manager;
+  std::vector<int> calls;
+  manager.add([&calls](int x) { calls.push_back(x); });
+  const void *storage = manager.storage();
+  // The core test build reserves more slots than the other tests use
+  ASSERT_TRUE(callback_manager_is_static(storage));
+  manager.add([&calls](int x) { calls.push_back(x * 10); });
+  EXPECT_EQ(manager.storage(), storage);
+  EXPECT_EQ(manager.size(), 2u);
+  EXPECT_FALSE(manager.empty());
+  manager.call(3);
+  EXPECT_EQ(calls, (std::vector<int>{3, 30}));
+}
+
+TEST(LazyCallbackManager, HeapOnceThePoolRunsOut) {
+  std::array<PeekLazyCallbackManager<void(int)>, ESPHOME_CALLBACK_MANAGER_POOL_SIZE + 1> managers;
+  int sum = 0;
+  bool heap_seen = false;
+  for (auto &manager : managers) {
+    manager.add([&sum](int x) { sum += x; });
+    if (callback_manager_is_static(manager.storage())) {
+      EXPECT_FALSE(heap_seen);
+    } else {
+      heap_seen = true;
+    }
+    manager.call(1);
+  }
+  EXPECT_TRUE(heap_seen);
+  EXPECT_EQ(sum, ESPHOME_CALLBACK_MANAGER_POOL_SIZE + 1);
+}
+
+TEST(LazyCallbackManager, StackObjectIsNotStatic) {
+  CallbackManager<void(int)> local;
+  EXPECT_FALSE(callback_manager_is_static(&local));
+  EXPECT_FALSE(callback_manager_is_static(nullptr));
 }
 
 }  // namespace esphome::core::testing

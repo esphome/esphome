@@ -26,6 +26,7 @@ IS_PLATFORM_COMPONENT = True
 
 text_ns = cg.esphome_ns.namespace("text")
 Text = text_ns.class_("Text", cg.EntityBase)
+cg.lazy_callback_methods(Text, "add_on_state_callback")
 TextPtr = Text.operator("ptr")
 
 # Conditions

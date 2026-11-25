@@ -46,6 +46,11 @@ IS_PLATFORM_COMPONENT = True
 
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
 TextSensor = text_sensor_ns.class_("TextSensor", cg.EntityBase)
+cg.lazy_callback_methods(
+    TextSensor,
+    "add_on_state_callback",
+    "add_on_raw_state_callback",
+)
 TextSensorPtr = TextSensor.operator("ptr")
 
 FILTER_REGISTRY = Registry()
