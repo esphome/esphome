@@ -35,6 +35,7 @@ from esphome.const import (
     CONF_ACTIVE,
     CONF_CONTINUOUS,
     CONF_DURATION,
+    CONF_ID,
     CONF_INTERVAL,
     KEY_TARGET_PLATFORM,
 )
@@ -191,6 +192,11 @@ def new_ble_device_component(
 ) -> Coroutine[Any, Any, cg.MockObj]:
     """Construct, register and attach to the BLE hub; args go to the constructor."""
     return cg.new_bus_component(register_ble_device, config, *args)
+
+
+async def new_ble_device(config: ConfigType, *args: Any) -> cg.MockObj:
+    """Construct a listener that is not a Component and attach it to the BLE hub."""
+    return await register_ble_device(cg.new_Pvariable(config[CONF_ID], *args), config)
 
 
 # ---- shared validation / codegen helpers (platform-neutral) ----

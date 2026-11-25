@@ -9,6 +9,7 @@
 
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/light/esp_color_correction.h"
+#include "esphome/components/light/light_state.h"
 
 namespace esphome::light::testing {
 
@@ -57,7 +58,32 @@ class Strip : public AddressableLight {
   light::CorrectedBufferColorAccessor internal_accessor_;
 };
 
+// A strip that shows colors, for a light state to drive
+class RgbStrip : public Strip {
+ public:
+  using Strip::Strip;
+  LightTraits get_traits() override {
+    LightTraits traits;
+    traits.set_supported_color_modes({ColorMode::RGB});
+    return traits;
+  }
+};
+
+void start_on(LightStateRTCState &state, bool restored) { state.state = true; }
+
 }  // namespace
+
+TEST(PowerLimit, LimitsTheFrameWrittenOnSetup) {
+  RgbStrip strip(10);
+  // Full white draws 10 x 60 + 10 mA; the budget is about half of that
+  strip.configure_power(20, 1, 310);
+  AddressableLightState state(&strip);
+  state.set_state_callback(start_on);
+  state.set_write_on_setup(true);
+  state.setup();
+  EXPECT_LT(strip.power_brightness(), 255);
+  EXPECT_LT(strip.sent_red, 255);
+}
 
 TEST(PowerLimit, CorrectionRoundTripsUnderTheLimit) {
   const auto table = build_gamma_table(2.2);

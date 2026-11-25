@@ -67,6 +67,14 @@ void esp_log_printf_(int level, const char *tag, int line, const char *format, .
 // NOLINTNEXTLINE(readability-identifier-naming)
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
+// esp_log_printf_ for a line with no arguments and no '%': it is copied without formatting
+void esp_log_str_(int level, const char *tag, int line, const char *format);  // NOLINT
+#ifdef USE_ESP8266
+// NOLINTNEXTLINE(readability-identifier-naming)
+void esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format);
+#endif
+// Never defined or called: the ESP_LOGx macros name it in dead code so a line without arguments has its format checked
+int esp_log_format_check_(const char *format, ...) __attribute__((format(printf, 1, 2)));       // NOLINT
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #if defined(USE_ESP32)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
@@ -78,9 +86,50 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ESPHOME_LOG_FORMAT(format) format
 #endif
 
+#define ESPHOME_LOG_ARGS_(level, tag, format, ...) \
+  ::esphome::esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format), __VA_ARGS__)
+// The format check is a statement-level if (false), not sizeof: GCC 16 skips format checks in unevaluated or folded
+// expressions. __builtin_strchr folds on a literal, so only a line with '%' (such as "100%%") is formatted.
+#ifdef USE_ESP8266
+// F() only takes a literal, so using format more than once cannot repeat a side effect
+#define ESPHOME_LOG_NO_ARGS_(level, tag, format) \
+  ({ \
+    if (false) \
+      ::esphome::esp_log_format_check_(format); \
+    if (__builtin_strchr(format, '%') != nullptr) \
+      ::esphome::esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)); \
+    else \
+      ::esphome::esp_log_str_(level, tag, __LINE__, ESPHOME_LOG_FORMAT(format)); \
+  })
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+// A function argument, so format is evaluated once and a temporary such as std::string().c_str() outlives the call
+// NOLINTNEXTLINE(readability-identifier-naming)
+inline void __attribute__((always_inline)) esp_log_no_args_(int level, const char *tag, int line, const char *format) {
+  if (__builtin_strchr(format, '%') != nullptr) {
+    esp_log_printf_(level, tag, line, format);
+  } else {
+    esp_log_str_(level, tag, line, format);
+  }
+}
+#pragma GCC diagnostic pop
+#define ESPHOME_LOG_NO_ARGS_(level, tag, format) \
+  ({ \
+    if (false) \
+      ::esphome::esp_log_format_check_(format); \
+    ::esphome::esp_log_no_args_(level, tag, __LINE__, format); \
+  })
+#endif
+// ESPHOME_LOG_NO_ARGS_ when there are no arguments after the format, ESPHOME_LOG_ARGS_ otherwise
+#define ESPHOME_LOG_PICK_(skip, name, ...) name
+#define ESPHOME_LOG_(level, tag, format, ...) \
+  ESPHOME_LOG_PICK_(__VA_OPT__(, ) ESPHOME_LOG_ARGS_, ESPHOME_LOG_NO_ARGS_)(level, tag, \
+                                                                            format __VA_OPT__(, ) __VA_ARGS__)
+
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define esph_log_vv(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_vv(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERY_VERBOSE
 #else
@@ -88,8 +137,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-#define esph_log_v(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_v(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_VERBOSE, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERBOSE
 #else
@@ -97,10 +145,8 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-#define esph_log_d(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
-#define esph_log_config(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_d(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_DEBUG, tag, format, __VA_ARGS__)
+#define esph_log_config(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_CONFIG, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_DEBUG
 #define ESPHOME_LOG_HAS_CONFIG
@@ -110,8 +156,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
-#define esph_log_i(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_i(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_INFO, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_INFO
 #else
@@ -119,8 +164,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
-#define esph_log_w(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_w(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_WARN, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_WARN
 #else
@@ -128,8 +172,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-#define esph_log_e(tag, format, ...) \
-  ::esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
+#define esph_log_e(tag, format, ...) ESPHOME_LOG_(ESPHOME_LOG_LEVEL_ERROR, tag, format, __VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_ERROR
 #else

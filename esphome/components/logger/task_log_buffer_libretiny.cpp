@@ -13,13 +13,6 @@ TaskLogBuffer::TaskLogBuffer() {
   this->mutex_ = xSemaphoreCreateMutex();
 }
 
-TaskLogBuffer::~TaskLogBuffer() {
-  if (this->mutex_ != nullptr) {
-    vSemaphoreDelete(this->mutex_);
-    this->mutex_ = nullptr;
-  }
-}
-
 size_t TaskLogBuffer::available_contiguous_space_() const {
   if (this->head_ >= this->tail_) {
     // head is ahead of or equal to tail
@@ -85,19 +78,15 @@ void TaskLogBuffer::release_message_main_loop() {
 
 bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                              const char *format, va_list args) {
-  // First, calculate the exact length needed using a null buffer (no actual writing)
+  // Measure on a copy; the caller's va_list formats the text later
   va_list args_copy;
   va_copy(args_copy, args);
-  int ret = vsnprintf(nullptr, 0, format, args_copy);
+  int ret = task_log_cap_length(vsnprintf(nullptr, 0, format, args_copy));
   va_end(args_copy);
-
   if (ret <= 0) {
     return false;  // Formatting error or empty message
   }
-
-  // Calculate actual text length (capped to maximum size)
-  static constexpr size_t MAX_TEXT_SIZE = 255;
-  size_t text_length = (static_cast<size_t>(ret) > MAX_TEXT_SIZE) ? MAX_TEXT_SIZE : ret;
+  uint16_t text_length = ret;
 
   // Calculate total size needed (header + text length + null terminator)
   size_t total_size = message_total_size(text_length);
@@ -128,17 +117,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 
   // Write message header
   LogMessage *msg = reinterpret_cast<LogMessage *>(this->storage_ + write_pos);
-  msg->level = level;
-  msg->tag = tag;
-  msg->line = line;
-
-  // Store the thread name now to avoid crashes if task is deleted before processing
-  if (thread_name != nullptr) {
-    strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
-    msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';
-  } else {
-    msg->thread_name[0] = '\0';
-  }
+  fill_task_log_header(msg, level, tag, line, thread_name);
 
   // Format the message text directly into the buffer
   char *text_area = msg->text_data();
@@ -150,9 +129,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   }
 
   // Trim before storing so the next message reuses the freed bytes
-  while (text_length > 0 && text_area[text_length - 1] == '\n') {
-    text_length--;
-  }
+  text_length = trim_trailing_newlines(text_area, text_length);
   text_area[text_length] = '\0';
   msg->text_length = text_length;
 

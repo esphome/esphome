@@ -1,0 +1,11 @@
+# Without hardware AES, NVS's encrypted partition code needs mbedTLS XTS.
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_MBEDTLS_HARDWARE_AES: n
+
+wifi:
+  ssid: MySSID
+  password: password1

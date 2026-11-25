@@ -45,9 +45,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_URL,
     CONF_VERSION,
-    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
-    PLATFORM_ESP32,
     PLATFORM_HOST,
     PLATFORM_RP2,
     PlatformFramework,
@@ -77,6 +75,7 @@ CONF_RELATION = "relation"
 CONF_SBOM = "sbom"
 CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
+CONF_FRIENDLY_NAME_SEPARATOR = "friendly_name_separator"
 
 # Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
 DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
@@ -115,15 +114,9 @@ def make_app_name_cpp(
     return cpp_string_escape(value), None, len(value.encode("utf-8"))
 
 
-StartupTrigger = cg.esphome_ns.class_(
-    "StartupTrigger", cg.Component, automation.Trigger.template()
-)
-ShutdownTrigger = cg.esphome_ns.class_(
-    "ShutdownTrigger", cg.Component, automation.Trigger.template()
-)
-LoopTrigger = cg.esphome_ns.class_(
-    "LoopTrigger", cg.Component, automation.Trigger.template()
-)
+StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
+ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
+LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
 ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
@@ -161,6 +154,23 @@ def validate_hostname(config):
             "as it can cause problems with some DHCP and local name services. "
             "For more information, see https://esphome.io/guides/faq/#why-shouldnt-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
+        )
+    return config
+
+
+# DeviceInfoResponse sends the friendly name as a short string (encode_short_string_force in api/proto.h)
+FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN = 127
+
+
+def validate_friendly_name_with_suffix(config: ConfigType) -> ConfigType:
+    if not config[CONF_NAME_ADD_MAC_SUFFIX] or not config[CONF_FRIENDLY_NAME]:
+        return config
+    full = f"{config[CONF_FRIENDLY_NAME]}{config[CONF_FRIENDLY_NAME_SEPARATOR]}{_MAC_SUFFIX_PLACEHOLDER}"
+    if (length := len(full.encode("utf-8"))) > FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN:
+        raise cv.Invalid(
+            f"friendly_name with {CONF_FRIENDLY_NAME_SEPARATOR} and the MAC suffix is {length} "
+            f"bytes; at most {FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN} fit",
+            path=[CONF_FRIENDLY_NAME],
         )
     return config
 
@@ -227,13 +237,13 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
         # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
         max_loop = 600  # 2 * 300ms default for other platforms
         if CORE.is_esp32:
-            max_loop = (
-                2
-                * fv.full_config.get()[PLATFORM_ESP32][
-                    CONF_WATCHDOG_TIMEOUT
-                ].total_milliseconds
-                // 5
-            )
+            from esphome.components.esp32 import task_wdt_timeout_ms
+
+            wdt_ms = task_wdt_timeout_ms()
+            if wdt_ms == 0:
+                # Task watchdog disabled: the loop sleep is not capped
+                return config
+            max_loop = 2 * wdt_ms // 5
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
         if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
@@ -423,19 +433,19 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_LOOP): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopCallback),
                 }
             ),
             cv.Optional(
@@ -448,6 +458,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
             ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(
+                CONF_FRIENDLY_NAME_SEPARATOR, default=_APP_FRIENDLY_NAME_MAC_SEP
+            ): cv.All(cv.string_no_slash, cv.ByteLength(max=3)),
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
@@ -500,6 +513,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_hostname,
+    validate_friendly_name_with_suffix,
 )
 
 
@@ -785,20 +799,15 @@ async def _add_environment_variables(env_vars: dict[str, str]) -> None:
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
-    for conf in config.get(CONF_ON_BOOT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_LOOP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+    for key, component_class in (
+        (CONF_ON_BOOT, StartupCallback),
+        (CONF_ON_SHUTDOWN, ShutdownCallback),
+        (CONF_ON_LOOP, LoopCallback),
+    ):
+        for conf in config.get(key, []):
+            await automation.build_component_automation(
+                conf, component_class, conf.get(CONF_PRIORITY)
+            )
 
 
 # Datetime component has special subtypes that need additional defines
@@ -907,7 +916,9 @@ async def to_code(config: ConfigType) -> None:
 
     name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
     friendly_expr, friendly_len = _emit_app_name(
-        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
+        friendly_name,
+        _APP_FRIENDLY_NAME_BUF_VAR,
+        config[CONF_FRIENDLY_NAME_SEPARATOR],
     )
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
@@ -954,8 +965,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
     if config[CONF_SUSPEND_LOOP]:
         cg.add_define("ESPHOME_SUSPEND_LOOP")
-    if CONF_LOOP_INTERVAL in config:
-        cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
+    cg.add_optional(cg.App.set_loop_interval, config.get(CONF_LOOP_INTERVAL))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
