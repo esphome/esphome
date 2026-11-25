@@ -256,7 +256,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   loopback, CLASSIC window and bus-off configs, runner)
 - `mdns/` (unicast mDNS dump, hammer and latency)
 - `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards, AT commands for the UART
-  passthrough)
+  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow, OTA
+  flow, AT line filter, USB AT port client)
 - `mqtt/` (`ha_discovery/`, `disable/`, `retained_burst/` and `reconnect/` runners; broker config with TLS,
   client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner,
   flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards,
