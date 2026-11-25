@@ -39,6 +39,7 @@ from esphome.cpp_generator import (  # noqa: F401
     is_static_pointer,
     is_template,
     new_Pvariable,
+    new_static_function,
     new_variable,
     process_lambda,
     progmem_array,

@@ -723,19 +723,10 @@ def apply_static_function(
     statements: list[str],
     share: bool = False,
     suffix: str = "fn",
-    add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj:
-    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one.
-
-    ``add_global_`` places the declaration (e.g. at a ``LatePvariable``); such a function is never shared.
-    """
+    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one."""
     return cg.shared_static_function(
-        _apply_function_name(id_, suffix),
-        return_type,
-        params,
-        statements,
-        share=share,
-        add_global_=add_global_,
+        _apply_function_name(id_, suffix), return_type, params, statements, share=share
     )
 
 
@@ -1984,15 +1975,15 @@ def _run_function(
     add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj:
     """Emit the function that runs ``run``; a stoppable one takes the run count first and
-    returns once a stop clears it. ``add_global_`` is passed to ``apply_static_function``."""
+    returns once a stop clears it. ``add_global_`` places its declaration."""
     params = _apply_params(args)
     if stoppable:
         params = [(cg.RawExpression("const int &"), _RUNNING_PARAM), *params]
         statements = _run_statements(run)
     else:
         statements = _unstoppable_statements(run)
-    return apply_static_function(
-        id_, cg.void, params, statements, add_global_=add_global_
+    return cg.new_static_function(
+        _apply_function_name(id_), cg.void, params, statements, add_global_
     )
 
 
@@ -2249,36 +2240,33 @@ async def build_automation(
 
 @dataclass(frozen=True)
 class AutomationPlan:
-    """The built actions of an automation, before it becomes an Automation or a function."""
+    """The built actions of an automation, before they become an Automation or a function."""
 
-    plan: list[MockObj | list[_InlineAction]]
+    actions: list[MockObj | list[_InlineAction]]
     args: TemplateArgsType
     config: ConfigType
 
     @property
     def direct(self) -> bool:
         """Whether it can run as a function: every action inline and no manual id."""
-        return _is_direct(self.plan, self.config)
+        return _is_direct(self.actions, self.config)
+
+    def run_function(
+        self, trigger: MockObj, add_global_: Callable[[Statement], object]
+    ) -> MockObj:
+        """The stoppable function ``esphome__<trigger id>__fn`` running a direct plan."""
+        return _run_function(
+            trigger.base, self.actions[0], self.args, add_global_=add_global_
+        )
+
+    def build(self, trigger: MockObj) -> MockObj:
+        """Build the actions on ``trigger`` as an Automation, like ``build_automation``."""
+        return _automation_from_plan(self.actions, self.args, self.config, trigger)
 
 
 async def plan_automation(args: TemplateArgsType, config: ConfigType) -> AutomationPlan:
-    """Build the actions of ``config``; ``automation_or_run_function`` emits the result."""
+    """Build the actions of ``config``, to emit later with ``run_function()`` or ``build()``."""
     return AutomationPlan(await _build_automation_plan(args, config), args, config)
-
-
-def automation_or_run_function(
-    plan: AutomationPlan,
-    trigger: MockObj,
-    add_global_: Callable[[Statement], object] | None = None,
-    direct: bool = True,
-) -> MockObj | None:
-    """Build ``plan`` on ``trigger`` like ``build_automation`` and return None; if ``direct``
-    and every action is inline, return the stoppable function ``esphome__<trigger id>__fn``
-    instead."""
-    if direct and plan.direct:
-        return _run_function(trigger.base, plan.plan[0], plan.args, True, add_global_)
-    _automation_from_plan(plan.plan, plan.args, plan.config, trigger)
-    return None
 
 
 async def build_component_automation(
