@@ -18,6 +18,11 @@ float unit_value(uint8_t value, bool invert) {
   return invert ? 255.0f - static_cast<float>(value) : static_cast<float>(value);
 }
 
+/// Gray level of an RGB888 pixel (Rec. 601 weights, integer arithmetic).
+uint8_t luminance(const uint8_t *rgb) {
+  return static_cast<uint8_t>((77 * rgb[0] + 150 * rgb[1] + 29 * rgb[2] + 128) >> 8);
+}
+
 /// A quantized tensor stores scaled values, so 0-1 normalized input must be scaled back.
 /// The result is clamped to the range of the tensor's integer type.
 int quantized_value(const TfLiteTensor *input, float unit, bool normalize, int min_value, int max_value) {
@@ -78,7 +83,7 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
     for (size_t pixel = 0; pixel < pixels; pixel++) {
       const uint8_t *rgb = src + source_pixel(pixel) * 3;
       if (gray) {
-        const float unit = unit_value(rgb[1], this->invert_);
+        const float unit = unit_value(luminance(rgb), this->invert_);
         dst[pixel] = this->normalize_ ? unit / 255.0f : unit;
       } else {
         for (int channel = 0; channel < 3; channel++) {
@@ -100,8 +105,8 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
     for (size_t pixel = 0; pixel < pixels; pixel++) {
       const uint8_t *rgb = src + source_pixel(pixel) * 3;
       if (gray) {
-        dst[pixel] =
-            static_cast<uint8_t>(quantized_value(input, unit_value(rgb[1], this->invert_), this->normalize_, 0, 255));
+        dst[pixel] = static_cast<uint8_t>(
+            quantized_value(input, unit_value(luminance(rgb), this->invert_), this->normalize_, 0, 255));
       } else {
         for (int channel = 0; channel < 3; channel++) {
           const int source = swap ? 2 - channel : channel;
@@ -123,7 +128,7 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
       const uint8_t *rgb = src + source_pixel(pixel) * 3;
       if (gray) {
         dst[pixel] = static_cast<int8_t>(
-            quantized_value(input, unit_value(rgb[1], this->invert_), this->normalize_, INT8_MIN, INT8_MAX));
+            quantized_value(input, unit_value(luminance(rgb), this->invert_), this->normalize_, INT8_MIN, INT8_MAX));
       } else {
         for (int channel = 0; channel < 3; channel++) {
           const int source = swap ? 2 - channel : channel;
