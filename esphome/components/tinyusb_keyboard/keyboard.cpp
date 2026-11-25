@@ -55,7 +55,15 @@ void TinyUSBKeyboard::flush_() {
     this->wakeup_requested_ = false;
     // The lock-state sensors keep their last published value while no host is connected; a new host
     // sends its current LED state on attach, which is published via set_led_state().
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+    if (this->led_pending_) {
+      this->enable_loop();
+    } else {
+      this->disable_loop();
+    }
+#else
     this->disable_loop();
+#endif
     return;
   }
   if (tud_suspended()) {
@@ -87,22 +95,30 @@ void TinyUSBKeyboard::flush_() {
   if (this->keyboard_pending_ || this->consumer_pending_) {
     this->enable_loop();
   } else {
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+    if (this->led_pending_) {
+      this->enable_loop();
+    } else {
+      this->disable_loop();
+    }
+#else
     this->disable_loop();
+#endif
   }
 }
 
 void TinyUSBKeyboard::loop() {
+  // Publish any pending LED state first so it's not lost when flush_() disables the loop.
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+  this->publish_led_state_();
+#endif
   // flush_() may request remote wakeup and resend reports; only run it for a pending outgoing
   // report so an LED-only update never wakes a suspended host.
   if (this->keyboard_pending_ || this->consumer_pending_) {
     this->flush_();
-    return;
+  } else {
+    this->disable_loop();
   }
-#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
-  // LED-only update: publish without touching the outgoing-report path, then stop looping.
-  this->publish_led_state_();
-#endif
-  this->disable_loop();
 }
 
 #ifdef USE_TINYUSB_KEYBOARD_LED_STATE
