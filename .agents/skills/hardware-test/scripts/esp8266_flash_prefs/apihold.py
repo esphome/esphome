@@ -40,6 +40,8 @@ async def main() -> None:
         except TimeoutError:
             await c.disconnect()
     print("END", n, flush=True)
+    if not n["conns"]:
+        sys.exit("apihold: never connected, no API load was applied")
 
 
 asyncio.run(main())

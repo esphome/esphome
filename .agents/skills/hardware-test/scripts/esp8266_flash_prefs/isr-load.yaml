@@ -11,9 +11,9 @@ esphome:
       - lambda: |-
           id(boots) += 1;
           uint32_t shadow_val = id(shadow) ^ 0xA5A5A5A5u;
-          if (id(magic) == 0) id(magic) = 0xC0FFEE11u;
           ESP_LOGI("pers", "BOOT boots=%u counter=%u shadow=%u magic=%08x reason=%s", id(boots), id(counter),
                    shadow_val, id(magic), ESP.getResetReason().c_str());
+          if (id(magic) == 0) id(magic) = 0xC0FFEE11u;
       - output.set_level: {id: pwm_fast, level: 50%}
       - output.set_level: {id: pwm_slow, level: 50%}
 
