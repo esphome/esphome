@@ -28,10 +28,10 @@ class Bench {
   void run_until(uint32_t at) {
     while (static_cast<int32_t>(at - this->timer_at_) >= 0) {
       const uint32_t now = this->timer_at_;
-      const bool enable_pending = this->store_.enable_time_us != 0;
+      const bool fired = this->store_.gate_fired;
       const uint32_t next = this->store_.timer_intr(now);
       this->timer_at_ = now + (this->tick_ != 0 ? this->tick_ : next != 0 ? next : 20000);
-      if (!enable_pending || this->store_.enable_time_us != 0)
+      if (fired || !this->store_.gate_fired)
         continue;
       this->gate_on.push_back(now);
       const uint32_t noise = now + this->gate_noise_;
@@ -169,7 +169,8 @@ INSTANTIATE_TEST_SUITE_P(
                       EdgeOffsetCase{"ThreeEarlyPulses550At60Hz", 8333, -550, 100, 103},
                       EdgeOffsetCase{"GateNoiseLate1100", 10000, 1100, 60, 160, 655, 100, 5, 10},
                       EdgeOffsetCase{"GateNoiseLate1500", 10000, 1500, 60, 160, 655, 100, 5, 10},
-                      EdgeOffsetCase{"GateNoiseLate1100At60Hz", 8333, 1100, 60, 160, 655, 100, 5, 10}),
+                      EdgeOffsetCase{"GateNoiseLate1100At60Hz", 8333, 1100, 60, 160, 655, 100, 5, 10},
+                      EdgeOffsetCase{"GateNoiseLate500LowPower", 10000, 500, 60, 160, 1500, 0, 5, 10}),
     [](const ::testing::TestParamInfo<EdgeOffsetCase> &info) { return info.param.name; });
 
 struct StartupErrorCase {
@@ -262,6 +263,36 @@ TEST(AcDimmerTimerTest, WrongHalfCycleConverges) {
     for (uint32_t at : bench.gate_on)
       EXPECT_FALSE(in_next_half_cycle(at, 1000, 10000)) << off << " pulse at " << at;
   }
+}
+
+// A detector that alternates 250 µs early and late from the start: the lock starts centred, so a pulse near the
+// end of the half cycle never fires after the next crossing
+TEST(AcDimmerTimerTest, AlternatingDetectorLocksCentred) {
+  for (int late : {0, 1}) {  // the locking edge is the early or the late one
+    AcDimmerDataStore store{};
+    store.value = 1311;  // 2 %, no minimum power
+    Bench bench(store, 1000);
+    uint32_t crossing = 1000;
+    for (int i = 0; i < 100; i++, crossing += 10000)
+      bench.edge(crossing + (i % 2 == late ? 500 : 0));
+    ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << late;
+    ASSERT_FALSE(bench.gate_on.empty()) << late;
+    for (uint32_t at : bench.gate_on)
+      EXPECT_FALSE(in_next_half_cycle(at, 1250, 10000)) << late << " pulse at " << at;
+  }
+}
+
+// Noise from the gate does not keep the lock once the real crossings stop
+TEST(AcDimmerTimerTest, GateNoiseDoesNotHoldTheLock) {
+  AcDimmerDataStore store{};
+  store.value = 1500;
+  Bench bench(store, 1000, 5);
+  uint32_t crossing = 1000;
+  for (int i = 0; i < 20; i++, crossing += 10000)
+    bench.edge(crossing);
+  ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
+  bench.run_until(crossing + 20 * 10000);
+  EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_NONE);
 }
 
 // ESP32-C3: the timer runs every 50 µs and the detector alternates 250 µs early and late. The gate fires in the
@@ -395,7 +426,7 @@ TEST_P(LateEnableTest, SkipsEnableNearTheEnd) {
   auto store = locked_store(DIM_METHOD_LEADING_PULSE, 2621);
   ASSERT_EQ(store.timer_intr(41000), 9600U);
   EXPECT_EQ(store.timer_intr(41000 + c.timer_at), c.next_event_in);
-  EXPECT_EQ(store.enable_time_us, 0U);
+  EXPECT_TRUE(store.gate_fired);
   EXPECT_EQ(store.disable_time_us, c.disable_time_us);
 }
 

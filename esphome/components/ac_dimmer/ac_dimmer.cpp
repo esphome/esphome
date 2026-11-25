@@ -43,6 +43,8 @@ static constexpr int16_t NO_EDGE_ERR = INT16_MIN;
 static constexpr int32_t MAX_EDGE_LATENCY_US = 1500;
 /// A late timer still needs this long after a pulse to switch the gate off before the crossing
 static constexpr int32_t GATE_OFF_MARGIN_US = 100;
+/// An edge this soon after the gate goes on is noise from the triac firing
+static constexpr uint32_t GATE_NOISE_US = 50;
 #ifdef USE_ESP32
 /// The zero-cross interrupt runs at a higher level than the timer and updates the same timing
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -112,8 +114,8 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step(uint32_t now) {
 
   uint32_t next = period - since;
   if (this->value != 65535 && this->value != 0) {
-    if (this->enable_time_us != 0 && since >= this->enable_time_us) {
-      this->enable_time_us = 0;
+    if (!this->gate_fired && this->enable_time_us != 0 && since >= this->enable_time_us) {
+      this->gate_fired = true;
       // A late timer does not start a pulse that could last past the crossing: the triac would stay on
       if (since + static_cast<int32_t>(GATE_ENABLE_TIME) + GATE_OFF_MARGIN_US < period) {
         this->gate_pin.digital_write(true);
@@ -180,8 +182,9 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
     return;
   }
   this->period = std::max(lo, std::min(hi, cycle)) / 2;
-  // Locked: the half cycle the edge before this one started counts as running
-  this->zc_at = now - this->period;
+  // Locked: the half cycle the edge before this one started counts as running. Its start is taken halfway between
+  // what this edge and the one before it say, so a detector that alternates early and late starts centred.
+  this->zc_at = now - (gap + this->period) / 2;
   this->taken_err = NO_EDGE_ERR;
   this->misses = 0;
   this->edge_now = true;
@@ -193,6 +196,10 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
+  // Noise from the gate going on is not a crossing; with the trailing method the gate goes on at the crossing
+  if (this->gate_fired && this->method != DIM_METHOD_TRAILING &&
+      now - this->zc_at - this->enable_time_us < GATE_NOISE_US)
+    return;
   // The edge belongs to the crossing at zc_at (served after the timer started it) or the one at zc_at + period
   const bool next = static_cast<int32_t>(now - this->zc_at) > this->period / 2;
   int32_t err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
@@ -267,6 +274,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr([[maybe_unused]] uint32_t now) {
 
 void IRAM_ATTR HOT AcDimmerDataStore::start_half_cycle() {
   const uint32_t period = this->period;
+  this->gate_fired = false;
+  this->enable_time_us = 0;
   if (this->value == 65535) {
     // fully on, enable output immediately
     this->gate_pin.digital_write(true);
