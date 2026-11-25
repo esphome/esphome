@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::duco {
 
@@ -178,110 +179,34 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
+
+ // Indexed by node type - 1 (types 1-49); last entry is the unknown fallback.
+ PROGMEM_STRING_TABLE(NodeTypeStrings,
+                      "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", "CLIMA",
+                      "UCBAT", "UC", "UCRH", "UCVOC", "UCCO2", "VLV",
+                      "VLVRH", "VLVVOC", "VLVCO2", "BOX", "SWITCH",
+                      "ACTUAT", "UCBATRH", "PWMIN", "IAV", "IAVRH",
+                      "IAVVOC", "IAVCO2", "BOILER", "TRONIC", "VLVCO2RH",
+                      "UCSUN", "UCVENT", "EAV", "EAVRH", "EAVVOC",
+                      "EAVCO2", "BSRH", "BSVOC", "BSCO2", "MOTORRLY",
+                      "WXSENSOR", "MOTORMB", "DI", "DO", "COMM",
+                      "RLYMB", "PERILEX", "RO", "HEATODA", "AO",
+                      "CSCO2", "UNKNOWN");
+
+static_assert(NodeTypeStrings::LAST_INDEX == 49);
+
 const LogString *node_type_name(uint8_t type) {
   const bool bs = (type & NODE_TYPE_BS) != 0;
-  switch (type & ~NODE_TYPE_BS) {
-    case 1:
-      return LOG_STR("IQ");
-    case 2:
-      return LOG_STR("CO2");
-    case 3:
-      return LOG_STR("RH");
-    case 4:
-      return LOG_STR("KLEP");
-    case 5:
-      return LOG_STR("TOP");
-    case 6:
-      return LOG_STR("COMB");
-    case 7:
-      return LOG_STR("CLIMA");
-    case 8:
-      return LOG_STR("UCBAT");
-    case 9:
-      return LOG_STR("UC");
-    case 10:
-      return bs ? LOG_STR("BSRH") : LOG_STR("UCRH");
-    case 11:
-      return LOG_STR("UCVOC");
-    case 12:
-      return bs ? LOG_STR("BSCO2") : LOG_STR("UCCO2");
-    case 13:
-      return LOG_STR("VLV");
-    case 14:
-      return LOG_STR("VLVRH");
-    case 15:
-      return LOG_STR("VLVVOC");
-    case 16:
-      return LOG_STR("VLVCO2");
-    case 17:
-      return LOG_STR("BOX");
-    case 18:
-      return LOG_STR("SWITCH");
-    case 19:
-      return LOG_STR("ACTUAT");
-    case 20:
-      return LOG_STR("UCBATRH");
-    case 21:
-      return LOG_STR("PWMIN");
-    case 22:
-      return LOG_STR("IAV");
-    case 23:
-      return LOG_STR("IAVRH");
-    case 24:
-      return LOG_STR("IAVVOC");
-    case 25:
-      return LOG_STR("IAVCO2");
-    case 26:
-      return LOG_STR("BOILER");
-    case 27:
-      return LOG_STR("TRONIC");
-    case 28:
-      return LOG_STR("VLVCO2RH");
-    case 29:
-      return LOG_STR("UCSUN");
-    case 30:
-      return LOG_STR("UCVENT");
-    case 31:
-      return LOG_STR("EAV");
-    case 32:
-      return LOG_STR("EAVRH");
-    case 33:
-      return LOG_STR("EAVVOC");
-    case 34:
-      return LOG_STR("EAVCO2");
-    case 35:
-      return LOG_STR("BSRH");
-    case 36:
-      return LOG_STR("BSVOC");
-    case 37:
-      return LOG_STR("BSCO2");
-    case 38:
-      return LOG_STR("MOTORRLY");
-    case 39:
-      return LOG_STR("WXSENSOR");
-    case 40:
-      return LOG_STR("MOTORMB");
-    case 41:
-      return LOG_STR("DI");
-    case 42:
-      return LOG_STR("DO");
-    case 43:
-      return LOG_STR("COMM");
-    case 44:
-      return LOG_STR("RLYMB");
-    case 45:
-      return LOG_STR("PERILEX");
-    case 46:
-      return LOG_STR("RO");
-    case 47:
-      return LOG_STR("HEATODA");
-    case 48:
-      return LOG_STR("AO");
-    case 49:
-      return LOG_STR("CSCO2");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  const uint8_t base_type = type & ~NODE_TYPE_BS;
+
+  if (bs && base_type == 10)
+    return LOG_STR("BSRH");
+  if (bs && base_type == 12)
+    return LOG_STR("BSCO2");
+
+  return NodeTypeStrings::get_log_str(
+      static_cast<uint8_t>(base_type - 1),
+      NodeTypeStrings::LAST_INDEX);
 }
 
 void DucoDiscovery::setup() {
