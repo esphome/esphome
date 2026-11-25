@@ -1,7 +1,6 @@
 from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-import enum
 from functools import partial
 import logging
 import math
@@ -39,6 +38,7 @@ from esphome.cpp_generator import (
     LambdaExpression,
     MockObj,
     MockObjClass,
+    Statement,
     TemplateArgsType,
     VariableDeclarationExpression,
     call_lambda,
@@ -2478,86 +2478,100 @@ async def build_automation_lists(
             cg.add(getattr(parent, f"add_{entry.conf_key}_automation")(obj))
 
 
-class ChangeFilter(enum.Enum):
-    """When a ``ChangeAutomation`` runs, against the copy of the watched value it keeps."""
-
-    ALWAYS = enum.auto()
-    ENTERED = enum.auto()
-    """The watched bool became true."""
-    CHANGED = enum.auto()
-    """The watched value differs from the last one this automation saw."""
-
-
-@dataclass(frozen=True, slots=True)
-class ChangeAutomation:
-    """An on_* key for ``build_change_automations``.
-
-    ``watched`` gets the parent as ``parent_ref`` names it and returns the value the filter reads, of
-    ``last_type``. With ``args`` the automation also receives that value. ``when`` is a filter that keeps
-    nothing, for ``ChangeFilter.ALWAYS``, and may name ``{parent}``.
-    """
-
-    conf_key: str
-    filter: ChangeFilter = ChangeFilter.ALWAYS
-    watched: Callable[[MockObj], Expression] | None = None
-    last_type: SafeExpType = field(default_factory=lambda: cg.bool_)
-    args: TemplateArgsType = field(default_factory=list)
-    when: str | None = None
-
+ChangeTest = Callable[[MockObj, Expression], Expression]
+"""A ``GroupedAutomation`` filter: given the automation's own copy and the watched value, it returns
+the C++ test that compares them and stores the value in the copy."""
 
 # Qualified: cg.esphome_ns renders bare names, which a YAML global of the same name would make ambiguous
 _QUALIFIED_ESPHOME_NS = cg.global_ns.namespace("esphome")
-_CHANGE_HELPERS = {
-    ChangeFilter.ENTERED: _QUALIFIED_ESPHOME_NS.entered,
-    ChangeFilter.CHANGED: _QUALIFIED_ESPHOME_NS.changed,
-}
 
 
-async def build_change_automations(
+def filter_entered(last: MockObj, value: Expression) -> Expression:
+    """Runs when the watched bool becomes true."""
+    return _QUALIFIED_ESPHOME_NS.entered(last, value)
+
+
+def filter_left(last: MockObj, value: Expression) -> Expression:
+    """Runs when the watched bool stops being true; not on a first false."""
+    return _QUALIFIED_ESPHOME_NS.left(last, value)
+
+
+def filter_changed(last: MockObj, value: Expression) -> Expression:
+    """Runs when the watched value differs from the last one this automation saw."""
+    return _QUALIFIED_ESPHOME_NS.changed(last, value)
+
+
+@dataclass(frozen=True, slots=True)
+class GroupedAutomation:
+    """An on_* key for ``build_grouped_callback_automations``.
+
+    ``watched`` gets the parent as ``parent_ref`` names it and returns the value ``filter`` reads, of
+    ``last_type``; with ``args`` the automation also receives that value. ``when`` is a further filter
+    that keeps nothing and may name ``{parent}``; it is tested after ``filter``, which always runs.
+    """
+
+    conf_key: str
+    watched: Callable[[MockObj], Expression] | None = None
+    filter: ChangeTest | None = None
+    last_type: SafeExpType = field(default_factory=lambda: cg.bool_)
+    args: TemplateArgsType = field(default_factory=list)
+    when: str | ApplyCall | None = None
+
+    def __post_init__(self) -> None:
+        if self.filter is not None and self.watched is None:
+            raise ValueError(f"{self.conf_key}: a filter needs a watched value")
+
+
+async def build_grouped_callback_automations(
     parent: MockObj,
     config: ConfigType,
     callback_method: str,
-    entries: tuple[ChangeAutomation, ...],
+    entries: tuple[GroupedAutomation, ...],
 ) -> None:
-    """Register ``parent.<callback_method>`` once, for every automation of ``entries``, in order.
+    """Register every automation of ``entries`` on ``parent.<callback_method>`` as one callback.
 
-    The callback takes no arguments. An ENTERED or CHANGED automation keeps the last value it saw in a
-    zero-initialised static of its own, so each behaves like a Trigger object holding that value. One
-    automation registers its own function; several get a generated function calling them in turn.
+    The callback takes no arguments and runs the automations in entry order. An automation with a
+    ``filter`` keeps the last value it saw in a zero-initialised static of its own, so each behaves
+    like a Trigger object holding that value. A single automation without one is registered as is.
     """
     ref = parent_ref(parent)
-    callbacks: list[MockObj] = []
+    statics: list[Statement] = []
+    body: list[Statement] = []
     for entry in entries:
         value = None if entry.watched is None else entry.watched(ref)
         for index, conf in enumerate(config.get(entry.conf_key, [])):
-            when = entry.when
-            if (helper := _CHANGE_HELPERS.get(entry.filter)) is not None:
-                last = MockObj(f"esphome__{parent}__{entry.conf_key}_{index}__last")
-                cg.add_global(
+            target = await build_trigger_callback(
+                entry.args,
+                conf,
+                [],
+                forward=[value] if entry.args else None,
+                when=entry.when,
+                parent=parent,
+            )
+            run = cg.statement(MockObj(target)())
+            if entry.filter is None:
+                body.append(run)
+                continue
+            last = MockObj(f"{entry.conf_key}_{index}_last")
+            statics.append(
+                cg.statement(
                     VariableDeclarationExpression(
                         entry.last_type, "", last, static=True
                     )
                 )
-                when = str(helper(last, value))
-            callbacks.append(
-                await build_trigger_callback(
-                    entry.args,
-                    conf,
-                    [],
-                    forward=[value] if entry.args else None,
-                    when=when,
-                    parent=parent,
-                )
             )
-    if not callbacks:
+            # No statement builder for if
+            body.append(cg.RawStatement(f"if ({entry.filter(last, value)})\n  {run}"))
+    if not body:
         return
-    callback = callbacks[0]
-    if len(callbacks) > 1:
+    if not statics and len(body) == 1:
+        callback = target
+    else:
         callback = cg.shared_static_function(
             f"esphome__{parent}__{callback_method.removeprefix('add_')}",
             cg.void,
             [],
-            [cg.statement(MockObj(cb)()) for cb in callbacks],
+            statics + body,
             share=False,
         )
     cg.add(getattr(parent, callback_method)(callback))

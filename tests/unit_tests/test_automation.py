@@ -26,10 +26,9 @@ from esphome.automation import (
     Automation,
     AutomationList,
     CallbackAutomation,
-    ChangeAutomation,
-    ChangeFilter,
     DelayAction,
     ForCondition,
+    GroupedAutomation,
     IfAction,
     LambdaAction,
     LambdaCondition,
@@ -55,14 +54,17 @@ from esphome.automation import (
     build_automation_lists,
     build_callback_automation,
     build_callback_automations,
-    build_change_automations,
     build_component_automation,
     build_condition,
+    build_grouped_callback_automations,
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
     call_user_lambda,
     choose_action_to_code,
+    filter_changed,
+    filter_entered,
+    filter_left,
     has_non_synchronous_actions,
     if_action_to_code,
     literal_with_length,
@@ -1978,134 +1980,229 @@ def _conf(index: int) -> ConfigType:
     return {CONF_AUTOMATION_ID: ID(f"automation_{index}"), CONF_THEN: []}
 
 
-def _statics(mock_cg: MockCodegen) -> list[str]:
-    """The global variables declared, without the function prototypes."""
-    return [
-        text
-        for call in mock_cg.add_global.call_args_list
-        if "(" not in (text := _squash(call.args[0]))
-    ]
-
-
 LIGHT = MockObj("light", "->")
-ON_TURN_ON = ChangeAutomation(
-    "on_turn_on", ChangeFilter.ENTERED, lambda light: light.remote_values.is_on()
+ON_TURN_ON = GroupedAutomation(
+    "on_turn_on", lambda light: light.remote_values.is_on(), filter_entered
 )
 
 
 @pytest.mark.asyncio
-async def test_change_automations_single_registers_its_function(
+async def test_grouped_automations_single_unfiltered_registers_its_function(
     mock_cg: MockCodegen,
 ) -> None:
-    """One automation keeps a zero-initialised static and is registered directly."""
-    await build_change_automations(
-        LIGHT, {"on_turn_on": [_conf(1)]}, "add_remote_values_callback", (ON_TURN_ON,)
+    """One automation with no filter keeps nothing and is registered as is."""
+    await build_grouped_callback_automations(
+        LIGHT,
+        {"on_state": [_conf(1)]},
+        "add_remote_values_callback",
+        (GroupedAutomation("on_state"),),
     )
-    assert _statics(mock_cg) == ["static bool esphome__light__on_turn_on_0__last"]
-    assert _registered_function(mock_cg) == (
-        "light->add_remote_values_callback(esphome__automation_1__fn)",
-        (
-            "static void esphome__automation_1__fn() { if (!(esphome::entered("
-            "esphome__light__on_turn_on_0__last, ::light->remote_values.is_on()))) return; "
-            f"::{NEW_OBJ}->trigger(); }}"
-        ),
+    registration, definition = _registered_function(mock_cg)
+    assert (
+        registration == "light->add_remote_values_callback(esphome__automation_1__fn)"
     )
+    assert "static" not in definition.removeprefix("static void")
 
 
 @pytest.mark.asyncio
-async def test_change_automations_several_run_in_order(mock_cg: MockCodegen) -> None:
-    """Each filtered automation gets its own static; one function calls them in entry order."""
-    await build_change_automations(
+async def test_grouped_automations_run_in_order_with_their_own_statics(
+    mock_cg: MockCodegen,
+) -> None:
+    """Each filtered automation gets its own zero-initialised static; one function runs them in order."""
+    await build_grouped_callback_automations(
         LIGHT,
         {"on_state": [_conf(3)], "on_turn_on": [_conf(1), _conf(2)]},
         "add_remote_values_callback",
-        (ON_TURN_ON, ChangeAutomation("on_state")),
+        (ON_TURN_ON, GroupedAutomation("on_state")),
     )
-    assert _statics(mock_cg) == [
-        "static bool esphome__light__on_turn_on_0__last",
-        "static bool esphome__light__on_turn_on_1__last",
-    ]
     registration, definition = _registered_function(mock_cg)
     assert registration == (
         "light->add_remote_values_callback(esphome__light__remote_values_callback)"
     )
     assert definition == (
         "static void esphome__light__remote_values_callback() { "
-        "esphome__automation_1__fn(); esphome__automation_2__fn(); esphome__automation_3__fn(); }"
+        "static bool on_turn_on_0_last; static bool on_turn_on_1_last; "
+        "if (esphome::entered(on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "esphome__automation_1__fn(); "
+        "if (esphome::entered(on_turn_on_1_last, ::light->remote_values.is_on())) "
+        "esphome__automation_2__fn(); "
+        "esphome__automation_3__fn(); }"
     )
-    assert "esphome__light__on_turn_on_1__last" in _definition(
-        mock_cg, "esphome__automation_2__fn"
-    )
-    assert "if (" not in _definition(mock_cg, "esphome__automation_3__fn")
 
 
 @pytest.mark.asyncio
-async def test_change_automations_changed_forwards_the_value(
+async def test_grouped_automations_single_filtered_gets_a_function(
     mock_cg: MockCodegen,
 ) -> None:
-    """CHANGED keeps a copy of last_type and, with args, hands the watched value on."""
-    fan = MockObj("fan", "->")
-    entry = ChangeAutomation(
-        "on_speed_set",
-        ChangeFilter.CHANGED,
-        lambda fan: fan.speed,
-        last_type=cg.int_,
-        args=[(cg.int_, "x")],
+    """A filter needs its static, so even one filtered automation is called from the group function."""
+    await build_grouped_callback_automations(
+        LIGHT, {"on_turn_on": [_conf(1)]}, "add_remote_values_callback", (ON_TURN_ON,)
     )
-    await build_change_automations(
-        fan, {"on_speed_set": [_conf(1)]}, "add_on_state_callback", (entry,)
+    registration, definition = _registered_function(mock_cg)
+    assert registration == (
+        "light->add_remote_values_callback(esphome__light__remote_values_callback)"
     )
-    assert _statics(mock_cg) == ["static int esphome__fan__on_speed_set_0__last"]
+    assert "static bool on_turn_on_0_last;" in definition
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_filter_then_when(mock_cg: MockCodegen) -> None:
+    """With both, the filter runs on every callback and the when filter is tested after it."""
+    entry = GroupedAutomation(
+        "on_turn_on",
+        lambda light: light.remote_values.is_on(),
+        filter_entered,
+        when="{parent}->is_ready()",
+    )
+    await build_grouped_callback_automations(
+        LIGHT, {"on_turn_on": [_conf(1)]}, "add_remote_values_callback", (entry,)
+    )
     _, definition = _registered_function(mock_cg)
     assert (
-        "if (!(esphome::changed(esphome__fan__on_speed_set_0__last, ::fan->speed))) "
-        f"return; ::{NEW_OBJ}->trigger(::fan->speed);"
+        "if (esphome::entered(on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "esphome__automation_1__fn();"
     ) in definition
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("change_filter", "helper"),
-    [(ChangeFilter.ENTERED, "entered"), (ChangeFilter.CHANGED, "changed")],
-)
-async def test_change_automations_qualify_the_helpers(
-    mock_cg: MockCodegen, change_filter: ChangeFilter, helper: str
-) -> None:
-    """The helpers are named with esphome::, so a YAML global called entered or changed cannot clash."""
-    entry = ChangeAutomation("on_x", change_filter, lambda parent: parent.value)
-    await build_change_automations(
-        LIGHT, {"on_x": [_conf(1)]}, "add_on_state_callback", (entry,)
-    )
-    _, definition = _registered_function(mock_cg)
-    assert (
-        f"if (!(esphome::{helper}(esphome__light__on_x_0__last, ::light->value)))"
-        in definition
+    assert "if (!(::light->is_ready())) return;" in _definition(
+        mock_cg, "esphome__automation_1__fn"
     )
 
 
-@pytest.mark.asyncio
-async def test_change_automations_when_keeps_nothing(mock_cg: MockCodegen) -> None:
-    """An ALWAYS entry's own filter may name {parent} and declares no static."""
-    entry = ChangeAutomation("on_turn_off", when="!{parent}->current_values.is_on()")
-    await build_change_automations(
-        LIGHT,
-        {"on_turn_off": [_conf(1)]},
-        "add_target_state_reached_callback",
-        (entry,),
-    )
-    assert _statics(mock_cg) == []
-    _, definition = _registered_function(mock_cg)
-    assert "if (!(!::light->current_values.is_on())) return;" in definition
+def test_grouped_automation_filter_needs_watched() -> None:
+    """A filter without a watched value is rejected when the table is built."""
+    with pytest.raises(ValueError, match="on_x: a filter needs a watched value"):
+        GroupedAutomation("on_x", filter=filter_changed)
 
 
 @pytest.mark.asyncio
-async def test_change_automations_none_configured(mock_cg: MockCodegen) -> None:
-    """Without automations nothing is declared or registered."""
-    await build_change_automations(
+async def test_grouped_automations_none_configured(mock_cg: MockCodegen) -> None:
+    """Without automations nothing is registered."""
+    await build_grouped_callback_automations(
         LIGHT, {}, "add_remote_values_callback", (ON_TURN_ON,)
     )
-    mock_cg.add_global.assert_not_called()
     mock_cg.add.assert_not_called()
+
+
+COVER_NS = cg.esphome_ns.namespace("cover")
+COVER_OP = COVER_NS.enum("CoverOperation")
+
+
+def _cover_entry(key: str, member: str, value: object) -> GroupedAutomation:
+    return GroupedAutomation(
+        key, lambda cover: getattr(cover, member) == value, filter_entered
+    )
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_express_the_cover_state_triggers(
+    mock_cg: MockCodegen,
+) -> None:
+    """Cover's five state triggers, each run once on entering its state."""
+    entries = (
+        _cover_entry("on_opened", "position", COVER_NS.COVER_OPEN),
+        _cover_entry("on_closed", "position", COVER_NS.COVER_CLOSED),
+        _cover_entry(
+            "on_closing", "current_operation", COVER_OP.COVER_OPERATION_CLOSING
+        ),
+        _cover_entry(
+            "on_opening", "current_operation", COVER_OP.COVER_OPERATION_OPENING
+        ),
+        _cover_entry("on_idle", "current_operation", COVER_OP.COVER_OPERATION_IDLE),
+    )
+    config = {entry.conf_key: [_conf(i + 1)] for i, entry in enumerate(entries)}
+    await build_grouped_callback_automations(
+        MockObj("cover", "->"), config, "add_on_state_callback", entries
+    )
+    _, definition = _registered_function(mock_cg)
+    for i, (key, test) in enumerate(
+        (
+            ("on_opened", "::cover->position == cover::COVER_OPEN"),
+            ("on_closed", "::cover->position == cover::COVER_CLOSED"),
+            (
+                "on_closing",
+                "::cover->current_operation == cover::COVER_OPERATION_CLOSING",
+            ),
+            (
+                "on_opening",
+                "::cover->current_operation == cover::COVER_OPERATION_OPENING",
+            ),
+            ("on_idle", "::cover->current_operation == cover::COVER_OPERATION_IDLE"),
+        )
+    ):
+        assert f"static bool {key}_0_last;" in definition
+        assert (
+            f"if (esphome::entered({key}_0_last, ({test}))) esphome__automation_{i + 1}__fn();"
+        ) in definition
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_express_the_fan_change_triggers(
+    mock_cg: MockCodegen,
+) -> None:
+    """Fan's six change triggers, the set ones handing the new value to their automation."""
+    direction = cg.esphome_ns.namespace("fan").enum("FanDirection", is_class=True)
+    entries = (
+        GroupedAutomation("on_turn_on", lambda fan: fan.state, filter_entered),
+        GroupedAutomation("on_turn_off", lambda fan: fan.state, filter_left),
+        GroupedAutomation(
+            "on_direction_set",
+            lambda fan: fan.direction,
+            filter_changed,
+            last_type=direction,
+            args=[(direction, "x")],
+        ),
+        GroupedAutomation(
+            "on_oscillating_set",
+            lambda fan: fan.oscillating,
+            filter_changed,
+            args=[(cg.bool_, "x")],
+        ),
+        GroupedAutomation(
+            "on_speed_set",
+            lambda fan: fan.speed,
+            filter_changed,
+            last_type=cg.int_,
+            args=[(cg.int_, "x")],
+        ),
+        GroupedAutomation(
+            "on_preset_set",
+            lambda fan: fan.get_preset_mode(),
+            filter_changed,
+            last_type=cg.const_char_ptr,
+            args=[(cg.StringRef, "x")],
+        ),
+    )
+    config = {entry.conf_key: [_conf(i + 1)] for i, entry in enumerate(entries)}
+    await build_grouped_callback_automations(
+        MockObj("fan", "->"), config, "add_on_state_callback", entries
+    )
+    _, definition = _registered_function(mock_cg)
+    for declaration in (
+        "static bool on_turn_on_0_last;",
+        "static bool on_turn_off_0_last;",
+        "static fan::FanDirection on_direction_set_0_last;",
+        "static bool on_oscillating_set_0_last;",
+        "static int on_speed_set_0_last;",
+        "static const char * on_preset_set_0_last;",
+    ):
+        assert declaration in definition
+    for i, test in enumerate(
+        (
+            "esphome::entered(on_turn_on_0_last, ::fan->state)",
+            "esphome::left(on_turn_off_0_last, ::fan->state)",
+            "esphome::changed(on_direction_set_0_last, ::fan->direction)",
+            "esphome::changed(on_oscillating_set_0_last, ::fan->oscillating)",
+            "esphome::changed(on_speed_set_0_last, ::fan->speed)",
+            "esphome::changed(on_preset_set_0_last, ::fan->get_preset_mode())",
+        )
+    ):
+        assert f"if ({test}) esphome__automation_{i + 1}__fn();" in definition
+    # The set triggers read the value again for their automation
+    assert f"::{NEW_OBJ}->trigger(::fan->speed);" in _definition(
+        mock_cg, "esphome__automation_5__fn"
+    )
+    assert f"::{NEW_OBJ}->trigger(::fan->get_preset_mode());" in _definition(
+        mock_cg, "esphome__automation_6__fn"
+    )
 
 
 @pytest.mark.asyncio

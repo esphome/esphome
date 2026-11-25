@@ -625,15 +625,15 @@ def _effects_table(effects: list[MockObj]) -> MockObj:
 
 
 _REMOTE_VALUES_AUTOMATIONS = (
-    auto.ChangeAutomation(
+    auto.GroupedAutomation(
         CONF_ON_TURN_ON,
-        auto.ChangeFilter.ENTERED,
         lambda light: light.remote_values.is_on(),
+        auto.filter_entered,
     ),
-    auto.ChangeAutomation(CONF_ON_STATE),
+    auto.GroupedAutomation(CONF_ON_STATE),
 )
 _TARGET_STATE_REACHED_AUTOMATIONS = (
-    auto.ChangeAutomation(CONF_ON_TURN_OFF, when="!{parent}->current_values.is_on()"),
+    auto.GroupedAutomation(CONF_ON_TURN_OFF, when="!{parent}->current_values.is_on()"),
 )
 
 
@@ -711,10 +711,10 @@ async def setup_light_core_(light_var, config, output_var):
     if effects:
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
-    await auto.build_change_automations(
+    await auto.build_grouped_callback_automations(
         light_var, config, "add_remote_values_callback", _REMOTE_VALUES_AUTOMATIONS
     )
-    await auto.build_change_automations(
+    await auto.build_grouped_callback_automations(
         light_var,
         config,
         "add_target_state_reached_callback",

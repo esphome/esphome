@@ -837,10 +837,24 @@ inline bool entered(bool &last, bool now) {
   return result;
 }
 
-/// Codegen use only: whether `now` differs from `last`. Stores `now` in `last`, the copy one automation keeps.
+/// Codegen use only: whether `now` is false and `last` was true. Stores `now` in `last`.
+inline bool left(bool &last, bool now) {
+  const bool result = last && !now;
+  last = now;
+  return result;
+}
+
+/// Codegen use only: whether `now` differs from `last`. Stores `now` in `last`.
 template<typename T> bool changed(T &last, const T &now) {
   const bool result = now != last;
   last = now;
+  return result;
+}
+
+/// Codegen use only: whether the text of `now` differs from `last`. Keeps the pointer, so `now` must outlive it.
+inline bool changed(const char *&last, StringRef now) {
+  const bool result = now != StringRef::from_maybe_nullptr(last);
+  last = now.c_str();
   return result;
 }
 

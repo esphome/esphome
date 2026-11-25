@@ -15,14 +15,14 @@ TEST(ChangeHelpers, EnteredOnlyOnFalseToTrue) {
   EXPECT_TRUE(entered(last, true));
 }
 
-TEST(ChangeHelpers, EachCopyIsItsOwn) {
-  bool first = false;
-  bool second = false;
-  EXPECT_TRUE(entered(first, true));
-  // A copy that missed a report still sees the value it last saw
-  EXPECT_FALSE(entered(second, false));
-  EXPECT_FALSE(entered(first, true));
-  EXPECT_TRUE(entered(second, true));
+TEST(ChangeHelpers, LeftOnlyOnTrueToFalse) {
+  bool last = false;
+  EXPECT_FALSE(left(last, false));  // a first false is not a turn off
+  EXPECT_FALSE(left(last, true));
+  EXPECT_TRUE(last);
+  EXPECT_TRUE(left(last, false));
+  EXPECT_FALSE(last);
+  EXPECT_FALSE(left(last, false));
 }
 
 TEST(ChangeHelpers, ChangedOnEveryNewValue) {
@@ -43,6 +43,18 @@ TEST(ChangeHelpers, ChangedComparesByValue) {
   Direction direction = Direction::FORWARD;
   EXPECT_TRUE(changed(direction, Direction::REVERSE));
   EXPECT_FALSE(changed(direction, Direction::REVERSE));
+}
+
+TEST(ChangeHelpers, ChangedComparesTextAndKeepsThePointer) {
+  static constexpr const char *ECO = "eco";
+  const char eco_copy[] = "eco";
+  const char *last = nullptr;
+  EXPECT_FALSE(changed(last, StringRef()));  // no text and an empty one are the same
+  EXPECT_TRUE(changed(last, StringRef(ECO)));
+  EXPECT_EQ(last, ECO);
+  EXPECT_FALSE(changed(last, StringRef(eco_copy)));
+  EXPECT_EQ(last, eco_copy);
+  EXPECT_TRUE(changed(last, StringRef("boost")));
 }
 
 }  // namespace esphome::core::testing
