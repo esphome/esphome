@@ -319,6 +319,16 @@ class TestCallLambda:
         assert isinstance(result, cg.CallExpression)
         assert "static_cast" not in str(result)
 
+    @pytest.mark.parametrize("body", ["return;", "return ;"])
+    def test_call_lambda__bare_return_is_called(self, body: str) -> None:
+        """A bare return has no expression to reduce to, so the lambda is called."""
+        lamb = cg.LambdaExpression((body,), (), "", ct.void)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert "static_cast" not in str(result)
+
     def test_call_lambda__return_expression_with_class_return_type_no_cast(self):
         """A class return type is not cast, since static_cast doesn't apply
         to arbitrary class types."""
@@ -1170,6 +1180,21 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
     assert [str(st) for st in CORE.global_statements_after_includes] == [
         "static void esphome__act__fn(int32_t x) {\n  return;\n}"
+    ]
+
+
+def test_declare_static_function_defines_the_body_later() -> None:
+    """The declaration is emitted at once; the body only when define() is called."""
+    define = cg.declare_static_function("esphome__act__fn", ct.void, [])
+    assert [str(st) for st in CORE.global_statements] == [
+        "static void esphome__act__fn();"
+    ]
+    assert CORE.global_statements_after_includes == []
+
+    fn = define(["first();", "second();"])
+    assert str(fn) == "esphome__act__fn"
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__act__fn() {\n  first();\n  second();\n}"
     ]
 
 

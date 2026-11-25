@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -57,6 +58,8 @@ class FakeHttpRequest : public HttpRequestComponent {
                                        const std::vector<std::string> &lower_case_collect_headers,
                                        uint32_t timeout_ms) override {
     this->begins++;
+    this->request_url = url;
+    this->request_body = body;
     if (this->refuse)
       return nullptr;
     auto container = std::make_shared<FakeContainer>();
@@ -70,6 +73,8 @@ class FakeHttpRequest : public HttpRequestComponent {
   }
 
   int begins{0};
+  std::string request_url;
+  std::string request_body;
   bool refuse{false};
   int pending_polls{2};
   uint32_t poll_delay_ms{0};
@@ -608,5 +613,88 @@ TEST_F(HttpRequestSendActionTest, MaxConcurrentRequestsKeepsTheQueueLimit) {
   EXPECT_EQ(this->responses_, 6);
   EXPECT_EQ(this->next_count_, 8);
 }
+
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+// An action that posts to a URL built from the first argument, as the reference arg tests check it after the JSON
+template<typename... Ts> struct JsonActionHarness {
+  FakeHttpRequest http;
+  HttpRequestSendAction<Ts...> action{&http};
+  Trigger<Ts...> trigger;
+  Automation<Ts...> automation{&trigger};
+
+  explicit JsonActionHarness(std::string (*url)(Ts...)) {
+    this->action.set_url(url);
+    this->action.set_method([](Ts...) -> const char * { return "POST"; });
+    this->automation.add_action(&this->action);
+  }
+  // Raw storage that outlives the action, which constructs and destroys the entries itself
+  template<size_t N> void json_storage() {
+    using Entry = typename HttpRequestSendAction<Ts...>::JsonEntry;
+    alignas(Entry) static unsigned char raw[sizeof(Entry) * N];
+    this->action.set_json_storage(std::span<Entry>(reinterpret_cast<Entry *>(raw), N));
+  }
+};
+
+static std::string arg_url(std::string &s) { return "http://example.invalid/" + s; }
+
+TEST_F(HttpRequestSendActionTest, JsonEntriesBuildTheBody) {
+  using Entry = HttpRequestSendAction<>::JsonEntry;
+  alignas(Entry) static unsigned char raw[sizeof(Entry) * 2];
+  this->action_.set_json_storage(std::span<Entry>(reinterpret_cast<Entry *>(raw), 2));
+  this->action_.add_json("key", std::string("value"));
+  this->action_.add_json("dynamic", []() -> std::string { return "x"; });
+  this->trigger_.trigger();
+  EXPECT_EQ(this->http_.request_body, R"({"key":"value","dynamic":"x"})");
+}
+
+// The lambda gets the trigger's arguments, by value and by const reference
+TEST(HttpRequestSendActionJson, JsonLambdaGetsTheTriggerArgs) {
+  JsonActionHarness<int, const std::string &> h{
+      [](int, const std::string &) -> std::string { return "http://example.invalid/"; }};
+  h.action.set_json([](int x, const std::string &s, JsonObject root) {
+    root["x"] = x;
+    root["s"] = s;
+  });
+  h.trigger.trigger(7, std::string("a"));
+  EXPECT_EQ(h.http.request_body, R"({"x":7,"s":"a"})");
+}
+
+// The JSON gets copies of mutable reference args, so changing one does not change the URL read after it
+TEST(HttpRequestSendActionJson, JsonLambdaDoesNotChangeReferenceArgs) {
+  JsonActionHarness<std::string &> h{arg_url};
+  h.action.set_json([](std::string &s, JsonObject root) {
+    s += '!';
+    root["s"] = s;
+  });
+  std::string arg = "a";
+  h.trigger.trigger(arg);
+  EXPECT_EQ(h.http.request_body, R"({"s":"a!"})");
+  EXPECT_EQ(h.http.request_url, "http://example.invalid/a");
+}
+
+TEST(HttpRequestSendActionJson, JsonEntryDoesNotChangeReferenceArgs) {
+  JsonActionHarness<std::string &> h{arg_url};
+  h.json_storage<1>();
+  h.action.add_json("s", [](std::string &s) -> std::string {
+    s += '!';
+    return s;
+  });
+  std::string arg = "a";
+  h.trigger.trigger(arg);
+  EXPECT_EQ(h.http.request_body, R"({"s":"a!"})");
+  EXPECT_EQ(h.http.request_url, "http://example.invalid/a");
+}
+
+// A string linked from a reference arg, not copied into the document, stays alive until the body is serialized;
+// the host build's address sanitizer catches it otherwise
+TEST(HttpRequestSendActionJson, LinkedReferenceArgLivesThroughSerialize) {
+  JsonActionHarness<std::string &> h{[](std::string &) -> std::string { return "http://example.invalid/"; }};
+  h.action.set_json([](std::string &s, JsonObject root) { root["s"] = JsonString(s.c_str(), s.size(), true); });
+  std::string arg(64, 'a');  // longer than the small string buffer, so the copy is on the heap
+  h.trigger.trigger(arg);
+  EXPECT_EQ(h.http.request_body, R"({"s":")" + arg + R"("})");
+}
+
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 }  // namespace esphome::http_request::testing

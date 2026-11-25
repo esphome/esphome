@@ -17,116 +17,7 @@ const ParsedTimezone &get_global_tz() { return global_tz_; }
 
 namespace internal {
 
-bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
-
-// Get days in year (avoids duplicate is_leap_year calls)
-static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
-
-// Count leap years in [1, year] (i.e. up to and including year)
-static constexpr int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
-
-constexpr int EPOCH_YEAR = 1970;
-constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
-constexpr int DAYS_PER_YEAR = 365;
-constexpr int SECONDS_PER_DAY = 86400;
-
-// Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
-static inline int64_t days_to_year_start(int year) {
-  return static_cast<int64_t>(DAYS_PER_YEAR) * (year - EPOCH_YEAR) +
-         (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
-}
-
-// Convert days since epoch to year, updating days to day-of-year remainder.
-// The initial estimate from days/365 can overshoot by multiple years for
-// far-future dates (e.g., year 5000+) due to accumulated leap days,
-// so we use loops rather than single-step correction.
-static int days_to_year(int64_t &days) {
-  int year = static_cast<int>(EPOCH_YEAR + days / DAYS_PER_YEAR);
-  int64_t year_start = days_to_year_start(year);
-  while (days < year_start) {
-    year--;
-    year_start = days_to_year_start(year);
-  }
-  while (days >= year_start + days_in_year(year)) {
-    year_start += days_in_year(year);
-    year++;
-  }
-  days -= year_start;
-  return year;
-}
-
-// Extract just the year from a UTC epoch — O(1)
-static int epoch_to_year(time_t epoch) {
-  int64_t days = epoch / SECONDS_PER_DAY;
-  if (epoch < 0 && epoch % SECONDS_PER_DAY != 0)
-    days--;
-  return days_to_year(days);
-}
-
-int days_in_month(int year, int month) {
-  switch (month) {
-    case 2:
-      return is_leap_year(year) ? 29 : 28;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-      return 30;
-    default:
-      return 31;
-  }
-}
-
-// Zeller-like algorithm for day of week (0 = Sunday)
-int __attribute__((noinline)) day_of_week(int year, int month, int day) {
-  // Adjust for January/February
-  if (month < 3) {
-    month += 12;
-    year--;
-  }
-  int k = year % 100;
-  int j = year / 100;
-  int h = (day + (13 * (month + 1)) / 5 + k + k / 4 + j / 4 - 2 * j) % 7;
-  // Convert from Zeller (0=Sat) to standard (0=Sun)
-  return ((h + 6) % 7);
-}
-
-void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
-  // Days since epoch
-  int64_t days = epoch / SECONDS_PER_DAY;
-  int32_t remaining_secs = epoch % SECONDS_PER_DAY;
-  if (remaining_secs < 0) {
-    days--;
-    remaining_secs += SECONDS_PER_DAY;
-  }
-
-  out_tm->tm_sec = remaining_secs % 60;
-  remaining_secs /= 60;
-  out_tm->tm_min = remaining_secs % 60;
-  out_tm->tm_hour = remaining_secs / 60;
-
-  // Day of week (Jan 1, 1970 was Thursday = 4)
-  out_tm->tm_wday = static_cast<int>((days + 4) % 7);
-  if (out_tm->tm_wday < 0)
-    out_tm->tm_wday += 7;
-
-  // Calculate year (updates days to day-of-year)
-  int year = days_to_year(days);
-  out_tm->tm_year = year - 1900;
-  out_tm->tm_yday = static_cast<int>(days);
-
-  // Calculate month and day
-  int month = 1;
-  int dim;
-  while (days >= (dim = days_in_month(year, month))) {
-    days -= dim;
-    month++;
-  }
-
-  out_tm->tm_mon = month - 1;
-  out_tm->tm_mday = static_cast<int>(days) + 1;
-  out_tm->tm_isdst = 0;
-}
+static constexpr int SECONDS_PER_DAY = 86400;
 
 void __attribute__((noinline)) julian_to_month_day(int julian_day, int &out_month, int &out_day) {
   // J format: day 1-365, Feb 29 is NOT counted even in leap years
@@ -175,6 +66,12 @@ static int __attribute__((noinline)) days_from_year_start(int year, int month, i
     days += days_in_month(year, m);
   }
   return days;
+}
+
+// Day of week (0 = Sunday); Jan 1, 1970 was a Thursday
+int __attribute__((noinline)) day_of_week(int year, int month, int day) {
+  int wday = (days_to_year_start(year) + days_from_year_start(year, month, day) + 4) % 7;
+  return wday < 0 ? wday + 7 : wday;
 }
 
 time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
@@ -266,7 +163,8 @@ void format_designation(int32_t posix_offset, char *buf, size_t buf_size) {
 }
 
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {
-  if (!out_tm) {
+  // A far-off epoch would also stall the year search; a local offset keeps an in-range one at year -1 or later
+  if (!out_tm || !internal::epoch_in_range(utc_epoch)) {
     return false;
   }
 
@@ -296,8 +194,7 @@ extern "C" struct tm *localtime_r(const time_t *timer, struct tm *result) {
   if (timer == nullptr || result == nullptr) {
     return nullptr;
   }
-  esphome::time::epoch_to_local_tm(*timer, esphome::time::get_global_tz(), result);
-  return result;
+  return esphome::time::epoch_to_local_tm(*timer, esphome::time::get_global_tz(), result) ? result : nullptr;
 }
 
 // Non-thread-safe version (uses static buffer, standard libc behavior)

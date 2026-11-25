@@ -15,6 +15,21 @@ esphome:
         points:
           - 0,0
           - 10,10
+    - lvgl.canvas.draw_text:
+        id: test_canvas
+        x: 0
+        y: 0
+        max_width: 30
+        text: !lambda return to_string(millis());
+    - lvgl.canvas.draw_text:
+        id: test_canvas
+        x: 0
+        y: 10
+        max_width: 30
+        text:
+          format: "%.1f"
+          args: ["NAN"]
+          if_nan: "--"
 
 esp32:
   board: lolin_c3_mini

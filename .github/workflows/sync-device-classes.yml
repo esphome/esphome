@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Generate a token
         id: generate-token
-        uses: actions/create-github-app-token@v3.3.0
+        uses: actions/create-github-app-token@v3.4.0
         with:
           client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
@@ -47,7 +47,7 @@ jobs:
         # setup-python interpreter so subsequent ``prek`` /
         # ``script/run-in-env.py`` steps find the deps without a
         # ``uv run`` prefix.
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the

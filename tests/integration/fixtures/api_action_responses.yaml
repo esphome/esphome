@@ -91,3 +91,19 @@ api:
               root["config"]["api"]["port"] = 6053;
               root["items"][0] = "first";
               root["items"][1] = "second";
+
+    # Responds after a delay, so the action runs from the saved copies of its arguments
+    - action: action_delayed_response
+      variables:
+        name: string
+      then:
+        - delay: 20ms
+        - logger.log:
+            format: "ACTION_DELAYED_RESPONSE (call_id=%d, return_response=%d, name=%s)"
+            args: [call_id, return_response, name.c_str()]
+        - api.respond:
+            success: !lambda 'return name != "fail";'
+            error_message: !lambda 'return name == "fail" ? "failed: " + name : std::string();'
+            data: !lambda |-
+              root["name"] = name;
+              root["after_delay"] = true;

@@ -17,6 +17,9 @@ This module implements the canvas widget for LVGL 9.4. Key changes from LVGL 8.4
    - lv_canvas_set_px_color + lv_canvas_set_px_opa → lv_canvas_set_px(color, opa)
 """
 
+from contextlib import nullcontext
+from typing import Any
+
 from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.display_menu_base import CONF_LABEL
 from esphome.const import (
@@ -59,7 +62,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
-from ..types import LvType, ObjUpdateAction, lv_gradient_t, lv_point_precise_t
+from ..types import LvType, lv_gradient_t, lv_point_precise_t
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 
@@ -125,7 +128,7 @@ CanvasType()
 
 @automation.register_action(
     "lvgl.canvas.fill",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -137,18 +140,25 @@ CanvasType()
 )
 async def canvas_fill(config, action_id, template_arg, args):
     widget = await get_widgets(config)
-    color = await lv_color.process(config[CONF_COLOR])
-    opa = await opacity.process(config[CONF_OPA])
 
     async def do_fill(w: Widget):
+        color = await lv_color.process(config[CONF_COLOR])
+        opa = await opacity.process(config[CONF_OPA])
         lv.canvas_fill_bg(w.obj, color, opa)
 
     return await action_to_code(widget, do_fill, action_id, template_arg, args)
 
 
+async def _process_points(points: list[dict], validator: Any) -> list[list[Any]]:
+    return [
+        [await validator.process(p[CONF_X]), await validator.process(p[CONF_Y])]
+        for p in points
+    ]
+
+
 @automation.register_action(
     "lvgl.canvas.set_pixels",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -161,21 +171,12 @@ async def canvas_fill(config, action_id, template_arg, args):
 )
 async def canvas_set_pixel(config, action_id, template_arg, args):
     widget = await get_widgets(config)
-    color = await lv_color.process(config[CONF_COLOR])
-    opa = await opacity.process(config.get(CONF_OPA), "COVER")
-    points = [
-        (
-            await pixels.process(p[CONF_X]),
-            await pixels.process(p[CONF_Y]),
-        )
-        for p in config[CONF_POINTS]
-    ]
 
     async def do_set_pixels(w: Widget):
+        color = await lv_color.process(config[CONF_COLOR])
+        opa = await opacity.process(config[CONF_OPA])
         # LVGL 9.4: lv_canvas_set_px combines color and opacity
-        # Could optimize this for lambda values
-        for point in points:
-            x, y = point
+        for x, y in await _process_points(config[CONF_POINTS], pixels):
             lv.canvas_set_px(w.obj, x, y, color, opa)
 
     return await action_to_code(widget, do_set_pixels, action_id, template_arg, args)
@@ -192,27 +193,55 @@ DRAW_OPA_SCHEMA = {
 }
 
 
+async def _drawn_text(text: Any) -> tuple[Any, Any]:
+    """The text for a descriptor and the block that keeps it alive until the layer is drawn.
+
+    A computed text ending in ``.c_str()`` is a temporary std::string, kept by a const reference;
+    any other computed text (``if_nan:`` picks between two) is copied into a local.
+    """
+    value = await lv_text.process(text)
+    code = str(value)
+    if isinstance(text, str) or (code.startswith('"') and code.endswith('"')):
+        return value, nullcontext()
+    if code.endswith(".c_str()"):
+        return None, LocalVariable(
+            "text", "const std::string", MockObj(code[: -len(".c_str()")]), modifier="&"
+        )
+    return None, LocalVariable("text", "const std::string", value, modifier="")
+
+
 async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg, args):
     widget = await get_widgets(config)
-    x = await pixels.process(config.get(CONF_X))
-    y = await pixels.process(config.get(CONF_Y))
 
     async def action_func(w: Widget):
-        # LVGL 9.4: Create a layer for drawing on canvas
-        with LocalVariable("layer", "lv_layer_t", modifier="") as layer:
-            lv.canvas_init_layer(w.obj, addr(layer))
-            with LocalVariable("dsc", f"lv_draw_{dsc_type}_dsc_t", modifier="") as dsc:
-                lv.call(f"draw_{dsc_type}_dsc_init", addr(dsc))
-                if CONF_OPA in config:
-                    opa = await opacity.process(config[CONF_OPA])
-                    lv_assign(dsc.opa, opa)
-                for prop, validator in props.items():
-                    if prop in config:
-                        value = await validator.process(config[prop])
-                        mapped_prop = remap_property(prop)
-                        lv_assign(getattr(dsc, mapped_prop), value)
-                await do_draw(addr(layer), x, y, dsc)
-            lv.canvas_finish_layer(w.obj, addr(layer))
+        x = await pixels.process(config.get(CONF_X))
+        y = await pixels.process(config.get(CONF_Y))
+        text, keep = (None, nullcontext())
+        if CONF_TEXT in config:
+            text, keep = await _drawn_text(config[CONF_TEXT])
+        # The layer draws when it is finished, so a computed text must outlive it
+        with keep as owned:
+            if owned is not None:
+                text = owned.c_str()
+            # LVGL 9.4: Create a layer for drawing on canvas
+            with LocalVariable("layer", "lv_layer_t", modifier="") as layer:
+                lv.canvas_init_layer(w.obj, addr(layer))
+                with LocalVariable(
+                    "dsc", f"lv_draw_{dsc_type}_dsc_t", modifier=""
+                ) as dsc:
+                    lv.call(f"draw_{dsc_type}_dsc_init", addr(dsc))
+                    if CONF_OPA in config:
+                        opa = await opacity.process(config[CONF_OPA])
+                        lv_assign(dsc.opa, opa)
+                    for prop, validator in props.items():
+                        if prop in config:
+                            value = await validator.process(config[prop])
+                            mapped_prop = remap_property(prop)
+                            lv_assign(getattr(dsc, mapped_prop), value)
+                    if text is not None:
+                        lv_assign(dsc.text, text)
+                    await do_draw(addr(layer), x, y, dsc)
+                lv.canvas_finish_layer(w.obj, addr(layer))
 
     return await action_to_code(widget, action_func, action_id, template_arg, args)
 
@@ -286,7 +315,7 @@ def _draw_line(layer, dsc, points):
 
 @automation.register_action(
     "lvgl.canvas.draw_rectangle",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **DRAW_SCHEMA,
@@ -298,10 +327,9 @@ def _draw_line(layer, dsc, points):
     synchronous=True,
 )
 async def canvas_draw_rect(config, action_id, template_arg, args):
-    width = await pixels.process(config[CONF_WIDTH])
-    height = await pixels.process(config[CONF_HEIGHT])
-
     async def do_draw_rect(layer, x, y, dsc):
+        width = await pixels.process(config[CONF_WIDTH])
+        height = await pixels.process(config[CONF_HEIGHT])
         # LVGL 9.4: Use lv_draw_rect with area
         with LocalVariable("area", "lv_area_t", modifier="") as area:
             lv_assign(area.x1, x)
@@ -332,7 +360,7 @@ TEXT_PROPS = {
 
 @automation.register_action(
     "lvgl.canvas.draw_text",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **TEXT_SCHEMA,
@@ -344,21 +372,24 @@ TEXT_PROPS = {
     synchronous=True,
 )
 async def canvas_draw_text(config, action_id, template_arg, args):
-    text = await lv_text.process(config[CONF_TEXT])
-    max_width = await pixels.process(config[CONF_MAX_WIDTH])
-
     async def do_draw_text(layer, x, y, dsc):
+        max_width = await pixels.process(config[CONF_MAX_WIDTH])
         # LVGL 9.4: Use lv_draw_label with area and hint
         with LocalVariable("area", "lv_area_t", modifier="") as area:
             lv_assign(area.x1, x)
             lv_assign(area.y1, y)
             lv_assign(area.x2, literal(f"{x} + {max_width} - 1"))
             lv_assign(area.y2, literal(f"{y} + LV_COORD_MAX"))
-            lv_assign(dsc.text, text)
             lv.draw_label(layer, addr(dsc), addr(area))
 
     return await draw_to_code(
-        config, "label", TEXT_PROPS, do_draw_text, action_id, template_arg, args
+        config,
+        "label",
+        TEXT_PROPS,
+        do_draw_text,
+        action_id,
+        template_arg,
+        args,
     )
 
 
@@ -402,7 +433,7 @@ def _prop_validator(prop):
 
 @automation.register_action(
     "lvgl.canvas.draw_image",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **DRAW_OPA_SCHEMA,
@@ -415,11 +446,10 @@ def _prop_validator(prop):
     synchronous=True,
 )
 async def canvas_draw_image(config, action_id, template_arg, args):
-    src = await lv_image.process(config[CONF_SRC])
-    pivot_x = await pixels.process(config[CONF_PIVOT_X])
-    pivot_y = await pixels.process(config[CONF_PIVOT_Y])
-
     async def do_draw_image(layer, x, y, dsc):
+        src = await lv_image.process(config[CONF_SRC])
+        pivot_x = await pixels.process(config[CONF_PIVOT_X])
+        pivot_y = await pixels.process(config[CONF_PIVOT_Y])
         # LVGL 9.4: Use lv_draw_image with area
         lv_assign(dsc.src, src.get_lv_image_dsc())
         if pivot_x or pivot_y:
@@ -464,7 +494,7 @@ def _validate_points(config):
 
 @automation.register_action(
     "lvgl.canvas.draw_line",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -476,16 +506,8 @@ def _validate_points(config):
     synchronous=True,
 )
 async def canvas_draw_line(config, action_id, template_arg, args):
-    points = [
-        [
-            await pixels.process(p[CONF_X]),
-            await pixels.process(p[CONF_Y]),
-        ]
-        for p in config[CONF_POINTS]
-    ]
-
     async def do_draw_line(layer, _x, _y, dsc):
-        _draw_line(layer, dsc, points)
+        _draw_line(layer, dsc, await _process_points(config[CONF_POINTS], pixels))
 
     return await draw_to_code(
         config, "line", LINE_PROPS, do_draw_line, action_id, template_arg, args
@@ -494,7 +516,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
 
 @automation.register_action(
     "lvgl.canvas.draw_polygon",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -505,17 +527,10 @@ async def canvas_draw_line(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def canvas_draw_polygon(config, action_id, template_arg, args):
-    points = [
-        [
-            await pixels_or_percent.process(p[CONF_X]),
-            await pixels_or_percent.process(p[CONF_Y]),
-        ]
-        for p in config[CONF_POINTS]
-    ]
-    # Close the polygon
-    points.append(points[0])
-
     async def do_draw_polygon(layer, x, y, dsc):
+        points = await _process_points(config[CONF_POINTS], pixels_or_percent)
+        # Close the polygon
+        points.append(points[0])
         # LVGL 9.4: Draw polygon using line drawing in a closed path
         # Note: This draws outline only. For filled polygons, would need different approach
         # Convert rect descriptor to line descriptor for polygon outline
@@ -541,7 +556,7 @@ ARC_PROPS = {
 
 @automation.register_action(
     "lvgl.canvas.draw_arc",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **DRAW_OPA_SCHEMA,
@@ -554,11 +569,10 @@ ARC_PROPS = {
     synchronous=True,
 )
 async def canvas_draw_arc(config, action_id, template_arg, args):
-    radius = await size.process(config[CONF_RADIUS])
-    start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
-    end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
-
     async def do_draw_arc(layer, x, y, dsc):
+        radius = await size.process(config[CONF_RADIUS])
+        start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+        end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
         # LVGL 9.4: Use lv_draw_arc with center point
         lv_assign(dsc.center.x, x)
         lv_assign(dsc.center.y, y)

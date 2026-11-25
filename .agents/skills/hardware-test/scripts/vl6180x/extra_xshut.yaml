@@ -1,0 +1,9 @@
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const uint32_t s = millis() / 1000;
+          if (s == 25) {
+            ESP_LOGW("xshut", "pulling XSHUT (GPIO14) low for 50 ms at %u s (no enable_pin in config)", (unsigned) s);
+            pinMode(14, OUTPUT); digitalWrite(14, LOW); delay(50); digitalWrite(14, HIGH);
+          }
