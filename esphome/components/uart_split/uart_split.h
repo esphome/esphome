@@ -72,7 +72,8 @@ class UartSplit final : public Component {
   // After the hardware UART, before the devices on the outputs, which read the settings.
   float get_setup_priority() const override { return setup_priority::BUS - 0.5f; }
 
-  /// Hand on what the parent has received so far, before a writer sends, to the outputs that mirror its writes.
+  /// Before a writer sends, hand on what the parent has received so far, as loop() does. Bytes that a full writer holds
+  /// back stay in the parent.
   void hand_on_received(const UartSplitOutput *from);
   /// Copy bytes a writer just sent into every other output that asked for them.
   void mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len);

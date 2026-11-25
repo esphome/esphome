@@ -198,7 +198,19 @@ TEST_F(UartSplitCopy, BytesReceivedWhileWritingComeAfterTheWrite) {
   }
 }
 
-TEST_F(UartSplitCopy, WriteFromADebuggerDoesNotReorderTheBytes) {
+TEST_F(UartSplitCopy, BytesHeldBackForAFullWriterComeAfterItsWrite) {
+  // The full writer holds the read, so 0x11 waits in the parent and is not handed on before the write.
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  const uint8_t received = 0x11;
+  const uint8_t sent = 0x22;
+  this->pins_.rx(&received, 1);
+  this->bus_.write_array(&sent, 1);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x22);
+}
+
+TEST_F(UartSplitCopy, WriteFromADebuggerDoesNotStartASecondPass) {
+  // The debugger writes inside the read. Its byte comes first on tap, and the 100 bytes of the read keep their order.
   const uint8_t sent = 0xAA;
   this->pins_.rx_fill(100);
   this->pins_.on_read_ = [this, &sent]() { this->bus_.write_array(&sent, 1); };
@@ -209,6 +221,10 @@ TEST_F(UartSplitCopy, WriteFromADebuggerDoesNotReorderTheBytes) {
     EXPECT_EQ(this->read_one(&this->bus_), i);
   }
   EXPECT_EQ(this->tap_.available(), 101u);
+  EXPECT_EQ(this->read_one(&this->tap_), sent);
+  for (uint8_t i = 0; i < 100; i++) {
+    EXPECT_EQ(this->read_one(&this->tap_), i);
+  }
 }
 
 TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {
