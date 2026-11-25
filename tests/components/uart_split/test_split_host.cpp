@@ -235,13 +235,23 @@ TEST_F(UartSplitCopy, StalledWriterStopsHoldingTheReadAtHalfTheParentBuffer) {
   EXPECT_EQ(this->tap_.available(), 129u);
 }
 
-TEST_F(UartSplitCopy, UnknownParentBufferNeverHoldsTheRead) {
+TEST_F(UartSplitCopy, UnknownParentBufferNeverHoldsTheReadForAFullWriter) {
   // A USB channel with buffer_size 64 reports no size and never holds 128 bytes.
   fill(&this->bus_, RX_BUFFER_SIZE);
   this->pins_.rx_fill(10);
   this->split_.loop();
   EXPECT_EQ(this->pins_.available(), 0u);
   EXPECT_EQ(this->tap_.available(), 10u);
+}
+
+TEST_F(UartSplitCopy, UnknownParentBufferStillHoldsTheReadForAWriterWithRoom) {
+  // The writer reads and has 36 bytes free, so the other 64 wait in the parent instead of being dropped.
+  fill(&this->bus_, RX_BUFFER_SIZE - 36);
+  this->pins_.rx_fill(100);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 64u);
+  EXPECT_EQ(this->bus_.available(), RX_BUFFER_SIZE);
+  EXPECT_EQ(this->tap_.available(), 36u);
 }
 
 TEST_F(UartSplitCopy, WriterReadEmptyHoldsTheReadAgain) {

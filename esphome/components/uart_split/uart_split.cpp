@@ -25,14 +25,18 @@ void UartSplit::loop() {
     return;
   }
   // A full writer leaves new bytes in the parent's buffer until it is half full; then the writer drops.
-  // A parent that does not report its buffer size (0) never holds back: it might never get that full.
-  size_t hold_limit = this->parent_->get_rx_buffer_size() / 2;
   size_t room = RX_BUFFER_SIZE;
   for (UartSplitOutput *output : this->outputs_) {
     output->end_dropping_if_empty();
     if (output->holds_back()) {
       room = std::min(room, output->rx_free());
     }
+  }
+  // A parent that does not report its buffer size (0) has no half to wait for. It still holds back for a writer that
+  // has room, but never for a full one: the parent might never get that full.
+  size_t hold_limit = this->parent_->get_rx_buffer_size() / 2;
+  if (hold_limit == 0 && room > 0) {
+    hold_limit = RX_BUFFER_SIZE / 2;
   }
   // No output holds more than RX_BUFFER_SIZE, so reading more in one pass would only drop it.
   size_t take = std::min(waiting, RX_BUFFER_SIZE);
