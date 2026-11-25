@@ -227,9 +227,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   void update_target_xy_(uint8_t target, bool changed);
 #endif
-#ifdef USE_LD2450_XY_UNFILTERED
-  void bypass_xy_filters_(bool bypass);
-#endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
@@ -246,8 +243,11 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::LINK_STATE_WAITING};
-  bool bytes_since_frame_{false};  // any bytes since the last valid frame
-  uint16_t invalid_frames_{0};     // since the last valid frame, saturating
+  bool bytes_since_frame_{false};
+#ifdef USE_LD2450_XY_UNFILTERED
+  bool xy_unfiltered_{false};   // the xy text sensors publish past their filters
+#endif                          // any bytes since the last valid frame
+  uint16_t invalid_frames_{0};  // since the last valid frame, saturating
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
 #ifdef USE_TEXT_SENSOR
@@ -276,10 +276,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
   std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
-#endif
-#ifdef USE_LD2450_XY_UNFILTERED
-  // Filter chains of the xy text sensors, held while they publish unfiltered
-  std::array<text_sensor::Filter *, MAX_TARGETS> xy_filters_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT
