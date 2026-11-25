@@ -125,8 +125,9 @@ void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
 
 size_t UartSplitOutput::available_for_write() {
   if (this->rx_only_) {
-    // Takes and drops every byte; 0 would stall a writer that paces on it.
-    return SIZE_MAX;
+    // Takes and drops every byte, so no line time to pace to. 0 would stall a writer, and SIZE_MAX (unknown) would
+    // pace it to the baud rate.
+    return RX_BUFFER_SIZE;
   }
   return this->split_->parent()->available_for_write();
 }

@@ -167,8 +167,10 @@ TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {
 
 TEST_F(UartSplitCopy, ReceiveOnlyOutputTakesEveryWrite) {
   // A paced writer like uart_tcp keeps reading its socket, and so sees its client leave.
-  EXPECT_EQ(this->tap_.available_for_write(), SIZE_MAX);
-  EXPECT_EQ(this->quiet_.available_for_write(), SIZE_MAX);
+  EXPECT_EQ(this->tap_.available_for_write(), RX_BUFFER_SIZE);
+  EXPECT_EQ(this->quiet_.available_for_write(), RX_BUFFER_SIZE);
+  // A known room: the writer is not paced to the baud rate.
+  EXPECT_EQ(this->tap_.paced_write_room(0), RX_BUFFER_SIZE);
 }
 
 TEST_F(UartSplitCopy, ReceiveOnlyFlushConfirmsNothing) {
