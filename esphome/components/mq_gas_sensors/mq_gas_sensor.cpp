@@ -31,9 +31,19 @@ void MQGasSensor::dump_config() {
 
 float MQGasSensor::sample_voltage_() {
   float sum = 0.0f;
-  for (uint8_t i = 0; i < this->samples_; i++)
-    sum += this->source_->sample();
-  return (sum / static_cast<float>(this->samples_)) * this->voltage_multiplier_;
+  this->sample_count_ = 0;
+  for (uint8_t i = 0; i < this->samples_; i++) {
+    const float sample = this->source_->sample();
+    // A conversion the sampler could not complete is not a measurement: drop it
+    // instead of letting one NaN poison the average of the whole window.
+    if (!std::isfinite(sample))
+      continue;
+    sum += sample;
+    this->sample_count_++;
+  }
+  if (this->sample_count_ == 0)
+    return NAN;
+  return (sum / static_cast<float>(this->sample_count_)) * this->voltage_multiplier_;
 }
 
 float MQGasSensor::current_rs_(float voltage) const { return mqmath::rs_from_voltage(voltage, this->vcc_, this->rl_); }
@@ -52,6 +62,19 @@ void MQGasSensor::update() {
     return;
 
   const float voltage = this->sample_voltage_();
+  if (!std::isfinite(voltage)) {
+    // The sampler itself produced no conversion: not the same fault as a wiring
+    // that reads 0 V, and pointing at the AO wiring would hide a failed ADC.
+    if (!this->warned_sampler_failure_) {
+      this->warned_sampler_failure_ = true;
+      ESP_LOGW(TAG, "'%s %s': the voltage sampler returned no reading - check the sampler (I2C bus, ADC)",
+               this->type_.c_str(), this->gas_.c_str());
+    }
+    this->status_set_warning(LOG_STR("the voltage sampler returned no reading"));
+    this->publish_state(NAN);
+    return;
+  }
+  this->warned_sampler_failure_ = false;
   if (!this->voltage_usable_(voltage)) {
     if (!this->warned_low_voltage_) {
       this->warned_low_voltage_ = true;

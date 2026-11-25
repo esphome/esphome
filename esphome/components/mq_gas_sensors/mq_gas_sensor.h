@@ -75,9 +75,12 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
 
   RegressionMethod regression_method_{RegressionMethod::REGRESSION_EXPONENTIAL};
   uint8_t samples_{2};
+  /// Usable conversions of the last sampling window.
+  uint8_t sample_count_{0};
 
   /// One flag per fault kind, so each is reported once - and again when it recurs
   /// after the wiring read as expected in between.
+  bool warned_sampler_failure_{false};
   bool warned_low_voltage_{false};
   bool warned_high_voltage_{false};
   /// One line when the curve cannot evaluate the ratio, and one when the published
