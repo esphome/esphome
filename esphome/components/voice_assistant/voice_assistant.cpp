@@ -791,6 +791,9 @@ void VoiceAssistant::set_state_(State state) {
       this->end_session_();
     }
   }
+  // A new request replaces the one whose on_idle was waiting
+  if (old_state == State::IDLE && state != State::IDLE)
+    this->idle_pending_ = false;
   if (old_state != State::IDLE && state == State::IDLE && !this->continuous_) {
     // A start before Home Assistant's run ends would be stopped by its late RUN_END, so wait for it
     if (this->end_pending_ && this->run_active_) {
