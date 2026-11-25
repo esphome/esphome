@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <functional>
 
 #include "esphome/components/uart_split/uart_split.h"
 
@@ -11,6 +12,9 @@ namespace esphome::uart_split::testing {
 class FakeUart : public uart::UARTComponent {
  public:
   void write_array(const uint8_t *data, size_t len) override {
+    if (this->on_write_) {
+      this->on_write_();
+    }
     for (size_t i = 0; i < len && this->tx_len_ < sizeof(this->tx_); i++) {
       this->tx_[this->tx_len_++] = data[i];
     }
@@ -46,6 +50,8 @@ class FakeUart : public uart::UARTComponent {
     }
   }
 
+  // Runs inside write_array(), like bytes that arrive while a full TX FIFO takes the write.
+  std::function<void()> on_write_;
   uint8_t tx_[32]{};
   size_t tx_len_{0};
 
@@ -167,6 +173,20 @@ TEST_F(UartSplitCopy, MirroredWriteComesAfterWhatWasReceivedBefore) {
   EXPECT_EQ(this->read_one(&this->tap_), 0x22);
   EXPECT_EQ(this->read_one(&this->bus_), 0x11);
   EXPECT_EQ(this->bus_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, BytesReceivedWhileWritingComeAfterTheWrite) {
+  const uint8_t received = 0x11;
+  const uint8_t sent[] = {0xA1, 0xA2};
+  const uint8_t echo[] = {0xE1, 0xE2};
+  this->pins_.rx(&received, 1);
+  this->pins_.on_write_ = [this, &echo]() { this->pins_.rx(echo, sizeof(echo)); };
+  this->bus_.write_array(sent, sizeof(sent));
+  this->pins_.on_write_ = nullptr;
+  this->split_.loop();
+  for (uint8_t expected : {0x11, 0xA1, 0xA2, 0xE1, 0xE2}) {
+    EXPECT_EQ(this->read_one(&this->tap_), expected);
+  }
 }
 
 TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {

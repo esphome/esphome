@@ -59,16 +59,21 @@ void UartSplit::loop() {
   this->high_freq_.set(taken > 0 && waiting > taken);
 }
 
+void UartSplit::hand_on_received(const UartSplitOutput *from) {
+  for (const UartSplitOutput *output : this->outputs_) {
+    if (output != from && output->mirror_tx()) {
+      // What the parent received before this write comes first on the output. A write that takes time (a full TX
+      // FIFO) can receive more, and that comes after it.
+      this->loop();
+      return;
+    }
+  }
+}
+
 void UartSplit::mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len) {
-  bool distributed = false;
   for (size_t i = 0; i < this->outputs_.size(); i++) {
     UartSplitOutput *output = this->outputs_[i];
     if (output != from && output->mirror_tx()) {
-      if (!distributed) {
-        // What the parent received before this write comes first on the output.
-        this->loop();
-        distributed = true;
-      }
       this->push_(i, data, len);
     }
   }
@@ -129,6 +134,7 @@ void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
     return;
   }
   this->debug_tx_(data, len);
+  this->split_->hand_on_received(this);
   this->split_->parent()->write_array(data, len);
   this->split_->mirror_tx(this, data, len);
 }
