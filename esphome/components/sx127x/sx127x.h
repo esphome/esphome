@@ -147,6 +147,7 @@ class SX127x final : public Component,
     bool packet_mode{false};
     bool rx_start{false};
 #ifdef USE_SX127X_LONG_PACKET
+    uint32_t bitrate{0};
     payload_length_func_t payload_length_func{nullptr};
 #endif
   };

@@ -64,9 +64,7 @@ void SX127x::write_register_(uint8_t reg, uint8_t value) {
 void SX127x::read_fifo_(uint8_t *data, size_t length) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  for (size_t i = 0; i < length; i++) {
-    data[i] = this->transfer_byte(0x00);
-  }
+  this->read_array(data, length);
   this->disable();
 }
 
@@ -101,10 +99,13 @@ void SX127x::setup() {
 
 #ifdef USE_SX127X_LONG_PACKET
   // setup dio1 (FifoEmpty falling edge during long packet RX)
-  this->dio1_pin_->setup();
-  if (this->dio1_pin_->is_internal()) {
-    static_cast<InternalGPIOPin *>(this->dio1_pin_)
-        ->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+  // Unset on a radio without long packets when another radio in the build has them
+  if (this->dio1_pin_ != nullptr) {
+    this->dio1_pin_->setup();
+    if (this->dio1_pin_->is_internal()) {
+      static_cast<InternalGPIOPin *>(this->dio1_pin_)
+          ->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    }
   }
 #endif
 
@@ -161,6 +162,7 @@ const LogString *SX127x::configure_radio_() {
   this->state_ = RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
   this->applied_ = {this->frequency_, this->payload_length_, this->modulation_, this->packet_mode_, this->rx_start_};
 #ifdef USE_SX127X_LONG_PACKET
+  this->applied_.bitrate = this->bitrate_;
   this->applied_.payload_length_func = this->payload_length_func_;
 #endif
 
@@ -228,6 +230,9 @@ const LogString *SX127x::configure_radio_() {
     this->packet_.reserve(this->payload_length_func_ ? MAX_PACKET_LENGTH + FIFO_THRESHOLD_HALF + 1
                                                      : this->payload_length_);
     this->reset_long_packet_rx_();
+    if (this->dio1_pin_ == nullptr) {
+      ESP_LOGW(TAG, "Long packets need dio1_pin");
+    }
   }
 #endif
 
@@ -520,7 +525,8 @@ bool SX127x::is_receiving() {
   }
 #ifdef USE_SX127X_LONG_PACKET
   if (this->is_long_packet_mode_()) {
-    return !this->packet_.empty();
+    // Reception restarts after every packet, which clears the sync word flag
+    return !this->packet_.empty() || (this->read_register_(REG_IRQ_FLAGS_1) & IRQ_FLAGS_1_SYNC_ADDRESS_MATCH) != 0;
   }
 #endif
   if (this->dio0_pin_ == nullptr) {
@@ -610,10 +616,12 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
   // Drain until FifoEmpty in this pass: the chip reports no byte count, and a pass that leaves bytes behind
   // gets no FifoEmpty edge to wake the loop before the FIFO overruns. The packet length bounds the loop.
   while (true) {
+    // Each discard restarts reception before it logs: a log listener may change the mode or configure the radio
     if (irq2 & FIFO_OVERRUN) {
-      ESP_LOGW(TAG, "FIFO overrun during long packet RX, restarting: received=%u expected=%u",
-               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
+      const auto received = (unsigned) this->packet_.size();
+      const auto expected = (unsigned) this->packet_expected_length_;
       this->restart_long_packet_rx_();
+      ESP_LOGW(TAG, "FIFO overrun during long packet RX, restarting: received=%u expected=%u", received, expected);
       return;
     }
     if (irq2 & FIFO_EMPTY) {
@@ -643,21 +651,22 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
 
     if (this->packet_expected_length_ == 0 && this->applied_.payload_length_func) {
       int32_t expected = this->applied_.payload_length_func(this->packet_);
+      const auto received = (unsigned) this->packet_.size();
       if (expected < 0) {
-        ESP_LOGVV(TAG, "Long packet length lambda discarded packet: received=%u", (unsigned) this->packet_.size());
         this->restart_long_packet_rx_();
+        ESP_LOGVV(TAG, "Long packet length lambda discarded packet: received=%u", received);
         return;
       }
       if (expected > MAX_PACKET_LENGTH) {
+        this->restart_long_packet_rx_();
         ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%" PRId32 " max=%u", expected,
                  MAX_PACKET_LENGTH);
-        this->restart_long_packet_rx_();
         return;
       }
-      if (expected > 0 && (size_t) expected + FIFO_THRESHOLD_HALF + 1 < this->packet_.size()) {
-        ESP_LOGW(TAG, "Invalid computed packet length, discarding packet: length=%" PRId32 " received=%u", expected,
-                 (unsigned) this->packet_.size());
+      if (expected > 0 && (size_t) expected + FIFO_THRESHOLD_HALF + 1 < received) {
         this->restart_long_packet_rx_();
+        ESP_LOGW(TAG, "Invalid computed packet length, discarding packet: length=%" PRId32 " received=%u", expected,
+                 received);
         return;
       }
       if (expected > 0) {
@@ -669,9 +678,9 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
 
     // Only reachable while the length is still unknown; a known length caps every read
     if (this->packet_expected_length_ == 0 && this->packet_.size() > MAX_PACKET_LENGTH) {
-      ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%u max=%u",
-               (unsigned) this->packet_.size(), MAX_PACKET_LENGTH);
+      const auto received = (unsigned) this->packet_.size();
       this->restart_long_packet_rx_();
+      ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%u max=%u", received, MAX_PACKET_LENGTH);
       return;
     }
 
@@ -685,24 +694,33 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
 }
 
 void SX127x::loop_long_packet_() {
+  if (this->dio1_pin_ == nullptr) {
+    this->disable_loop();
+    return;
+  }
   uint8_t irq2 = this->read_register_(REG_IRQ_FLAGS2);
-  if (irq2 & FIFO_EMPTY) {
-    if (this->packet_.empty()) {
-      // DIO1's interrupt wakes the loop
-      if (this->dio1_pin_->is_internal()) {
-        this->disable_loop();
-      }
+  if (!this->packet_.empty()) {
+    // Discard a packet when no byte arrived for the air time of PACKET_IDLE_TIMEOUT_BYTES. Bytes waiting in the
+    // FIFO get the time it takes to fill on top: without an overrun, a longer gap still had that much silence in
+    // it, and what arrived after it is not part of this packet.
+    static_assert(PACKET_IDLE_TIMEOUT_BYTES >= FIFO_SIZE, "the idle timeout must cover a FIFO fill");
+    const uint32_t timeout_ms = std::max<uint32_t>((8u * PACKET_IDLE_TIMEOUT_BYTES * 1000u) / this->applied_.bitrate,
+                                                   PACKET_IDLE_TIMEOUT_MIN_MS);
+    const uint32_t idle_ms = App.get_loop_component_start_time() - this->packet_last_byte_ms_;
+    if (idle_ms > ((irq2 & FIFO_EMPTY) ? timeout_ms : 2 * timeout_ms)) {
+      const auto received = (unsigned) this->packet_.size();
+      const auto expected = (unsigned) this->packet_expected_length_;
+      this->restart_long_packet_rx_();
+      ESP_LOGW(TAG, "Packet receive timeout, discarding packet: received=%u expected=%u", received, expected);
       return;
     }
-    // Discard a packet when no byte arrived for the air time of PACKET_IDLE_TIMEOUT_BYTES
-    const uint32_t timeout_ms =
-        std::max<uint32_t>((8u * PACKET_IDLE_TIMEOUT_BYTES * 1000u) / this->bitrate_, PACKET_IDLE_TIMEOUT_MIN_MS);
-    if (App.get_loop_component_start_time() - this->packet_last_byte_ms_ > timeout_ms) {
-      ESP_LOGW(TAG, "Packet receive timeout, discarding packet: received=%u expected=%u",
-               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
-      this->restart_long_packet_rx_();
+  }
+  if (irq2 & FIFO_EMPTY) {
+    // DIO1's interrupt wakes the loop; while a reception is in progress it keeps running for the timeout
+    if (this->packet_.empty() && this->dio1_pin_->is_internal()) {
+      this->disable_loop();
     }
-    return;  // keep the loop ticking while a reception is in progress, even without a new interrupt
+    return;
   }
   this->handle_long_packet_(irq2);
 }

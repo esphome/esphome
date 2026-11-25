@@ -16,6 +16,7 @@ static int32_t discard(const std::vector<uint8_t> &x) { return -1; }
 
 // FSK packet mode with a payload length above 64 or a lambda selects long packets
 static void configure_long(RadioHardware &hw, uint32_t payload_length, payload_length_func_t func = nullptr) {
+  hw.radio.set_dio1_pin(&hw.dio1);
   hw.radio.set_modulation(MOD_FSK);
   hw.radio.set_bandwidth(SX127X_BW_50_0);
   hw.radio.set_bitrate(4800);
@@ -187,6 +188,114 @@ TEST(SX127xLongPacket, PayloadLengthChangedAtRunTime) {
   hw.radio.loop();
   ASSERT_EQ(packets.packets.size(), 2u);
   EXPECT_EQ(packets.packets[1], make_packet(100));
+}
+
+// Long packet support is compiled for the whole build, also for a radio that has no DIO1
+TEST(SX127xLongPacket, RadioWithoutDio1ReceivesShortPacketsOnly) {
+  RadioHardware hw;
+  PacketListener packets;
+  hw.radio.register_listener(&packets);
+  hw.configure(false, true, true);
+  ASSERT_FALSE(hw.radio.is_failed());
+  hw.receive({0x01, 0x02, 0x03});
+  hw.radio.loop();
+  ASSERT_EQ(packets.packets.size(), 1u);
+  // Long packets selected at run time have no FifoEmpty signal to drain on
+  hw.radio.set_payload_length(100);
+  hw.radio.configure();
+  hw.feed(make_packet(100));
+  hw.radio.loop();
+  EXPECT_EQ(packets.packets.size(), 1u);
+  EXPECT_FALSE(hw.radio.is_failed());
+}
+
+TEST(SX127xLongPacket, SyncWordCountsAsReceiving) {
+  RadioHardware hw;
+  configure_long(hw, 100);
+  EXPECT_FALSE(hw.radio.is_receiving());
+  hw.regs[REG_IRQ_FLAGS_1] = IRQ_FLAGS_1_SYNC_ADDRESS_MATCH;
+  EXPECT_TRUE(hw.radio.is_receiving());
+}
+
+// At 4800 bit/s the air time of 64 bytes, and so the idle timeout, is 106 ms
+class SX127xLongPacketTimeout : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    this->hw_.radio.register_listener(&this->packets_);
+    configure_long(this->hw_, 100);
+    this->start_ = App.get_loop_component_start_time();
+    this->hw_.feed(make_packet(40));
+    this->hw_.radio.loop();
+  }
+  void TearDown() override { this->loop_at_(0); }
+  // A loop pass that starts ms after the first 40 bytes were read
+  void loop_at_(uint32_t ms) {
+    LoopBlockingGuard clock{nullptr, nullptr, this->start_ + ms};
+    if (ms != 0) {
+      this->hw_.radio.loop();
+    }
+  }
+
+  RadioHardware hw_;
+  PacketListener packets_;
+  uint32_t start_{0};
+};
+
+TEST_F(SX127xLongPacketTimeout, StalledPacketIsDiscarded) {
+  this->loop_at_(100);
+  EXPECT_TRUE(this->hw_.radio.is_receiving());
+  this->loop_at_(110);
+  EXPECT_FALSE(this->hw_.radio.is_receiving());
+  EXPECT_TRUE(this->hw_.receiving());
+  // The next packet does not continue the discarded one
+  this->hw_.feed(make_packet(100));
+  this->loop_at_(120);
+  ASSERT_EQ(this->packets_.packets.size(), 1u);
+  EXPECT_EQ(this->packets_.packets[0], make_packet(100));
+}
+
+// The FIFO holds what arrived while the loop was late
+TEST_F(SX127xLongPacketTimeout, LatePassWithBytesWaitingContinuesThePacket) {
+  const std::vector<uint8_t> packet = make_packet(100);
+  this->hw_.feed({packet.begin() + 40, packet.end()});
+  this->loop_at_(200);
+  ASSERT_EQ(this->packets_.packets.size(), 1u);
+  EXPECT_EQ(this->packets_.packets[0], packet);
+}
+
+// More than a FIFO fill late without an overrun: the bytes waiting came after a silence
+TEST_F(SX127xLongPacketTimeout, BytesAfterAStallAreNotAppended) {
+  this->hw_.feed(make_packet(60));
+  this->loop_at_(220);
+  EXPECT_TRUE(this->packets_.packets.empty());
+  EXPECT_TRUE(this->hw_.rx_fifo.empty());
+  EXPECT_FALSE(this->hw_.radio.is_receiving());
+}
+
+// A bitrate set without configure() does not change the timeout of the reception in progress
+TEST_F(SX127xLongPacketTimeout, UsesTheAppliedBitrate) {
+  this->hw_.radio.set_bitrate(300000);
+  this->loop_at_(50);
+  EXPECT_TRUE(this->hw_.radio.is_receiving());
+}
+
+// A discard restarts reception before it logs, so the log listener's mode is kept
+TEST(SX127xLongPacket, ModeSetFromTheDiscardWarningIsKept) {
+  RadioHardware hw;
+  LogCallback log;
+  configure_long(hw, 100);
+  bool seen = false;
+  log.set_callback([&](const std::string &message) {
+    if (message.find("FIFO overrun") != std::string::npos) {
+      seen = true;
+      hw.radio.set_mode_standby();
+    }
+  });
+  hw.feed(make_packet(10));
+  hw.overrun = true;
+  hw.radio.loop();
+  ASSERT_TRUE(seen);
+  EXPECT_EQ(hw.mode(), MODE_STDBY);
 }
 
 }  // namespace esphome::sx127x::testing

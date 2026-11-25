@@ -1,31 +1,7 @@
 #include "sx127x_test_helpers.h"
-#include "esphome/components/logger/logger.h"
 #include <string>
 
 namespace esphome::sx127x::testing {
-
-// Runs a callback for each warning logged, as a logger on_message automation would
-class LogCallback {
- public:
-  LogCallback() : previous_(logger::global_logger) {
-    this->logger_.pre_setup();
-    this->logger_.set_log_level(ESPHOME_LOG_LEVEL_WARN);
-    this->logger_.add_log_callback(this,
-                                   [](void *instance, uint8_t level, const char *tag, const char *message, size_t len) {
-                                     auto *self = static_cast<LogCallback *>(instance);
-                                     if (self->callback_) {
-                                       self->callback_(std::string(message, len));
-                                     }
-                                   });
-  }
-  ~LogCallback() { logger::global_logger = this->previous_; }
-  void set_callback(std::function<void(const std::string &)> callback) { this->callback_ = std::move(callback); }
-
- private:
-  std::function<void(const std::string &)> callback_;
-  logger::Logger *previous_;
-  logger::Logger logger_{0};
-};
 
 // A configure() from the warning's log callback recovers the radio, and no retry is left
 // behind to reset it again later

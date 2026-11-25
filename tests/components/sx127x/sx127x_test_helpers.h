@@ -2,7 +2,10 @@
 #include <gtest/gtest.h>
 #include <array>
 #include <functional>
+#include <string>
+#include <utility>
 #include <vector>
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/sx127x/sx127x.h"
 #include "esphome/core/application.h"
 
@@ -77,7 +80,6 @@ class RadioHardware {
     this->radio.set_spi_parent(&this->spi);
     this->radio.set_cs_pin(&this->cs);
     this->radio.set_dio0_pin(&this->dio0);
-    this->radio.set_dio1_pin(&this->dio1);
     this->radio.set_rst_pin(&this->rst);
     this->radio.set_frequency(433920000);
     this->radio.set_pa_pin(PA_PIN_BOOST);
@@ -340,6 +342,29 @@ class TransmitListener : public SX127xTransmitListener {
   }
   std::vector<SX127xError> results;
   std::function<void(SX127xError)> on_complete;
+};
+
+// Runs a callback for each warning logged, as a logger on_message automation would
+class LogCallback {
+ public:
+  LogCallback() : previous_(logger::global_logger) {
+    this->logger_.pre_setup();
+    this->logger_.set_log_level(ESPHOME_LOG_LEVEL_WARN);
+    this->logger_.add_log_callback(this,
+                                   [](void *instance, uint8_t level, const char *tag, const char *message, size_t len) {
+                                     auto *self = static_cast<LogCallback *>(instance);
+                                     if (self->callback_) {
+                                       self->callback_(std::string(message, len));
+                                     }
+                                   });
+  }
+  ~LogCallback() { logger::global_logger = this->previous_; }
+  void set_callback(std::function<void(const std::string &)> callback) { this->callback_ = std::move(callback); }
+
+ private:
+  std::function<void(const std::string &)> callback_;
+  logger::Logger *previous_;
+  logger::Logger logger_{0};
 };
 
 // Runs the scheduler for ms milliseconds of real time, as the main loop would
