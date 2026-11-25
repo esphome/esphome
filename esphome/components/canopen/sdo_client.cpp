@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstring>
 
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -153,8 +152,11 @@ void CANopenComponent::cancel_sdo(void *context) {
       this->sdo_queue_.push(r);
   }
   if (this->sdo_busy_ && this->sdo_active_.context == context) {
-    this->abort_sdo_();
-    this->enable_loop();  // the abort guard runs down in loop()
+    // No callback from now on. The abort goes out in the next process_sdo_() pass: this may run from a callback or a
+    // log handler in the middle of a transmission, which owns the client's TX buffer.
+    this->sdo_active_.callback = nullptr;
+    this->sdo_cancel_pending_ = true;
+    this->enable_loop();
   }
 }
 
@@ -194,10 +196,11 @@ void CANopenComponent::process_sdo_abort_(uint32_t dt_us) {
   if (this->sdo_abort_pending_) {
     CO_SDOclient_t *cli = this->co_->SDOclient;
     if (!cli->CANtxBuff->bufferFull) {
-      // It left in the flush after the last call (loop()), so dt_us ago. Left means the CAN driver took it: canbus
-      // doesn't tell when a frame is on the bus, so the guard may start before the abort is sent.
+      // The CAN driver took it since the last pass. The guard starts now, whole: the time the driver took to accept it
+      // doesn't count. Taken isn't sent: canbus doesn't tell when a frame is on the bus.
       this->sdo_abort_pending_ = false;
       this->sdo_abort_guard_us_ = ABORT_GUARD_US;
+      return;
     } else if (this->sdo_abort_guard_us_ <= dt_us) {
       // The bus refused it for a whole response timeout: drop it, so it doesn't hold up the queue. The server ends
       // the transfer at its own timeout.
@@ -211,6 +214,12 @@ void CANopenComponent::process_sdo_abort_(uint32_t dt_us) {
 
 void CANopenComponent::process_sdo_(uint32_t dt_us) {
   this->process_sdo_abort_(dt_us);
+  if (this->sdo_cancel_pending_) {
+    // after process_sdo_abort_(): the abort's time starts with this pass
+    this->sdo_cancel_pending_ = false;
+    if (this->sdo_busy_)
+      this->abort_sdo_();
+  }
   if (!this->sdo_busy_) {
     // A pending abort holds the client's TX buffer. The guard after it holds requests to every node: one guard covers
     // any number of cancelled transfers.
@@ -322,13 +331,14 @@ void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
       reply.size = r.size;
     }
   }
+  // the slot is free now, so the callback may queue the next request
+  if (r.callback != nullptr)
+    r.callback(r.context, reply);
+  // after the callback: a log handler may cancel the request's context and free it
   if (reply.result != SDOResult::SDO_RESULT_SUCCESS) {
     ESP_LOGW(TAG, "node 0x%02x, 0x%04x:%u: %s (abort 0x%08" PRIx32 ")", r.node_id, r.index, r.sub,
              LOG_STR_ARG(sdo_result_to_string(reply.result)), abort_code);
   }
-  // the slot is free now, so the callback may queue the next request
-  if (r.callback != nullptr)
-    r.callback(r.context, reply);
 }
 
 void CANopenComponent::abort_sdo_() {
@@ -339,8 +349,6 @@ void CANopenComponent::abort_sdo_() {
   this->sdo_active_ = SDORequest{};
   this->sdo_busy_ = false;
   this->sdo_abort_node_ = r.node_id;
-  // the abort's time runs from now, not from the SDO client's last pass
-  this->last_ms_ = App.get_loop_component_start_time();
   // Discard only this client's unsent frame before replacing it with an abort.
   // The driver and the SDO client run on the same main-loop context.
   discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
@@ -351,8 +359,10 @@ void CANopenComponent::abort_sdo_() {
     CO_SDOclientDownload(cli, 0, true, false, &abort, nullptr, nullptr);
   }
   CO_SDOclientClose(cli);
-  this->sdo_abort_pending_ = cli->CANtxBuff->bufferFull;
-  this->sdo_abort_guard_us_ = this->sdo_abort_pending_ ? this->response_timeout_ms_ * 1000u : ABORT_GUARD_US;
+  // pending until the next pass, even if the driver took it at once (see process_sdo_abort_()); until then the guard
+  // is the time left to send it
+  this->sdo_abort_pending_ = true;
+  this->sdo_abort_guard_us_ = this->response_timeout_ms_ * 1000u;
   ESP_LOGD(TAG, "node 0x%02x, 0x%04x:%u: cancelled", r.node_id, r.index, r.sub);
 }
 

@@ -81,7 +81,7 @@ void CANopenComponent::loop() {
   const uint32_t elapsed = now - this->last_ms_;
   // After a capped canbus pass the reply may still wait in the controller: hold the time, but at most one response
   // timeout past the deadline so a saturated bus still times out.
-  if (!this->sdo_busy_ || unsent || !this->canbus_->rx_capped() ||
+  if (!this->sdo_busy_ || this->sdo_cancel_pending_ || unsent || !this->canbus_->rx_capped() ||
       cli->timeoutTimer / 1000 + elapsed >= 2u * this->response_timeout_ms_) {
     this->process_sdo_(elapsed * 1000);
     this->last_ms_ = now;

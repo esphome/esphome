@@ -159,6 +159,8 @@ TEST_F(FramesTest, SendFrame) {
   EXPECT_EQ(this->bus_.sent[0].can_id, 0x210u);
   EXPECT_EQ(this->bus_.sent[0].data, (std::vector<uint8_t>{1, 2}));
   EXPECT_FALSE(this->hub_.send_frame(0xA10, data, sizeof(data)));  // not cut to 0x210
+  const std::vector<uint8_t> big(257);
+  EXPECT_FALSE(this->hub_.send_frame(0x210, big.data(), big.size()));  // not cut to 1 byte
   const uint8_t long_data[9] = {};
   EXPECT_FALSE(this->hub_.send_frame(0x210, long_data, sizeof(long_data)));
   this->bus_.busy = true;

@@ -19,8 +19,11 @@ void CANopenComponent::add_frame_listener(uint32_t can_id, uint32_t mask, FrameC
 }
 
 void CANopenComponent::init_frame_listeners_() {
-  for (const auto &l : this->frame_listeners_)
+  // by index, on a copy, up to the count before the first check: a log handler of its warning may add listeners
+  for (size_t i = 0, n = this->frame_listeners_.size(); i < n; i++) {  // NOLINT(modernize-loop-convert)
+    const FrameListener l = this->frame_listeners_[i];
     this->check_frame_listener_(l.can_id, l.mask);
+  }
 }
 
 // A listener on an ID CANopenNode receives itself (NMT, heartbeats it consumes, ...) is almost always a mistake.
@@ -37,10 +40,10 @@ void CANopenComponent::check_frame_listener_(uint32_t can_id, uint32_t mask) {
   }
 }
 
-bool CANopenComponent::send_frame(uint32_t can_id, const uint8_t *data, uint8_t len) {
+bool CANopenComponent::send_frame(uint32_t can_id, const uint8_t *data, size_t len) {
   if (can_id > 0x7FF || len > 8)
     return false;
-  return this->transmit(can_id, data, len);
+  return this->transmit(can_id, data, static_cast<uint8_t>(len));
 }
 
 void CANopenComponent::dispatch_frame_(const CO_CANrxMsg_t &msg) {
