@@ -24,10 +24,12 @@ void SSOCRReader::dump_config() {
                 "SSOCR Reader:\n"
                 "  Frame: %dx%d\n"
                 "  Crop: x=%d, y=%d, w=%d, h=%d\n"
-                "  Threshold: %u, Digits: %u\n"
-                "  Update Interval: %" PRIu32 " ms",
+                "  Threshold: %u, Digits: %u",
                 this->img_width_, this->img_height_, this->crop_x_, this->crop_y_, this->crop_w_, this->crop_h_,
-                this->ocr_.get_threshold_level(), this->digit_count_, this->get_update_interval());
+                this->ocr_.get_threshold_level(), this->digit_count_);
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Value", this->value_sensor_);
+  LOG_SENSOR("  ", "Confidence", this->confidence_sensor_);
   this->decoder_->dump_config();
 }
 
@@ -43,7 +45,7 @@ void SSOCRReader::update() {
   });
 }
 
-void SSOCRReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
+void SSOCRReader::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
   if (!this->frame_requested_)
     return;
   this->frame_requested_ = false;
@@ -53,16 +55,18 @@ void SSOCRReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraI
 }
 
 void SSOCRReader::loop() {
-  std::shared_ptr<esphome::camera::CameraImage> frame = std::move(this->pending_frame_);
+  std::shared_ptr<camera::CameraImage> frame = std::move(this->pending_frame_);
   this->disable_loop();
   if (frame) {
     this->process_frame_(frame);
   }
 }
 
-void SSOCRReader::process_frame_(const std::shared_ptr<esphome::camera::CameraImage> &image) {
-  if (image->get_data_length() == 0)
+void SSOCRReader::process_frame_(const std::shared_ptr<camera::CameraImage> &image) {
+  if (image->get_data_length() == 0) {
+    ESP_LOGW(TAG, "Empty camera frame");
     return;
+  }
 
   camera::CameraImageSpec spec{};
   const camera::DecoderError error = this->decoder_->decode(image->get_data_buffer(), image->get_data_length(), &spec);
@@ -93,7 +97,7 @@ void SSOCRReader::process_frame_(const std::shared_ptr<esphome::camera::CameraIm
   // The engine counts every run, so a crop that contains more digits than configured is rejected.
   const seven_segment_ocr::OcrResult result =
       this->ocr_.recognize(this->crop_, this->crop_w_, this->crop_h_, this->digit_count_);
-  if (result.digits != this->digit_count_ || result.unknown != 0 || result.overflow) {
+  if (!result.complete()) {
     ESP_LOGW(TAG, "Could not read %u digits (found %u, unknown %u)", this->digit_count_, result.digits, result.unknown);
     return;
   }

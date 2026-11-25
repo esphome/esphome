@@ -20,17 +20,16 @@ namespace esphome::ssocr_reader {
 /// rectangle is cropped out of that buffer as grayscale, and seven_segment_ocr
 /// reads the digits. Frames are requested with the camera's idle requester, so
 /// connected API clients receive the frames the reader asks for.
-class SSOCRReader final : public PollingComponent, public esphome::camera::CameraListener {
+class SSOCRReader final : public PollingComponent, public camera::CameraListener {
  public:
   /// The camera, decoder, frame size and crop buffer never change, so they are constructor parameters.
-  SSOCRReader(esphome::camera::Camera *camera, esphome::camera::Decoder *decoder, int frame_width, int frame_height,
-              uint8_t *crop)
+  SSOCRReader(camera::Camera *camera, camera::Decoder *decoder, int frame_width, int frame_height, uint8_t *crop)
       : camera_(camera), decoder_(decoder), img_width_(frame_width), img_height_(frame_height), crop_(crop) {}
 
   void setup() override;
   void update() override;
   void loop() override;
-  void on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) override;
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
   void dump_config() override;
 
   void set_threshold_level(uint8_t level) { this->ocr_.set_threshold_level(level); }
@@ -48,12 +47,12 @@ class SSOCRReader final : public PollingComponent, public esphome::camera::Camer
  protected:
   static constexpr uint32_t FRAME_TIMEOUT_ID = 0;
 
-  void process_frame_(const std::shared_ptr<esphome::camera::CameraImage> &image);
+  void process_frame_(const std::shared_ptr<camera::CameraImage> &image);
   /// Copies the configured rectangle out of a decoded frame as one byte per pixel.
   bool crop_frame_(const uint8_t *src, const camera::CameraImageSpec &spec);
 
-  esphome::camera::Camera *camera_{nullptr};
-  esphome::camera::Decoder *decoder_{nullptr};
+  camera::Camera *camera_{nullptr};
+  camera::Decoder *decoder_{nullptr};
   int img_width_{0};
   int img_height_{0};
   uint8_t *crop_{nullptr};
@@ -64,7 +63,7 @@ class SSOCRReader final : public PollingComponent, public esphome::camera::Camer
   int crop_h_{0};
   uint8_t digit_count_{6};
   bool frame_requested_{false};
-  std::shared_ptr<esphome::camera::CameraImage> pending_frame_{nullptr};
+  std::shared_ptr<camera::CameraImage> pending_frame_{nullptr};
 };
 
 }  // namespace esphome::ssocr_reader
