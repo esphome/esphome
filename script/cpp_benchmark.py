@@ -6,6 +6,7 @@ from functools import partial
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 
 from build_helpers import (
@@ -14,6 +15,8 @@ from build_helpers import (
     load_test_manifest_overrides,
 )
 from helpers import root_path
+
+from esphome.host.toolchain import find_compilers
 
 # Path to /tests/benchmarks/components
 BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "components"
@@ -35,7 +38,38 @@ BUILD_FLAGS = [
     "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
     f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
     f"-I{HELPERS_DIR}",  # shared test doubles such as fake_uart.h
+    # Firmware toolchains add no hardening; distro compilers (Ubuntu in CI)
+    # turn it on by default and put a stack canary or endbr64 in every
+    # small function, which CodSpeed then counts
+    "-fno-stack-protector",
+    "-fcf-protection=none",
+    "-U_FORTIFY_SOURCE",
 ]
+
+# GCC only: clang rejects -fno-tree-switch-conversion, and Apple clang
+# warns that the others are unused
+GCC_BUILD_FLAGS = [
+    "-fno-stack-clash-protection",
+    "-fno-pie",
+    "-no-pie",
+    # ESP8266 and ESP32 firmware builds keep switch statements as code
+    "-fno-tree-switch-conversion",
+]
+
+CXX_BUILD_FLAGS = [
+    "-fno-rtti",  # as ESP8266 and ESP32 firmware builds
+]
+
+
+def _compiler_is_gcc() -> bool:
+    """Whether the host C++ compiler is GCC (macOS's g++ is clang)."""
+    result = subprocess.run(
+        [*find_compilers().cxx, "-dM", "-E", "-x", "c++", os.devnull],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return "__GNUC__" in result.stdout and "__clang__" not in result.stdout
 
 
 def run_benchmarks(selected_components: list[str], build_only: bool = False) -> int:
@@ -44,7 +78,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
     # containing {"lib_path": "/path/to/google_benchmark"}.
     lib_config_json = os.environ.get("BENCHMARK_LIB_CONFIG")
 
-    build_flags = BUILD_FLAGS
+    build_flags = BUILD_FLAGS + (GCC_BUILD_FLAGS if _compiler_is_gcc() else [])
     if lib_config_json:
         lib_config = json.loads(lib_config_json)
         benchmark_lib = f"benchmark=symlink://{lib_config['lib_path']}"
@@ -59,7 +93,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
             "-DCODSPEED_ANALYSIS",
             f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',
         ]
-        build_flags = BUILD_FLAGS + codspeed_flags
+        build_flags = build_flags + codspeed_flags
     else:
         benchmark_lib = PLATFORMIO_GOOGLE_BENCHMARK_LIB
 
@@ -77,6 +111,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         label="benchmarks",
         build_only=build_only,
         extra_include_dirs=[CORE_BENCHMARKS_DIR],
+        cxx_build_flags=CXX_BUILD_FLAGS,
     )
 
 
