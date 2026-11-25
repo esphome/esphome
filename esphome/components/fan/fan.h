@@ -105,6 +105,32 @@ struct FanRestoreState {
   void apply(Fan &fan);
 } __attribute__((packed));
 
+#ifdef USE_FAN_CHANGE_TRIGGERS
+/// The triggers that fire when a published value changes.
+enum class FanChangeTrigger : uint8_t {
+  FAN_CHANGE_TRIGGER_TURN_ON,
+  FAN_CHANGE_TRIGGER_TURN_OFF,
+  FAN_CHANGE_TRIGGER_DIRECTION_SET,
+  FAN_CHANGE_TRIGGER_OSCILLATING_SET,
+  FAN_CHANGE_TRIGGER_SPEED_SET,
+  FAN_CHANGE_TRIGGER_PRESET_SET,
+};
+
+/// The value each change trigger last saw; each trigger keeps its own, as on_turn_on and on_turn_off do.
+struct FanChangeSeen {
+  int speed{0};
+  const char *preset_mode{nullptr};
+  uint8_t direction{static_cast<uint8_t>(FanDirection::FORWARD)};
+  bool turn_on_state : 1 {false};
+  bool turn_off_state : 1 {false};
+  bool oscillating : 1 {false};
+#ifdef USE_FAN_CHANGE_TRIGGERS_MULTI
+  /// Per trigger, the next of its automations still owed the change its first automation saw.
+  uint8_t next_automation[6]{};
+#endif
+};
+#endif
+
 class Fan : public EntityBase {
  public:
   /// The current on/off state of the fan.
@@ -127,6 +153,11 @@ class Fan : public EntityBase {
   }
 
   void publish_state();
+
+#ifdef USE_FAN_CHANGE_TRIGGERS
+  /// For the generated state callbacks: whether automation `index` of trigger T fires now.
+  template<FanChangeTrigger T> bool take_change(uint8_t index);
+#endif
 
   virtual FanTraits get_traits() = 0;
 
@@ -192,6 +223,52 @@ class Fan : public EntityBase {
  private:
   FanPresetModes supported_preset_modes_;
   const char *preset_mode_{nullptr};
+#ifdef USE_FAN_CHANGE_TRIGGERS
+  FanChangeSeen change_seen_;
+#endif
 };
+
+#ifdef USE_FAN_CHANGE_TRIGGERS
+template<FanChangeTrigger T> bool Fan::take_change(uint8_t index) {
+  auto &seen = this->change_seen_;
+#ifdef USE_FAN_CHANGE_TRIGGERS_MULTI
+  // Only the first automation compares; the rest each fire once for what it saw, in order, even when an
+  // action publishes again before they ran.
+  uint8_t &next = seen.next_automation[static_cast<uint8_t>(T)];
+  if (index != 0) {
+    if (next != index)
+      return false;
+    next = index + 1;
+    return true;
+  }
+#endif
+  bool changed;
+  if constexpr (T == FanChangeTrigger::FAN_CHANGE_TRIGGER_TURN_ON) {
+    changed = this->state && !seen.turn_on_state;
+    seen.turn_on_state = this->state;
+  } else if constexpr (T == FanChangeTrigger::FAN_CHANGE_TRIGGER_TURN_OFF) {
+    changed = !this->state && seen.turn_off_state;
+    seen.turn_off_state = this->state;
+  } else if constexpr (T == FanChangeTrigger::FAN_CHANGE_TRIGGER_DIRECTION_SET) {
+    auto direction = static_cast<uint8_t>(this->direction);
+    changed = direction != seen.direction;
+    seen.direction = direction;
+  } else if constexpr (T == FanChangeTrigger::FAN_CHANGE_TRIGGER_OSCILLATING_SET) {
+    changed = this->oscillating != seen.oscillating;
+    seen.oscillating = this->oscillating;
+  } else if constexpr (T == FanChangeTrigger::FAN_CHANGE_TRIGGER_SPEED_SET) {
+    changed = this->speed != seen.speed;
+    seen.speed = this->speed;
+  } else {
+    changed = this->get_preset_mode() != StringRef::from_maybe_nullptr(seen.preset_mode);
+    seen.preset_mode = this->preset_mode_;
+  }
+#ifdef USE_FAN_CHANGE_TRIGGERS_MULTI
+  if (changed)
+    next = 1;
+#endif
+  return changed;
+}
+#endif
 
 }  // namespace esphome::fan
