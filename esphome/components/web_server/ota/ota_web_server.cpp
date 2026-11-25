@@ -163,9 +163,7 @@ void WebServerOTAComponent::handleUpload(AsyncWebServerRequest *request, const P
     ESP_LOGD(TAG, "OTA final chunk: index=%zu, len=%zu, total_read=%" PRIu32 ", contentLength=%zu", index, len,
              this->ota_read_length_, request->contentLength());
 
-    // For Arduino framework, the Update library tracks expected size from firmware header
-    // If we haven't received enough data, calling end() will fail
-    // This can happen if the upload is interrupted or the client disconnects
+    // The closing boundary arrives even after lost bytes; end() verifies the image
     error_code = this->ota_backend_->end();
     if (error_code == ota::OTA_RESPONSE_OK) {
       this->ota_success_ = true;
@@ -214,11 +212,12 @@ void WebServerOTAComponent::handleRequest(AsyncWebServerRequest *request) {
   static const char UPDATE_SUCCESS[] PROGMEM = "Update Successful!";
   static const char UPDATE_FAILED[] PROGMEM = "Update Failed!";
   static const char UPDATE_BUSY[] PROGMEM = "Update Failed! Another update is in progress, retry later.";
-  static const char TEXT_PLAIN[] PROGMEM = "text/plain";
   static const char CONNECTION_STR[] PROGMEM = "Connection";
   static const char CLOSE_STR[] PROGMEM = "close";
   const char *msg = refused ? UPDATE_BUSY : (this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED);
-  response = request->beginResponse_P(200, TEXT_PLAIN, msg);
+  // A flash content type must take the String overload; the const char * one reads it with strlen()
+  response =
+      request->beginResponse(200, ESPHOME_F("text/plain"), reinterpret_cast<const uint8_t *>(msg), strlen_P(msg));
   response->addHeader(CONNECTION_STR, CLOSE_STR);
 #else
   const char *msg = refused              ? "Update Failed! Another update is in progress, retry later."

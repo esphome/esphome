@@ -430,11 +430,21 @@ TEST_F(RX8111Test, BinaryCallbackUpdatesAreDeferredAndCoalescedWithoutOverwritin
 
 TEST_F(RX8111Test, BinaryFilterFeedbackStopsAfterOneCoalescedUpdate) {
   binary_sensor::BinarySensor event;
-  binary_sensor::LambdaFilter filter([&](bool state) -> optional<bool> {
-    this->bus_.regs[FLAG] ^= 4;
-    this->rtc_.update();
-    return state;
-  });
+  // Toggles the event flag and requests an update from inside the filter chain.
+  class FeedbackFilter final : public binary_sensor::Filter {
+   public:
+    FeedbackFilter(uint8_t &flag, RX8111Component &rtc) : flag_(flag), rtc_(rtc) {}
+    optional<bool> new_value(bool state) override {
+      this->flag_ ^= 4;
+      this->rtc_.update();
+      return state;
+    }
+
+   protected:
+    uint8_t &flag_;
+    RX8111Component &rtc_;
+  };
+  FeedbackFilter filter(this->bus_.regs[FLAG], this->rtc_);
   event.add_filter(&filter);
   this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();

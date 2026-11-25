@@ -42,7 +42,14 @@ from esphome.yaml_util import make_data_base
 
 
 def _statements() -> list[str]:
-    return [str(s) for s in CORE.main_statements]
+    return [
+        str(s)
+        for s in [
+            *CORE.global_statements,
+            *CORE.global_statements_after_includes,
+            *CORE.main_statements,
+        ]
+    ]
 
 
 @pytest.mark.asyncio

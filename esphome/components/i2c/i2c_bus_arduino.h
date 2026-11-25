@@ -19,7 +19,13 @@ class ArduinoI2CBus final : public InternalI2CBus, public Component {
   void setup() override;
   void dump_config() override;
   ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
-                        size_t read_count) override;
+                        size_t read_count) override {
+    return this->transfer_(address, nullptr, 0, write_buffer, write_count, read_buffer, read_count);
+  }
+  ErrorCode write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *data,
+                           size_t len) override {
+    return this->transfer_(address, prefix, prefix_len, data, len, nullptr, 0);
+  }
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void set_scan(bool scan) { this->scan_ = scan; }
@@ -35,6 +41,9 @@ class ArduinoI2CBus final : public InternalI2CBus, public Component {
 #endif
 
  private:
+  /// Writes `prefix` then `write_buffer` in one transaction, then reads
+  ErrorCode transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *write_buffer,
+                      size_t write_count, uint8_t *read_buffer, size_t read_count);
   void recover_();
   void set_pins_and_clock_();
   RecoveryCode recovery_result_;

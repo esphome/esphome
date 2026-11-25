@@ -31,6 +31,13 @@
 
 namespace esphome::esp32_ble_tracker {
 
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+/// Give BLE priority over WiFi on the shared radio while a GATT client discovers services.
+/// Counted across clients: every acquire needs exactly one release.
+void coex_ble_priority_acquire();
+void coex_ble_priority_release();
+#endif
+
 using namespace esp32_ble;
 
 using ble_device_base::adv_data_t;
@@ -68,8 +75,7 @@ struct ClientStateCounts {
   uint8_t connecting = 0;
   uint8_t discovered = 0;
   uint8_t disconnecting = 0;
-  // CONNECTED + ESTABLISHED clients. Tracked so coex stays at PREFER_BT
-  // while active connections may still need to send/receive GATT traffic.
+  // CONNECTED + ESTABLISHED clients.
   uint8_t active = 0;
 
   bool operator==(const ClientStateCounts &other) const {
@@ -266,10 +272,6 @@ class ESP32BLETracker final : public Component,
   const char *scanner_state_to_string_(ScannerState state) const;
   /// Log an unexpected scanner state
   void log_unexpected_state_(const char *operation, ScannerState expected_state) const;
-#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-  /// Update BLE coexistence preference
-  void update_coex_preference_(bool force_ble);
-#endif
   /// Count clients in each state
   ClientStateCounts count_client_states_() const {
     ClientStateCounts counts;
@@ -369,9 +371,6 @@ class ESP32BLETracker final : public Component,
   bool skip_next_scan_end_ : 1 {false};
   /// Last seen wifi AP state, polled by loop(); stays false without an AP.
   bool ap_active_ : 1 {false};
-#endif
-#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-  bool coex_prefer_ble_ : 1 {false};
 #endif
   // Scan timeout state machine
   enum class ScanTimeoutState : uint8_t {
