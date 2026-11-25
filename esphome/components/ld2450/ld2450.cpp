@@ -1015,11 +1015,20 @@ void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
   const Target &pos = this->target_info_[target];
   // Longest is "-32767,-32767"
   char text[16];
-  const size_t len =
-      pos.x == 0 && pos.y == 0
-          ? buf_append_str_p(text, sizeof(text), 0,
-                             reinterpret_cast<const char *>(DirectionStrings::get_progmem_str(DIRECTION_NA)))
-          : buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
+  size_t len;
+  if (pos.x == 0 && pos.y == 0) {
+#ifdef USE_LD2450_XY_UNFILTERED
+    if (this->xy_unfiltered_) {
+      len = buf_append_str_p(text, sizeof(text), 0,
+                             reinterpret_cast<const char *>(DirectionStrings::get_progmem_str(DIRECTION_NA)));
+      s->publish_state_unfiltered(text, len);
+      return;
+    }
+#endif
+    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA));
+    return;
+  }
+  len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
 #ifdef USE_LD2450_XY_UNFILTERED
   if (this->xy_unfiltered_) {
     s->publish_state_unfiltered(text, len);
