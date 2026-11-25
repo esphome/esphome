@@ -171,10 +171,13 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   }
   const uint32_t a = this->disable_time_us;
   const uint32_t b = this->enable_time_us;
-  // Locked: the half cycle before this edge counts as running, so the timer starts the one of this edge. A late
-  // edge here makes the last gap long, so the crossing it predicts from the edge before is used instead.
   this->period = std::max(std::min(a, b), std::min(std::max(a, b), cycle)) / 2;
-  this->zc_at = now - std::max<uint32_t>(gap, this->period);
+  // Locked: the half cycle the edge before this one started counts as running. Its start is the middle of three
+  // estimates, each from one of the last three edges, so one early or late edge does not move it.
+  const uint32_t from_now = this->period;
+  const uint32_t from_last = gap;
+  const uint32_t from_first = gap + static_cast<uint32_t>(last_gap) - this->period;
+  this->zc_at = now - std::max(std::min(from_now, from_last), std::min(std::max(from_now, from_last), from_first));
   this->taken_err = NO_EDGE_ERR;
   this->misses = 0;
   this->edge_now = true;
