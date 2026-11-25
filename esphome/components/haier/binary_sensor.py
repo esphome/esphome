@@ -8,7 +8,7 @@ from esphome.const import (
     ICON_RADIATOR,
 )
 
-from .climate import CONF_HAIER_ID, HonClimate
+from .climate import CONF_HAIER_ID, ICON_ALARM, HonClimate
 
 CODEOWNERS = ["@paveldn"]
 BinarySensorTypeEnum = HonClimate.enum("SubBinarySensorType", True)
@@ -26,7 +26,6 @@ CONF_ALARM_ACTIVE = "alarm_active"
 ICON_SNOWFLAKE_THERMOMETER = "mdi:snowflake-thermometer"
 ICON_HVAC = "mdi:hvac"
 ICON_VALVE = "mdi:valve"
-ICON_ALARM = "mdi:alarm-light"
 
 SENSOR_TYPES = {
     CONF_OUTDOOR_FAN_STATUS: binary_sensor.binary_sensor_schema(

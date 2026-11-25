@@ -89,14 +89,16 @@ class HonClimate final : public HaierClimateBase {
 #ifdef USE_BINARY_SENSOR
  public:
   enum class SubBinarySensorType {
-    OUTDOOR_FAN_STATUS = 0,
+    ALARM_ACTIVE = 0,
+    // From here on, the entities need the big data frame
+    OUTDOOR_FAN_STATUS,
     DEFROST_STATUS,
     COMPRESSOR_STATUS,
     INDOOR_FAN_STATUS,
     FOUR_WAY_VALVE_STATUS,
     INDOOR_ELECTRIC_HEATING_STATUS,
-    ALARM_ACTIVE,
     SUB_BINARY_SENSOR_TYPE_COUNT,
+    BIG_DATA_FRAME_SUB_BINARY_SENSORS = OUTDOOR_FAN_STATUS,
   };
   void set_sub_binary_sensor(SubBinarySensorType type, binary_sensor::BinarySensor *sens);
 

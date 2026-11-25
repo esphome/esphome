@@ -70,6 +70,7 @@ HonClimate = haier_ns.class_("HonClimate", HaierClimateBase)
 Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 
 CONF_HAIER_ID = "haier_id"
+ICON_ALARM = "mdi:alarm-light"
 
 AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = AirflowVerticalDirection.options(
@@ -368,7 +369,8 @@ async def to_code(config):
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
-    cg.add_optional(var.set_hvac_action, config.get(CONF_HVAC_ACTION))
+    if config.get(CONF_HVAC_ACTION):
+        cg.add(var.set_hvac_action(True))
     cg.add_optional(var.set_beeper_state, config.get(CONF_BEEPER))
     cg.add_optional(var.set_display_state, config.get(CONF_DISPLAY))
     cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))

@@ -845,35 +845,22 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
 void HonClimate::publish_alarm_entities_() {
 #ifdef USE_TEXT_SENSOR
   if (this->sub_text_sensors_[(size_t) SubTextSensorType::ACTIVE_ALARMS_TEXT] != nullptr) {
-    char alarm_text[ACTIVE_ALARMS_TEXT_BUFFER_SIZE]{};
+    char alarm_text[ACTIVE_ALARMS_TEXT_BUFFER_SIZE];
     size_t pos = 0;
-    size_t required_pos = 0;
-    bool has_alarm = false;
-    for (int alarm_byte = sizeof(this->active_alarms_) - 1; alarm_byte >= 0; alarm_byte--) {
-      uint8_t alarm_bit = 1;
-      for (int bit = 0; bit < 8; bit++) {
-        if ((this->active_alarms_[alarm_byte] & alarm_bit) != 0) {
-          const size_t code = (sizeof(this->active_alarms_) - 1 - alarm_byte) * 8 + bit;
-          if (has_alarm) {
-            required_pos += 2;
-            pos = buf_append_str(alarm_text, sizeof(alarm_text), pos, ", ");
-          }
-          if (code < HonAlarmMessages::LAST_INDEX) {
-            const auto *const message = reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code));
-            required_pos += ESPHOME_strlen_P(message);
-            pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos, message);
-          } else {
-            required_pos += 9 + (code >= 10 ? 2 : 1);  // "Unknown(" + code + ")"
-            pos = buf_append_printf(alarm_text, sizeof(alarm_text), pos, "Unknown(%zu)", code);
-          }
-          has_alarm = true;
-        }
-        alarm_bit <<= 1;
-      }
+    constexpr size_t alarm_count = sizeof(this->active_alarms_) * 8;
+    for (size_t code = 0; code < alarm_count; code++) {
+      // Code 0 is the lowest bit of the last byte
+      if ((this->active_alarms_[sizeof(this->active_alarms_) - 1 - code / 8] & (1 << (code % 8))) == 0)
+        continue;
+      if (pos != 0)
+        pos = buf_append_str(alarm_text, sizeof(alarm_text), pos, ", ");
+      pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos,
+                             reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code)));
     }
-    if (!has_alarm) {
+    if (pos == 0) {
       buf_append_str(alarm_text, sizeof(alarm_text), 0, "No alarm");
-    } else if (required_pos >= sizeof(alarm_text)) {
+    } else if (pos >= sizeof(alarm_text) - 1) {
+      // Cut off by the buffer
       memcpy(alarm_text + sizeof(alarm_text) - 4, "...", 4);
     }
     this->update_sub_text_sensor_(SubTextSensorType::ACTIVE_ALARMS_TEXT, alarm_text);
@@ -914,7 +901,7 @@ void HonClimate::update_sub_sensor_(SubSensorType type, float value) {
 #ifdef USE_BINARY_SENSOR
 void HonClimate::set_sub_binary_sensor(SubBinarySensorType type, binary_sensor::BinarySensor *sens) {
   if (type < SubBinarySensorType::SUB_BINARY_SENSOR_TYPE_COUNT) {
-    if (type != SubBinarySensorType::ALARM_ACTIVE) {
+    if (type >= SubBinarySensorType::BIG_DATA_FRAME_SUB_BINARY_SENSORS) {
       if ((this->sub_binary_sensors_[(size_t) type] != nullptr) && (sens == nullptr)) {
         this->big_data_sensors_--;
       } else if ((this->sub_binary_sensors_[(size_t) type] == nullptr) && (sens != nullptr)) {
@@ -1012,32 +999,33 @@ bool HonClimate::update_hvac_action_(const hon_protocol::HaierPacketBigData *bd_
     }
     const bool compressor_on = bd_packet->compressor_status == 1;
 
-    switch (this->mode) {
-      case CLIMATE_MODE_COOL:
-        new_action = compressor_on ? CLIMATE_ACTION_COOLING : CLIMATE_ACTION_IDLE;
-        break;
-      case CLIMATE_MODE_DRY:
-        new_action = compressor_on ? CLIMATE_ACTION_DRYING : CLIMATE_ACTION_IDLE;
-        break;
-      case CLIMATE_MODE_HEAT:
-        new_action = (bd_packet->defrost_status == 1) ? CLIMATE_ACTION_DEFROSTING
-                                                      : (compressor_on ? CLIMATE_ACTION_HEATING : CLIMATE_ACTION_IDLE);
-        break;
-      case CLIMATE_MODE_HEAT_COOL:
-        if (bd_packet->defrost_status == 1) {
-          new_action = CLIMATE_ACTION_DEFROSTING;
-        } else if (!compressor_on) {
-          new_action = CLIMATE_ACTION_IDLE;
-        } else if (bd_packet->indoor_coil_temperature == 0xFF || std::isnan(this->current_temperature)) {
-          return false;
-        } else {
-          const float indoor_coil_temperature = bd_packet->indoor_coil_temperature / 2.0f - 20.0f;
-          new_action =
-              (this->current_temperature > indoor_coil_temperature) ? CLIMATE_ACTION_COOLING : CLIMATE_ACTION_HEATING;
-        }
-        break;
-      default:
-        break;
+    if (defrosting) {
+      new_action = CLIMATE_ACTION_DEFROSTING;
+    } else {
+      switch (this->mode) {
+        case CLIMATE_MODE_COOL:
+          new_action = compressor_on ? CLIMATE_ACTION_COOLING : CLIMATE_ACTION_IDLE;
+          break;
+        case CLIMATE_MODE_DRY:
+          new_action = compressor_on ? CLIMATE_ACTION_DRYING : CLIMATE_ACTION_IDLE;
+          break;
+        case CLIMATE_MODE_HEAT:
+          new_action = compressor_on ? CLIMATE_ACTION_HEATING : CLIMATE_ACTION_IDLE;
+          break;
+        case CLIMATE_MODE_HEAT_COOL:
+          if (!compressor_on) {
+            new_action = CLIMATE_ACTION_IDLE;
+          } else if (bd_packet->indoor_coil_temperature == 0xFF || std::isnan(this->current_temperature)) {
+            return false;
+          } else {
+            const float indoor_coil_temperature = bd_packet->indoor_coil_temperature / 2.0f - 20.0f;
+            new_action =
+                (this->current_temperature > indoor_coil_temperature) ? CLIMATE_ACTION_COOLING : CLIMATE_ACTION_HEATING;
+          }
+          break;
+        default:
+          break;
+      }
     }
   }
 
