@@ -7,8 +7,8 @@ from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_ROTATION
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@nliaudat"]
 AUTO_LOAD = ["seven_segment_ocr", "sensor"]
+CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32_camera", "camera_decoder"]
 DOMAIN = "ssocr_reader"
 

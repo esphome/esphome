@@ -23,8 +23,9 @@ namespace esphome::ssocr_reader {
 class SSOCRReader final : public PollingComponent, public camera::CameraListener {
  public:
   /// The camera, decoder, frame size and crop buffer never change, so they are constructor parameters.
-  SSOCRReader(camera::Camera *camera, camera::Decoder *decoder, int frame_width, int frame_height, uint8_t *crop)
-      : camera_(camera), decoder_(decoder), img_width_(frame_width), img_height_(frame_height), crop_(crop) {}
+  SSOCRReader(camera::Camera *camera, camera::Decoder *decoder, uint16_t frame_width, uint16_t frame_height,
+              uint8_t *crop)
+      : camera_(camera), decoder_(decoder), crop_(crop), img_width_(frame_width), img_height_(frame_height) {}
 
   void setup() override;
   void update() override;
@@ -33,7 +34,7 @@ class SSOCRReader final : public PollingComponent, public camera::CameraListener
   void dump_config() override;
 
   void set_threshold_level(uint8_t level) { this->ocr_.set_threshold_level(level); }
-  void set_crop(int x, int y, int width, int height) {
+  void set_crop(uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
     this->crop_x_ = x;
     this->crop_y_ = y;
     this->crop_w_ = width;
@@ -46,6 +47,7 @@ class SSOCRReader final : public PollingComponent, public camera::CameraListener
 
  protected:
   static constexpr uint32_t FRAME_TIMEOUT_ID = 0;
+  static constexpr uint32_t FRAME_TIMEOUT_MS = 5000;
 
   void process_frame_(const std::shared_ptr<camera::CameraImage> &image);
   /// Copies the configured rectangle out of a decoded frame as one byte per pixel.
@@ -53,17 +55,16 @@ class SSOCRReader final : public PollingComponent, public camera::CameraListener
 
   camera::Camera *camera_{nullptr};
   camera::Decoder *decoder_{nullptr};
-  int img_width_{0};
-  int img_height_{0};
   uint8_t *crop_{nullptr};
-  seven_segment_ocr::SevenSegmentOCR ocr_;
-  int crop_x_{0};
-  int crop_y_{0};
-  int crop_w_{0};
-  int crop_h_{0};
-  uint8_t digit_count_{6};
-  bool frame_requested_{false};
   std::shared_ptr<camera::CameraImage> pending_frame_{nullptr};
+  seven_segment_ocr::SevenSegmentOCR ocr_;
+  uint16_t img_width_{0};
+  uint16_t img_height_{0};
+  uint16_t crop_x_{0};
+  uint16_t crop_y_{0};
+  uint16_t crop_w_{0};
+  uint16_t crop_h_{0};
+  uint8_t digit_count_{6};
 };
 
 }  // namespace esphome::ssocr_reader

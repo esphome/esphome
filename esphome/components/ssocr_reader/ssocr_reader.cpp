@@ -34,22 +34,14 @@ void SSOCRReader::dump_config() {
 }
 
 void SSOCRReader::update() {
-  if (this->frame_requested_)
-    return;
-  this->frame_requested_ = true;
   this->camera_->request_image(camera::IDLE);
-  ESP_LOGD(TAG, "Requesting frame");
-  this->set_timeout(FRAME_TIMEOUT_ID, 5000, [this]() {
-    this->frame_requested_ = false;
-    ESP_LOGW(TAG, "Frame timeout");
-  });
+  this->set_timeout(FRAME_TIMEOUT_ID, FRAME_TIMEOUT_MS, [this]() { ESP_LOGW(TAG, "Frame timeout"); });
 }
 
 void SSOCRReader::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
-  if (!this->frame_requested_)
+  // Only the frame this reader asked for arms the timeout; any other listener's frame is ignored.
+  if (!this->cancel_timeout(FRAME_TIMEOUT_ID))
     return;
-  this->frame_requested_ = false;
-  this->cancel_timeout(FRAME_TIMEOUT_ID);
   this->pending_frame_ = image;
   this->enable_loop();
 }
@@ -108,8 +100,6 @@ void SSOCRReader::process_frame_(const std::shared_ptr<camera::CameraImage> &ima
 }
 
 bool SSOCRReader::crop_frame_(const uint8_t *src, const camera::CameraImageSpec &spec) {
-  if (src == nullptr || this->crop_ == nullptr)
-    return false;
   if (this->crop_x_ + this->crop_w_ > spec.width || this->crop_y_ + this->crop_h_ > spec.height)
     return false;
 

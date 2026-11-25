@@ -1,5 +1,6 @@
 """Tests for the frame, decoder and crop checks of ssocr_reader's final validation."""
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -26,7 +27,7 @@ def _config(**crop: int) -> ConfigType:
 
 
 @pytest.fixture
-def declared(monkeypatch: pytest.MonkeyPatch):
+def declared(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
     """Make the camera and decoder configs the final validation looks up settable."""
 
     def declare(
@@ -53,7 +54,7 @@ def declared(monkeypatch: pytest.MonkeyPatch):
     return declare
 
 
-def test_accepts_a_crop_inside_the_frame(declared) -> None:
+def test_accepts_a_crop_inside_the_frame(declared: Callable[..., None]) -> None:
     declared()
 
     config = ssocr_reader._final_validate(_config(x=540, y=440))
@@ -61,34 +62,45 @@ def test_accepts_a_crop_inside_the_frame(declared) -> None:
     assert config[ssocr_reader._KEY_CAMERA_FRAME] == (640, 480)
 
 
-def test_accepts_a_converted_jpeg_frame(declared) -> None:
+def test_accepts_a_converted_jpeg_frame(declared: Callable[..., None]) -> None:
     declared(pixel_format="RGB565", jpeg_quality=12)
 
     ssocr_reader._final_validate(_config())
 
 
-def test_rejects_a_camera_that_does_not_deliver_jpeg(declared) -> None:
-    declared(pixel_format="RGB565", jpeg_quality=0)
+@pytest.mark.parametrize(
+    ("camera", "crop", "message"),
+    [
+        pytest.param(
+            {"pixel_format": "RGB565", "jpeg_quality": 0},
+            {},
+            "needs JPEG frames",
+            id="camera-without-jpeg",
+        ),
+        pytest.param(
+            {"output_type": "PIXEL_FORMAT_RGB565"},
+            {},
+            "GRAYSCALE or RGB888",
+            id="unsupported-decoder-output",
+        ),
+        pytest.param({}, {"x": 600, "w": 100}, "does not fit", id="crop-outside"),
+    ],
+)
+def test_rejects_an_invalid_setup(
+    declared: Callable[..., None],
+    camera: dict[str, Any],
+    crop: dict[str, int],
+    message: str,
+) -> None:
+    declared(**camera)
 
-    with pytest.raises(cv.Invalid, match="needs JPEG frames"):
-        ssocr_reader._final_validate(_config())
+    with pytest.raises(cv.Invalid, match=message):
+        ssocr_reader._final_validate(_config(**crop))
 
 
-def test_rejects_an_unsupported_decoder_output(declared) -> None:
-    declared(output_type="PIXEL_FORMAT_RGB565")
-
-    with pytest.raises(cv.Invalid, match="GRAYSCALE or RGB888"):
-        ssocr_reader._final_validate(_config())
-
-
-def test_rejects_a_crop_outside_the_frame(declared) -> None:
-    declared()
-
-    with pytest.raises(cv.Invalid, match="does not fit"):
-        ssocr_reader._final_validate(_config(x=600, w=100))
-
-
-def test_a_quarter_turn_swaps_the_frame_dimensions(declared) -> None:
+def test_a_quarter_turn_swaps_the_frame_dimensions(
+    declared: Callable[..., None],
+) -> None:
     declared(rotation=90)
 
     assert ssocr_reader._final_validate(_config(w=40, h=600))[
