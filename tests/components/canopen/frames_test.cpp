@@ -135,6 +135,35 @@ TEST_F(FramesTest, ListenerAddedTwiceIsListedOnce) {
   EXPECT_EQ(this->received_.size(), 1u);
 }
 
+// A listener added from a callback gets frames from the next one on; adding the running one again does nothing
+TEST_F(FramesTest, ListenerAddedFromACallback) {
+  struct Context {
+    CANopenComponent *hub;
+    FrameListener first;
+    FrameListener second;
+    int first_calls{0};
+    int second_calls{0};
+  };
+  static Context ctx{};
+  ctx = Context{&this->hub_,
+                {0x18A, 0x7FF,
+                 [](void *, uint32_t, const uint8_t *, uint8_t) {
+                   ctx.first_calls++;
+                   ctx.hub->add_frame_listener(ctx.second);
+                   ctx.hub->add_frame_listener(ctx.first);
+                 },
+                 nullptr},
+                {0x18A, 0x7FF, [](void *, uint32_t, const uint8_t *, uint8_t) { ctx.second_calls++; }, nullptr}};
+  this->hub_.setup();
+  this->hub_.add_frame_listener(ctx.first);
+  this->hub_.frame(0x18A, {1});
+  EXPECT_EQ(ctx.first_calls, 1);
+  EXPECT_EQ(ctx.second_calls, 0);
+  this->hub_.frame(0x18A, {2});
+  EXPECT_EQ(ctx.first_calls, 2);
+  EXPECT_EQ(ctx.second_calls, 1);
+}
+
 TEST_F(FramesTest, ListenerSkipsRemoteAndExtendedFrames) {
   this->hub_.setup();
   this->listen_(0x18A, 0x7FF);
