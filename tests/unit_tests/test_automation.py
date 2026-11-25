@@ -2022,9 +2022,9 @@ async def test_grouped_automations_run_in_order_with_their_own_statics(
     assert definition == (
         "static void esphome__light__remote_values_callback() { "
         "static bool light_on_turn_on_0_last; static bool light_on_turn_on_1_last; "
-        "if (esphome::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "if (esphome::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
         "esphome__automation_1__fn(); "
-        "if (esphome::entered(light_on_turn_on_1_last, ::light->remote_values.is_on())) "
+        "if (esphome::change_trigger::entered(light_on_turn_on_1_last, ::light->remote_values.is_on())) "
         "esphome__automation_2__fn(); "
         "esphome__automation_3__fn(); }"
     )
@@ -2059,7 +2059,7 @@ async def test_grouped_automations_filter_then_when(mock_cg: MockCodegen) -> Non
     )
     _, definition = _registered_function(mock_cg)
     assert (
-        "if (esphome::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "if (esphome::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
         "esphome__automation_1__fn();"
     ) in definition
     assert "if (!(::light->is_ready())) return;" in _definition(
@@ -2132,6 +2132,14 @@ async def test_grouped_automations_build_in_entry_order_across_lists(
     assert "esphome__automation_2__fn" not in remote
 
 
+def test_grouped_automation_args_need_a_value() -> None:
+    """Args without a watched or forwarded value are rejected when the table is built."""
+    with pytest.raises(
+        ValueError, match="on_x: args need a watched or forwarded value"
+    ):
+        GroupedAutomation("on_x", args=[(cg.int_, "x")])
+
+
 def test_grouped_automation_filter_needs_watched() -> None:
     """A filter without a watched value is rejected when the table is built."""
     with pytest.raises(ValueError, match="on_x: a filter needs a watched value"):
@@ -2195,7 +2203,7 @@ async def test_grouped_automations_express_the_cover_state_triggers(
     ):
         assert f"static bool cover_{key}_0_last;" in definition
         assert (
-            f"if (esphome::entered(cover_{key}_0_last, ({test}))) esphome__automation_{i + 1}__fn();"
+            f"if (esphome::change_trigger::entered(cover_{key}_0_last, ({test}))) esphome__automation_{i + 1}__fn();"
         ) in definition
 
 
@@ -2254,12 +2262,12 @@ async def test_grouped_automations_express_the_fan_change_triggers(
         assert declaration in definition
     for i, test in enumerate(
         (
-            "esphome::entered(fan_on_turn_on_0_last, ::fan->state)",
-            "esphome::left(fan_on_turn_off_0_last, ::fan->state)",
-            "esphome::changed(fan_on_direction_set_0_last, ::fan->direction)",
-            "esphome::changed(fan_on_oscillating_set_0_last, ::fan->oscillating)",
-            "esphome::changed(fan_on_speed_set_0_last, ::fan->speed)",
-            "esphome::changed(fan_on_preset_set_0_last, ::fan->get_preset_mode().c_str())",
+            "esphome::change_trigger::entered(fan_on_turn_on_0_last, ::fan->state)",
+            "esphome::change_trigger::left(fan_on_turn_off_0_last, ::fan->state)",
+            "esphome::change_trigger::changed(fan_on_direction_set_0_last, ::fan->direction)",
+            "esphome::change_trigger::changed(fan_on_oscillating_set_0_last, ::fan->oscillating)",
+            "esphome::change_trigger::changed(fan_on_speed_set_0_last, ::fan->speed)",
+            "esphome::change_trigger::changed(fan_on_preset_set_0_last, ::fan->get_preset_mode().c_str())",
         )
     ):
         assert f"if ({test}) esphome__automation_{i + 1}__fn();" in definition

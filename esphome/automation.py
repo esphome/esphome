@@ -2487,18 +2487,18 @@ ChangeTest = Callable[[MockObj, Expression], Expression]
 """A ``GroupedAutomation`` filter: given the automation's own copy and the watched value, it returns
 the C++ test that compares them and stores the value in the copy."""
 
-# Qualified: cg.esphome_ns renders bare names, which a YAML global of the same name would make ambiguous
-_QUALIFIED_ESPHOME_NS = cg.global_ns.namespace("esphome")
+# Fully qualified and nested, so a YAML id of the same name neither collides nor makes a call ambiguous
+_CHANGE_TRIGGER_NS = cg.global_ns.namespace("esphome").namespace("change_trigger")
 
 
 def filter_entered(last: MockObj, value: Expression) -> Expression:
     """Runs when the watched bool becomes true."""
-    return _QUALIFIED_ESPHOME_NS.entered(last, value)
+    return _CHANGE_TRIGGER_NS.entered(last, value)
 
 
 def filter_left(last: MockObj, value: Expression) -> Expression:
     """Runs when the watched bool stops being true; not on a first false."""
-    return _QUALIFIED_ESPHOME_NS.left(last, value)
+    return _CHANGE_TRIGGER_NS.left(last, value)
 
 
 def filter_changed(last: MockObj, value: Expression) -> Expression:
@@ -2506,7 +2506,7 @@ def filter_changed(last: MockObj, value: Expression) -> Expression:
 
     Text is watched as a null-terminated ``const char *``, with a ``const char *`` copy.
     """
-    return _QUALIFIED_ESPHOME_NS.changed(last, value)
+    return _CHANGE_TRIGGER_NS.changed(last, value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2532,6 +2532,8 @@ class GroupedAutomation:
     def __post_init__(self) -> None:
         if self.filter is not None and self.watched is None:
             raise ValueError(f"{self.conf_key}: a filter needs a watched value")
+        if self.args and self.watched is None and self.forwarded is None:
+            raise ValueError(f"{self.conf_key}: args need a watched or forwarded value")
 
 
 async def build_grouped_callback_automations(
@@ -2549,7 +2551,7 @@ async def build_grouped_callback_automations(
     as is.
     """
     ref = parent_ref(parent)
-    # Per list: its statics, its body and the last automation's function
+    # Per list: its copies, its calls and the automation functions it calls
     groups: dict[str, tuple[list[Statement], list[Statement], list[MockObj]]] = {}
     for entry in entries:
         statics, body, targets = groups.setdefault(

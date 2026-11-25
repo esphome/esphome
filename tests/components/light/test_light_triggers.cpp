@@ -42,7 +42,7 @@ class Triggers {
   explicit Triggers(LightState *state) : state_(state) {
     state->add_remote_values_callback([this]() {
       for (auto &on_turn_on : this->on_turn_on_) {
-        if (entered(on_turn_on.last, this->state_->remote_values.is_on()))
+        if (change_trigger::entered(on_turn_on.last, this->state_->remote_values.is_on()))
           on_turn_on.action();
       }
       for (auto &action : this->on_state_)

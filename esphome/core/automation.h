@@ -831,6 +831,9 @@ static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
 static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
 static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 
+// Codegen use only. Nested so they cannot clash with YAML ids after `using namespace esphome;`.
+namespace change_trigger {
+
 /// Codegen use only: whether `now` is true and `last` was not. Stores `now` in `last`, the copy one automation keeps.
 inline bool entered(bool &last, bool now) {
   const bool result = now && !last;
@@ -859,6 +862,8 @@ inline bool changed(const char *&last, const char *now) {
   last = now;
   return result;
 }
+
+}  // namespace change_trigger
 
 /// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
 /// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.
