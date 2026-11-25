@@ -1045,10 +1045,12 @@ void LD2450Component::set_xy_unfiltered_(bool unfiltered) {
   this->xy_unfiltered_ = unfiltered;
   // A still target sends no new position: show a value the filters held, or put the current one through them again
   for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
-    if (s == nullptr || s->get_raw_state().empty())
+    if (s == nullptr)
+      continue;
+    const std::string &raw = s->get_raw_state();
+    if (raw.empty())
       continue;
     if (unfiltered) {
-      const std::string &raw = s->get_raw_state();
       s->publish_state_unfiltered(raw.data(), raw.size());
     } else {
       s->reapply_filters();

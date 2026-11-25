@@ -247,15 +247,15 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::LINK_STATE_WAITING};
   bool bytes_since_frame_{false};  // any bytes since the last valid frame
-#ifdef USE_LD2450_XY_UNFILTERED
-  bool xy_unfiltered_{false};  // the xy text sensors publish past their filters
-#endif
-  uint16_t invalid_frames_{0};  // since the last valid frame, saturating
+  uint16_t invalid_frames_{0};     // since the last valid frame, saturating
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
 #ifdef USE_TEXT_SENSOR
   // Byte aligned, so it packs after zone_config_ instead of padding before data_callback_
   std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
+#endif
+#ifdef USE_LD2450_XY_UNFILTERED
+  bool xy_unfiltered_{false};  // the xy text sensors publish past their filters
 #endif
 
 #ifdef USE_NUMBER

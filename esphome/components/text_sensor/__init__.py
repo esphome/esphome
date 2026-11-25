@@ -365,9 +365,9 @@ follow_text_sensor = FollowEntity(
 
 
 def request_filter_reset() -> None:
-    """Make ``TextSensor::publish_state_unfiltered()`` also reset the sensor's filters.
+    """Compile ``TextSensor::publish_state_unfiltered()`` and ``reapply_filters()`` and the filter resets they use.
 
-    Call from the to_code of a component that uses it on a text sensor with filters.
+    Call from the to_code of a component that uses them.
     """
     cg.add_define("USE_TEXT_SENSOR_FILTER")
     cg.add_define("USE_TEXT_SENSOR_FILTER_RESET")

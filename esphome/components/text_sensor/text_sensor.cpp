@@ -32,12 +32,7 @@ void TextSensor::publish_state(const char *state, size_t len) {
     this->notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER
   } else {
-    // Has filters: need separate raw storage
-    // Only assign if changed to avoid heap allocation
-    if (len != this->raw_state_.size() || memcmp(state, this->raw_state_.data(), len) != 0) {
-      this->raw_state_.assign(state, len);
-    }
-    this->raw_callback_.call(this->raw_state_);
+    this->set_raw_state_(state, len);
     ESP_LOGV(TAG, "'%s': Received new state %s", LOG_STR_ARG(this->get_log_name()), this->raw_state_.c_str());
     this->filter_list_->input(this->raw_state_);
   }
@@ -81,29 +76,34 @@ void TextSensor::clear_filters() {
 }
 #endif  // USE_TEXT_SENSOR_FILTER
 
-void TextSensor::publish_state_unfiltered(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
-  if (this->filter_list_ != nullptr) {
-#ifdef USE_TEXT_SENSOR_FILTER_RESET
-    // Also drops a value a timeout filter would still send
-    this->filter_list_->reset_chain();
-#endif
+void TextSensor::set_raw_state_(const char *state, size_t len) {
+  // Only assign if changed to avoid heap allocation
+  if (len != this->raw_state_.size() || memcmp(state, this->raw_state_.data(), len) != 0) {
     this->raw_state_.assign(state, len);
-    this->raw_callback_.call(this->raw_state_);
-    // A raw callback may have published again or freed the caller's buffer
-    this->internal_send_state_to_frontend(this->raw_state_.data(), this->raw_state_.size());
+  }
+  this->raw_callback_.call(this->raw_state_);
+}
+#endif
+
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+void TextSensor::publish_state_unfiltered(const char *state, size_t len) {
+  if (this->filter_list_ == nullptr) {
+    this->publish_state(state, len);
     return;
   }
-#endif
-  this->publish_state(state, len);
+  // Also drops a value a timeout filter would still send
+  this->filter_list_->reset_chain();
+  this->set_raw_state_(state, len);
+  // A raw callback may have published again or freed the caller's buffer
+  this->internal_send_state_to_frontend(this->raw_state_.data(), this->raw_state_.size());
 }
 
 void TextSensor::reapply_filters() {
-#ifdef USE_TEXT_SENSOR_FILTER
   if (this->filter_list_ != nullptr)
     this->filter_list_->input(this->raw_state_);
-#endif
 }
+#endif
 
 const std::string &TextSensor::get_state() const { return this->state; }
 const std::string &TextSensor::get_raw_state() const {
