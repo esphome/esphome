@@ -75,14 +75,14 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
 #ifdef USE_ESP32
   portENTER_CRITICAL_ISR(&timing_lock);
 #endif
-  const uint32_t next = this->timer_step_(now);
+  const uint32_t next = this->timer_step(now);
 #ifdef USE_ESP32
   portEXIT_CRITICAL_ISR(&timing_lock);
 #endif
   return next;
 }
 
-uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step_(uint32_t now) {
+uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step(uint32_t now) {
   auto since = static_cast<int32_t>(now - this->zc_at);
   if (since >= this->period) {
     // The window of the crossing at zc_at closed long ago: its best edge is final
@@ -202,13 +202,12 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
-  // Mains timing is steady, so follow slowly. An edge served late only confirms the crossing unless it is close
-  // (following it would move pulses towards the next crossing); the half cycle follows close edges only.
+  // Mains timing is steady, so follow slowly. A late edge may only have been served late, so it counts as at most
+  // `close` late; an error that lasts still adds up, so a wrong half cycle from the lock is corrected.
   const int32_t close = this->period / 32;
-  if (this->taken_err <= close)
-    this->zc_at += this->taken_err / 4;
-  if (std::abs(static_cast<int32_t>(this->taken_err)) <= close)
-    this->period += this->taken_err / 16;
+  const int32_t err = std::min<int32_t>(this->taken_err, close);
+  this->zc_at += err / 4;
+  this->period += err / 16;
   this->taken_err = NO_EDGE_ERR;
 }
 

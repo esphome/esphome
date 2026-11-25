@@ -131,21 +131,41 @@ INSTANTIATE_TEST_SUITE_P(AcDimmer, EdgeOffsetTest,
                                            EdgeOffsetCase{"ThreeEarlyPulses", 10000, -470, 100, 103}),
                          [](const ::testing::TestParamInfo<EdgeOffsetCase> &info) { return info.param.name; });
 
-// A first half cycle measured 150 µs short still converges on the real one
-TEST(AcDimmerTimerTest, ShortFirstMeasurementConverges) {
+struct StartupErrorCase {
+  const char *name;
+  uint32_t edges[3];  // edges that lock the timing; the real crossings are at 1, 11, 21, ... ms
+};
+
+class StartupErrorTest : public ::testing::TestWithParam<StartupErrorCase> {};
+
+// Late startup edges lock a wrong half cycle: it converges without dropping the lock
+TEST_P(StartupErrorTest, ConvergesWhileLocked) {
+  const auto &c = GetParam();
   AcDimmerDataStore store{};
   store.value = 32768;
-  Bench bench(store, 1000);
-  for (uint32_t at : {1150U, 11000U, 20850U})
+  Bench bench(store, c.edges[0]);
+  for (uint32_t at : c.edges)
     bench.edge(at);
   uint32_t crossing = 31000;
-  for (int i = 0; i < 300; i++, crossing += 10000)
+  bool locked = false;
+  for (int i = 0; i < 300; i++, crossing += 10000) {
     bench.edge(crossing);
+    if (locked)
+      ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << "crossing " << i;
+    locked = store.phase == ZERO_CROSS_PHASE_LOCKED;
+  }
   bench.run_until(crossing - 10000 + 5000);
-  EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
   EXPECT_LE(std::abs(static_cast<int32_t>(store.period - 10000)), 2);
-  EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - (crossing - 10000))), 10);
+  EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - (crossing - 10000))), 20);  // integer steps leave a few µs
 }
+
+INSTANTIATE_TEST_SUITE_P(AcDimmer, StartupErrorTest,
+                         ::testing::Values(StartupErrorCase{"Short", {1150, 11000, 20850}},
+                                           StartupErrorCase{"Long", {1000, 11000, 21300}},
+                                           StartupErrorCase{"LateFirst", {1300, 11000, 21000}},
+                                           StartupErrorCase{"LateFirst300", {1600, 11000, 21000}},
+                                           StartupErrorCase{"LateLast300", {1000, 11000, 21600}}),
+                         [](const ::testing::TestParamInfo<StartupErrorCase> &info) { return info.param.name; });
 
 /// Locks a dimmer on crossings at 1, 11 and 21 ms; the caller runs the timer at 21 ms to start that half cycle
 static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
