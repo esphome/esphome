@@ -49,16 +49,27 @@ def _final_validate(config: ConfigType) -> None:
     full = fv.full_config.get()
     link_id = str(config[CONF_ID])
     want = config.get(CONF_ROLE, "client")
-    # One tcp_uart carries one link. A second link or a hub on it would read its bytes.
+    # One tcp_uart carries one link. A second link or any other reader or writer of its
+    # UART (a modbus hub, an event, a switch) would take or inject bytes.
     tcp_id = str(config[CONF_TCP_UART_ID])
-    if any(
-        str(other[CONF_ID]) != link_id and str(other[CONF_TCP_UART_ID]) == tcp_id
-        for other in full.get(DOMAIN) or []
-    ) or any(
-        str(hub.get(CONF_UART_ID, "")) == tcp_id for hub in full.get("modbus") or []
-    ):
+    other_user = next(
+        (
+            "another modbus_tcp_uart"
+            for other in full.get(DOMAIN) or []
+            if str(other[CONF_ID]) != link_id and str(other[CONF_TCP_UART_ID]) == tcp_id
+        ),
+        None,
+    ) or next(
+        (
+            f"'{domain}'"
+            for domain, domain_conf in full.items()
+            if uart.subtree_references_uart(domain_conf, tcp_id)
+        ),
+        None,
+    )
+    if other_user:
         raise cv.Invalid(
-            "This tcp_uart is already used by another link or modbus hub. "
+            f"This tcp_uart is already used by {other_user}. "
             "Give each modbus_tcp_uart its own tcp_uart",
             [CONF_TCP_UART_ID],
         )

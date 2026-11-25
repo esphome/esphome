@@ -99,6 +99,26 @@ def test_modbus_hub_on_the_tcp_uart_of_a_link_is_rejected() -> None:
         _run(config, full)
 
 
+def test_event_reader_on_the_tcp_uart_of_a_link_is_rejected() -> None:
+    config = {"id": ID("mb_link", is_declaration=True), "tcp_uart_id": ID("sock")}
+    full = {"event": [{"platform": "uart", "uart_id": ID("sock")}]}
+    with pytest.raises(cv.Invalid, match="'event'"):
+        _run(config, full)
+
+
+def test_uart_switch_writer_on_the_tcp_uart_of_a_link_is_rejected() -> None:
+    config = {"id": ID("mb_link", is_declaration=True), "tcp_uart_id": ID("sock")}
+    full = {"switch": [{"platform": "uart", "uart_id": ID("sock")}]}
+    with pytest.raises(cv.Invalid, match="'switch'"):
+        _run(config, full)
+
+
+def test_tcp_uart_sensor_on_the_tcp_uart_of_a_link_passes() -> None:
+    config = {"id": ID("mb_link", is_declaration=True), "tcp_uart_id": ID("sock")}
+    full = {"sensor": [{"platform": "tcp_uart", "tcp_uart_id": ID("sock")}]}
+    assert _run(config, full) is None
+
+
 def test_links_on_separate_tcp_uarts_pass() -> None:
     config = {"id": ID("mb_link", is_declaration=True), "tcp_uart_id": ID("sock")}
     full = {
