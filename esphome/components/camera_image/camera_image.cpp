@@ -96,15 +96,11 @@ void CameraImage::setup() {
   this->transform_buffer_size_ = static_cast<size_t>(bytes_64);
   this->transform_buffer_ = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(this->transform_buffer_size_);
   if (!this->transform_buffer_) {
-    ESP_LOGE(TAG, "Failed to allocate %zu bytes for rotation", this->transform_buffer_size_);
     this->mark_failed(LOG_STR("Could not allocate the rotation buffer"));
   }
 }
 
 void CameraImage::update() {
-  if (this->is_failed())
-    return;
-
   // A request is still in flight; its timeout clears the pending state.
   if (this->waiting_)
     return;
@@ -275,15 +271,20 @@ bool CameraImage::apply_crop_rotation_() {
 }
 
 void CameraImage::dump_config() {
-  ESP_LOGCONFIG(TAG, "Camera Image:");
-  ESP_LOGCONFIG(TAG, "  Format: %s", LOG_STR_ARG(runtime_image::get_format_name(this->get_format())));
-  ESP_LOGCONFIG(TAG, "  Type: %s", LOG_STR_ARG(image_type_name(this->get_type())));
+  ESP_LOGCONFIG(TAG,
+                "Camera Image:\n"
+                "  Format: %s\n"
+                "  Type: %s",
+                LOG_STR_ARG(runtime_image::get_format_name(this->get_format())),
+                LOG_STR_ARG(image_type_name(this->get_type())));
   if (this->crop_width_ > 0) {
     ESP_LOGCONFIG(TAG, "  Crop: %d,%d %dx%d", this->crop_x_, this->crop_y_, this->crop_width_, this->crop_height_);
   }
   if (this->rotation_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation_);
-    ESP_LOGCONFIG(TAG, "  Rotation buffer: %zu bytes", this->transform_buffer_size_);
+    ESP_LOGCONFIG(TAG,
+                  "  Rotation: %u\n"
+                  "  Rotation buffer: %zu bytes",
+                  static_cast<unsigned>(this->rotation_), this->transform_buffer_size_);
   }
   if (this->transform_width_ > 0) {
     ESP_LOGCONFIG(TAG, "  Output size: %dx%d", this->transform_width_, this->transform_height_);

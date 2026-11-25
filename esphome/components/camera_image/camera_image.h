@@ -11,6 +11,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <memory>
 #include <utility>
 
 namespace esphome::camera_image {
@@ -34,7 +35,7 @@ class CameraImage final : public PollingComponent, public runtime_image::Runtime
     this->crop_height_ = height;
   }
 
-  void set_rotation(int rotation) { this->rotation_ = rotation; }
+  void set_rotation(uint16_t rotation) { this->rotation_ = rotation; }
 
   /// Size of the crop/rotation output, allocated in setup().
   void set_transform_size(int width, int height) {
@@ -55,13 +56,11 @@ class CameraImage final : public PollingComponent, public runtime_image::Runtime
   bool apply_crop_rotation_();
 
   camera::Camera *camera_;
-  bool waiting_{false};
   /// Crop rectangle; a zero width means no crop is configured.
   int crop_x_{0};
   int crop_y_{0};
   int crop_width_{0};
   int crop_height_{0};
-  int rotation_{0};
   int transform_width_{0};
   int transform_height_{0};
   /// Size of the decoded frame, kept so a transformed frame does not resize the buffer.
@@ -70,6 +69,8 @@ class CameraImage final : public PollingComponent, public runtime_image::Runtime
   /// Scratch buffer for rotation, allocated in setup() through RAMAllocator.
   RAMUniquePtr<uint8_t[]> transform_buffer_;
   size_t transform_buffer_size_{0};
+  uint16_t rotation_{0};
+  bool waiting_{false};
   LazyCallbackManager<void()> on_image_callback_{};
   LazyCallbackManager<void()> on_error_callback_{};
 };
