@@ -57,8 +57,6 @@ CONF_MAX_SCAN_RADIUS = "max_scan_radius"
 CONF_DEADZONE_DIAMETER = "deadzone_diameter"
 CONF_PROCESS_CHANNEL = "process_channel"
 
-# The detector reports a dial's problems once, for this many dials.
-MAX_DIALS = 8
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -145,9 +143,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(AnalogGaugeReader),
         cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
         cv.Required(CONF_DECODER_ID): cv.use_id(camera.Decoder),
-        cv.Required(CONF_DIALS): cv.All(
-            cv.ensure_list(DIAL_SCHEMA), cv.Length(min=1, max=MAX_DIALS)
-        ),
+        cv.Required(CONF_DIALS): cv.All(cv.ensure_list(DIAL_SCHEMA), cv.Length(min=1)),
         cv.Optional(CONF_PAUSED, default=False): cv.boolean,
         cv.Optional(CONF_DEBUG, default=False): cv.boolean,
         cv.Optional(CONF_STACKED_DIGITS, default=False): cv.boolean,

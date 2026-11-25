@@ -9,8 +9,6 @@
 #include <cstring>
 #include <memory>
 
-#include <esp_heap_caps.h>
-
 namespace esphome::analog_gauge_reader {
 
 ESPHOME_LOG_TAG(TAG, "analog_gauge_reader");
@@ -46,10 +44,6 @@ void AnalogGaugeReader::setup() {
     this->digits_.push_back(0);
     this->phase_.push_back(0.0f);
     this->order_.push_back(0);
-  }
-
-  if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) == 0) {
-    ESP_LOGW(TAG, "No PSRAM detected; the decoder may not be able to allocate the decoded frame");
   }
 }
 
@@ -98,7 +92,6 @@ void AnalogGaugeReader::update() {
     this->status_set_warning();
   });
   this->camera_->request_image(camera::IDLE);
-  ESP_LOGV(TAG, "Requesting frame");
 }
 
 void AnalogGaugeReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
@@ -142,8 +135,6 @@ bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
   const uint8_t *pixels = decoded->get_data_buffer();
   const int processing_w = spec.width;
   const int processing_h = spec.height;
-  ESP_LOGV(TAG, "Decoded frame: %dx%d %s", processing_w, processing_h,
-           spec.format == camera::PIXEL_FORMAT_GRAYSCALE ? LOG_STR_LITERAL("grayscale") : LOG_STR_LITERAL("colour"));
 
   // A camera_window may shrink the frame; a larger one would break the configured crops.
   if (processing_w > this->img_width_ || processing_h > this->img_height_) {
