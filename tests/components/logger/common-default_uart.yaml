@@ -20,6 +20,17 @@ logger:
   initial_level: INFO
   logs:
     mqtt.component: WARN
+  on_message:
+    - level: WARN
+      then:
+        - lambda: |-
+            if (strcmp(tag, "custom.tag") == 0)
+              ESP_LOGD("test", "Level %u: %s", level, message);
+    - level: ERROR
+      then:
+        - delay: 1s
+        - lambda: |-
+            ESP_LOGD("test", "Error %u from %s: %s", level, tag, message);
 
 select:
   - platform: logger
