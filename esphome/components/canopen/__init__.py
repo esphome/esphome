@@ -24,6 +24,9 @@ DEPENDENCIES = ["canbus"]
 DOMAIN = "canopen"
 MULTI_CONF = True
 
+CONF_ON_HEARTBEAT = "on_heartbeat"
+CONF_ON_EMCY = "on_emcy"
+CONF_CANOPEN_ID = "canopen_id"
 CONF_NODE_ID = "node_id"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SUBINDEX = "subindex"
@@ -36,6 +39,9 @@ CANopenComponent = ns.class_("CANopenComponent", cg.Component)
 SDOResult = ns.enum("SDOResult", is_class=True)
 
 
+CANopenNode = ns.class_("CANopenNode")
+Emergency = ns.struct("Emergency")
+
 # response_timeout holds uint16 ms
 UINT16_MS = cv.All(
     cv.positive_time_period_milliseconds,
@@ -46,6 +52,8 @@ UINT16_MS = cv.All(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CANopenComponent),
+        cv.Optional(CONF_ON_HEARTBEAT): automation.validate_automation({}),
+        cv.Optional(CONF_ON_EMCY): automation.validate_automation({}),
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
         cv.Optional(CONF_RESPONSE_TIMEOUT, "500ms"): UINT16_MS,
     }
@@ -83,6 +91,20 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], canbus)
     await cg.register_component(var, config)
     cg.add(var.set_response_timeout(config[CONF_RESPONSE_TIMEOUT]))
+    for conf in config.get(CONF_ON_HEARTBEAT, []):
+        await automation.build_callback_automation(
+            var,
+            "add_on_heartbeat_callback",
+            [(cg.uint8, "node_id"), (cg.uint8, "state")],
+            conf,
+        )
+    for conf in config.get(CONF_ON_EMCY, []):
+        await automation.build_callback_automation(
+            var,
+            "add_on_emcy_callback",
+            [(cg.uint8, "node_id"), (Emergency, "emergency")],
+            conf,
+        )
 
 
 def validate_sdo_value(config: ConfigType) -> ConfigType:

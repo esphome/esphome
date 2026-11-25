@@ -111,6 +111,34 @@ bool CANopenComponent::queue_sdo_(const SDORequest &request) {
   return true;
 }
 
+bool CANopenComponent::cancel_unsent_write(SDOCallback callback, void *context) {
+  const auto matches = [callback, context](const SDORequest &request) {
+    return request.kind == SDOKind::SDO_KIND_WRITE && request.callback == callback && request.context == context;
+  };
+  if (this->sdo_busy_ && matches(this->sdo_active_)) {
+    auto *cli = this->co_->SDOclient;
+    // The expedited download request is still in the software TX buffer.
+    if (cli->CANtxBuff->bufferFull && (cli->CANtxBuff->data[0] & 0xE0) == 0x20) {
+      CO_SDOclientClose(cli);
+      discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
+      this->sdo_busy_ = false;
+      return true;
+    }
+    return false;
+  }
+  bool cancelled = false;
+  for (size_t remaining = this->sdo_queue_.size(); remaining != 0; remaining--) {
+    const auto request = this->sdo_queue_.front();
+    this->sdo_queue_.pop();
+    if (!cancelled && matches(request)) {
+      cancelled = true;
+    } else {
+      this->sdo_queue_.push(request);
+    }
+  }
+  return cancelled;
+}
+
 void CANopenComponent::reject_queued_sdo_() {
   while (!this->sdo_queue_.empty()) {
     SDORequest r = this->sdo_queue_.front();

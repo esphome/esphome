@@ -28,6 +28,15 @@ class CANopenComponent : public Component {
   // after canbus, before on_boot (600)
   float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
 
+  bool send_nmt(uint8_t node, NMTCommand command);
+  template<typename F> void add_on_node_heartbeat_callback(F &&callback) {
+    this->node_heartbeat_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_heartbeat_callback(F &&callback) {
+    this->heartbeat_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_emcy_callback(F &&callback) { this->emcy_callback_.add(std::forward<F>(callback)); }
+
   void set_response_timeout(uint16_t ms) { this->response_timeout_ms_ = ms; }
 
   // for the CANopenNode driver; ident bit 11 is RTR
@@ -54,6 +63,8 @@ class CANopenComponent : public Component {
     std::memcpy(&raw, &value, sizeof(T));
     return this->write_sdo(node_id, index, sub, raw, sizeof(T), callback, context);
   }
+  // Remove an expedited write before the bus accepts it. On success its callback will not run.
+  bool cancel_unsent_write(SDOCallback callback, void *context);
   // Buffers must stay valid until the callback; a read_sdo_data() object longer than capacity is aborted.
   // Transfers are limited to 64 KiB: a longer write is rejected, a larger capacity is clamped.
   bool read_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, uint8_t *data, size_t capacity, SDOCallback callback,
@@ -67,6 +78,9 @@ class CANopenComponent : public Component {
   void fail_setup_(const LogString *reason);
 
   canbus::Canbus *canbus_;
+  LazyCallbackManager<void(uint8_t, uint8_t)> node_heartbeat_callback_;
+  LazyCallbackManager<void(uint8_t, uint8_t)> heartbeat_callback_;
+  LazyCallbackManager<void(uint8_t, const Emergency &)> emcy_callback_;
   CO_t *co_{nullptr};
   CO_config_t config_{};  // must outlive co_
 
