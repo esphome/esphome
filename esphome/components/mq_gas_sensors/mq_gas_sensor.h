@@ -84,7 +84,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// of ESP-IDF's `esp_log_level_t`: `LOG_SEVERITY_ERROR` is always printed, `LOG_SEVERITY_DEBUG`
   /// only with `logger: level: DEBUG`.  The message is mirrored to `log_sensor:`
   /// either way, so the measurement chain stays readable from Home Assistant.
-  enum LogSeverity : uint8_t {
+  enum class LogSeverity : uint8_t {
     LOG_SEVERITY_DEBUG = 0,
     LOG_SEVERITY_INFO = 1,
     LOG_SEVERITY_WARN = 2,
@@ -222,18 +222,12 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   float correction_{1.0f};
   mqmath::TcCorrectionCoefficients tc_{};
 
+#ifdef USE_MQ_GAS_SENSORS_CORRECTION
   /// Last state of the linked correction sources, used to detect a source that
-  /// has stopped updating while `has_state()` stays true. The observed gap is the
-  /// longest interval between two publications, so a slow source is not treated as
-  /// stale between its own updates.
-  uint32_t temperature_last_ms_{0};
-  uint32_t humidity_last_ms_{0};
-  uint32_t temperature_gap_ms_{0};
-  uint32_t humidity_gap_ms_{0};
-  /// Consecutive gaps that looked like outages; the estimate adopts the cadence
-  /// when a source turns out to be slower than its first gap suggested.
-  uint8_t temperature_slow_gaps_{0};
-  uint8_t humidity_slow_gaps_{0};
+  /// has stopped updating while `has_state()` stays true.
+  mqmath::SourceTracker temperature_tracker_;
+  mqmath::SourceTracker humidity_tracker_;
+#endif
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};
   uint32_t calibration_delay_{0};
@@ -265,17 +259,15 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
 #endif
 
-  RegressionMethod regression_method_{RegressionMethod::REGRESSION_EXPONENTIAL};
-  RatioMode ratio_mode_{RatioMode::RATIO_RS_R0};
-  CorrectionMode correction_mode_{CorrectionMode::CORRECTION_NONE};
-  CorrectionClamp correction_clamp_{CorrectionClamp::CLAMP_ABSOLUTE};
+  RegressionMethod regression_method_{RegressionMethod::REGRESSION_METHOD_EXPONENTIAL};
+  RatioMode ratio_mode_{RatioMode::RATIO_MODE_RS_R0};
+  CorrectionMode correction_mode_{CorrectionMode::CORRECTION_MODE_NONE};
+  CorrectionClamp correction_clamp_{CorrectionClamp::CORRECTION_CLAMP_ABSOLUTE};
   uint8_t samples_{2};
   /// Usable conversions of the last sampling window, so a partially answered
   /// window is visible instead of a silently shorter average.
   uint8_t sample_count_{0};
 
-  bool temperature_seen_{false};
-  bool humidity_seen_{false};
   bool r0_configured_{false};
   bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)
   bool calibration_enabled_{false};

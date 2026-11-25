@@ -64,7 +64,7 @@ class CalibrationPersistenceTest : public ::testing::Test {
   static void configure(MQGasSensor &sensor) {
     sensor.set_a(976.97f);
     sensor.set_b(-0.688f);
-    sensor.set_regression_method(RegressionMethod::REGRESSION_EXPONENTIAL);
+    sensor.set_regression_method(RegressionMethod::REGRESSION_METHOD_EXPONENTIAL);
     sensor.set_rl(10.0f);
     sensor.set_vcc(5.0f);
     sensor.set_samples(1);

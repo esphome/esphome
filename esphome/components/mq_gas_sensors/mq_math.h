@@ -36,27 +36,27 @@ namespace esphome::mq_gas_sensors {
 
 /// Regression model, mirrors MQUnifiedsensor's `_regressionMethod`.
 enum class RegressionMethod : uint8_t {
-  REGRESSION_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
-  REGRESSION_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
-  REGRESSION_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b), MQDataScience inverseYaxb()
+  REGRESSION_METHOD_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
+  REGRESSION_METHOD_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
+  REGRESSION_METHOD_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b), MQDataScience inverseYaxb()
 };
 
 /// Ratio convention used to evaluate the regression curve.
 enum class RatioMode : uint8_t {
-  RATIO_RS_R0 = 0,  ///< RS / R0 - what the published datasheet coefficients expect.
-  RATIO_R0_RS = 1,  ///< R0 / RS - MQUnifiedsensor::readSensorR0Rs() convention.
+  RATIO_MODE_RS_R0 = 0,  ///< RS / R0 - what the published datasheet coefficients expect.
+  RATIO_MODE_R0_RS = 1,  ///< R0 / RS - MQUnifiedsensor::readSensorR0Rs() convention.
 };
 
 /// Where the correction comes from (mirrors `CORRECTION_MODES` in `__init__.py`).
 enum class CorrectionMode : uint8_t {
-  CORRECTION_NONE = 0,           ///< no compensation (default)
-  CORRECTION_MQDATASCIENCE = 1,  ///< `a + c * exp(b * T)`
+  CORRECTION_MODE_NONE = 0,           ///< no compensation (default)
+  CORRECTION_MODE_MQDATASCIENCE = 1,  ///< `a + c * exp(b * T)`
 };
 
 /// How the corrected value is clipped to the configured range.
 enum class CorrectionClamp : uint8_t {
-  CLAMP_ABSOLUTE = 0,  ///< clip to `max_ppm` - the alarm ceiling never moves
-  CLAMP_SCALED = 1,    ///< clip to `max_ppm * correction` (MQDataScience behaviour)
+  CORRECTION_CLAMP_ABSOLUTE = 0,  ///< clip to `max_ppm` - the alarm ceiling never moves
+  CORRECTION_CLAMP_SCALED = 1,    ///< clip to `max_ppm * correction` (MQDataScience behaviour)
 };
 
 namespace mqmath {
@@ -134,7 +134,7 @@ inline float ratio_from_rs(float rs, float r0, float correction_factor, RatioMod
   if (!std::isfinite(r0) || r0 <= 0.0f)
     return NAN;
   double ratio;
-  if (mode == RatioMode::RATIO_R0_RS) {
+  if (mode == RatioMode::RATIO_MODE_R0_RS) {
     ratio = static_cast<double>(r0) / static_cast<double>(rs);
   } else {
     ratio = static_cast<double>(rs) / static_cast<double>(r0);
@@ -148,7 +148,7 @@ inline float ratio_from_rs(float rs, float r0, float correction_factor, RatioMod
     // the range the curve covers: it reports as the saturated end instead of
     // `unknown`, which would hide it. R0 / RS moves the other way, so the ratio
     // then sits below the clean-air end of the curve: that stays unknown.
-    return mode == RatioMode::RATIO_R0_RS ? NAN : 0.0f;
+    return mode == RatioMode::RATIO_MODE_R0_RS ? NAN : 0.0f;
   }
   return static_cast<float>(ratio);
 }
@@ -194,13 +194,64 @@ inline bool source_is_fresh(bool seen, uint32_t last_ms, uint32_t now_ms, uint32
   return seen && (now_ms - last_ms) <= max_age_ms;
 }
 
+/// Publication cadence of a linked temperature/humidity source, used to tell a
+/// source that is alive from one that stopped updating while it still has a state.
+struct SourceTracker {
+  /// A source that has not delivered a state for this long is treated as missing,
+  /// whatever its cadence: the floor avoids flagging a slow source early.
+  static constexpr uint32_t STALE_MS = 5 * 60 * 1000;
+  /// Allowed age before the first gap is known: bounded, so a source that
+  /// published once and died is still caught.
+  static constexpr uint32_t UNLEARNED_MS = 30 * 60 * 1000;
+  /// A gap this many times the estimate is an outage, not the cadence.
+  static constexpr uint32_t OUTAGE_FACTOR = 3;
+  /// Weight of the estimate in the moving average: (WEIGHT - 1) parts old, 1 part new.
+  static constexpr uint32_t AVERAGE_WEIGHT = 8;
+  /// Outage-sized gaps in a row after which the source is taken to be slower.
+  static constexpr uint8_t SLOW_GAPS_TO_ADOPT = 2;
+
+  uint32_t last_ms{0};   ///< loop time of the last state
+  uint32_t gap_ms{0};    ///< estimate of the publication interval
+  uint8_t slow_gaps{0};  ///< consecutive gaps that looked like outages
+  bool seen{false};      ///< the last state was finite
+
+  /// A state arrived at `now_ms`. A dropout is not the cadence: a gap far beyond
+  /// the estimate is ignored once, but two in a row mean the source really is
+  /// slower, so a short first gap cannot lock the estimate.
+  void record(float value, uint32_t now_ms) {
+    if (this->last_ms != 0) {
+      const uint32_t gap = now_ms - this->last_ms;
+      if (this->gap_ms == 0) {
+        this->gap_ms = gap;
+      } else if (gap < this->gap_ms * OUTAGE_FACTOR) {
+        this->gap_ms = (this->gap_ms * (AVERAGE_WEIGHT - 1) + gap) / AVERAGE_WEIGHT;
+        this->slow_gaps = 0;
+      } else if (++this->slow_gaps >= SLOW_GAPS_TO_ADOPT) {
+        this->gap_ms = gap;
+        this->slow_gaps = 0;
+      }
+    }
+    this->last_ms = now_ms;
+    this->seen = std::isfinite(value);
+  }
+
+  /// Longest age the last state may have: three publication periods, never below
+  /// `STALE_MS`, and a bounded window until the first gap is known.
+  uint32_t max_age() const {
+    return this->gap_ms == 0 ? UNLEARNED_MS : std::max<uint32_t>(STALE_MS, this->gap_ms * OUTAGE_FACTOR);
+  }
+
+  /// The source delivered a finite state recently enough, judged at `now_ms`.
+  bool fresh(uint32_t now_ms) const { return source_is_fresh(this->seen, this->last_ms, now_ms, this->max_age()); }
+};
+
 /// Limit of a curve as the ratio falls to 0. A curve that grows as the ratio
 /// shrinks (the datasheet direction) approaches FLT_MAX, one that falls
 /// approaches 0, and one the coefficients cannot evaluate returns NaN. The caller
 /// clamps FLT_MAX to its maximum.
 inline float ppm_at_zero(float a, float b, RegressionMethod method) {
   switch (method) {
-    case RegressionMethod::REGRESSION_EXPONENTIAL:
+    case RegressionMethod::REGRESSION_METHOD_EXPONENTIAL:
       if (!(a > 0.0f))
         return NAN;
       if (b > 0.0f)
@@ -208,11 +259,11 @@ inline float ppm_at_zero(float a, float b, RegressionMethod method) {
       if (b < 0.0f)
         return FLT_MAX;
       return a;
-    case RegressionMethod::REGRESSION_INVERSE:
+    case RegressionMethod::REGRESSION_METHOD_INVERSE:
       if (!(a > 0.0f) || b == 0.0f)
         return NAN;
       return b > 0.0f ? 0.0f : FLT_MAX;
-    case RegressionMethod::REGRESSION_LINEAR:
+    case RegressionMethod::REGRESSION_METHOD_LINEAR:
       if (a == 0.0f)
         return NAN;
       return a > 0.0f ? 0.0f : FLT_MAX;
@@ -224,7 +275,7 @@ inline float ppm_at_zero(float a, float b, RegressionMethod method) {
 /// collapsed sensor resistance. Mirrors `ppm_at_zero()`.
 inline float ppm_at_infinity(float a, float b, RegressionMethod method) {
   switch (method) {
-    case RegressionMethod::REGRESSION_EXPONENTIAL:
+    case RegressionMethod::REGRESSION_METHOD_EXPONENTIAL:
       if (!(a > 0.0f))
         return NAN;
       if (b > 0.0f)
@@ -232,11 +283,11 @@ inline float ppm_at_infinity(float a, float b, RegressionMethod method) {
       if (b < 0.0f)
         return 0.0f;
       return a;
-    case RegressionMethod::REGRESSION_INVERSE:
+    case RegressionMethod::REGRESSION_METHOD_INVERSE:
       if (!(a > 0.0f) || b == 0.0f)
         return NAN;
       return b > 0.0f ? FLT_MAX : 0.0f;
-    case RegressionMethod::REGRESSION_LINEAR:
+    case RegressionMethod::REGRESSION_METHOD_LINEAR:
       if (a == 0.0f)
         return NAN;
       return a > 0.0f ? FLT_MAX : 0.0f;
@@ -258,12 +309,12 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
     return ppm_at_zero(a, b, method);
 
   double log_ppm;
-  if (method == RegressionMethod::REGRESSION_EXPONENTIAL) {
+  if (method == RegressionMethod::REGRESSION_METHOD_EXPONENTIAL) {
     log_ppm = std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
-  } else if (method == RegressionMethod::REGRESSION_INVERSE) {
+  } else if (method == RegressionMethod::REGRESSION_METHOD_INVERSE) {
     // PPM = (ratio / a)^(1/b), MQDataScience inverseYaxb().
     log_ppm = (std::log10(static_cast<double>(ratio)) - std::log10(static_cast<double>(a))) / static_cast<double>(b);
-  } else if (method == RegressionMethod::REGRESSION_LINEAR) {
+  } else if (method == RegressionMethod::REGRESSION_METHOD_LINEAR) {
     log_ppm = (std::log10(static_cast<double>(ratio)) - static_cast<double>(b)) / static_cast<double>(a);
   } else {
     // An unknown method has no formula; evaluating it as one of the known ones
@@ -393,7 +444,7 @@ inline float apply_correction_inverse(float ratio, float correction) {
 /// evaluate it.
 inline float rail_ppm(float a, float b, RegressionMethod method, RatioMode mode, float correction_factor,
                       float correction = 1.0f) {
-  if (mode == RatioMode::RATIO_R0_RS)
+  if (mode == RatioMode::RATIO_MODE_R0_RS)
     return ppm_at_infinity(a, b, method);
   const float ratio = correction_factor > 0.0f ? correction_factor : 0.0f;
   return ppm_from_ratio(a, b, apply_correction(ratio, correction), method);
@@ -402,7 +453,7 @@ inline float rail_ppm(float a, float b, RegressionMethod method, RatioMode mode,
 /// Clamp a (possibly corrected) PPM value to the configured range.
 inline float clamp_ppm_corrected(float ppm, float min_ppm, float max_ppm, float correction, CorrectionClamp mode) {
   float upper = max_ppm;
-  if (mode == CorrectionClamp::CLAMP_SCALED)
+  if (mode == CorrectionClamp::CORRECTION_CLAMP_SCALED)
     upper = static_cast<float>(static_cast<double>(max_ppm) * static_cast<double>(correction));
   if (!std::isfinite(upper) || upper < min_ppm)
     upper = max_ppm;

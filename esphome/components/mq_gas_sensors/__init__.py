@@ -99,18 +99,22 @@ CONF_VOLTAGE_SENSOR = "voltage_sensor"
 # exponential : _PPM = a * ratio ^ b; linear : log10(_PPM) = (log10(ratio) - b) / a;
 # inverse : _PPM = (ratio / a) ^ (1 / b).
 REGRESSION_METHODS = RegressionMethod.options(
-    "exponential", "linear", "inverse", prefix="REGRESSION_"
+    "exponential", "linear", "inverse", prefix="REGRESSION_METHOD_"
 )
 
 # Temperature / humidity compensation of the RS / R0 ratio.
 # none : no compensation(default); mqdatascience : a + c * exp(b * T).
-CORRECTION_MODES = CorrectionMode.options("none", "mqdatascience", prefix="CORRECTION_")
+CORRECTION_MODES = CorrectionMode.options(
+    "none", "mqdatascience", prefix="CORRECTION_MODE_"
+)
 
 # How the corrected PPM value is clamped : absolute clips to the configured
 # max_ppm, so the alarm ceiling never moves; scaled clips to max_ppm *
 # correction, MQDataScience's own behaviour, where the ceiling drops with the
 # correction(not recommended for a safety limit).
-CORRECTION_CLAMPS = CorrectionClamp.options("absolute", "scaled", prefix="CLAMP_")
+CORRECTION_CLAMPS = CorrectionClamp.options(
+    "absolute", "scaled", prefix="CORRECTION_CLAMP_"
+)
 
 # Default ADC input limits used by the divider guard when the attenuation of an
 # owned ESP32 pin does not apply(an external sampler, or a non - ESP32 target):
@@ -177,4 +181,4 @@ ADC_LIMIT_MARGIN_V = 0.01
 # MQUnifiedsensor uses R0 / RS(see readSensorR0Rs(), "INVERTED for MQ-131"),
 # while the published datasheet coefficients are fitted against RS / R0:
 # rs_r0 is the datasheet convention(default), r0_rs the MQUnifiedsensor one.
-RATIO_MODES = RatioMode.options("rs_r0", "r0_rs", prefix="RATIO_")
+RATIO_MODES = RatioMode.options("rs_r0", "r0_rs", prefix="RATIO_MODE_")
