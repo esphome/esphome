@@ -230,7 +230,8 @@ bool HttpContainerIDF::socket_ready_(bool write) {
 
 // Each stage either finishes, or returns PENDING after a call that did not wait. The waits left are
 // the name lookup and TCP connection in the first esp_http_client_open() of each hop: a non-blocking
-// esp-tls connect that times out once never completes, as select() clears the sets it keeps.
+// esp-tls connect that times out once never completes, as select() clears the sets it keeps. The TLS
+// handshake also runs inside whichever connect call finds the TCP connection up, and its crypto can take seconds.
 HttpRequestProgress HttpContainerIDF::poll() {
   while (true) {
     switch (this->stage_) {
@@ -241,8 +242,9 @@ HttpRequestProgress HttpContainerIDF::poll() {
         return HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED;
 
       case Stage::STAGE_CONNECT: {
-        // Only the first call of a hop waits
-        watchdog::WatchdogManager wdm(this->connecting_ ? 0 : this->get_watchdog_timeout());
+        // Only the first call of a hop waits for the network, but the TLS handshake runs inside whichever
+        // call finds the TCP connection up, and its crypto can take seconds
+        watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
         esp_http_client_set_timeout_ms(this->client_, this->connecting_ ? 1 : this->timeout_ms_);
         this->feed_wdt();
         esp_err_t err = esp_http_client_open(this->client_, this->body_.size());

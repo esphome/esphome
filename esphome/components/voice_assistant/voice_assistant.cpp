@@ -795,6 +795,12 @@ void VoiceAssistant::cancel_response_() {
         .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
         .set_announcement(true)
         .perform();
+    if (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
+      // Playback never started, so no media player state change will finish the response.
+      // Finish it now instead of waiting for the playback start timeout.
+      ESP_LOGD(TAG, "Response stopped before playback started");
+      this->media_player_response_state_ = MediaPlayerResponseState::FINISHED;
+    }
   }
   if (this->started_streaming_tts_) {
     // Haven't reached the TTS_END stage, so send the stop signal to HA.
