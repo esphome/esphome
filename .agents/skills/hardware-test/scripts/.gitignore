@@ -21,6 +21,9 @@ bt_proxy_ab/*.log
 bt_proxy_ab/*.pid
 bt_proxy_ab/*.txt
 bt_proxy_ab/handles.json
+canopen/*-a.txt
+canopen/*-b.txt
+canopen/*-events.txt
 cc1101_long/*.log
 climate_ir_loop/*-*.txt
 climate_ir_loop/*-frames.json
@@ -61,6 +64,8 @@ log_str_tables/*.norm
 log_str_tables/l[0-9][pbq]*.yaml
 lvgl_snapshot/*.png
 lvgl_snapshot/*.txt
+modem/*.log
+modem/*.txt
 mqtt/dns_boot/*.err
 mqtt/dns_boot/*.log
 mqtt/dns_boot/*.txt
