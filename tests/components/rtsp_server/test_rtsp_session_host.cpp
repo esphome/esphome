@@ -437,6 +437,26 @@ TEST_F(RTSPAudioSessionTest, DescribeOffersAudioTrack) {
   EXPECT_NE(out.find(length), std::string::npos) << out;
 }
 
+TEST_F(RTSPSessionTest, FrameTimestampsFollowFrameTime) {
+  this->start_playing();
+  auto image = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_);
+  this->loops(1);
+  std::vector<InterleavedPacket> packets;
+  ASSERT_TRUE(split_interleaved(this->receive(), packets));
+  ASSERT_EQ(packets.size(), 1u);
+  const uint32_t first = be32(packets[0].data, 4);
+
+  // The loop started 100 ms later, but the frame arrived 37 ms into it; the sender reports use the arrival time.
+  this->now_ += 100;
+  this->session_.on_new_frame(image, stub_jpeg(*image), this->now_, this->now_ + 37);
+  this->loops(1);
+  packets.clear();
+  ASSERT_TRUE(split_interleaved(this->receive(), packets));
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(be32(packets[0].data, 4) - first, 137u * 90);
+}
+
 TEST_F(RTSPSessionTest, AudioSetupWithoutTrackIsRefused) {
   this->send("SETUP rtsp://host/trackID=1 RTSP/1.0\r\nCSeq: 4\r\nTransport: RTP/AVP/TCP;interleaved=2-3\r\n\r\n");
   this->loops(1);

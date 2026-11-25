@@ -76,14 +76,18 @@ class RTSPServer : public Component, public camera::CameraListener {
     uint32_t at;   // position of the first lost sample
     uint32_t len;  // samples lost
   };
-  int64_t anchor_us_{0};       // capture time (esp_timer) of the sample at anchor_sample_
+  int64_t anchor_us_{0};       // capture time (esp_timer) of the sample at anchor_sample_, estimated if untimed
+  int64_t timed_us_{0};        // capture time of the sample at timed_sample_
   int64_t restart_us_{0};      // when capture last started; older chunks are from before it
   uint32_t anchor_sample_{0};  // position of the latest chunk's first sample
+  uint32_t timed_sample_{0};   // position of the first sample of the latest chunk with a capture time
   uint32_t captured_{0};       // samples received from the microphone, plus those it lost
   // Losses the main loop has not reached yet, oldest first.
   std::array<CaptureGap, 4> gaps_{};
   uint8_t gap_count_{0};
-  bool anchored_{false};  // a chunk with a capture time arrived since the restart
+  bool anchored_{false};   // a chunk with a capture time arrived since the restart
+  bool dropped_{false};    // the latest chunk had no capture time
+  bool delivered_{false};  // a chunk arrived since the restart
   // Main loop only: position of the next sample read from the ring buffer.
   uint32_t next_sample_{0};
   AudioTrack audio_track_;

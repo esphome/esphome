@@ -29,8 +29,14 @@ static constexpr uint8_t RTP_PAYLOAD_TYPE_L16 = 96;  // dynamic, described by th
 static constexpr uint32_t G711_SAMPLE_RATE = 8000;
 static constexpr size_t G711_SAMPLES_PER_PACKET = G711_SAMPLE_RATE * AUDIO_PACKET_MS / 1000;
 // The microphone's capture times may run this far ahead of its sample count before the difference counts as
-// audio it lost (a source that stopped and resumed, such as a USB microphone that reconnected).
+// audio it lost (a source that stopped and resumed).
 static constexpr int64_t CAPTURE_JUMP_US = 50000;
+// After an untimed chunk, which the I2S microphone sends when it dropped a DMA buffer, a loss is known to have
+// happened, so a difference only above the jitter of its capture times counts, catching a single short buffer.
+static constexpr int64_t CAPTURE_JITTER_US = 2000;
+// A source that gives no capture times at all, such as a USB microphone, is timed by delivery, which task
+// scheduling moves; only a pause this long counts as audio lost, such as one while it reconnected.
+static constexpr int64_t DELIVERY_JUMP_US = 500000;
 #endif
 
 void RTSPServer::socket_failed_(const char *what) {
@@ -133,15 +139,24 @@ void RTSPServer::on_audio_(const microphone::AudioCapture &capture) {
     // A callback that was already running when capture stopped can deliver its chunk after the restart.
     if (timed && first_us + duration_us <= this->restart_us_)
       return;
-    // Only real capture times show an outage; delivery times also move with task scheduling.
+    // How far the chunk starts after where the samples counted so far end.
+    int64_t ahead_us = 0;
+    int64_t tolerance_us = 0;
     if (timed && this->anchored_) {
-      const int64_t expected_us =
-          this->anchor_us_ + static_cast<int64_t>(this->captured_ - this->anchor_sample_) * 1000000 / rate;
-      if (first_us - expected_us > CAPTURE_JUMP_US) {
-        const auto lost = static_cast<uint32_t>((first_us - expected_us) * rate / 1000000);
-        this->add_gap_(this->captured_, lost);
-        this->captured_ += lost;
-      }
+      // Measured from the last timed chunk: the delivery time of an untimed one in between is later than its
+      // capture, which would hide the loss.
+      ahead_us =
+          first_us - this->timed_us_ - static_cast<int64_t>(this->captured_ - this->timed_sample_) * 1000000 / rate;
+      tolerance_us = this->dropped_ ? CAPTURE_JITTER_US : CAPTURE_JUMP_US;
+    } else if (!timed && !this->anchored_ && this->delivered_) {
+      ahead_us =
+          first_us - this->anchor_us_ - static_cast<int64_t>(this->captured_ - this->anchor_sample_) * 1000000 / rate;
+      tolerance_us = DELIVERY_JUMP_US;
+    }
+    if (ahead_us > tolerance_us) {
+      const auto lost = static_cast<uint32_t>(ahead_us * rate / 1000000);
+      this->add_gap_(this->captured_, lost);
+      this->captured_ += lost;
     }
     // A full ring buffer drops the new audio, so what it holds stays contiguous and each loss has one position.
     const size_t written = this->ring_buffer_->write_without_replacement(capture.data.data(), capture.data.size());
@@ -150,8 +165,14 @@ void RTSPServer::on_audio_(const microphone::AudioCapture &capture) {
       this->add_gap_(this->captured_ + kept, samples - kept);
     this->anchor_us_ = first_us;
     this->anchor_sample_ = this->captured_;
+    if (timed) {
+      this->timed_us_ = first_us;
+      this->timed_sample_ = this->captured_;
+    }
     this->captured_ += samples;
     this->anchored_ |= timed;
+    this->dropped_ = !timed;
+    this->delivered_ = true;
   }
   // Drain it promptly even with a long loop_interval; the ring buffer holds only 160 ms.
   App.wake_loop_threadsafe();
@@ -179,17 +200,36 @@ void RTSPServer::read_audio_() {
   while (this->ring_buffer_->available() >= input_len) {
     int64_t anchor_us;
     uint32_t anchor_sample;
+    uint32_t discard = 0;
     {
       LockGuard guard(this->capture_lock_);
-      // A loss that starts within this packet is placed before it, at most a packet early.
-      while (this->gap_count_ > 0 &&
-             static_cast<int32_t>(this->gaps_[0].at - this->next_sample_) < static_cast<int32_t>(samples)) {
+      // A loss at the packet's start moves its timestamp past the loss.
+      while (this->gap_count_ > 0 && static_cast<int32_t>(this->gaps_[0].at - this->next_sample_) <= 0) {
         this->next_sample_ += this->gaps_[0].len;
         std::copy(this->gaps_.begin() + 1, this->gaps_.begin() + this->gap_count_, this->gaps_.begin());
         this->gap_count_--;
       }
+      // One within it would put the audio either side of the loss at one timestamp, so the audio before it,
+      // less than a packet, is dropped and the loss handled at the start of the next one.
+      if (this->gap_count_ > 0) {
+        const auto ahead = static_cast<uint32_t>(this->gaps_[0].at - this->next_sample_);
+        if (ahead < samples)
+          discard = ahead;
+      }
       anchor_us = this->anchor_us_;
       anchor_sample = this->anchor_sample_;
+    }
+    if (discard > 0) {
+      // Read out through scratch space: the slot is smaller with G.711, and sessions may still be sending it.
+      std::array<uint8_t, 256> scratch;
+      for (size_t left = info.samples_to_bytes(discard); left > 0;) {
+        const size_t len = std::min(left, scratch.size());
+        if (this->ring_buffer_->read(scratch.data(), len) != len)
+          return;
+        left -= len;
+      }
+      this->next_sample_ += discard;
+      continue;
     }
     const uint32_t index = track.produced;
     for (auto &session : this->sessions_)
@@ -261,6 +301,8 @@ void RTSPServer::loop() {
         this->anchor_sample_ = this->next_sample_;
         this->gap_count_ = 0;
         this->anchored_ = false;
+        this->dropped_ = false;
+        this->delivered_ = false;
         this->restart_us_ = esp_timer_get_time();
       }
       this->microphone_source_->start();

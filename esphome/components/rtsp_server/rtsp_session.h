@@ -114,7 +114,7 @@ class RTSPSession {
   void open(std::unique_ptr<socket::Socket> socket, uint32_t now);
   void loop(uint32_t now, uint16_t port);
   /// Ignored unless playing with no output pending; packets of the frame being sent point into that frame.
-  /// `time_ms` is the frame's time on the millis_64() clock, for the sender reports.
+  /// `time_ms` is the frame's time on the millis_64() clock, which times its RTP timestamp and sender reports.
   void on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now,
                     uint64_t time_ms);
 

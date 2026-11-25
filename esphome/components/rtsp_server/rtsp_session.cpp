@@ -570,7 +570,7 @@ void RTSPSession::stop_playing_() {
 }
 
 void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now,
-                               [[maybe_unused]] uint64_t time_ms) {
+                               uint64_t time_ms) {
   // Pending output other than audio means a frame is in flight or a stalled one is still being padded out.
   // Audio includes the padding of an audio packet whose slot was reused: a client at the lag limit has one
   // pending most of the time, and would otherwise get no video.
@@ -588,9 +588,12 @@ void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image
   this->frame_sent_ = 0;
   this->frame_progress_ms_ = now;
 
-  uint32_t elapsed_ms = this->last_frame_ms_ == 0 ? 0 : now - this->last_frame_ms_;
+  // Timed by when the frame arrived, the time its sender report gives, so the two move together; `now` is the
+  // loop's start and only times stalls.
+  const auto frame_ms = static_cast<uint32_t>(time_ms);
+  uint32_t elapsed_ms = this->last_frame_ms_ == 0 ? 0 : frame_ms - this->last_frame_ms_;
   this->rtp_timestamp_ += static_cast<uint32_t>((static_cast<uint64_t>(elapsed_ms) * RTP_CLOCK_RATE) / 1000);
-  this->last_frame_ms_ = now;
+  this->last_frame_ms_ = frame_ms;
 #ifdef USE_RTSP_SERVER_AUDIO
   this->frame_time_ms_ = time_ms;
 #endif
