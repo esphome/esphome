@@ -4,4 +4,3 @@
 tflite_text:
   - id: test_text
     model: "../../components/tflite_text/model.tflite"
-    max_sequence_length: 16

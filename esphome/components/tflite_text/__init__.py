@@ -24,7 +24,6 @@ AUTO_LOAD = ["tflite_micro_runtime"]
 MULTI_CONF = True
 FINAL_VALIDATE_SCHEMA = final_validate
 
-CONF_MAX_SEQUENCE_LENGTH = "max_sequence_length"
 CONF_POSITION_OUTPUT = "position_output"
 
 tflite_text_ns = cg.esphome_ns.namespace("tflite_text")
@@ -36,7 +35,6 @@ CONF_DECODER_ID = "decoder_id"
 
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_MAX_SEQUENCE_LENGTH): cv.positive_int,
         # A two-entry output is ambiguous: two class logits or start/end positions.
         cv.Optional(CONF_POSITION_OUTPUT, default=False): cv.boolean,
         cv.GenerateID(CONF_PIPELINE_ID): cv.declare_id(TextInputPipeline),
