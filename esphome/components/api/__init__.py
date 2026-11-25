@@ -460,10 +460,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(wizard.CONF_WIZARD): wizard.WIZARD_SCHEMA,
             cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
-            # Keepalive (ping) interval; the client is told via HelloResponse.
-            # Raise it for sleepy devices, e.g. a Thread MTD with a long poll_period.
+            # Sent to the client in HelloResponse; raised for sleepy devices
             cv.Optional(CONF_KEEPALIVE, default=DEFAULT_KEEPALIVE): cv.All(
-                # Whole seconds only: the interval is advertised to clients in seconds
+                # Sent in whole seconds
                 cv.positive_time_period_seconds,
                 cv.Range(min=cv.TimePeriod(seconds=60), max=cv.TimePeriod(hours=1)),
             ),

@@ -77,8 +77,7 @@ namespace esphome::api {
 static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 10;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
-// Grace period for the ping answer: 1.5x keepalive (150 s total by default), capped at 5 min so a long
-// keepalive does not hold the slot of a vanished client for hours.
+// Ping answer grace: 1.5x keepalive, at most 5 min so a vanished client frees its slot
 static constexpr uint32_t KEEPALIVE_PONG_GRACE_MS = 300000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
     KEEPALIVE_TIMEOUT_MS + std::min<uint32_t>((KEEPALIVE_TIMEOUT_MS * 3) / 2, KEEPALIVE_PONG_GRACE_MS);
@@ -91,7 +90,7 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
 // WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
-// loop() checks the handshake first; a shorter keepalive would ping a client still in its handshake
+// A shorter keepalive would ping a client still in its handshake
 static_assert(KEEPALIVE_TIMEOUT_MS >= HANDSHAKE_TIMEOUT_MS);
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
@@ -389,7 +388,6 @@ void APIConnection::loop() {
 void APIConnection::check_keepalive_(uint32_t now) {
   // Caller guarantees: now - last_traffic_ > KEEPALIVE_TIMEOUT_MS
   if (this->flags_.sent_ping) {
-    // Disconnect if not responded within KEEPALIVE_DISCONNECT_TIMEOUT
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
       this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
