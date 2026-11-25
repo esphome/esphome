@@ -92,7 +92,7 @@ class FanTriggerTest : public ::testing::Test {
   template<void (*...F)(StringRef)> void on_preset_set_() {
     this->fan_.add_on_state_callback([last = this->last_<const char *>()]() {
       if (update_preset_changed(*last, the_fan->get_preset_mode()))
-        run_<StringRef, F...>(static_cast<StringRef>(the_fan->get_preset_mode()));
+        run<StringRef, F...>(static_cast<StringRef>(the_fan->get_preset_mode()));
     });
   }
 
@@ -120,11 +120,11 @@ class FanTriggerTest : public ::testing::Test {
     using T = std::remove_reference_t<decltype(the_fan->*Member)>;
     this->fan_.add_on_state_callback([last = this->last_<T>()]() {
       if (update_changed(*last, the_fan->*Member))
-        run_<T, F...>(static_cast<T>(the_fan->*Member));
+        run<T, F...>(static_cast<T>(the_fan->*Member));
     });
   }
   // A generated automation function, which takes x by reference
-  template<typename T, auto... F> static void run_(const T &x) { (F(x), ...); }
+  template<typename T, auto... F> static void run(const T &x) { (F(x), ...); }
   template<typename T> T *last_() { return static_cast<T *>(this->lasts_.emplace_back(std::make_shared<T>()).get()); }
 
   std::vector<std::shared_ptr<void>> lasts_;
