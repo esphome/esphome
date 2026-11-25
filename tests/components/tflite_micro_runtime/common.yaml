@@ -1,9 +1,9 @@
-# ESPHome build test: tflite_micro_runtime core.
-# The model is pinned to a commit so a push to that repository cannot change what
-# ESPHome CI builds. The input and output pipelines for a model kind are added by
-# the components that implement them; tflite_model_io is auto-loaded by the runtime.
+# ESPHome build test: tflite_micro_runtime core. model.tflite is a tiny fixture committed
+# next to this file, so the test needs no network. The input and output pipelines for
+# a model kind are added by the components that implement them; tflite_model_io is
+# auto-loaded by the runtime.
 tflite_micro_runtime:
   - id: test_tflite
-    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/4ca8470aba1b226071bcc3258f3b95fab08895d6/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
+    model: "../../components/tflite_micro_runtime/model.tflite"
     tensor_arena_size: 200KB
     debug: true
