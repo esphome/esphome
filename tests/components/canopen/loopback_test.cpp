@@ -91,8 +91,6 @@ TEST_F(LocalPair, SdoReadFromTheOtherNode) {
   EXPECT_EQ(bus.count(0x590), 1u);
 }
 
-// buffer transfers are segmented (block transfer is optional in servers, and CANopenNode's client doesn't fall back
-// when a server rejects it): a 40-byte write and read back
 // Objects a write wouldn't change: the EMCY COB-ID (the producer isn't configurable) and the SDO client parameters
 // (the client sets its channel for every request). Writes are refused, reads work.
 TEST_F(LocalPair, ReadOnlyCommunicationObjects) {
@@ -127,6 +125,8 @@ TEST_F(LocalPair, ReadOnlyCommunicationObjects) {
   EXPECT_EQ(read.reply.as<uint32_t>(), 0x90u);  // 0x80 + node id
 }
 
+// buffer transfers are segmented (block transfer is optional in servers, and CANopenNode's client doesn't fall back
+// when a server rejects it): a 40-byte write and read back
 TEST_F(LocalPair, SdoBufferTransfersAreSegmented) {
   uint8_t storage[40] = {};
   a.get_od().add_var(0x2000, OD_READ_WRITE, storage, sizeof(storage));

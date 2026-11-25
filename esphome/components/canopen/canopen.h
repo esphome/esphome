@@ -23,7 +23,7 @@ void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf);
 // - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: identity and device
 //   information. Two places run early enough: setters called from codegen (they run in main(), before App.setup()), or
 //   the setup() of a component whose setup priority is above the hub's (setup_priority::HARDWARE - 1, after the CAN
-//   bus), e.g. HARDWARE - 0.5. Calls made later are logged as errors and ignored.
+//   bus), e.g. HARDWARE - 0.5. Object dictionary entries added later are logged as errors and ignored.
 // The rest is runtime API, e.g. from loop() or automations: add_frame_listener() and the callbacks (any time),
 // send_frame(), SDO client requests (made before the hub's setup(), they wait for it). The hub's setup() runs before
 // most components' setup() (e.g. sensors, DATA) and the default on_boot automations.
@@ -54,7 +54,7 @@ class CANopenComponent : public Component {
   // others, since a CAN controller doesn't receive its own frames. nullptr = no other local node.
   void set_next_local(CANopenComponent *next) { this->next_local_ = next; }
 #ifdef USE_CANOPEN_NODE
-  void set_heartbeat_interval(uint32_t ms) { this->hb_producer_ms_ = ms; }
+  void set_heartbeat_interval(uint16_t ms) { this->hb_producer_ms_ = ms; }
   // NMT state after boot: OPERATIONAL (default) or PRE_OPERATIONAL (until an NMT master, or set_nmt_state(), starts
   // the node)
   void set_start_operational(bool operational) { this->start_operational_ = operational; }
