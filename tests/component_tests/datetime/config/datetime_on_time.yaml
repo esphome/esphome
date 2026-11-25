@@ -1,0 +1,30 @@
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+logger:
+
+api:
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: homeassistant
+
+datetime:
+  - platform: template
+    id: test_time
+    type: time
+    optimistic: true
+    on_time:
+      - logger.log: Time reached
+  - platform: template
+    id: test_datetime
+    type: datetime
+    optimistic: true
+    on_time:
+      - logger.log: Datetime reached

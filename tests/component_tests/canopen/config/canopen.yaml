@@ -38,3 +38,11 @@ canopen:
   - id: canopen_hub
     canbus_id: can_bus
     response_timeout: 200ms
+    on_heartbeat:
+      - logger.log:
+          format: "heartbeat from node 0x%02x"
+          args: [node_id]
+    on_emcy:
+      - logger.log:
+          format: "EMCY node 0x%02x: 0x%04x"
+          args: [node_id, emergency.error_code]
