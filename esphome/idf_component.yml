@@ -1,6 +1,8 @@
 dependencies:
   bblanchon/arduinojson:
     version: "7.4.3"
+  esphome/canopennode:
+    version: 4.1.0-esphome.2
   esphome/dlms_parser:
     version: 2.2.2
   esphome/esp-audio-libs:

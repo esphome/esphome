@@ -782,11 +782,6 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
   return this->publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
                        message.retain);
 }
-bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
-                                       bool retain) {
-  return this->publish_json(topic.c_str(), f, qos, retain);
-}
-
 bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
   if (!this->is_connected()) {
@@ -815,7 +810,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
   return ret != 0;
 }
 
-bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+bool MQTTClientComponent::publish_json(const char *topic, json::JsonBuildRef f, uint8_t qos, bool retain) {
   auto message = json::build_json(f);
   return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }

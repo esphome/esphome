@@ -122,3 +122,18 @@ hides nothing. `drive.py HOST LOG RUNS [GAP]` presses Run.
 - On a real radar, `soak.py HOST SECONDS OUT` counts state updates per entity and keeps the W and E log lines across
   reconnects; compare a soak per build. Use `ld2450/zonedrive.py` for LD2450 zone readbacks. LD2412 gate thresholds
   are read back only at boot, so check a write by setting it, rebooting the ESP and reading it, then restore it.
+
+## PMS5003T fed from the host without wires, and UART RX under power management (#23038)
+
+`scripts/uart_sim/pms_feed/`: on an ESP32 devkit the USB adapter's TX also reaches GPIO3, so a second hardware UART
+with `rx_pin: GPIO3` (TX GPIO4) receives what the host writes while the logger stays on UART0 at 9600: one port at
+9600 reads the logs and carries the frames. `pmsfeed.py PORT SECONDS OUT --reset` sends one PMS5003T frame per
+second (PM1.0 = frame number), captures the log and prints the feed, parse and warning counts; `pms-common.yaml`
+counts the pm_1_0 publishes on the device. `pms-dut.yaml` is the plain build, `pms-dfs.yaml` adds frequency scaling
+(`enable_light_sleep: true` for the light sleep case) and `pms-manual-pm.yaml` calls `esp_pm_configure()` by hand
+(`pmh.hpp`) for a tree without `esp32_power_management`. Run both power management builds with `--expect-pm`,
+which fails unless the capture proves power management was on (add `--expect-light-sleep` for the light sleep
+case); an `esp_pm_configure()` failure always fails.
+
+- The plain build parses every frame (run it with `--expect-all 0`); frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
+  classic devkit, has the numbers and the REF_TICK workaround).

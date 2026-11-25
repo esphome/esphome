@@ -30,6 +30,7 @@ climate:
     supported_presets:
       - AWAY
       - BOOST
+      - ECO
       - SLEEP
     on_alarm_start:
       then:

@@ -1,11 +1,11 @@
 from collections.abc import Callable
 from pathlib import Path
 import textwrap
-from typing import Literal, NamedTuple, TypedDict
+from typing import Literal, NamedTuple, NotRequired, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD
+from esphome.const import CONF_BOARD, KEY_CORE, KEY_TARGET_FRAMEWORK
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
@@ -14,12 +14,15 @@ from esphome.writer import clean_cmake_cache
 from .const import (
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
+    KEY_FAMILY,
+    KEY_FRAMEWORK_TYPE,
     KEY_KCONFIG,
     KEY_OVERLAY,
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
+    KEY_VARIANT,
     KEY_ZEPHYR,
     zephyr_ns,
 )
@@ -89,6 +92,10 @@ class ZephyrData(TypedDict):
     cdc_acm_users: dict[int, list[CdcAcmUser]]
     # Add port 0 even when no component claims a port (see zephyr_require_cdc_acm())
     cdc_acm_required: bool
+    # Set by the chips in a platform's zephyr_variants; nrf52 sets none of these
+    variant: NotRequired[str]
+    family: NotRequired[str | None]
+    framework_type: NotRequired[str]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -114,6 +121,32 @@ def zephyr_set_core_data(config: ConfigType) -> None:
 
 def zephyr_data() -> ZephyrData:
     return CORE.data[KEY_ZEPHYR]
+
+
+def _get_data() -> ZephyrData | dict[str, object]:
+    """Raise if the platform schema, which sets the target framework, has not run yet."""
+    if (data := CORE.data.get(KEY_ZEPHYR)) is not None:
+        return data
+    if (framework := CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_FRAMEWORK)) is None:
+        raise RuntimeError("Zephyr variant read before the platform schema set it")
+    if framework == KEY_ZEPHYR:
+        raise RuntimeError("Zephyr build without Zephyr data")
+    return {}
+
+
+def zephyr_variant() -> str | None:
+    """The active chip from a platform's zephyr_variants; None for nrf52 and others."""
+    return _get_data().get(KEY_VARIANT)
+
+
+def zephyr_variant_family() -> str | None:
+    """The active variant's family name, e.g. "stm32"; None without one."""
+    return _get_data().get(KEY_FAMILY)
+
+
+def zephyr_framework_type() -> str | None:
+    """The active `framework: type:`, e.g. "zephyr"; None as for zephyr_variant()."""
+    return _get_data().get(KEY_FRAMEWORK_TYPE)
 
 
 def zephyr_add_prj_conf(
@@ -341,6 +374,12 @@ def zephyr_require_cdc_acm() -> None:
     zephyr_enable_usb_cdc_acm()
     if zephyr_use_usb_device_next():
         zephyr_data()["cdc_acm_required"] = True
+
+
+def zephyr_enable_poweroff() -> None:
+    """Enable sys_poweroff(); Zigbee builds leave it out and stay awake instead."""
+    if "zigbee" not in CORE.loaded_integrations:
+        zephyr_add_prj_conf("POWEROFF", True)
 
 
 def _cdc_acm_add_ports() -> None:
