@@ -339,6 +339,23 @@ TEST(ModbusTcpUartClient, NoRoomWhileAWholeFrameWaitsForTheTransport) {
   EXPECT_EQ(link.available_for_write(), 256u);
 }
 
+TEST(ModbusTcpUartClient, AResponseTheReaderHasStartedIsReadWholeAfterADisconnect) {
+  // No hub: the reader takes 3 of the 7 response bytes, then the link drops.
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, 3));
+  pipe.up_ = false;
+  link.loop();
+
+  // The reader still gets the other 4 bytes, so its first 3 bytes never join the next response.
+  ASSERT_EQ(link.available(), 4u);
+  ASSERT_TRUE(link.read_array(taken + 3, 4));
+  EXPECT_TRUE(rtu_crc_ok(taken, 7));
+}
+
 TEST(ModbusTcpUartClient, DisconnectDropsInFlight) {
   Pipe pipe;
   ClientLink link(&pipe);

@@ -212,6 +212,38 @@ TEST(ModbusTcpUartServer, ReplyToARequestFromAClosedConnectionIsDropped) {
   EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
 }
 
+TEST(ModbusTcpUartServer, ARequestTheReaderHasStartedIsReadWholeAfterTheConnectionCloses) {
+  // No hub: the reader takes 3 bytes of request 7 (01 03 00 00 00 01 84 0A), then the client closes.
+  Pipe pipe;
+  ServerLink link(&pipe);
+  pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  link.loop();
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, 3));
+  pipe.up_ = false;
+  link.loop();
+
+  // A new client sends request 1 (01 03 00 01 00 01 D5 CA).
+  pipe.up_ = true;
+  pipe.feed_mbap(1, 1, PDU_REG1, sizeof(PDU_REG1));
+  link.loop();
+
+  // The reader gets the other 5 bytes of request 7, not request 1 behind its first 3 bytes.
+  ASSERT_EQ(link.available(), 5u);
+  ASSERT_TRUE(link.read_array(taken + 3, 5));
+  const uint8_t request_7[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+  EXPECT_EQ(std::memcmp(taken, request_7, sizeof(request_7)), 0);
+
+  // The reply to 7 is dropped, then request 1 comes whole.
+  link.answer({0x01, 0x03, 0x02, 0x12, 0x34});
+  EXPECT_EQ(pipe.n_, 0u);
+  link.loop();
+  ASSERT_EQ(link.available(), 8u);
+  ASSERT_TRUE(link.read_array(taken, 8));
+  const uint8_t request_1[] = {0x01, 0x03, 0x00, 0x01, 0x00, 0x01, 0xD5, 0xCA};
+  EXPECT_EQ(std::memcmp(taken, request_1, sizeof(request_1)), 0);
+}
+
 TEST(ModbusTcpUartServer, RequestTheHubHasNotReadIsForgottenWhenTheConnectionCloses) {
   // 7 = the old connection's request, 1 = the new client's first id.
   Pipe pipe;

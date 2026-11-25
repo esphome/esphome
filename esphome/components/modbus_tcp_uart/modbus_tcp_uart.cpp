@@ -74,17 +74,24 @@ void ModbusTcpUart::consume_tx_(size_t len) {
 void ModbusTcpUart::loop() {
   bool up = this->is_connected();
   if (!up) {
+    // Fewer bytes than the last frame: the reader has read a part of it. The rest stays, so the reader never holds
+    // a part of a frame that the next frame would join.
+    const size_t left = this->available();
+    const bool started = left != 0 && left < this->rx_last_len_;
     if (this->link_was_up_ &&
-        (this->txn_pending_ || this->tx_len_ != 0 || this->available() != 0 || this->tcp_len_ != 0)) {
+        (this->txn_pending_ || this->tx_len_ != 0 || (left != 0 && !started) || this->tcp_len_ != 0)) {
       ESP_LOGW(TAG, "%s", LOG_STR_ARG(LOG_STR("Link down, dropped the Modbus frame in flight")));
     }
     this->link_was_up_ = false;
     this->resync_ = false;
     this->tcp_len_ = 0;
-    // A request the hub has read but not answered stays open, so its late reply cannot reach the next connection.
-    this->orphan_ = this->server_ && this->txn_pending_ && this->available() == 0 && this->tx_len_ == 0;
+    // A request the reader has begun to read but not answered stays open, so its late reply cannot reach the next
+    // connection.
+    this->orphan_ = this->server_ && this->txn_pending_ && (left == 0 || started) && this->tx_len_ == 0;
     this->clear_tx_();
-    this->rx_.clear();
+    if (!started) {
+      this->rx_.clear();
+    }
     this->txn_pending_ = this->orphan_;
     return;
   }
@@ -282,6 +289,8 @@ void ModbusTcpUart::deliver_mbap_() {
           if (!this->inject_rx(rtu, rtu_len)) {
             this->txn_pending_ = false;
             this->note_drop_(LOG_STR("RX buffer full, dropped the request"));
+          } else {
+            this->rx_last_len_ = static_cast<uint16_t>(rtu_len);
           }
           break;
         }
@@ -297,6 +306,8 @@ void ModbusTcpUart::deliver_mbap_() {
         this->txn_pending_ = false;
         if (!this->inject_rx(rtu, rtu_len)) {
           this->note_drop_(LOG_STR("RX buffer full, dropped the response"));
+        } else {
+          this->rx_last_len_ = static_cast<uint16_t>(rtu_len);
         }
         break;
       }

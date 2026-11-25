@@ -66,6 +66,8 @@ class ModbusTcpUart : public uart::VirtualUARTComponent<RTU_FRAME_SIZE>, public 
   // tx_[0, tx_len_): written, not sent; a whole frame of tx_frame_len_ bytes at the front waits for room.
   uint16_t tx_len_{0};
   uint16_t tx_frame_len_{0};
+  // Length of the last frame put into rx_.
+  uint16_t rx_last_len_{0};
   uint8_t units_count_{0};
   // The open request's unit and function.
   uint8_t unit_{0};
