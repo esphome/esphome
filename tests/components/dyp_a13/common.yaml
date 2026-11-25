@@ -1,6 +1,7 @@
 sensor:
   - platform: dyp_a13
     id: dyp_a13_sensor
-    name: DYP A13 Distance
-    model: A13
-    mode: AUTO
+    name: DYP A13NYUW Distance
+    model: A13NYUW
+    filter_mode_pin: ${filter_mode_pin}
+    filter_mode: REALTIME
