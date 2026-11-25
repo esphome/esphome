@@ -629,7 +629,7 @@ _TRIGGER_AUTOMATIONS = (
     auto.GroupedAutomation(
         CONF_ON_TURN_ON,
         lambda light: light.remote_values.is_on(),
-        auto.filter_entered,
+        auto.CHANGE_TRIGGER.entered,
     ),
     auto.GroupedAutomation(
         CONF_ON_TURN_OFF,

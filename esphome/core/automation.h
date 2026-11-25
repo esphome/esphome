@@ -849,7 +849,7 @@ inline bool left(bool &last, bool now) {
 }
 
 /// Codegen use only: whether `now` differs from `last`. Stores `now` in `last`.
-template<typename T> bool changed(T &last, const T &now) {
+template<typename T> bool changed(T &last, T now) {
   const bool result = now != last;
   last = now;
   return result;
@@ -858,7 +858,7 @@ template<typename T> bool changed(T &last, const T &now) {
 /// Codegen use only: whether the null-terminated text `now` differs from `last`; nullptr counts as "".
 /// Keeps the pointer, so `now` must outlive it.
 inline bool changed(const char *&last, const char *now) {
-  const bool result = strcmp(last != nullptr ? last : "", now != nullptr ? now : "") != 0;
+  const bool result = last != now && strcmp(last != nullptr ? last : "", now != nullptr ? now : "") != 0;
   last = now;
   return result;
 }

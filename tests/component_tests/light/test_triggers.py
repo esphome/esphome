@@ -32,15 +32,6 @@ def _calls(body: str) -> list[str]:
     return re.findall(r"^\s*(\w+)\(\);$", body, re.MULTILINE)
 
 
-def _function_filtering(main_cpp: str, check: str) -> list[str]:
-    """The automation functions whose filter is ``check``, in the order they are defined."""
-    return re.findall(
-        rf"^static void (\w+)\(\) {{\n  if \(!\({re.escape(check)}\)\)\n    return;$",
-        main_cpp,
-        re.MULTILINE,
-    )
-
-
 def test_each_on_turn_on_has_its_own_flag_and_filter(main_cpp: str) -> None:
     body = _body(main_cpp, "esphome__lamp__remote_values_callback")
     for index in (0, 1):
@@ -70,12 +61,15 @@ def test_remote_values_callback_runs_the_automations_in_order(main_cpp: str) -> 
 
 
 def test_each_on_turn_off_tests_the_light_itself(main_cpp: str) -> None:
-    turn_off = _function_filtering(main_cpp, "!::lamp->current_values.is_on()")
-    assert len(turn_off) == 2
-    assert (
-        _calls(_body(main_cpp, "esphome__lamp__target_state_reached_callback"))
-        == turn_off
+    body = _body(main_cpp, "esphome__lamp__target_state_reached_callback")
+    turn_off = re.findall(
+        r"^  if \(!::lamp->current_values\.is_on\(\)\)\n    (\w+)\(\);$",
+        body,
+        re.MULTILINE,
     )
+    assert turn_off == _calls(body)
+    assert "first off" in _body(main_cpp, turn_off[0])
+    assert "second off" in _body(main_cpp, turn_off[1])
 
 
 def test_one_registration_per_callback_list(main_cpp: str) -> None:

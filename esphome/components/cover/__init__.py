@@ -102,7 +102,7 @@ def _state_automation(
     return automation.GroupedAutomation(
         conf_key,
         lambda cover: getattr(cover, member) == value,
-        automation.filter_entered,
+        automation.CHANGE_TRIGGER.entered,
     )
 
 

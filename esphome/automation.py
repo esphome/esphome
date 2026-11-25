@@ -2317,6 +2317,31 @@ async def build_trigger_callback(
     return await _trigger_callback(plan, args, config, params, forward, call, parent)
 
 
+async def _when_check(
+    call: ApplyCall | None,
+    config: ConfigType,
+    params: TemplateArgsType,
+    parent: MockObj | None,
+) -> str | None:
+    """The ``when`` filter rendered for ``config``, or None when it is skipped."""
+    if call is None:
+        return None
+    members = call.members
+    values = _apply_values(config, members)
+    if not _apply_call_active(members, values):
+        return None
+    return await _render_call(
+        "trigger filter",
+        call.target,
+        members,
+        values,
+        config,
+        None if parent is None else str(parent_ref(parent)),
+        params,
+        compare=True,
+    )
+
+
 async def _trigger_callback(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
@@ -2328,21 +2353,8 @@ async def _trigger_callback(
 ) -> MockObj:
     target = _call_target(plan, args, config)
     statements: list[str] = []
-    if call is not None:
-        members = call.members
-        values = _apply_values(config, members)
-        if _apply_call_active(members, values):
-            check = await _render_call(
-                "trigger filter",
-                call.target,
-                members,
-                values,
-                config,
-                None if parent is None else str(parent_ref(parent)),
-                params,
-                compare=True,
-            )
-            statements.append(f"if (!({check}))\n  return;")
+    if (check := await _when_check(call, config, params, parent)) is not None:
+        statements.append(f"if (!({check}))\n  return;")
     if forward is None:
         if _is_direct(plan, config) and not statements and _same_types(params, args):
             return target
@@ -2483,50 +2495,28 @@ async def build_automation_lists(
             cg.add(getattr(parent, f"add_{entry.conf_key}_automation")(obj))
 
 
-ChangeTest = Callable[[MockObj, Expression], Expression]
-"""A ``GroupedAutomation`` filter: given the automation's own copy and the watched value, it returns
-the C++ test that compares them and stores the value in the copy."""
-
-# Fully qualified and nested, so a YAML id of the same name neither collides nor makes a call ambiguous
-_CHANGE_TRIGGER_NS = cg.global_ns.namespace("esphome").namespace("change_trigger")
-
-
-def filter_entered(last: MockObj, value: Expression) -> Expression:
-    """Runs when the watched bool becomes true."""
-    return _CHANGE_TRIGGER_NS.entered(last, value)
-
-
-def filter_left(last: MockObj, value: Expression) -> Expression:
-    """Runs when the watched bool stops being true; not on a first false."""
-    return _CHANGE_TRIGGER_NS.left(last, value)
-
-
-def filter_changed(last: MockObj, value: Expression) -> Expression:
-    """Runs when the watched value differs from the last one this automation saw.
-
-    Text is watched as a null-terminated ``const char *``, with a ``const char *`` copy.
-    """
-    return _CHANGE_TRIGGER_NS.changed(last, value)
+# Fully qualified and nested, so a YAML id of the same name neither collides nor makes a call ambiguous.
+# A GroupedAutomation filter: CHANGE_TRIGGER.entered, .left or .changed.
+CHANGE_TRIGGER = cg.global_ns.namespace("esphome").namespace("change_trigger")
 
 
 @dataclass(frozen=True, slots=True)
 class GroupedAutomation:
-    """An on_* key for ``build_grouped_callback_automations``.
-
-    ``watched`` gets the parent as ``parent_ref`` names it and returns the value ``filter`` reads, of
-    ``last_type``; with ``args`` the automation receives ``forwarded`` of the parent, or that value.
-    ``when`` is a further filter that keeps nothing and may name ``{parent}``; it is tested after
-    ``filter``, which always runs. ``callback_method`` registers the entry on another list than the
-    builder's.
-    """
+    """An on_* key for ``build_grouped_callback_automations``."""
 
     conf_key: str
+    # Reads the watched value from the parent, as ``parent_ref`` names it
     watched: Callable[[MockObj], Expression] | None = None
-    filter: ChangeTest | None = None
-    last_type: SafeExpType = field(default_factory=lambda: cg.bool_)
+    # Takes the automation's copy and the watched value; runs on every callback
+    filter: Callable[[MockObj, Expression], Expression] | None = None
+    # Type of the copy; default the first arg's type, else bool
+    last_type: SafeExpType | None = None
     args: TemplateArgsType = field(default_factory=list)
+    # Tested after ``filter``, keeps nothing; may name ``{parent}``
     when: str | ApplyCall | None = None
+    # Handed to the automation instead of the watched value
     forwarded: Callable[[MockObj], Expression] | None = None
+    # Registers the entry on another list than the builder's
     callback_method: str | None = None
 
     def __post_init__(self) -> None:
@@ -2542,63 +2532,67 @@ async def build_grouped_callback_automations(
     callback_method: str,
     entries: tuple[GroupedAutomation, ...],
 ) -> None:
-    """Register the automations of ``entries`` as one callback per list, by default ``callback_method``.
+    """Register the automations of ``entries`` as one callback per list, run in entry order.
 
-    The automations are built in entry order, so a lambda can name an automation of an earlier
-    entry. Each callback takes no arguments and runs its automations in entry order. An automation
-    with a ``filter`` keeps the last value it saw in a zero-initialised static of its own, so each
-    behaves like a Trigger object holding that value. A single automation without one is registered
-    as is.
+    Each filtered automation keeps its last value in a static of its own; a lone unconditional one is registered as is.
     """
     ref = parent_ref(parent)
-    # Per list: its copies, its calls and the automation functions it calls
-    groups: dict[str, tuple[list[Statement], list[Statement], list[MockObj]]] = {}
+    # Per list: its copies, and each automation with the condition it runs on
+    groups: dict[str, tuple[list[Statement], list[tuple[str | None, MockObj]]]] = {}
     for entry in entries:
-        statics, body, targets = groups.setdefault(
-            entry.callback_method or callback_method, ([], [], [])
+        statics, calls = groups.setdefault(
+            entry.callback_method or callback_method, ([], [])
         )
         value = None if entry.watched is None else entry.watched(ref)
         handed = value if entry.forwarded is None else entry.forwarded(ref)
-        last_type = cg.safe_exp(entry.last_type)
+        if entry.last_type is not None:
+            last_type = cg.safe_exp(entry.last_type)
+        else:
+            last_type = cg.safe_exp(entry.args[0][0] if entry.args else cg.bool_)
+        when = _when_call(entry.when, parent)
         for index, conf in enumerate(config.get(entry.conf_key, [])):
             target = await build_trigger_callback(
-                entry.args,
-                conf,
-                [],
-                forward=[handed] if entry.args else None,
-                when=entry.when,
-                parent=parent,
+                entry.args, conf, [], forward=[handed] if entry.args else None
             )
-            targets.append(target)
-            run = cg.statement(MockObj(target)())
-            if entry.filter is None:
-                body.append(run)
-                continue
-            # Unique against config ids and globals, so it cannot hide one the filter names
-            last_id = cg.unique_global_id(
-                f"{parent}_{entry.conf_key}_{index}_last", last_type
-            )
-            last = MockObj(last_id)
-            CORE.register_variable(last_id, last)
-            statics.append(
-                cg.statement(
-                    VariableDeclarationExpression(last_type, "", last, static=True)
+            condition = await _when_check(when, conf, [], parent)
+            if entry.filter is not None:
+                # Unique against config ids and globals, so it cannot hide one the filter names
+                last_id = cg.unique_global_id(
+                    f"{parent}_{entry.conf_key}_{index}_last", last_type
                 )
-            )
-            # No statement builder for if
-            body.append(cg.RawStatement(f"if ({entry.filter(last, value)})\n  {run}"))
-    for method, (statics, body, targets) in groups.items():
-        if not body:
+                last = MockObj(last_id)
+                CORE.register_variable(last_id, last)
+                statics.append(
+                    cg.statement(
+                        VariableDeclarationExpression(last_type, "", last, static=True)
+                    )
+                )
+                test = entry.filter(last, value)
+                condition = (
+                    str(test) if condition is None else f"{test} && ({condition})"
+                )
+            calls.append((condition, target))
+    for method, (statics, calls) in groups.items():
+        if not calls:
             continue
-        if not statics and len(body) == 1:
-            callback = targets[0]
+        if len(calls) == 1 and calls[0][0] is None:
+            callback = calls[0][1]
         else:
-            callback = cg.shared_static_function(
-                f"esphome__{parent}__{method.removeprefix('add_')}",
+            body: list[Statement] = []
+            for condition, target in calls:
+                run = cg.statement(MockObj(target)())
+                # No statement builder for if
+                body.append(
+                    run
+                    if condition is None
+                    else cg.RawStatement(f"if ({condition})\n  {run}")
+                )
+            callback = apply_static_function(
+                config[CONF_ID],
                 cg.void,
                 [],
                 statics + body,
-                share=False,
+                suffix=method.removeprefix("add_"),
             )
         cg.add(getattr(parent, method)(callback))
 

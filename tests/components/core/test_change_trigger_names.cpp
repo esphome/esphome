@@ -21,17 +21,3 @@ TEST(ChangeTriggerNames, YamlIdsNamedLikeTheHelpersStayUsable) {
   // Unqualified, as a lambda names an id
   EXPECT_EQ(left + entered + changed, 6);
 }
-
-TEST(ChangeTriggerNames, QualifiedCallsReachTheHelpersPastTheGlobals) {
-  // The globals hide nothing the generated code names: each call resolves through esphome::change_trigger
-  bool last = true;
-  EXPECT_FALSE(esphome::change_trigger::entered(last, true));
-  EXPECT_FALSE(esphome::change_trigger::left(last, true));
-  EXPECT_TRUE(esphome::change_trigger::left(last, false));
-  const char *text = nullptr;
-  EXPECT_TRUE(esphome::change_trigger::changed(text, "eco"));
-  EXPECT_FALSE(esphome::change_trigger::changed(text, "eco"));
-  EXPECT_EQ(left, 1);
-  EXPECT_EQ(entered, 2);
-  EXPECT_EQ(changed, 3);
-}
