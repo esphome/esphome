@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <string>
 
 #include "esphome/components/cover/automation.h"
 #include "esphome/components/cover/cover.h"
@@ -54,23 +55,34 @@ struct Fired {
   int idle{0};
 };
 
-template<typename T> static void attach(Cover *cover, Action<> *action) {
-  auto *automation = new Automation<>(new T(cover));  // NOLINT(cppcoreguidelines-owning-memory)
+using InState = bool (*)(const Cover &);
+static bool is_opened(const Cover &cover) { return cover.position == COVER_OPEN; }
+static bool is_closed(const Cover &cover) { return cover.position == COVER_CLOSED; }
+template<CoverOperation OP> static bool is_in(const Cover &cover) { return cover.current_operation == OP; }
+
+// The check codegen emits for each on_opened, on_closed, on_opening, on_closing and on_idle automation.
+template<InState T> static void attach(Cover *cover, Action<> *action) {
+  auto *automation = new Automation<>();  // NOLINT(cppcoreguidelines-owning-memory)
   automation->add_action(action);
+  auto *seen = new uint8_t(0);  // NOLINT(cppcoreguidelines-owning-memory)
+  cover->add_on_state_callback([cover, automation, seen]() {
+    if (state_entered(*seen, 0x01, T(*cover)))
+      automation->trigger();
+  });
 }
 
-template<typename T> static void count(Cover *cover, int *counter) {
+template<InState T> static void count(Cover *cover, int *counter) {
   attach<T>(cover, new CountAction(counter));  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 class CoverTriggersTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    count<CoverOpenedTrigger>(&this->cover_, &this->fired_.opened);
-    count<CoverClosedTrigger>(&this->cover_, &this->fired_.closed);
-    count<CoverTrigger<COVER_OPERATION_OPENING>>(&this->cover_, &this->fired_.opening);
-    count<CoverTrigger<COVER_OPERATION_CLOSING>>(&this->cover_, &this->fired_.closing);
-    count<CoverTrigger<COVER_OPERATION_IDLE>>(&this->cover_, &this->fired_.idle);
+    count<is_opened>(&this->cover_, &this->fired_.opened);
+    count<is_closed>(&this->cover_, &this->fired_.closed);
+    count<is_in<COVER_OPERATION_OPENING>>(&this->cover_, &this->fired_.opening);
+    count<is_in<COVER_OPERATION_CLOSING>>(&this->cover_, &this->fired_.closing);
+    count<is_in<COVER_OPERATION_IDLE>>(&this->cover_, &this->fired_.idle);
   }
 
   TestCover cover_;
@@ -184,12 +196,61 @@ TEST_F(CoverTriggersTest, UnknownPositionDoesNotFire) {
 }
 
 TEST_F(CoverTriggersTest, PublishFromTriggerDoesNotRefire) {
-  attach<CoverOpenedTrigger>(&this->cover_,
-                             new RepublishAction(&this->cover_));  // NOLINT(cppcoreguidelines-owning-memory)
+  attach<is_opened>(&this->cover_,
+                    new RepublishAction(&this->cover_));  // NOLINT(cppcoreguidelines-owning-memory)
   this->cover_.publish(COVER_OPEN, COVER_OPERATION_IDLE);
   EXPECT_EQ(this->fired_.opened, 1);
   EXPECT_EQ(this->fired_.idle, 1);
   EXPECT_EQ(this->cover_.tilt, 0.5f);
+}
+
+// On dev this looped forever: CoverTrigger stored the operation only after triggering.
+TEST_F(CoverTriggersTest, OperationPublishFromTriggerDoesNotRefire) {
+  attach<is_in<COVER_OPERATION_OPENING>>(
+      &this->cover_,
+      new RepublishAction(&this->cover_));  // NOLINT(cppcoreguidelines-owning-memory)
+  this->cover_.publish(0.5f, COVER_OPERATION_OPENING);
+  EXPECT_EQ(this->fired_.opening, 1);
+  EXPECT_EQ(this->cover_.tilt, 0.5f);
+}
+
+class RecordAction final : public Action<> {
+ public:
+  RecordAction(std::string *log, char name) : log_(log), name_(name) {}
+  void play() override { this->log_->push_back(this->name_); }
+
+ protected:
+  std::string *log_;
+  char name_;
+};
+
+// Codegen checks the triggers in this order: on_opened, on_closed, on_closing, on_opening, on_idle.
+TEST(CoverTriggerOrderTest, FiresInRegistrationOrder) {
+  TestCover cover;
+  std::string log;
+  attach<is_opened>(&cover, new RecordAction(&log, 'o'));  // NOLINT(cppcoreguidelines-owning-memory)
+  attach<is_closed>(&cover, new RecordAction(&log, 'c'));  // NOLINT(cppcoreguidelines-owning-memory)
+  attach<is_in<COVER_OPERATION_CLOSING>>(&cover,
+                                         new RecordAction(&log, 'C'));  // NOLINT(cppcoreguidelines-owning-memory)
+  attach<is_in<COVER_OPERATION_OPENING>>(&cover,
+                                         new RecordAction(&log, 'O'));       // NOLINT(cppcoreguidelines-owning-memory)
+  attach<is_in<COVER_OPERATION_IDLE>>(&cover, new RecordAction(&log, 'i'));  // NOLINT(cppcoreguidelines-owning-memory)
+  cover.publish(COVER_OPEN, COVER_OPERATION_OPENING);
+  cover.publish(COVER_CLOSED, COVER_OPERATION_IDLE);
+  cover.publish(0.5f, COVER_OPERATION_CLOSING);
+  EXPECT_EQ(log, "oOciC");
+}
+
+// A publish from an action runs the triggers not yet run, then later callbacks such as a copy cover's.
+TEST(CoverTriggerOrderTest, PublishFromTriggerRunsPendingTriggersFirst) {
+  TestCover cover;
+  std::string log;
+  attach<is_opened>(&cover, new RecordAction(&log, 'o'));                    // NOLINT(cppcoreguidelines-owning-memory)
+  attach<is_opened>(&cover, new RepublishAction(&cover));                    // NOLINT(cppcoreguidelines-owning-memory)
+  attach<is_in<COVER_OPERATION_IDLE>>(&cover, new RecordAction(&log, 'i'));  // NOLINT(cppcoreguidelines-owning-memory)
+  cover.add_on_state_callback([&log]() { log.push_back('x'); });
+  cover.publish(COVER_OPEN, COVER_OPERATION_IDLE);
+  EXPECT_EQ(log, "oixx");
 }
 
 }  // namespace esphome::cover::testing
