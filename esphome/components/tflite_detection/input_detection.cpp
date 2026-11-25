@@ -115,7 +115,11 @@ bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return false;
   }
   const size_t candidates = static_cast<size_t>(boxes->dims->data[1]);
-  size_t available = std::min(candidates, static_cast<size_t>(total));
+  // The count is a float: a NaN or negative one means no detections, and the cast
+  // of an out-of-range float to size_t is undefined.
+  size_t available = 0;
+  if (total > 0.0f)
+    available = total >= static_cast<float>(candidates) ? candidates : static_cast<size_t>(total);
   // Each per-box tensor must hold at least as many entries as the boxes it describes.
   available = std::min({available, tensor_elements(outputs[1]), tensor_elements(outputs[2])});
   for (size_t index = 0; index < available; index++) {
