@@ -42,7 +42,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_build_flag("-DxPortGetCoreID=int")
     elif CORE.is_esp8266:
         # https://github.com/esphome-libs/ESPAsyncTCP
-        cg.add_library("esphome/ESPAsyncTCP", "2.1.0")
+        cg.add_library("esphome/ESPAsyncTCP", "2.1.1")
     elif CORE.is_rp2:
         # https://github.com/esphome-libs/RPAsyncTCP, a fork of ayushsharma82/RPAsyncTCP
         # 1.3.2 that counts queued bytes before lwIP can send and ACK them, so
