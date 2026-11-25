@@ -80,6 +80,36 @@ def test_client_link_on_a_tcp_uart_with_one_connection_passes() -> None:
     assert _run(config, full) is None
 
 
+def test_two_links_on_one_tcp_uart_are_rejected() -> None:
+    config = {"id": ID("mb_link", is_declaration=True), "tcp_uart_id": ID("sock")}
+    full = {
+        "modbus_tcp_uart": [
+            config,
+            {"id": ID("other_link", is_declaration=True), "tcp_uart_id": ID("sock")},
+        ]
+    }
+    with pytest.raises(cv.Invalid, match="own tcp_uart"):
+        _run(config, full)
+
+
+def test_modbus_hub_on_the_tcp_uart_of_a_link_is_rejected() -> None:
+    config = {"id": ID("mb_link", is_declaration=True), "tcp_uart_id": ID("sock")}
+    full = {"modbus": [{"id": ID("hub"), "uart_id": ID("sock"), "role": "client"}]}
+    with pytest.raises(cv.Invalid, match="own tcp_uart"):
+        _run(config, full)
+
+
+def test_links_on_separate_tcp_uarts_pass() -> None:
+    config = {"id": ID("mb_link", is_declaration=True), "tcp_uart_id": ID("sock")}
+    full = {
+        "modbus_tcp_uart": [
+            config,
+            {"id": ID("other_link", is_declaration=True), "tcp_uart_id": ID("sock2")},
+        ]
+    }
+    assert _run(config, full) is None
+
+
 def test_served_units_are_those_on_the_link_hubs() -> None:
     full = {
         "modbus": [

@@ -49,6 +49,19 @@ def _final_validate(config: ConfigType) -> None:
     full = fv.full_config.get()
     link_id = str(config[CONF_ID])
     want = config.get(CONF_ROLE, "client")
+    # One tcp_uart carries one link. A second link or a hub on it would read its bytes.
+    tcp_id = str(config[CONF_TCP_UART_ID])
+    if any(
+        str(other[CONF_ID]) != link_id and str(other[CONF_TCP_UART_ID]) == tcp_id
+        for other in full.get(DOMAIN) or []
+    ) or any(
+        str(hub.get(CONF_UART_ID, "")) == tcp_id for hub in full.get("modbus") or []
+    ):
+        raise cv.Invalid(
+            "This tcp_uart is already used by another link or modbus hub. "
+            "Give each modbus_tcp_uart its own tcp_uart",
+            [CONF_TCP_UART_ID],
+        )
     if want == "client":
         # The client matches each response to the one request it sent on its connection.
         for parent in full.get(tcp_uart.DOMAIN) or []:
