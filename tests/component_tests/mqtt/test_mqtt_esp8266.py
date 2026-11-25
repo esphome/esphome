@@ -11,15 +11,7 @@ ESP8266_ESP_ASYNC_TCP_LIBRARY = "esphome/ESP8266AsyncTCP"
 ESP8266_ESP_ASYNC_TCP_VERSION = "2.1.2"
 
 
-def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
-    generate_main: Callable[[str | Path], str],
-) -> None:
-    """Test ESP8266 MQTT uses the ESP8266 MQTT libraries."""
-    main_cpp = generate_main("tests/component_tests/mqtt/test_mqtt_esp8266.yaml")
-
-    assert "set_ssl_fingerprint" not in main_cpp
-    assert "-DASYNC_TCP_SSL_ENABLED=1" not in CORE.build_flags
-
+def _assert_esp8266_mqtt_libraries() -> None:
     async_mqtt_client = CORE.platformio_libraries["AsyncMqttClient-esphome"]
     assert async_mqtt_client.name == ESP8266_ASYNC_MQTT_CLIENT_LIBRARY
     assert async_mqtt_client.version == ESP8266_ASYNC_MQTT_CLIENT_VERSION
@@ -29,3 +21,30 @@ def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
     assert async_tcp.name == ESP8266_ESP_ASYNC_TCP_LIBRARY
     assert async_tcp.version == ESP8266_ESP_ASYNC_TCP_VERSION
     assert async_tcp.repository is None
+
+
+def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Test ESP8266 MQTT uses the ESP8266 MQTT libraries."""
+    main_cpp = generate_main("tests/component_tests/mqtt/test_mqtt_esp8266.yaml")
+
+    assert "set_ssl_fingerprint" not in main_cpp
+    assert "-DASYNC_TCP_SSL_ENABLED=1" not in CORE.build_flags
+    _assert_esp8266_mqtt_libraries()
+
+
+def test_mqtt_esp8266_tls_fingerprint_codegen_uses_esp8266_mqtt_libraries(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Test ESP8266 MQTT TLS fingerprint codegen uses the ESP8266 MQTT libraries."""
+    main_cpp = generate_main(
+        "tests/component_tests/mqtt/test_mqtt_esp8266_tls_fingerprint.yaml"
+    )
+
+    assert "mqtt_client->set_broker_port(8883);" in main_cpp
+    assert "mqtt_client->set_ssl_fingerprint({" in main_cpp
+    assert "mqtt_client->disable_log_message();" in main_cpp
+    assert "0x00, 0x11, 0x22, 0x33" in main_cpp
+    assert "-DASYNC_TCP_SSL_ENABLED=1" in CORE.build_flags
+    _assert_esp8266_mqtt_libraries()
