@@ -378,6 +378,18 @@ def test_default_global_and_boot_log_levels(
             False,
             id="logger_level_already_drops_it",
         ),
+        pytest.param(
+            {
+                "logger": {
+                    "id": "log",
+                    "level": "DEBUG",
+                    "initial_level": "ERROR",
+                    "logs": {},
+                }
+            },
+            False,
+            id="initial_level_already_drops_it",
+        ),
         pytest.param({}, False, id="no_logger"),
     ],
 )

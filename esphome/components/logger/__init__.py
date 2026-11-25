@@ -888,7 +888,8 @@ async def request_tag_log_level(tag: str, level: str) -> None:
     if (
         (config := CORE.config.get(DOMAIN)) is None
         or tag in config[CONF_LOGS]
-        or LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+        # The device starts at initial_level when it is set
+        or LOG_LEVEL_SEVERITY.index(config.get(CONF_INITIAL_LEVEL, config[CONF_LEVEL]))
         <= LOG_LEVEL_SEVERITY.index(level)
     ):
         return
