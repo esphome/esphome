@@ -14,6 +14,7 @@ from esphome.components.tflite_micro_runtime import (
     final_validate,
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
+from esphome.components.tflite_output_processor import CONF_DECODER_ID
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -28,7 +29,6 @@ FINAL_VALIDATE_SCHEMA = final_validate
 tflite_pose_ns = cg.esphome_ns.namespace("tflite_pose")
 PoseDecoder = tflite_pose_ns.class_("PoseDecoder")
 
-CONF_DECODER_ID = "decoder_id"
 
 POSE_SCHEMA = IMAGE_SCHEMA.extend(
     {cv.GenerateID(CONF_DECODER_ID): cv.declare_id(PoseDecoder)}

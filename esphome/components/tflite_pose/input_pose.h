@@ -6,17 +6,17 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 
 #include "esphome/components/tflite_output_processor/output_processor.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::tflite_pose {
 
 /// @brief One keypoint: position in the model's normalized coordinates and its score.
 struct Keypoint {
-  float y{0.0f};
-  float x{0.0f};
-  float score{0.0f};
+  float y;
+  float x;
+  float score;
 };
 
 /// @brief Decodes a [1, 1, K, 3] keypoint tensor of (y, x, score) triplets.
@@ -28,7 +28,7 @@ class PoseDecoder final : public tflite_output_processor::OutputDecoder {
   size_t keypoint_count() const { return this->count_; }
 
  protected:
-  std::unique_ptr<Keypoint[]> keypoints_;
+  RAMUniquePtr<Keypoint[]> keypoints_;
   size_t count_{0};
 };
 

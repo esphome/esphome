@@ -2,13 +2,11 @@
 
 #ifdef USE_TFLITE_MICRO_HELPER
 
-#include <new>
-
 #include "esphome/core/log.h"
 
 namespace esphome::tflite_pose {
 
-static const char *const TAG = "tflite_pose";
+ESPHOME_LOG_TAG(TAG, "tflite_pose");
 
 bool PoseDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   if (count != 1) {
@@ -27,7 +25,7 @@ bool PoseDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return false;
   }
   if (this->count_ != keypoints) {
-    this->keypoints_.reset(new (std::nothrow) Keypoint[keypoints]);
+    this->keypoints_ = RAMAllocator<Keypoint>().make_unique_array_for_overwrite(keypoints);
     if (!this->keypoints_) {
       ESP_LOGE(TAG, "Could not allocate the %zu keypoints", keypoints);
       return false;
