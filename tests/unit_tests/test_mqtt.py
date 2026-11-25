@@ -809,6 +809,7 @@ def test_prepare_reconnects_with_backoff_after_an_unexpected_disconnect(
         )
         == 2
     )
+    assert "Cannot reconnect to the MQTT broker: down" in caplog.text
     assert "Successfully reconnected to the MQTT server" in caplog.text
 
 
@@ -919,23 +920,13 @@ def test_prepare_loads_client_certificate() -> None:
 _BROKER_CERT = b"broker certificate"
 
 
-def _prepare_with_fingerprint(
-    fingerprint: str,
-    connect_error: Exception | None = None,
-) -> tuple[MagicMock, MagicMock, MagicMock]:
-    """Runs prepare() with ssl_fingerprints against a broker presenting _BROKER_CERT."""
-    with (
-        patch("esphome.mqtt.mqtt.Client") as client_cls,
-        patch("esphome.mqtt.ssl.create_default_context") as create_context,
-        patch(
-            "esphome.mqtt.socket.create_connection", side_effect=connect_error
-        ) as create_connection,
-    ):
-        context = create_context.return_value
-        tls_sock = context.wrap_socket.return_value.__enter__.return_value
-        tls_sock.getpeercert.return_value = _BROKER_CERT
+def _pinned_context_from_prepare() -> tuple[MagicMock, ssl.SSLContext]:
+    """Runs prepare() with ssl_fingerprints pinned to _BROKER_CERT."""
+    with patch("esphome.mqtt.mqtt.Client") as client_cls:
         prepare(
-            _mqtt_config({CONF_SSL_FINGERPRINTS: [fingerprint]}),
+            _mqtt_config(
+                {CONF_SSL_FINGERPRINTS: [hashlib.sha1(_BROKER_CERT).hexdigest()]}
+            ),
             [],
             None,
             None,
@@ -943,31 +934,70 @@ def _prepare_with_fingerprint(
             None,
             None,
         )
-    return client_cls.return_value, context, create_connection
+    client = client_cls.return_value
+    client.tls_set_context.assert_called_once()
+    return client, client.tls_set_context.call_args.args[0]
 
 
-def test_prepare_fingerprint_match_connects_over_tls() -> None:
-    client, context, create_connection = _prepare_with_fingerprint(
-        hashlib.sha1(_BROKER_CERT).hexdigest()
-    )
+def test_prepare_fingerprint_pins_the_paho_socket() -> None:
+    """The pin lives on the context paho wraps every connection with, not a separate check."""
+    client, context = _pinned_context_from_prepare()
 
-    create_connection.assert_called_once_with(("broker.local", 8883), timeout=10)
-    tls_sock = context.wrap_socket.return_value.__enter__.return_value
-    tls_sock.getpeercert.assert_called_once_with(binary_form=True)
     assert context.check_hostname is False
     assert context.verify_mode == ssl.CERT_NONE
-    client.tls_set_context.assert_called_once_with(context)
+    assert issubclass(context.sslsocket_class, ssl.SSLSocket)
+    assert context.sslsocket_class is not ssl.SSLSocket
     client.connect.assert_called_once_with("broker.local", 8883)
 
 
+@pytest.mark.parametrize(
+    ("peer_cert", "matches"),
+    [
+        (_BROKER_CERT, True),
+        (b"other certificate", False),
+        (None, False),
+    ],
+    ids=["match", "mismatch", "no certificate"],
+)
+def test_pinned_socket_checks_the_certificate_after_the_handshake(
+    peer_cert: bytes | None, matches: bool
+) -> None:
+    _, context = _pinned_context_from_prepare()
+    sock = MagicMock(spec=context.sslsocket_class)
+    sock.getpeercert.return_value = peer_cert
+
+    with patch.object(ssl.SSLSocket, "do_handshake") as base_handshake:
+        if matches:
+            context.sslsocket_class.do_handshake(sock)
+        else:
+            with pytest.raises(
+                ssl.SSLCertVerificationError,
+                match="^MQTT broker certificate fingerprint [0-9a-f]{40} does not match",
+            ):
+                context.sslsocket_class.do_handshake(sock)
+
+    base_handshake.assert_called_once_with(False)
+    sock.getpeercert.assert_called_once_with(binary_form=True)
+
+
 def test_prepare_fingerprint_mismatch_refuses_to_connect() -> None:
-    with pytest.raises(EsphomeError, match="does not match ssl_fingerprints"):
-        _prepare_with_fingerprint("00" * 20)
-
-
-def test_prepare_fingerprint_check_connection_error() -> None:
-    with pytest.raises(EsphomeError, match="Cannot connect to MQTT broker: boom"):
-        _prepare_with_fingerprint("00" * 20, connect_error=OSError("boom"))
+    """A mismatch on paho's own handshake fails the connect before CONNECT is sent."""
+    with (
+        patch("esphome.mqtt.mqtt.Client") as client_cls,
+        pytest.raises(EsphomeError, match="does not match ssl_fingerprints"),
+    ):
+        client_cls.return_value.connect.side_effect = ssl.SSLCertVerificationError(
+            "MQTT broker certificate fingerprint 00 does not match ssl_fingerprints"
+        )
+        prepare(
+            _mqtt_config({CONF_SSL_FINGERPRINTS: ["00" * 20]}),
+            [],
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
 
 @patch("esphome.mqtt.initialize")

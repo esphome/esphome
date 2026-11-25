@@ -7,7 +7,6 @@ import json
 import logging
 from pathlib import Path
 import re
-import socket
 import ssl
 import tempfile
 import time
@@ -92,22 +91,29 @@ def _unverified_context() -> ssl.SSLContext:
     return context
 
 
-def _check_broker_fingerprint(host: str, port: int, fingerprints: list[str]) -> None:
-    """Refuse a broker whose certificate SHA1 does not match a configured fingerprint."""
+def _pinned_context(fingerprints: list[str]) -> ssl.SSLContext:
+    """Return a context that refuses a broker whose certificate SHA1 is not pinned.
+
+    paho calls do_handshake() on each new socket before it sends CONNECT, so the
+    check covers every connect and reconnect.
+    """
+    pinned = frozenset(fingerprints)
+
+    class _PinnedSSLSocket(ssl.SSLSocket):
+        def do_handshake(self, block: bool = False) -> None:
+            super().do_handshake(block)
+            cert = self.getpeercert(binary_form=True)
+            if (fingerprint := hashlib.sha1(cert or b"").hexdigest()) not in pinned:
+                # Two arguments, or str() prints the message as a tuple
+                raise ssl.SSLCertVerificationError(
+                    ssl.SSL_ERROR_SSL,
+                    f"MQTT broker certificate fingerprint {fingerprint} does not "
+                    "match ssl_fingerprints; refusing to send credentials",
+                )
+
     context = _unverified_context()
-    try:
-        with (
-            socket.create_connection((host, port), timeout=10) as sock,
-            context.wrap_socket(sock, server_hostname=host) as tls_sock,
-        ):
-            cert = tls_sock.getpeercert(binary_form=True)
-    except OSError as err:
-        raise EsphomeError(f"Cannot connect to MQTT broker: {err}") from err
-    if (fingerprint := hashlib.sha1(cert).hexdigest()) not in fingerprints:
-        raise EsphomeError(
-            f"MQTT broker certificate fingerprint {fingerprint} does not match "
-            "ssl_fingerprints; refusing to send credentials"
-        )
+    context.sslsocket_class = _PinnedSSLSocket
+    return context
 
 
 def prepare(
@@ -148,8 +154,9 @@ def prepare(
                 if client.reconnect() == 0:
                     _LOGGER.info("Successfully reconnected to the MQTT server")
                     break
-            except OSError:
-                pass
+            except OSError as err:
+                # Names the cause, such as a pinned certificate mismatch
+                _LOGGER.warning("Cannot reconnect to the MQTT broker: %s", err)
 
             wait_time = min(2**tries, 300)
             _LOGGER.warning(
@@ -162,8 +169,8 @@ def prepare(
             tries += 1
 
     # Match the firmware's transport; imported here to keep component code off the CLI start-up path
-    from esphome.components.const import CONF_SSL_FINGERPRINTS
     from esphome.components.mqtt import (
+        CONF_SSL_FINGERPRINTS,
         CONF_TLS,
         CONF_TRANSPORT,
         CONF_VERIFY_SSL,
@@ -196,9 +203,7 @@ def prepare(
     host = str(mqtt_conf[CONF_BROKER])
     port = int(mqtt_conf[CONF_PORT])
     if fingerprints := mqtt_conf.get(CONF_SSL_FINGERPRINTS):
-        # paho cannot pin a certificate, so check it on a separate handshake first
-        _check_broker_fingerprint(host, port, fingerprints)
-        client.tls_set_context(_unverified_context())
+        client.tls_set_context(_pinned_context(fingerprints))
     # Validation sets tls whenever a certificate option or the wss transport implies it
     elif mqtt_conf.get(CONF_TLS):
         if mqtt_conf.get(CONF_VERIFY_SSL) is False:
