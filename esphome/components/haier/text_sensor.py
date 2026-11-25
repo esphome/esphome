@@ -49,9 +49,6 @@ async def to_code(config):
 
     for type_ in TEXT_SENSOR_TYPES:
         if conf := config.get(type_):
-            if type_ == CONF_ACTIVE_ALARMS_TEXT:
-                # Cleared past its filters on a protocol reset
-                text_sensor.request_filter_reset()
             sens = await text_sensor.new_text_sensor(conf)
             text_sensor_type = getattr(TextSensorTypeEnum, type_.upper())
             cg.add(paren.set_sub_text_sensor(text_sensor_type, sens))
