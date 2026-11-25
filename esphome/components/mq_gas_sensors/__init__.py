@@ -30,8 +30,6 @@ CONF_VCC = "vcc"
 CONF_RATIO_IN_CLEAN_AIR = "ratio_in_clean_air"
 CONF_SAMPLE_COUNT = "sample_count"
 
-REGRESSION_METHODS = {
-    "exponential": RegressionMethod.REGRESSION_EXPONENTIAL,
-    "linear": RegressionMethod.REGRESSION_LINEAR,
-    "inverse": RegressionMethod.REGRESSION_INVERSE,
-}
+REGRESSION_METHODS = RegressionMethod.options(
+    "exponential", "linear", "inverse", prefix="REGRESSION_"
+)
