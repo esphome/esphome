@@ -2081,6 +2081,19 @@ async def test_grouped_automations_statics_avoid_taken_names(
     assert "static bool light_on_turn_on_0_last_" in definition
 
 
+@pytest.mark.asyncio
+async def test_grouped_automations_take_python_types(mock_cg: MockCodegen) -> None:
+    """A last_type given as a Python type is declared as its C++ type."""
+    entry = GroupedAutomation(
+        "on_turn_on", lambda light: light.remote_values.is_on(), filter_entered, bool
+    )
+    await build_grouped_callback_automations(
+        LIGHT, {"on_turn_on": [_conf(1)]}, "add_remote_values_callback", (entry,)
+    )
+    _, definition = _registered_function(mock_cg)
+    assert "static bool light_on_turn_on_0_last;" in definition
+
+
 def test_grouped_automation_filter_needs_watched() -> None:
     """A filter without a watched value is rejected when the table is built."""
     with pytest.raises(ValueError, match="on_x: a filter needs a watched value"):

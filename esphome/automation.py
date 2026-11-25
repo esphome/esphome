@@ -2545,6 +2545,7 @@ async def build_grouped_callback_automations(
     for entry in entries:
         value = None if entry.watched is None else entry.watched(ref)
         handed = value if entry.forwarded is None else entry.forwarded(ref)
+        last_type = cg.safe_exp(entry.last_type)
         for index, conf in enumerate(config.get(entry.conf_key, [])):
             target = await build_trigger_callback(
                 entry.args,
@@ -2560,15 +2561,13 @@ async def build_grouped_callback_automations(
                 continue
             # Unique against config ids and globals, so it cannot hide one the filter names
             last_id = cg.unique_global_id(
-                f"{parent}_{entry.conf_key}_{index}_last", entry.last_type
+                f"{parent}_{entry.conf_key}_{index}_last", last_type
             )
             last = MockObj(last_id)
             CORE.register_variable(last_id, last)
             statics.append(
                 cg.statement(
-                    VariableDeclarationExpression(
-                        entry.last_type, "", last, static=True
-                    )
+                    VariableDeclarationExpression(last_type, "", last, static=True)
                 )
             )
             # No statement builder for if
