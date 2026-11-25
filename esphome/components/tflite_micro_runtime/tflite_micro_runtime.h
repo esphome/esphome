@@ -168,8 +168,7 @@ class TFLiteMicroHelper : public Component {
   /// Lock the lifecycle mutex, or report a same-task re-entry instead of blocking.
   class LockGuard {
    public:
-    /// @param wait false to give up at once when another task holds the lock.
-    explicit LockGuard(TFLiteMicroHelper *helper, bool wait = true);
+    explicit LockGuard(TFLiteMicroHelper *helper);
     ~LockGuard();
     LockGuard(const LockGuard &) = delete;
     LockGuard &operator=(const LockGuard &) = delete;

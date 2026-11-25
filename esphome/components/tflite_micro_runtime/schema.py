@@ -6,6 +6,7 @@ from esphome.components.tflite_model_source.model_source import MODEL_SOURCE_SCH
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_MODEL, CONF_RAW_DATA_ID
 
+CONF_PIPELINE_ID = "pipeline_id"
 CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
 
 tflite_micro_runtime_ns = cg.esphome_ns.namespace("tflite_micro_runtime")

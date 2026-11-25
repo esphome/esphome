@@ -44,22 +44,19 @@ InputType tensor_type_to_input_type(TfLiteType type) {
 
 }  // namespace
 
-TFLiteMicroHelper::LockGuard::LockGuard(TFLiteMicroHelper *helper, bool wait) : helper_(helper) {
+TFLiteMicroHelper::LockGuard::LockGuard(TFLiteMicroHelper *helper) : helper_(helper) {
   if (this->helper_ == nullptr)
     return;
   const TaskHandle_t current = xTaskGetCurrentTaskHandle();
   if (this->helper_->lock_owner_.load(std::memory_order_relaxed) == current) {
     // A log emitted under the lock can run logger.on_message automations that call
     // back into the helper; blocking here would deadlock the main task.
-    if (!this->helper_->reentry_reported_.exchange(true, std::memory_order_relaxed))
+    if (!this->helper_->reentry_reported_.exchange(true, std::memory_order_relaxed)) {
       ESP_LOGE(TAG, "A log callback re-entered the runtime; rejecting the nested call");
+    }
     return;
   }
-  if (wait) {
-    this->helper_->mutex_.lock();
-  } else if (!this->helper_->mutex_.try_lock()) {
-    return;
-  }
+  this->helper_->mutex_.lock();
   this->helper_->lock_owner_.store(current, std::memory_order_relaxed);
   this->locked_ = true;
 }
@@ -96,34 +93,25 @@ void TFLiteMicroHelper::setup() {
 }
 
 void TFLiteMicroHelper::dump_config() {
-  // Do not wait for the lock: an inference on another task holds it for its whole
-  // run, and waiting here would stall the main loop.
-  LockGuard guard(this, false);
-  if (!guard.locked()) {
-    ESP_LOGCONFIG(TAG, "TFLite Micro Runtime: busy, the details are unavailable while a model runs");
-    return;
-  }
   ESP_LOGCONFIG(TAG,
                 "TFLite Micro Runtime:\n"
                 "  Input pipeline: %s\n"
                 "  Model size: %zu bytes\n"
                 "  Tensor arena: %zu bytes configured",
                 this->input_pipeline_ != nullptr ? this->input_pipeline_->name() : LOG_STR_ARG(LOG_STR_LITERAL("raw")),
-                this->model_length_, this->tensor_arena_size_requested_);
+                this->get_model_size_bytes(), this->get_tensor_arena_size());
 
   if (!this->is_model_loaded()) {
     ESP_LOGCONFIG(TAG, "  Model not loaded");
     return;
   }
-  const TfLiteTensor *input = this->model_handler_.input_tensor();
-  const InputType input_type =
-      input != nullptr ? tensor_type_to_input_type(input->type) : InputType::INPUT_TYPE_UNKNOWN;
+  const ModelSpec spec = this->get_model_spec();
   ESP_LOGCONFIG(TAG,
                 "  Input: %dx%dx%d %s\n"
                 "  Tensor arena allocated: %zu bytes, %zu bytes requested after probing, %zu bytes in use",
-                this->get_input_width_locked_(), this->get_input_height_locked_(), this->get_input_channels_locked_(),
-                LOG_STR_ARG(input_type_name(input_type)), this->tensor_arena_allocation_.actual_size,
-                this->tensor_arena_size_effective_, this->model_handler_.get_arena_used_bytes());
+                spec.input_width, spec.input_height, spec.input_channels, LOG_STR_ARG(input_type_name(spec.input_type)),
+                this->get_tensor_arena_size_actual(), this->get_tensor_arena_size_effective(),
+                this->get_arena_used_bytes());
 }
 
 void TFLiteMicroHelper::set_tensor_arena_size(size_t size) {
