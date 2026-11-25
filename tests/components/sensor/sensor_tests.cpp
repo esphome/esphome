@@ -71,6 +71,9 @@ TEST(DeltaFilter, InfiniteOrNaNReferenceNeverPasses) {
   EXPECT_FALSE(delta_passes<true>(5.0f, -INFINITY, 0.05f));
   EXPECT_FALSE(delta_passes<true>(5.0f, NAN, 0.05f));
   EXPECT_FALSE((delta_passes<false, true>(5.0f, -INFINITY, 1.0f, 0.5f)));
+  // max_value: .inf with an absolute min
+  EXPECT_FALSE((delta_passes<false, false>(5.0f, INFINITY, 1.0f, INFINITY)));
+  EXPECT_FALSE((delta_passes<false, false>(5.0f, -INFINITY, 1.0f, INFINITY)));
 }
 
 TEST(DeltaFilter, InfiniteValueWithoutMaxPasses) {

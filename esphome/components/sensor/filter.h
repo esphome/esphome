@@ -480,7 +480,8 @@ template<bool MIN_PCT = false> inline bool delta_passes(float value, float ref, 
 }
 template<bool MIN_PCT = false, bool MAX_PCT = false>
 inline bool delta_passes(float value, float ref, float min, float max) {
-  if constexpr (!MIN_PCT && MAX_PCT) {
+  // An infinite ref never passes; a *_PCT min already fails for it, an absolute one with max .inf would not
+  if constexpr (!MIN_PCT) {
     if ((bit_cast<uint32_t>(ref) & 0x7FFFFFFF) == 0x7F800000)
       return false;
   }
