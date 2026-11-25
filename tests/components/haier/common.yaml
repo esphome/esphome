@@ -114,6 +114,8 @@ text_sensor:
       name: Haier protocol version
     active_alarms_text:
       name: Haier Active Alarms
+      filters:
+        - throttle: 60s
 
 switch:
   - platform: haier
