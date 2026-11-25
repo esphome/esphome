@@ -385,6 +385,11 @@ async def to_code(config):
         "CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE",
     ):
         add_idf_sdkconfig_option(opt, True)
+
+    # A mipi_dsi display in the same config puts DW-GDMA callbacks in internal RAM;
+    # without this the CSI controller is not, and VIDIOC_STREAMON then fails.
+    add_idf_sdkconfig_option("CONFIG_CAM_CTLR_MIPI_CSI_ISR_CACHE_SAFE", True)
+
     if uvc:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
         # UVC descriptors overrun the 256-byte default
