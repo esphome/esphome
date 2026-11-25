@@ -8,11 +8,13 @@ from pathlib import Path
 
 import esphome.codegen as cg
 from esphome.components.tflite_micro_runtime import (
+    CONF_PIPELINE_ID,
     PER_MODEL_SCHEMA,
     declare_model,
     final_validate,
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
+from esphome.components.tflite_output_processor import CONF_DECODER_ID
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -30,8 +32,6 @@ tflite_text_ns = cg.esphome_ns.namespace("tflite_text")
 TextInputPipeline = tflite_text_ns.class_("TextInputPipeline")
 TextDecoder = tflite_text_ns.class_("TextDecoder")
 
-CONF_PIPELINE_ID = "pipeline_id"
-CONF_DECODER_ID = "decoder_id"
 
 TEXT_SCHEMA = cv.Schema(
     {

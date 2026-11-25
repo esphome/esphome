@@ -9,7 +9,7 @@
 
 namespace esphome::tflite_text {
 
-static const char *const TAG = "tflite_text";
+ESPHOME_LOG_TAG(TAG, "tflite_text");
 
 bool TextInputPipeline::fill_all(TfLiteTensor *const *inputs, size_t count, const uint8_t *src, size_t size) {
   if (count < 1 || count > 3) {

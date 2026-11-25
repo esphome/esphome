@@ -8,7 +8,7 @@
 
 namespace esphome::tflite_text {
 
-static const char *const TAG = "tflite_text";
+ESPHOME_LOG_TAG(TAG, "tflite_text");
 
 bool TextDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   if (count != 1) {
