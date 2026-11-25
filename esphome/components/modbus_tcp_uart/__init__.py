@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_MAX_CONNECTIONS,
     CONF_UART_ID,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -122,7 +122,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_reply_timeout(timeout))
         if units := _served_units(CORE.config, str(config[CONF_ID])):
             arr = cg.static_const_array(
-                ID(f"{config[CONF_ID]}_units", is_declaration=True, type=cg.uint8),
+                cg.unique_global_id(f"{config[CONF_ID]}_units", cg.uint8),
                 cg.ArrayInitializer(*units),
             )
             cg.add(var.set_units(arr, len(units)))
