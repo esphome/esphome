@@ -3,22 +3,17 @@ import logging
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import esp32, i2c
+from esphome.components import esp32, i2c, logger
 from esphome.components.const import CONF_PIXEL_FORMAT
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.esp32.const import VARIANT_ESP32P4
 from esphome.components.esp_ldo import DOMAIN as ESP_LDO_DOMAIN
-from esphome.components.logger import (
-    DOMAIN as LOGGER_DOMAIN,
-    LOG_LEVELS as LOGGER_LEVELS,
-)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_I2C_ID,
     CONF_ID,
-    CONF_LOGS,
     CONF_PIN,
     CONF_RESET_PIN,
     CONF_RESOLUTION,
@@ -202,14 +197,9 @@ async def to_code(config: ConfigType) -> None:
         int(1000 / idle_framerate) if idle_framerate else 0,
         cg.RawExpression(f"ESP_CAM_SENSOR_PIXFORMAT_{sensor_format}"),
     )
-    # Unless set by the user, quiet esp_ipa: on a UART logger it starves the main loop
-    if (logger_conf := CORE.config.get(LOGGER_DOMAIN)) is not None and (
-        tags := [tag for tag in IPA_LOG_TAGS if tag not in logger_conf[CONF_LOGS]]
-    ):
-        cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
-        log = await cg.get_variable(logger_conf[CONF_ID])
-        for tag in tags:
-            cg.add(log.set_log_level(tag, LOGGER_LEVELS["WARN"]))
+    # On a UART logger esp_ipa's per-frame logs starve the main loop
+    for tag in IPA_LOG_TAGS:
+        await logger.request_tag_log_level(tag, "WARN")
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
 
