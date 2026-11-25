@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
@@ -11,13 +9,6 @@ from esphome.const import (
     CONF_SHUNT_RESISTANCE,
     CONF_SHUNT_VOLTAGE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -59,30 +50,10 @@ INA3221Component = ina3221_ns.class_(
     "INA3221Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-VOLTAGE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_VOLT,
-    accuracy_decimals=2,
-    device_class=DEVICE_CLASS_VOLTAGE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-CURRENT_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_AMPERE,
-    accuracy_decimals=2,
-    device_class=DEVICE_CLASS_CURRENT,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-POWER_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_WATT,
-    accuracy_decimals=2,
-    device_class=DEVICE_CLASS_POWER,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+VOLTAGE_SCHEMA = sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=2)
+CURRENT_SCHEMA = sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=2)
+POWER_SCHEMA = sensor.sensor_schema(kind=sensor.POWER, accuracy_decimals=2)
 CURRENT_LIMIT_SCHEMA = cv.All(cv.current, cv.Range(min=0.0, min_included=False))
-
-
-def validate_adc_time(value: Any) -> int:
-    value = cv.positive_time_period_microseconds(value).total_microseconds
-    return cv.one_of(*ADC_TIMES_US, int=True)(value)
 
 
 def validate_alert_limits(config: ConfigType) -> ConfigType:
@@ -173,11 +144,15 @@ CONFIG_SCHEMA = cv.All(
                 *ADC_AVERAGING, int=True
             ),
             cv.Optional(CONF_ADC_TIME, default="8244us"): cv.Any(
-                validate_adc_time,
+                cv.time_period_enum(ADC_TIMES_US, unit="us"),
                 cv.Schema(
                     {
-                        cv.Required(CONF_BUS_VOLTAGE): validate_adc_time,
-                        cv.Required(CONF_SHUNT_VOLTAGE): validate_adc_time,
+                        cv.Required(CONF_BUS_VOLTAGE): cv.time_period_enum(
+                            ADC_TIMES_US, unit="us"
+                        ),
+                        cv.Required(CONF_SHUNT_VOLTAGE): cv.time_period_enum(
+                            ADC_TIMES_US, unit="us"
+                        ),
                     }
                 ),
             ),

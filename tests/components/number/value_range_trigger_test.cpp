@@ -21,17 +21,19 @@ class TestNumber : public Number {
   void set_test_id(uint32_t hash) { this->object_id_hash_ = hash; }
 };
 
-/// A number, its on_value_range trigger and the values the trigger fired with
+/// The values the on_value_range callback fired with
+static std::vector<float> fired_values;
+static void record(float x) { fired_values.push_back(x); }
+
+/// A number and its on_value_range callback
 struct RangeFixture {
   TestNumber number;
-  ValueRangeTrigger trigger;
-  Automation<float> automation{&this->trigger};
-  std::vector<float> fired;
-  LambdaAction<float> record{[this](float x) { this->fired.push_back(x); }};
+  FireCallback<record, ValueRangeBase> trigger;
+  std::vector<float> &fired{fired_values};
 
   explicit RangeFixture(ValueRange (*range)(float x)) : trigger(&this->number, range) {
     this->number.set_test_id(0x5E01);
-    this->automation.add_action(&this->record);
+    fired_values.clear();
   }
   void publish(std::initializer_list<float> values) {
     for (float value : values)

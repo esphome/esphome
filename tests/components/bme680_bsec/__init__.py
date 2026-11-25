@@ -29,8 +29,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_build_flag(f"-I{CORE.relative_src_path('bme680_bsec', '__sdk')}")
         cg.add_define("USE_BSEC")
         cg.add_define("USE_SENSOR")
-        cg.add_define("ESPHOME_ENTITY_SENSOR_COUNT", 0)
         cg.add_define("USE_TEXT_SENSOR")
-        cg.add_define("ESPHOME_ENTITY_TEXT_SENSOR_COUNT", 0)
 
     manifest.to_code = to_code_testing
