@@ -237,6 +237,48 @@ const LogString *node_type_name(uint8_t type) {
       return LOG_STR("TRONIC");
     case 28:
       return LOG_STR("VLVCO2RH");
+    case 29:
+      return LOG_STR("UCSUN");
+    case 30:
+      return LOG_STR("UCVENT");
+    case 31:
+      return LOG_STR("EAV");
+    case 32:
+      return LOG_STR("EAVRH");
+    case 33:
+      return LOG_STR("EAVVOC");
+    case 34:
+      return LOG_STR("EAVCO2");
+    case 35:
+      return LOG_STR("BSRH");
+    case 36:
+      return LOG_STR("BSVOC");
+    case 37:
+      return LOG_STR("BSCO2");
+    case 38:
+      return LOG_STR("MOTORRLY");
+    case 39:
+      return LOG_STR("WXSENSOR");
+    case 40:
+      return LOG_STR("MOTORMB");
+    case 41:
+      return LOG_STR("DI");
+    case 42:
+      return LOG_STR("DO");
+    case 43:
+      return LOG_STR("COMM");
+    case 44:
+      return LOG_STR("RLYMB");
+    case 45:
+      return LOG_STR("PERILEX");
+    case 46:
+      return LOG_STR("RO");
+    case 47:
+      return LOG_STR("HEATODA");
+    case 48:
+      return LOG_STR("AO");
+    case 49:
+      return LOG_STR("CSCO2");
     default:
       return LOG_STR("UNKNOWN");
   }
