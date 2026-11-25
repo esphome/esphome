@@ -180,7 +180,7 @@ def parse(ls):
         blk = " ".join(ls[i + 1 : i + 5])
         ms = re.search(r"src (0x[0-9a-f]+) ep (\d+)", blk)
         src = ms.group(2) if ms else "?"
-        if FILT and ms and ms.group(1) != FILT:
+        if FILT and (not ms or ms.group(1) != FILT):
             continue
         if kind == "Default response":
             mc = re.search(r"command\((0x[0-9a-f]+)\), status\((0x[0-9a-f]+)\)", blk)
@@ -217,6 +217,11 @@ def between(ls, start, stop=None):
         (i for i in range(s, len(ls)) if stop and "### HWT " + stop in ls[i]),
         len(ls) - 1,
     )
+    if stop and "### HWT " + stop not in ls[e]:
+        print(
+            f"warning: no mark {stop!r} after {start!r}, flow did not finish",
+            file=sys.stderr,
+        )
     return ls[s : e + 1]
 
 
@@ -235,6 +240,8 @@ def cli():
     elif a == "interrogate":
         clusters = interrogate(sys.argv[2], sys.argv[3])
         int_file(sys.argv[2]).write_text(json.dumps(clusters))
+        if not clusters or not all(clusters.values()):
+            sys.exit("interrogate incomplete (active_ep or simple_desc timed out)")
     elif a == "eps":
         has, nott = (
             int(sys.argv[3], 16),

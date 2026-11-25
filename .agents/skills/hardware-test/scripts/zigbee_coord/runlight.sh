@@ -2,11 +2,10 @@
 # runlight.sh NAME YAML: fresh join, bind and report On/Off, Level and Color, drive the three lights with raw
 # commands, then wait for the local changes from lights-local.yaml (c6-lights.yaml). env: see common.sh
 . "$(dirname "$0")/common.sh"; N=${1:?name}; Y=${2:?yaml}; SRC=2
-t0=$(date +%s)
 join_fresh $N $Y 420
 LED=$($D eps "$N boot" 0x300 | head -1); MONO=$($D eps "$N boot" 0x8 0x300 | head -1)
 BIN=$($D eps "$N boot" 0x6 0x8 | head -1)
-echo "led $LED mono $MONO bin $BIN"
+echo "led $LED mono $MONO bin $BIN"; need "$LED" "$MONO" "$BIN"
 $D mark "$N bind led $LED mono $MONO bin $BIN"
 for e in $LED $MONO $BIN; do bindrp $e 0x0006 0x0000 0x10 "--min 0 --max 300"; done
 for e in $LED $MONO; do bindrp $e 0x0008 0x0000 0x20 "--min 0 --max 300 --delta 0x01"; done
@@ -28,7 +27,8 @@ rd $LED 0x0300 0x0003; rd $LED 0x0300 0x0004
 $D mark "$N cmd bin toggle, mono off"
 raw $BIN 0x0006 2; rd $BIN 0x0006 0x0000
 raw $MONO 0x0006 0; rd $MONO 0x0006 0x0000; rd $MONO 0x0008 0x0000
-w=$(( 200 - ($(date +%s) - t0) )); [ $w -gt 0 ] && { $D mark "$N waiting ${w}s for local changes"; sleep $w; }
+# lights-local.yaml makes its changes 150 s and 170 s after boot
+w=$(( 185 - ($(date +%s) - booted) )); [ $w -gt 0 ] && { $D mark "$N waiting ${w}s for local changes"; sleep $w; }
 $D mark "$N final reads"
 for e in $LED $MONO $BIN; do rd $e 0x0006 0x0000; done
 rd $LED 0x0008 0x0000; rd $MONO 0x0008 0x0000; rd $LED 0x0300 0x0003; rd $LED 0x0300 0x0004

@@ -16,7 +16,7 @@ def main(n: str) -> None:
             continue
         kind, _, ep, cl, attr, v = r
         if kind.startswith("Report"):
-            reps[(int(ep), cl, phase.split(" ")[0])].append(v)
+            reps[(int(ep) if ep.isdigit() else -1, cl, phase.split(" ")[0])].append(v)
         elif attr != "0x0005":
             print(f"[{phase[:26]:26}] {kind[:6]} ep {ep} cl {cl} attr {attr} -> {v}")
     for k, v in sorted(reps.items()):
