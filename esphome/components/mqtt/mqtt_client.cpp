@@ -983,4 +983,11 @@ MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-
 
 }  // namespace esphome::mqtt
 
+#if defined(USE_ESP8266) && ASYNC_TCP_SSL_ENABLED
+// Replaces the core's BearSSL stack-overflow handler (-Wl,--wrap from mqtt/__init__.py), whose message
+// costs 44 bytes of RAM; the postmortem already reports the stack smash.
+extern "C" void __stack_chk_fail();                                          // NOLINT(bugprone-reserved-identifier)
+extern "C" void __wrap_stack_thunk_fatal_smashing() { __stack_chk_fail(); }  // NOLINT(bugprone-reserved-identifier)
+#endif
+
 #endif  // USE_MQTT
