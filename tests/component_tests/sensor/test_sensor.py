@@ -9,6 +9,7 @@ from esphome.cpp_helpers import (
     CALLBACK_MANAGER_POOL_SIZE,
 )
 from tests.component_tests.helpers import extract_packed_value
+from tests.testing_helpers import get_define_value
 
 
 def test_sensor_device_class_set(generate_main):
@@ -61,5 +62,4 @@ def test_callback_manager_pool_reserves_only_used_managers(
         ("with_automation", "add_on_raw_state_callback"),
         ("clicked", "add_on_state_callback"),
     }
-    pool = [d for d in CORE.defines if d.name == CALLBACK_MANAGER_POOL_SIZE]
-    assert [str(d.value) for d in pool] == ["3"]
+    assert get_define_value(CALLBACK_MANAGER_POOL_SIZE) == "3"
