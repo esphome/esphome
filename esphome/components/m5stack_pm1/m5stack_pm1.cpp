@@ -101,10 +101,10 @@ void M5StackPM1Component::dump_config() {
                 "  Device Model: 0x%02X\n"
                 "  Hardware Revision: %u\n"
                 "  Software Revision: %u\n"
-                "  I2C Speed: %s",
+                "  Fast Mode: %s",
                 this->device_info_.device_id, this->device_info_.device_model, this->device_info_.hardware_revision,
                 this->device_info_.software_revision,
-                this->bus_frequency_ >= 400000 ? LOG_STR_LITERAL("400kHz") : LOG_STR_LITERAL("100kHz"));
+                this->fast_mode_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   if (this->interrupt_pin_ != nullptr) {
@@ -113,7 +113,20 @@ void M5StackPM1Component::dump_config() {
 }
 
 bool M5StackPM1Component::configure_i2c_speed_() {
-  return this->write_byte(REG_I2C_CFG, this->bus_frequency_ >= 400000 ? M5STACK_PM1_I2C_CFG_SPD : 0);
+  static constexpr uint8_t MAX_ATTEMPTS = 6;
+  static constexpr uint32_t RETRY_DELAY_MS = 100;
+
+  // The controller starts in the 100 kHz mode; SPD selects the 400 kHz mode.
+  const uint8_t speed = this->fast_mode_ ? M5STACK_PM1_I2C_CFG_SPD : 0;
+  for (uint8_t attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (this->write_byte(REG_I2C_CFG, speed)) {
+      return true;
+    }
+    if (attempt + 1 < MAX_ATTEMPTS) {
+      delay(RETRY_DELAY_MS);  // NOLINT
+    }
+  }
+  return false;
 }
 
 void M5StackPM1Component::set_gpio_interrupt_enabled(uint8_t pin, bool enabled) {
@@ -142,14 +155,22 @@ bool M5StackPM1Component::set_pin_function(uint8_t pin, M5StackPM1PinFunction fu
 }
 
 void M5StackPM1Component::pin_mode(uint8_t pin, gpio::Flags flags) {
+  if (this->is_failed()) {
+    return;
+  }
   if (!this->valid_pin_(pin) || pin == this->interrupt_gpio_) {
     ESP_LOGE(TAG, "GPIO%u is invalid or reserved for IRQ", pin);
     return;
   }
+  this->pin_flags_[pin] = flags;
+  this->apply_pin_config_(pin, flags);
+}
 
+void M5StackPM1Component::apply_pin_config_(uint8_t pin, gpio::Flags flags) {
   // 0x10-0x17 is one window; 0x12 is read only, so the write starts at the drive register.
   M5StackPM1GPIORegs regs{};
   if (!this->read_bytes(REG_GPIO_MODE, reinterpret_cast<uint8_t *>(&regs), sizeof(regs))) {
+    this->set_pin_config_pending_(pin, true);
     this->status_comm_result(false);
     return;
   }
@@ -185,7 +206,40 @@ void M5StackPM1Component::pin_mode(uint8_t pin, gpio::Flags flags) {
       success &= this->apply_pin_wakeup_(pin);
     }
   }
-  this->status_comm_result(success);
+  this->set_pin_config_pending_(pin, !success);
+  // Keep the warning while any pin is still waiting for its configuration.
+  if (this->pending_pin_config_mask_ != 0) {
+    this->status_comm_check(success);
+  } else {
+    this->status_comm_result(success);
+  }
+}
+
+void M5StackPM1Component::set_pin_config_pending_(uint8_t pin, bool pending) {
+  if (pending) {
+    if (this->pending_pin_config_mask_ == 0) {
+      this->set_interval(PIN_CONFIG_RETRY_ID, PIN_CONFIG_RETRY_INTERVAL_MS, [this]() { this->retry_pin_config_(); });
+    }
+    this->pending_pin_config_mask_ |= 1 << pin;
+    return;
+  }
+  this->pending_pin_config_mask_ &= ~(1 << pin);
+  if (this->pending_pin_config_mask_ == 0) {
+    this->cancel_interval(PIN_CONFIG_RETRY_ID);
+  }
+}
+
+void M5StackPM1Component::retry_pin_config_() {
+  if (this->is_failed()) {
+    this->pending_pin_config_mask_ = 0;
+    this->cancel_interval(PIN_CONFIG_RETRY_ID);
+    return;
+  }
+  for (uint8_t pin = 0; pin < M5STACK_PM1_GPIO_COUNT; pin++) {
+    if ((this->pending_pin_config_mask_ & (1 << pin)) != 0) {
+      this->apply_pin_config_(pin, this->pin_flags_[pin]);
+    }
+  }
 }
 
 void M5StackPM1Component::set_pin_wakeup(uint8_t pin, M5StackPM1WakeupEdge edge) {
@@ -218,7 +272,12 @@ bool M5StackPM1Component::digital_read_hw(uint8_t pin) {
   if (!this->valid_pin_(pin)) {
     return false;
   }
-  return this->status_comm_result(this->read_byte(REG_GPIO_IN, &this->input_[0]));
+  const bool ok = this->read_byte(REG_GPIO_IN, &this->input_[0]);
+  // A successful read must not hide a pin that is still waiting for its configuration.
+  if (this->pending_pin_config_mask_ != 0) {
+    return this->status_comm_check(ok);
+  }
+  return this->status_comm_result(ok);
 }
 
 void M5StackPM1Component::digital_write_hw(uint8_t pin, bool value) {
