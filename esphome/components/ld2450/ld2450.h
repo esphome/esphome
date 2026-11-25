@@ -226,6 +226,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_LD2450_TARGET_XY
   void update_target_xy_(uint8_t target, bool changed);
+#ifdef USE_LD2450_XY_UNFILTERED
+  void set_xy_unfiltered_(bool unfiltered);
+#endif
 #endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 

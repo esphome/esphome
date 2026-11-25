@@ -1032,8 +1032,23 @@ void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
 
 #ifdef USE_LD2450_XY_UNFILTERED
 void LD2450Component::start_xy_unfiltered() {
-  this->xy_unfiltered_ = true;
-  this->set_timeout(XY_UNFILTERED_TIMEOUT_ID, XY_UNFILTERED_DURATION_MS, [this]() { this->xy_unfiltered_ = false; });
+  // Deferred: on_raw_value may press this mid-publish
+  this->defer([this]() {
+    if (!this->xy_unfiltered_)
+      this->set_xy_unfiltered_(true);
+    this->set_timeout(XY_UNFILTERED_TIMEOUT_ID, XY_UNFILTERED_DURATION_MS,
+                      [this]() { this->set_xy_unfiltered_(false); });
+  });
+}
+
+void LD2450Component::set_xy_unfiltered_(bool unfiltered) {
+  this->xy_unfiltered_ = unfiltered;
+  // A still target sends no new position: republish so a held value shows, or the filters see the current one again
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    text_sensor::TextSensor *s = this->target_xy_text_sensors_[i];
+    if (s != nullptr && s->has_state())
+      this->update_target_xy_(i, true);
+  }
 }
 #endif
 

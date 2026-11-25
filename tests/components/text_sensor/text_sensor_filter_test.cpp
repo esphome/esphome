@@ -129,6 +129,19 @@ TEST_F(TextFilterTest, PublishUnfilteredSkipsAndResetsTheFilters) {
   EXPECT_EQ(raw_calls, 4);
 }
 
+// A raw callback that publishes again wins: the outer call does not overwrite it with its own value
+TEST_F(TextFilterTest, PublishUnfilteredKeepsValueFromRawCallback) {
+  AppendFilter append("!");
+  this->sensor_.add_filter(&append);
+  this->sensor_.add_on_raw_state_callback([this](const std::string &state) {
+    if (state == "a")
+      this->sensor_.publish_state_unfiltered("b");
+  });
+  this->sensor_.publish_state_unfiltered("a");
+  EXPECT_EQ(this->sensor_.state, "b");
+  EXPECT_EQ(this->sensor_.get_raw_state(), "b");
+}
+
 // Feeds the same values to the timeout + throttle chain and to the merged filter
 static std::vector<std::string> run_sequence(std::initializer_list<Filter *> filters, Component &timeout) {
   TextSensor sensor;

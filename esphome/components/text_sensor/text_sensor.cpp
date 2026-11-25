@@ -90,7 +90,8 @@ void TextSensor::publish_state_unfiltered(const char *state, size_t len) {
 #endif
     this->raw_state_.assign(state, len);
     this->raw_callback_.call(this->raw_state_);
-    this->internal_send_state_to_frontend(state, len);
+    // A raw callback may have published again or freed the caller's buffer
+    this->internal_send_state_to_frontend(this->raw_state_.data(), this->raw_state_.size());
     return;
   }
 #endif
