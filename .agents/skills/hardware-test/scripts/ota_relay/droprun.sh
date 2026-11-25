@@ -12,7 +12,7 @@ PY=${PYTHON:-python3}
 for i in $(seq 1 "$N"); do
   echo "$(date +%T) $L $M upload $i start"
   if [ "$M" = web ]; then
-    curl -s -o /dev/null -w '%{http_code} %{size_upload} %{time_total}\n' --max-time 300 -F "file=@$IMG" \
+    curl -s -w ' %{http_code} %{size_upload} %{time_total}\n' --max-time 300 -F "file=@$IMG" \
       "http://127.0.0.1:${WEB_PORT:-18081}/update" >"$D/curl-$L-$i.out" 2>&1 &
   else
     (cd "$TREE" && PYTHONPATH=$TREE PYTHONUNBUFFERED=1 timeout 300 "$PY" -m esphome upload "$D/dut-sta.yaml" \

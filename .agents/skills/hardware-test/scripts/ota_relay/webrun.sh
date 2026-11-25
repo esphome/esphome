@@ -18,7 +18,7 @@ for i in $(seq 1 "$N"); do
   sleep "${SYNC_DELAY:-3}"
   echo "$(date +%T) $L $MODE upload $i start"
   if [ "$MODE" = abort ]; then
-    curl -s -o /dev/null -w '%{http_code} %{size_upload} %{time_total}\n' --max-time 120 -F "file=@$IMG" \
+    curl -s -w ' %{http_code} %{size_upload} %{time_total}\n' --max-time 120 -F "file=@$IMG" \
       "http://127.0.0.1:$P/update" >"$D/curl-$L-$i.out" &
     CP=$!
     sleep 25
@@ -30,12 +30,12 @@ for i in $(seq 1 "$N"); do
     fi
     wait $CP
     rm -f "$D/abort-ch0"
-    echo "$(date +%T) $L abort upload $i result code/bytes/secs: $(cat "$D/curl-$L-$i.out")"
+    echo "$(date +%T) $L abort upload $i result reply code/bytes/secs: $(cat "$D/curl-$L-$i.out")"
     sleep 75
     continue
   fi
-  curl -s -o /dev/null -w '%{http_code} %{size_upload} %{time_total}\n' --max-time 240 -F "file=@$IMG" \
+  curl -s -w ' %{http_code} %{size_upload} %{time_total}\n' --max-time 240 -F "file=@$IMG" \
     "http://127.0.0.1:$P/update" >"$D/curl-$L-$i.out"
-  echo "$(date +%T) $L $MODE upload $i result code/bytes/secs: $(cat "$D/curl-$L-$i.out")"
+  echo "$(date +%T) $L $MODE upload $i result reply code/bytes/secs: $(cat "$D/curl-$L-$i.out")"
   sleep 40
 done
