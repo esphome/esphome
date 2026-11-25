@@ -1,5 +1,6 @@
 """Tests for the script component's config validation."""
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -21,6 +22,16 @@ from esphome.components.script import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
 from esphome.core import CORE, ID
+
+
+def _plan(*direct: bool) -> Any:
+    """A plan_automation stand-in whose plans report ``direct`` in turn."""
+    plans = iter(direct)
+
+    async def plan(args: Any, config: Any) -> Any:
+        return SimpleNamespace(direct=next(plans, direct[-1]))
+
+    return plan
 
 
 def test_bare_script_stop_defaults_to_enclosing_script() -> None:
@@ -129,18 +140,23 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
             "esphome.automation.build_automation", new_callable=AsyncMock
         ) as build_automation,
         patch(
-            "esphome.automation.build_automation_or_run_function",
-            new_callable=AsyncMock,
-            return_value=None,
+            "esphome.automation.plan_automation", side_effect=_plan(False)
+        ) as plan_automation,
+        patch(
+            "esphome.automation.automation_or_run_function", return_value=None
         ) as build_or_run,
     ):
         await to_code(config)
 
     add_define.assert_called_once_with("USE_SCRIPT_ON_STOP")
 
-    assert [(str(c.args[0]), *c.args[1:3]) for c in build_or_run.await_args_list] == [
-        ("my_script", [], config[0]),
-        ("other_script", [], config[1]),
+    assert [c.args for c in plan_automation.await_args_list] == [
+        ([], config[0]),
+        ([], config[1]),
+    ]
+    assert [str(c.args[1]) for c in build_or_run.call_args_list] == [
+        "my_script",
+        "other_script",
     ]
     assert [
         (str(c.args[0]), *c.args[1:]) for c in build_automation.await_args_list
@@ -160,15 +176,54 @@ async def test_no_on_stop_define_without_on_stop() -> None:
     with (
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
-        patch(
-            "esphome.automation.build_automation_or_run_function",
-            new_callable=AsyncMock,
-            return_value=None,
-        ),
+        patch("esphome.automation.plan_automation", side_effect=_plan(False)),
+        patch("esphome.automation.automation_or_run_function", return_value=None),
     ):
         await to_code(config)
 
     add_define.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_script_needing_an_automation_keeps_its_group_on_it() -> None:
+    """Inline scripts of the same mode and parameters as one that needs an Automation use it
+    too, so the mode code is compiled once; other groups still become functions."""
+
+    def script(name: str, mode: str, parameters: dict[str, str]) -> dict[str, Any]:
+        return {
+            CONF_ID: ID(name, is_declaration=True, type=SCRIPT_MODES[mode]),
+            CONF_MODE: mode,
+            CONF_PARAMETERS: parameters,
+            CONF_THEN: [],
+        }
+
+    config = [
+        script("inline_queued", "queued", {"x": "int"}),
+        script("delay_queued", "queued", {"x": "int"}),
+        script("inline_queued_float", "queued", {"x": "float"}),
+        script("inline_single", "single", {"x": "int"}),
+    ]
+    with (
+        patch("esphome.codegen.add"),
+        patch("esphome.codegen.register_component", new_callable=AsyncMock),
+        patch(
+            "esphome.automation.plan_automation",
+            side_effect=_plan(True, False, True, True),
+        ),
+        patch(
+            "esphome.automation.automation_or_run_function", return_value=None
+        ) as build_or_run,
+    ):
+        await to_code(config)
+
+    assert [
+        (str(c.args[1]), c.kwargs["direct"]) for c in build_or_run.call_args_list
+    ] == [
+        ("inline_queued", False),
+        ("delay_queued", False),
+        ("inline_queued_float", True),
+        ("inline_single", True),
+    ]
 
 
 @pytest.mark.parametrize("name", ["esphome__running", "esphome__arg_0"])

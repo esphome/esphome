@@ -2252,27 +2252,38 @@ async def build_automation(
     return await new_automation(args, config, trigger)
 
 
-async def build_automation_or_run_function(
+@dataclass(frozen=True)
+class AutomationPlan:
+    """The built actions of an automation, before it becomes an Automation or a function."""
+
+    plan: list[MockObj | list[_InlineAction]]
+    args: TemplateArgsType
+    config: ConfigType
+
+    @property
+    def direct(self) -> bool:
+        """Whether it can run as a function: every action inline and no manual id."""
+        return _is_direct(self.plan, self.config)
+
+
+async def plan_automation(args: TemplateArgsType, config: ConfigType) -> AutomationPlan:
+    """Build the actions of ``config``; ``automation_or_run_function`` emits the result."""
+    return AutomationPlan(await _build_automation_plan(args, config), args, config)
+
+
+def automation_or_run_function(
+    plan: AutomationPlan,
     trigger: MockObj,
-    args: TemplateArgsType,
-    config: ConfigType,
     add_global_: Callable[[Statement], object] | None = None,
+    direct: bool = True,
 ) -> MockObj | None:
-    """Build ``config`` on ``trigger`` like ``build_automation`` and return None; if every
-    action is inline, return the stoppable function ``esphome__<trigger id>__fn`` instead."""
-    plan = await _build_automation_plan(args, config)
-    if (
-        fn := _direct_function(
-            plan,
-            args,
-            config,
-            id_=trigger.base,
-            stoppable=True,
-            add_global_=add_global_,
-        )
-    ) is None:
-        _automation_from_plan(plan, args, config, trigger)
-    return fn
+    """Build ``plan`` on ``trigger`` like ``build_automation`` and return None; if ``direct``
+    and every action is inline, return the stoppable function ``esphome__<trigger id>__fn``
+    instead."""
+    if direct and plan.direct:
+        return _run_function(trigger.base, plan.plan[0], plan.args, True, add_global_)
+    _automation_from_plan(plan.plan, plan.args, plan.config, trigger)
+    return None
 
 
 async def build_component_automation(

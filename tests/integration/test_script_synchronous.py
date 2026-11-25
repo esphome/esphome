@@ -115,6 +115,15 @@ async def test_script_synchronous(
         ]
         assert recursive == ["0", "1", "2", "3"]
 
+        # an inline queued script sharing its mode and parameters with one that has a delay:
+        # both queue and run in order
+        await client.execute_service(service["run_mixed"], {})
+        await waiter.wait_for("MIXED delay 2", timeout=5.0)
+        assert count("Script 'mixed_inline' queueing new instance (mode: queued)") == 1
+        assert count("Script 'mixed_delay' queueing new instance (mode: queued)") == 1
+        assert in_order("MIXED inline 1", "MIXED inline 2")
+        assert in_order("MIXED delay 1", "MIXED delay 2")
+
         await asyncio.sleep(0.2)
         assert count("STOP start") == 1
         assert count("STOP not reached") == 0
@@ -124,4 +133,8 @@ async def test_script_synchronous(
         assert count("QUEUED run 1") == 1
         assert count("QUEUED run 2") == 1
         assert count("QUEUED run 3") == 0
+        assert count("MIXED inline 1") == 1
+        assert count("MIXED inline 2") == 1
+        assert count("MIXED delay 1") == 1
+        assert count("MIXED delay 2") == 1
         assert count("WAITER done") == 2

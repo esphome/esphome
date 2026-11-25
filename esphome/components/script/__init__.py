@@ -250,10 +250,24 @@ async def to_code(config):
 
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
-    for late, template, func_args, conf, queued in scripts:
+    planned = [
+        (*script, await automation.plan_automation(script[2], script[3]))
+        for script in scripts
+    ]
+    # Scripts of one mode and parameters share the mode code only if they all take the same
+    # path; one that needs an Automation keeps the others on it too
+    needs_automation = {
+        (conf[CONF_MODE], str(template))
+        for _, template, _, conf, _, plan in planned
+        if not plan.direct
+    }
+    for late, template, _, conf, queued, plan in planned:
         # The class or its constructor names the function, so it is declared in the script's place
-        fn = await automation.build_automation_or_run_function(
-            late.var, func_args, conf, late.global_slot.add
+        fn = automation.automation_or_run_function(
+            plan,
+            late.var,
+            late.global_slot.add,
+            direct=(conf[CONF_MODE], str(template)) not in needs_automation,
         )
         script_class = wait_class = late.id.type
         ctor_args = []

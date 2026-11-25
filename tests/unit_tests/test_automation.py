@@ -35,6 +35,7 @@ from esphome.automation import (
     OrCondition,
     RepeatAction,
     StatelessLambdaCondition,
+    Trigger,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
@@ -47,6 +48,7 @@ from esphome.automation import (
     apply_parent,
     apply_statements_action,
     apply_static_function,
+    automation_or_run_function,
     bind_lambda,
     build_action,
     build_action_list,
@@ -69,6 +71,7 @@ from esphome.automation import (
     new_lambda_pvariable,
     owning_args,
     parent_ref,
+    plan_automation,
     progmem_bytes,
     register_action,
     register_apply_action,
@@ -3494,6 +3497,59 @@ async def test_callback_automation_with_object_action_keeps_objects() -> None:
     assert "auto->add_action(act_d);" in main
     assert "auto->add_action(act_b);" in main
     assert "parent->add_cb(TriggerForwarder<>{auto})" in main
+
+
+def _run_trigger() -> MockObj:
+    return MockObj(ID("trig", is_declaration=True, type=Trigger.template()), "->")
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_run_function_for_inline_plan() -> None:
+    """Inline actions only: a stoppable function named after the trigger, no Automation."""
+    plan = await plan_automation([], _automation_conf(_action("my.a", "act_a")))
+    assert plan.direct
+
+    fn = automation_or_run_function(plan, _run_trigger())
+
+    assert str(fn) == "esphome__trig__fn"
+    assert "esphome__trig__fn" in CORE.cpp_global_section
+    assert "Automation" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_run_function_declined_builds_automation() -> None:
+    """``direct=False`` puts an inline plan on the trigger as an Automation."""
+    plan = await plan_automation([], _automation_conf(_action("my.a", "act_a")))
+
+    assert automation_or_run_function(plan, _run_trigger(), direct=False) is None
+
+    assert "esphome__trig__fn" not in CORE.cpp_global_section
+    assert "Automation<>(trig);" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize(
+    ("then", "is_manual"),
+    [
+        ((_action("my.a", "act_a"), _delay("act_d")), False),
+        ((_action("my.a", "act_a"),), True),
+    ],
+    ids=["delay", "manual_automation_id"],
+)
+async def test_plan_needing_automation_is_not_direct(
+    then: tuple[ConfigType, ...], is_manual: bool
+) -> None:
+    """A deferring action or a hand-set automation_id keeps the Automation."""
+    plan = await plan_automation([], _automation_conf(*then, is_manual=is_manual))
+    assert not plan.direct
+
+    assert automation_or_run_function(plan, _run_trigger()) is None
+
+    assert "esphome__trig__fn" not in CORE.cpp_global_section
+    assert "Automation<>(trig);" in CORE.cpp_main_section
 
 
 @pytest.mark.asyncio

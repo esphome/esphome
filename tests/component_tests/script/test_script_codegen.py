@@ -44,8 +44,9 @@ def _assert_function_script(main_cpp: str, mode: str, script: str, *types: str) 
     )
 
 
-def _wait_class(script_class: str) -> str:
-    return f"script::ScriptWaitAction<{script_class}>"
+def _wait_class(script_class: str, *types: str) -> str:
+    """The script.wait action on ``script_class`` in a script with parameters ``types``."""
+    return f"script::ScriptWaitAction<{script_class}{_template_tail(types)}>"
 
 
 def _script_body(main_cpp: str, script: str) -> str:
@@ -155,10 +156,10 @@ def test_calls_itself_with_parameter(generate_main) -> None:
 def test_delay_keeps_separate_actions(generate_main) -> None:
     """A delay keeps today's class, Automation and separate actions."""
     main_cpp = generate_main(CONFIG)
-    assert constructed(main_cpp, "with_delay") == "script::SingleScript<>()"
-    assert "static script::SingleScript<> *const with_delay" in main_cpp
+    assert constructed(main_cpp, "with_delay") == "script::SingleScript<bool>()"
+    assert "static script::SingleScript<bool> *const with_delay" in main_cpp
     before, delay, after = _actions_of(main_cpp, _automation(main_cpp, "with_delay"))
-    assert constructed(main_cpp, delay) == "DelayAction<>()"
+    assert constructed(main_cpp, delay) == "DelayAction<bool>()"
     assert '"DELAY before"' in constructed(main_cpp, before)
     assert '"DELAY after"' in constructed(main_cpp, after)
     assert "esphome__with_delay__fn" not in main_cpp
@@ -167,7 +168,7 @@ def test_delay_keeps_separate_actions(generate_main) -> None:
 def test_manual_automation_id(generate_main) -> None:
     """An automation_id set by hand names the Automation, so a lambda can reach it."""
     main_cpp = generate_main(CONFIG)
-    assert constructed(main_cpp, "manual_automation") == "script::SingleScript<>()"
+    assert constructed(main_cpp, "manual_automation") == "script::SingleScript<bool>()"
     assert _automation(main_cpp, "manual_automation") == "manual_automation_id"
     (action,) = _actions_of(main_cpp, "manual_automation_id")
     assert '"MANUAL"' in constructed(main_cpp, action)
@@ -177,7 +178,7 @@ def test_script_wait(generate_main) -> None:
     """``script.wait`` on a script that runs a function uses the class shared by its mode."""
     main_cpp = generate_main(CONFIG)
     (action,) = _actions_of(main_cpp, _automation(main_cpp, "waits"))
-    class_ = _wait_class(_mode_class("SingleMode"))
+    class_ = _wait_class(_mode_class("SingleMode"), "bool")
     assert constructed(main_cpp, action) == f"{class_}(inline_single)"
 
 
@@ -185,11 +186,11 @@ def test_script_wait_built_first(generate_main) -> None:
     """A ``script.wait`` built before the script it waits for gets the shared class too."""
     main_cpp = generate_main(CONFIG)
     late, delay = _actions_of(main_cpp, _automation(main_cpp, "waits_early"))
-    class_ = _wait_class(_mode_class("SingleMode"))
+    class_ = _wait_class(_mode_class("SingleMode"), "bool")
     assert constructed(main_cpp, late) == f"{class_}(late_target)"
     assert f"static {class_} *const {late}" in main_cpp
     assert constructed(main_cpp, delay) == (
-        f"{_wait_class('script::SingleScript<>')}(with_delay)"
+        f"{_wait_class('script::SingleScript<bool>', 'bool')}(with_delay)"
     )
 
 
@@ -201,4 +202,29 @@ def test_script_wait_keeps_waiting_script_parameters(generate_main) -> None:
     assert constructed(main_cpp, wait) == (
         f"script::ScriptWaitAction<{_mode_class('SingleMode')}, "
         "script::SingleScript<>*>(late_target)"
+    )
+
+
+def test_script_needing_automation_keeps_its_group_on_it(generate_main) -> None:
+    """An inline script with the mode and parameters of one that needs an Automation uses
+    the Automation too, so the queue code is compiled once."""
+    main_cpp = generate_main(CONFIG)
+    for script in ("mixed_inline", "mixed_delay"):
+        assert constructed(main_cpp, script) == "script::QueueingScript<int>()"
+        assert f"esphome__{script}__fn" not in main_cpp
+    (log,) = _actions_of(main_cpp, _automation(main_cpp, "mixed_inline"))
+    assert '"MIXED inline %d"' in constructed(main_cpp, log)
+    assert "QueueingMode<script::FunctionBody<int>" not in main_cpp
+    (wait,) = _actions_of(main_cpp, _automation(main_cpp, "waits_mixed"))
+    assert constructed(main_cpp, wait) == (
+        f"{_wait_class('script::QueueingScript<int>', 'bool')}(mixed_inline)"
+    )
+
+
+def test_other_groups_still_run_functions(generate_main) -> None:
+    """A group without a script that needs an Automation keeps the shared function class."""
+    main_cpp = generate_main(CONFIG)
+    queued = _mode_class("QueueingMode")
+    assert constructed(main_cpp, "inline_queued") == (
+        f"script::FunctionPointerScript<{queued}>(esphome__inline_queued__fn)"
     )

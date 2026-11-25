@@ -59,6 +59,17 @@ api:
         - script.execute:
             id: recursive_script
             n: 3
+    - action: run_mixed
+      then:
+        - script.execute:
+            id: mixed_inline
+            n: 1
+        - script.execute:
+            id: mixed_delay
+            n: 1
+        - script.execute:
+            id: mixed_delay
+            n: 2
 
 logger:
   level: DEBUG
@@ -92,6 +103,33 @@ script:
           then:
             - script.execute: restart_script
       - logger.log: "RESTART end"
+
+  # Queued with a float: mixed_delay needs an Automation, so mixed_inline runs on one too
+  - id: mixed_inline
+    mode: queued
+    parameters:
+      n: float
+    then:
+      - logger.log:
+          format: "MIXED inline %.0f"
+          args: [n]
+      - if:
+          condition:
+            lambda: return n == 1;
+          then:
+            - script.execute:
+                id: mixed_inline
+                n: 2
+
+  - id: mixed_delay
+    mode: queued
+    parameters:
+      n: float
+    then:
+      - delay: 50ms
+      - logger.log:
+          format: "MIXED delay %.0f"
+          args: [n]
 
   # max_runs counts the running instance and the queued ones
   - id: queued_script
