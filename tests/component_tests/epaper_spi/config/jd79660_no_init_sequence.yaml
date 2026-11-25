@@ -14,11 +14,10 @@ spi:
 display:
   - platform: epaper_spi
     id: epaper_display
-    model: t133a01
+    model: jd79660
     dc_pin: GPIO21
     reset_pin: GPIO38
     cs_pin: GPIO10
-    cs1_pin: GPIO2
     busy_pin: GPIO13
     update_interval: never
     dimensions:

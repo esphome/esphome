@@ -244,7 +244,7 @@ async def to_code(config):
     config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
 
     await display.add_writer(var, config)
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
