@@ -99,14 +99,18 @@ async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], parent)
     await cg.register_component(var, config)
+    outputs = []
     for output_config in config[CONF_OUTPUTS]:
         output = cg.new_Pvariable(output_config[CONF_ID], var)
         if output_config[CONF_RX_ONLY]:
             cg.add(output.set_rx_only(True))
         if output_config[CONF_DIRECTION] == "BOTH":
             cg.add(output.set_mirror_tx(True))
+        _request_output_slot(str(config[CONF_ID]))
+        cg.add(var.add_output(output))
+        outputs.append(output)
+    # A debug sequence may name any output, so every output is declared first.
+    for output_config, output in zip(config[CONF_OUTPUTS], outputs, strict=True):
         if debug := output_config.get(CONF_DEBUG):
             cg.add_global(uart.uart_ns.using)
             await uart.debug_to_code(debug, output)
-        _request_output_slot(str(config[CONF_ID]))
-        cg.add(var.add_output(output))

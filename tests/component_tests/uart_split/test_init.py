@@ -195,3 +195,27 @@ def test_split_of_an_output_generates_code(
     assert main_cpp.index("register_component_(split_bus") < main_cpp.index(
         "register_component_(second_split"
     )
+
+
+def test_debugger_may_use_a_later_output(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    """The debug lambda of bus waits for tap; tap must already be declared."""
+    path = tmp_path / "uart_split.yaml"
+    path.write_text(
+        BASE
+        + UART.format(baud_rate=9600)
+        + """
+uart_split:
+  - id: split_bus
+    uart_id: pins
+    outputs:
+      - id: bus
+        debug:
+          sequence:
+            - lambda: id(tap).available();
+      - id: tap
+        rx_only: true
+"""
+    )
+    assert "tap->available()" in generate_main(path)
