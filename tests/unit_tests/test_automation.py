@@ -3939,6 +3939,18 @@ def test_apply_static_function_share() -> None:
     assert len(CORE.global_statements_after_includes) == 2
 
 
+def test_apply_static_function_declaration_sink_name_is_unique() -> None:
+    """A placed function does not take the name of a config id such as ``esphome__demo__fn``."""
+    CORE.config = {}
+    cg.new_Pvariable(ID("esphome__demo__fn", is_declaration=True, type=cg.Component))
+    declarations: list[cg.Statement] = []
+    fn = apply_static_function(
+        ID("demo"), cg.void, [], ["return;"], add_global_=declarations.append
+    )
+    assert str(fn) == "esphome__demo__fn_2"
+    assert [str(st) for st in declarations] == ["static void esphome__demo__fn_2();"]
+
+
 @pytest.mark.asyncio
 async def test_bind_lambda_keeps_args_by_value() -> None:
     """A lambda that names a trigger arg gets it by value and is called in place."""

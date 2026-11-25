@@ -6,17 +6,21 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components.const import CONF_ON_STOP
 from esphome.components.script import (
     CONF_SCRIPT_STOP,
     CONFIG_SCHEMA,
     SCRIPT_MODES,
+    Script,
+    ScriptWaitAction,
     default_script_stop_ids,
+    script_wait_action_to_code,
     to_code,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
-from esphome.core import ID
+from esphome.core import CORE, ID
 
 
 def test_bare_script_stop_defaults_to_enclosing_script() -> None:
@@ -178,3 +182,23 @@ def test_reserved_parameter_names_rejected(name: str) -> None:
         error.msg == "Names starting with 'esphome__' are reserved for generated code"
     )
     assert error.path == [0, CONF_PARAMETERS, name]
+
+
+@pytest.mark.asyncio
+async def test_script_wait_on_script_declared_elsewhere() -> None:
+    """A Script that the script: list did not declare is waited on with its own class."""
+    other = cg.esphome_ns.class_("OtherScript", Script)
+    other_id = ID("other_script", is_declaration=True, type=other)
+    cg.new_Pvariable(other_id)
+    action_id = ID("wait_action", is_declaration=True, type=ScriptWaitAction)
+
+    with patch("esphome.codegen.register_component", new_callable=AsyncMock):
+        var = await script_wait_action_to_code(
+            {CONF_ID: ID("other_script", type=Script)},
+            action_id,
+            cg.TemplateArguments(),
+            [],
+        )
+
+    assert str(var) == "wait_action"
+    assert "script::ScriptWaitAction<OtherScript>" in CORE.cpp_global_section

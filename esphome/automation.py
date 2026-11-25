@@ -388,6 +388,11 @@ def _run_statements(run: list[_InlineAction]) -> list[str]:
     return statements
 
 
+def _unstoppable_statements(run: list[_InlineAction]) -> list[str]:
+    """``_run_statements`` without its stop checks, nested ones included, for a run nothing can stop."""
+    return [line for line in _run_statements(run) if line != _STOP_CHECK]
+
+
 def _plan_statements(plan: list[MockObj | list[_InlineAction]] | None) -> list[str]:
     return _run_statements(plan[0]) if plan else []
 
@@ -725,9 +730,14 @@ def apply_static_function(
     ``add_global_`` places the declaration (e.g. at a ``LatePvariable``); such a function is never shared.
     """
     name = _apply_function_name(id_, suffix)
-    if add_global_ is not None:
-        return cg.static_function(name, return_type, params, statements, add_global_)
-    return cg.shared_static_function(name, return_type, params, statements, share=share)
+    return cg.shared_static_function(
+        name,
+        return_type,
+        params,
+        statements,
+        share=share,
+        add_global_=add_global_,
+    )
 
 
 def _apply_function_name(id_: ID, suffix: str = "fn") -> str:
@@ -1975,13 +1985,13 @@ def _run_function(
     add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj:
     """Emit the function that runs ``run``; a stoppable one takes the run count first and
-    returns once a stop clears it. ``add_global_`` is passed to ``cg.static_function``."""
+    returns once a stop clears it. ``add_global_`` is passed to ``apply_static_function``."""
     params = _apply_params(args)
-    statements = _run_statements(run)
     if stoppable:
         params = [(cg.RawExpression("const int &"), _RUNNING_PARAM), *params]
+        statements = _run_statements(run)
     else:
-        statements = [line for line in statements if line != _STOP_CHECK]
+        statements = _unstoppable_statements(run)
     return apply_static_function(
         id_, cg.void, params, statements, add_global_=add_global_
     )
@@ -2188,7 +2198,7 @@ def _direct_statements(
 ) -> list[str] | None:
     if not _is_direct(plan, config):
         return None
-    return [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
+    return _unstoppable_statements(plan[0])
 
 
 def _direct_function(

@@ -365,7 +365,8 @@ automation.register_apply_action(
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    script_waits = _data().waits[full_id.id]
+    # A Script declared by another component is not in waits; its class is already known
+    script_waits = _data().waits.get(full_id.id, full_id.type)
     pending = isinstance(script_waits, list)
     # Created where it is built, once the class of the script it waits for is known
     id_ = action_id.copy()

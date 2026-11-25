@@ -893,6 +893,8 @@ class LatePvariable:
         CORE.add_global(self.global_slot)
         CORE.add(self._main_slot)
         CORE.register_variable(id_, self.var)
+        # define() always places it in static storage
+        CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
 
     def define(self, type_: "MockObjClass", *args: SafeExpType) -> None:
         """Create the variable as ``type_``, like ``new_Pvariable`` with ``args``."""
@@ -999,13 +1001,15 @@ def shared_static_function(
     body: list[str | Statement],
     *,
     share: bool = True,
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> RawExpression:
     """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
 
     ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
+    ``add_global_`` places the declaration, as for ``static_function``; such a function is never shared.
     """
-    if not share:
-        return _new_static_function(name, return_type, parameters, body)
+    if not share or add_global_ is not None:
+        return _new_static_function(name, return_type, parameters, body, add_global_)
     data: SharedStaticFunctions = CORE.data.setdefault(
         "shared_static_function", SharedStaticFunctions()
     )
@@ -1026,9 +1030,10 @@ def _new_static_function(
     return_type: SafeExpType,
     parameters: TemplateArgsType,
     body: list[str | Statement],
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> RawExpression:
     id_ = unique_global_id(name, None)
-    fn = static_function(id_.id, return_type, parameters, body)
+    fn = static_function(id_.id, return_type, parameters, body, add_global_)
     CORE.register_variable(id_, fn)
     return fn
 
