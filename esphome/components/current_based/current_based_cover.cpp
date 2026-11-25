@@ -172,7 +172,7 @@ void CurrentBasedCover::end_reached_(float position) {
   const bool end_confirmed =
       this->learn_durations_ && this->motor_current_seen_ && std::isfinite(current_sensor->get_state());
 #endif
-  // Learned before the state is published, so automations on it see the new values and can start a travel
+  // Learned before the state is published, so state callbacks see the new values and can start a travel
   this->start_direction_(COVER_OPERATION_IDLE);
   this->position = position;
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS

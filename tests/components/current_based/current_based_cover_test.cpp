@@ -178,6 +178,34 @@ TEST_P(CurrentBasedCoverImplausibleTest, DoesNotLearnDurationFarFromConfigured) 
 INSTANTIATE_TEST_SUITE_P(Implausible, CurrentBasedCoverImplausibleTest,
                          ::testing::Values(CONFIGURED_DURATION / 2 - 200, CONFIGURED_DURATION * 2 + 200));
 
+// A state callback at the end sees the learned duration, and a travel it starts from that end is learned too
+TEST_F(CurrentBasedCoverTest, StateCallbackSeesLearnedDurationAndCanStartTravel) {
+  CurrentBasedCover cover;
+  this->setup_cover_(cover, true);
+  this->travel_to_(cover, COVER_CLOSED, 1000);
+  uint32_t seen_open_duration = 0;
+  cover.add_on_state_callback([&cover, &seen_open_duration]() {
+    if (seen_open_duration != 0 || cover.position != COVER_OPEN || cover.current_operation != COVER_OPERATION_IDLE)
+      return;
+    seen_open_duration = cover.get_open_duration();
+    cover.make_call().set_position(COVER_CLOSED).perform();
+  });
+  cover.make_call().set_position(COVER_OPEN).perform();
+  this->draw_current_(cover);
+  this->open_current_.publish_state(0.0f);
+  this->close_current_.publish_state(0.0f);
+  delay(2);
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, millis() + 7000};
+    cover.loop();
+  }
+  EXPECT_NEAR(seen_open_duration, 7000, TOLERANCE);
+  ASSERT_EQ(cover.current_operation, COVER_OPERATION_CLOSING);
+  this->draw_current_(cover);
+  this->stop_drawing_current_(cover, 6000);
+  EXPECT_NEAR(cover.get_close_duration(), 6000, TOLERANCE);
+}
+
 TEST_F(CurrentBasedCoverTest, DoesNotLearnTravelThatWasReversed) {
   CurrentBasedCover cover;
   this->setup_cover_(cover, true, 4000);
