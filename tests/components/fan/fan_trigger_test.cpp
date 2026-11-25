@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -44,10 +45,15 @@ static TriggerFan *the_fan = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-con
 static void record_turn_on() { fired.emplace_back("turn_on"); }
 static void record_turn_on_again() { fired.emplace_back("turn_on again"); }
 static void record_turn_off() { fired.emplace_back("turn_off"); }
-static void record_direction(FanDirection x) { fired.push_back("direction " + std::to_string(static_cast<int>(x))); }
-static void record_oscillating(bool x) { fired.push_back("oscillating " + std::to_string(x)); }
-static void record_speed(int x) { fired.push_back("speed " + std::to_string(x)); }
-static void record_speed_again(int x) { fired.push_back("speed again " + std::to_string(x)); }
+static void record(const char *name, int value) {
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%s %d", name, value);
+  fired.emplace_back(buf);
+}
+static void record_direction(FanDirection x) { record("direction", static_cast<int>(x)); }
+static void record_oscillating(bool x) { record("oscillating", x); }
+static void record_speed(int x) { record("speed", x); }
+static void record_speed_again(int x) { record("speed again", x); }
 static void record_preset(StringRef x) { fired.push_back("preset " + std::string(x.c_str(), x.size())); }
 
 static void turn_on_at_speed_3() {
