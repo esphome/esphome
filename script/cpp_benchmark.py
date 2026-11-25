@@ -35,9 +35,8 @@ BUILD_FLAGS = [
     "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
     f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
     f"-I{HELPERS_DIR}",  # shared test doubles such as fake_uart.h
-    # Firmware toolchains add no hardening; distro compilers (Ubuntu in CI)
-    # turn it on by default and put a stack canary or endbr64 in every
-    # small function, which CodSpeed then counts
+    # Firmware toolchains add no hardening; distro compilers (Ubuntu in CI) do by
+    # default, putting a stack canary or endbr64 in every small function
     "-fno-stack-protector",
     "-fcf-protection=none",
     "-U_FORTIFY_SOURCE",
