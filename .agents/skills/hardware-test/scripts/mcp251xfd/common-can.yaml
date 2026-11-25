@@ -1,0 +1,46 @@
+# Package: ESP32-PICO-D4 wired to the MCP2518FD (SCK 25, SDI 26, SDO 27, nCS 32, INT 33, CLK 34); each config adds
+# its canbus block and a `phases` script, run once the stream has started
+esphome:
+  name: ${name}
+  includes:
+    - canlb.hpp
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI("ram", "BOOTFREE %u TOTAL %u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                     (unsigned) heap_caps_get_total_size(MALLOC_CAP_INTERNAL));
+            canlb::classic = ${classic};
+            canlb::start(id(can0));
+            canlb::cs_init(32);
+            canlb::regs("boot");
+        - script.execute: phases
+
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+spi:
+  clk_pin: GPIO25
+  mosi_pin: GPIO26
+  miso_pin: GPIO27
+
+interval:
+  - interval: 2ms
+    then:
+      - lambda: canlb::step();
+  - interval: 10s
+    then:
+      - lambda: canlb::report();
+
+sensor:
+  # CLKO: SYSCLK / 10 at reset, so 2 MHz with a 20 MHz crystal
+  - platform: pulse_counter
+    pin: GPIO34
+    name: clko
+    internal_filter: 0us
+    update_interval: 60s

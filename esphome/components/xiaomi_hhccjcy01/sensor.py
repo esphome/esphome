@@ -1,23 +1,19 @@
 import esphome.codegen as cg
-from esphome.components import ble_device_base, sensor
+from esphome.components import ble_device_base, sensor, xiaomi_ble
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_CONDUCTIVITY,
-    CONF_ID,
     CONF_ILLUMINANCE,
     CONF_MAC_ADDRESS,
     CONF_MOISTURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_ILLUMINANCE,
-    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_CONDUCTIVITY,
+    DEVICE_CLASS_MOISTURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_FLOWER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_LUX,
     UNIT_MICROSIEMENS_PER_CENTIMETER,
     UNIT_PERCENT,
 )
@@ -26,9 +22,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_hhccjcy01_ns = cg.esphome_ns.namespace("xiaomi_hhccjcy01")
-XiaomiHHCCJCY01 = xiaomi_hhccjcy01_ns.class_(
-    "XiaomiHHCCJCY01", ble_device_base.ESPBTDeviceListener, cg.Component
-)
+XiaomiHHCCJCY01 = xiaomi_hhccjcy01_ns.class_("XiaomiHHCCJCY01", xiaomi_ble.XiaomiDevice)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("xiaomi_hhccjcy01"),
@@ -37,53 +31,41 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY01),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
                 icon=ICON_FLOWER,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CONDUCTIVITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device(config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_MOISTURE, var.set_moisture)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
-    await sensors(CONF_CONDUCTIVITY, var.set_conductivity)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_MOISTURE, var.set_moisture_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

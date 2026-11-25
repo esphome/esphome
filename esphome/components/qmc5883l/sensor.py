@@ -5,6 +5,7 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_DRDY_PIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -13,24 +14,16 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
     CONF_HEADING,
-    CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_MAGNET,
     ICON_SCREEN_ROTATION,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_DEGREES,
-    UNIT_MICROTESLA,
 )
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_DRDY_PIN = "drdy_pin"
 
 DEPENDENCIES = ["i2c"]
 
@@ -96,23 +89,12 @@ def validate_enum(
 
 
 field_strength_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_MICROTESLA,
-    icon=ICON_MAGNET,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.MAGNETIC_FIELD, accuracy_decimals=1
 )
 heading_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_DEGREES,
-    icon=ICON_SCREEN_ROTATION,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.ANGLE, icon=ICON_SCREEN_ROTATION, accuracy_decimals=1
 )
-temperature_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+temperature_schema = sensor.sensor_schema(kind=sensor.TEMPERATURE)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -143,9 +125,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_datarate(config[CONF_DATA_RATE]))
@@ -156,6 +136,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)
     await sensors(CONF_HEADING, var.set_heading_sensor)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
-    if CONF_DRDY_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
-        cg.add(var.set_drdy_pin(pin))
+    await cg.add_pin(var.set_drdy_pin, config.get(CONF_DRDY_PIN))

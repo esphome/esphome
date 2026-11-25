@@ -78,16 +78,4 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
 
 DECLARE_REMOTE_PROTOCOL(Midea)
 
-template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_BYTES(code)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    MideaData data = this->code_.is_static() ? MideaData(this->code_.data(), this->code_.size())
-                                             : MideaData(this->code_.value(x...));
-    data.finalize();
-    MideaProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

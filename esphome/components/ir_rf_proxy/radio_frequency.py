@@ -35,11 +35,7 @@ def _final_validate(config: ConfigType) -> None:
     if CONF_REMOTE_TRANSMITTER_ID not in config:
         return
 
-    full_config = fv.full_config.get()
-    transmitter_path = full_config.get_path_for_id(config[CONF_REMOTE_TRANSMITTER_ID])[
-        :-1
-    ]
-    transmitter_config = full_config.get_config_for_path(transmitter_path)
+    transmitter_config = fv.get_declaring_config(config[CONF_REMOTE_TRANSMITTER_ID])
 
     duty_percent = transmitter_config.get(CONF_CARRIER_DUTY_PERCENT)
     if duty_percent is not None and duty_percent != 100:
@@ -58,8 +54,8 @@ async def to_code(config: ConfigType) -> None:
     """Code generation for remote_base radio frequency platform."""
     var = await radio_frequency.new_radio_frequency(config)
 
-    if CONF_FREQUENCY in config:
-        cg.add(var.set_frequency_hz(int(config[CONF_FREQUENCY])))
+    if (frequency := config.get(CONF_FREQUENCY)) is not None:
+        cg.add(var.set_frequency_hz(int(frequency)))
 
     if CONF_REMOTE_TRANSMITTER_ID in config:
         await ir_rf_base.attach_transmitter(var, config, CONF_REMOTE_TRANSMITTER_ID)

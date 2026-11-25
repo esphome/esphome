@@ -1,0 +1,36 @@
+esphome:
+  name: btpeer
+  includes:
+    - btpeer.hpp
+    - central_bda.hpp
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+  logs:
+    esp32_ble: VERBOSE
+    scheduler: DEBUG
+    component: DEBUG
+
+esp32_ble:
+  max_connections: 1
+
+esp32_ble_server:
+  manufacturer: test
+  on_connect:
+    - lambda: ESP_LOGI("peer", "PEER CONNECT conn %u", (unsigned) id);
+    - delay: 4s
+    - lambda: btpeer_request_latency();
+  on_disconnect:
+    - lambda: ESP_LOGI("peer", "PEER DISCONNECT conn %u", (unsigned) id);
+  services:
+    - uuid: 6e400001-b5a3-f393-e0a9-e50e24dcca9e
+      advertise: true
+      characteristics:
+        - uuid: 6e400002-b5a3-f393-e0a9-e50e24dcca9e
+          read: true
+          value: "peer"

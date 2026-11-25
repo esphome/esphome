@@ -6,6 +6,7 @@
 #include <array>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -13,7 +14,7 @@ namespace esphome::binary_sensor {
 
 class BinarySensor;
 
-class Filter {
+class Filter : public ChainNode<Filter, BinarySensor> {
  public:
   virtual optional<bool> new_value(bool value) = 0;
 
@@ -24,8 +25,9 @@ class Filter {
  protected:
   friend BinarySensor;
 
-  Filter *next_{nullptr};
-  BinarySensor *parent_{nullptr};
+  /// Forget the last value and drop any pending scheduled output; called when the sensor's state is invalidated.
+  virtual void reset();
+
   Deduplicator<bool> dedup_;
 };
 
@@ -37,18 +39,6 @@ class TimeoutFilter : public Filter {
 
  protected:
   TemplatableFn<uint32_t> timeout_delay_{};
-};
-
-class DelayedOnOffFilter final : public Filter {
- public:
-  optional<bool> new_value(bool value) override;
-
-  template<typename T> void set_on_delay(T delay) { this->on_delay_ = delay; }
-  template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
-
- protected:
-  TemplatableFn<uint32_t> on_delay_{};
-  TemplatableFn<uint32_t> off_delay_{};
 };
 
 class DelayedOnFilter : public Filter {
@@ -100,6 +90,7 @@ class AutorepeatFilterBase : public Filter {
 
  protected:
   AutorepeatFilterBase() = default;
+  void reset() override;
   void next_timing_();
   void next_value_(bool val);
 
@@ -122,29 +113,15 @@ template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
   std::array<AutorepeatFilterTiming, N> timings_storage_{};
 };
 
-class LambdaFilter : public Filter {
+/// Codegen use only: output `value` from `filter` after `delay` ms, replacing its pending output, and return empty
+/// to stop the chain for now.
+optional<bool> delay_output(Filter *filter, uint32_t delay, bool value);
+
+/// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
+/// The function gets the filter, so it can schedule output on it.
+template<auto Fn> class ApplyFilter final : public Filter {
  public:
-  explicit LambdaFilter(std::function<optional<bool>(bool)> f);
-
-  optional<bool> new_value(bool value) override;
-
- protected:
-  std::function<optional<bool>(bool)> f_;
-};
-
-/** Optimized lambda filter for stateless lambdas (no capture).
- *
- * Uses function pointer instead of std::function to reduce memory overhead.
- * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
- */
-class StatelessLambdaFilter : public Filter {
- public:
-  explicit StatelessLambdaFilter(optional<bool> (*f)(bool)) : f_(f) {}
-
-  optional<bool> new_value(bool value) override { return this->f_(value); }
-
- protected:
-  optional<bool> (*f_)(bool);
+  optional<bool> new_value(bool value) override { return Fn(this, value); }
 };
 
 class SettleFilter : public Filter {
@@ -156,8 +133,10 @@ class SettleFilter : public Filter {
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
+  void reset() override;
+
+  bool steady_{true};  // Before delay_ so it fills the Filter base's tail padding
   TemplatableFn<uint32_t> delay_{};
-  bool steady_{true};
 };
 
 }  // namespace esphome::binary_sensor

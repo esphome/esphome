@@ -7,10 +7,10 @@ Constants already defined in esphome.const are not duplicated here and must be i
 import logging
 from typing import Any
 
-from esphome import codegen as cg, config_validation as cv
+from esphome import automation, codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
+from esphome.cpp_generator import MockObj, StaticCastExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
@@ -25,6 +25,7 @@ KEY_LV_DEFINES = "lv_defines"
 KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
 KEY_LV_USES = "lv_uses"
+KEY_MENU_SET_PAGE_ACTIONS = "menu_set_page_actions"
 KEY_NAMED_STYLES = "named_styles"
 KEY_OPTIONS = "options"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
@@ -172,6 +173,10 @@ def get_refreshed_widgets() -> set:
     return _get_data(KEY_REFRESHED_WIDGETS, set())
 
 
+def get_menu_set_page_actions() -> list:
+    return _get_data(KEY_MENU_SET_PAGE_ACTIONS, [])
+
+
 def get_list_triggers() -> dict:
     return _get_data(KEY_LIST_TRIGGERS, {})
 
@@ -239,17 +244,19 @@ class LValidator:
             if args is None:
                 args = get_lambda_context_args()
 
-            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
             if raw_lambda:
-                return lamb
-            return call_lambda(lamb)
+                return await cg.process_lambda(value, args, return_type=self.rtype)
+            return await automation.call_user_lambda(value, args, self.rtype)
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
-            return await cg.get_variable(value)
+            return automation.parent_ref(await cg.get_variable(value))
         if isinstance(value, list):
             value = [
-                await cg.get_variable(x) if isinstance(x, ID) else x for x in value
+                automation.parent_ref(await cg.get_variable(x))
+                if isinstance(x, ID)
+                else x
+                for x in value
             ]
         if self.rtype is cg.int_:
             value = int(value)
@@ -682,6 +689,12 @@ LV_MENU_MODES = LvConstant(
     "BOTTOM_FIXED",
 )
 
+LV_MENU_ROOT_BACK_BUTTON_MODES = LvConstant(
+    "LV_MENU_ROOT_BACK_BUTTON_",
+    "DISABLED",
+    "ENABLED",
+)
+
 LV_CHART_TYPES = (
     "NONE",
     "LINE",
@@ -718,7 +731,6 @@ CONF_DISP_BG_COLOR = "disp_bg_color"
 CONF_DISP_BG_IMAGE = "disp_bg_image"
 CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
-CONF_BUTTONS = "buttons"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLICKABLE = "clickable"
 CONF_CLOSE_BUTTON = "close_button"
@@ -762,6 +774,7 @@ CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
+CONF_HEADER_STYLE = "header_style"
 CONF_HOME = "home"
 CONF_IMAGE = "image"
 CONF_INDICATORS = "indicators"
@@ -778,6 +791,7 @@ CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
 CONF_MAPPING = "mapping"
+CONF_MENU = "menu"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
@@ -788,6 +802,7 @@ CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
+CONF_ON_ROOT_BACK_BUTTON_CLICK = "on_root_back_button_click"
 CONF_ON_SELECT = "on_select"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
@@ -810,6 +825,7 @@ CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROOT_PAGE = "root_page"
 CONF_SCALE = "scale"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
@@ -817,9 +833,12 @@ CONF_SCROLL_DIR = "scroll_dir"
 CONF_SCROLLABLE = "scrollable"
 CONF_SCROLL_SNAP_X = "scroll_snap_x"
 CONF_SCROLL_SNAP_Y = "scroll_snap_y"
+CONF_SECTIONS = "sections"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
+CONF_SIDEBAR_PAGE = "sidebar_page"
+CONF_SIDEBAR_HEADER_STYLE = "sidebar_header_style"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"

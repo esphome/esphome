@@ -26,6 +26,8 @@ void TinyUSB::setup() {
   }
 
   // Start from esp_tinyusb defaults to keep required task settings valid across esp_tinyusb updates.
+  // Setters write into tusb_cfg_ before setup(), so anything they set has to survive the reset.
+  const uint8_t *full_speed_config = this->tusb_cfg_.descriptor.full_speed_config;
   this->tusb_cfg_ = TINYUSB_DEFAULT_CONFIG();
   this->tusb_cfg_.port = TINYUSB_PORT_FULL_SPEED_0;
   this->tusb_cfg_.phy.skip_setup = false;
@@ -39,6 +41,7 @@ void TinyUSB::setup() {
       .device = &this->usb_descriptor_,
       .string = this->string_descriptor_,
       .string_count = SIZE,
+      .full_speed_config = full_speed_config,
   };
 
   // Defense-in-depth: esp_tinyusb's tinyusb_descriptors_set() fails with

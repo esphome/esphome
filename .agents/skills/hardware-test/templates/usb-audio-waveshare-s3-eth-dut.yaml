@@ -1,0 +1,142 @@
+# Waveshare ESP32-S3-ETH: USB host for a speakerphone (usb_audio), logs over Ethernet, the USB port is the host port
+esphome:
+  name: usb-audio-dut
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+  logs:
+    usb_host: DEBUG
+
+ethernet:
+  type: W5500
+  clk_pin: GPIO13
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  cs_pin: GPIO14
+  interrupt_pin: GPIO10
+  reset_pin: GPIO9
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+usb_audio:
+  id: usb_audio_id
+
+microphone:
+  - platform: usb_audio
+    id: usb_mic
+    usb_audio_id: usb_audio_id
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    num_channels: 2
+    buffer_size: 9600
+    on_data:
+      - lambda: |-
+          id(mic_bytes) += x.size();
+          id(mic_chunks) += 1;
+
+speaker:
+  - platform: usb_audio
+    id: usb_speaker
+    usb_audio_id: usb_audio_id
+    sample_rate: 48000
+    bits_per_sample: 24bit
+    num_channels: 2
+    buffer_size: 9600
+    write_timeout: 20ms
+
+globals:
+  - id: beep_left
+    type: int
+    initial_value: "0"
+  - id: beep_written
+    type: uint32_t
+    initial_value: "0"
+  - id: beep_short
+    type: uint32_t
+    initial_value: "0"
+  - id: beep_phase
+    type: float
+    initial_value: "0"
+  - id: mic_bytes
+    type: uint32_t
+    initial_value: "0"
+  - id: mic_chunks
+    type: uint32_t
+    initial_value: "0"
+
+button:
+  - platform: template
+    name: Mic start
+    on_press:
+      - microphone.capture: usb_mic
+  - platform: template
+    name: Mic stop
+    on_press:
+      - microphone.stop_capture: usb_mic
+  - platform: template
+    name: Beep
+    on_press:
+      - lambda: |-
+          // 2 s of a 1 kHz tone at 48 kHz 24-bit stereo, fed 10 ms at a time from the interval below
+          id(beep_left) = 200;
+          id(beep_written) = 0;
+          id(beep_short) = 0;
+          id(beep_phase) = 0.0f;
+          id(usb_speaker).start();
+          ESP_LOGI("uatest", "beep started");
+  - platform: template
+    name: Speaker stop
+    on_press:
+      - speaker.stop: usb_speaker
+  - platform: template
+    name: Restart
+    on_press:
+      - lambda: App.safe_reboot();
+
+interval:
+  - interval: 8ms
+    then:
+      - lambda: |-
+          if (id(beep_left) <= 0) return;
+          // 10 ms of 48 kHz stereo 24-bit samples, 3 bytes little-endian per sample
+          static uint8_t buf[480 * 2 * 3];
+          float phase = id(beep_phase);
+          for (int i = 0; i < 480; i++) {
+            int32_t s = (int32_t) (1500000.0f * sinf(phase));
+            phase += 2.0f * 3.14159265f * 1000.0f / 48000.0f;
+            if (phase > 6.2831853f) phase -= 6.2831853f;
+            for (int c = 0; c < 2; c++) {
+              uint8_t *o = buf + (i * 2 + c) * 3;
+              o[0] = s & 0xFF; o[1] = (s >> 8) & 0xFF; o[2] = (s >> 16) & 0xFF;
+            }
+          }
+          size_t n = id(usb_speaker).play(buf, sizeof(buf), 0);
+          if (n == 0) { id(beep_short) += 1; return; }  // not accepted yet, try the same chunk next time
+          id(beep_phase) = phase;
+          id(beep_written) += n;
+          id(beep_left) -= 1;
+          if (id(beep_left) == 0) ESP_LOGI("uatest", "beep done: %u bytes queued, %u retries", (unsigned) id(beep_written), (unsigned) id(beep_short));
+  - interval: 5s
+    then:
+      - lambda: |-
+          ESP_LOGI("uatest", "mic capturing=%d bytes=%u chunks=%u | speaker running=%d | heap free %u",
+                   id(usb_mic).is_running(), (unsigned) id(mic_bytes), (unsigned) id(mic_chunks),
+                   id(usb_speaker).is_running(), (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL));

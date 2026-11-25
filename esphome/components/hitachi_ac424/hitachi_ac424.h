@@ -8,8 +8,8 @@ namespace esphome::hitachi_ac424 {
 const uint16_t HITACHI_AC424_HDR_MARK = 3416;   // ac
 const uint16_t HITACHI_AC424_HDR_SPACE = 1604;  // ac
 const uint16_t HITACHI_AC424_BIT_MARK = 463;
-const uint16_t HITACHI_AC424_ONE_SPACE = 1208;
-const uint16_t HITACHI_AC424_ZERO_SPACE = 372;
+static constexpr remote_base::BitTimings HITACHI_AC424_BIT_TIMINGS{
+    .bit_mark = HITACHI_AC424_BIT_MARK, .one_space = 1208, .zero_space = 372};
 const uint32_t HITACHI_AC424_MIN_GAP = 100000;  // just a guess.
 const uint16_t HITACHI_AC424_FREQ = 38000;      // Hz.
 
@@ -79,17 +79,10 @@ const uint16_t HITACHI_AC424_BITS = HITACHI_AC424_STATE_LENGTH * 8;
 
 class HitachiClimate final : public climate_ir::ClimateIR {
  public:
-  HitachiClimate()
-      : climate_ir::ClimateIR(HITACHI_AC424_TEMP_MIN, HITACHI_AC424_TEMP_MAX, 1.0F, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
+  HitachiClimate();
 
  protected:
-  uint8_t remote_state_[HITACHI_AC424_STATE_LENGTH]{
-      0x01, 0x10, 0x00, 0x40, 0xBF, 0xFF, 0x00, 0xCC, 0x33, 0x92, 0x6D, 0x13, 0xEC, 0x5C, 0xA3, 0x00, 0xFF, 0x00,
-      0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x53, 0xAC, 0xF1, 0x0E, 0x00, 0xFF, 0x00, 0xFF, 0x80, 0x7F, 0x03,
-      0xFC, 0x01, 0xFE, 0x88, 0x77, 0x00, 0xFF, 0x00, 0xFF, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00};
+  uint8_t remote_state_[HITACHI_AC424_STATE_LENGTH];
   uint8_t previous_temp_{27};
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;

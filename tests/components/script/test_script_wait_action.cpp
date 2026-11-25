@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "esphome/components/script/script.h"
 
@@ -91,6 +92,91 @@ TEST(ScriptWaitActionTest, KeepsReferenceToNonCopyableArguments) {
   script.running = false;
   wait.loop();
   EXPECT_EQ(entity.value, 1);
+}
+
+class StopWaitAction : public Action<const std::string &> {
+ public:
+  void play(const std::string &value) override {
+    this->wait->stop_complex();
+    this->seen = value;
+  }
+  Action<const std::string &> *wait{nullptr};
+  std::string seen;
+};
+
+// The chain after the wait may stop it, e.g. a script with mode: restart
+TEST(ScriptWaitActionTest, StopDuringChainKeepsArguments) {
+  FakeScript script;
+  ScriptWaitAction<FakeScript, const std::string &> wait(&script);
+  StopWaitAction stop;
+  stop.wait = &wait;
+  ActionList<const std::string &> actions;
+  actions.add_actions({&wait, &stop});
+
+  // With a second item waiting, stop() clears the queue while the first item's chain runs
+  actions.play(std::string("argument longer than the small string buffer"));
+  actions.play(std::string("second argument, also longer than the buffer"));
+  script.running = false;
+  wait.loop();
+  EXPECT_EQ(stop.seen, "argument longer than the small string buffer");
+  wait.loop();
+  EXPECT_EQ(stop.seen, "argument longer than the small string buffer");
+}
+
+class RestartAction : public Action<const std::string &> {
+ public:
+  void play(const std::string &value) override {
+    this->seen.push_back(value);
+    if (this->seen.size() > 1)
+      return;
+    // What a script with mode: restart does: stop, then run again while the awaited script is busy
+    this->wait->stop_complex();
+    this->script->running = true;
+    this->actions->play(std::string("restarted, longer than the small string buffer"));
+  }
+  Action<const std::string &> *wait{nullptr};
+  FakeScript *script{nullptr};
+  ActionList<const std::string &> *actions{nullptr};
+  std::vector<std::string> seen;
+};
+
+// The old pop_front() after the chain removed the item queued by the restart
+TEST(ScriptWaitActionTest, RestartDuringChainKeepsNewItem) {
+  FakeScript script;
+  ScriptWaitAction<FakeScript, const std::string &> wait(&script);
+  RestartAction restart;
+  ActionList<const std::string &> actions;
+  actions.add_actions({&wait, &restart});
+  restart.wait = &wait;
+  restart.script = &script;
+  restart.actions = &actions;
+
+  // With a second item waiting, the stop really clears the queue; the restart then queues a new item
+  actions.play(std::string("first argument, longer than the small string buffer"));
+  actions.play(std::string("second argument, dropped by the stop"));
+  script.running = false;
+  wait.loop();
+  ASSERT_EQ(restart.seen.size(), 1u);
+
+  script.running = false;
+  wait.loop();
+  ASSERT_EQ(restart.seen.size(), 2u);
+  EXPECT_EQ(restart.seen[1], "restarted, longer than the small string buffer");
+}
+
+TEST(ScriptWaitActionTest, LoopDisabledOnceNothingWaits) {
+  FakeScript script;
+  ScriptWaitAction<FakeScript, const std::string &> wait(&script);
+  RecordAction record;
+  ActionList<const std::string &> actions;
+  actions.add_actions({&wait, &record});
+
+  actions.play(std::string("argument"));
+  script.running = false;
+  wait.loop();
+  EXPECT_EQ(record.seen, "argument");
+  wait.loop();
+  EXPECT_TRUE(wait.is_idle());
 }
 
 }  // namespace esphome::script::testing

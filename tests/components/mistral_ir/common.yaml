@@ -1,0 +1,4 @@
+climate:
+  - platform: mistral_ir
+    name: Mistral IR
+    transmitter_id: xmitr

@@ -2,29 +2,31 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
-from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import DAC7678Output, dac7678_ns
+from . import DAC7678Output
 
 DEPENDENCIES = ["dac7678"]
 
-DAC7678Channel = dac7678_ns.class_("DAC7678Channel", output.FloatOutput)
 CONF_DAC7678_ID = "dac7678_id"
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
-        cv.Required(CONF_ID): cv.declare_id(DAC7678Channel),
+        cv.Required(CONF_ID): cv.declare_id(output.ApplyFloatOutput),
         cv.GenerateID(CONF_DAC7678_ID): cv.use_id(DAC7678Output),
         cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
     }
 )
 
 
-async def to_code(config: ConfigType) -> MockObj:
-    paren = await cg.get_variable(config[CONF_DAC7678_ID])
-    var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_channel(config[CONF_CHANNEL]))
-    cg.add(paren.register_channel(var))
-    await output.register_output(var, config)
-    return var
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="dac7678", hub_key=CONF_DAC7678_ID
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_DAC7678_ID])
+    await output.sub_float_outputs(config, parent=hub).create(
+        config, None, config[CONF_CHANNEL], apply="write_channel(index, state)"
+    )
+    cg.add(hub.register_channel(config[CONF_CHANNEL]))

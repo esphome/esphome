@@ -1,0 +1,35 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+text_sensor:
+  - platform: template
+    id: ts_position
+    filters:
+      - timeout: 1s
+      - throttle_with_priority:
+          timeout: 1s
+          value: NA
+  - platform: template
+    id: ts_plain
+    filters:
+      - throttle_with_priority: 500ms
+      - timeout:
+          timeout: 30s
+          value: Offline
+  - platform: template
+    id: ts_merged_plain
+    filters:
+      - timeout: 2s
+      - throttle_with_priority: 2s
+  - platform: template
+    id: ts_priority_alone
+    filters:
+      - throttle_with_priority:
+          timeout: 300ms
+          value:
+            - "Off"
+            - NA

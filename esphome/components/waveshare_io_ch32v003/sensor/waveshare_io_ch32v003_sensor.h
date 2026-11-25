@@ -19,7 +19,6 @@ class WaveshareIOCH32V003Sensor : public sensor::Sensor,
 
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   float sample() override;
 
  protected:

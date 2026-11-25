@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <queue>
 #ifdef USE_SENSOR
@@ -14,11 +15,35 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
 #include "haier_base.h"
 #include "hon_packet.h"
 
 namespace esphome::haier {
+
+#ifdef USE_SELECT
+// Positions in the order the select platform lists them; in flash on ESP8266, so read with airflow_order_at()
+inline constexpr std::array<hon_protocol::VerticalSwingMode, 7> VERTICAL_SWING_MODES_ORDER PROGMEM{
+    hon_protocol::VerticalSwingMode::HEALTH_UP,   hon_protocol::VerticalSwingMode::MAX_UP,
+    hon_protocol::VerticalSwingMode::UP,          hon_protocol::VerticalSwingMode::CENTER,
+    hon_protocol::VerticalSwingMode::DOWN,        hon_protocol::VerticalSwingMode::MAX_DOWN,
+    hon_protocol::VerticalSwingMode::HEALTH_DOWN,
+};
+inline constexpr std::array<hon_protocol::HorizontalSwingMode, 5> HORIZONTAL_SWING_MODES_ORDER PROGMEM{
+    hon_protocol::HorizontalSwingMode::MAX_LEFT,  hon_protocol::HorizontalSwingMode::LEFT,
+    hon_protocol::HorizontalSwingMode::CENTER,    hon_protocol::HorizontalSwingMode::RIGHT,
+    hon_protocol::HorizontalSwingMode::MAX_RIGHT,
+};
+
+template<typename Mode, size_t N> Mode airflow_order_at(const std::array<Mode, N> &order, size_t index) {
+  static_assert(sizeof(Mode) == 1);
+  return static_cast<Mode>(progmem_read_byte(reinterpret_cast<const uint8_t *>(order.data() + index)));
+}
+#endif
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -94,12 +119,21 @@ class HonClimate final : public HaierClimateBase {
 #endif
 #ifdef USE_SWITCH
  public:
-  void set_beeper_switch(switch_::Switch *sw);
-  void set_quiet_mode_switch(switch_::Switch *sw);
+  // initialization() publishes their state once the saved settings are restored
+  void set_beeper_switch(switch_::Switch *sw) { this->beeper_switch_ = sw; }
+  void set_quiet_mode_switch(switch_::Switch *sw) { this->quiet_mode_switch_ = sw; }
 
  protected:
   switch_::Switch *beeper_switch_{nullptr};
   switch_::Switch *quiet_mode_switch_{nullptr};
+#endif
+#ifdef USE_SELECT
+ public:
+  SUB_SELECT(vertical_airflow)
+  SUB_SELECT(horizontal_airflow)
+
+ protected:
+  void publish_airflow_selects_();
 #endif
  public:
   HonClimate();
@@ -163,7 +197,12 @@ class HonClimate final : public HaierClimateBase {
   haier_protocol::HandlerError process_status_message_(const uint8_t *packet, uint8_t size);
   void process_alarm_message_(const uint8_t *packet, uint8_t size, bool check_new);
   void fill_control_messages_queue_();
+  // Applies an ECO preset request to quiet mode when ECO is supported; returns the quiet mode to send
+  bool update_quiet_mode_from_preset_(const optional<climate::ClimatePreset> &preset, bool quiet_mode);
   void clear_control_messages_queue_();
+  void clear_quiet_mode_pending_() {
+    this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
+  }
 
   static constexpr size_t HARDWARE_INFO_STR_SIZE = 9;
   struct HardwareInfo {
@@ -195,6 +234,9 @@ class HonClimate final : public HaierClimateBase {
   uint8_t big_data_counter_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
+  // millis() of the last user-set position per axis, 0 when none
+  uint32_t vertical_direction_set_time_{0};
+  uint32_t horizontal_direction_set_time_{0};
   HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
   SwitchState quiet_mode_state_{SwitchState::SWITCH_OFF};

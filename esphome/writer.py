@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import subprocess
 import time
 
 from esphome import loader
@@ -15,7 +16,8 @@ from esphome.const import (
     SOURCE_FILE_EXTENSIONS,
     __version__,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, LINE_DIRECTIVE_RESET, EsphomeError, line_directive
+from esphome.git import _GIT_REPO_SCOPING_ENV
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -265,12 +267,6 @@ def copy_src_tree():
     for t in ignore_targets:
         source_files_copy.pop(t, None)
 
-    # Files to exclude from sources_changed tracking (generated files)
-    generated_files = {
-        Path("esphome/core/build_info_data.h"),
-        Path("esphome/core/build_info_data.cpp"),
-    }
-
     sources_changed = False
     for fname in walk_files(CORE.relative_src_path("esphome")):
         p = Path(fname)
@@ -285,13 +281,12 @@ def copy_src_tree():
         if target not in source_files_copy:
             # Source file removed, delete target
             p.unlink()
-            if target not in generated_files:
-                _LOGGER.debug("Source removed: %s", target)
-                sources_changed = True
+            _LOGGER.debug("Source removed: %s", target)
+            sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
-                if copy_file_if_changed(src_path, p) and target not in generated_files:
+                if copy_file_if_changed(src_path, p):
                     _LOGGER.debug("Source changed: %s", target)
                     sources_changed = True
 
@@ -299,10 +294,7 @@ def copy_src_tree():
     for target, src_file in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.parts)
         with src_file.path() as src_path:
-            if (
-                copy_file_if_changed(src_path, dst_path)
-                and target not in generated_files
-            ):
+            if copy_file_if_changed(src_path, dst_path):
                 _LOGGER.debug("Source added: %s", target)
                 sources_changed = True
 
@@ -470,6 +462,7 @@ def generate_build_info_data_h() -> str:
 
 namespace esphome {
 extern const uint32_t ESPHOME_CONFIG_HASH;
+extern const uint32_t ESPHOME_CONFIG_VERSION_HASH;
 extern const time_t ESPHOME_BUILD_TIME;
 extern const size_t ESPHOME_COMMENT_SIZE;
 #ifdef USE_ESP8266
@@ -498,9 +491,14 @@ def generate_build_info_data_cpp(
     comment_size = len(comment.encode("utf-8")) + 1  # +1 for NUL
     return f"""// Auto-generated build_info data
 #include "esphome/core/build_info_data.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/version.h"
 
 namespace esphome {{
 const uint32_t ESPHOME_CONFIG_HASH = 0x{config_hash:08x}U;  // NOLINT
+// Folded at compile time, so the version string is not kept in RAM
+static constexpr uint32_t CONFIG_VERSION_HASH = fnv1a_hash_extend(0x{config_hash:08x}U, ESPHOME_VERSION);
+const uint32_t ESPHOME_CONFIG_VERSION_HASH = CONFIG_VERSION_HASH;  // NOLINT
 const time_t ESPHOME_BUILD_TIME = {build_time};  // NOLINT
 const size_t ESPHOME_COMMENT_SIZE = {comment_size};  // NOLINT
 #ifdef USE_ESP8266
@@ -512,6 +510,25 @@ const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 #endif
 }}  // namespace esphome
 """
+
+
+def _reset_line_directives(text: str, path: Path) -> str:
+    """Point the code after each lambda back at its own line of *path*.
+
+    A lambda's #line directive points the compiler at the YAML; without a reset
+    every later line of main.cpp would be reported against the YAML too.
+    """
+    if LINE_DIRECTIVE_RESET not in text:
+        return text
+    document = str(path.absolute())
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        if line.endswith(LINE_DIRECTIVE_RESET):
+            # The directive numbers the line after it: index + 2, counted from 1
+            lines[index] = line.replace(
+                LINE_DIRECTIVE_RESET, line_directive(document, index + 2)
+            )
+    return "\n".join(lines)
 
 
 def write_cpp(code_s):
@@ -540,7 +557,7 @@ def write_cpp(code_s):
         f"{code_format[1] + CPP_AUTO_GENERATE_BEGIN}\n{code_s}{CPP_AUTO_GENERATE_END}"
     )
     full_file += code_format[2]
-    write_file_if_changed(path, full_file)
+    write_file_if_changed(path, _reset_line_directives(full_file, path))
 
 
 def clean_cmake_cache():
@@ -703,7 +720,11 @@ def clean_all(configuration: list[str]):
             _LOGGER.info("Cleaning %s", dir)
             # Don't remove storage or .json files which are needed by the dashboard
             for item in dir.iterdir():
-                if item.is_file() and not item.name.endswith(".json"):
+                if (
+                    item.is_file()
+                    and not item.name.endswith(".json")
+                    and item.name != ".gitkeep"
+                ):
                     item.unlink()
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
@@ -745,3 +766,82 @@ def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
     if not path.is_file():
         path.write_text(GITIGNORE_CONTENT, encoding="utf-8")
+
+
+def check_build_tree_not_tracked() -> None:
+    """Warn if the build tree is tracked by git.
+
+    ``write_gitignore`` never touches an existing ``.gitignore``, so a build
+    tree that was committed before it was excluded (or on a config predating
+    ESPHome's auto-generated ``.gitignore``) stays tracked forever: adding a
+    pattern to ``.gitignore`` does not untrack files already in the index.
+    Every subsequent build would then keep changing the regenerated files
+    under version control.
+    """
+    if os.environ.get("CI"):
+        # CI checkouts build fixture configs, not a user's own repository, so
+        # there is nothing meaningful to warn about -- skip the extra process
+        # spawn on every single build.
+        return
+    data_dir = CORE.data_dir
+    if (data_dir / ".gitkeep").is_file():
+        # The user deliberately placed a .gitkeep file, opting the build
+        # directory into version control on purpose.
+        return
+
+    try:
+        relative_data_dir = data_dir.relative_to(CORE.config_dir)
+    except ValueError:
+        # Outside the config directory (e.g. the Home Assistant add-on's
+        # /data, or ESPHOME_DATA_DIR pointing elsewhere) -- can't be part of
+        # this repository.
+        return
+
+    # Strip the same repo-scoping variables run_git_command() strips (see
+    # esphome/git.py): a git hook or CI wrapper exporting GIT_DIR/GIT_INDEX_FILE
+    # would otherwise redirect this read-only query to its own repository.
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_SCOPING_ENV}
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", str(relative_data_dir)],
+            cwd=CORE.config_dir,
+            capture_output=True,
+            check=False,
+            env=env,
+            timeout=5,
+        )
+    except FileNotFoundError:
+        # No git installed, so the directory cannot be tracked.
+        return
+    except (OSError, subprocess.TimeoutExpired) as err:
+        # This is a purely advisory check -- an unusable or slow git must
+        # never turn into a hard failure of the build itself.
+        _LOGGER.debug(
+            "Could not check whether %s is tracked by git: %s", relative_data_dir, err
+        )
+        return
+    if result.returncode != 0:
+        if result.stderr:
+            _LOGGER.debug(
+                "git ls-files failed (%d): %s",
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace").strip(),
+            )
+        return
+    if not result.stdout:
+        return
+
+    tracked_count = sum(1 for name in result.stdout.split(b"\0") if name)
+    _LOGGER.warning(
+        "%s is tracked by git (%d file%s). This is the ESPHome build "
+        "directory; it holds generated files that may contain your secrets "
+        "(e.g. Wi-Fi credentials or API keys) in plain text, and should not "
+        "be committed. Add it to your .gitignore, then remove it from "
+        "version control with: git rm -r --cached %s "
+        "(if you really want to keep this directory in git, add a file "
+        "named .gitkeep to it to silence this warning)",
+        relative_data_dir,
+        tracked_count,
+        "" if tracked_count == 1 else "s",
+        data_dir,
+    )

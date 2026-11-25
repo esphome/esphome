@@ -50,13 +50,15 @@ static constexpr size_t PN532_FRAME_MAX_DATA_SIZE = 254;
 static constexpr size_t PN532_FRAME_MAX_SIZE = 1 + 6 + PN532_FRAME_MAX_DATA_SIZE + 2;
 /// Holds one frame in either direction so bus traffic never allocates
 using PN532Frame = StaticVector<uint8_t, PN532_FRAME_MAX_SIZE>;
-/// Holds pages 3 to 6 (16 bytes) plus an NDEF message of up to 255 bytes and its TLV header, rounded up to whole reads
-using UltralightReadBuffer = StaticVector<uint8_t, 272>;
+/// Longest NDEF message accepted from a MIFARE Ultralight/NTAG tag (the user memory of an NTAG216)
+static constexpr uint32_t MIFARE_ULTRALIGHT_MAX_NDEF_SIZE = 888;
 /// Longest NDEF message accepted from a MIFARE Classic tag (the capacity of a 4K tag)
 static constexpr uint32_t MIFARE_CLASSIC_MAX_NDEF_SIZE = 3440;
 /// A MIFARE READ answers with 16 bytes: one Classic block or four Ultralight pages
 static constexpr size_t MIFARE_READ_SIZE = 16;
 using MifareReadData = std::array<uint8_t, MIFARE_READ_SIZE>;
+/// Pages 3 to 6, read in one go: the capability container and the start of the NDEF TLV
+using UltralightHeader = std::array<uint8_t, MIFARE_READ_SIZE>;
 
 class PN532BinarySensor;
 
@@ -71,15 +73,10 @@ class PN532 : public PollingComponent {
   void loop() override;
   void on_powerdown() override { powerdown(); }
 
-#ifdef PN532_BINARY_SENSOR_COUNT
-  void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-#endif
-#ifdef PN532_ON_TAG_TRIGGER_COUNT
-  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
-#endif
-#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
-#endif
+  SLOT_LIST(PN532BinarySensor, binary_sensors_, register_tag, PN532_BINARY_SENSOR_COUNT)
+  SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontag_, register_ontag_trigger, PN532_ON_TAG_TRIGGER_COUNT)
+  SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontagremoved_, register_ontagremoved_trigger,
+            PN532_ON_TAG_REMOVED_TRIGGER_COUNT)
 
   template<typename F> void add_on_finished_write_callback(F &&callback) {
     this->on_finished_write_callback_.add(std::forward<F>(callback));
@@ -134,10 +131,11 @@ class PN532 : public PollingComponent {
   bool write_mifare_classic_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
 
   std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(nfc::NfcTagUid &uid);
-  bool read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, UltralightReadBuffer &data);
+  /// Fills `data` with the bytes from `start_page` onward
+  bool read_mifare_ultralight_bytes_(uint8_t start_page, std::span<uint8_t> data);
   bool is_mifare_ultralight_formatted_(std::span<const uint8_t> page_3_to_6);
   uint16_t read_mifare_ultralight_capacity_();
-  bool find_mifare_ultralight_ndef_(std::span<const uint8_t> page_3_to_6, uint8_t &message_length,
+  bool find_mifare_ultralight_ndef_(std::span<const uint8_t> page_3_to_6, uint32_t &message_length,
                                     uint8_t &message_start_index);
   bool write_mifare_ultralight_page_(uint8_t page_num, std::span<const uint8_t> write_data);
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
@@ -149,29 +147,14 @@ class PN532 : public PollingComponent {
     FORMAT,
     WRITE,
   };
-  enum PN532Error : uint8_t {
-    NONE = 0,
-    WAKEUP_FAILED,
-    SAM_COMMAND_FAILED,
-  };
 
   // members are ordered by alignment, widest first, to minimize padding
   LazyCallbackManager<void()> on_finished_write_callback_;
-#ifdef PN532_BINARY_SENSOR_COUNT
-  StaticVector<PN532BinarySensor *, PN532_BINARY_SENSOR_COUNT> binary_sensors_;
-#endif
-#ifdef PN532_ON_TAG_TRIGGER_COUNT
-  StaticVector<nfc::NfcOnTagTrigger *, PN532_ON_TAG_TRIGGER_COUNT> triggers_ontag_;
-#endif
-#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-  StaticVector<nfc::NfcOnTagTrigger *, PN532_ON_TAG_REMOVED_TRIGGER_COUNT> triggers_ontagremoved_;
-#endif
   std::unique_ptr<nfc::NdefMessage> next_task_message_to_write_;
   nfc::NfcTagUid current_uid_;
   uint32_t rd_start_time_{0};  // valid only while rd_started_ is set
   PN532ReadReady rd_ready_{WOULDBLOCK};
   NfcTask next_task_{READ};
-  PN532Error error_code_{NONE};
   bool rd_started_{false};
   bool updates_enabled_{true};
   bool requested_read_{false};

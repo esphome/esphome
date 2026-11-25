@@ -32,10 +32,7 @@ PulseMeterSensor = pulse_meter_ns.class_(
 )
 
 PulseMeterInternalFilterMode = PulseMeterSensor.enum("InternalFilterMode")
-FILTER_MODES = {
-    "EDGE": PulseMeterInternalFilterMode.FILTER_EDGE,
-    "PULSE": PulseMeterInternalFilterMode.FILTER_PULSE,
-}
+FILTER_MODES = PulseMeterInternalFilterMode.options("EDGE", "PULSE", prefix="FILTER_")
 
 
 def validate_internal_filter(value: Any) -> TimePeriodMicroseconds:
@@ -86,8 +83,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
     cg.add(var.set_filter_mode(config[CONF_INTERNAL_FILTER_MODE]))

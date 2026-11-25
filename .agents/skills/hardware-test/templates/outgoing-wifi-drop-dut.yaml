@@ -1,0 +1,55 @@
+# Mains build (no deep sleep): outgoing API connection timing after a Wi-Fi drop, and the loop cost while a
+# connect is pending or the network is down.
+esphome:
+  name: wifi-drop-dut
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  on_connect:
+    - lambda: ESP_LOGI("timing", "wifi connected at %u ms", (unsigned) millis());
+  on_disconnect:
+    - lambda: ESP_LOGI("timing", "wifi disconnected at %u ms", (unsigned) millis());
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+  outgoing_connection:
+    delay: 2s
+  on_client_connected:
+    - lambda: ESP_LOGI("timing", "client connected at %u ms (%s %s)", (unsigned) millis(), client_info.c_str(), client_address.c_str());
+  on_client_disconnected:
+    - lambda: ESP_LOGI("timing", "client disconnected at %u ms (%s)", (unsigned) millis(), client_info.c_str());
+
+ota:
+  - platform: esphome
+
+debug:
+  update_interval: 5s
+
+sensor:
+  - platform: debug
+    loop_time:
+      name: Loop Time
+      on_value:
+        - lambda: ESP_LOGI("timing", "loop time max %.0f ms over the last 5 s at %u ms", x, (unsigned) millis());
+
+button:
+  - platform: template
+    name: Wifi cycle
+    on_press:
+      - lambda: ESP_LOGI("timing", "wifi cycle disabling at %u ms", (unsigned) millis());
+      - wifi.disable:
+      - delay: 4s
+      - lambda: ESP_LOGI("timing", "wifi cycle enabling at %u ms", (unsigned) millis());
+      - wifi.enable:

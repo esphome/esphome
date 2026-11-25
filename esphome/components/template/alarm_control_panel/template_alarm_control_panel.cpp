@@ -13,7 +13,7 @@ using namespace esphome::alarm_control_panel;
 
 ESPHOME_LOG_TAG(TAG, "template.alarm_control_panel");
 
-TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
+TemplateAlarmControlPanel::TemplateAlarmControlPanel() {};
 
 #ifdef USE_BINARY_SENSOR
 void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint8_t flags, AlarmSensorType type) {
@@ -30,9 +30,6 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
 // Alarm sensor type strings indexed by AlarmSensorType enum (0-3): DELAYED, INSTANT, DELAYED_FOLLOWER, INSTANT_ALWAYS
 PROGMEM_STRING_TABLE(AlarmSensorTypeStrings, "delayed", "instant", "delayed_follower", "instant_always");
 
-static const LogString *sensor_type_to_string(AlarmSensorType type) {
-  return AlarmSensorTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
-}
 #endif
 
 void TemplateAlarmControlPanel::dump_config() {
@@ -67,7 +64,8 @@ void TemplateAlarmControlPanel::dump_config() {
                   "    Armed night bypass: %s\n"
                   "    Auto bypass: %s\n"
                   "    Chime mode: %s",
-                  alarm_sensor.sensor->get_name().c_str(), LOG_STR_ARG(sensor_type_to_string(alarm_sensor.info.type)),
+                  LOG_STR_ARG(alarm_sensor.sensor->get_log_name()),
+                  LOG_STR_ARG(AlarmSensorTypeStrings::get_log_str(alarm_sensor.info.type, 0)),
                   TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME),
                   TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT),
                   TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_AUTO), TRUEFALSE(flags & BINARY_SENSOR_MODE_CHIME));
@@ -252,7 +250,7 @@ void TemplateAlarmControlPanel::auto_bypass_sensors_() {
     auto *sensor = alarm_sensor.sensor;
     // Check for faulted bypass_auto sensors and remove them from monitoring
     if ((info.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (sensor->state)) {
-      ESP_LOGW(TAG, "'%s' is faulted and will be automatically bypassed", sensor->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' is faulted and will be automatically bypassed", LOG_STR_ARG(sensor->get_log_name()));
       info.auto_bypassed = true;
     }
   }

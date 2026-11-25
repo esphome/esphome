@@ -8,18 +8,13 @@ from esphome.const import (
     CONF_ACCELERATION_Z,
     CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_MEASUREMENT_SEQUENCE_NUMBER,
     CONF_MOVEMENT_COUNTER,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TX_POWER,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ACCELERATION,
     ICON_ACCELERATION_X,
@@ -27,21 +22,15 @@ from esphome.const import (
     ICON_ACCELERATION_Z,
     ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_DECIBEL_MILLIWATT,
     UNIT_G,
-    UNIT_HECTOPASCAL,
-    UNIT_PERCENT,
-    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base", "ruuvi_ble"]
 
 ruuvitag_ns = cg.esphome_ns.namespace("ruuvitag")
-RuuviTag = ruuvitag_ns.class_(
-    "RuuviTag", ble_device_base.ESPBTDeviceListener, cg.Component
-)
+RuuviTag = ruuvitag_ns.class_("RuuviTag", ble_device_base.ESPBTDeviceListener)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("ruuvitag"),
@@ -50,22 +39,13 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(RuuviTag),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PRESSURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_ACCELERATION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_G,
@@ -92,10 +72,8 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TX_POWER): sensor.sensor_schema(
@@ -116,28 +94,26 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_HUMIDITY, var.set_humidity)
-    await sensors(CONF_PRESSURE, var.set_pressure)
-    await sensors(CONF_ACCELERATION, var.set_acceleration)
-    await sensors(CONF_ACCELERATION_X, var.set_acceleration_x)
-    await sensors(CONF_ACCELERATION_Y, var.set_acceleration_y)
-    await sensors(CONF_ACCELERATION_Z, var.set_acceleration_z)
-    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
-    await sensors(CONF_TX_POWER, var.set_tx_power)
-    await sensors(CONF_MOVEMENT_COUNTER, var.set_movement_counter)
-    await sensors(CONF_MEASUREMENT_SEQUENCE_NUMBER, var.set_measurement_sequence_number)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_PRESSURE, var.set_pressure_sensor)
+    await sensors(CONF_ACCELERATION, var.set_acceleration_sensor)
+    await sensors(CONF_ACCELERATION_X, var.set_acceleration_x_sensor)
+    await sensors(CONF_ACCELERATION_Y, var.set_acceleration_y_sensor)
+    await sensors(CONF_ACCELERATION_Z, var.set_acceleration_z_sensor)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage_sensor)
+    await sensors(CONF_TX_POWER, var.set_tx_power_sensor)
+    await sensors(CONF_MOVEMENT_COUNTER, var.set_movement_counter_sensor)
+    await sensors(
+        CONF_MEASUREMENT_SEQUENCE_NUMBER, var.set_measurement_sequence_number_sensor
+    )

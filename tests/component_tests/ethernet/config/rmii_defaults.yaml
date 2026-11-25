@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk:
+    mode: CLK_EXT_IN
+    pin: GPIO0

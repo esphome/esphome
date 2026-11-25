@@ -3,90 +3,44 @@
 
 namespace esphome::max17043 {
 
-// MAX174043 is a 1-Cell Fuel Gauge with ModelGauge and Low-Battery Alert
+// MAX17043 is a 1-Cell Fuel Gauge with ModelGauge and Low-Battery Alert
 // Consult the datasheet at https://www.analog.com/en/products/max17043.html
 
 ESPHOME_LOG_TAG(TAG, "max17043");
 
-static const uint8_t MAX17043_VCELL = 0x02;
-static const uint8_t MAX17043_SOC = 0x04;
-static const uint8_t MAX17043_CONFIG = 0x0c;
-
-static const uint16_t MAX17043_CONFIG_POWER_UP_DEFAULT = 0x971C;
-static const uint16_t MAX17043_CONFIG_SAFE_MASK = 0xFF1F;  // mask out sleep bit (7), unused bit (6) and alert bit (4)
-static const uint16_t MAX17043_CONFIG_SLEEP_MASK = 0x0080;
-
 void MAX17043Component::update() {
-  uint16_t raw_voltage, raw_percent;
+  if (!this->ready_for_update_())
+    return;
+
+  uint16_t raw;
+  bool ok = true;
 
   if (this->voltage_sensor_ != nullptr) {
-    if (!this->read_byte_16(MAX17043_VCELL, &raw_voltage)) {
-      this->status_set_warning(LOG_STR("Unable to read MAX17043_VCELL"));
+    if (this->read_byte_16(max170xx::REG_VCELL, &raw)) {
+      // 12 bits in the top of the word at 1.25 mV
+      this->voltage_sensor_->publish_state((raw >> 4) * 1.25e-3f);
     } else {
-      float voltage = (1.25f * (float) (raw_voltage >> 4)) / 1000.0f;
-      this->voltage_sensor_->publish_state(voltage);
-      this->status_clear_warning();
+      ok = false;
     }
   }
   if (this->battery_remaining_sensor_ != nullptr) {
-    if (!this->read_byte_16(MAX17043_SOC, &raw_percent)) {
-      this->status_set_warning(LOG_STR("Unable to read MAX17043_SOC"));
-    } else {
-      float percent = (float) ((raw_percent >> 8) + 0.003906f * (raw_percent & 0x00ff));
+    if (this->read_byte_16(max170xx::REG_SOC, &raw)) {
+      float percent = (float) ((raw >> 8) + 0.003906f * (raw & 0x00ff));
       this->battery_remaining_sensor_->publish_state(percent);
-      this->status_clear_warning();
+    } else {
+      ok = false;
     }
   }
-}
 
-void MAX17043Component::setup() {
-  uint16_t config_reg;
-  if (this->write(&MAX17043_CONFIG, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-
-  if (this->read(reinterpret_cast<uint8_t *>(&config_reg), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-
-  config_reg = i2c::i2ctohs(config_reg) & MAX17043_CONFIG_SAFE_MASK;
-  ESP_LOGV(TAG, "MAX17043 CONFIG register reads 0x%X", config_reg);
-
-  if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
-    ESP_LOGE(TAG, "Device does not appear to be a MAX17043");
-    this->status_set_error(LOG_STR("unrecognised"));
-    this->mark_failed();
-    return;
-  }
-
-  // need to write back to config register to reset the sleep bit
-  if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT)) {
-    this->status_set_error(LOG_STR("sleep reset failed"));
-    this->mark_failed();
-    return;
-  }
+  this->status_comm_result(ok, LOG_STR("Register read failed"));
 }
 
 void MAX17043Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17043:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Battery Level", this->battery_remaining_sensor_);
-}
-
-void MAX17043Component::sleep_mode() {
-  if (!this->is_failed()) {
-    if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT | MAX17043_CONFIG_SLEEP_MASK)) {
-      ESP_LOGW(TAG, "Unable to write the sleep bit to config register");
-      this->status_set_warning();
-    }
-  }
 }
 
 }  // namespace esphome::max17043

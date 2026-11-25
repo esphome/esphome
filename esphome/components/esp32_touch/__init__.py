@@ -338,12 +338,11 @@ async def to_code(config: ConfigType) -> None:
 
     # Voltage references (not applicable to P4)
     if variant != VARIANT_ESP32P4:
-        if CONF_LOW_VOLTAGE_REFERENCE in config:
-            cg.add(
-                touch.set_low_voltage_reference(
-                    LOW_VOLTAGE_REFERENCE[config[CONF_LOW_VOLTAGE_REFERENCE]]
-                )
+        cg.add(
+            touch.set_low_voltage_reference(
+                LOW_VOLTAGE_REFERENCE[config[CONF_LOW_VOLTAGE_REFERENCE]]
             )
+        )
         if CONF_HIGH_VOLTAGE_REFERENCE in config:
             if variant == VARIANT_ESP32:
                 # V1: combine high_voltage_reference with voltage_attenuation
@@ -366,27 +365,17 @@ async def to_code(config: ConfigType) -> None:
         cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
 
     if variant in (VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32P4):
-        if CONF_FILTER_MODE in config:
-            cg.add(touch.set_filter_mode(config[CONF_FILTER_MODE]))
-        if CONF_DEBOUNCE_COUNT in config:
-            cg.add(touch.set_debounce_count(config[CONF_DEBOUNCE_COUNT]))
-        if CONF_NOISE_THRESHOLD in config:
-            cg.add(touch.set_noise_threshold(config[CONF_NOISE_THRESHOLD]))
-        if CONF_JITTER_STEP in config:
-            cg.add(touch.set_jitter_step(config[CONF_JITTER_STEP]))
-        if CONF_SMOOTH_MODE in config:
-            cg.add(touch.set_smooth_level(config[CONF_SMOOTH_MODE]))
-        if CONF_DENOISE_GRADE in config:
-            cg.add(touch.set_denoise_grade(config[CONF_DENOISE_GRADE]))
-        if CONF_DENOISE_CAP_LEVEL in config:
-            cg.add(touch.set_denoise_cap(config[CONF_DENOISE_CAP_LEVEL]))
-        if CONF_WATERPROOF_GUARD_RING in config:
-            cg.add(
-                touch.set_waterproof_guard_ring_pad(config[CONF_WATERPROOF_GUARD_RING])
-            )
-        if CONF_WATERPROOF_SHIELD_DRIVER in config:
-            cg.add(
-                touch.set_waterproof_shield_driver(
-                    config[CONF_WATERPROOF_SHIELD_DRIVER]
-                )
-            )
+        cg.add_optional(touch.set_filter_mode, config.get(CONF_FILTER_MODE))
+        cg.add_optional(touch.set_debounce_count, config.get(CONF_DEBOUNCE_COUNT))
+        cg.add_optional(touch.set_noise_threshold, config.get(CONF_NOISE_THRESHOLD))
+        cg.add_optional(touch.set_jitter_step, config.get(CONF_JITTER_STEP))
+        cg.add_optional(touch.set_smooth_level, config.get(CONF_SMOOTH_MODE))
+        cg.add_optional(touch.set_denoise_grade, config.get(CONF_DENOISE_GRADE))
+        cg.add_optional(touch.set_denoise_cap, config.get(CONF_DENOISE_CAP_LEVEL))
+        cg.add_optional(
+            touch.set_waterproof_guard_ring_pad, config.get(CONF_WATERPROOF_GUARD_RING)
+        )
+        cg.add_optional(
+            touch.set_waterproof_shield_driver,
+            config.get(CONF_WATERPROOF_SHIELD_DRIVER),
+        )

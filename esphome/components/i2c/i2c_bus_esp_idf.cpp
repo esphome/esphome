@@ -10,6 +10,70 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_I2C_ISR_GUARD
+#include <esp_intr_alloc.h>
+#include <hal/i2c_ll.h>  // declares i2c_periph_signal (IDF 5: soc/, IDF 6: hal/)
+#if SOC_I2C_SUPPORT_HW_FSM_RST || I2C_LL_SUPPORT_HW_FSM_RST
+#error "This chip has an I2C FSM reset; the ISR guard is no longer needed"
+#endif
+
+namespace esphome::i2c {
+// Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690). Mask the master
+// events until the next transaction when an error is raised both before and after the handler clears it.
+static constexpr uint32_t I2C_ERROR_INTR = I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION;
+static_assert((I2C_LL_MASTER_EVENT_INTR & I2C_ERROR_INTR) == I2C_ERROR_INTR,
+              "The master event mask must cover the error interrupts");
+
+struct I2CIsrGuard {
+  intr_handler_t handler;
+  void *arg;
+  i2c_dev_t *dev;
+};
+static I2CIsrGuard i2c_isr_guards[SOC_HP_I2C_NUM];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static void IRAM_ATTR i2c_isr_guard(void *arg) {
+  auto *guard = static_cast<I2CIsrGuard *>(arg);
+  uint32_t before;
+  i2c_ll_get_intr_mask(guard->dev, &before);
+  guard->handler(guard->arg);
+  uint32_t after;
+  i2c_ll_get_intr_mask(guard->dev, &after);
+  if (before & after & I2C_ERROR_INTR)
+    i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
+}
+
+static int i2c_port_for_source(int source) {
+  for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
+    if (source == i2c_periph_signal[port].irq)
+      return port;
+  }
+  return -1;
+}
+}  // namespace esphome::i2c
+
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" {
+esp_err_t __real_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, uint32_t mask, intr_handler_t handler,
+                                           void *arg, intr_handle_t *ret_handle);
+
+esp_err_t __wrap_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, uint32_t mask, intr_handler_t handler,
+                                           void *arg, intr_handle_t *ret_handle) {
+  int port = esphome::i2c::i2c_port_for_source(source);
+  if (port < 0)
+    return __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, handler, arg, ret_handle);
+  auto &guard = esphome::i2c::i2c_isr_guards[port];
+  auto previous = guard;
+  guard = {handler, arg, I2C_LL_GET_HW(port)};
+  esp_err_t err =
+      __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, esphome::i2c::i2c_isr_guard, &guard, ret_handle);
+  if (err != ESP_OK)
+    guard = previous;  // a failed allocation leaves the live guard alone
+  return err;
+}
+}  // extern "C"
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif  // USE_I2C_ISR_GUARD
+
 namespace esphome::i2c {
 
 ESPHOME_LOG_TAG(TAG, "i2c");
@@ -116,6 +180,12 @@ void IDFI2CBus::dump_config() {
   if (this->timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
   }
+#ifdef USE_I2C_ISR_GUARD
+  // Null when the IDF driver no longer allocates its interrupt through the wrapped call
+  if (i2c_isr_guards[this->port_].handler == nullptr) {
+    ESP_LOGW(TAG, "  Interrupt guard inactive");
+  }
+#endif
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -127,24 +197,11 @@ void IDFI2CBus::dump_config() {
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
       break;
   }
-  if (this->scan_) {
-    ESP_LOGCONFIG(TAG, "Results from bus scan:");
-    if (this->scan_results_.empty()) {
-      ESP_LOGCONFIG(TAG, "Found no devices");
-    } else {
-      for (const auto &s : this->scan_results_) {
-        if (s.second) {
-          ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
-        } else {
-          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
-        }
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
-ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
-                                 size_t read_count) {
+ErrorCode IDFI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *write_buffer,
+                               size_t write_count, uint8_t *read_buffer, size_t read_count) {
   // logging is only enabled with v level, if warnings are shown the caller
   // should log them
   if (!this->initialized_) {
@@ -152,53 +209,44 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     return ERROR_NOT_INITIALIZED;
   }
 
-  i2c_operation_job_t jobs[8]{};
+  // START, address, prefix, data, START, address, two reads, STOP
+  i2c_operation_job_t jobs[9]{};
   size_t num_jobs = 0;
-  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
-  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
-  ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", write_count, read_count);
-  if (read_count == 0 && write_count == 0) {
-    // basically just a bus probe. Send a start, address and stop
-    ESP_LOGV(TAG, "0x%02X BUS PROBE", address);
-    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+  auto add_write = [&jobs, &num_jobs](const uint8_t *data, size_t len) ESPHOME_ALWAYS_INLINE {
     jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
     jobs[num_jobs].write.ack_check = true;
-    jobs[num_jobs].write.data = &write_addr;
-    jobs[num_jobs++].write.total_bytes = 1;
-  } else {
-    if (write_count != 0) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
-      ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
-#endif
-      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = &write_addr;
-      jobs[num_jobs++].write.total_bytes = 1;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = (uint8_t *) write_buffer;
-      jobs[num_jobs++].write.total_bytes = write_count;
-    }
-    if (read_count != 0) {
-      ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
-      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = &read_addr;
-      jobs[num_jobs++].write.total_bytes = 1;
-      if (read_count > 1) {
-        jobs[num_jobs].command = I2C_MASTER_CMD_READ;
-        jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
-        jobs[num_jobs].read.data = read_buffer;
-        jobs[num_jobs++].read.total_bytes = read_count - 1;
-      }
+    jobs[num_jobs].write.data = const_cast<uint8_t *>(data);
+    jobs[num_jobs++].write.total_bytes = len;
+  };
+  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
+  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
+  ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", prefix_len + write_count, read_count);
+  // With nothing to write or read this only addresses the device (the bus scan probe)
+  if (prefix_len != 0 || write_count != 0 || read_count == 0) {
+    if (prefix_len != 0)
+      ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
+    ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    add_write(&write_addr, 1);
+    if (prefix_len != 0)
+      add_write(prefix, prefix_len);
+    if (write_count != 0)
+      add_write(write_buffer, write_count);
+  }
+  if (read_count != 0) {
+    ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    add_write(&read_addr, 1);
+    if (read_count > 1) {
       jobs[num_jobs].command = I2C_MASTER_CMD_READ;
-      jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
-      jobs[num_jobs].read.data = read_buffer + read_count - 1;
-      jobs[num_jobs++].read.total_bytes = 1;
+      jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
+      jobs[num_jobs].read.data = read_buffer;
+      jobs[num_jobs++].read.total_bytes = read_count - 1;
     }
+    jobs[num_jobs].command = I2C_MASTER_CMD_READ;
+    jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
+    jobs[num_jobs].read.data = read_buffer + read_count - 1;
+    jobs[num_jobs++].read.total_bytes = 1;
   }
   jobs[num_jobs++].command = I2C_MASTER_CMD_STOP;
   ESP_LOGV(TAG, "Sending %zu jobs", num_jobs);
@@ -259,7 +307,7 @@ void IDFI2CBus::recover_() {
   // 1000kHz is the maximum frequency for I2C running in standard-mode,
   // but lower frequencies are not a problem.
   // Note: the timing that is used here is chosen manually, to get
-  // results that are close to the timing that can be archieved by the
+  // results that are close to the timing that can be achieved by the
   // implementation for the Arduino framework.
   const auto half_period_usec = 7;
 
@@ -292,14 +340,9 @@ void IDFI2CBus::recover_() {
     return;
   }
 
-  // From the specification:
-  // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
-  //  device that held the bus LOW should release it sometime within
-  //  those nine clocks."
-  // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck. Actual checks on
-  // the SDA line status will be done after the clock pulses.
-  for (auto i = 0; i < 9; i++) {
+  // Spec: "If the data line (SDA) is stuck LOW, send nine clock pulses."
+  // Pulse only while SDA is low: a device receiving a write ACKs every ninth pulse.
+  for (auto i = 0; i < 9 && gpio_get_level(sda_pin) == 0; i++) {
     gpio_set_level(scl_pin, 0);
     delayMicroseconds(half_period_usec);
     gpio_set_level(scl_pin, 1);
@@ -324,9 +367,7 @@ void IDFI2CBus::recover_() {
     }
   }
 
-  // By now, any stuck device ought to have sent all remaining bits of its
-  // transaction, meaning that it should have freed up the SDA line, resulting
-  // in SDA being pulled up.
+  // A device still holding SDA after nine pulses cannot be freed here.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
     this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
@@ -338,10 +379,7 @@ void IDFI2CBus::recover_() {
   //  a START or repeated START condition such that they all anticipate
   //  the sending of a target address, even if these START conditions are
   //  not positioned according to the proper format."
-  // While the 9 clock pulses from above might have drained all bits of a
-  // single byte within a transaction, a device might have more bytes to
-  // transmit. So here we'll generate a START condition to snap the device
-  // out of this state.
+  // SDA high does not mean the device is idle (it may be mid-byte); the START resets it.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
   delayMicroseconds(half_period_usec);

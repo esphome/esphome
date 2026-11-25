@@ -50,6 +50,9 @@ INTEGRATION_TESTS_PATH = "tests/integration/"
 # reader (determine-jobs) and writer (update_integration_test_durations)
 INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
 
+# Per-component YAML file that the C++ unit test and benchmark builds load
+BENCHMARK_YAML_FILENAME = "benchmark.yaml"
+
 
 def all_integration_test_files() -> list[str]:
     """Return all integration test file paths, sorted, relative to repo root."""

@@ -2,6 +2,7 @@
 
 #include "lvgl_esphome.h"
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 
 #include <algorithm>
 #include <array>
@@ -85,7 +86,7 @@ class LvColorPickerType : public LvCompound {
     if (left != nullptr) {
       lv_obj_set_style_align(left, LV_ALIGN_LEFT_MID, LV_PART_MAIN);
       // A narrow hue column may be slimmer than its label.
-      lv_obj_add_flag(left, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+      lv_obj_set_flag(left, LV_OBJ_FLAG_OVERFLOW_VISIBLE, true);
     }
 
     // The text rows keep their natural height and the bars between them take what is left,
@@ -233,7 +234,7 @@ class LvColorPickerType : public LvCompound {
   static lv_obj_t *create_box(lv_obj_t *parent) {
     auto *obj = lv_obj_create(parent);
     lv_obj_add_style(obj, &plain_box, LV_PART_MAIN);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flag(obj, LV_OBJ_FLAG_SCROLLABLE, false);
     return obj;
   }
 
@@ -326,7 +327,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_bg_grad(disc, grad, LV_PART_MAIN);
-    lv_obj_remove_flag(disc, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flag(disc, LV_OBJ_FLAG_SCROLLABLE, false);
     return disc;
   }
 
@@ -336,7 +337,7 @@ class LvColorPickerType : public LvCompound {
     this->wheel_ = create_disc(container, &wheel_hue_grad);
     // Not clickable, so touches fall through to the wheel underneath.
     auto *overlay = create_disc(this->wheel_, &wheel_white_grad);
-    lv_obj_remove_flag(overlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_flag(overlay, LV_OBJ_FLAG_CLICKABLE, false);
 
     this->wheel_handle_ = lv_obj_create(this->wheel_);
     lv_obj_set_size(this->wheel_handle_, WHEEL_HANDLE_SIZE, WHEEL_HANDLE_SIZE);
@@ -345,8 +346,8 @@ class LvColorPickerType : public LvCompound {
     lv_obj_set_style_bg_opa(this->wheel_handle_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(this->wheel_handle_, 2, LV_PART_MAIN);
     lv_obj_set_style_border_color(this->wheel_handle_, lv_color_white(), LV_PART_MAIN);
-    lv_obj_remove_flag(this->wheel_handle_, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(this->wheel_handle_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flag(this->wheel_handle_, LV_OBJ_FLAG_CLICKABLE, false);
+    lv_obj_set_flag(this->wheel_handle_, LV_OBJ_FLAG_SCROLLABLE, false);
 
     // PRESSED as well, so a tap takes effect without the finger moving.
     lv_obj_add_event_cb(this->wheel_, wheel_touch_cb, LV_EVENT_PRESSED, this);
@@ -359,7 +360,7 @@ class LvColorPickerType : public LvCompound {
 
   void add_value_label_(SliderIndex index, lv_color_t color) {
     auto *slider = this->sliders_[index];
-    lv_obj_add_flag(slider, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_set_flag(slider, LV_OBJ_FLAG_OVERFLOW_VISIBLE, true);
     auto *label = lv_label_create(slider);
     this->values_[index] = label;
     lv_obj_set_style_align(label, LV_ALIGN_CENTER, LV_PART_MAIN);
@@ -413,10 +414,10 @@ class LvColorPickerType : public LvCompound {
   }
 
   void update_text_() const {
-    // "#" + 3x "%02X" + null
-    char buf[8];
-    snprintf(buf, sizeof(buf), "#%02X%02X%02X", static_cast<unsigned>(this->state_.r),
-             static_cast<unsigned>(this->state_.g), static_cast<unsigned>(this->state_.b));
+    // "#" + RRGGBB + null
+    char buf[8] = "#";
+    const uint8_t rgb[] = {this->state_.r, this->state_.g, this->state_.b};
+    format_hex_pretty_to(buf + 1, sizeof(buf) - 1, rgb, sizeof(rgb), 0);
     lv_label_set_text(this->color_text_, buf);
   }
 
@@ -509,7 +510,7 @@ class LvColorPickerType : public LvCompound {
   static void bubble_events(lv_obj_t *obj) {
     for (uint32_t i = 0; i < lv_obj_get_child_count(obj); i++) {
       auto *child = lv_obj_get_child(obj, i);
-      lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
+      lv_obj_set_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE, true);
       bubble_events(child);
     }
   }

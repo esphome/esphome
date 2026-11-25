@@ -1,39 +1,69 @@
+import logging
+import re
 from typing import Any
 
-from esphome import automation
+from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import ethernet, wifi
+from esphome.components.const import CONF_BORDER_ROUTER, CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
     VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    request_software_coexistence,
     require_mbedtls_ecp,
+    require_mbedtls_tls,
     require_mbedtls_tls_extras,
     require_mbedtls_tls_server,
+    require_vfs_dir,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.network import DOMAIN as NETWORK_DOMAIN, add_use_address
+from esphome.components.network import (
+    add_use_address,
+    request_ipv4_off,
+    require_ipv4,
+    require_ipv6,
+)
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_add_prj_conf_min
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AP,
+    CONF_BAUD_RATE,
     CONF_CHANNEL,
-    CONF_ENABLE_IPV6,
+    CONF_ENABLE_ON_BOOT,
+    CONF_ETHERNET,
     CONF_FRAMEWORK,
+    CONF_HARDWARE_UART,
     CONF_ID,
+    CONF_INVERTED,
     CONF_LOG_LEVEL,
+    CONF_LOGGER,
+    CONF_NETWORKS,
+    CONF_NUMBER,
+    CONF_OPENTHREAD,
     CONF_OUTPUT_POWER,
+    CONF_RESET_PIN,
+    CONF_RX_PIN,
+    CONF_TX_PIN,
     CONF_USE_ADDRESS,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
+    CONF_WIFI,
     PLATFORM_ESP32,
     PlatformFramework,
 )
@@ -44,10 +74,14 @@ from esphome.core import (
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
+from esphome.helpers import write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
+from esphome.writer import clean_build
 
 from .const import (
-    CONF_DEVICE_TYPE,
+    CONF_BACKBONE,
+    CONF_CORE_OPTIONS,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
     CONF_MDNS_ID,
@@ -57,18 +91,18 @@ from .const import (
     CONF_PAN_ID,
     CONF_POLL_PERIOD,
     CONF_PSKC,
+    CONF_RCP,
     CONF_SRP_ID,
     CONF_TLV,
+    OPENTHREAD_CONFIG_PREFIX,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrene"]
 DOMAIN = "openthread"
 
 AUTO_LOAD = ["network"]
-
-# Wi-fi / Bluetooth / Thread coexistence isn't implemented at this time
-# TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
-CONFLICTS_WITH = ["wifi"]
 
 IDF_TO_OT_LOG_LEVEL = {
     "NONE": "NONE",
@@ -79,10 +113,68 @@ IDF_TO_OT_LOG_LEVEL = {
     "VERBOSE": "DEBG",
 }
 
-CONF_DEVICE_TYPES = [
+DEVICE_TYPES = [
     "FTD",
     "MTD",
 ]
+
+# Variants with both Wi-Fi and an 802.15.4 radio
+NATIVE_BORDER_ROUTER_VARIANTS = {
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32S31,
+}
+# Variants with Wi-Fi, for an external RCP
+RCP_BORDER_ROUTER_VARIANTS = {
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+}
+# ESP-IDF options a border router needs on top of the plain OpenThread ones
+BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
+    "CONFIG_OPENTHREAD_PLATFORM_NETIF": True,
+    "CONFIG_OPENTHREAD_BORDER_ROUTER": True,
+    # The advertising proxy registers the Thread devices' services with mDNS; the SDK default of 10 fills up fast
+    "CONFIG_MDNS_MAX_SERVICES": 20,
+    "CONFIG_LWIP_IPV6_FORWARD": True,
+    "CONFIG_LWIP_IPV6_NUM_ADDRESSES": 12,
+    "CONFIG_LWIP_MULTICAST_PING": True,
+    "CONFIG_LWIP_NETIF_STATUS_CALLBACK": True,
+    "CONFIG_LWIP_HOOK_IP6_ROUTE_DEFAULT": True,
+    "CONFIG_LWIP_HOOK_ND6_GET_GW_DEFAULT": True,
+    "CONFIG_LWIP_HOOK_IP6_INPUT_CUSTOM": True,
+    "CONFIG_LWIP_HOOK_IP6_SELECT_SRC_ADDR_CUSTOM": True,
+    "CONFIG_MDNS_MULTIPLE_INSTANCE": True,
+    "CONFIG_MBEDTLS_CMAC_C": True,
+    "CONFIG_MBEDTLS_SSL_PROTO_DTLS": True,
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE": True,
+    "CONFIG_MBEDTLS_ECJPAKE_C": True,
+}
+OT_HEADER_DIR = "openthread"
+OT_HEADER_FILE = "esphome_ot_config.h"
+OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
+# Derived from poll_period at run time. Each core_options value, or the OpenThread default, is the
+# floor of its derived value and is restored when polling stops.
+MTD_POLL_PERIOD_OPTIONS: dict[str, tuple[str, int]] = {
+    "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT": (
+        "ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN",
+        240,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_CHECK_TIMEOUT_MIN",
+        190,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN",
+        129,
+    ),
+}
 
 
 def _validate_txpower(value: Any) -> int | float:
@@ -99,10 +191,22 @@ def _validate_txpower(value: Any) -> int | float:
     return value  # Unsupported, fail later with clear error
 
 
+def _get_rcp(config: ConfigType) -> ConfigType | None:
+    return config.get(CONF_BORDER_ROUTER, {}).get(CONF_RCP)
+
+
+def _ethernet_backbone(config: ConfigType) -> bool:
+    return config.get(CONF_BORDER_ROUTER, {}).get(CONF_BACKBONE) == CONF_ETHERNET
+
+
 def set_sdkconfig_options(config: ConfigType) -> None:
-    # and expose options for using SPI/UART RCPs
-    add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
-    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", True)
+    border_router = CONF_BORDER_ROUTER in config
+    rcp = _get_rcp(config) is not None
+
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", not rcp)
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_SPINEL_UART", rcp)
+    if not rcp:
+        add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
 
     # There is a conflict if the logger's uart also uses the default UART, which is seen as a watchdog failure on "ot_cli"
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CLI", False)
@@ -114,53 +218,132 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
-    # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
-    # setting one under sdkconfig_options keeps TLS in the build automatically.
-    # The crypto platform uses AES-CCM and deterministic ECDSA directly.
-    require_mbedtls_tls_server()
+    # OpenThread's SRP and border-router code uses these mbedTLS crypto features directly.
     require_mbedtls_tls_extras(
         ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
     )
+    # Widens the TLS role only where TLS is compiled in: a commissioner or border agent enabled
+    # through sdkconfig_options needs the DTLS server side too
+    require_mbedtls_tls_server()
+    if border_router:
+        require_mbedtls_tls()
 
     if not config.get(CONF_TLV):
-        if pan_id := config.get(CONF_PAN_ID):
+        if (pan_id := config.get(CONF_PAN_ID)) is not None:
             add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PANID", pan_id)
 
         if channel := config.get(CONF_CHANNEL):
             add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_CHANNEL", channel)
 
-        if network_key := config.get(CONF_NETWORK_KEY):
+        if (network_key := config.get(CONF_NETWORK_KEY)) is not None:
             add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{network_key:X}".lower()
+                "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{network_key:032x}"
             )
 
-        if network_name := config.get(CONF_NETWORK_NAME):
+        if (network_name := config.get(CONF_NETWORK_NAME)) is not None:
             add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_NAME", network_name)
 
         if (ext_pan_id := config.get(CONF_EXT_PAN_ID)) is not None:
             add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:X}".lower()
+                "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:016x}"
             )
         if (mesh_local_prefix := config.get(CONF_MESH_LOCAL_PREFIX)) is not None:
             add_idf_sdkconfig_option(
                 "CONFIG_OPENTHREAD_MESH_LOCAL_PREFIX", f"{mesh_local_prefix}".lower()
             )
         if (pskc := config.get(CONF_PSKC)) is not None:
-            add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
-            )
+            add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:032x}")
 
-    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
-    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
-    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", not border_router)
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", not border_router)
+    if not border_router:
+        # The DNS64 hook breaks IPv6 literal lookups; see openthread_esp.cpp.
+        # Fixed upstream on ESP-IDF master, remove this once a release includes
+        # "fix(openthread): bypass DNS64 synthesis for IPv6 literals",
+        # https://github.com/espressif/esp-idf/commit/87b133ee1a7e91c1ee95176b4733b7f72236e5da
+        # (merged in https://github.com/espressif/esp-idf/commit/83239509832bf5d427935cd365f4b62a320e8765)
+        cg.add_build_flag("-Wl,--wrap=lwip_hook_dns_external_resolve")
+        add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
+
+    if border_router:
+        if not _ethernet_backbone(config):
+            # Border routing follows the Wi-Fi link
+            wifi.request_wifi_connect_state_listener()
+        for name, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
+            add_idf_sdkconfig_option(name, value)
+        if not rcp and CONF_WIFI in CORE.config:
+            # The native 802.15.4 radio shares the RF frontend with Wi-Fi
+            request_software_coexistence()
 
     # TODO: Add support for synchronized sleepy end devices (SSED)
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
 
 
+def _write_custom_header(config: ConfigType) -> None:
+    """Write core_options to the OpenThread custom header."""
+    if not (options := config.get(CONF_CORE_OPTIONS)):
+        return
+
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_HEADER_CUSTOM", True)
+    # IDF resolves the path relative to the project (build) directory.
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_CUSTOM_HEADER_PATH", OT_HEADER_DIR)
+    add_idf_sdkconfig_option(
+        "CONFIG_OPENTHREAD_CUSTOM_HEADER_FILE_NAME", OT_HEADER_FILE
+    )
+    content = (
+        "// Auto-generated by ESPHome from openthread core_options - do not edit\n"
+        "#pragma once\n\n"
+        + "".join(
+            f"#define {name} {value}\n" for name, value in sorted(options.items())
+        )
+    )
+    # PlatformIO does not track this header as an OpenThread input; the esp-idf
+    # toolchain does.
+    header_path = CORE.relative_build_path(OT_HEADER_DIR, OT_HEADER_FILE)
+    if write_file_if_changed(header_path, content) and not CORE.using_toolchain_esp_idf:
+        clean_build(clear_pio_cache=False)
+
+
 openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
 OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
+
+
+def _validate_reset_pin(value: object) -> ConfigType:
+    value = {CONF_NUMBER: value} if not isinstance(value, dict) else dict(value)
+    value.setdefault(CONF_INVERTED, True)
+    return pins.internal_gpio_output_pin_schema(value)
+
+
+# The pin registry rejects a pin used twice, so RX, TX and reset need no check of their own
+_RCP_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_BAUD_RATE, default=460800): cv.int_range(min=9600),
+        cv.Optional(CONF_RESET_PIN): _validate_reset_pin,
+    }
+)
+
+_BORDER_ROUTER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_RCP): _RCP_SCHEMA,
+        cv.Optional(CONF_BACKBONE, default=CONF_WIFI): cv.one_of(
+            CONF_WIFI, CONF_ETHERNET, lower=True
+        ),
+    }
+)
+
+
+@schema_extractor("schema")
+def _validate_border_router(value: object) -> ConfigType:
+    if value is SCHEMA_EXTRACT:
+        return _BORDER_ROUTER_SCHEMA
+    # ESP-IDF's border router library resolves DNS and runs DHCP over IPv4
+    return require_ipv4(CONF_OPENTHREAD, CONF_BORDER_ROUTER)(
+        _BORDER_ROUTER_SCHEMA({} if value is None else value)
+    )
+
 
 _CONNECTION_SCHEMA = cv.Schema(
     {
@@ -185,28 +368,63 @@ def _validate(config: ConfigType) -> ConfigType:
         )
     device_type = config.get(CONF_DEVICE_TYPE)
     poll_period = config.get(CONF_POLL_PERIOD)
-    if (
-        device_type == "FTD"
-        and poll_period
-        and poll_period > TimePeriodMilliseconds(milliseconds=0)
-    ):
+    polling = poll_period is not None and poll_period > TimePeriodMilliseconds(
+        milliseconds=0
+    )
+    if device_type == "FTD" and polling:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
+    # ESPHome's code cannot see the OpenThread config header, so these must not be expressions
+    if device_type == "MTD" and (core_options := config.get(CONF_CORE_OPTIONS)):
+        for name in sorted(MTD_POLL_PERIOD_OPTIONS.keys() & core_options.keys()):
+            try:
+                int(core_options[name], 0)
+            except ValueError:
+                raise cv.Invalid(
+                    f"'{name}' must be a whole number of seconds with {CONF_DEVICE_TYPE}: MTD",
+                    path=[CONF_CORE_OPTIONS, name],
+                ) from None
+    if CONF_BORDER_ROUTER in config and device_type != "FTD":
+        raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
     return config
 
 
-def _require_vfs_select(config: ConfigType) -> ConfigType:
-    """Register VFS select requirement during config validation."""
+def _require_vfs(config: ConfigType) -> ConfigType:
+    """Register VFS requirements during config validation."""
     # OpenThread uses esp_vfs_eventfd which requires VFS select support (ESP32 only)
     if CORE.is_esp32:
         require_vfs_select()
+        if _get_rcp(config) is not None:
+            require_vfs_dir()
     return config
 
 
 def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.using_zephyr:
+        return config
+    # Older 5.5 releases keep the first lock mutex when a timed wait for the second one runs out
+    cv.require_framework_version(
+        esp_idf=cv.Version(5, 5, 5),
+        extra_message="OpenThread requires ESP-IDF 5.5.5 or newer; older 5.5 releases can deadlock the OpenThread lock",
+    )(config)
+    if CONF_BORDER_ROUTER in config:
+        variant = get_esp32_variant()
+        if _get_rcp(config) is not None:
+            if variant not in RCP_BORDER_ROUTER_VARIANTS and not (
+                variant == VARIANT_ESP32P4 and _ethernet_backbone(config)
+            ):
+                raise cv.Invalid(
+                    "OpenThread Border Router RCP mode requires a Wi-Fi-capable ESP32 "
+                    "variant, or an ESP32-P4 with 'backbone: ethernet'."
+                )
+        elif variant not in NATIVE_BORDER_ROUTER_VARIANTS:
+            raise cv.Invalid(
+                "OpenThread Border Router with a native radio requires an ESP32 variant "
+                "with both Wi-Fi and IEEE 802.15.4 support. "
+                "Configure 'rcp:' to use an external OpenThread Radio Co-Processor."
+            )
         return config
     return only_on_variant(
         supported=[
@@ -220,18 +438,65 @@ def _validate_platform(config: ConfigType) -> ConfigType:
     )(config)
 
 
+def _validate_core_option_names(options: dict[str, str]) -> dict[str, str]:
+    for name in options:
+        if (
+            not name.startswith(OPENTHREAD_CONFIG_PREFIX)
+            or name == OPENTHREAD_CONFIG_PREFIX
+        ):
+            raise cv.Invalid(
+                f"'{name}' is not an OpenThread core option; names must be "
+                f"{OPENTHREAD_CONFIG_PREFIX} followed by the option name",
+                path=[name],
+            )
+        if not OT_CORE_OPTION_NAME.fullmatch(name):
+            raise cv.Invalid(f"'{name}' may only contain A-Z, 0-9 and _", path=[name])
+    return options
+
+
+def _validate_core_option_value(value: Any) -> str:
+    value = cv.string_strict(value)
+    if not value.strip():
+        raise cv.Invalid("OpenThread core option value must not be empty")
+    if "\n" in value or "\r" in value:
+        raise cv.Invalid("OpenThread core option value must be a single line")
+    # GCC treats a backslash followed by spaces as a line continuation too.
+    if value.rstrip().endswith("\\"):
+        raise cv.Invalid("OpenThread core option value must not end with \\")
+    return value
+
+
 def _validate_tlv_hex(value: Any) -> str:
     s = cv.string_strict(value)
     if len(s) % 2 != 0:
         raise cv.Invalid("TLV must have an even number of hex characters")
     try:
         raw = bytes.fromhex(s)
-    except ValueError as e:
-        raise cv.Invalid(f"TLV must be valid hex: {e}") from e
+    except ValueError as err:
+        raise cv.Invalid(f"TLV must be valid hex: {err}") from err
     if len(raw) > 254:  # sizeof(otOperationalDatasetTlvs::mTlvs)
         raise cv.Invalid(f"TLV too long ({len(raw)} bytes, max 254)")
     return s
 
+
+# The child timeout is 4 * poll_period, and OpenThread limits it to 8 hours.
+MAX_POLL_PERIOD = TimePeriodMilliseconds(seconds=7200)
+
+
+def _limit_poll_period(value: TimePeriodMilliseconds) -> TimePeriodMilliseconds:
+    # Remove before 2027.6.0: reject with cv.Range(max=MAX_POLL_PERIOD)
+    if value > MAX_POLL_PERIOD:
+        _LOGGER.warning(
+            "%s above %s is deprecated and now limited to it. "
+            "This will be an error in 2027.6.0",
+            CONF_POLL_PERIOD,
+            MAX_POLL_PERIOD,
+        )
+        return MAX_POLL_PERIOD
+    return value
+
+
+_POLL_PERIOD = cv.All(cv.positive_time_period_milliseconds, _limit_poll_period)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -239,8 +504,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(OpenThreadComponent),
             cv.GenerateID(CONF_SRP_ID): cv.declare_id(OpenThreadSrpComponent),
             cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
+            cv.Optional(CONF_BORDER_ROUTER): _validate_border_router,
             cv.Optional(CONF_DEVICE_TYPE, default="FTD"): cv.one_of(
-                *CONF_DEVICE_TYPES, upper=True
+                *DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.sensitive(
@@ -251,24 +517,74 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POLL_PERIOD): _POLL_PERIOD,
+            cv.Optional(CONF_CORE_OPTIONS): cv.All(
+                cv.only_on_esp32,
+                {cv.string_strict: _validate_core_option_value},
+                _validate_core_option_names,
+            ),
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     _validate_platform,
     _validate,
-    _require_vfs_select,
+    _require_vfs,
+    require_ipv6(CONF_OPENTHREAD),
+    request_ipv4_off(CONF_OPENTHREAD),
 )
 
 
-def _final_validate(_: ConfigType) -> None:
+def _final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
-    network_config = full_config.get(NETWORK_DOMAIN, {})
-    if not network_config.get(CONF_ENABLE_IPV6, False):
-        raise cv.Invalid(
-            "OpenThread requires IPv6 to be enabled in the network component. "
-            "Please set `enable_ipv6: true` in the `network` configuration."
-        )
+
+    wifi_config = full_config.get(CONF_WIFI)
+    if CONF_BORDER_ROUTER not in config:
+        if wifi_config is not None:
+            raise cv.Invalid(
+                "OpenThread can only be used with Wi-Fi when 'border_router:' is configured."
+            )
+    else:
+        if wifi_config is not None and CONF_AP in wifi_config:
+            raise cv.Invalid(
+                "OpenThread Border Router does not support Wi-Fi AP or fallback AP mode."
+            )
+        if _ethernet_backbone(config):
+            if CONF_ETHERNET not in full_config:
+                raise cv.Invalid(
+                    "OpenThread Border Router with 'backbone: ethernet' requires the "
+                    "'ethernet' component."
+                )
+            # The Ethernet netif only exists once Ethernet has started
+            if not full_config[CONF_ETHERNET][CONF_ENABLE_ON_BOOT]:
+                raise cv.Invalid(
+                    "OpenThread Border Router with 'backbone: ethernet' requires "
+                    "Ethernet 'enable_on_boot: true'."
+                )
+        elif wifi_config is None:
+            raise cv.Invalid("OpenThread Border Router requires a Wi-Fi STA backbone.")
+        elif not wifi_config.get(CONF_NETWORKS):
+            raise cv.Invalid(
+                "OpenThread Border Router requires at least one configured Wi-Fi STA network."
+            )
+        elif not wifi_config[CONF_ENABLE_ON_BOOT]:
+            raise cv.Invalid(
+                "OpenThread Border Router requires Wi-Fi 'enable_on_boot: true'."
+            )
+        if _get_rcp(config) is not None:
+            if full_config.get("uart") is not None:
+                raise cv.Invalid(
+                    "OpenThread RCP uses ESP-IDF's dedicated Spinel UART driver and "
+                    "cannot currently be combined with the ESPHome UART component."
+                )
+            if (
+                (logger_config := full_config.get(CONF_LOGGER)) is not None
+                and logger_config.get(CONF_HARDWARE_UART) == "UART1"
+                and logger_config.get(CONF_BAUD_RATE, 0) > 0
+            ):
+                raise cv.Invalid(
+                    "OpenThread RCP reserves UART1; configure the logger to use USB "
+                    "or another UART."
+                )
 
     if (
         (esp32_config := full_config.get(PLATFORM_ESP32)) is not None
@@ -278,6 +594,8 @@ def _final_validate(_: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC", False)
         ot_log_level = IDF_TO_OT_LOG_LEVEL.get(log_level, log_level)
         add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_LOG_LEVEL_{ot_log_level}", True)
+
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -294,49 +612,84 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config: ConfigType) -> None:
+    border_router = CONF_BORDER_ROUTER in config
+    rcp = _get_rcp(config)
+
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
         # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
         require_mbedtls_ecp()
 
+    ethernet_backbone = border_router and _ethernet_backbone(config)
     cg.add_define("USE_OPENTHREAD")
+    if border_router:
+        cg.add_define("USE_OPENTHREAD_BORDER_ROUTER")
+        if ethernet_backbone:
+            cg.add_define("USE_OPENTHREAD_BACKBONE_ETHERNET")
+    else:
+        # The SRP client registers the mDNS services with the Thread network
+        cg.add_define("USE_OPENTHREAD_SRP")
+    if rcp is not None:
+        cg.add_define("USE_OPENTHREAD_RCP_UART")
     if config.get(CONF_FORCE_DATASET):
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
     if tlv := config.get(CONF_TLV):
         cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+    if config[CONF_DEVICE_TYPE] == "MTD":
+        core_options = config.get(CONF_CORE_OPTIONS, {})
+        for option, (define, default) in MTD_POLL_PERIOD_OPTIONS.items():
+            value = core_options.get(option)
+            cg.add_define(define, default if value is None else int(value, 0))
 
-    # OpenThread SRP needs access to mDNS services after setup
-    enable_mdns_storage()
+    if not border_router:
+        # OpenThread SRP needs access to mDNS services after setup
+        enable_mdns_storage()
 
-    ot = cg.new_Pvariable(config[CONF_ID])
+    if rcp is None:
+        ot = cg.new_Pvariable(config[CONF_ID])
+    else:
+        reset_pin = (
+            await cg.gpio_pin_expression(rcp[CONF_RESET_PIN])
+            if CONF_RESET_PIN in rcp
+            else cg.nullptr
+        )
+        ot = cg.new_Pvariable(
+            config[CONF_ID],
+            rcp[CONF_BAUD_RATE],
+            rcp[CONF_RX_PIN],
+            rcp[CONF_TX_PIN],
+            reset_pin,
+        )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
-    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
-        cg.add(ot.set_poll_period(poll_period))
+    if ethernet_backbone:
+        await ethernet.register_connect_state_listener(ot)
+    cg.add_optional(ot.set_poll_period, config.get(CONF_POLL_PERIOD))
 
-    srp = cg.new_Pvariable(config[CONF_SRP_ID])
-    mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
-    cg.add(srp.set_mdns(mdns_component))
-    await cg.register_component(srp, config)
+    if not border_router:
+        mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
+        srp = cg.new_Pvariable(config[CONF_SRP_ID])
+        cg.add(srp.set_mdns(mdns_component))
+        await cg.register_component(srp, config)
 
-    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
-        cg.add(ot.set_output_power(output_power))
+    cg.add_optional(ot.set_output_power, config.get(CONF_OUTPUT_POWER))
 
     if CORE.is_esp32:
         set_sdkconfig_options(config)
+        _write_custom_header(config)
     elif CORE.using_zephyr:
         # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
         include_west_project("mbedtls")
         include_west_project("openthread")
-        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+        if CORE.framework_version >= cv.Version(2, 7, 0):
             include_west_project("oberon-psa-crypto")
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+        zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 4096)
 
 
 # Actions
@@ -345,9 +698,7 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OpenThreadComponent),
-            cv.Required(CONF_POLL_PERIOD): cv.templatable(
-                cv.positive_time_period_milliseconds
-            ),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(_POLL_PERIOD),
         }
     ),
 )

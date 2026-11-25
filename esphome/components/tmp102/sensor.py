@@ -4,11 +4,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-)
+from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 from . import (
@@ -28,6 +24,7 @@ from . import (
     TMP102Component,
     build_configuration,
     encode_temperature,
+    number_parent_extended,
     validate_tmp102_thresholds,
 )
 
@@ -47,13 +44,7 @@ _ADVANCED_SCHEMA = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(
-        TMP102Component,
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(TMP102Component, kind=sensor.TEMPERATURE)
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x48))
     .extend(_ADVANCED_SCHEMA),
@@ -66,17 +57,20 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if not any(key in config for key in _ADVANCED_SCHEMA):
+    has_numbers = number_parent_extended(config[CONF_ID]) is not None
+    if not has_numbers and not any(key in config for key in _ADVANCED_SCHEMA):
         return
 
     extended = config.get(CONF_EXTENDED_MODE, False)
-    high = config.get(CONF_TEMPERATURE_HIGH, TMP102_DEFAULT_THIGH)
-    low = config.get(CONF_TEMPERATURE_LOW, TMP102_DEFAULT_TLOW)
     cg.add_define("USE_TMP102_CONFIGURE")
     cg.add(
         var.set_configuration(
             build_configuration(config),
-            encode_temperature(high, extended),
-            encode_temperature(low, extended),
+            encode_temperature(
+                config.get(CONF_TEMPERATURE_HIGH, TMP102_DEFAULT_THIGH), extended
+            ),
+            encode_temperature(
+                config.get(CONF_TEMPERATURE_LOW, TMP102_DEFAULT_TLOW), extended
+            ),
         )
     )

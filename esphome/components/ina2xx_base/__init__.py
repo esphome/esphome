@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 import esphome.codegen as cg
@@ -15,21 +16,12 @@ from esphome.const import (
     CONF_SHUNT_RESISTANCE,
     CONF_SHUNT_VOLTAGE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
     UNIT_MILLIVOLT,
-    UNIT_VOLT,
-    UNIT_WATT,
-    UNIT_WATT_HOURS,
 )
-from esphome.core import EnumValue
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -96,9 +88,25 @@ def validate_model_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_adc_time(value: Any) -> EnumValue:
-    value = cv.positive_time_period_microseconds(value).total_microseconds
-    return cv.enum(ADC_TIMES, int=True)(value)
+def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
+    """One value for every channel, or one each; always returns the per-channel dict."""
+    return cv.Any(
+        cv.All(
+            validator,
+            lambda value: {
+                CONF_BUS_VOLTAGE: value,
+                CONF_SHUNT_VOLTAGE: value,
+                CONF_TEMPERATURE: value,
+            },
+        ),
+        cv.Schema(
+            {
+                cv.Optional(CONF_BUS_VOLTAGE, default="4120us"): validator,
+                cv.Optional(CONF_SHUNT_VOLTAGE, default="4120us"): validator,
+                cv.Optional(CONF_TEMPERATURE, default="4120us"): validator,
+            }
+        ),
+    )
 
 
 INA2XX_SCHEMA = cv.Schema(
@@ -106,13 +114,8 @@ INA2XX_SCHEMA = cv.Schema(
         cv.Required(CONF_SHUNT_RESISTANCE): cv.All(cv.resistance, cv.Range(min=0.0)),
         cv.Required(CONF_MAX_CURRENT): cv.All(cv.current, cv.Range(min=0.0)),
         cv.Optional(CONF_ADC_RANGE, default=0): cv.int_range(min=0, max=1),
-        cv.Optional(CONF_ADC_TIME, default="4120 us"): cv.Any(
-            validate_adc_time,
-            {
-                cv.Optional(CONF_BUS_VOLTAGE, default="4120 us"): validate_adc_time,
-                cv.Optional(CONF_SHUNT_VOLTAGE, default="4120 us"): validate_adc_time,
-                cv.Optional(CONF_TEMPERATURE, default="4120 us"): validate_adc_time,
-            },
+        cv.Optional(CONF_ADC_TIME, default="4120us"): _per_channel(
+            cv.time_period_enum(ADC_TIMES, unit="us")
         ),
         cv.Optional(CONF_ADC_AVERAGING, default=128): cv.enum(ADC_SAMPLES, int=True),
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
@@ -129,48 +132,23 @@ INA2XX_SCHEMA = cv.Schema(
             key=CONF_NAME,
         ),
         cv.Optional(CONF_BUS_VOLTAGE): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=5,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=5),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_TEMPERATURE): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=5,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=5),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_CURRENT): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=8,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=8),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_POWER): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=6,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.POWER, accuracy_decimals=6),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_ENERGY): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT_HOURS,
-                accuracy_decimals=8,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-            ),
+            sensor.sensor_schema(kind=sensor.ENERGY_WH, accuracy_decimals=8),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_ENERGY_JOULES): cv.maybe_simple_value(
@@ -214,15 +192,10 @@ async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
     cg.add(var.set_shunt_tempco(config[CONF_TEMPERATURE_COEFFICIENT]))
     cg.add(var.set_reset_on_boot(config[CONF_RESET_ON_BOOT]))
 
-    adc_time_config = config[CONF_ADC_TIME]
-    if isinstance(adc_time_config, dict):
-        cg.add(var.set_adc_time_bus_voltage(adc_time_config[CONF_BUS_VOLTAGE]))
-        cg.add(var.set_adc_time_shunt_voltage(adc_time_config[CONF_SHUNT_VOLTAGE]))
-        cg.add(var.set_adc_time_die_temperature(adc_time_config[CONF_TEMPERATURE]))
-    else:
-        cg.add(var.set_adc_time_bus_voltage(adc_time_config))
-        cg.add(var.set_adc_time_shunt_voltage(adc_time_config))
-        cg.add(var.set_adc_time_die_temperature(adc_time_config))
+    adc_time = config[CONF_ADC_TIME]
+    cg.add(var.set_adc_time_bus_voltage(adc_time[CONF_BUS_VOLTAGE]))
+    cg.add(var.set_adc_time_shunt_voltage(adc_time[CONF_SHUNT_VOLTAGE]))
+    cg.add(var.set_adc_time_die_temperature(adc_time[CONF_TEMPERATURE]))
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor)
@@ -230,7 +203,7 @@ async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
     await sensors(CONF_TEMPERATURE, var.set_die_temperature_sensor)
     await sensors(CONF_CURRENT, var.set_current_sensor)
     await sensors(CONF_POWER, var.set_power_sensor)
-    await sensors(CONF_ENERGY, var.set_energy_sensor_wh)
-    await sensors(CONF_ENERGY_JOULES, var.set_energy_sensor_j)
-    await sensors(CONF_CHARGE, var.set_charge_sensor_ah)
-    await sensors(CONF_CHARGE_COULOMBS, var.set_charge_sensor_c)
+    await sensors(CONF_ENERGY, var.set_energy_wh_sensor)
+    await sensors(CONF_ENERGY_JOULES, var.set_energy_j_sensor)
+    await sensors(CONF_CHARGE, var.set_charge_ah_sensor)
+    await sensors(CONF_CHARGE_COULOMBS, var.set_charge_c_sensor)

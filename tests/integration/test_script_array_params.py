@@ -9,12 +9,21 @@ braced initializer, causing compile failures.
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
+
+PATTERNS = {
+    "ints": re.compile(r"ints size=(\d+) \[0\]=(-?\d+) \[1\]=(-?\d+)"),
+    "floats": re.compile(r"floats size=(\d+) \[0\]=(-?\d+\.\d+) \[1\]=(-?\d+\.\d+)"),
+    "bools": re.compile(r"bools size=(\d+) \[0\]=(\d+) \[1\]=(\d+)"),
+    "strings": re.compile(r"strings size=(\d+) \[0\]=(\w+) \[1\]=(\w+)"),
+}
 
 
 @pytest.mark.asyncio
@@ -24,48 +33,32 @@ async def test_script_array_params(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Execute a script with int[], float[], bool[], string[] parameters."""
-    loop = asyncio.get_running_loop()
-    seen: dict[str, str] = {}
-    done = loop.create_future()
-
-    patterns = {
-        "ints": re.compile(r"ints size=(\d+) \[0\]=(-?\d+) \[1\]=(-?\d+)"),
-        "floats": re.compile(
-            r"floats size=(\d+) \[0\]=(-?\d+\.\d+) \[1\]=(-?\d+\.\d+)"
-        ),
-        "bools": re.compile(r"bools size=(\d+) \[0\]=(\d+) \[1\]=(\d+)"),
-        "strings": re.compile(r"strings size=(\d+) \[0\]=(\w+) \[1\]=(\w+)"),
-    }
-
-    def check_output(line: str) -> None:
-        for key, pat in patterns.items():
-            if (m := pat.search(line)) and key not in seen:
-                seen[key] = m.group(0)
-        if len(seen) == len(patterns) and not done.done():
-            done.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
-        service = next((s for s in services if s.name == "run_array_script"), None)
-        assert service is not None, "run_array_script service not found"
+        service = require_service(services, "run_array_script")
         await client.execute_service(service, {})
 
-        try:
-            await asyncio.wait_for(done, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Did not receive all expected log lines. Saw: {seen}")
+        values: dict[str, tuple[str, ...]] = {}
 
-        assert (m := patterns["ints"].search(seen["ints"]))
-        assert m.group(1) == "2" and m.group(2) == "42" and m.group(3) == "100"
+        async def collect() -> None:
+            for key, pattern in PATTERNS.items():
+                line = await waiter.wait_for(f"{key} size=", timeout=10.0)
+                assert (m := pattern.search(line)), line
+                values[key] = m.groups()
 
-        assert (m := patterns["floats"].search(seen["floats"]))
-        assert m.group(1) == "2" and m.group(2) == "1.50" and m.group(3) == "2.50"
+        # One deadline for all four lines, as the original future had
+        await wait_or_fail(
+            collect(), 5.0, "Did not receive all expected log lines", values=values
+        )
 
-        assert (m := patterns["bools"].search(seen["bools"]))
-        assert m.group(1) == "2" and m.group(2) == "1" and m.group(3) == "0"
-
-        assert (m := patterns["strings"].search(seen["strings"]))
-        assert m.group(1) == "2" and m.group(2) == "hello" and m.group(3) == "world"
+        assert values == {
+            "ints": ("2", "42", "100"),
+            "floats": ("2", "1.50", "2.50"),
+            "bools": ("2", "1", "0"),
+            "strings": ("2", "hello", "world"),
+        }

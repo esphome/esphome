@@ -1,0 +1,27 @@
+display:
+  - platform: mipi_spi
+    model: ILI9341
+    id: ns_display
+    dc_pin: ${dc_pin}
+    cs_pin: ${cs_pin}
+    color_depth: 8
+    invert_colors: false
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: ns2009
+    id: ns_touchscreen
+    i2c_id: i2c_bus
+    display: ns_display
+    transform:
+      mirror_y: true
+    calibration:
+      x_min: 400
+      x_max: 3700
+      y_min: 300
+      y_max: 3700
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]

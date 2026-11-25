@@ -2,6 +2,7 @@
 
 #if defined(USE_ETHERNET) && defined(USE_ESP32)
 
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -13,6 +14,9 @@
 #if USE_NETWORK_IPV6
 #include <esp_netif_net_stack.h>
 #include <lwip/netif.h>
+#if !USE_NETWORK_IPV4
+#include <lwip/dhcp6.h>
+#endif
 #endif
 #ifdef USE_PSRAM
 #include <esp_psram.h>
@@ -128,6 +132,21 @@ void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *me
 void EthernetComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  // The IP events arrive on the event task; the listeners publish states, so notify them here
+  if (this->ip_state_pending_.load(std::memory_order_acquire) != 0) {
+    this->ip_state_pending_.store(0, std::memory_order_relaxed);
+    this->notify_ip_state_listeners_();
+  }
+#endif
+
+  const bool link_up = this->link_up_.load(std::memory_order_relaxed);
+  if (link_up && !this->link_was_up_) {
+    // Give DHCP a full window after the link comes up before the timeout below restarts it
+    this->connect_begin_ = now;
+  }
+  this->link_was_up_ = link_up;
+
   switch (this->state_) {
     case EthernetComponentState::STOPPED:
       if (this->started_) {
@@ -150,9 +169,17 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
         this->connect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(true);
       } else if (now - this->connect_begin_ > 15000) {
-        ESP_LOGW(TAG, "Connecting failed; reconnecting");
-        this->start_connect_();
+        if (link_up) {
+          ESP_LOGW(TAG, "Connecting failed; reconnecting");
+          this->start_connect_();
+        } else {
+          // Restarting DHCP without a link only empties lwIP's DNS servers (espressif/esp-idf#19082);
+          // the DHCP client already running resumes when the link comes up.
+          ESP_LOGD(TAG, "Connecting failed: no link");
+          this->connect_begin_ = now;
+        }
       }
       break;
     case EthernetComponentState::CONNECTED:
@@ -162,6 +189,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
@@ -169,6 +197,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else {
         this->finish_connect_();
         // When connected and stable, disable the loop to save CPU cycles
@@ -721,6 +750,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   if (!this->ethernet_initialized_)
     return addresses;  // all-zero IPs
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(this->eth_netif_, &ip);
   if (err != ESP_OK) {
@@ -730,15 +760,9 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
-  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-  uint8_t count = 0;
-  count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
-  assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  assert(count < addresses.size());
-  for (int i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
-  }
+  network::fill_ip6_addresses(this->eth_netif_, addresses);
 #endif /* USE_NETWORK_IPV6 */
 
   return addresses;
@@ -763,20 +787,21 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       event_name = "ETH stopped";
       global_eth_component->started_ = false;
       global_eth_component->connected_ = false;
+      global_eth_component->link_up_.store(false, std::memory_order_relaxed);
       global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
+      global_eth_component->link_up_.store(true, std::memory_order_relaxed);
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_ETHERNET_IP_STATE_LISTENERS) && defined(USE_ETHERNET_MANUAL_IP)
-      if (global_eth_component->manual_ip_.has_value()) {
-        global_eth_component->notify_ip_state_listeners_();
-      }
+      global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
+      global_eth_component->enable_loop_soon_any_context();
 #endif
 #if USE_NETWORK_IPV6
       // Start SLAAC on link-up, not after the DHCPv4 lease. This also restores the
       // link-local after a link flap, which clears the IPv6 addresses.
-      if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(global_eth_component->eth_netif_); ll_err != ESP_OK) {
+      if (esp_err_t ll_err = global_eth_component->ensure_ip6_linklocal_(); ll_err != ESP_OK) {
         ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed on link-up: %s", esp_err_to_name(ll_err));
       }
 #endif /* USE_NETWORK_IPV6 */
@@ -784,6 +809,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
       global_eth_component->connected_ = false;
+      global_eth_component->link_up_.store(false, std::memory_order_relaxed);
       global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     default:
@@ -799,6 +825,9 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
+#endif
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
@@ -806,30 +835,30 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   global_eth_component->connected_ = true;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif /* USE_NETWORK_IPV6 */
-#ifdef USE_ETHERNET_IP_STATE_LISTENERS
-  global_eth_component->notify_ip_state_listeners_();
-#endif
 }
 
 #if USE_NETWORK_IPV6
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
+  if (event->esp_netif != global_eth_component->eth_netif_) {
+    return;  // another interface's address (wifi alongside ethernet)
+  }
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   // Count the addresses on the interface, not the events: recreating the link-local
   // after a link flap fires another event for the same address.
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
+#endif
 #if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
-  global_eth_component->connected_ =
-      global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+  global_eth_component->connected_ = (!USE_NETWORK_IPV4 || global_eth_component->got_ipv4_address_) &&
+                                     (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
   global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
-#endif
-#ifdef USE_ETHERNET_IP_STATE_LISTENERS
-  global_eth_component->notify_ip_state_listeners_();
 #endif
 }
 #endif /* USE_NETWORK_IPV6 */
@@ -839,21 +868,31 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 // duplicate address detection: recreating it would restart DAD. esp_netif_get_ip6_linklocal()
 // only reports a preferred address, so ask lwIP for the slot state instead.
 esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
-  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
-    u8_t state;
-    {
-      LwIPLock lock;
-      state = netif_ip6_addr_state(netif, 0);
-    }
-    if (ip6_addr_istentative(state) || ip6_addr_isvalid(state)) {
-      return ESP_OK;
-    }
+  auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_));
+  u8_t state = IP6_ADDR_INVALID;
+  if (netif != nullptr) {
+    LwIPLock lock;
+    state = netif_ip6_addr_state(netif, 0);
   }
-  esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-  if (err == ESP_OK) {
+  if (!ip6_addr_istentative(state) && !ip6_addr_isvalid(state)) {
+    if (esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_); err != ESP_OK) {
+      return err;
+    }
     ESP_LOGD(TAG, "IPv6 link-local address created");
   }
-  return err;
+#if !USE_NETWORK_IPV4
+  // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter.
+  // Idempotent in lwIP, so the link-up and connect paths can both call it.
+  if (netif != nullptr) {
+    esp_netif_tcpip_exec(
+        [](void *ctx) -> esp_err_t {
+          dhcp6_enable_stateless(static_cast<struct netif *>(ctx));
+          return ESP_OK;
+        },
+        netif);
+  }
+#endif
+  return ESP_OK;
 }
 #endif /* USE_NETWORK_IPV6 */
 
@@ -895,19 +934,14 @@ void EthernetComponent::start_connect_() {
     ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   }
 
-  esp_netif_ip_info_t info;
+#if USE_NETWORK_IPV4
+  esp_netif_ip_info_t info{};
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    info.ip = this->manual_ip_->static_ip;
-    info.gw = this->manual_ip_->gateway;
-    info.netmask = this->manual_ip_->subnet;
-  } else
+  const ManualIP manual_ip = load_manual_ip();
+  info.ip = manual_ip.static_ip;
+  info.gw = manual_ip.gateway;
+  info.netmask = manual_ip.subnet;
 #endif
-  {
-    info.ip.addr = 0;
-    info.gw.addr = 0;
-    info.netmask.addr = 0;
-  }
 
   esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
 
@@ -925,35 +959,33 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    // Set DNS through esp_netif so the servers are stored in the netif's own
-    // dns[] array; raw dns_setserver() would be lost when the default-route
-    // arbitration re-applies the default netif's DNS.
-    // Log-only on failure: the link still has a working IP/gateway, so degraded
-    // name resolution does not justify marking the whole component failed.
-    esp_netif_dns_info_t dns{};
-    if (this->manual_ip_->dns1.is_set()) {
-      dns.ip = this->manual_ip_->dns1;
-      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
-      }
-    }
-    if (this->manual_ip_->dns2.is_set()) {
-      dns.ip = this->manual_ip_->dns2;
-      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
-      }
-    }
-  } else
-#endif
-  {
-    err = esp_netif_dhcpc_start(this->eth_netif_);
-    if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
-      ESPHL_ERROR_CHECK(err, "DHCPC start error");
+  // Set DNS through esp_netif so the servers are stored in the netif's own
+  // dns[] array; raw dns_setserver() would be lost when the default-route
+  // arbitration re-applies the default netif's DNS.
+  // Log-only on failure: the link still has a working IP/gateway, so degraded
+  // name resolution does not justify marking the whole component failed.
+  esp_netif_dns_info_t dns{};
+  if (manual_ip.dns1.is_set()) {
+    dns.ip = manual_ip.dns1;
+    err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
     }
   }
+  if (manual_ip.dns2.is_set()) {
+    dns.ip = manual_ip.dns2;
+    err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
+    }
+  }
+#else
+  err = esp_netif_dhcpc_start(this->eth_netif_);
+  if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
+    ESPHL_ERROR_CHECK(err, "DHCPC start error");
+  }
+#endif
+#endif  // USE_NETWORK_IPV4
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
   // We MUST attempt this here, not just in finish_connect_(), because with
@@ -988,8 +1020,13 @@ void EthernetComponent::dump_connect_params_() {
     ESP_LOGCONFIG(TAG, "  uninitialized/disabled");
     return;
   }
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
+  network::IPAddress ip4(&ip.ip), subnet(&ip.netmask), gateway(&ip.gw);
+#else
+  network::IPAddress ip4, subnet, gateway;
+#endif
   const ip_addr_t *dns_ip1;
   const ip_addr_t *dns_ip2;
   {
@@ -1028,8 +1065,7 @@ void EthernetComponent::dump_connect_params_() {
                 "  MAC Address: %s\n"
                 "  Is Full Duplex: %s\n"
                 "  Link Speed: %u",
-                network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
-                network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
+                ip4.str_to(ip_buf), App.get_name().c_str(), subnet.str_to(subnet_buf), gateway.str_to(gateway_buf),
                 network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf),
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf),
                 YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), link_speed);

@@ -1,0 +1,49 @@
+# Shared by the case files: an ESP32-C3 with the hub's UART and the simulated bus device cross-wired through the GPIO
+# matrix. Each case file adds the rs485_frame framing and tx settings, its buttons and a `cases` script.
+esphome:
+  includes:
+    - simrs.hpp
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: simrs::bus = id(sim_uart);
+        - script.execute: cases
+
+esp32:
+  variant: esp32c3
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+uart:
+  - id: rs_uart
+    tx_pin: {number: GPIO3, allow_other_uses: true}
+    rx_pin: {number: GPIO4, allow_other_uses: true}
+    baud_rate: 9600
+  - id: sim_uart
+    tx_pin: {number: GPIO4, allow_other_uses: true}
+    rx_pin: {number: GPIO3, allow_other_uses: true}
+    baud_rate: 9600
+
+interval:
+  - interval: 5ms
+    then:
+      - lambda: simrs::poll();
+
+rs485_frame:
+  id: hub
+  uart_id: rs_uart
+  crc:
+    type: sum16_big_endian
+  dump_frames: true
+  frame_timeout: 50ms
+  on_frame:
+    - frame_type: []
+      then:
+        - lambda: |-
+            char hex[300];
+            format_hex_to(hex, sizeof(hex), payload.data(), payload.size());
+            ESP_LOGI("hwt", "FRAME t=%u %u B %s", (unsigned) millis(), (unsigned) payload.size(), hex);

@@ -52,7 +52,7 @@ class RotaryEncoderSensor final : public sensor::Sensor, public Component {
    *
    * @param restore_mode The restore mode to use.
    */
-  void set_restore_mode(RotaryEncoderRestoreMode restore_mode);
+  void set_restore_mode(RotaryEncoderRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
   /** Set the resolution of the rotary encoder.
    *
@@ -61,7 +61,7 @@ class RotaryEncoderSensor final : public sensor::Sensor, public Component {
    *
    * @param mode The new mode of the encoder.
    */
-  void set_resolution(RotaryEncoderResolution mode);
+  void set_resolution(RotaryEncoderResolution mode) { this->store_.resolution = mode; }
 
   /// Manually set the value of the counter.
   void set_value(int value) {
@@ -70,8 +70,8 @@ class RotaryEncoderSensor final : public sensor::Sensor, public Component {
   }
 
   void set_reset_pin(GPIOPin *pin_i) { this->pin_i_ = pin_i; }
-  void set_min_value(int32_t min_value);
-  void set_max_value(int32_t max_value);
+  void set_min_value(int32_t min_value) { this->store_.min_value = min_value; }
+  void set_max_value(int32_t max_value) { this->store_.max_value = max_value; }
   void set_publish_initial_value(bool publish_initial_value) { publish_initial_value_ = publish_initial_value; }
 
   // ========== INTERNAL METHODS ==========

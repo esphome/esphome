@@ -36,54 +36,51 @@ constexpr std::array<uint8_t, 3> build_reset_pdu(ResetPhase phase) {
 }
 
 class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevice {
+ protected:
+  // Ahead of the sensor pointers so the two bytes share the base class's tail padding.
+  // Register reads accepted by the hub but not yet resolved by a terminal callback.
+  uint8_t reads_outstanding_{0};
+  // Failed polls since the last good one; stops counting at MAX_CONSECUTIVE_READ_FAILURES.
+  uint8_t consecutive_failures_{0};
+
  public:
-  // Per-phase sensors; each setter is named after its config key
-  void set_voltage_a_sensor(sensor::Sensor *sensor) { this->voltage_a_ = sensor; }
-  void set_voltage_b_sensor(sensor::Sensor *sensor) { this->voltage_b_ = sensor; }
-  void set_voltage_c_sensor(sensor::Sensor *sensor) { this->voltage_c_ = sensor; }
+  SUB_SENSOR(voltage_a)
+  SUB_SENSOR(voltage_b)
+  SUB_SENSOR(voltage_c)
+  SUB_SENSOR(current_a)
+  SUB_SENSOR(current_b)
+  SUB_SENSOR(current_c)
+  SUB_SENSOR(active_power_a)
+  SUB_SENSOR(active_power_b)
+  SUB_SENSOR(active_power_c)
+  SUB_SENSOR(reactive_power_a)
+  SUB_SENSOR(reactive_power_b)
+  SUB_SENSOR(reactive_power_c)
+  SUB_SENSOR(apparent_power_a)
+  SUB_SENSOR(apparent_power_b)
+  SUB_SENSOR(apparent_power_c)
+  SUB_SENSOR(power_factor_a)
+  SUB_SENSOR(power_factor_b)
+  SUB_SENSOR(power_factor_c)
+  SUB_SENSOR(active_energy_a)
+  SUB_SENSOR(active_energy_b)
+  SUB_SENSOR(active_energy_c)
+  SUB_SENSOR(reactive_energy_a)
+  SUB_SENSOR(reactive_energy_b)
+  SUB_SENSOR(reactive_energy_c)
+  SUB_SENSOR(apparent_energy_a)
+  SUB_SENSOR(apparent_energy_b)
+  SUB_SENSOR(apparent_energy_c)
+  SUB_SENSOR(frequency)
+  SUB_SENSOR(total_active_power)
+  SUB_SENSOR(total_reactive_power)
+  SUB_SENSOR(total_apparent_power)
+  SUB_SENSOR(total_power_factor)
+  SUB_SENSOR(total_active_energy)
+  SUB_SENSOR(total_reactive_energy)
+  SUB_SENSOR(total_apparent_energy)
 
-  void set_current_a_sensor(sensor::Sensor *sensor) { this->current_a_ = sensor; }
-  void set_current_b_sensor(sensor::Sensor *sensor) { this->current_b_ = sensor; }
-  void set_current_c_sensor(sensor::Sensor *sensor) { this->current_c_ = sensor; }
-
-  void set_active_power_a_sensor(sensor::Sensor *sensor) { this->active_power_a_ = sensor; }
-  void set_active_power_b_sensor(sensor::Sensor *sensor) { this->active_power_b_ = sensor; }
-  void set_active_power_c_sensor(sensor::Sensor *sensor) { this->active_power_c_ = sensor; }
-
-  void set_reactive_power_a_sensor(sensor::Sensor *sensor) { this->reactive_power_a_ = sensor; }
-  void set_reactive_power_b_sensor(sensor::Sensor *sensor) { this->reactive_power_b_ = sensor; }
-  void set_reactive_power_c_sensor(sensor::Sensor *sensor) { this->reactive_power_c_ = sensor; }
-
-  void set_apparent_power_a_sensor(sensor::Sensor *sensor) { this->apparent_power_a_ = sensor; }
-  void set_apparent_power_b_sensor(sensor::Sensor *sensor) { this->apparent_power_b_ = sensor; }
-  void set_apparent_power_c_sensor(sensor::Sensor *sensor) { this->apparent_power_c_ = sensor; }
-
-  void set_power_factor_a_sensor(sensor::Sensor *sensor) { this->power_factor_a_ = sensor; }
-  void set_power_factor_b_sensor(sensor::Sensor *sensor) { this->power_factor_b_ = sensor; }
-  void set_power_factor_c_sensor(sensor::Sensor *sensor) { this->power_factor_c_ = sensor; }
-
-  void set_active_energy_a_sensor(sensor::Sensor *sensor) { this->active_energy_a_ = sensor; }
-  void set_active_energy_b_sensor(sensor::Sensor *sensor) { this->active_energy_b_ = sensor; }
-  void set_active_energy_c_sensor(sensor::Sensor *sensor) { this->active_energy_c_ = sensor; }
-
-  void set_reactive_energy_a_sensor(sensor::Sensor *sensor) { this->reactive_energy_a_ = sensor; }
-  void set_reactive_energy_b_sensor(sensor::Sensor *sensor) { this->reactive_energy_b_ = sensor; }
-  void set_reactive_energy_c_sensor(sensor::Sensor *sensor) { this->reactive_energy_c_ = sensor; }
-
-  void set_apparent_energy_a_sensor(sensor::Sensor *sensor) { this->apparent_energy_a_ = sensor; }
-  void set_apparent_energy_b_sensor(sensor::Sensor *sensor) { this->apparent_energy_b_ = sensor; }
-  void set_apparent_energy_c_sensor(sensor::Sensor *sensor) { this->apparent_energy_c_ = sensor; }
-
-  // Combined sensors
-  void set_frequency_sensor(sensor::Sensor *sensor) { this->frequency_ = sensor; }
-  void set_total_active_power_sensor(sensor::Sensor *sensor) { this->total_active_power_ = sensor; }
-  void set_total_reactive_power_sensor(sensor::Sensor *sensor) { this->total_reactive_power_ = sensor; }
-  void set_total_apparent_power_sensor(sensor::Sensor *sensor) { this->total_apparent_power_ = sensor; }
-  void set_total_power_factor_sensor(sensor::Sensor *sensor) { this->total_power_factor_ = sensor; }
-  void set_total_active_energy_sensor(sensor::Sensor *sensor) { this->total_active_energy_ = sensor; }
-  void set_total_reactive_energy_sensor(sensor::Sensor *sensor) { this->total_reactive_energy_ = sensor; }
-  void set_total_apparent_energy_sensor(sensor::Sensor *sensor) { this->total_apparent_energy_ = sensor; }
-
+ public:
   // Queues the energy reset command for the selected phase(s); the pzem6l24.reset_energy action calls this.
   void reset_energy(ResetPhase phase_option);
 
@@ -104,58 +101,6 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
   void request_failed_(std::span<const uint8_t> request_pdu);
   void read_failed_();
   void read_finished_();
-
-  // Register reads accepted by the hub but not yet resolved by a terminal callback.
-  uint8_t reads_outstanding_{0};
-  // Failed polls since the last good one; stops counting at MAX_CONSECUTIVE_READ_FAILURES.
-  uint8_t consecutive_failures_{0};
-
-  // Per-phase sensors
-  sensor::Sensor *voltage_a_{nullptr};
-  sensor::Sensor *voltage_b_{nullptr};
-  sensor::Sensor *voltage_c_{nullptr};
-
-  sensor::Sensor *current_a_{nullptr};
-  sensor::Sensor *current_b_{nullptr};
-  sensor::Sensor *current_c_{nullptr};
-
-  sensor::Sensor *active_power_a_{nullptr};
-  sensor::Sensor *active_power_b_{nullptr};
-  sensor::Sensor *active_power_c_{nullptr};
-
-  sensor::Sensor *reactive_power_a_{nullptr};
-  sensor::Sensor *reactive_power_b_{nullptr};
-  sensor::Sensor *reactive_power_c_{nullptr};
-
-  sensor::Sensor *apparent_power_a_{nullptr};
-  sensor::Sensor *apparent_power_b_{nullptr};
-  sensor::Sensor *apparent_power_c_{nullptr};
-
-  sensor::Sensor *power_factor_a_{nullptr};
-  sensor::Sensor *power_factor_b_{nullptr};
-  sensor::Sensor *power_factor_c_{nullptr};
-
-  sensor::Sensor *active_energy_a_{nullptr};
-  sensor::Sensor *active_energy_b_{nullptr};
-  sensor::Sensor *active_energy_c_{nullptr};
-
-  sensor::Sensor *reactive_energy_a_{nullptr};
-  sensor::Sensor *reactive_energy_b_{nullptr};
-  sensor::Sensor *reactive_energy_c_{nullptr};
-
-  sensor::Sensor *apparent_energy_a_{nullptr};
-  sensor::Sensor *apparent_energy_b_{nullptr};
-  sensor::Sensor *apparent_energy_c_{nullptr};
-
-  // Combined sensors
-  sensor::Sensor *frequency_{nullptr};
-  sensor::Sensor *total_active_power_{nullptr};
-  sensor::Sensor *total_reactive_power_{nullptr};
-  sensor::Sensor *total_apparent_power_{nullptr};
-  sensor::Sensor *total_power_factor_{nullptr};
-  sensor::Sensor *total_active_energy_{nullptr};
-  sensor::Sensor *total_reactive_energy_{nullptr};
-  sensor::Sensor *total_apparent_energy_{nullptr};
 };
 
 }  // namespace esphome::pzem6l24

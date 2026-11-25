@@ -90,6 +90,55 @@ binary_sensor:
         - lvgl.page.previous:
             animation: move_right
             time: 600ms
+        - lvgl.page.show: page1
+        - lvgl.page.show:
+            id: page1
+            animation: fade_in
+            time: 300ms
+        - lvgl.animimg.start: anim_img
+        - lvgl.tileview.select:
+            id: tileview_id
+            tile_id: tile_1
+            animated: true
+        - lvgl.tileview.select:
+            id: tileview_id
+            row: 0
+            column: 0
+        - lvgl.switch.update:
+            id: wifi_switch
+            state:
+              checked: true
+        - lvgl.roller.update:
+            id: lv_roller
+            selected_index: 1
+        - lvgl.led.update:
+            id: lv_led
+            brightness: 50%
+        - lvgl.buttonmatrix.update:
+            id: b_matrix
+            hidden: false
+        - lvgl.obj.update:
+            id: anim_box
+            hidden: false
+        - lvgl.page.update:
+            id: page1
+        - lvgl.tabview.update:
+            id: tabview_id
+            hidden: false
+        - lvgl.tileview.update:
+            id: tileview_id
+            hidden: false
+        - lvgl.menu.update:
+            id: settings_menu
+            hidden: false
+        - lvgl.canvas.update:
+            id: canvas_id
+            hidden: false
+        - if:
+            condition:
+              lvgl.is_paused:
+            then:
+              - logger.log: LVGL is paused
   - platform: lvgl
     id: common_button_checker
     name: Common button
@@ -110,14 +159,6 @@ binary_sensor:
             id: lv_image
             src: !lambda if (x) return id(cat_image); else return id(dog_image);
 
-wifi:
-  ssid: SSID
-  password: PASSWORD123
-
-time:
-  - platform: sntp
-    id: sntp_time
-
 text:
   - id: lvgl_text
     platform: lvgl
@@ -125,6 +166,9 @@ text:
     mode: text
 
 text_sensor:
+  - platform: lvgl
+    widget: hello_label
+    name: LVGL Label Text
   - platform: template
     id: test_text_sensor
     name: "Test Text Sensor"
@@ -141,3 +185,8 @@ text_sensor:
               return "WILDCARD";
             }
             return x.c_str();
+
+switch:
+  - platform: lvgl
+    widget: checkbox_id
+    name: LVGL Checkbox Switch

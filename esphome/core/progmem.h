@@ -1,10 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <new>
 #include <string>
+#include <type_traits>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
 
@@ -25,6 +28,7 @@
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
 #define ESPHOME_strlen_P strlen_P
+#define ESPHOME_strstr_P strstr_P
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
 // Storage class for PROGMEM_STRING_TABLE data; LOG_STR_ARG treats a LogString as PGM_P
@@ -42,6 +46,7 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
 #define ESPHOME_strlen_P strlen
+#define ESPHOME_strstr_P strstr
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
 // No-op on non-ESP8266 platforms where PROGMEM itself is a no-op.
@@ -68,16 +73,22 @@ template<size_t N> struct FixedString {
 };
 
 /// Compile-time string table that packs strings into a single blob with offset lookup.
+/// Blobs over 255 bytes have no offsets and are scanned, so keep those for rarely read strings.
 /// Use PROGMEM_STRING_TABLE macro to instantiate with proper flash placement on ESP8266.
 ///
 /// Example:
 ///   PROGMEM_STRING_TABLE(MyStrings, "foo", "bar", "baz");
-///   ProgmemStr str = MyStrings::get_progmem_str(idx, MyStrings::LAST_INDEX);  // For ArduinoJson
-///   const LogString *log_str = MyStrings::get_log_str(idx, MyStrings::LAST_INDEX);  // For logging
+///   ProgmemStr str = MyStrings::get_progmem_str(idx);  // For ArduinoJson
+///   const LogString *log_str = MyStrings::get_log_str(idx);  // For logging
 ///
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
   static constexpr size_t BLOB_SIZE = (0 + ... + (Strs.size() + 1));
+  /// Length of the longest string, for sizing a RAM copy on ESP8266
+  static constexpr size_t MAX_LENGTH = std::max({Strs.size()...});
+  /// One-byte offsets address up to 255 bytes; a larger blob has no offset table and is scanned instead,
+  /// which costs less flash than wider offsets for the rarely read tables that get this big.
+  static constexpr bool INDEXED = BLOB_SIZE <= UINT8_MAX;
 
   /// Generate packed string blob at compile time
   static constexpr auto make_blob() {
@@ -91,45 +102,99 @@ template<FixedString... Strs> struct ProgmemStringTable {
     return result;
   }
 
-  /// Generate offset table at compile time (uint8_t limits blob to 255 bytes)
+  /// Generate offset table at compile time
   static constexpr auto make_offsets() {
     static_assert(COUNT > 0, "PROGMEM_STRING_TABLE must contain at least one string");
     static_assert(COUNT <= 255, "PROGMEM_STRING_TABLE supports at most 255 strings with uint8_t indices");
-    static_assert(BLOB_SIZE <= 255, "PROGMEM_STRING_TABLE blob exceeds 255 bytes; use fewer/shorter strings");
-    std::array<uint8_t, COUNT> result{};
-    size_t pos = 0, idx = 0;
-    ((result[idx++] = static_cast<uint8_t>(pos), pos += Strs.size() + 1), ...);
-    return result;
+    if constexpr (INDEXED) {
+      std::array<uint8_t, COUNT> result{};
+      size_t pos = 0, idx = 0;
+      ((result[idx++] = static_cast<uint8_t>(pos), pos += Strs.size() + 1), ...);
+      return result;
+    } else {
+      return std::array<uint8_t, 0>{};
+    }
   }
 };
+
+/// Skip idx strings in a packed NUL-separated blob that may live in flash.
+inline const char *progmem_skip_strings(const char *blob, uint8_t idx) {
+  while (idx-- > 0)
+    blob += ESPHOME_strlen_P(blob) + 1;
+  return blob;
+}
+
+namespace progmem_detail {
+/// Widen an enum or integer to a table index of type D; negative and out-of-range values become huge ones, which
+/// fall back. D is a parameter only so the host tests can check the 64-to-32-bit clamp.
+template<typename D = size_t, typename T> constexpr D table_index(T value) {
+  if constexpr (std::is_enum_v<T>) {
+    return table_index<D>(static_cast<std::underlying_type_t<T>>(value));
+  } else {
+    static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool>, "index must be an integer or an enum");
+    if constexpr (sizeof(T) > sizeof(D)) {
+      const auto v = static_cast<std::make_unsigned_t<T>>(value);
+      return v > std::numeric_limits<D>::max() ? std::numeric_limits<D>::max() : static_cast<D>(v);
+    } else if constexpr (std::is_signed_v<T>) {
+      return static_cast<D>(static_cast<std::make_signed_t<D>>(value));  // sign-extend first
+    } else {
+      return value;
+    }
+  }
+}
+}  // namespace progmem_detail
 
 // Forward declaration for LogString (defined in log.h)
 struct LogString;
 
 /// Instantiate a ProgmemStringTable with PROGMEM storage.
 /// Creates: Name::get_progmem_str(idx, fallback), Name::get_log_str(idx, fallback)
-/// If idx >= COUNT, returns string at fallback. Use LAST_INDEX for common patterns.
+/// idx and fallback may be any integer or enum; an idx outside the table returns the string at fallback,
+/// LAST_INDEX by default.
 #define PROGMEM_STRING_TABLE(Name, ...) \
   struct Name { \
     using Table = ::esphome::ProgmemStringTable<__VA_ARGS__>; \
     static constexpr size_t COUNT = Table::COUNT; \
     static constexpr uint8_t LAST_INDEX = COUNT - 1; \
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
+    static constexpr size_t MAX_LENGTH = Table::MAX_LENGTH; \
     static constexpr auto BLOB ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_blob(); \
     static constexpr auto OFFSETS ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_offsets(); \
-    static const char *get_(uint8_t idx, uint8_t fallback) { \
+    static const char *get_(size_t idx, uint8_t fallback) { \
       if (idx >= COUNT) \
         idx = fallback; \
       /* std::launder is used here to prevent the inter-procedural analysis that */ \
       /* causes the false positive that the string is not null terminated */ \
-      return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
+      if constexpr (Table::INDEXED) \
+        return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
+      else \
+        return std::launder(::esphome::progmem_skip_strings(BLOB.data(), static_cast<uint8_t>(idx))); \
     } \
-    static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
-      return reinterpret_cast<::ProgmemStr>(get_(idx, fallback)); \
+    template<typename T, typename F = uint8_t> static ::ProgmemStr get_progmem_str(T idx, F fallback = LAST_INDEX) { \
+      return reinterpret_cast<::ProgmemStr>( \
+          get_(::esphome::progmem_detail::table_index(idx), \
+               static_cast<uint8_t>(::esphome::progmem_detail::table_index(fallback)))); \
     } \
-    static const ::esphome::LogString *get_log_str(uint8_t idx, uint8_t fallback) { \
-      return reinterpret_cast<const ::esphome::LogString *>(get_(idx, fallback)); \
+    template<typename T, typename F = uint8_t> \
+    static const ::esphome::LogString *get_log_str(T idx, F fallback = LAST_INDEX) { \
+      return reinterpret_cast<const ::esphome::LogString *>( \
+          get_(::esphome::progmem_detail::table_index(idx), \
+               static_cast<uint8_t>(::esphome::progmem_detail::table_index(fallback)))); \
     } \
   }
+
+/// The index of the string value (len bytes, in RAM) in a PROGMEM_STRING_TABLE, or -1 when it is
+/// not one of its strings. One pass over the blob, so a table without offsets costs the same.
+template<typename Table> int16_t progmem_string_table_find(const char *value, size_t len) {
+  const char *entry = Table::BLOB.data();
+  for (uint8_t i = 0; i < Table::COUNT; i++) {
+    const size_t entry_len = ESPHOME_strlen_P(entry);
+    if (entry_len == len && ESPHOME_strncmp_P(value, entry, len) == 0) {
+      return i;
+    }
+    entry += entry_len + 1;
+  }
+  return -1;
+}
 
 }  // namespace esphome

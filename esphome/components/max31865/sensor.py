@@ -6,9 +6,6 @@ from esphome.const import (
     CONF_REFERENCE_RESISTANCE,
     CONF_RTD_NOMINAL_RESISTANCE,
     CONF_RTD_WIRES,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
 )
 from esphome.types import ConfigType
 
@@ -21,19 +18,10 @@ MAX31865Sensor = max31865_ns.class_(
 )
 
 MAX31865ConfigFilter = max31865_ns.enum("MAX31865ConfigFilter")
-FILTER = {
-    "50HZ": MAX31865ConfigFilter.FILTER_50HZ,
-    "60HZ": MAX31865ConfigFilter.FILTER_60HZ,
-}
+FILTER = MAX31865ConfigFilter.options("50HZ", "60HZ", prefix="FILTER_")
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        MAX31865Sensor,
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(MAX31865Sensor, kind=sensor.TEMPERATURE, accuracy_decimals=2)
     .extend(
         {
             cv.Required(CONF_REFERENCE_RESISTANCE): cv.All(

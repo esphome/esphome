@@ -4,16 +4,28 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32, mdns, network, psram, socket, wifi
+from esphome.components import (
+    audio,
+    esp32,
+    mdns,
+    microphone,
+    network,
+    psram,
+    socket,
+    wifi,
+)
 from esphome.components.const import CONF_ENABLED, CONF_MANUFACTURER
 from esphome.components.mdns import DOMAIN as MDNS_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BITS_PER_SAMPLE,
     CONF_BUFFER_SIZE,
+    CONF_CHANNELS,
     CONF_ESPHOME,
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_MICROPHONE,
     CONF_MODEL,
     CONF_NAME,
     CONF_PROJECT,
@@ -24,13 +36,13 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import CORE
-from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-# mdns for autodiscovery
-AUTO_LOAD = ["mdns"]
+# mdns for autodiscovery; noise declares the noise-c and libsodium that sendspin-cpp uses
+AUTO_LOAD = ["mdns", "noise"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 DOMAIN = "sendspin"
@@ -58,6 +70,10 @@ CONF_ON_DISPLAY_PAIRING_CODE = "on_display_pairing_code"
 CONF_ON_CLEAR_PAIRING_CODE = "on_clear_pairing_code"
 CONF_ON_PAIRING_SUCCEEDED = "on_pairing_succeeded"
 CONF_ON_PAIRING_FAILED = "on_pairing_failed"
+
+CONF_ON_STREAMING_STARTED = "on_streaming_started"
+CONF_ON_STREAMING_STOPPED = "on_streaming_stopped"
+CONF_PRESENT = "present"
 
 # A static pairing code is exactly 8 decimal digits.
 STATIC_PAIRING_CODE_DIGITS = 8
@@ -104,6 +120,9 @@ CODECS = {
 DEFAULT_CODECS = [CODEC_FLAC, CODEC_OPUS, CODEC_PCM]
 OPUS_SAMPLE_RATE = 48000
 
+# The source role's limits, matching SourceRoleConfig in sendspin-cpp.
+SOURCE_BITS_PER_SAMPLE = (16, 24, 32)
+
 SendspinImageFormat = sendspin_library_ns.enum("SendspinImageFormat", is_class=True)
 IMAGE_FORMAT_JPEG = SendspinImageFormat.enum("JPEG")
 IMAGE_FORMAT_PNG = SendspinImageFormat.enum("PNG")
@@ -116,7 +135,11 @@ IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
 ArtworkRoleConfig = sendspin_library_ns.struct("ArtworkRoleConfig")
+MetadataRoleConfig = sendspin_library_ns.struct("MetadataRoleConfig")
+# MetadataRoleConfig's text fields, in declaration order.
+METADATA_TEXT_FIELDS = ("title", "artist", "album_artist", "album", "artwork_url")
 ImageSlotPreference = sendspin_library_ns.struct("ImageSlotPreference")
+SourceRoleConfig = sendspin_library_ns.struct("SourceRoleConfig")
 
 # MemoryLocation enum (from sendspin/types.h) controls SPIRAM-vs-internal-RAM placement
 # preference for the player role's transfer buffers.
@@ -170,12 +193,19 @@ _CALLBACK_AUTOMATIONS = (
 @dataclass
 class SendspinConfiguration:
     artwork_support: bool = False
+    color_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
+    # The TrackMetadata text fields a text sensor shows; the metadata role drops the others.
+    metadata_text_fields: set[str] = field(default_factory=set)
     player_support: bool = False
     visualizer_support: bool = False
     pairing_code_display_support: bool = False
     switch_types: set[str] = field(default_factory=set)
+    # Set by the sendspin.source actions and conditions, which need a source block.
+    source_referenced: bool = False
+    # The microphone's sample rate, read during final validation.
+    source_sample_rate: int | None = None
 
     artwork_preferences: list[ConfigType] = field(default_factory=list)
     player_config: ConfigType | None = None
@@ -192,14 +222,22 @@ def request_artwork_support() -> None:
     _get_data().artwork_support = True
 
 
+def request_color_support() -> None:
+    """Request color role support for Sendspin."""
+    _get_data().color_support = True
+
+
 def request_controller_support() -> None:
     """Request controller role support for Sendspin."""
     _get_data().controller_support = True
 
 
-def request_metadata_support() -> None:
-    """Request metadata role support for Sendspin."""
-    _get_data().metadata_support = True
+def request_metadata_support(text_field: str | None = None) -> None:
+    """Request metadata role support for Sendspin, keeping the named TrackMetadata text field."""
+    data = _get_data()
+    data.metadata_support = True
+    if text_field is not None:
+        data.metadata_text_fields.add(text_field)
 
 
 def request_player_support() -> None:
@@ -208,8 +246,14 @@ def request_player_support() -> None:
 
 
 def request_visualizer_support() -> None:
-    """Request visualizer role support for Sendspin."""
-    _get_data().visualizer_support = True
+    """Request visualizer role support for Sendspin.
+
+    The visualizer role has a single consumer, so only one component may request it.
+    """
+    data = _get_data()
+    if data.visualizer_support:
+        raise cv.Invalid("Only one component can consume the sendspin visualizer role")
+    data.visualizer_support = True
 
 
 def request_pairing_code_display_support() -> None:
@@ -270,6 +314,44 @@ def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     return config
 
 
+_SOURCE_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STREAMING_STARTED, "add_on_source_streaming_started_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STREAMING_STOPPED, "add_on_source_streaming_stopped_callback"
+    ),
+)
+
+
+def _validate_source_format(config: ConfigType) -> ConfigType:
+    if config[CONF_MICROPHONE][CONF_BITS_PER_SAMPLE] not in SOURCE_BITS_PER_SAMPLE:
+        raise cv.Invalid(
+            f"{CONF_BITS_PER_SAMPLE} must be one of "
+            f"{', '.join(str(bits) for bits in SOURCE_BITS_PER_SAMPLE)}",
+            path=[CONF_MICROPHONE, CONF_BITS_PER_SAMPLE],
+        )
+    return config
+
+
+SOURCE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_MICROPHONE): microphone.microphone_source_schema(
+                min_bits_per_sample=16,
+                max_bits_per_sample=32,
+                min_channels=1,
+                max_channels=2,
+            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_ON_STREAMING_STARTED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STREAMING_STOPPED): automation.validate_automation({}),
+        }
+    ),
+    _validate_source_format,
+)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -295,10 +377,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CLEAR_PAIRING_CODE): automation.validate_automation({}),
             cv.Optional(CONF_ON_PAIRING_SUCCEEDED): automation.validate_automation({}),
             cv.Optional(CONF_ON_PAIRING_FAILED): automation.validate_automation({}),
+            cv.Optional(CONF_SOURCE): SOURCE_SCHEMA,
         }
     ),
     cv.only_on_esp32,
-    # sendspin-cpp needs noise-c as an ESP-IDF component, which Arduino below IDF 6.0 cannot use.
+    # Arduino fails: where arduino-esp32's own libsodium cannot be replaced it sits next to the one
+    # noise-c brings in, and from ESP-IDF 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
     cv.only_with_framework("esp-idf"),
     _request_high_performance_networking,
 )
@@ -334,7 +418,36 @@ def _final_validate(config: ConfigType) -> ConfigType:
             CONF_UNPAIRED_ACCESS,
             CONF_STATIC_PAIRING_CODE,
         )
+    _final_validate_source(config)
     return config
+
+
+def _final_validate_source(config: ConfigType) -> None:
+    data = _get_data()
+    if (source := config.get(CONF_SOURCE)) is None:
+        if data.source_referenced:
+            raise cv.Invalid(
+                f"The sendspin.source actions and conditions require a '{CONF_SOURCE}' "
+                "block on the sendspin component"
+            )
+        return
+
+    mic_source = source[CONF_MICROPHONE]
+    try:
+        microphone.final_validate_microphone_source_schema(DOMAIN)(mic_source)
+    except cv.Invalid as err:
+        err.prepend([CONF_SOURCE, CONF_MICROPHONE])
+        raise
+
+    # MicrophoneSource cannot resample, so the stream takes the microphone's own rate.
+    mic_config = fv.get_declaring_config(mic_source[CONF_MICROPHONE])
+    sample_rate = mic_config.get(audio.CONF_MAX_SAMPLE_RATE)
+    if sample_rate is None or mic_config.get(audio.CONF_MIN_SAMPLE_RATE) != sample_rate:
+        raise cv.Invalid(
+            "The microphone used by the sendspin source must have a fixed sample rate",
+            path=[CONF_SOURCE, CONF_MICROPHONE],
+        )
+    data.source_sample_rate = sample_rate
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -347,6 +460,7 @@ def _request_controller_role(config: ConfigType) -> ConfigType:
 
 
 # Selects the hub. sendspin.switch adds the controller role it needs; the pairing window actions need no role.
+# sendspin.source.is_streaming also uses it.
 SENDSPIN_HUB_ACTION_SCHEMA = automation.maybe_simple_id(
     cv.Schema(
         {
@@ -377,6 +491,34 @@ automation.register_apply_action(
     "sendspin.cancel_pairing_window",
     SENDSPIN_HUB_ACTION_SCHEMA,
     automation.ApplyCall("cancel_pairing_window()"),
+)
+
+
+def _request_source(config: ConfigType) -> ConfigType:
+    """Mark that a source action or condition is used, so a missing source block is reported."""
+    _get_data().source_referenced = True
+    return config
+
+
+automation.register_apply_condition(
+    "sendspin.source.is_streaming",
+    cv.All(SENDSPIN_HUB_ACTION_SCHEMA, _request_source),
+    "is_source_streaming()",
+)
+
+
+automation.register_apply_action(
+    "sendspin.source.set_signal",
+    cv.All(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(SendspinHub),
+                cv.Required(CONF_PRESENT): cv.templatable(cv.boolean),
+            }
+        ),
+        _request_source,
+    ),
+    automation.ApplyField(CONF_PRESENT, "set_source_signal", cg.bool_),
 )
 
 
@@ -420,7 +562,7 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.9.3")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.10.0")
     # esp_websocket_client links esp_tls even for ws:// connections.
     esp32.request_tls()
 
@@ -428,14 +570,9 @@ async def to_code(config: ConfigType) -> None:
 
     # Service starts disabled and the hub enables it; always advertised where unsupported
     if mdns.request_service_enable_disable():
-        mdns_var = await cg.get_variable(CORE.config[MDNS_DOMAIN][CONF_ID])
-        cg.add(var.set_mdns(mdns_var))
+        await cg.add_variable(var.set_mdns, CORE.config[MDNS_DOMAIN][CONF_ID])
 
     data = _get_data()
-
-    # The color and source roles are not yet wired up in ESPHome; disable them in the library for now.
-    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
-    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_SOURCE", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
@@ -467,6 +604,11 @@ async def to_code(config: ConfigType) -> None:
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
 
+    if data.color_support:
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
+
     if data.controller_support:
         cg.add_define("USE_SENDSPIN_CONTROLLER", True)
     else:
@@ -474,31 +616,45 @@ async def to_code(config: ConfigType) -> None:
 
     if data.metadata_support:
         cg.add_define("USE_SENDSPIN_METADATA", True)
+        # Every text field is on by default; a field no text sensor shows costs storage for nothing.
+        cg.add(
+            var.set_metadata_config(
+                cg.StructInitializer(
+                    MetadataRoleConfig,
+                    *(
+                        (text_field, text_field in data.metadata_text_fields)
+                        for text_field in METADATA_TEXT_FIELDS
+                    ),
+                )
+            )
+        )
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_METADATA", False)
 
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 
-        # Configures the player role. Each configured codec is advertised for 16 bits per sample
-        # mono and stereo at the configured sample rate. The order is a preference order, both for
-        # the codecs themselves and for stereo over mono.
+        # Configures the player role. Each configured codec is advertised for mono and stereo at the
+        # configured sample rate and bits per sample, except Opus, which sendspin-cpp only decodes to
+        # 16 bits per sample. The order is a preference order, both for the codecs themselves and for
+        # stereo over mono.
         player_cfg = data.player_config
         sample_rate = player_cfg[CONF_SAMPLE_RATE]
+        bits_per_sample = player_cfg[CONF_BITS_PER_SAMPLE]
 
-        codecs = [CODECS[codec] for codec in player_cfg[CONF_CODECS]]
-
-        def _audio_format(codec: MockObj, channels: int) -> cg.StructInitializer:
+        def _audio_format(codec: str, channels: int) -> cg.StructInitializer:
             return cg.StructInitializer(
                 AudioSupportedFormatObject,
-                ("codec", codec),
+                ("codec", CODECS[codec]),
                 ("channels", channels),
                 ("sample_rate", sample_rate),
-                ("bit_depth", 16),
+                ("bit_depth", 16 if codec == CODEC_OPUS else bits_per_sample),
             )
 
         audio_format_structs = [
-            _audio_format(codec, channels) for codec in codecs for channels in (2, 1)
+            _audio_format(codec, channels)
+            for codec in player_cfg[CONF_CODECS]
+            for channels in (2, 1)
         ]
 
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)
@@ -524,6 +680,36 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_player_config(player_config_struct))
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_PLAYER", False)
+
+    if (source := config.get(CONF_SOURCE)) is not None:
+        cg.add_define("USE_SENDSPIN_SOURCE", True)
+
+        mic_source = await microphone.microphone_source_to_code(source[CONF_MICROPHONE])
+        cg.add(var.set_microphone_source(mic_source))
+
+        source_psram_stack = source.get(CONF_TASK_STACK_IN_PSRAM, False)
+        if source_psram_stack:
+            psram.request_external_task_stack()
+
+        # Designated initializers must follow SourceRoleConfig's declaration order. The fields left out keep
+        # sendspin-cpp's defaults.
+        cg.add(
+            var.set_source_config(
+                cg.StructInitializer(
+                    SourceRoleConfig,
+                    ("sample_rate", data.source_sample_rate),
+                    ("channels", len(source[CONF_MICROPHONE][CONF_CHANNELS])),
+                    ("bit_depth", source[CONF_MICROPHONE][CONF_BITS_PER_SAMPLE]),
+                    ("psram_stack", source_psram_stack),
+                )
+            )
+        )
+
+        await automation.build_callback_automations(
+            var, source, _SOURCE_CALLBACK_AUTOMATIONS
+        )
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_SOURCE", False)
 
     if not data.player_support or CODEC_OPUS not in data.player_config[CONF_CODECS]:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_OPUS", False)

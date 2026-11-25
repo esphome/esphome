@@ -16,23 +16,26 @@ from esphome.components.light import (
 from esphome.components.light.restore_state import (
     _RESTORE_STATE_FIELDS_SCHEMA,
     LEGACY_RESTORE_MODES,
-    RESTORE_STATE_INITIAL,
-    RESTORE_STATE_INVERT,
-    RESTORE_STATE_KEEP,
-    RESTORE_STATE_NONE,
     RESTORE_STATE_SCHEMA,
     StateStatement,
     _initial_state_overridden_by_legacy_mode,
     _initial_state_statements,
     _legacy_cold_boot_statements,
+    _legacy_restore_statements,
     _partition_state_statements,
     _restore_state_statements,
     _validate_restore_state_state,
 )
 from esphome.components.light.types import ColorMode
 import esphome.config_validation as cv
-from esphome.const import CONF_STATE
-from esphome.core import Lambda
+from esphome.const import CONF_EFFECT, CONF_ID, CONF_INITIAL_STATE, CONF_STATE
+from esphome.core import ID, Lambda
+from esphome.core.entity_helpers import (
+    RESTORE_STATE_INITIAL,
+    RESTORE_STATE_INVERT,
+    RESTORE_STATE_KEEP,
+    RESTORE_STATE_NONE,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 # (mode name, expected cold_boot_state, expected restore_action, expected save_enabled)
@@ -401,6 +404,65 @@ def test_final_validate_does_not_warn_without_conflict(
     with caplog.at_level(logging.WARNING):
         _final_validate(config)
     assert caplog.text == ""
+
+
+@pytest.mark.parametrize(
+    ("light_config", "warns"),
+    [
+        # Neither restore key: initial_state's own state decides, off by default
+        ({CONF_INITIAL_STATE: {CONF_EFFECT: "Pulse"}}, True),
+        ({CONF_INITIAL_STATE: {CONF_EFFECT: "Pulse", CONF_STATE: True}}, False),
+        # A legacy mode's cold-boot state wins over initial_state's
+        (
+            {
+                CONF_RESTORE_MODE: "RESTORE_DEFAULT_OFF",
+                CONF_INITIAL_STATE: {CONF_EFFECT: "Pulse", CONF_STATE: True},
+            },
+            True,
+        ),
+        (
+            {
+                CONF_RESTORE_MODE: "ALWAYS_ON",
+                CONF_INITIAL_STATE: {CONF_EFFECT: "Pulse"},
+            },
+            False,
+        ),
+        # resume_effect starts the effect at the first turn-on
+        (
+            {CONF_INITIAL_STATE: {CONF_EFFECT: "Pulse"}, "resume_effect": True},
+            False,
+        ),
+        ({CONF_INITIAL_STATE: {CONF_EFFECT: "None"}}, False),
+    ],
+)
+def test_final_validate_warns_when_initial_effect_boots_off(
+    caplog: pytest.LogCaptureFixture, light_config: dict, warns: bool
+) -> None:
+    config = [{CONF_ID: ID("test_light", is_declaration=True), **light_config}]
+    with caplog.at_level(logging.WARNING):
+        _final_validate(config)
+    assert ("'initial_state: effect: Pulse' does not start" in caplog.text) is warns
+    assert ("'initial_state: state' is ignored" in caplog.text) is (
+        light_config.get(CONF_RESTORE_MODE) == "RESTORE_DEFAULT_OFF"
+    )
+
+
+@pytest.mark.asyncio
+async def test_initial_state_effect_only_on_cold_boot() -> None:
+    # A saving mode guards the effect with `if (!restored)`, so a restored effect wins
+    legacy = LEGACY_RESTORE_MODES["RESTORE_DEFAULT_ON"]
+    initial_state_config = {CONF_EFFECT: "Pulse"}
+    initial = await _initial_state_statements(initial_state_config, 2)
+    initial.extend(_legacy_cold_boot_statements(legacy, initial_state_config))
+    body = _partition_state_statements(
+        initial, _legacy_restore_statements(legacy), legacy.save_enabled
+    )
+    assert body == ["if (!restored) {", "s.state = true;", "s.effect = 2;", "}"]
+
+
+@pytest.mark.asyncio
+async def test_initial_state_effect_zero_emits_nothing() -> None:
+    assert await _initial_state_statements({CONF_EFFECT: "none"}, 0) == []
 
 
 @pytest.mark.asyncio

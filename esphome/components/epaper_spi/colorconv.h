@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <algorithm>
+#include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/color.h"
 
 /* Utility for converting internal \a Color RGB representation to supported IC hardware color keys
@@ -13,20 +14,21 @@
 
 namespace esphome::epaper_spi {
 
+// The Rec.601 luma helpers and the RGB565 mono lookup live in the shared display utilities, so other
+// drivers (e.g. it8951 in its 1 bit per pixel mode) can use them too.
+using display::color_to_mono;
+using display::rec601_luma;
+using display::Rgb565ToMono;
+
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
 
-/** Rec.601 luma (0.299/0.587/0.114 weights, scaled by 256) for optimum perceptual brightness */
-constexpr uint8_t rec601_luma(Color color) {
-  return (uint8_t) ((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
-}
-
-/** Map RGB color to a single monochrome bit
- *
- * @param color RGB color to convert from
- * @return      1 = white, 0 = black
- */
-constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }
+/** Native color keys for black/white/red panels, for use with color_to_bwr */
+enum class BwrColor : uint8_t {
+  BWR_COLOR_BLACK,
+  BWR_COLOR_WHITE,
+  BWR_COLOR_RED,
+};
 
 /** Map RGB color to one of 4 discrete gray levels (2 bits per pixel)
  *
@@ -83,8 +85,8 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
 
 /** Map RGB color to discrete BWR (black/white/red) 3 color key
  *
- * Convenience wrapper over color_to_bwyr for panels without a yellow ink; the yellow corner is
- * folded into white.
+ * Grays map to black or white by luma; other colors map to whichever of black, white or red is
+ * nearest in RGB space, so e.g. orange renders as red rather than being folded into white.
  *
  * @tparam NATIVE_COLOR  Type of native hardware color values
  * @param color     RGB color to convert from
@@ -95,7 +97,24 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwr(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_red) {
-  return color_to_bwyr<NATIVE_COLOR>(color, hw_black, hw_white, /*hw_yellow=*/hw_white, hw_red);
+  const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
+
+  if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
+    return color_to_mono(color) ? hw_white : hw_black;
+  }
+
+  const int r = color.r;
+  const int g = color.g;
+  const int b = color.b;
+  const int d_black = r * r + g * g + b * b;
+  const int d_white = (255 - r) * (255 - r) + (255 - g) * (255 - g) + (255 - b) * (255 - b);
+  const int d_red = (255 - r) * (255 - r) + g * g + b * b;
+
+  if (d_red < d_white && d_red < d_black) {
+    return hw_red;
+  }
+  // Ties (e.g. yellow) go to white
+  return d_white <= d_black ? hw_white : hw_black;
 }
 
 /** Map RGB color to discrete BWYRGB hex 6 color key

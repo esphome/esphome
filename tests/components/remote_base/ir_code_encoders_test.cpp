@@ -62,27 +62,15 @@ RawTimings with_trailing_space(RawTimings timings) {
   return timings;
 }
 
-template<typename A> RawTimings encode(A &action) {
-  RemoteTransmitData dst;
-  action.encode(&dst);
-  return dst.get_data();
-}
-
-// Exposes the protected encode() of an action for testing
-template<typename A> class Open : public A {
- public:
-  using A::encode;
-};
-
-// A constant and a lambda code must both encode to the golden timings
-template<typename A>
-void expect_static_and_lambda_match(const uint8_t *code, size_t len, std::vector<uint8_t> (*lambda)(),
-                                    const RawTimings &golden) {
-  Open<A> fixed, from_lambda;
-  fixed.set_code_static(code, len);
-  from_lambda.set_code_template(lambda);
-  EXPECT_EQ(encode(fixed), golden);
-  EXPECT_EQ(encode(from_lambda), golden);
+// A constant table and a lambda's vector take the two encoder overloads generated actions call
+template<typename P, typename... Lead>
+void expect_pointer_and_vector_match(const uint8_t *code, size_t len, const std::vector<uint8_t> &bytes,
+                                     const RawTimings &golden, const Lead &...lead) {
+  RemoteTransmitData fixed, from_vector;
+  P().encode(&fixed, lead..., code, len);
+  P().encode(&from_vector, lead..., bytes);
+  EXPECT_EQ(fixed.get_data(), golden);
+  EXPECT_EQ(from_vector.get_data(), golden);
 }
 
 template<typename P> void expect_decodes_to(const RawTimings &timings, const std::vector<uint8_t> &code) {
@@ -94,25 +82,16 @@ template<typename P> void expect_decodes_to(const RawTimings &timings, const std
 
 }  // namespace
 
-TEST(IrCodeEncodersTest, HaierStaticAndLambdaMatchGolden) {
-  expect_static_and_lambda_match<HaierAction<>>(HAIER_CODE, sizeof(HAIER_CODE), haier_code, HAIER_GOLDEN);
+TEST(IrCodeEncodersTest, HaierPointerAndVectorMatchGolden) {
+  expect_pointer_and_vector_match<HaierProtocol>(HAIER_CODE, sizeof(HAIER_CODE), haier_code(), HAIER_GOLDEN);
 }
 
-TEST(IrCodeEncodersTest, MirageStaticAndLambdaMatchGolden) {
-  expect_static_and_lambda_match<MirageAction<>>(MIRAGE_CODE, sizeof(MIRAGE_CODE), mirage_code, MIRAGE_GOLDEN);
+TEST(IrCodeEncodersTest, MiragePointerAndVectorMatchGolden) {
+  expect_pointer_and_vector_match<MirageProtocol>(MIRAGE_CODE, sizeof(MIRAGE_CODE), mirage_code(), MIRAGE_GOLDEN);
 }
 
-TEST(IrCodeEncodersTest, AehaStaticAndLambdaMatchGolden) {
-  Open<AEHAAction<>> fixed, lambda;
-  for (auto *action : {&fixed, &lambda}) {
-    // TemplatableFn fields take functions, not raw constants
-    action->set_address([]() -> uint16_t { return AEHA_ADDRESS; });
-    action->set_carrier_frequency([]() -> uint32_t { return 38000; });
-  }
-  fixed.set_data_static(AEHA_CODE, sizeof(AEHA_CODE));
-  lambda.set_data_template(aeha_code);
-  EXPECT_EQ(encode(fixed), AEHA_GOLDEN);
-  EXPECT_EQ(encode(lambda), AEHA_GOLDEN);
+TEST(IrCodeEncodersTest, AehaPointerAndVectorMatchGolden) {
+  expect_pointer_and_vector_match<AEHAProtocol>(AEHA_CODE, sizeof(AEHA_CODE), aeha_code(), AEHA_GOLDEN, AEHA_ADDRESS);
 }
 
 TEST(IrCodeEncodersTest, StructEncodersMatchGolden) {

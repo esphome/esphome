@@ -42,7 +42,7 @@ CameraWebServer::~CameraWebServer() {}
 
 void CameraWebServer::setup() {
   if (!camera::Camera::instance() || camera::Camera::instance()->is_failed()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Camera not available"));
     return;
   }
 
@@ -55,10 +55,8 @@ void CameraWebServer::setup() {
   config.backlog_conn = 2;
   config.lru_purge_enable = true;
 
-  if (httpd_start(&this->httpd_, &config) != ESP_OK) {
-    mark_failed();
+  if (!this->setup_check(httpd_start(&this->httpd_, &config) == ESP_OK, LOG_STR("Failed to start the web server")))
     return;
-  }
 
   httpd_uri_t uri = {
       .uri = "/",
@@ -96,10 +94,6 @@ void CameraWebServer::dump_config() {
     ESP_LOGCONFIG(TAG, "  Mode: stream");
   } else {
     ESP_LOGCONFIG(TAG, "  Mode: snapshot");
-  }
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Setup Failed");
   }
 }
 

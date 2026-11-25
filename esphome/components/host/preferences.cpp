@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <utility>
 #include "preferences.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -45,11 +46,10 @@ void HostPreferences::setup_() {
         break;
       if (fread(&len, sizeof(len), 1, fp) != 1)
         break;
-      uint8_t data[len];
-      if (fread(data, sizeof(uint8_t), len, fp) != len)
+      std::vector<uint8_t> data(len);
+      if (fread(data.data(), sizeof(uint8_t), len, fp) != len)
         break;
-      std::vector vec(data, data + len);
-      this->data_[key] = vec;
+      this->data_[key] = std::move(data);
     }
     fclose(fp);
   }

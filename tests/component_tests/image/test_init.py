@@ -21,6 +21,7 @@ from esphome.components.image import (
     CONF_OPAQUE,
     CONF_TRANSPARENCY,
     PLATFORM_FILE,
+    ImageGrayscale,
     _expand_platform_entry,
     _flatten_legacy_image_config,
     _is_legacy_image_format,
@@ -29,6 +30,7 @@ from esphome.components.image import (
     expand_platform_config,
     get_all_image_metadata,
     get_image_metadata,
+    is_alpha_only,
 )
 from esphome.const import (
     CONF_DEFAULTS,
@@ -101,6 +103,16 @@ from esphome.core import CORE
             {"id": "image_id", "file": "bad.png", "type": "binary"},
             "File can't be opened as image",
             id="invalid_image_file",
+        ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "transparency": "chroma_key",
+            },
+            "Image format 'RGB111' cannot have transparency: chroma_key",
+            id="rgb111_with_chroma_key_transparency",
         ),
     ],
 )
@@ -735,7 +747,7 @@ def test_image_generation(
         in main_cpp
     )
     assert (
-        "new(cat_img) image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);"
+        "new(cat_img) image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE, false);"
         in main_cpp
     )
 
@@ -963,3 +975,127 @@ async def test_rgb565_alpha_animation_layout_per_frame(
     assert all(a == 0x00 for a in frame1_alpha), (
         f"Frame 1 alpha plane should be transparent, got {frame1_alpha}"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    (
+        "mode",
+        "transparency",
+        "frame0_color",
+        "frame1_color",
+        "frame0_row",
+        "frame1_row",
+    ),
+    [
+        pytest.param(
+            "RGB",
+            CONF_OPAQUE,
+            (255, 0, 0),
+            (0, 0, 255),
+            [0x92, 0x48],
+            [0x24, 0x92],
+            id="rgb111",
+        ),
+        pytest.param(
+            "RGBA",
+            CONF_ALPHA_CHANNEL,
+            (255, 0, 0, 255),
+            (0, 0, 255, 0),
+            [0x99, 0x99, 0x90],
+            [0x22, 0x22, 0x20],
+            id="rgb111_alpha",
+        ),
+    ],
+)
+async def test_rgb111_layout_per_frame(
+    tmp_path: Path,
+    mock_progmem_array: MagicMock,
+    mode: str,
+    transparency: str,
+    frame0_color: tuple[int, ...],
+    frame1_color: tuple[int, ...],
+    frame0_row: list[int],
+    frame1_row: list[int],
+) -> None:
+    """RGB111 packs one bit per channel MSB first and pads every row to a byte,
+    so each frame is a self-contained block of row_stride * height bytes.
+    """
+    # A width that is not a multiple of 8 leaves padding bits in every row.
+    width = 5
+    height = 3
+    frame0 = PILImage.new(mode, (width, height), frame0_color)
+    frame1 = PILImage.new(mode, (width, height), frame1_color)
+    apng_path = tmp_path / "anim.png"
+    frame0.save(
+        apng_path,
+        format="PNG",
+        save_all=True,
+        append_images=[frame1],
+        duration=100,
+        loop=0,
+    )
+
+    config = {
+        CONF_FILE: str(apng_path),
+        CONF_TYPE: "RGB111",
+        CONF_TRANSPARENCY: transparency,
+        CONF_DITHER: "NONE",
+        CONF_INVERT_ALPHA: False,
+        CONF_RAW_DATA_ID: "test_raw_data_id",
+    }
+
+    _, _, _, _, _, frame_count = await write_image(config, all_frames=True)
+    assert frame_count == 2
+
+    _, raw_data = mock_progmem_array.call_args.args
+    data = [int(x) for x in raw_data]
+
+    frame_size = len(frame0_row) * height
+    assert data == frame0_row * height + frame1_row * height, (
+        f"Expected {frame_size} row-padded bytes per frame, got {data}"
+    )
+
+
+def _gradient() -> PILImage.Image:
+    return PILImage.linear_gradient("L").resize((8, 8))
+
+
+def _black() -> PILImage.Image:
+    return PILImage.new("L", (8, 8), 0)
+
+
+@pytest.mark.parametrize(
+    ("make_image", "expected"),
+    [
+        pytest.param(_gradient, False, id="L"),
+        pytest.param(lambda: _gradient().convert("P"), False, id="P"),
+        pytest.param(lambda: _gradient().convert("1"), False, id="1"),
+        pytest.param(
+            lambda: PILImage.merge("RGB", [_black(), _black(), _gradient()]),
+            False,
+            id="RGB blue on black",
+        ),
+        pytest.param(
+            lambda: PILImage.merge("LA", [_black(), _gradient()]), True, id="LA"
+        ),
+        pytest.param(
+            lambda: PILImage.merge("RGBA", [_black(), _black(), _black(), _gradient()]),
+            True,
+            id="RGBA",
+        ),
+        pytest.param(lambda: _gradient().convert("RGBA"), False, id="RGBA opaque"),
+    ],
+)
+def test_is_alpha_only(
+    make_image: Callable[[], PILImage.Image], expected: bool
+) -> None:
+    assert is_alpha_only(make_image()) is expected
+
+
+def test_grayscale_image_stays_opaque(caplog: pytest.LogCaptureFixture) -> None:
+    encoder = ImageGrayscale(8, 8, CONF_OPAQUE, PILImage.Dither.NONE, False)
+    with caplog.at_level(logging.WARNING):
+        encoder.convert(_gradient(), "gradient.png")
+    assert encoder.transparency == CONF_OPAQUE
+    assert "alpha only" not in caplog.text

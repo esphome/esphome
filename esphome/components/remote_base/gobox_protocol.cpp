@@ -13,7 +13,7 @@ constexpr uint64_t HEADER = 0b011001001100010uL;  // 15 bits
 constexpr size_t HEADER_SIZE = 15;
 constexpr size_t CODE_SIZE = 17;
 
-void GoboxProtocol::dump_timings_(const RawTimings &timings) const {
+void GoboxProtocol::dump_timings_(RawTimingsView timings) const {
   ESP_LOGD(TAG, "Gobox: size=%u", timings.size());
   for (int32_t timing : timings) {
     ESP_LOGD(TAG, "Gobox: timing=%ld", (long) timing);

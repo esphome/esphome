@@ -7,21 +7,12 @@ from esphome.const import (
     CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
     CONF_CO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MEASUREMENT_MODE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_SOURCE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
     ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -36,10 +27,7 @@ STCC4Component = stcc4_ns.class_(
 
 MeasurementMode = stcc4_ns.enum("MeasurementMode", is_class=True)
 
-MEASUREMENT_MODE_OPTIONS = {
-    "continuous": MeasurementMode.CONTINUOUS,
-    "single_shot": MeasurementMode.SINGLE_SHOT,
-}
+MEASUREMENT_MODE_OPTIONS = MeasurementMode.options("continuous", "single_shot")
 
 
 def validate_config(config: ConfigType) -> ConfigType:
@@ -58,25 +46,13 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(STCC4Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Inclusive(CONF_TEMPERATURE_SOURCE, "rht_compensation"): cv.use_id(
                 sensor.Sensor
@@ -104,22 +80,20 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
     await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
-    if (temperature_source := config.get(CONF_TEMPERATURE_SOURCE)) is not None:
-        sens = await cg.get_variable(temperature_source)
-        cg.add(var.set_temperature_source(sens))
+    await cg.add_variable(
+        var.set_temperature_source_sensor, config.get(CONF_TEMPERATURE_SOURCE)
+    )
 
-    if (humidity_source := config.get(CONF_HUMIDITY_SOURCE)) is not None:
-        sens = await cg.get_variable(humidity_source)
-        cg.add(var.set_humidity_source(sens))
+    await cg.add_variable(
+        var.set_humidity_source_sensor, config.get(CONF_HUMIDITY_SOURCE)
+    )
 
     if (
         ambient_pressure_compensation := config.get(CONF_AMBIENT_PRESSURE_COMPENSATION)
@@ -130,12 +104,9 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    if (
-        ambient_pressure_compensation_source := config.get(
-            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE
-        )
-    ) is not None:
-        sens = await cg.get_variable(ambient_pressure_compensation_source)
-        cg.add(var.set_ambient_pressure_source(sens))
+    await cg.add_variable(
+        var.set_ambient_pressure_source_sensor,
+        config.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
+    )
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))

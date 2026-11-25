@@ -1,0 +1,8 @@
+substitutions: {name: mqabase, suffix: "true"}
+esp32:
+  board: esp32dev
+  framework: {type: esp-idf}
+packages: {mq: !include ../../mq-common.yaml}
+mqtt:
+  broker: !secret broker_ip
+  reboot_timeout: 0s

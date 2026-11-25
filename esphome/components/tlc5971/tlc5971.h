@@ -4,18 +4,20 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/output/float_output.h"
-#include <vector>
+
+#include <span>
 
 namespace esphome::tlc5971 {
 
 class TLC5971 final : public Component {
  public:
-  const uint8_t N_CHANNELS_PER_CHIP = 12;
+  static constexpr uint8_t N_CHANNELS_PER_CHIP = 12;
+
+  /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
+  explicit TLC5971(std::span<uint16_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
 
   void setup() override;
 
@@ -27,15 +29,17 @@ class TLC5971 final : public Component {
   void loop() override;
 
   void set_channel_value(uint16_t channel, uint16_t value);
+  /// Set a channel from an output level, 0.0 to 1.0.
+  void write_channel(uint16_t channel, float state) {
+    this->set_channel_value(channel, static_cast<uint16_t>(state * 0xffff));
+  }
 
  protected:
   void transfer_(uint8_t send);
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
-  uint8_t num_chips_;
-
-  std::vector<uint16_t> pwm_amounts_;
+  std::span<uint16_t> pwm_amounts_;
   bool update_{true};
 };
 }  // namespace esphome::tlc5971

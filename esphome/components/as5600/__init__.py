@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_DIR_PIN,
     CONF_DIRECTION,
     CONF_HYSTERESIS,
-    CONF_ID,
     CONF_POWER_MODE,
     CONF_RANGE,
     CONF_WATCHDOG,
@@ -209,9 +208,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_direction(config[CONF_DIRECTION]))
     cg.add(var.set_watchdog(config[CONF_WATCHDOG]))
@@ -221,9 +218,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_fast_filter(config[CONF_FAST_FILTER]))
     cg.add(var.set_start_position(config[CONF_START_POSITION]))
 
-    if dir_pin_config := config.get(CONF_DIR_PIN):
-        pin = await cg.gpio_pin_expression(dir_pin_config)
-        cg.add(var.set_dir_pin(pin))
+    await cg.add_pin(var.set_dir_pin, config.get(CONF_DIR_PIN))
 
     if (end_position_config := config.get(CONF_END_POSITION, None)) is not None:
         cg.add(var.set_end_position(end_position_config))

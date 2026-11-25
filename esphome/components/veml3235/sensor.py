@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_GAIN,
-    CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
-)
+from esphome.const import CONF_GAIN, CONF_INTEGRATION_TIME
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -24,24 +18,15 @@ VEML3235Sensor = veml3235_ns.class_(
     "VEML3235Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 VEML3235ComponentIntegrationTime = veml3235_ns.enum("VEML3235ComponentIntegrationTime")
-VEML3235_INTEGRATION_TIMES = {
-    "50ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_50MS,
-    "100ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_100MS,
-    "200ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_200MS,
-    "400ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_400MS,
-    "800ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_800MS,
-}
+VEML3235_INTEGRATION_TIMES = VEML3235ComponentIntegrationTime.options(
+    "50ms", "100ms", "200ms", "400ms", "800ms", prefix="VEML3235_INTEGRATION_TIME_"
+)
 VEML3235ComponentDigitalGain = veml3235_ns.enum("VEML3235ComponentDigitalGain")
-DIGITAL_GAINS = {
-    "1X": VEML3235ComponentDigitalGain.VEML3235_DIGITAL_GAIN_1X,
-    "2X": VEML3235ComponentDigitalGain.VEML3235_DIGITAL_GAIN_2X,
-}
+DIGITAL_GAINS = VEML3235ComponentDigitalGain.options(
+    "1X", "2X", prefix="VEML3235_DIGITAL_GAIN_"
+)
 VEML3235ComponentGain = veml3235_ns.enum("VEML3235ComponentGain")
-GAINS = {
-    "1X": VEML3235ComponentGain.VEML3235_GAIN_1X,
-    "2X": VEML3235ComponentGain.VEML3235_GAIN_2X,
-    "4X": VEML3235ComponentGain.VEML3235_GAIN_4X,
-}
+GAINS = VEML3235ComponentGain.options("1X", "2X", "4X", prefix="VEML3235_GAIN_")
 
 
 def _validate_auto_gain_thresholds(config: ConfigType) -> ConfigType:
@@ -53,13 +38,7 @@ def _validate_auto_gain_thresholds(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(
-        VEML3235Sensor,
-        unit_of_measurement=UNIT_LUX,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_ILLUMINANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(VEML3235Sensor, kind=sensor.ILLUMINANCE, accuracy_decimals=1)
     .extend(
         {
             cv.Optional(CONF_DIGITAL_GAIN, default="1X"): cv.enum(

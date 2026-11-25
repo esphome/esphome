@@ -7,13 +7,12 @@ parameters.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
-from aioesphomeapi import ColorMode, EntityState, LightInfo, LightState
+from aioesphomeapi import ColorMode, LightInfo, LightState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -29,31 +28,17 @@ async def test_light_resume_effect(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        light_resume = next(e for e in entities if e.object_id == "test_light_resume")
-        light_no_resume = next(
-            e for e in entities if e.object_id == "test_light_no_resume"
-        )
-
-        state_futures: dict[int, asyncio.Future[LightState]] = {}
-
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, LightState) and state.key in state_futures:
-                future = state_futures[state.key]
-                if not future.done():
-                    future.set_result(state)
+        light_resume = require_entity(entities, "test_light_resume", exact=True)
+        light_no_resume = require_entity(entities, "test_light_no_resume", exact=True)
 
         # Drain initial state burst
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities)
 
-        async def send_and_wait(
-            light: LightInfo, timeout: float = 5.0, **kwargs: Any
-        ) -> LightState:
-            """Send a light command and wait for the matching state response."""
-            state_futures[light.key] = asyncio.get_running_loop().create_future()
+        async def send_and_wait(light: LightInfo, **kwargs: Any) -> LightState:
+            """Send a light command and return the light's next state."""
+            next_light = sub.waiter.next_state(light.key, LightState)
             client.light_command(key=light.key, **kwargs)
-            return await asyncio.wait_for(state_futures[light.key], timeout=timeout)
+            return await next_light
 
         # Test 1: Start with Pulse effect
         state = await send_and_wait(light_resume, state=True, effect="Pulse Effect")

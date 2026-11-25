@@ -8,15 +8,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DURATION,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_POWER,
     CONF_POWER_MODE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -28,28 +22,19 @@ HDC302XComponent = hdc302x_ns.class_(
 )
 
 HDC302XPowerMode = hdc302x_ns.enum("HDC302XPowerMode")
-POWER_MODE_OPTIONS = {
-    "HIGH_ACCURACY": HDC302XPowerMode.HIGH_ACCURACY,
-    "BALANCED": HDC302XPowerMode.BALANCED,
-    "LOW_POWER": HDC302XPowerMode.LOW_POWER,
-    "ULTRA_LOW_POWER": HDC302XPowerMode.ULTRA_LOW_POWER,
-}
+POWER_MODE_OPTIONS = HDC302XPowerMode.options(
+    "HIGH_ACCURACY", "BALANCED", "LOW_POWER", "ULTRA_LOW_POWER"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HDC302XComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Optional(CONF_POWER_MODE, default="HIGH_ACCURACY"): cv.enum(
                 POWER_MODE_OPTIONS, upper=True
@@ -62,12 +47,10 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temp_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
     await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
     cg.add(var.set_power_mode(config[CONF_POWER_MODE]))

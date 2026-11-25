@@ -19,11 +19,7 @@ AbsoluteHumidityComponent = absolute_humidity_ns.class_(
 SaturationVaporPressureEquation = absolute_humidity_ns.enum(
     "SaturationVaporPressureEquation"
 )
-EQUATION = {
-    "BUCK": SaturationVaporPressureEquation.BUCK,
-    "TETENS": SaturationVaporPressureEquation.TETENS,
-    "WOBUS": SaturationVaporPressureEquation.WOBUS,
-}
+EQUATION = SaturationVaporPressureEquation.options("BUCK", "TETENS", "WOBUS")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -48,10 +44,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    temperature_sensor = await cg.get_variable(config[CONF_TEMPERATURE])
-    cg.add(var.set_temperature_sensor(temperature_sensor))
-
-    humidity_sensor = await cg.get_variable(config[CONF_HUMIDITY])
-    cg.add(var.set_humidity_sensor(humidity_sensor))
+    await cg.add_variable(var.set_temperature_sensor, config[CONF_TEMPERATURE])
+    await cg.add_variable(var.set_humidity_sensor, config[CONF_HUMIDITY])
 
     cg.add(var.set_equation(config[CONF_EQUATION]))

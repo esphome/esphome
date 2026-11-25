@@ -17,14 +17,12 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
-    PLATFORM_ESP32,
     PLATFORM_HOST,
     PlatformFramework,
     __version__,
 )
 from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
 from esphome.cpp_generator import MockObj, TemplateArgsType
-import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
@@ -44,18 +42,13 @@ RequestHeader = http_request_ns.struct("RequestHeader")
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
 )
-HttpRequestResponseTrigger = http_request_ns.class_(
-    "HttpRequestResponseTrigger",
-    automation.Trigger.template(
-        cg.std_shared_ptr.template(HttpContainer), cg.std_string
-    ),
-)
 
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 CONF_USERAGENT = "useragent"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
+CONF_MAX_CONCURRENT_REQUESTS = "max_concurrent_requests"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
 CONF_TLS_BUFFER_SIZE_RX = "tls_buffer_size_rx"
@@ -110,16 +103,18 @@ def default_watchdog_timeout(config: ConfigType) -> None:
 
     The default never goes below the platform task watchdog, so a user who
     widened `esp32.watchdog_timeout` keeps that window during requests.
+    When the task watchdog is disabled, the request watchdog cannot be set.
     """
-    if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
+    if not CORE.is_esp32:
+        return
+    esp32.validate_task_wdt_enabled(config, CONF_WATCHDOG_TIMEOUT)
+    platform_ms = esp32.task_wdt_timeout_ms()
+    if platform_ms == 0 or CONF_WATCHDOG_TIMEOUT in config:
         return
     derived_ms = (
         config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
         + WATCHDOG_TIMEOUT_MARGIN_MS
     )
-    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
-        CONF_WATCHDOG_TIMEOUT
-    ].total_milliseconds
     config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
         milliseconds=max(derived_ms, platform_ms)
     )
@@ -144,6 +139,10 @@ CONFIG_SCHEMA = cv.All(
             ): cv.string,
             cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
             cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
+            # Each request holds a client, and a TLS client about 40 kB
+            cv.Optional(CONF_MAX_CONCURRENT_REQUESTS, default=1): cv.int_range(
+                min=1, max=4
+            ),
             cv.Optional(
                 CONF_TIMEOUT, default="4.5s"
             ): cv.positive_time_period_milliseconds,
@@ -193,6 +192,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
     cg.add(var.set_follow_redirects(config[CONF_FOLLOW_REDIRECTS]))
     cg.add(var.set_redirect_limit(config[CONF_REDIRECT_LIMIT]))
+    if (max_concurrent := config[CONF_MAX_CONCURRENT_REQUESTS]) != 1:
+        cg.add(var.set_max_concurrent_requests(max_concurrent))
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
@@ -270,6 +271,7 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
+        cv.Optional(CONF_TIMEOUT): cv.templatable(cv.positive_time_period_milliseconds),
     }
 )
 HTTP_REQUEST_GET_ACTION_SCHEMA = automation.maybe_conf(
@@ -311,19 +313,19 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
     "http_request.get",
     HttpRequestSendAction,
     HTTP_REQUEST_GET_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "http_request.post",
     HttpRequestSendAction,
     HTTP_REQUEST_POST_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "http_request.send",
     HttpRequestSendAction,
     HTTP_REQUEST_SEND_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 async def http_request_action_to_code(
     config: ConfigType,
@@ -347,6 +349,10 @@ async def http_request_action_to_code(
 
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))
 
+    if CONF_TIMEOUT in config:
+        template_ = await cg.templatable(config[CONF_TIMEOUT], args, cg.uint32)
+        cg.add(var.set_timeout(template_))
+
     if CONF_BODY in config:
         template_ = await cg.templatable(config[CONF_BODY], args, cg.std_string)
         cg.add(var.set_body(template_))
@@ -357,7 +363,9 @@ async def http_request_action_to_code(
             lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:
-            cg.add(var.init_json(len(json_)))
+            entry = action_id.type.template(template_arg).class_("JsonEntry")
+            storage = cg.static_storage(action_id, entry, len(json_))
+            cg.add(var.set_json_storage(storage))
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))

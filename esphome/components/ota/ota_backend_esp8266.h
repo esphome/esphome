@@ -23,6 +23,7 @@ class ESP8266OTABackend final {
   static constexpr bool supports_compression() { return true; }
 
  protected:
+  UpdateLock lock_;
   /// Erase flash sector if current address is at sector boundary
   bool erase_sector_if_needed_();
 
@@ -37,6 +38,11 @@ class ESP8266OTABackend final {
 
   /// Verify the firmware header is valid
   bool verify_end_();
+
+#ifdef USE_WEBSERVER_OTA
+  /// End of the image at offset per its segment table, or 0 if it does not fit or fails its checksum
+  size_t image_end_(size_t offset);
+#endif
 
   /// Get current flash chip mode from flash header
   uint8_t get_flash_chip_mode_();

@@ -6,16 +6,7 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 from esphome.components.const import CONF_AUTOMATIC_BASELINE_CALIBRATION
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BASELINE,
-    CONF_CO2,
-    CONF_CYCLE,
-    CONF_ID,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-)
+from esphome.const import CONF_BASELINE, CONF_CO2, CONF_CYCLE, ICON_MOLECULE_CO2
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -42,11 +33,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(CM1106Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.Any(
                 cv.boolean, _ABC_SETTINGS_SCHEMA
@@ -68,9 +55,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 async def to_code(config: ConfigType) -> None:
     """Code generation entry point."""
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)
 

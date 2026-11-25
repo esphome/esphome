@@ -8,6 +8,7 @@
 #include <string>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
@@ -41,54 +42,55 @@ bool socket_ready_fd(int /*fd*/, bool /*loop_monitored*/) { return true; }
 #endif
 
 // Platform-specific inet_ntop wrappers
+#if USE_NETWORK_IPV4
 #if defined(USE_SOCKET_IMPL_LWIP_TCP)
 // LWIP raw TCP (ESP8266) uses inet_ntoa_r which takes struct by value
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   inet_ntoa_r(*reinterpret_cast<const struct in_addr *>(addr), buf, size);
   return buf;
 }
-#if USE_NETWORK_IPV6
-static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
-  inet6_ntoa_r(*reinterpret_cast<const ip6_addr_t *>(addr), buf, size);
-  return buf;
-}
-#endif
 #elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 // LWIP sockets (LibreTiny, ESP32 Arduino)
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return lwip_inet_ntop(AF_INET, addr, buf, size);
 }
-#if USE_NETWORK_IPV6
-static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
-  return lwip_inet_ntop(AF_INET6, addr, buf, size);
-}
-#endif
 #elif defined(USE_ZEPHYR)
 // Zephyr BSD sockets — use Zephyr native address formatting via POSIX-subset wrappers.
 // <zephyr/net/socket.h> is already included transitively through <sys/socket.h>.
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return zsock_inet_ntop(AF_INET, addr, buf, size);
 }
-// IPv6 is always enabled on nRF52 (config validation enforces enable_ipv6=True),
-// but the guard is retained for consistency with other platform blocks.
-#if USE_NETWORK_IPV6
-static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
-  return zsock_inet_ntop(AF_INET6, addr, buf, size);
-}
-#endif
 #else
 // BSD sockets (host, ESP32-IDF)
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return inet_ntop(AF_INET, addr, buf, size);
 }
+#endif
+#endif /* USE_NETWORK_IPV4 */
+
 #if USE_NETWORK_IPV6
+#if defined(USE_SOCKET_IMPL_LWIP_TCP)
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  inet6_ntoa_r(*reinterpret_cast<const ip6_addr_t *>(addr), buf, size);
+  return buf;
+}
+#elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  return lwip_inet_ntop(AF_INET6, addr, buf, size);
+}
+#elif defined(USE_ZEPHYR)
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  return zsock_inet_ntop(AF_INET6, addr, buf, size);
+}
+#else
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return inet_ntop(AF_INET6, addr, buf, size);
 }
 #endif
-#endif
+#endif /* USE_NETWORK_IPV6 */
 
 bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out) {
+#if USE_NETWORK_IPV4
   if (addr->sa_family == AF_INET) {
     *out = reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr;
     return true;
@@ -104,23 +106,31 @@ bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out) {
     }
   }
 #endif
+#else
+  (void) addr;
+  (void) out;
+#endif /* USE_NETWORK_IPV4 */
   return false;
 }
 
 // Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf) {
+#if USE_NETWORK_IPV4
   if (addr_ptr->sa_family == AF_INET && len >= sizeof(const struct sockaddr_in)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in *>(addr_ptr);
     if (esphome_inet_ntop4(&addr->sin_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
   }
+#endif /* USE_NETWORK_IPV4 */
 #if USE_NETWORK_IPV6
-  else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
+  if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
+#if USE_NETWORK_IPV4
     uint32_t v4;
     // Format a v4 mapped peer as plain IPv4.
     if (sockaddr_to_ipv4(addr_ptr, &v4) && esphome_inet_ntop4(&v4, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
+#endif /* USE_NETWORK_IPV4 */
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
   }
@@ -198,30 +208,47 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   }
   return ctx.found_any;
 #else
-  bool found_any = false;
-  struct netif *netif;
-  NETIF_FOREACH(netif) {
-    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
-      continue;
+  // The netif list needs the core lock, but the callback's setsockopt() takes that lock itself, so the
+  // indices are collected first. One that goes away before the callback runs is rejected by setsockopt().
+  // Devices have only a few interfaces, so the cap drops nothing in practice.
+  static constexpr size_t MAX_IFS = 8;
+  StaticVector<uint8_t, MAX_IFS> indices;
+  {
+    LwIPLock lock;
+    struct netif *netif;
+    NETIF_FOREACH(netif) {
+      if (indices.size() == MAX_IFS) {
+        break;
+      }
+      if (netif->name[0] == 'l' && netif->name[1] == 'o') {
+        continue;
+      }
+      if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
+        continue;
+      }
+      indices.push_back(netif_get_index(netif));
     }
-    if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
-      continue;
-    }
-    found_any = true;
-    if (callback(netif_get_index(netif))) {
+  }
+  for (uint8_t index : indices) {
+    if (callback(index)) {
       break;
     }
   }
-  if (!found_any) {
+  if (indices.empty()) {
     errno = EADDRNOTAVAIL;
   }
-  return found_any;
+  return !indices.empty();
 #endif
 }
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
-bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out) {
+bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_index_out) {
   if (strchr(ip_address, ':') == nullptr) {
-    struct in_addr ipv4mc {};
+#if !USE_NETWORK_IPV4
+    errno = EAFNOSUPPORT;
+    return false;
+#else
+    struct in_addr ipv4mc{};
 #ifdef USE_ZEPHYR
     if (zsock_inet_pton(AF_INET, ip_address, &ipv4mc) != 1) {
 #else
@@ -233,11 +260,11 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 #ifdef USE_ZEPHYR
     // Zephyr's setsockopt(IP_ADD_MEMBERSHIP) requires exactly sizeof(struct ip_mreqn); it has
     // no plain "struct ip_mreq" at all (unlike POSIX/lwIP).
-    struct ip_mreqn imreq {};
+    struct ip_mreqn imreq{};
     imreq.imr_address.s_addr = ESPHOME_INADDR_ANY;
     imreq.imr_ifindex = 0;
 #else
-    struct ip_mreq imreq {};
+    struct ip_mreq imreq{};
     imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
 #endif
     imreq.imr_multiaddr = ipv4mc;
@@ -248,9 +275,10 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
       *if_index_out = 0;
     }
     return true;
+#endif  // USE_NETWORK_IPV4
   }
-#if USE_NETWORK_IPV6
-  struct ipv6_mreq imreq6 {};
+#ifdef USE_SOCKET_IPV6
+  struct ipv6_mreq imreq6{};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #ifdef USE_ZEPHYR
   if (zsock_inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
@@ -300,9 +328,10 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 #else
   errno = EINVAL;
   return false;
-#endif  // USE_NETWORK_IPV6
+#endif  // USE_SOCKET_IPV6
 }
 
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
 #if defined(USE_ZEPHYR) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
@@ -319,6 +348,7 @@ bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
       return true;
     });
     if (ifindex == 0) {
+      errno = EADDRNOTAVAIL;
       return false;
     }
   }
@@ -357,7 +387,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 #else
     // Use LWIP-specific functions
     ip6_addr_t ip6;
-    if (inet6_aton(ip_address, &ip6) == 0) {
+    if (inet6_aton(ip_address, &ip6) != 1) {
       errno = EINVAL;
       return 0;
     }
@@ -366,6 +396,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     return sizeof(sockaddr_in6);
   }
 #endif /* USE_NETWORK_IPV6 */
+#if USE_NETWORK_IPV4
   if (addrlen < sizeof(sockaddr_in)) {
     errno = EINVAL;
     return 0;
@@ -388,6 +419,11 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 #endif
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
+#else
+  memset(addr, 0, addrlen);
+  errno = EAFNOSUPPORT;
+  return 0;
+#endif /* USE_NETWORK_IPV4 */
 }
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)

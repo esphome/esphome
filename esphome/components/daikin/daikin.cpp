@@ -1,6 +1,7 @@
 #include "daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::daikin {
@@ -8,6 +9,14 @@ namespace esphome::daikin {
 ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 static constexpr uint32_t BOOST_TIMEOUT_ID = 0;
+
+static constexpr uint8_t DAIKIN_HEADER_BYTE0 = 0x11;
+static constexpr uint8_t DAIKIN_HEADER_BYTE1 = 0xDA;
+static constexpr uint8_t DAIKIN_HEADER_BYTE2 = 0x27;
+static constexpr uint8_t DAIKIN_HEADER_BYTE3 = 0x00;
+static constexpr uint8_t DAIKIN_FRAME_TYPE_INDEX = 4;
+static constexpr uint8_t DAIKIN_FRAME_HEADER_SIZE = DAIKIN_FRAME_TYPE_INDEX + 1;
+static constexpr uint8_t DAIKIN_STATE_FRAME_OFFSET = 2 * DAIKIN_COMFORT_FRAME_SIZE;
 
 void DaikinClimate::setup() {
   climate_ir::ClimateIR::setup();
@@ -22,16 +31,17 @@ void DaikinClimate::control(const climate::ClimateCall &call) {
 }
 
 void DaikinClimate::transmit_state() {
-  uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0x00, 0x11, 0xDA, 0x27, 0x00,
-                              0x42, 0x49, 0x05, 0xA2, 0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00,
-                              0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
+  // In flash: an initialized local array is copied from a RAM constant on ESP8266
+  static constexpr uint8_t REMOTE_STATE_TEMPLATE[35] PROGMEM = {
+      0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0x00, 0x11, 0xDA, 0x27, 0x00, 0x42, 0x49, 0x05, 0xA2, 0x11, 0xDA,
+      0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
+  uint8_t remote_state[sizeof(REMOTE_STATE_TEMPLATE)];
+  progmem_memcpy(remote_state, REMOTE_STATE_TEMPLATE, sizeof(remote_state));
 
   this->set_presets_(remote_state);
   remote_state[21] = this->operation_mode_();
   remote_state[22] = this->temperature_();
-  uint16_t fan_speed = this->fan_speed_();
-  remote_state[24] = fan_speed >> 8;
-  remote_state[25] = fan_speed & 0xff;
+  put_be16(remote_state + 24, this->fan_speed_());
 
   remote_state[7] = sum_bytes(remote_state, 7);
   remote_state[34] = sum_bytes(remote_state + 16, 18);
@@ -42,37 +52,19 @@ void DaikinClimate::transmit_state() {
 
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
-  for (int i = 0; i < 8; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state, DAIKIN_COMFORT_FRAME_SIZE);
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (int i = 8; i < 16; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state + DAIKIN_COMFORT_FRAME_SIZE, DAIKIN_COMFORT_FRAME_SIZE);
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (int i = 16; i < 35; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state + DAIKIN_STATE_FRAME_OFFSET, DAIKIN_STATE_FRAME_SIZE);
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -198,7 +190,7 @@ void DaikinClimate::cancel_boost_mode_() {
 bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
   uint8_t mode = frame[5];
-  // Temperature is given in degrees celcius * 2
+  // Temperature is given in degrees celsius * 2
   // only update for states that use the temperature
   uint8_t temperature = frame[6];
   if (mode & DAIKIN_MODE_ON) {
@@ -284,46 +276,24 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
 }
 
 bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t frame[DAIKIN_STATE_FRAME_SIZE] = {};
+  uint8_t frame[DAIKIN_STATE_FRAME_SIZE];
   if (!data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     return false;
   }
 
+  // Frame header, then the frame type that sets the frame size
+  if (!data.expect_bytes<DAIKIN_BIT_TIMINGS>(frame, DAIKIN_FRAME_HEADER_SIZE) || frame[0] != DAIKIN_HEADER_BYTE0 ||
+      frame[1] != DAIKIN_HEADER_BYTE1 || frame[2] != DAIKIN_HEADER_BYTE2 || frame[3] != DAIKIN_HEADER_BYTE3) {
+    return false;
+  }
   uint8_t frame_size = DAIKIN_STATE_FRAME_SIZE;
-  for (uint8_t pos = 0; pos < frame_size; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ZERO_SPACE)) {
-        return false;
-      }
-    }
-    frame[pos] = byte;
-    if (pos == 0) {
-      // frame header
-      if (byte != 0x11)
-        return false;
-    } else if (pos == 1) {
-      // frame header
-      if (byte != 0xDA)
-        return false;
-    } else if (pos == 2) {
-      // frame header
-      if (byte != 0x27)
-        return false;
-    } else if (pos == 3) {  // NOLINT(bugprone-branch-clone)
-      // frame header
-      if (byte != 0x00)
-        return false;
-    } else if (pos == 4) {
-      // frame type
-      if (byte == DAIKIN_FRAME_TYPE_COMFORT) {
-        frame_size = DAIKIN_COMFORT_FRAME_SIZE;
-      } else if (byte != DAIKIN_FRAME_TYPE_STATE) {
-        return false;
-      }
-    }
+  if (frame[DAIKIN_FRAME_TYPE_INDEX] == DAIKIN_FRAME_TYPE_COMFORT) {
+    frame_size = DAIKIN_COMFORT_FRAME_SIZE;
+  } else if (frame[DAIKIN_FRAME_TYPE_INDEX] != DAIKIN_FRAME_TYPE_STATE) {
+    return false;
+  }
+  if (!data.expect_bytes<DAIKIN_BIT_TIMINGS>(frame + DAIKIN_FRAME_HEADER_SIZE, frame_size - DAIKIN_FRAME_HEADER_SIZE)) {
+    return false;
   }
   if (frame[frame_size - 1] != sum_bytes(frame, frame_size - 1)) {
     return false;

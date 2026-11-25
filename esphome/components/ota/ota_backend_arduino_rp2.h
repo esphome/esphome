@@ -21,6 +21,7 @@ class ArduinoRP2OTABackend final {
   static constexpr bool supports_compression() { return USE_ARDUINO_VERSION_CODE >= VERSION_CODE(4, 0, 3); }
 
  private:
+  UpdateLock lock_;
   bool md5_set_{false};
 };
 

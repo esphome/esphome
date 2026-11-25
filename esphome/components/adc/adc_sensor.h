@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 #ifdef USE_ESP32
 #include "esp_adc/adc_cali.h"
@@ -40,7 +41,8 @@ enum class SamplingMode : uint8_t {
   MAX = 2,
 };
 
-const LogString *sampling_mode_to_str(SamplingMode mode);
+// Indexed by SamplingMode
+PROGMEM_STRING_TABLE(SamplingModeStrings, "average", "minimum", "maximum", "unknown");
 
 template<typename T> class Aggregator {
  public:
@@ -128,10 +130,10 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
 #endif  // USE_RP2
 
  protected:
-  uint8_t sample_count_{1};
-  bool output_raw_{false};
+  uint8_t sample_count_{1};  // Must match DEFAULT_SAMPLES in sensor.py
+  bool output_raw_{false};   // Must match CONF_RAW default in sensor.py
   InternalGPIOPin *pin_;
-  SamplingMode sampling_mode_{SamplingMode::AVG};
+  SamplingMode sampling_mode_{SamplingMode::AVG};  // Must match DEFAULT_SAMPLING_MODE in sensor.py
 
 #ifdef USE_ESP32
   float sample_autorange_();
@@ -139,7 +141,7 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   bool autorange_{false};
   adc_oneshot_unit_handle_t adc_handle_{nullptr};
   adc_cali_handle_t calibration_handle_{nullptr};
-  adc_atten_t attenuation_{ADC_ATTEN_DB_0};
+  adc_atten_t attenuation_{ADC_ATTEN_DB_0};  // Must match DEFAULT_ATTENUATION in sensor.py
   adc_channel_t channel_{};
   adc_unit_t adc_unit_{};
   struct SetupFlags {

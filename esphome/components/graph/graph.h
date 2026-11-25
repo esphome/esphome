@@ -1,9 +1,10 @@
 #pragma once
 #include <cstdint>
-#include <utility>
+#include <span>
 #include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/component.h"
 
 namespace esphome {
@@ -85,12 +86,14 @@ class GraphLegend final {
 
 class HistoryData {
  public:
-  void init(int length);
-  ~HistoryData();
+  void init();
+  void set_samples(std::span<float> samples) { this->samples_ = samples; }
   void set_update_time_ms(uint32_t update_time_ms) { update_time_ = update_time_ms; }
   void take_sample(float data);
-  int get_length() const { return length_; }
-  float get_value(int idx) const { return samples_[(count_ + length_ - 1 - idx) % length_]; }
+  int get_length() const { return static_cast<int>(this->samples_.size()); }
+  float get_value(int idx) const {
+    return this->samples_[(this->count_ + this->get_length() - 1 - idx) % this->get_length()];
+  }
   float get_recent_max() const { return recent_max_; }
   float get_recent_min() const { return recent_min_; }
 
@@ -98,18 +101,20 @@ class HistoryData {
   uint32_t last_sample_;
   uint32_t period_{0};       /// in ms
   uint32_t update_time_{0};  /// in ms
-  int length_;
   int count_{0};
   float recent_min_{NAN};
   float recent_max_{NAN};
-  std::vector<float> samples_;
+  std::span<float> samples_;
 };
 
 class GraphTrace final {
+  SUB_SENSOR(source)
+
  public:
   void init(Graph *g);
-  void set_name(std::string name) { name_ = std::move(name); }
-  void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
+  // One sample per pixel of the graph width.
+  void set_samples(std::span<float> samples) { this->data_.set_samples(samples); }
+  void set_name(const char *name) { this->name_ = name; }
   uint8_t get_line_thickness() { return this->line_thickness_; }
   void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }
   enum LineType get_line_type() { return this->line_type_; }
@@ -118,12 +123,11 @@ class GraphTrace final {
   void set_line_color(Color val) { this->line_color_ = val; }
   bool get_continuous() { return this->continuous_; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
-  std::string get_name() { return name_; }
+  StringRef get_name() const { return StringRef(this->name_); }
   const HistoryData *get_tracedata() { return &data_; }
 
  protected:
-  sensor::Sensor *sensor_{nullptr};
-  std::string name_;
+  const char *name_{""};
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};

@@ -1,4 +1,5 @@
 #include "haier_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -16,7 +17,7 @@ constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE_SHORT = 72;
 // 13 bytes + checksum
 constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE_LONG = 112;
 // Max data bytes in packet (excluding checksum)
-constexpr size_t HAIER_MAX_DATA_BYTES = HAIER_IR_PACKET_BIT_SIZE_LONG / 8 - 1;
+static_assert(HAIER_MAX_DATA_BYTES == HAIER_IR_PACKET_BIT_SIZE_LONG / 8 - 1);
 
 void HaierProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t item) {
   for (uint8_t mask = 1 << 7; mask != 0; mask >>= 1) {
@@ -39,7 +40,7 @@ void HaierProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t 
   dst->mark(BIT_MARK_US);
   uint8_t checksum = 0;
   for (size_t i = 0; i < len; i++) {
-    const uint8_t item = data[i];
+    const uint8_t item = progmem_read_byte(data + i);
     this->encode_byte_(dst, item);
     checksum += item;
   }
@@ -63,7 +64,6 @@ optional<HaierData> HaierProtocol::decode(RemoteReceiveData src) {
   }
   uint8_t checksum = 0;
   HaierData out;
-  out.data.reserve(size / 16 - 1);
   while (size > 0) {
     uint8_t data = 0;
     for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {

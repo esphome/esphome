@@ -56,7 +56,8 @@ class HttpRequestArduino final : public HttpRequestComponent {
  protected:
   std::shared_ptr<HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                          const std::vector<Header> &request_headers,
-                                         const std::vector<std::string> &lower_case_collect_headers) override;
+                                         const std::vector<std::string> &lower_case_collect_headers,
+                                         uint32_t timeout_ms) override;
 #ifdef USE_ESP8266
   uint16_t tls_buffer_size_rx_{512};
   uint16_t tls_buffer_size_tx_{512};

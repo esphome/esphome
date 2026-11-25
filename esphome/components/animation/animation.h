@@ -6,7 +6,7 @@ namespace esphome::animation {
 class Animation final : public image::Image {
  public:
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type,
-            image::Transparency transparent);
+            image::Transparency transparent, bool big_endian = false);
 
   uint32_t get_animation_frame_count() const;
   int get_current_frame() const;
@@ -15,7 +15,7 @@ class Animation final : public image::Image {
 
   /** Selects a specific frame within the animation.
    *
-   * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.
+   * @param frame If positive, advance to the frame. If negative, recede to that frame from the end frame.
    */
   void set_frame(int frame);
 

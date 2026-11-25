@@ -1,0 +1,11 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+network:
+  enable_ipv6: true
+  enable_ipv4: false

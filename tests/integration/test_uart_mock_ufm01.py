@@ -40,6 +40,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, StateWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # Commands as the uart mock logs them: FE FE 11, command, argument, checksum, 16
 RESET_DEVICE = "FE:FE:11:5D:CB:28:16"
@@ -167,10 +168,7 @@ async def _connect(client: APIClient) -> _Meter:
     entities, services = await client.list_entities_services()
     meter = _Meter(client, entities, services)
     client.subscribe_states(meter.helper.on_state_wrapper(meter.on_state))
-    try:
-        await meter.helper.wait_for_initial_states()
-    except TimeoutError:
-        pytest.fail("Timeout waiting for initial states")
+    await meter.helper.wait_for_initial_states()
     return meter
 
 
@@ -199,10 +197,7 @@ async def _gather(meter: _Meter, waits: list[Awaitable[EntityState]]) -> None:
 
 
 async def _wait_for(log: _Log, future: asyncio.Future[float], timeout: float) -> float:
-    try:
-        return await asyncio.wait_for(future, timeout)
-    except TimeoutError:
-        pytest.fail(f"Timed out; log: {log.events}")
+    return await wait_or_fail(future, timeout, "Timed out", log=log.events)
 
 
 @pytest.mark.shared_yaml("uart_mock_ufm01")

@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.const import (
     CONF_BUILD_PATH,
@@ -15,10 +15,12 @@ from esphome.const import (
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     NATIVE_TOOLCHAINS,
@@ -30,6 +32,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_STM32,
     ErrorFormat,
     Toolchain,
 )
@@ -42,7 +45,7 @@ from esphome.coroutine import (  # noqa: F401
     coroutine,
     coroutine_with_priority,
 )
-from esphome.helpers import ensure_unique_string, get_str_env, is_ha_addon
+from esphome.helpers import get_str_env, is_ha_addon, unique_name
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -97,6 +100,16 @@ def is_approximately_integer(value):
     if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
+
+
+class TemperatureWithUnit(NamedTuple):
+    """A temperature as written: the number and the unit it came with, None without one."""
+
+    value: float
+    unit: str | None
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit or ''}"
 
 
 class TimePeriod:
@@ -402,15 +415,23 @@ class ID:
         self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
-        from esphome.config_validation import RESERVED_IDS
+        """Give an unnamed ID a unique generated name.
 
+        ``registered_ids`` is any collection of names in use; pass a set when
+        resolving many IDs so each name check is a hash lookup.
+        """
         if self.id is None:
+            from esphome.config_validation import RESERVED_IDS_SET
+
             base = str(self.type).replace("::", "_").lower()
             if base == self.type:
                 base = base + "_id"
             name = "".join(c for c in base if c.isalnum() or c == "_")
-            used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
-            self.id = ensure_unique_string(name, used)
+            loaded = CORE.loaded_integrations
+            self.id = unique_name(
+                name,
+                lambda c: c in registered_ids or c in RESERVED_IDS_SET or c in loaded,
+            )
         return self.id
 
     def __str__(self):
@@ -442,6 +463,16 @@ class ID:
         )
 
 
+# Replaced by write_cpp with a #line back into main.cpp
+LINE_DIRECTIVE_RESET = "// ESPHOME_LINE_DIRECTIVE_RESET"
+
+
+def line_directive(document: str, line: int) -> str:
+    """A #line directive naming the 1-based ``line`` of ``document``."""
+    escaped = document.replace("\\", "\\\\")
+    return f'#line {line} "{escaped}"'
+
+
 class DocumentLocation:
     def __init__(self, document: str, line: int, column: int):
         self.document: str = document
@@ -457,8 +488,7 @@ class DocumentLocation:
 
     @property
     def as_line_directive(self):
-        document_path = str(self.document).replace("\\", "\\\\")
-        return f'#line {self.line + 1} "{document_path}"'
+        return line_directive(str(self.document), self.line + 1)
 
 
 class DocumentRange:
@@ -649,6 +679,8 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
+        # Generated code emitted after the user includes, so it can use what they declare
+        self.global_statements_after_includes: list[Statement] = []
         # A map of platformio libraries to add to the project (shortname: (name, version, repository))
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
@@ -719,6 +751,7 @@ class EsphomeCore:
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
+        self.global_statements_after_includes = []
         self.platformio_libraries = {}
         self.build_flags = set()
         self.cmake_args = {}
@@ -755,12 +788,23 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"
+
+        if PLATFORM_HOST in self.config:
+            return self.config[PLATFORM_HOST].get(
+                CONF_USE_ADDRESS, f"{self.name}.local"
+            )
 
         return None
 
@@ -981,12 +1025,21 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_NRF52
 
     @property
+    def is_stm32(self) -> bool:
+        return self.target_platform == PLATFORM_STM32
+
+    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
     @property
     def target_framework(self):
         return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+
+    @property
+    def framework_version(self) -> Version:
+        """The version of the target platform's framework, set by the platform component."""
+        return self.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
     @property
     def using_arduino(self):
@@ -1003,6 +1056,10 @@ class EsphomeCore:
     @property
     def using_toolchain_sdk_nrf(self):
         return self.toolchain == Toolchain.SDK_NRF
+
+    @property
+    def using_toolchain_zephyr(self) -> bool:
+        return self.toolchain == Toolchain.ZEPHYR
 
     @property
     def using_toolchain_arduino(self):
@@ -1036,8 +1093,8 @@ class EsphomeCore:
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression, prepend=False) -> "Statement":
-        """Add an expression or statement to the main setup() block."""
+    @staticmethod
+    def _as_statement(expression) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -1046,7 +1103,11 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
+        return expression
 
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
+        expression = self._as_statement(expression)
         if prepend:
             self.main_statements.insert(0, expression)
         else:
@@ -1055,19 +1116,19 @@ class EsphomeCore:
         return expression
 
     def add_global(self, expression, prepend=False) -> "Statement":
-        from esphome.cpp_generator import Expression, Statement, statement
-
-        if isinstance(expression, Expression):
-            expression = statement(expression)
-        if not isinstance(expression, Statement):
-            raise ValueError(
-                f"Add '{expression}' must be expression or statement, not {type(expression)}"
-            )
+        expression = self._as_statement(expression)
         if prepend:
             self.global_statements.insert(0, expression)
         else:
             self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
+        return expression
+
+    def add_global_after_includes(self, expression) -> "Statement":
+        """Add a global after the user includes, for generated code that may use them."""
+        expression = self._as_statement(expression)
+        self.global_statements_after_includes.append(expression)
+        _LOGGER.debug("Adding global after includes: %s", expression)
         return expression
 
     def add_library(self, library: Library):
@@ -1138,12 +1199,14 @@ class EsphomeCore:
     def add_build_unflag(self, build_unflag: str) -> None:
         # No warning for using_toolchain_arduino: the native ESP8266 build
         # honors build_unflags (token-level, matching PlatformIO).
-        if self.using_toolchain_esp_idf:
-            # The native ESP-IDF build generator does not consume build_unflags
+        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
+            # The native ESP-IDF and nRF52 build generators do not consume
+            # build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
-                "ESP-IDF toolchain",
+                "'%s' toolchain",
                 build_unflag,
+                self.toolchain.value,
             )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)
@@ -1249,7 +1312,7 @@ class EsphomeCore:
         from esphome.cpp_generator import statement
 
         global_code = []
-        for exp in self.global_statements:
+        for exp in (*self.global_statements, *self.global_statements_after_includes):
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)

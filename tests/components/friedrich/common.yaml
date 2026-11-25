@@ -1,0 +1,5 @@
+climate:
+  - platform: friedrich
+    name: Friedrich Climate
+    transmitter_id: xmitr
+    receiver_id: rcvr

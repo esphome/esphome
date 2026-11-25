@@ -3,20 +3,23 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "logger.h"
+#ifdef USE_CRASH_HANDLER
+#include "esphome/components/zephyr_coredump/coredump.h"
+#endif
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
-#include <zephyr/usb/usb_device.h>
+#include <zephyr/version.h>
+#ifdef USE_LOGGER_USB_CDC
+#include "esphome/components/zephyr/usb_device.h"
+#endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
-
-namespace esphome::zephyr_coredump {
-
-__attribute__((weak)) void print_coredump() {}
-
-}  // namespace esphome::zephyr_coredump
+#ifdef USE_BOOTLOADER_ADAFRUIT
+#include <hal/nrf_timer.h>
+#endif
 
 namespace esphome::logger {
 
@@ -39,9 +42,9 @@ __attribute__((section(".noinit"))) struct {
 
 ESPHOME_LOG_TAG(TAG, "logger");
 
-#ifdef USE_LOGGER_UART_SELECTION_USB_CDC
+#ifdef USE_LOGGER_ZEPHYR_CDC_LOOP
 void Logger::cdc_loop_() {
-  if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
+  if (this->uart_dev_ == nullptr) {
     return;
   }
   static bool opened = false;
@@ -56,6 +59,14 @@ void Logger::cdc_loop_() {
   if (!opened) {
     App.schedule_dump_config();
   }
+#ifdef USE_CRASH_HANDLER
+  // The new reader also gets a coredump stored by the last crash; a closed port keeps it for the next one
+  if (!opened) {
+    log_crash_to_client();
+  } else {
+    zephyr_coredump::stop_coredump();
+  }
+#endif
   opened = !opened;
 }
 #endif
@@ -63,25 +74,20 @@ void Logger::cdc_loop_() {
 void Logger::pre_setup() {
 #ifdef CONFIG_SERIAL
   if (this->baud_rate_ > 0) {
-    static const struct device *uart_dev = nullptr;
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
-        break;
-      case UART_SELECTION_UART1:
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
-        break;
-#ifdef USE_LOGGER_USB_CDC
-      case UART_SELECTION_USB_CDC:
-#ifdef CONFIG_USB_DEVICE_STACK
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
-        if (device_is_ready(uart_dev)) {
-          usb_enable(nullptr);
-        }
-#endif
-        break;
-#endif
+    const struct device *uart_dev = nullptr;
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
+    uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
+    if (device_is_ready(uart_dev)) {
+      // Nothing can log this early, and the logger has no output without USB anyway
+      zephyr::usb_device_enable();
     }
+#endif
+#elif defined(USE_LOGGER_UART_SELECTION_UART1)
+    uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
+#else
+    uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(ESPHOME_LOGGER_UART0_NODE));
+#endif
     if (device_is_ready(uart_dev)) {
       this->uart_dev_ = uart_dev;
 #if defined(USE_LOGGER_WAIT_FOR_CDC) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
@@ -102,8 +108,13 @@ void Logger::pre_setup() {
   char reason_buffer[zephyr::RESET_REASON_BUFFER_SIZE];
   const char *reset_reason = zephyr::get_reset_reason(std::span<char, zephyr::RESET_REASON_BUFFER_SIZE>(reason_buffer));
   ESP_LOGI(TAG, "Reset reason: %s", reset_reason);
-  dump_crash_();
-  zephyr_coredump::print_coredump();
+  this->dump_crash_();
+#endif
+  // Nobody reads a USB port this early; cdc_loop_() reports the dump once the port is opened
+#if defined(USE_CRASH_HANDLER) && !defined(USE_LOGGER_ZEPHYR_CDC_LOOP)
+  // Without a UART (baud_rate: 0, or one that did not come up) nothing reaches the console
+  if (this->uart_dev_ != nullptr)
+    log_crash_to_client();
 #endif
 }
 
@@ -122,22 +133,7 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   }
 }
 
-const LogString *Logger::get_uart_selection_() {
-  switch (this->uart_) {
-    case UART_SELECTION_UART0:
-      return LOG_STR("UART0");
-    case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
-#ifdef USE_LOGGER_USB_CDC
-    case UART_SELECTION_USB_CDC:
-      return LOG_STR("USB_CDC");
-#endif
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
-
-static const uint8_t REASON_BUF_SIZE = 32;
+static constexpr uint8_t REASON_BUF_SIZE = 32;
 
 static const char *reason_to_str(unsigned int reason, char *buf) {
   switch (reason) {
@@ -156,6 +152,31 @@ static const char *reason_to_str(unsigned int reason, char *buf) {
       return buf;
   }
 }
+
+#ifdef USE_BOOTLOADER_ADAFRUIT
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MAJOR = 0;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MINOR = 11;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_PATCH = 0;
+// Adafruit_nRF52_Bootloader passes its version to the app as 0x00MMmmpp (major, minor, patch)
+static constexpr uint32_t ADAFRUIT_BOOTLOADER_MIN_VERSION =
+    (ADAFRUIT_BOOTLOADER_MIN_MAJOR << 16) | (ADAFRUIT_BOOTLOADER_MIN_MINOR << 8) | ADAFRUIT_BOOTLOADER_MIN_PATCH;
+
+void Logger::dump_bootloader_() {
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_TIMER2 is MMIO at a fixed address
+  const uint32_t version = NRF_TIMER2->CC[0];
+  if (version >= ADAFRUIT_BOOTLOADER_MIN_VERSION)
+    return;
+  // Releases too old to pass their version leave the register at its reset value
+  char version_buf[sizeof("255.255.255")] = "unknown";
+  if (version != 0) {
+    snprintf(version_buf, sizeof(version_buf), "%u.%u.%u", static_cast<unsigned>((version >> 16) & 0xFF),
+             static_cast<unsigned>((version >> 8) & 0xFF), static_cast<unsigned>(version & 0xFF));
+  }
+  ESP_LOGW(TAG,
+           "Adafruit_nRF52_Bootloader version %s has known stability issues. Please update it to %u.%u.%u or newer.",
+           version_buf, ADAFRUIT_BOOTLOADER_MIN_MAJOR, ADAFRUIT_BOOTLOADER_MIN_MINOR, ADAFRUIT_BOOTLOADER_MIN_PATCH);
+}
+#endif
 
 void Logger::dump_crash_() {
   ESP_LOGD(TAG, "Crash buffer address %p", &crash_buf);
@@ -194,6 +215,16 @@ void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
 #endif
   arch_restart();
 }
+
+#ifdef USE_CRASH_HANDLER
+bool crash_log_pending() { return zephyr_coredump::coredump_pending(); }
+void log_crash_to_client() {
+  // A level that drops the lines would erase the dump unseen; keep it for a client that can see it
+  if (global_logger->get_log_level(zephyr_coredump::CRASH_LOG_TAG) < ESPHOME_LOG_LEVEL_ERROR)
+    return;
+  zephyr_coredump::print_coredump();
+}
+#endif
 
 }  // namespace esphome::logger
 

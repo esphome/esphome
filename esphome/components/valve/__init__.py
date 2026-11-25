@@ -1,7 +1,6 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -15,14 +14,14 @@ from esphome.const import (
     CONF_POSITION_STATE_TOPIC,
     CONF_STATE,
     CONF_STOP,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -54,11 +53,9 @@ VALVE_STATES = {
 validate_valve_state = cv.enum(VALVE_STATES, upper=True)
 
 ValveOperation = valve_ns.enum("ValveOperation")
-VALVE_OPERATIONS = {
-    "IDLE": ValveOperation.VALVE_OPERATION_IDLE,
-    "OPENING": ValveOperation.VALVE_OPERATION_OPENING,
-    "CLOSING": ValveOperation.VALVE_OPERATION_CLOSING,
-}
+VALVE_OPERATIONS = ValveOperation.options(
+    "IDLE", "OPENING", "CLOSING", prefix="VALVE_OPERATION_"
+)
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
 CONF_ON_CLOSED = "on_closed"
@@ -74,12 +71,14 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 _VALVE_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(Valve),
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTValveComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTValveComponent")
+            ),
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
             ): cv.one_of(*DEVICE_CLASSES, lower=True),
@@ -128,19 +127,14 @@ async def _setup_valve_core(var, config):
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if mqtt_id_config := config.get(CONF_MQTT_ID):
-        mqtt_ = cg.new_Pvariable(mqtt_id_config, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None:
         if position_state_topic_config := config.get(CONF_POSITION_STATE_TOPIC):
             cg.add(mqtt_.set_custom_position_state_topic(position_state_topic_config))
         if position_command_topic_config := config.get(CONF_POSITION_COMMAND_TOPIC):
             cg.add(
                 mqtt_.set_custom_position_command_topic(position_command_topic_config)
             )
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
 
 
 async def register_valve(var, config):

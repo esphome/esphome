@@ -15,6 +15,7 @@ from aioesphomeapi import EntityState, SwitchInfo, SwitchState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -70,12 +71,9 @@ async def test_varint_five_byte_device_id(
 
         client.subscribe_states(on_state)
 
-        try:
-            await asyncio.wait_for(initial_done, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timed out waiting for initial states. Got {len(states)} states"
-            )
+        await wait_or_fail(
+            initial_done, 10.0, "Timed out waiting for initial states", states=states
+        )
 
         # Verify state responses contain correct large device_id values
         for device in devices:
@@ -96,25 +94,25 @@ async def test_varint_five_byte_device_id(
             # Turn on
             switch_futures[state_key] = loop.create_future()
             client.switch_command(switch.key, True, device_id=switch.device_id)
-            try:
-                await asyncio.wait_for(switch_futures[state_key], timeout=2.0)
-            except TimeoutError:
-                pytest.fail(
-                    f"Timed out waiting for switch ON state "
-                    f"(device_id={switch.device_id}, key={switch.key}). "
-                    f"This likely means the firmware failed to decode the "
-                    f"5-byte varint device_id in SwitchCommandRequest."
-                )
+            await wait_or_fail(
+                switch_futures[state_key],
+                2.0,
+                "Timed out waiting for switch ON state. "
+                "This likely means the firmware failed to decode the "
+                "5-byte varint device_id in SwitchCommandRequest.",
+                device_id=switch.device_id,
+                key=switch.key,
+            )
             assert states[state_key].state is True
 
             # Turn off
             switch_futures[state_key] = loop.create_future()
             client.switch_command(switch.key, False, device_id=switch.device_id)
-            try:
-                await asyncio.wait_for(switch_futures[state_key], timeout=2.0)
-            except TimeoutError:
-                pytest.fail(
-                    f"Timed out waiting for switch OFF state "
-                    f"(device_id={switch.device_id}, key={switch.key})"
-                )
+            await wait_or_fail(
+                switch_futures[state_key],
+                2.0,
+                "Timed out waiting for switch OFF state",
+                device_id=switch.device_id,
+                key=switch.key,
+            )
             assert states[state_key].state is False

@@ -1,19 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_HUMIDITY,
-    CONF_ID,
-    CONF_PRESSURE,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_HUMIDITY, CONF_PRESSURE, CONF_TEMPERATURE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -31,22 +19,16 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MS8607Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
+                kind=sensor.TEMPERATURE,
                 accuracy_decimals=2,  # Resolution: 0.01
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
+                kind=sensor.PRESSURE,
                 accuracy_decimals=2,  # Resolution: 0.016
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
+                kind=sensor.HUMIDITY,
                 accuracy_decimals=2,  # Resolution: 0.04
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
             )
             .extend(
                 {
@@ -60,13 +42,12 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x76))  # default address for temp/pressure
+    .add_extra(cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_PRESSURE, CONF_HUMIDITY))
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
