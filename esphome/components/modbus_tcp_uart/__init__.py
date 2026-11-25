@@ -53,7 +53,34 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _claim_link(config: ConfigType) -> None:
+    # A second reader would take the other's replies, and the first reader answers for the wrong unit.
+    # The scan finds a uart_id naming the link, not a bare id: action or a lambda.
+    # Not uart.claim_exclusive(): that also scans tcp_uart_id and would reject tcp_uart's own platforms.
+    full = fv.full_config.get()
+    link_id = str(config[CONF_TCP_UART_ID])
+    used = full.data.setdefault(DOMAIN, set())
+    if link_id in used:
+        raise cv.Invalid(
+            f"The tcp_uart '{link_id}' is already used by another '{DOMAIN}' entry. "
+            "One adapter serves all devices on the link.",
+            [CONF_TCP_UART_ID],
+        )
+    used.add(link_id)
+    # Grouped CI builds share links, as in uart.claim_exclusive().
+    if CORE.testing_mode:
+        return
+    for domain, domain_conf in full.items():
+        if domain != DOMAIN and uart.subtree_references_uart(domain_conf, link_id):
+            raise cv.Invalid(
+                f"The tcp_uart '{link_id}' is also used by '{domain}'. "
+                f"{DOMAIN} requires exclusive use of that link.",
+                [CONF_TCP_UART_ID],
+            )
+
+
 def _final_validate(config: ConfigType) -> None:
+    _claim_link(config)
     # The hub's write is a request in one role and a reply in the other.
     full = fv.full_config.get()
     link_id = str(config[CONF_ID])

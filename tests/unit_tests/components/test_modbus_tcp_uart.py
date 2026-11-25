@@ -13,7 +13,11 @@ import esphome.final_validate as fv
 
 
 def _run(config, full):
-    token = fv.full_config.set(full)
+    from esphome.config import Config
+
+    full_config = Config()
+    full_config.update(full)
+    token = fv.full_config.set(full_config)
     try:
         return _final_validate(config)
     finally:
