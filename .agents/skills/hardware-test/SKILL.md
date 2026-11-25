@@ -290,6 +290,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   link drop, restart loop with an OMR prefix sensor read over the API, meshcop check)
 - `ota_automations/` (OTA automation package for both OTA platforms, four case runner, repeated web upload runner and
   per case summary)
+- `ota_relay/` (serial to TCP relay header with frame checks and an AP drop op, host side, fallback AP and network drop
+  DUTs, upload runners timed to retries and drops, per drop and per upload summaries)
 - `ota_timing/` (OTA upload timer with deflate, raw and TCP modes, API build check, A/B runner and median summary,
   `inflate_bench/` on-device inflate benchmark with stream generator, configs and syslog runner)
 - `output_button/` (pad edge timer header, button package and runner)
@@ -354,6 +356,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   connection churn with a TIME_WAIT runner, main task stack high-water mark under web_server load with `arena/` configs
   and runner)
 - `web_handlers/` (late handler, web_server, captive_portal and prometheus variants, web OTA runner)
+- `web_ota/` (damaged multipart upload sender with six modes, per case runner, captive portal on STA DUT)
 - `web_server/` (SSE client, request mix, SSE and HTTPD case runners, per-session `/events` listing check with its
   config, `/events` head, multi-client, stall, Wi-Fi drop and churn modes with their config, head comparer and runner,
   `async_bump/` ESPAsyncWebServer bump flows and ESP8266 web OTA cases)

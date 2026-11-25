@@ -96,6 +96,10 @@ nrf_pwm_probe/*-cap.txt
 nrf_pwm_probe/*-dfu.log
 openthread_race/*.txt
 ota_automations/otaauto*.yaml
+ota_relay/*.log
+ota_relay/*.out
+ota_relay/abort-ch?
+ota_relay/drop-ms
 out-*.*
 out-*/
 output_button/outbtn*.yaml
@@ -147,6 +151,7 @@ vl6180x/run-*.txt
 web_auth/configs/*.json
 web_auth/configs/*.log
 web_auth/configs/*.txt
+web_ota/case-*.out
 web_server/async_bump/*.log
 web_server/async_bump/*.pcap
 web_server/async_bump/*.txt
