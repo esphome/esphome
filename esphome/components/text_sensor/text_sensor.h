@@ -42,8 +42,7 @@ class TextSensor : public EntityBase {
   void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
   void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
-  /// Publish past the filters, as both the raw and the filtered state, and reset the filters so what they saw before
-  /// cannot hold back or change later values.
+  /// Publish past the filters, as both the raw and the filtered state.
   void publish_state_unfiltered(const char *state, size_t len);
   void publish_state_unfiltered(const char *state) { this->publish_state_unfiltered(state, strlen(state)); }
   /// Run the raw state through the filters again, without calling the raw state callbacks; after

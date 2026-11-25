@@ -89,18 +89,6 @@ TEST_F(TextFilterTest, TimeoutBeforeTheLastSendsThroughTheChain) {
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"A", "OFFLINE"}));
 }
 
-TEST_F(TextFilterTest, ResetChainMakesTheFiltersBehaveAsAtBoot) {
-  TimeoutThrottleFilter combined(1000, PRIORITIZED);
-  ThrottleFilter throttle(1000);
-  this->sensor_.add_filters({&combined, &throttle});
-  this->publish_at_(1000, "a");
-  this->publish_at_(1200, "b");  // held by the throttle
-  combined.reset_chain();
-  EXPECT_TRUE(combined.is_idle());  // no timeout is left to send "b" later
-  this->publish_at_(1300, "c");     // passes at once, as the first value after boot
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "c"}));
-}
-
 TEST_F(TextFilterTest, PublishUnfilteredWithoutFiltersIsAPublish) {
   int raw_calls = 0;
   this->sensor_.add_on_raw_state_callback([&raw_calls](const std::string &) { raw_calls++; });
@@ -109,24 +97,16 @@ TEST_F(TextFilterTest, PublishUnfilteredWithoutFiltersIsAPublish) {
   EXPECT_EQ(raw_calls, 1);
 }
 
-// Past the filters, and the filters start over: a held value is dropped and the next value is not throttled
-TEST_F(TextFilterTest, PublishUnfilteredSkipsAndResetsTheFilters) {
+TEST_F(TextFilterTest, PublishUnfilteredSkipsTheFilters) {
   int raw_calls = 0;
   this->sensor_.add_on_raw_state_callback([&raw_calls](const std::string &) { raw_calls++; });
-  TimeoutThrottleFilter combined(1000, PRIORITIZED);
   AppendFilter append("!");
-  this->sensor_.add_filters({&combined, &append});
-  this->publish_at_(1000, "a");
-  this->publish_at_(1200, "b");  // held by the throttle
-  {
-    LoopBlockingGuard guard{nullptr, nullptr, 1300};
-    this->sensor_.publish_state_unfiltered("");
-  }
-  EXPECT_TRUE(combined.is_idle());  // "b" is not sent later
-  EXPECT_EQ(this->sensor_.get_raw_state(), "");
-  this->publish_at_(1400, "c");  // passes at once
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a!", "", "c!"}));
-  EXPECT_EQ(raw_calls, 4);
+  this->sensor_.add_filter(&append);
+  this->sensor_.publish_state("a");
+  this->sensor_.publish_state_unfiltered("b");
+  EXPECT_EQ(this->sensor_.get_raw_state(), "b");
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a!", "b"}));
+  EXPECT_EQ(raw_calls, 2);
 }
 
 // A raw callback that publishes again wins: the outer call does not overwrite it with its own value

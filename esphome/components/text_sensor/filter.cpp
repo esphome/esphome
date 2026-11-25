@@ -29,14 +29,6 @@ void Filter::output(std::string &value) {
     next->input(std::move(value));
   }
 }
-void Filter::reset_chain() {
-  TextSensor *parent = this->chain_owner_();
-  for (Filter *filter = this; filter != nullptr;) {
-    Filter *next = filter->link_.next();
-    filter->initialize(parent, next);
-    filter = next;
-  }
-}
 void Filter::initialize(TextSensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
   this->link_.set(next, parent);

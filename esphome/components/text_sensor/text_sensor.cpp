@@ -89,8 +89,6 @@ void TextSensor::set_raw_state_(const char *state, size_t len) {
 void TextSensor::publish_state_unfiltered(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
   if (this->filter_list_ != nullptr) {
-    // Also drops a value a timeout filter would still send
-    this->filter_list_->reset_chain();
     this->set_raw_state_(state, len);
     // A raw callback may have published again or freed the caller's buffer
     this->internal_send_state_to_frontend(this->raw_state_.data(), this->raw_state_.size());
