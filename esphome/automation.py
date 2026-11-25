@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+import enum
 from functools import partial
 import logging
 import math
@@ -39,6 +40,7 @@ from esphome.cpp_generator import (
     MockObj,
     MockObjClass,
     TemplateArgsType,
+    VariableDeclarationExpression,
     call_lambda,
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -2474,6 +2476,89 @@ async def build_automation_lists(
             request_slot(str(parent))
             obj = await new_automation(entry.args, conf)
             cg.add(getattr(parent, f"add_{entry.conf_key}_automation")(obj))
+
+
+class ChangeFilter(enum.Enum):
+    """When a ``ChangeAutomation`` runs, against the copy of the watched value it keeps."""
+
+    ALWAYS = enum.auto()
+    ENTERED = enum.auto()
+    """The watched bool became true."""
+    CHANGED = enum.auto()
+    """The watched value differs from the last one this automation saw."""
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeAutomation:
+    """An on_* key for ``build_change_automations``.
+
+    ``watched`` gets the parent as ``parent_ref`` names it and returns the value the filter reads, of
+    ``last_type``. With ``args`` the automation also receives that value. ``when`` is a filter that keeps
+    nothing, for ``ChangeFilter.ALWAYS``, and may name ``{parent}``.
+    """
+
+    conf_key: str
+    filter: ChangeFilter = ChangeFilter.ALWAYS
+    watched: Callable[[MockObj], Expression] | None = None
+    last_type: SafeExpType = field(default_factory=lambda: cg.bool_)
+    args: TemplateArgsType = field(default_factory=list)
+    when: str | None = None
+
+
+_CHANGE_HELPERS = {
+    ChangeFilter.ENTERED: cg.esphome_ns.entered,
+    ChangeFilter.CHANGED: cg.esphome_ns.changed,
+}
+
+
+async def build_change_automations(
+    parent: MockObj,
+    config: ConfigType,
+    callback_method: str,
+    entries: tuple[ChangeAutomation, ...],
+) -> None:
+    """Register ``parent.<callback_method>`` once, for every automation of ``entries``, in order.
+
+    The callback takes no arguments. An ENTERED or CHANGED automation keeps the last value it saw in a
+    zero-initialised static of its own, so each behaves like a Trigger object holding that value. One
+    automation registers its own function; several get a generated function calling them in turn.
+    """
+    ref = parent_ref(parent)
+    callbacks: list[MockObj] = []
+    for entry in entries:
+        value = None if entry.watched is None else entry.watched(ref)
+        for index, conf in enumerate(config.get(entry.conf_key, [])):
+            when = entry.when
+            if (helper := _CHANGE_HELPERS.get(entry.filter)) is not None:
+                last = MockObj(f"esphome__{parent}__{entry.conf_key}_{index}__last")
+                cg.add_global(
+                    VariableDeclarationExpression(
+                        entry.last_type, "", last, static=True
+                    )
+                )
+                when = str(helper(last, value))
+            callbacks.append(
+                await build_trigger_callback(
+                    entry.args,
+                    conf,
+                    [],
+                    forward=[value] if entry.args else None,
+                    when=when,
+                    parent=parent,
+                )
+            )
+    if not callbacks:
+        return
+    callback = callbacks[0]
+    if len(callbacks) > 1:
+        callback = cg.shared_static_function(
+            f"esphome__{parent}__{callback_method.removeprefix('add_')}",
+            cg.void,
+            [],
+            [cg.statement(MockObj(cb)()) for cb in callbacks],
+            share=False,
+        )
+    cg.add(getattr(parent, callback_method)(callback))
 
 
 @dataclass(frozen=True, slots=True)

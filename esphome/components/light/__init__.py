@@ -54,12 +54,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import (
-    Expression,
-    MockObj,
-    MockObjClass,
-    VariableDeclarationExpression,
-)
+from esphome.cpp_generator import Expression, MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -629,69 +624,17 @@ def _effects_table(effects: list[MockObj]) -> MockObj:
     )
 
 
-def _register_callbacks(
-    light_var: MockObj, light_id: ID, method: str, suffix: str, callbacks: list[MockObj]
-) -> None:
-    """Register the callbacks as one: alone, or called in order from a generated function."""
-    if not callbacks:
-        return
-    callback = callbacks[0]
-    if len(callbacks) > 1:
-        callback = auto.apply_static_function(
-            light_id,
-            cg.void,
-            [],
-            [cg.statement(MockObj(cb)()) for cb in callbacks],
-            suffix=suffix,
-        )
-    cg.add(getattr(light_var, method)(callback))
-
-
-async def _light_triggers_to_code(
-    light_var: MockObj, light_id: ID, config: ConfigType
-) -> None:
-    """Build on_turn_on, on_state and on_turn_off as callbacks on the light's two callback lists.
-
-    Each on_turn_on keeps the state it last saw in a static of its own.
-    """
-    light = auto.parent_ref(light_var)
-    remote_values: list[MockObj] = []
-    for index, conf in enumerate(config.get(CONF_ON_TURN_ON, [])):
-        last = MockObj(f"esphome__{light_var}__on_turn_on_{index}__last")
-        cg.add_global(VariableDeclarationExpression(cg.bool_, "", last, static=True))
-        when = light_ns.update_turned_on(last, light.remote_values.is_on())
-        remote_values.append(
-            await auto.build_trigger_callback([], conf, [], when=str(when))
-        )
-    remote_values += [
-        await auto.build_trigger_callback([], conf, [])
-        for conf in config.get(CONF_ON_STATE, [])
-    ]
-    _register_callbacks(
-        light_var,
-        light_id,
-        "add_remote_values_callback",
-        "remote_values",
-        remote_values,
-    )
-
-    target_state_reached = [
-        await auto.build_trigger_callback(
-            [],
-            conf,
-            [],
-            when="!{parent}->current_values.is_on()",
-            parent=light_var,
-        )
-        for conf in config.get(CONF_ON_TURN_OFF, [])
-    ]
-    _register_callbacks(
-        light_var,
-        light_id,
-        "add_target_state_reached_callback",
-        "target_state_reached",
-        target_state_reached,
-    )
+_REMOTE_VALUES_AUTOMATIONS = (
+    auto.ChangeAutomation(
+        CONF_ON_TURN_ON,
+        auto.ChangeFilter.ENTERED,
+        lambda light: light.remote_values.is_on(),
+    ),
+    auto.ChangeAutomation(CONF_ON_STATE),
+)
+_TARGET_STATE_REACHED_AUTOMATIONS = (
+    auto.ChangeAutomation(CONF_ON_TURN_OFF, when="!{parent}->current_values.is_on()"),
+)
 
 
 @setup_entity("light")
@@ -768,7 +711,15 @@ async def setup_light_core_(light_var, config, output_var):
     if effects:
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
-    await _light_triggers_to_code(light_var, config[CONF_ID], config)
+    await auto.build_change_automations(
+        light_var, config, "add_remote_values_callback", _REMOTE_VALUES_AUTOMATIONS
+    )
+    await auto.build_change_automations(
+        light_var,
+        config,
+        "add_target_state_reached_callback",
+        _TARGET_STATE_REACHED_AUTOMATIONS,
+    )
 
     if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:
         cg.add(output_var.set_correction(*color_correct))

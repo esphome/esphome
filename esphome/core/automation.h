@@ -830,6 +830,20 @@ static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
 static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
 static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 
+/// Codegen use only: whether `now` is true and `last` was not. Stores `now` in `last`, the copy one automation keeps.
+inline bool entered(bool &last, bool now) {
+  const bool result = now && !last;
+  last = now;
+  return result;
+}
+
+/// Codegen use only: whether `now` differs from `last`. Stores `now` in `last`, the copy one automation keeps.
+template<typename T> bool changed(T &last, const T &now) {
+  const bool result = now != last;
+  last = now;
+  return result;
+}
+
 /// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
 /// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.
 template<typename... Ts> class FiringComponent : public Component {
