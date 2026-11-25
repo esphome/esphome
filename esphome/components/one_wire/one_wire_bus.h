@@ -62,6 +62,11 @@ static_assert(sizeof(void *) != 4 || sizeof(Transaction) == 32, "Transaction sho
 /// FIFO of pending transactions for a bus that runs them in the background. Uses no heap.
 class TransactionQueue {
  public:
+  TransactionQueue() = default;
+  // A copy would share the links of the queued transactions. Deleting the copy also removes the move.
+  TransactionQueue(const TransactionQueue &) = delete;
+  TransactionQueue &operator=(const TransactionQueue &) = delete;
+
   /// Returns false, and changes nothing, if the transaction is already pending.
   bool push(Transaction *transaction) {
     if (transaction->is_pending())

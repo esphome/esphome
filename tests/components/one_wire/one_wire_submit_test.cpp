@@ -15,6 +15,9 @@ constexpr uint64_t ROM = 0x120000065C17EE28ULL;
 
 // Drivers keep their transactions as members built with designated initializers
 static_assert(std::is_aggregate_v<Transaction>);
+// A copy of a queue would share the links of its transactions
+static_assert(!std::is_copy_constructible_v<TransactionQueue> && !std::is_copy_assignable_v<TransactionQueue>);
+static_assert(!std::is_move_constructible_v<TransactionQueue> && !std::is_move_assignable_v<TransactionQueue>);
 const std::vector<uint8_t> COMMAND{0x4E, 0x01, 0x02};
 
 // What went over the bus. Below 256: a written byte.
