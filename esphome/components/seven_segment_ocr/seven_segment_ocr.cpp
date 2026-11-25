@@ -13,7 +13,22 @@ namespace {
 
 // Segment order: A top, B top right, C bottom right, D bottom, E bottom left, F top left, G middle.
 // Only the vertical probe position is fixed; the horizontal one is read from the stroke columns.
-constexpr uint8_t PROBE_Y[7] PROGMEM = {38, 77, 179, 217, 179, 77, 128};
+constexpr uint8_t SEGMENT_COUNT = 7;
+constexpr uint8_t PROBE_Y[SEGMENT_COUNT] PROGMEM = {38, 77, 179, 217, 179, 77, 128};
+// PROBE_Y positions are scaled from 0..PROBE_SCALE to the image height.
+constexpr int PROBE_SCALE = 255;
+
+constexpr uint8_t PIXEL_LIT = 255;
+constexpr uint8_t PIXEL_DARK = 0;
+// A segment is lit when more than this fraction of its probe window is lit.
+constexpr float LIT_RATIO = 0.5f;
+// Thresholds as fractions of the image height: a column counts as signal above 1/40 of it, a digit needs a
+// column at least 1/3 tall and a run at least 1/30 wide, and a run under a third of the height wide is a "1".
+constexpr int MIN_SIGNAL_DIVISOR = 40;
+constexpr int MIN_PEAK_DIVISOR = 3;
+constexpr int MIN_WIDTH_DIVISOR = 30;
+constexpr int MIN_WIDTH_FLOOR = 2;
+constexpr int NARROW_DIVISOR = 3;
 
 // Segment mask of each digit; bit i is set when segment i is lit.
 constexpr uint8_t DIGIT_MASKS[10] PROGMEM = {63, 6, 91, 79, 102, 109, 125, 7, 127, 111};
@@ -29,7 +44,7 @@ float probe_ratio(const uint8_t *image, int width, int height, int stride, int x
       if (probe_x < 0 || probe_x >= width || probe_y < 0 || probe_y >= height)
         continue;
       sampled++;
-      if (image[probe_y * stride + probe_x] == 255)
+      if (image[static_cast<size_t>(probe_y) * static_cast<size_t>(stride) + static_cast<size_t>(probe_x)] == PIXEL_LIT)
         lit++;
     }
   }
@@ -60,15 +75,15 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
   for (int y = 0; y < height; y++) {
     uint8_t *row = image + static_cast<size_t>(y) * width;
     for (int x = 0; x < width; x++) {
-      row[x] = row[x] > this->threshold_level_ ? 255 : 0;
-      if (row[x] == 255)
+      row[x] = row[x] > this->threshold_level_ ? PIXEL_LIT : PIXEL_DARK;
+      if (row[x] == PIXEL_LIT)
         this->column_sums_[x]++;
     }
   }
 
-  const uint16_t min_signal = std::max<uint16_t>(1, static_cast<uint16_t>(height / 40));
-  const uint16_t min_peak = static_cast<uint16_t>(height / 3);
-  const int min_width = std::max(2, height / 30);
+  const uint16_t min_signal = std::max<uint16_t>(1, static_cast<uint16_t>(height / MIN_SIGNAL_DIVISOR));
+  const uint16_t min_peak = static_cast<uint16_t>(height / MIN_PEAK_DIVISOR);
+  const int min_width = std::max(MIN_WIDTH_FLOOR, height / MIN_WIDTH_DIVISOR);
   float confidence_sum = 0.0f;
   uint8_t recognised = 0;
   int run_start = -1;
@@ -97,7 +112,7 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
         continue;
 
       float confidence = 0.0f;
-      const bool narrow = digit_width * 3 < height;
+      const bool narrow = digit_width * NARROW_DIVISOR < height;
       const int image_stride = width;
       const int8_t digit = narrow ? recognize_narrow(image + digit_x, digit_width, height, image_stride, confidence)
                                   : recognize_digit(image + digit_x, this->column_sums_.get() + digit_x, digit_width,
@@ -127,8 +142,8 @@ int8_t SevenSegmentOCR::recognize_narrow(const uint8_t *image, int digit_width, 
   for (uint8_t half = 0; half < 2; half++) {
     const int probe_y = half == 0 ? height / 3 : (2 * height) / 3;
     const float ratio = probe_ratio(image, digit_width, height, image_stride, probe_x, probe_y);
-    margin += std::abs(ratio - 0.5f) * 2.0f;
-    if (ratio <= 0.5f)
+    margin += std::abs(ratio - LIT_RATIO) * 2.0f;
+    if (ratio <= LIT_RATIO)
       complete = false;
   }
   confidence = margin / 2.0f;
@@ -171,15 +186,15 @@ int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *co
 
   uint8_t mask = 0;
   float margin = 0.0f;
-  for (uint8_t i = 0; i < 7; i++) {
-    const int probe_y = static_cast<int>(progmem_read_byte(&PROBE_Y[i])) * height / 255;
+  for (uint8_t i = 0; i < SEGMENT_COUNT; i++) {
+    const int probe_y = static_cast<int>(progmem_read_byte(&PROBE_Y[i])) * height / PROBE_SCALE;
     const int probe_x = (i == 1 || i == 2) ? right_x : ((i == 4 || i == 5) ? left_x : digit_width / 2);
     const float ratio = probe_ratio(image, digit_width, height, image_stride, probe_x, probe_y);
-    margin += std::abs(ratio - 0.5f) * 2.0f;
-    if (ratio > 0.5f)
+    margin += std::abs(ratio - LIT_RATIO) * 2.0f;
+    if (ratio > LIT_RATIO)
       mask |= static_cast<uint8_t>(1 << i);
   }
-  confidence = margin / 7.0f;
+  confidence = margin / static_cast<float>(SEGMENT_COUNT);
   for (uint8_t i = 0; i < 10; i++) {
     if (progmem_read_byte(&DIGIT_MASKS[i]) == mask)
       return static_cast<int8_t>(i);
