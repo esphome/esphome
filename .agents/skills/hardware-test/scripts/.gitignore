@@ -3,7 +3,13 @@
 __pycache__/
 ac_dimmer/*.txt
 api/overflow/putbe-sensors.yaml
+api_client_synced/*.txt
+api_client_synced/client-synced-*.yaml
 apikey.txt
+app_lists/*-dump.txt
+app_lists/*-events.txt
+app_lists/*-list.json
+app_lists/*-root.html
 ble_adv_triggers/rxbk72xx*.yaml
 ble_adv_triggers/rxesp32*.yaml
 ble_conn_interval/*.err
@@ -30,6 +36,8 @@ climate_ir_loop/*-*.txt
 climate_ir_loop/*-frames.json
 climate_ir_loop/whirlpool/w??base.yaml
 climate_ir_loop/whirlpool/w??pr.yaml
+display_recorder/*.png
+display_recorder/*.txt
 esp8266_edges/*-cap.txt
 esp8266_edges/*.log
 esp8266_flash_prefs/*-api.txt
@@ -54,6 +62,7 @@ i2c_wire_ab/*/*-ser*.txt
 i2c_wire_ab/*/*-upload.log
 i2c_wire_ab/mux/*-ser*.txt*
 i2c_wire_ab/mux/*.log
+improv/*-stress.bin
 improv/*.log
 interval/ivl*.yaml
 ld2420_sim/ldenergy*.yaml
@@ -66,6 +75,11 @@ log_str_tables/*-cap.txt
 log_str_tables/*.log
 log_str_tables/*.norm
 log_str_tables/l[0-9][pbq]*.yaml
+lvgl_snapshot/*.png
+lvgl_snapshot/*.txt
+lzss_link/*.err
+lzss_link/*.log
+lzss_link/lz*.yaml
 modem/*.log
 modem/*.txt
 mqtt/dns_boot/*.err
@@ -128,6 +142,8 @@ uart_button/uartbtn*.yaml
 uart_parity/*.txt
 uart_sim/pms_feed/*.log
 uart_sim/pms_feed/*.txt
+uart_sim/virtual_uart/*.log
+uart_sim/virtual_uart/*.states
 value_range/rng*.yaml
 vl6180x/*.log
 vl6180x/ext/
@@ -151,3 +167,7 @@ xiaomi_ble/expected_all.json
 xiaomi_ble/frames_all.hpp
 xiaomi_ble/run_*.yaml
 xiaomi_ble/xball_entities.yaml
+zigbee_coord/*.log
+zigbee_coord/int-*.json
+zigbee_coord/*.txt
+zigbee_coord/coord.fifo
