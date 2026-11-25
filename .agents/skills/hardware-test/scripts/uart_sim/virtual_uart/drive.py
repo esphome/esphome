@@ -1,6 +1,7 @@
 """drive.py HOST SECONDS OUT: API log and state capture for the virtual_uart harness.
 
-Writes OUT.log (every log line) and OUT.states (one line per state update) and prints a summary per entity.
+Writes OUT.log (every log line) and OUT.states (one line per state update) and prints a summary per entity; exits 1
+when no state update arrived.
 """
 
 import asyncio
@@ -46,10 +47,12 @@ async def main() -> None:
         except TimeoutError:
             lost = ""
             await c.disconnect()
-    for n in sorted(counts):
-        print(f"{n}: {counts[n]} updates, last {last[n]}")
+    for n in sorted(set(names.values()) | set(counts)):
+        print(f"{n}: {counts.get(n, 0)} updates, last {last.get(n)}")
     if lost:
         sys.exit(lost)
+    if not counts:
+        sys.exit("no state updates")
 
 
 asyncio.run(main())
