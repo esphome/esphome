@@ -30,6 +30,7 @@ from esphome.types import ConfigType
 from . import schema as _schema
 from .schema import (
     CONF_ON_RESULT,
+    CONF_PIPELINE_ID,
     CONF_TENSOR_ARENA_SIZE,
     PER_MODEL_SCHEMA,
     TFLiteMicroHelper,
@@ -65,6 +66,8 @@ DEPENDENCIES = _schema.DEPENDENCIES + ["tflite_model_source"]
 
 # Re-exported for consumers which reference the runtime class through this component.
 __all__ = [
+    "CONF_PIPELINE_ID",
+    "CONF_TENSOR_ARENA_SIZE",
     "TFLiteMicroHelper",
     "CONFIG_SCHEMA",
     "FINAL_VALIDATE_SCHEMA",

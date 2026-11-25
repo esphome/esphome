@@ -51,8 +51,9 @@ TFLiteMicroHelper::LockGuard::LockGuard(TFLiteMicroHelper *helper, bool wait) : 
   if (this->helper_->lock_owner_.load(std::memory_order_relaxed) == current) {
     // A log emitted under the lock can run logger.on_message automations that call
     // back into the helper; blocking here would deadlock the main task.
-    if (!this->helper_->reentry_reported_.exchange(true, std::memory_order_relaxed))
+    if (!this->helper_->reentry_reported_.exchange(true, std::memory_order_relaxed)) {
       ESP_LOGE(TAG, "A log callback re-entered the runtime; rejecting the nested call");
+    }
     return;
   }
   if (wait) {
@@ -368,8 +369,9 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
       this->last_result_ = ProcessedOutput{0.0f, 0.0f, false};
     } else {
       this->last_result_ = this->model_handler_.process_output(output);
-      if (!this->last_result_.valid)
+      if (!this->last_result_.valid) {
         ESP_LOGD(TAG, "The output type has no classification mapping; get_last_result() is invalid");
+      }
     }
   }
   return true;
