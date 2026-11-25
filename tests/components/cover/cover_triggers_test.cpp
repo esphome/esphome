@@ -72,13 +72,19 @@ static bool is_closed(const Cover &cover) { return cover.position == COVER_CLOSE
 template<CoverOperation OP> static bool is_in(const Cover &cover) { return cover.current_operation == OP; }
 
 // The check codegen emits for each on_opened, on_closed, on_opening, on_closing and on_idle automation.
+// Codegen keeps the flag in a static; one context per test automation keeps the callback capture inline.
+struct StateAutomation {
+  Cover *cover;
+  Automation<> automation;
+  bool seen{false};
+};
+
 template<InState T> static void attach(Cover *cover, Action<> *action) {
-  auto *automation = new Automation<>();  // NOLINT(cppcoreguidelines-owning-memory)
-  automation->add_action(action);
-  auto *seen = new bool(false);  // NOLINT(cppcoreguidelines-owning-memory)
-  cover->add_on_state_callback([cover, automation, seen]() {
-    if (state_entered(*seen, T(*cover)))
-      automation->trigger();
+  auto *ctx = new StateAutomation{cover, {}, false};  // NOLINT(cppcoreguidelines-owning-memory)
+  ctx->automation.add_action(action);
+  cover->add_on_state_callback([ctx]() {
+    if (state_entered(ctx->seen, T(*ctx->cover)))
+      ctx->automation.trigger();
   });
 }
 
