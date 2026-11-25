@@ -44,10 +44,6 @@ struct AcDimmerDataStore {
   uint8_t edge_next : 1;
   /// The gate went on at enable_time_us in this half cycle
   uint8_t gate_fired : 1;
-  /// The last edge followed (not a gate noise confirm) was late beyond `close`
-  uint8_t late_last : 1;
-  /// The same for the edge followed before it
-  uint8_t late_before : 1;
   /// Set to send the first half cycle complete; written from the main loop, so not in a bit field
   bool init_cycle;
   /// Edges followed by only `close` while far early, each undone by a late edge (capped)

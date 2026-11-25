@@ -350,10 +350,9 @@ TEST(AcDimmerTimerTest, AlternatingJitterGateOnTickTimer) {
   EXPECT_LE(hi, 80);
 }
 
-// ESP32-C3 at 60 Hz: the detector alternates 250 µs early and late, and each edge is served up to 50 µs late. The late
-// edges then come beyond `close` of a prediction resting on the early ones; a lone late edge between edges that were
-// not late still pulls it back, so the gate stays in the middle.
-TEST(AcDimmerTimerTest, AlternatingJitterWithLatencyStaysCentredAt60Hz) {
+// ESP32-C3 at 60 Hz: the detector alternates 250 µs early and late, and each edge is served up to 50 µs late. The
+// prediction may rest on the early edges, so the gate can come up to about 250 µs early, but never past the crossing.
+TEST(AcDimmerTimerTest, AlternatingJitterWithLatencyNeverPassesTheCrossingAt60Hz) {
   for (uint32_t step : {17U, 23U}) {
     AcDimmerDataStore store{};
     store.value = 32768;  // the gate is due 4166 µs after the crossing
@@ -367,9 +366,30 @@ TEST(AcDimmerTimerTest, AlternatingJitterWithLatencyStaysCentredAt60Hz) {
       if (at < 2000000)
         continue;
       const int32_t err = static_cast<int32_t>((at - 1000) % 8333) - 4166;
-      EXPECT_GE(err, -60) << step << " pulse at " << at;
+      EXPECT_GE(err, -320) << step << " pulse at " << at;
       EXPECT_LE(err, 150) << step << " pulse at " << at;
     }
+  }
+}
+
+// One edge in five served 0.8 to 1.5 ms late, as WiFi does on the ESP8266: at 2 % no gate fires after the crossing,
+// where the triac would conduct for most of the next half cycle
+TEST(AcDimmerTimerTest, RandomServedLateEdgesNeverFireAfterTheCrossing) {
+  for (uint32_t seed : {1U, 777U, 9001U, 4242U}) {
+    AcDimmerDataStore store{};
+    store.value = 1311;  // 2 %, no minimum power
+    Bench bench(store, 1000);
+    uint32_t rng = seed;
+    uint32_t crossing = 1000;
+    for (int i = 0; i < 3000; i++, crossing += 10000) {
+      rng = rng * 1664525U + 1013904223U;
+      const uint32_t late = (rng >> 24) < 51 ? 800 + (rng >> 8) % 701 : 0;
+      bench.edge(crossing + late);
+    }
+    bench.run_until(crossing);
+    ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << seed;
+    for (uint32_t at : bench.gate_on)
+      EXPECT_FALSE(in_next_half_cycle(at, 1000, 10000)) << seed << " pulse at " << at;
   }
 }
 

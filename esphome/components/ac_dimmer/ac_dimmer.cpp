@@ -197,8 +197,6 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   this->edge_next = true;
   this->early_steps = 0;
   this->gate_edges = 0;
-  this->late_last = false;
-  this->late_before = false;
   this->phase = ZERO_CROSS_PHASE_LOCKED;
 }
 
@@ -222,17 +220,13 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now, const AcDimmerDat
   } else {
     this->gate_edges = 0;
     // Mains timing is steady, so follow slowly, by at most `close` per edge. An edge late beyond `close` may only have
-    // been served late: it only undoes an earlier step made by an edge far early, or counts as `close` when it sits
-    // between edges that were not late, as with a detector whose edges alternate early and late around the crossing.
+    // been served late: it only undoes an earlier step made by an edge far early.
     const int32_t close = this->period / 24;
-    const bool late = err > close;
     int32_t move = std::max(err, -close);
-    if (late) {
+    if (err > close) {
       move = 0;
       if (this->early_steps != 0) {
         this->early_steps--;
-        move = close;
-      } else if (this->late_before && !this->late_last) {
         move = close;
       }
     } else if (err < -close) {
@@ -241,8 +235,6 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now, const AcDimmerDat
     } else if (err >= 0) {
       this->early_steps = 0;
     }
-    this->late_before = this->late_last;
-    this->late_last = late;
     this->zc_at += move / 4;
     this->period += move / 16;
   }
