@@ -624,16 +624,19 @@ def _effects_table(effects: list[MockObj]) -> MockObj:
     )
 
 
-_REMOTE_VALUES_AUTOMATIONS = (
+# Built in this order, as the Trigger objects were, so a lambda can name an earlier automation
+_TRIGGER_AUTOMATIONS = (
     auto.GroupedAutomation(
         CONF_ON_TURN_ON,
         lambda light: light.remote_values.is_on(),
         auto.filter_entered,
     ),
+    auto.GroupedAutomation(
+        CONF_ON_TURN_OFF,
+        when="!{parent}->current_values.is_on()",
+        callback_method="add_target_state_reached_callback",
+    ),
     auto.GroupedAutomation(CONF_ON_STATE),
-)
-_TARGET_STATE_REACHED_AUTOMATIONS = (
-    auto.GroupedAutomation(CONF_ON_TURN_OFF, when="!{parent}->current_values.is_on()"),
 )
 
 
@@ -713,13 +716,7 @@ async def setup_light_core_(light_var, config, output_var):
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
     await auto.build_grouped_callback_automations(
-        light_var, config, "add_remote_values_callback", _REMOTE_VALUES_AUTOMATIONS
-    )
-    await auto.build_grouped_callback_automations(
-        light_var,
-        config,
-        "add_target_state_reached_callback",
-        _TARGET_STATE_REACHED_AUTOMATIONS,
+        light_var, config, "add_remote_values_callback", _TRIGGER_AUTOMATIONS
     )
 
     if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:

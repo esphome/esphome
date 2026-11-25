@@ -2094,6 +2094,44 @@ async def test_grouped_automations_take_python_types(mock_cg: MockCodegen) -> No
     assert "static bool light_on_turn_on_0_last;" in definition
 
 
+@pytest.mark.asyncio
+async def test_grouped_automations_build_in_entry_order_across_lists(
+    mock_cg: MockCodegen,
+) -> None:
+    """Entries on another list are built in entry order; each list is registered once."""
+    entries = (
+        ON_TURN_ON,
+        GroupedAutomation(
+            "on_turn_off", callback_method="add_target_state_reached_callback"
+        ),
+        GroupedAutomation("on_state"),
+    )
+    config = {
+        "on_turn_on": [_conf(1)],
+        "on_turn_off": [_conf(2)],
+        "on_state": [_conf(3)],
+    }
+    await build_grouped_callback_automations(
+        LIGHT, config, "add_remote_values_callback", entries
+    )
+    built = [
+        call.args[0].id
+        for call in mock_cg.new_pvariable.call_args_list
+        if str(call.args[0].id).startswith("automation_")
+    ]
+    assert built == ["automation_1", "automation_2", "automation_3"]
+    registrations = [_squash(call.args[0]) for call in mock_cg.add.call_args_list]
+    assert registrations == [
+        "light->add_remote_values_callback(esphome__light__remote_values_callback)",
+        "light->add_target_state_reached_callback(esphome__automation_2__fn)",
+    ]
+    remote = _definition(mock_cg, "esphome__light__remote_values_callback")
+    assert remote.index("esphome__automation_1__fn") < remote.index(
+        "esphome__automation_3__fn"
+    )
+    assert "esphome__automation_2__fn" not in remote
+
+
 def test_grouped_automation_filter_needs_watched() -> None:
     """A filter without a watched value is rejected when the table is built."""
     with pytest.raises(ValueError, match="on_x: a filter needs a watched value"):

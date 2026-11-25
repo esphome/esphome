@@ -2516,7 +2516,8 @@ class GroupedAutomation:
     ``watched`` gets the parent as ``parent_ref`` names it and returns the value ``filter`` reads, of
     ``last_type``; with ``args`` the automation receives ``forwarded`` of the parent, or that value.
     ``when`` is a further filter that keeps nothing and may name ``{parent}``; it is tested after
-    ``filter``, which always runs.
+    ``filter``, which always runs. ``callback_method`` registers the entry on another list than the
+    builder's.
     """
 
     conf_key: str
@@ -2526,6 +2527,7 @@ class GroupedAutomation:
     args: TemplateArgsType = field(default_factory=list)
     when: str | ApplyCall | None = None
     forwarded: Callable[[MockObj], Expression] | None = None
+    callback_method: str | None = None
 
     def __post_init__(self) -> None:
         if self.filter is not None and self.watched is None:
@@ -2538,16 +2540,21 @@ async def build_grouped_callback_automations(
     callback_method: str,
     entries: tuple[GroupedAutomation, ...],
 ) -> None:
-    """Register every automation of ``entries`` on ``parent.<callback_method>`` as one callback.
+    """Register the automations of ``entries`` as one callback per list, by default ``callback_method``.
 
-    The callback takes no arguments and runs the automations in entry order. An automation with a
-    ``filter`` keeps the last value it saw in a zero-initialised static of its own, so each behaves
-    like a Trigger object holding that value. A single automation without one is registered as is.
+    The automations are built in entry order, so a lambda can name an automation of an earlier
+    entry. Each callback takes no arguments and runs its automations in entry order. An automation
+    with a ``filter`` keeps the last value it saw in a zero-initialised static of its own, so each
+    behaves like a Trigger object holding that value. A single automation without one is registered
+    as is.
     """
     ref = parent_ref(parent)
-    statics: list[Statement] = []
-    body: list[Statement] = []
+    # Per list: its statics, its body and the last automation's function
+    groups: dict[str, tuple[list[Statement], list[Statement], list[MockObj]]] = {}
     for entry in entries:
+        statics, body, targets = groups.setdefault(
+            entry.callback_method or callback_method, ([], [], [])
+        )
         value = None if entry.watched is None else entry.watched(ref)
         handed = value if entry.forwarded is None else entry.forwarded(ref)
         last_type = cg.safe_exp(entry.last_type)
@@ -2560,6 +2567,7 @@ async def build_grouped_callback_automations(
                 when=entry.when,
                 parent=parent,
             )
+            targets.append(target)
             run = cg.statement(MockObj(target)())
             if entry.filter is None:
                 body.append(run)
@@ -2577,19 +2585,20 @@ async def build_grouped_callback_automations(
             )
             # No statement builder for if
             body.append(cg.RawStatement(f"if ({entry.filter(last, value)})\n  {run}"))
-    if not body:
-        return
-    if not statics and len(body) == 1:
-        callback = target
-    else:
-        callback = cg.shared_static_function(
-            f"esphome__{parent}__{callback_method.removeprefix('add_')}",
-            cg.void,
-            [],
-            statics + body,
-            share=False,
-        )
-    cg.add(getattr(parent, callback_method)(callback))
+    for method, (statics, body, targets) in groups.items():
+        if not body:
+            continue
+        if not statics and len(body) == 1:
+            callback = targets[0]
+        else:
+            callback = cg.shared_static_function(
+                f"esphome__{parent}__{method.removeprefix('add_')}",
+                cg.void,
+                [],
+                statics + body,
+                share=False,
+            )
+        cg.add(getattr(parent, method)(callback))
 
 
 @dataclass(frozen=True, slots=True)
