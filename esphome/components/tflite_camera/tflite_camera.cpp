@@ -49,7 +49,8 @@ void TFLiteCamera::on_camera_image(const std::shared_ptr<camera::CameraImage> &i
   // pipeline must sample; a camera frame size configured at build time would
   // not match it.
   if (!this->runtime_->run(buffer->get_data_buffer(), buffer->get_data_length(), spec.width, spec.height))
-    ESP_LOGW(TAG, "Inference failed");
+    // run() logs the reason; a frame dropped while a result is pending is routine at camera rates.
+    ESP_LOGD(TAG, "Inference skipped or failed");
 }
 
 }  // namespace esphome::tflite_camera
