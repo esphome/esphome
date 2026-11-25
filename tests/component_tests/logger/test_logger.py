@@ -363,9 +363,20 @@ def test_default_global_and_boot_log_levels(
 @pytest.mark.parametrize(
     ("config", "expected"),
     [
-        pytest.param({"logger": {"id": "log", "logs": {}}}, True, id="not_set_by_user"),
         pytest.param(
-            {"logger": {"id": "log", "logs": {"lib": "DEBUG"}}}, False, id="set_by_user"
+            {"logger": {"id": "log", "level": "DEBUG", "logs": {}}},
+            True,
+            id="not_set_by_user",
+        ),
+        pytest.param(
+            {"logger": {"id": "log", "level": "DEBUG", "logs": {"lib": "DEBUG"}}},
+            False,
+            id="set_by_user",
+        ),
+        pytest.param(
+            {"logger": {"id": "log", "level": "WARN", "logs": {}}},
+            False,
+            id="logger_level_already_drops_it",
         ),
         pytest.param({}, False, id="no_logger"),
     ],

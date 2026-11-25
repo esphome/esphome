@@ -882,8 +882,14 @@ async def request_tag_log_level(tag: str, level: str) -> None:
     """Set the log level of `tag` unless `logger: logs:` sets it; call from to_code.
 
     For libraries that log too much and cannot be filtered at build time, such as prebuilt ESP-IDF libraries.
+    Does nothing when the logger's own level already drops those messages.
     """
-    if (config := CORE.config.get(DOMAIN)) is None or tag in config[CONF_LOGS]:
+    if (
+        (config := CORE.config.get(DOMAIN)) is None
+        or tag in config[CONF_LOGS]
+        or LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+        <= LOG_LEVEL_SEVERITY.index(level)
+    ):
         return
     cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
     log = await cg.get_variable(config[CONF_ID])
