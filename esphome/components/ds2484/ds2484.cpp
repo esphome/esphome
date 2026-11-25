@@ -14,7 +14,10 @@ void DS2484OneWireBus::dump_config() {
 }
 
 bool DS2484OneWireBus::read_status_(uint8_t *status) {
-  for (uint8_t retry_nr = 0; retry_nr < 10; retry_nr++) {
+  // Deadline checked before the read, so a wait preempted past it still ends on a fresh read.
+  const uint32_t start = micros();
+  for (;;) {
+    const bool expired = micros() - start >= BUSY_TIMEOUT_US;
     if (this->read(status, 1) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "read status error");
       return false;
@@ -23,8 +26,10 @@ bool DS2484OneWireBus::read_status_(uint8_t *status) {
     if (!(*status & 1)) {
       return true;
     }
+    if (expired)
+      break;
   }
-  ESP_LOGE(TAG, "read status error: too many retries");
+  ESP_LOGE(TAG, "read status error: busy after %" PRIu32 " us", BUSY_TIMEOUT_US);
   return false;
 }
 
