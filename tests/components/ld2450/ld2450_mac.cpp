@@ -35,7 +35,7 @@ TEST_F(LD2450MacAckTest, BluetoothOffAckClearsStoredMac) {
   ASSERT_EQ(this->mac_str_(), "81:2C:62:BE:C9:96");
 
   this->ld2450_.feed(make_mac_ack(ld24xx::NO_MAC));
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   EXPECT_FALSE(this->ld2450_.bluetooth_on_);
   EXPECT_THAT(this->ld2450_.mac_address_, ::testing::Each(0));
 }

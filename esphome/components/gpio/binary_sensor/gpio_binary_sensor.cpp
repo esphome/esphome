@@ -12,9 +12,6 @@ ESPHOME_LOG_TAG(TAG, "gpio.binary_sensor");
 // indices 1-3: RISING_EDGE, FALLING_EDGE, ANY_EDGE; other values (e.g. level-triggered) map to UNKNOWN (index 0).
 PROGMEM_STRING_TABLE(InterruptTypeStrings, "UNKNOWN", "RISING_EDGE", "FALLING_EDGE", "ANY_EDGE");
 
-static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
-  return InterruptTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
-}
 #endif
 #endif
 
@@ -60,7 +57,7 @@ void GPIOBinarySensor::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "  Mode: interrupt\n"
                   "  Interrupt Type: %s",
-                  LOG_STR_ARG(interrupt_type_to_string(this->store_.interrupt_type_)));
+                  LOG_STR_ARG(InterruptTypeStrings::get_log_str(this->store_.interrupt_type_, 0)));
     return;
   }
 #endif

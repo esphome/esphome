@@ -1,0 +1,24 @@
+esphome:
+  name: ${name}
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+i2c:
+  id: bus
+  sda: GPIO4
+  scl: GPIO5
+  scan: false
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          const uint8_t r1[2] = {0x00, 0x1E}; uint8_t off[2] = {0, 0};
+          auto e1 = id(bus).write_readv(0x29, r1, 2, off, 2);
+          const uint8_t r2[2] = {0x00, 0x60}; uint8_t d[0x22] = {0};
+          auto e2 = id(bus).write_readv(0x29, r2, 2, d, sizeof(d));
+          char hex[3 * sizeof(d) + 1]; int p = 0;
+          for (auto b : d) p += snprintf(hex + p, sizeof(hex) - p, "%02X ", b);
+          ESP_LOGI("regs", "err=%d/%d SIGRATE(0x0066)=0x%02X%02X OFFSET(0x001E)=0x%02X%02X ROI_CENTRE(0x007F)=0x%02X ROI_XY(0x0080)=0x%02X",
+                   (int) e1, (int) e2, d[6], d[7], off[0], off[1], d[0x1F], d[0x20]);
+          ESP_LOGI("regs", "0x0060..0x0081: %s", hex);
