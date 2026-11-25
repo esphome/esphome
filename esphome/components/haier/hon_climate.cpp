@@ -41,7 +41,8 @@ constexpr int PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET = -64;
 constexpr uint8_t CONTROL_MESSAGE_RETRIES = 5;
 constexpr std::chrono::milliseconds CONTROL_MESSAGE_RETRIES_INTERVAL = std::chrono::milliseconds(500);
 constexpr size_t ALARM_STATUS_REQUEST_INTERVAL_MS = 600000;
-constexpr size_t ACTIVE_ALARMS_TEXT_BUFFER_SIZE = 256;
+// The 255 character state limit, the terminator and one byte to tell a cut text from an exact fit
+constexpr size_t ACTIVE_ALARMS_TEXT_BUFFER_SIZE = 257;
 const uint8_t ONE_BUF[] = {0x00, 0x01};
 const uint8_t ZERO_BUF[] = {0x00, 0x00};
 
@@ -854,14 +855,18 @@ void HonClimate::publish_alarm_entities_() {
         continue;
       if (pos != 0)
         pos = buf_append_str(alarm_text, sizeof(alarm_text), pos, ", ");
-      pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos,
-                             reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code)));
+      if (code < HonAlarmMessages::LAST_INDEX) {
+        pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos,
+                               reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code)));
+      } else {
+        pos = buf_append_printf(alarm_text, sizeof(alarm_text), pos, "Unknown(%zu)", code);
+      }
     }
     if (pos == 0) {
       buf_append_str(alarm_text, sizeof(alarm_text), 0, "No alarm");
     } else if (pos >= sizeof(alarm_text) - 1) {
-      // Cut off by the buffer
-      memcpy(alarm_text + sizeof(alarm_text) - 4, "...", 4);
+      // Longer than the state limit: the buffer has one spare byte, so an exact fit is not cut
+      memcpy(alarm_text + sizeof(alarm_text) - 5, "...", 4);
     }
     this->update_sub_text_sensor_(SubTextSensorType::ACTIVE_ALARMS_TEXT, alarm_text);
   }
