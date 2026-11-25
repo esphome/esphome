@@ -40,24 +40,36 @@ static constexpr uint32_t CAPTURE_RETRY_DELAY_MS = 100;
 void MipiCsiCamera::setup() {
   setup_output_pin(this->power_pin_, true);
   // Sensors need their clock running while they come out of reset
-  if (!this->start_external_clock_())
-    return this->fail_(LOG_STR("Failed to start external clock"));
+  if (!this->start_external_clock_()) {
+    this->fail_(LOG_STR("Failed to start external clock"));
+    return;
+  }
   pulse_reset(this->reset_pin_, {.low_ms = 10, .high_after_ms = 20});
-  if (!this->init_video_())
-    return this->fail_(LOG_STR("Failed to initialize video pipeline"));
+  if (!this->init_video_()) {
+    this->fail_(LOG_STR("Failed to initialize video pipeline"));
+    return;
+  }
   const size_t frame_size = this->configure_device_();
-  if (frame_size == 0)
-    return this->fail_(LOG_STR("Failed to configure video device"));
+  if (frame_size == 0) {
+    this->fail_(LOG_STR("Failed to configure video device"));
+    return;
+  }
 
   this->reusable_image_ = std::make_shared<MipiCsiImage>();
   this->result_queue_ = xQueueCreate(1, sizeof(size_t));
-  if (this->result_queue_ == nullptr)
-    return this->fail_(LOG_STR("Failed to create frame queue"));
-  if (!this->start_streaming_(frame_size))
-    return this->fail_(LOG_STR("Failed to start video stream"));
+  if (this->result_queue_ == nullptr) {
+    this->fail_(LOG_STR("Failed to create frame queue"));
+    return;
+  }
+  if (!this->start_streaming_(frame_size)) {
+    this->fail_(LOG_STR("Failed to start video stream"));
+    return;
+  }
   if (xTaskCreatePinnedToCore(&MipiCsiCamera::capture_task, "mipi_csi", CAPTURE_TASK_STACK_SIZE, this,
-                              CAPTURE_TASK_PRIORITY, nullptr, CAPTURE_TASK_CORE) != pdPASS)
-    return this->fail_(LOG_STR("Failed to start capture task"));
+                              CAPTURE_TASK_PRIORITY, nullptr, CAPTURE_TASK_CORE) != pdPASS) {
+    this->fail_(LOG_STR("Failed to start capture task"));
+    return;
+  }
 }
 
 bool MipiCsiCamera::start_external_clock_() {
