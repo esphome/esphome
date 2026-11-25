@@ -42,6 +42,9 @@ static constexpr int32_t MAX_EDGE_LATENCY_US = 1500;
 static constexpr int32_t GATE_OFF_MARGIN_US = 100;
 /// An edge this soon after the gate goes on is noise from the triac firing
 static constexpr uint32_t GATE_NOISE_US = 50;
+/// Leading edge: the gate goes on at least this long after the predicted crossing, so an edge served a little late
+/// comes before it and not in its noise window
+static constexpr uint32_t MIN_ENABLE_TIME_US = 100;
 #ifdef USE_ESP32
 /// The zero-cross interrupt runs at a higher level than the timer and updates the same timing
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -109,12 +112,16 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step(uint32_t now) {
   uint32_t next = period - since;
   if (this->value != 65535 && this->value != 0) {
     if (!this->gate_fired && this->enable_time_us != 0 && since >= this->enable_time_us) {
-      this->gate_fired = true;
       // A late timer does not start a pulse that could last past the crossing: the triac would stay on
       if (since + static_cast<int32_t>(GATE_ENABLE_TIME) + GATE_OFF_MARGIN_US < period) {
         this->gate_pin.digital_write(true);
+        this->gate_fired = true;
+        // When it really went on, for the gate noise check; the timer can run up to a tick late
+        this->enable_time_us = since;
         // Prevent too short pulses
         this->disable_time_us = std::max<int32_t>(this->disable_time_us, since + GATE_ENABLE_TIME);
+      } else {
+        this->enable_time_us = 0;
       }
     }
     if (this->disable_time_us != 0 && since >= this->disable_time_us) {
@@ -131,9 +138,15 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step(uint32_t now) {
   return next;
 }
 
-void IRAM_ATTR HOT AcDimmerDataStore::zero_cross_edge(uint32_t now) {
+bool IRAM_ATTR HOT AcDimmerDataStore::gate_noise_at(uint32_t now) const {
+  // With the trailing method the gate goes on at the crossing
+  return this->phase == ZERO_CROSS_PHASE_LOCKED && this->gate_fired && this->method != DIM_METHOD_TRAILING &&
+         now - this->zc_at - this->enable_time_us < GATE_NOISE_US;
+}
+
+void IRAM_ATTR HOT AcDimmerDataStore::zero_cross_edge(uint32_t now, const AcDimmerDataStore *noise_from) {
   if (this->phase == ZERO_CROSS_PHASE_LOCKED) {
-    this->track_edge(now);
+    this->track_edge(now, noise_from);
   } else {
     this->acquire_edge(now);
   }
@@ -184,10 +197,12 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   this->edge_next = true;
   this->early_steps = 0;
   this->gate_edges = 0;
+  this->late_last = false;
+  this->late_before = false;
   this->phase = ZERO_CROSS_PHASE_LOCKED;
 }
 
-void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
+void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now, const AcDimmerDataStore *noise_from) {
   // The edge belongs to the crossing at zc_at (served after the timer started it) or the one at zc_at + period
   const bool next = static_cast<int32_t>(now - this->zc_at) > this->period / 2;
   const int32_t err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
@@ -197,24 +212,27 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
   // The first edge of a crossing is taken, later ones are ignored
   if (next ? this->edge_next : this->edge_now)
     return;
-  // Noise from the gate going on is not a crossing; with the trailing method the gate goes on at the crossing
-  if (this->gate_fired && this->method != DIM_METHOD_TRAILING &&
-      now - this->zc_at - this->enable_time_us < GATE_NOISE_US) {
+  // Noise from a gate going on is not a crossing
+  if (noise_from != nullptr) {
     // A gate this close to the crossing can hide the crossing itself: the edge confirms it without moving the timing,
     // so noise alone keeps the lock only for a few more half cycles
-    if (this->period - this->enable_time_us > this->period / 32 || this->gate_edges == 7)
+    if (noise_from->period - noise_from->enable_time_us > noise_from->period / 32 || this->gate_edges == 7)
       return;
     this->gate_edges++;
   } else {
     this->gate_edges = 0;
     // Mains timing is steady, so follow slowly, by at most `close` per edge. An edge late beyond `close` may only have
-    // been served late: it only undoes an earlier step made by an edge far early.
+    // been served late: it only undoes an earlier step made by an edge far early, or counts as `close` when it sits
+    // between edges that were not late, as with a detector whose edges alternate early and late around the crossing.
     const int32_t close = this->period / 24;
+    const bool late = err > close;
     int32_t move = std::max(err, -close);
-    if (err > close) {
+    if (late) {
       move = 0;
       if (this->early_steps != 0) {
         this->early_steps--;
+        move = close;
+      } else if (this->late_before && !this->late_last) {
         move = close;
       }
     } else if (err < -close) {
@@ -223,6 +241,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
     } else if (err >= 0) {
       this->early_steps = 0;
     }
+    this->late_before = this->late_last;
+    this->late_last = late;
     this->zc_at += move / 4;
     this->period += move / 16;
   }
@@ -234,9 +254,10 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
 }
 
 /// GPIO interrupt routine, called when ZC pin triggers
-void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr([[maybe_unused]] uint32_t now) {
+void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr([[maybe_unused]] uint32_t now,
+                                                [[maybe_unused]] const AcDimmerDataStore *noise_from) {
 #if defined(USE_ESP8266) || defined(USE_ESP32)
-  this->zero_cross_edge(now);
+  this->zero_cross_edge(now, noise_from);
 #else
   // No dimmer timer on this platform: only fully on and fully off work, switched at the crossing
   if (this->value == 65535) {
@@ -271,7 +292,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::start_half_cycle() {
     } else {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
       // also take into account min_power
-      this->enable_time_us = std::max<uint32_t>(1, ((65535 - this->value) * (period - min_us)) / 65535);
+      this->enable_time_us =
+          std::max<uint32_t>(MIN_ENABLE_TIME_US, ((65535 - this->value) * (period - min_us)) / 65535);
 
       // A gate still on from the last half cycle (a pulse that started just before the crossing) would fire
       // this one at full power
@@ -293,11 +315,19 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
   // We solve this in a bit of a hacky way: On each pin interrupt, we check all dimmers
   // if any of them are using the same ZC pin, and also trigger the interrupt for *them*.
   const uint32_t now = micros();
+  // The detector also picks up the other dimmers' gates: noise after any of them is no crossing
+  const AcDimmerDataStore *noise_from = nullptr;
+  for (auto *dimmer : all_dimmers) {
+    if (dimmer == nullptr)
+      break;
+    if (dimmer->zero_cross_pin_number == store->zero_cross_pin_number && dimmer->gate_noise_at(now))
+      noise_from = dimmer;
+  }
   for (auto *dimmer : all_dimmers) {
     if (dimmer == nullptr)
       break;
     if (dimmer->zero_cross_pin_number == store->zero_cross_pin_number) {
-      dimmer->gpio_intr(now);
+      dimmer->gpio_intr(now, noise_from);
     }
   }
 #ifdef USE_ESP8266

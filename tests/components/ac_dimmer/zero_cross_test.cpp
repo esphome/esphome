@@ -20,7 +20,7 @@ class Bench {
 
   void edge(uint32_t at) {
     this->run_until(at);
-    this->store_.zero_cross_edge(at);
+    this->feed(at);
     if (this->tick_ == 0)
       this->timer_at_ = at + 2;
   }
@@ -36,17 +36,19 @@ class Bench {
       this->gate_on.push_back(now);
       const uint32_t noise = now + this->gate_noise_;
       if (this->gate_noise_ != 0 && static_cast<int32_t>(at - noise) >= 0) {
-        this->store_.zero_cross_edge(noise);
+        this->feed(noise);
         if (this->tick_ == 0)
           this->timer_at_ = noise + 2;
       }
     }
   }
 
-  /// Times the gate was switched on (the timer always runs on time here, so a due pulse always starts)
+  /// Times the gate was switched on
   std::vector<uint32_t> gate_on;
 
  protected:
+  void feed(uint32_t at) { this->store_.zero_cross_edge(at, this->store_.gate_noise_at(at) ? &this->store_ : nullptr); }
+
   AcDimmerDataStore &store_;
   uint32_t timer_at_;
   uint32_t gate_noise_;
@@ -346,13 +348,96 @@ TEST(AcDimmerTimerTest, AlternatingJitterGateOnTickTimer) {
   EXPECT_LE(hi, 80);
 }
 
+// ESP32-C3 at 60 Hz: the detector alternates 250 µs early and late, and each edge is served up to 50 µs late. The late
+// edges then come beyond `close` of a prediction resting on the early ones; a lone late edge between edges that were
+// not late still pulls it back, so the gate stays in the middle.
+TEST(AcDimmerTimerTest, AlternatingJitterWithLatencyStaysCentredAt60Hz) {
+  for (uint32_t step : {17U, 23U}) {
+    AcDimmerDataStore store{};
+    store.value = 32768;  // the gate is due 4166 µs after the crossing
+    Bench bench(store, 1000, 0, 50);
+    uint32_t crossing = 1000;
+    for (uint32_t i = 0; i < 2400; i++, crossing += 8333)
+      bench.edge(crossing + (i % 2 ? -250 : 250) + i * step % 51);
+    bench.run_until(crossing);
+    ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << step;
+    for (uint32_t at : bench.gate_on) {
+      if (at < 2000000)
+        continue;
+      const int32_t err = static_cast<int32_t>((at - 1000) % 8333) - 4166;
+      EXPECT_GE(err, -60) << step << " pulse at " << at;
+      EXPECT_LE(err, 150) << step << " pulse at " << at;
+    }
+  }
+}
+
+// Near full brightness the gate goes on right after the predicted crossing. Edges served up to 40 µs late must come
+// before it, not in its noise window, or the lock is dropped and the output goes dark with a steady signal.
+TEST(AcDimmerTimerTest, NearFullBrightnessKeepsTheLock) {
+  for (uint16_t value : {65534, 65500, 65000}) {
+    for (uint32_t gate_noise : {0U, 5U}) {
+      AcDimmerDataStore store{};
+      store.value = value;
+      Bench bench(store, 1000, gate_noise);
+      uint32_t crossing = 1000;
+      for (uint32_t i = 0; i < 300; i++, crossing += 10000) {
+        bench.edge(crossing + i * 17 % 41);
+        if (i > LOCK_EDGE)
+          ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << value << " " << gate_noise << " crossing " << i;
+      }
+    }
+  }
+}
+
+// Dimmers sharing one zero-cross input: the detector also picks up the other dimmer's gate. Its noise just before the
+// crossing (4 %) must not drag this dimmer's timing.
+TEST(AcDimmerTimerTest, SharedInputIgnoresTheOtherGate) {
+  AcDimmerDataStore a{};
+  AcDimmerDataStore b{};
+  a.value = 32768;  // the gate is due 4999 µs after the crossing
+  b.value = 2621;
+  std::vector<uint32_t> noise;
+  std::vector<uint32_t> gate_on;
+  auto edge = [&](uint32_t at) {
+    const AcDimmerDataStore *from = a.gate_noise_at(at) ? &a : b.gate_noise_at(at) ? &b : nullptr;
+    a.zero_cross_edge(at, from);
+    b.zero_cross_edge(at, from);
+  };
+  uint32_t crossing = 1000;
+  for (uint32_t now = 1000; now < 3001000; now += 5) {
+    if (now == crossing) {
+      edge(now);
+      crossing += 10000;
+    }
+    if (!noise.empty() && noise.front() == now) {
+      edge(now);
+      noise.erase(noise.begin());
+    }
+    for (auto *store : {&a, &b}) {
+      const bool fired = store->gate_fired;
+      store->timer_intr(now);
+      if (!fired && store->gate_fired) {
+        noise.push_back(now + 5);
+        if (store == &a)
+          gate_on.push_back(now);
+      }
+    }
+  }
+  ASSERT_EQ(a.phase, ZERO_CROSS_PHASE_LOCKED);
+  ASSERT_FALSE(gate_on.empty());
+  for (uint32_t at : gate_on) {
+    if (at >= 1000000)
+      EXPECT_LE(std::abs(static_cast<int32_t>((at - 1000) % 10000) - 4999), 10) << "pulse at " << at;
+  }
+}
+
 /// Locks a dimmer on crossings at 1 to 41 ms; the caller runs the timer at 41 ms to start that half cycle
 static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
   AcDimmerDataStore store{};
   store.method = method;
   store.value = value;
   for (uint32_t at : {1000U, 11000U, 21000U, 31000U, 41000U})
-    store.zero_cross_edge(at);
+    store.zero_cross_edge(at, nullptr);
   return store;
 }
 
@@ -361,10 +446,10 @@ TEST(AcDimmerTimerTest, OffLockingEdgeDoesNotShiftThePrediction) {
   for (uint32_t off : {41600U, 40500U}) {
     AcDimmerDataStore store{};
     for (uint32_t at : {1000U, 11000U, 21000U, 31000U, off, 51000U, 61000U, 71000U, 81000U}) {
-      store.zero_cross_edge(at);
+      store.zero_cross_edge(at, nullptr);
       EXPECT_NE(store.phase, ZERO_CROSS_PHASE_LOCKED) << off << " " << at;
     }
-    store.zero_cross_edge(91000);
+    store.zero_cross_edge(91000, nullptr);
     ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << off;
     EXPECT_EQ(store.period, 10000) << off;
     EXPECT_EQ(store.zc_at, 81000U) << off;
@@ -375,7 +460,7 @@ TEST(AcDimmerTimerTest, NothingBeforeTheLock) {
   AcDimmerDataStore store{};
   store.value = 32768;
   for (uint32_t at : {1000U, 11000U, 21000U, 31000U}) {
-    store.zero_cross_edge(at);
+    store.zero_cross_edge(at, nullptr);
     EXPECT_NE(store.phase, ZERO_CROSS_PHASE_LOCKED);
     EXPECT_EQ(store.timer_intr(at + 100), 0U);
   }
@@ -385,10 +470,10 @@ TEST(AcDimmerTimerTest, NothingBeforeTheLock) {
 TEST(AcDimmerTimerTest, LongGapStartsTheLockOver) {
   AcDimmerDataStore store{};
   for (uint32_t at : {1000U, 11000U, 41000U, 51000U, 61000U, 71000U}) {
-    store.zero_cross_edge(at);
+    store.zero_cross_edge(at, nullptr);
     EXPECT_NE(store.phase, ZERO_CROSS_PHASE_LOCKED);
   }
-  store.zero_cross_edge(81000);
+  store.zero_cross_edge(81000, nullptr);
   EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
   EXPECT_EQ(store.period, 10000);
 }
@@ -441,6 +526,8 @@ INSTANTIATE_TEST_SUITE_P(
 struct LateEnableCase {
   const char *name;
   uint32_t timer_at;  // time after the crossing the timer runs for the enable due at 9600 µs
+  bool gate_on;
+  uint16_t enable_time_us;  // when the gate went on, 0 when it was skipped
   uint16_t disable_time_us;
   uint32_t next_event_in;
 };
@@ -454,15 +541,17 @@ TEST_P(LateEnableTest, SkipsEnableNearTheEnd) {
   auto store = locked_store(DIM_METHOD_LEADING_PULSE, 2621);
   ASSERT_EQ(store.timer_intr(41000), 9600U);
   EXPECT_EQ(store.timer_intr(41000 + c.timer_at), c.next_event_in);
-  EXPECT_TRUE(store.gate_fired);
+  EXPECT_EQ(store.gate_fired, c.gate_on);
+  EXPECT_EQ(store.enable_time_us, c.enable_time_us);
   EXPECT_EQ(store.disable_time_us, c.disable_time_us);
 }
 
 INSTANTIATE_TEST_SUITE_P(AcDimmer, LateEnableTest,
-                         ::testing::Values(LateEnableCase{"OnTime", 9600, 9650, 50},
-                                           LateEnableCase{"LatePulseEndsBeforeCrossing", 9800, 9850, 50},
-                                           // not switched on; the pending switch-off runs at once
-                                           LateEnableCase{"LatePulseWouldPassCrossing", 9960, 0, 40}),
+                         ::testing::Values(LateEnableCase{"OnTime", 9600, true, 9600, 9650, 50},
+                                           LateEnableCase{"LatePulseEndsBeforeCrossing", 9800, true, 9800, 9850, 50},
+                                           // not switched on, so later edges are no gate noise; the pending
+                                           // switch-off runs at once
+                                           LateEnableCase{"LatePulseWouldPassCrossing", 9960, false, 0, 0, 40}),
                          [](const ::testing::TestParamInfo<LateEnableCase> &info) { return info.param.name; });
 
 }  // namespace esphome::ac_dimmer::testing
