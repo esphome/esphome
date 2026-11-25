@@ -34,4 +34,4 @@ filelock==4.3.0  # inter-process locks (PlatformIO cache heal, git clone cache);
 pyparsing >= 3.3.3
 
 # For autocompletion
-argcomplete>=3.7.2
+argcomplete>=3.8.0
