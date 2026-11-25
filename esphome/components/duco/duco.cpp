@@ -181,20 +181,62 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
 const LogString *node_type_name(uint8_t type) {
   const bool bs = (type & NODE_TYPE_BS) != 0;
   switch (type & ~NODE_TYPE_BS) {
+    case 1:
+      return LOG_STR("IQ");
+    case 2:
+      return LOG_STR("CO2");
+    case 3:
+      return LOG_STR("RH");
+    case 4:
+      return LOG_STR("KLEP");
+    case 5:
+      return LOG_STR("TOP");
+    case 6:
+      return LOG_STR("COMB");
+    case 7:
+      return LOG_STR("CLIMA");
     case 8:
       return LOG_STR("UCBAT");
     case 9:
       return LOG_STR("UC");
     case 10:
       return bs ? LOG_STR("BSRH") : LOG_STR("UCRH");
+    case 11:
+      return LOG_STR("UCVOC");
     case 12:
       return bs ? LOG_STR("BSCO2") : LOG_STR("UCCO2");
     case 13:
       return LOG_STR("VLV");
+    case 14:
+      return LOG_STR("VLVRH");
+    case 15:
+      return LOG_STR("VLVVOC");
+    case 16:
+      return LOG_STR("VLVCO2");
     case 17:
       return LOG_STR("BOX");
     case 18:
       return LOG_STR("SWITCH");
+    case 19:
+      return LOG_STR("ACTUAT");
+    case 20:
+      return LOG_STR("UCBATRH");
+    case 21:
+      return LOG_STR("PWMIN");
+    case 22:
+      return LOG_STR("IAV");
+    case 23:
+      return LOG_STR("IAVRH");
+    case 24:
+      return LOG_STR("IAVVOC");
+    case 25:
+      return LOG_STR("IAVCO2");
+    case 26:
+      return LOG_STR("BOILER");
+    case 27:
+      return LOG_STR("TRONIC");
+    case 28:
+      return LOG_STR("VLVCO2RH");
     default:
       return LOG_STR("UNKNOWN");
   }
