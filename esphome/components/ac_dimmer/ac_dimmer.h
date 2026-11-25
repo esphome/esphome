@@ -23,9 +23,9 @@ struct AcDimmerDataStore {
   uint32_t zc_at;
   /// Length of a half cycle in µs; while acquiring, the last gap between taken edges
   uint16_t period;
-  /// Time after zc_at to switch the gate on, 0 for none
+  /// Time after zc_at to switch the gate on, 0 for none; while acquiring, the latest full cycle (0 for none)
   uint16_t enable_time_us;
-  /// Time after zc_at to switch the gate off, 0 for none
+  /// Time after zc_at to switch the gate off, 0 for none; while acquiring, the full cycle before it (0 for none)
   uint16_t disable_time_us;
   /// Value of the dimmer, 0 to 65535
   uint16_t value;
@@ -54,7 +54,7 @@ struct AcDimmerDataStore {
   uint32_t timer_step(uint32_t now);
   /// Zero-cross edge at `now`: acquires the lock or corrects the timing
   void zero_cross_edge(uint32_t now);
-  /// Edge while not locked: locks once two gaps in a row agree
+  /// Edge while not locked: locks once four gaps in a row agree
   void acquire_edge(uint32_t now);
   /// Edge while locked: an edge near the predicted crossing nudges the timing, others are ignored
   void track_edge(uint32_t now);

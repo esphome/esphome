@@ -155,15 +155,25 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   const int32_t last_gap = this->period;
   this->zc_at = now;
   this->period = gap;
-  if (this->phase == ZERO_CROSS_PHASE_ONE_EDGE) {
+  const int32_t diff = static_cast<int32_t>(gap) - last_gap;
+  if (this->phase == ZERO_CROSS_PHASE_ONE_EDGE || diff > last_gap / 8 || diff < -last_gap / 8) {
     this->phase = ZERO_CROSS_PHASE_CONFIRMING;
+    this->enable_time_us = 0;
+    this->disable_time_us = 0;
     return;
   }
-  const int32_t diff = static_cast<int32_t>(gap) - last_gap;
-  if (diff > last_gap / 8 || diff < -last_gap / 8)
+  // Full cycles cancel unequal half cycles. A late edge changes at most two of the three, so the middle one is right.
+  const uint32_t cycle = gap + last_gap;
+  if (this->disable_time_us == 0) {
+    this->disable_time_us = this->enable_time_us;
+    this->enable_time_us = cycle;
     return;
-  // Locked: the half cycle before this edge counts as running, so the timer starts the one of this edge
-  this->period = (gap + last_gap) / 2;
+  }
+  const uint32_t a = this->disable_time_us;
+  const uint32_t b = this->enable_time_us;
+  // Locked: the half cycle before this edge counts as running, so the timer starts the one of this edge. A late
+  // edge here puts the prediction late, and the early edges that follow are trusted.
+  this->period = std::max(std::min(a, b), std::min(std::max(a, b), cycle)) / 2;
   this->zc_at = now - this->period;
   this->taken_err = NO_EDGE_ERR;
   this->misses = 0;
@@ -181,8 +191,10 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
     return;
   if (next ? this->edge_next : this->edge_now) {
     // Another edge for the same crossing, such as noise from the triac firing just before it: the one closest to
-    // the prediction wins
-    if (this->taken_err != NO_EDGE_ERR && std::abs(err) < std::abs(static_cast<int32_t>(this->taken_err)))
+    // the prediction wins. An edge well before it loses to any later one: noise from the gate, which fires relative
+    // to the prediction, would otherwise drag the prediction along with it.
+    const int32_t taken = this->taken_err;
+    if (taken != NO_EDGE_ERR && (taken < -this->period / 32 || std::abs(err) < std::abs(taken)))
       this->taken_err = err;
     return;
   }
@@ -202,12 +214,17 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
-  // Mains timing is steady, so follow slowly. A late edge may only have been served late, so it counts as at most
-  // `close` late; an error that lasts still adds up, so a wrong half cycle from the lock is corrected.
+  // Mains timing is steady, so follow slowly. A late edge may only have been served late: it only confirms the
+  // crossing unless it is close. An early edge was not served early: a lasting one also shortens the half cycle.
   const int32_t close = this->period / 32;
-  const int32_t err = std::min<int32_t>(this->taken_err, close);
-  this->zc_at += err / 4;
-  this->period += err / 16;
+  const int32_t err = this->taken_err;
+  if (err <= close)
+    this->zc_at += err / 4;
+  if (std::abs(err) <= close) {
+    this->period += err / 16;
+  } else if (err < 0) {
+    this->period -= close / 64;
+  }
   this->taken_err = NO_EDGE_ERR;
 }
 
