@@ -73,9 +73,10 @@ void UartSplit::pass_() {
 void UartSplit::hand_on_received(const UartSplitOutput *from) {
   for (const UartSplitOutput *output : this->outputs_) {
     if (output != from && output->mirror_tx()) {
-      // What the parent received before this write comes first on the output, unless a full writer holds the read
-      // back: those bytes stay in the parent and come after the write. A write that takes time (a full TX FIFO) can
-      // receive more, and that comes after it.
+      // What the parent received before this write comes first on the output, with two exceptions. Bytes that a
+      // writer holding the read has no room for stay in the parent and come after the write. A write that a debugger
+      // makes inside the read comes before the bytes of that read, as loop() does not read again from there. A write
+      // that takes time (a full TX FIFO) can receive more, and that comes after it.
       this->loop();
       return;
     }

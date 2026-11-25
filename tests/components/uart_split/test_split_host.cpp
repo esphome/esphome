@@ -209,6 +209,21 @@ TEST_F(UartSplitCopy, BytesHeldBackForAFullWriterComeAfterItsWrite) {
   EXPECT_EQ(this->read_one(&this->tap_), 0x22);
 }
 
+TEST_F(UartSplitCopy, BytesAWriterHasNoRoomForComeAfterItsWrite) {
+  // The writer has room for 4 of the 10 waiting bytes and holds the read, so 4..9 wait in the parent until after the
+  // write.
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE - 4);
+  this->pins_.rx_fill(10);
+  const uint8_t sent = 0xAA;
+  this->bus_.write_array(&sent, 1);
+  drain(&this->bus_);
+  this->split_.loop();
+  for (uint8_t expected : {0, 1, 2, 3, 0xAA, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_EQ(this->read_one(&this->tap_), expected);
+  }
+}
+
 TEST_F(UartSplitCopy, WriteFromADebuggerDoesNotStartASecondPass) {
   // The debugger writes inside the read. Its byte comes first on tap, and the 100 bytes of the read keep their order.
   const uint8_t sent = 0xAA;
