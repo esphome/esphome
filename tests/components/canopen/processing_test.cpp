@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <array>
+#include <string>
 #include <vector>
 
 #include "fake_canbus.h"
@@ -125,6 +127,60 @@ TEST(CanopenProcessing, NodeLoopStaysOn) {
   hub.loop();
   hub.loop();
   EXPECT_FALSE(hub.is_idle());
+}
+
+// Requests to the node's own id are served from its own OD, without frames on the bus
+TEST(CanopenProcessing, OwnIdRequestsUseTheOwnObjectDictionary) {
+  FakeCanbus bus;
+  TestHub hub(&bus);
+  hub.set_identity(0xA59A08F5, 1, 2, 3);
+  hub.set_device_name("a device name longer than one segment");
+  hub.setup();
+  ASSERT_FALSE(hub.is_failed());
+  std::vector<SDOReply> replies;
+  std::array<uint8_t, 64> name{};
+  std::array<uint8_t, 4> small{};
+  ASSERT_TRUE(hub.read_sdo<uint32_t>(0x10, 0x1018, 1, collect, &replies));
+  ASSERT_TRUE(hub.read_sdo_data(0x10, 0x1008, 0, name.data(), name.size(), collect, &replies));
+  ASSERT_TRUE(hub.read_sdo_data(0x10, 0x1008, 0, small.data(), small.size(), collect, &replies));
+  ASSERT_TRUE(hub.read_sdo<uint32_t>(0x10, 0x5FFF, 0, collect, &replies));
+  for (int i = 0; i < 20 && replies.size() < 4; i++)
+    hub.loop();
+  ASSERT_EQ(replies.size(), 4u);
+  ASSERT_TRUE(replies[0].ok());
+  EXPECT_EQ(replies[0].as<uint32_t>(), 0xA59A08F5u);
+  ASSERT_TRUE(replies[1].ok());
+  EXPECT_EQ(std::string(reinterpret_cast<const char *>(replies[1].data), replies[1].len),
+            "a device name longer than one segment");
+  // too small a buffer and a missing object end in an abort
+  EXPECT_EQ(replies[2].result, SDOResult::SDO_RESULT_ABORT);
+  EXPECT_EQ(replies[3].result, SDOResult::SDO_RESULT_ABORT);
+  EXPECT_EQ(bus.count(0x610), 0u);
+  EXPECT_EQ(bus.count(0x590), 0u);
+}
+
+// A node started pre-operational follows NMT commands addressed to it or to all nodes, and reports each state once
+TEST(CanopenProcessing, NmtStartupCommandsAndStateCallback) {
+  FakeCanbus bus;
+  TestHub hub(&bus);
+  hub.set_start_operational(false);
+  std::vector<NMTState> states;
+  hub.add_on_nmt_state_callback([&states](NMTState state) { states.push_back(state); });
+  hub.setup();
+  ASSERT_FALSE(hub.is_failed());
+  hub.loop();
+  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_PRE_OPERATIONAL);
+  hub.frame(0x000, {0x01, 0x10});  // start this node
+  hub.loop();
+  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+  hub.frame(0x000, {0x02, 0x00});  // stop all nodes
+  hub.loop();
+  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  hub.frame(0x000, {0x01, 0x22});  // start another node
+  hub.loop();
+  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  EXPECT_EQ(states, (std::vector<NMTState>{NMTState::NMT_STATE_PRE_OPERATIONAL, NMTState::NMT_STATE_OPERATIONAL,
+                                           NMTState::NMT_STATE_STOPPED}));
 }
 
 }  // namespace esphome::canopen::testing

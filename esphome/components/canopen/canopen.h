@@ -250,6 +250,14 @@ class CANopenComponent : public Component {
   bool queue_sdo_(const SDORequest &request);
   void reject_queued_sdo_();
   bool sdo_stopped_() const;
+  // the active request is served from our own OD (CO_CONFIG_SDO_CLI_LOCAL), not over the bus
+  bool sdo_is_local_() const {
+#ifdef USE_CANOPEN_NODE
+    return !this->is_client_only() && this->sdo_active_.node_id == this->node_id_;
+#else
+    return false;
+#endif
+  }
   void stop_sdo_();
   bool sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const;
   void process_sdo_(uint32_t dt_us);

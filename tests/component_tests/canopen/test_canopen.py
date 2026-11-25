@@ -215,7 +215,12 @@ def test_client_only_sdo_client_false() -> None:
 def test_client_only_defaults() -> None:
     """The node options get their defaults only with node_id."""
     config = CONFIG_SCHEMA({"canbus_id": "can_bus"})
-    assert "node_id" not in config
+    assert not set(config) & {
+        "node_id",
+        "heartbeat_interval",
+        "nmt_startup",
+        "identity",
+    }
     config = CONFIG_SCHEMA(_config())
     assert config["heartbeat_interval"].total_milliseconds == 5000
 

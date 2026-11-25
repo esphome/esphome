@@ -175,13 +175,16 @@ def validate_client_only_options(config: Any) -> Any:
 
 
 def validate_client_only(config: ConfigType) -> ConfigType:
-    """Without node_id the SDO client can't be turned off."""
-    if CONF_NODE_ID not in config and config.get(CONF_SDO_CLIENT) is False:
+    """Without node_id the SDO client can't be turned off, and the node options' defaults are dropped, so the
+    validated config validates again."""
+    if CONF_NODE_ID in config:
+        return config
+    if config.get(CONF_SDO_CLIENT) is False:
         raise cv.Invalid(
             "sdo_client: false without node_id leaves nothing to run: the hub without node_id is an SDO client only",
             path=[CONF_SDO_CLIENT],
         )
-    return config
+    return {key: value for key, value in config.items() if key not in NODE_OPTIONS}
 
 
 CONFIG_SCHEMA = cv.All(

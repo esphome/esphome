@@ -327,7 +327,9 @@ bool CANopenComponent::drain_upload_(uint32_t dt_us, CO_SDO_return_t &ret, CO_SD
     }
     if (this->sdo_len_ > cap) {
       abort = value_read ? CO_SDO_AB_DATA_LONG : CO_SDO_AB_OUT_OF_MEM;
-      CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
+      // a transfer from our own OD has no server on the bus to tell
+      if (!this->sdo_is_local_())
+        CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
       // not abort: it is empty when the last frame already ended the transfer
       if (value_read) {
         this->finish_sdo_(SDOResult::SDO_RESULT_SIZE_MISMATCH, 0);
@@ -388,6 +390,12 @@ void CANopenComponent::abort_sdo_() {
   // Discard only this client's unsent frame before replacing it with an abort.
   // The driver and the SDO client run on the same main-loop context.
   discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
+  if (this->sdo_is_local_()) {
+    // served from our own OD: nothing on the bus to abort or to wait out
+    CO_SDOclientClose(cli);
+    ESP_LOGD(TAG, "node 0x%02x, 0x%04x:%u: cancelled", r.node_id, r.index, r.sub);
+    return;
+  }
   CO_SDO_abortCode_t abort = CO_SDO_AB_GENERAL;
   if (r.kind == SDOKind::SDO_KIND_READ || r.kind == SDOKind::SDO_KIND_READ_DATA) {
     CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
