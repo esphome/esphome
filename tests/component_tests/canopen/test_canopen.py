@@ -19,14 +19,17 @@ def test_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Node options become setters, triggers become callbacks."""
+    """Heartbeat clients become monitor_node() calls, node options setters, triggers callbacks."""
     main_cpp = generate_main(component_config_path("canopen.yaml"))
 
     assert "canopen::CANopenComponent(can_bus, 16)" in main_cpp
     assert "canopen_node->set_heartbeat_interval(2000);" in main_cpp
+    assert "canopen_node->monitor_node(1, 3000);" in main_cpp
+    assert "canopen_node->monitor_node(2, 500);" in main_cpp
     assert "canopen_node->set_start_operational(false);" in main_cpp
     for callback in (
         "add_on_nmt_state_callback",
+        "add_on_node_event_callback",
         "add_on_heartbeat_callback",
         "add_on_emcy_callback",
     ):
@@ -42,13 +45,19 @@ def test_codegen(
     # sdo_write: a negative value is passed as is, write_sdo() masks it to `size` bytes; no on_success: nullptr
     assert (
         "::canopen_node->write_sdo(1, 0x1017, 0x00, -1, 2, canopen::sdo_write_reply"
-        "<nullptr, esphome__lambdaaction_id_4__fn>, nullptr);"
+        "<nullptr, esphome__lambdaaction_id_5__fn>, nullptr);"
     ) in main_cpp
+    # canopen.nmt: no action class, a static function calling the hub
+    assert (
+        "canopen_node->send_nmt(1, canopen::NMTCommand::NMT_COMMAND_PRE_OPERATIONAL);"
+        in main_cpp
+    )
 
 
 def test_defaults() -> None:
     config = CONFIG_SCHEMA(_config())
     assert config["heartbeat_interval"].total_milliseconds == 5000
+    assert config["heartbeat_clients"] == []
     assert config["nmt_startup"] == "operational"
     assert config["identity"] == {
         "vendor_id": 0,
@@ -62,6 +71,22 @@ def test_defaults() -> None:
 def test_node_id_range(node_id: int) -> None:
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA(_config(node_id=node_id))
+
+
+def test_heartbeat_client_own_node_id() -> None:
+    with pytest.raises(cv.Invalid, match="own id"):
+        CONFIG_SCHEMA(_config(heartbeat_clients=[{"node_id": 0x10, "timeout": "1s"}]))
+
+
+@pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
+def test_heartbeat_client_timeout_fits_uint16(timeout: str, valid: bool) -> None:
+    """0x1016 stores the consumer timeout as uint16 milliseconds."""
+    config = _config(heartbeat_clients=[{"node_id": 0x01, "timeout": timeout}])
+    if valid:
+        CONFIG_SCHEMA(config)
+    else:
+        with pytest.raises(cv.Invalid, match="at most"):
+            CONFIG_SCHEMA(config)
 
 
 @pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
@@ -109,6 +134,22 @@ def test_sdo_write_value_fits_size(value: int, size: int, valid: bool) -> None:
     else:
         with pytest.raises(cv.Invalid, match="doesn't fit"):
             SDO_WRITE_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("yaml", "monitor"),
+    [("canopen.yaml", True), ("node.yaml", False)],
+)
+def test_node_monitor_only_when_used(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    yaml: str,
+    monitor: bool,
+) -> None:
+    """CANopenNode's heartbeat consumer is built only for heartbeat_clients or a component monitoring a node."""
+    generate_main(component_config_path(yaml))
+    assert ("USE_CANOPEN_NODE_MONITOR" in _defines()) == monitor
+    assert ("-DCO_CONFIG_HB_CONS=0" in CORE.build_flags) != monitor
 
 
 def test_local_nodes(
@@ -197,6 +238,7 @@ def test_client_only_codegen(
     "option",
     [
         {"heartbeat_interval": "1s"},
+        {"heartbeat_clients": [{"node_id": 1, "timeout": "1s"}]},
         {"nmt_startup": "pre_operational"},
         {"identity": {"vendor_id": 1}},
         {"device_name": "x"},
@@ -248,6 +290,7 @@ def test_client_only_invalid(
 @pytest.mark.parametrize(
     ("yaml", "message"),
     [
+        ("client_only_nmt.yaml", "canopen.nmt needs a CANopen node"),
         (
             "sdo_client_false_used.yaml",
             "has sdo_client: false, but the SDO client is used",

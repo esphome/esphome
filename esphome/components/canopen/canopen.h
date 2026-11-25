@@ -17,23 +17,27 @@ namespace esphome::canopen {
 
 void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf);
 
+NMTState to_nmt_state(CO_NMT_internalState_t state);
+
 // Other components configure the node in two phases:
-// - Build time (Python codegen): the hub parts they use, enable_sdo_client(); it sets defines and CANopenNode build
-//   flags, so it can't be switched on at runtime.
-// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: identity and device
-//   information. Two places run early enough: setters called from codegen (they run in main(), before App.setup()), or
-//   the setup() of a component whose setup priority is above the hub's (setup_priority::HARDWARE - 1, after the CAN
-//   bus), e.g. HARDWARE - 0.5. Object dictionary entries added later are logged as errors and ignored.
+// - Build time (Python codegen): the hub parts they use, enable_sdo_client(), enable_nmt_master(),
+//   enable_node_monitor(); these set defines and CANopenNode build flags, so they can't be switched on at runtime.
+// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: monitor_node(), identity
+//   and device information. Two places run early enough: setters called from codegen (they run in main(), before
+//   App.setup()), or the setup() of a component whose setup priority is above the hub's (setup_priority::HARDWARE - 1,
+//   after the CAN bus), e.g. HARDWARE - 0.5. Object dictionary entries and monitored nodes added later are logged as
+//   errors and ignored.
 // The rest is runtime API, e.g. from loop() or automations: add_frame_listener() and the callbacks (any time),
-// send_frame(), SDO client requests (made before the hub's setup(), they wait for it). The hub's setup() runs before
-// most components' setup() (e.g. sensors, DATA) and the default on_boot automations.
+// send_frame(), SDO client and NMT master requests (made before the hub's setup(), they wait for it). The hub's setup()
+// runs before most components' setup() (e.g. sensors, DATA) and the default on_boot automations.
 //
 // Client-only mode: without a node id (NO_NODE_ID) the hub is no CANopen node, only an SDO client on the bus (plus
 // raw frames). CANopenNode's node part (NMT, heartbeat, EMCY, SDO server) isn't initialised, so it isn't linked either.
 //
 // The implementation is split by feature: canopen.cpp (setup, processing, NMT), driver_can.cpp (CANopenNode's CAN
 // driver, frame reception and transmission), device_info.cpp (identity, device information, SDO server), od.cpp
-// (the object dictionary), frames.cpp (raw frames, heartbeat / EMCY callbacks) and sdo_client.cpp.
+// (the object dictionary), node_monitor.cpp (heartbeat consumer), frames.cpp (raw frames, heartbeat / EMCY callbacks),
+// sdo_client.cpp and nmt_master.cpp.
 class CANopenComponent : public Component {
  public:
   // CiA 301 node ids are 1..127; 0 is reserved (NMT broadcast), so it can't clash with a real node. It's also
@@ -75,9 +79,8 @@ class CANopenComponent : public Component {
   bool set_nmt_state(NMTState state);
 
   // Used by the CANopenNode driver (driver_can.cpp) and send_frame(): sends a standard-ID frame (ident bit 11 =
-  // RTR) on the canbus and, once sent, delivers it to the other local nodes. They only receive it here (CANopenNode
-  // buffers, frame listeners, callbacks) and process it in their next loop(), so no node's processing runs inside
-  // another's.
+  // RTR) on the canbus and, once sent, queues it for the other local nodes. Each takes its queued frames in its next
+  // loop(), one at a time and in bus order, like frames from the bus, so no node's processing runs inside another's.
   bool transmit(uint16_t ident, const uint8_t *data, uint8_t len);
   // Used by the CANopenNode driver: CO_process() flushes the queued frames too, but the hub flushes them only once,
   // early in loop(): not while a received frame is processed (on ESP32 a refused frame can block for the controller's
@@ -101,6 +104,24 @@ class CANopenComponent : public Component {
   // Object dictionary for other components: entries are added before setup() only (see above), since CANopenNode
   // can't add entries after its init. The storage must outlive the component.
   ObjectDictionary &get_od() { return this->od_; }
+
+  // --- Node monitoring (node_monitor.cpp) ---
+  // events of all monitored nodes: (node_id, event, state)
+  template<typename F> void add_on_node_event_callback(F &&callback) {
+    this->node_event_callback_.add(std::forward<F>(callback));
+  }
+#ifdef USE_CANOPEN_NODE_MONITOR
+  // Heartbeat monitoring of another node (CANopenNode heartbeat consumer, OD 0x1016; canopen.enable_node_monitor() in
+  // codegen). Before setup() only (called from codegen). Registering a node again keeps the shortest timeout.
+  void monitor_node(uint8_t node_id, uint16_t timeout_ms);
+  // state of a monitored node from its last heartbeat; UNKNOWN / false for nodes that aren't monitored
+  NMTState get_node_state(uint8_t node_id);
+  bool is_node_online(uint8_t node_id);
+#else
+  // no monitored nodes: without heartbeat_clients or a component monitoring a node, the heartbeat consumer isn't built
+  NMTState get_node_state(uint8_t /*node_id*/) { return NMTState::NMT_STATE_UNKNOWN; }
+  bool is_node_online(uint8_t /*node_id*/) { return false; }
+#endif
 
   // --- Raw frames (frames.cpp) ---
   // every heartbeat / EMCY frame on the bus, from any node (our own frames aren't received; those of other local
@@ -160,10 +181,30 @@ class CANopenComponent : public Component {
   void cancel_sdo(void *context);
 #endif
 
+#ifdef USE_CANOPEN_NMT_MASTER
+  // --- NMT master (nmt_master.cpp) ---
+  // NMT command to node_id (0 = all nodes; for our own id or 0 it also applies to us)
+  bool send_nmt(uint8_t node_id, NMTCommand command);
+#endif
+
  protected:
   void on_frame_(const canbus::CanFrame &frame);
+  // a received frame, from the bus or another local node: receive_(), then the processing it needs at once
+  void handle_frame_(uint16_t ident, const uint8_t *data, uint8_t len);
   /// Returns whether a CANopenNode object took the frame
   bool receive_(uint16_t ident, const uint8_t *data, uint8_t len);
+  // Frames other local nodes sent, waiting for this node's loop(), oldest first (local_queue_): like a controller's
+  // receive FIFO, so that back-to-back frames to one CANopenNode object (it keeps one per object) don't overwrite each
+  // other. Allocated in setup() when there are other local nodes. A frame that finds it full is lost, as on a bus, and
+  // counted.
+  static constexpr uint8_t LOCAL_QUEUE_SIZE = 16;
+  struct LocalFrame {
+    uint16_t ident;
+    uint8_t len;
+    std::array<uint8_t, 8> data;
+  };
+  void queue_local_(uint16_t ident, const uint8_t *data, uint8_t len);
+  void deliver_local_();
   // A client-only hub with no request queued or running and no frame waiting to be resent. A node always has work
   // (heartbeat).
   bool idle_() const;
@@ -179,7 +220,9 @@ class CANopenComponent : public Component {
   CO_t *co_{nullptr};
   CO_config_t config_{};  // must outlive co_
   ObjectDictionary od_;
+  FixedRingBuffer<LocalFrame, LOCAL_QUEUE_SIZE> local_queue_;
   uint16_t response_timeout_ms_{500};
+  uint16_t local_dropped_{0};  // frames lost on a full local_queue_, logged by deliver_local_()
   uint8_t node_id_;
   bool hold_flush_{false};
 
@@ -208,6 +251,22 @@ class CANopenComponent : public Component {
   NMTState nmt_state_{NMTState::NMT_STATE_UNKNOWN};
   bool start_operational_{true};
 #endif  // USE_CANOPEN_NODE
+
+  // --- Node monitoring (node_monitor.cpp) ---
+  void node_event_(uint8_t node_id, NodeEvent event, NMTState state);
+  LazyCallbackManager<void(uint8_t, NodeEvent, NMTState)> node_event_callback_;
+#ifdef USE_CANOPEN_NODE_MONITOR
+  void add_node_monitor_od_();
+  void config_node_monitor_(CO_config_t &cfg);
+  void init_node_monitor_();
+  void dump_node_monitor_config_();
+  static void on_hb_started(uint8_t node_id, uint8_t idx, void *object);
+  static void on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object);
+  static void on_hb_timeout(uint8_t node_id, uint8_t idx, void *object);
+  static void on_hb_remote_reset(uint8_t node_id, uint8_t idx, void *object);
+  std::vector<uint32_t> hb_cons_;  // 0x1016:1.., (node_id << 16) | timeout_ms
+  uint8_t hb_cons_count_{0};       // 0x1016:0
+#endif
 
   // --- Raw frames (frames.cpp) ---
   // frame listeners and heartbeat / EMCY callbacks for a received frame, after CANopenNode

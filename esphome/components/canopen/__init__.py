@@ -9,6 +9,7 @@ from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
 from esphome.components.const import CONF_HARDWARE_VERSION, CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_COMMAND,
     CONF_ID,
     CONF_IDENTITY,
     CONF_INDEX,
@@ -16,9 +17,11 @@ from esphome.const import (
     CONF_ON_SUCCESS,
     CONF_ON_VALUE,
     CONF_SIZE,
+    CONF_TIMEOUT,
     CONF_VALUE,
 )
 from esphome.core import CORE, ID, EsphomeError
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -30,6 +33,8 @@ MULTI_CONF = True
 
 CONF_NODE_ID = "node_id"
 CONF_HEARTBEAT_INTERVAL = "heartbeat_interval"
+CONF_HEARTBEAT_CLIENTS = "heartbeat_clients"
+CONF_ON_NODE_EVENT = "on_node_event"
 CONF_ON_HEARTBEAT = "on_heartbeat"
 CONF_ON_EMCY = "on_emcy"
 CONF_ON_NMT_STATE_CHANGE = "on_nmt_state_change"
@@ -49,11 +54,21 @@ CANOPENNODE_VERSION = "4.1.0-esphome.2"
 ns = cg.esphome_ns.namespace("canopen")
 CANopenComponent = ns.class_("CANopenComponent", cg.Component)
 NMTState = ns.enum("NMTState", is_class=True)
+NodeEvent = ns.enum("NodeEvent", is_class=True)
 Emergency = ns.struct("Emergency")
 SDOResult = ns.enum("SDOResult", is_class=True)
+NMTCommand = ns.enum("NMTCommand", is_class=True)
 
 # a hub without node_id (CANopenComponent::NO_NODE_ID): SDO client only, no CANopen node
 NO_NODE_ID = 0
+
+NMT_COMMANDS = {
+    "start": NMTCommand.NMT_COMMAND_START,
+    "stop": NMTCommand.NMT_COMMAND_STOP,
+    "pre_operational": NMTCommand.NMT_COMMAND_PRE_OPERATIONAL,
+    "reset_node": NMTCommand.NMT_COMMAND_RESET_NODE,
+    "reset_communication": NMTCommand.NMT_COMMAND_RESET_COMMUNICATION,
+}
 
 
 @dataclass
@@ -106,7 +121,37 @@ def enable_sdo_client() -> None:
     cg.add_build_flag("-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7")
 
 
+def enable_node_monitor() -> None:
+    """Compile node monitoring (CANopenNode's heartbeat consumer, monitor_node()): for heartbeat_clients and components
+    that monitor a node. Without it the consumer isn't built."""
+    if not _enable_once("node_monitor"):
+        return
+    cg.add_define("USE_CANOPEN_NODE_MONITOR")
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _final_build_flags() -> None:
+    # after every component's codegen, so that components enabling it count too: CANopenNode's port header enables the
+    # heartbeat consumer, which links in its code even without monitored nodes
+    if "node_monitor" not in _get_data().enabled:
+        cg.add_build_flag("-DCO_CONFIG_HB_CONS=0")
+
+
+def enable_nmt_master() -> None:
+    """Compile the NMT master (send_nmt()): for actions and components that use it."""
+    if not _enable_once("nmt_master"):
+        return
+    cg.add_define("USE_CANOPEN_NMT_MASTER")
+    # callback change | master
+    cg.add_build_flag("-DCO_CONFIG_NMT=0x03")
+
+
 CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_NODE_EVENT,
+        "add_on_node_event_callback",
+        [(cg.uint8, "node_id"), (NodeEvent, "event"), (NMTState, "state")],
+    ),
     automation.CallbackAutomation(
         CONF_ON_NMT_STATE_CHANGE,
         "add_on_nmt_state_callback",
@@ -129,7 +174,7 @@ CALLBACK_AUTOMATIONS = (
 )
 
 
-# response_timeout holds uint16 ms
+# 0x1016 (consumer timeout) and response_timeout hold uint16 ms
 UINT16_MS = cv.All(
     cv.positive_time_period_milliseconds,
     cv.Range(min=cv.TimePeriod(milliseconds=1), max=cv.TimePeriod(milliseconds=65535)),
@@ -151,6 +196,8 @@ IDENTITY_SCHEMA = cv.Schema(
 # options of a CANopen node, not allowed without node_id
 NODE_OPTIONS = (
     CONF_HEARTBEAT_INTERVAL,
+    CONF_HEARTBEAT_CLIENTS,
+    CONF_ON_NODE_EVENT,
     CONF_NMT_STARTUP,
     CONF_ON_NMT_STATE_CHANGE,
     CONF_IDENTITY,
@@ -187,6 +234,23 @@ def validate_client_only(config: ConfigType) -> ConfigType:
     return {key: value for key, value in config.items() if key not in NODE_OPTIONS}
 
 
+HB_CLIENT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NODE_ID): cv.All(cv.int_, cv.Range(min=1, max=127)),
+        cv.Required(CONF_TIMEOUT): UINT16_MS,
+    }
+)
+
+
+def validate_heartbeat_clients(config: ConfigType) -> ConfigType:
+    for client in config[CONF_HEARTBEAT_CLIENTS]:
+        if client[CONF_NODE_ID] == config.get(CONF_NODE_ID):
+            raise cv.Invalid(
+                f"heartbeat_clients: node_id {client[CONF_NODE_ID]} is this node's own id"
+            )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     validate_client_only_options,
     cv.Schema(
@@ -196,6 +260,9 @@ CONFIG_SCHEMA = cv.All(
             # without node_id: SDO client only (see validate_client_only)
             cv.Optional(CONF_NODE_ID): cv.All(cv.int_, cv.Range(min=1, max=127)),
             cv.Optional(CONF_HEARTBEAT_INTERVAL, "5000ms"): HEARTBEAT_INTERVAL,
+            cv.Optional(CONF_HEARTBEAT_CLIENTS, []): cv.ensure_list(HB_CLIENT_SCHEMA),
+            # events of the heartbeat_clients nodes (online, offline, NMT changed, reset)
+            cv.Optional(CONF_ON_NODE_EVENT): automation.validate_automation({}),
             # every heartbeat / EMCY frame on the bus, any node
             cv.Optional(CONF_ON_HEARTBEAT): automation.validate_automation({}),
             cv.Optional(CONF_ON_EMCY): automation.validate_automation({}),
@@ -216,6 +283,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SOFTWARE_VERSION): cv.string,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_heartbeat_clients,
     validate_client_only,
 )
 
@@ -272,6 +340,8 @@ def add_canopennode_library() -> None:
 
 async def to_code(config: ConfigType) -> None:
     add_canopennode_library()
+    if _enable_once("final_build_flags"):
+        CORE.add_job(_final_build_flags)
 
     canbus = await cg.get_variable(config[CONF_CANBUS_ID])
     var = cg.new_Pvariable(
@@ -313,6 +383,14 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_device_name, config.get(CONF_DEVICE_NAME))
     cg.add_optional(var.set_hardware_version, config.get(CONF_HARDWARE_VERSION))
     cg.add_optional(var.set_software_version, config.get(CONF_SOFTWARE_VERSION))
+    if config[CONF_HEARTBEAT_CLIENTS]:
+        enable_node_monitor()
+    for client in config[CONF_HEARTBEAT_CLIENTS]:
+        cg.add(
+            var.monitor_node(
+                client[CONF_NODE_ID], client[CONF_TIMEOUT].total_milliseconds
+            )
+        )
 
     await automation.build_callback_automations(var, config, CALLBACK_AUTOMATIONS)
 
@@ -425,6 +503,44 @@ async def sdo_write_to_code(
         on_ok=CONF_ON_SUCCESS,
         on_ok_args=[],
     )
+
+
+NMT_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(CANopenComponent),
+        # 0 = all nodes
+        cv.Required(CONF_NODE_ID): cv.templatable(cv.int_range(min=0, max=127)),
+        cv.Required(CONF_COMMAND): cv.enum(NMT_COMMANDS, lower=True),
+    }
+)
+
+
+_nmt_builder = automation.apply_action_builder(
+    "canopen.nmt",
+    NMT_SCHEMA,
+    automation.ApplyCall(
+        "send_nmt({}, {})", ((CONF_NODE_ID, cg.uint8), (CONF_COMMAND, NMTCommand))
+    ),
+)
+
+
+@automation.register_action(
+    "canopen.nmt", automation.ApplyAction, NMT_SCHEMA, synchronous=True
+)
+async def nmt_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    hub_id = config[CONF_ID]
+    for hub in _hub_configs():
+        if hub[CONF_ID] == hub_id and CONF_NODE_ID not in hub:
+            raise EsphomeError(
+                f"canopen.nmt needs a CANopen node: canopen {hub_id} has no node_id (SDO client only)"
+            )
+    enable_nmt_master()
+    return await _nmt_builder(config, action_id, template_arg, args)
 
 
 SDO_READ_SCHEMA = SDO_ACTION_SCHEMA.extend(
