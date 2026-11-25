@@ -370,18 +370,6 @@ static bool database_file_exists(const char *path) {
   return true;
 }
 
-// Deletes the database and its .h0/.h1 header sidecars.
-static void remove_database_files(const char *path) {
-  static const char *const SUFFIXES[] = {"", ".h0", ".h1"};
-  for (const char *suffix : SUFFIXES) {
-    char file[PATH_BUFFER_SIZE];
-    snprintf(file, sizeof(file), "%s%s", path, suffix);
-    if (remove(file) != 0) {
-      ESP_LOGW(TAG, "%s: could not be deleted", file);
-    }
-  }
-}
-
 // Stored column count, or 0 when absent/unreadable (never a delete reason).
 static uint32_t read_stored_columns(const char *path) {
   FILE *file = fopen(path, "rb");
@@ -509,7 +497,11 @@ bool TsdbComponent::open_database_() {
     if (stored != 0 && stored != configured) {
       ESP_LOGW(TAG, "%s: schema changed (stored %" PRIu32 ", configured %" PRIu32 ") - recreating", this->file_.c_str(),
                stored, configured);
-      remove_database_files(path);
+      if (remove(path) != 0 && errno != ENOENT) {
+        ESP_LOGW(TAG, "%s: could not be deleted", path);
+      }
+      // The durable header slots would otherwise bring the old schema's history back.
+      this->remove_sidecars_();
       this->db_ = tsdb_open(&config);
       if (this->db_ != nullptr)
         this->publish_log_("history recreated (the column set changed)");

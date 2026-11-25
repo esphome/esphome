@@ -77,7 +77,6 @@ LITTLEFS_BLOCK_BYTES = 0x1000
 LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 # The engine keeps those names in a 32-byte field, and tsdb.cpp builds paths in a
 # 128-byte buffer: both limits are bytes, not characters.
-TSDB_MAX_NAME_BYTES = 31
 FILE_NAME_MAX_BYTES = 64
 MOUNT_POINT_MAX_BYTES = 32
 
@@ -102,17 +101,10 @@ CONF_AGGREGATE_INTERVAL = "aggregate_interval"
 CONF_DUMP_ROWS = "dump_rows"
 CONF_TSDB_ID = "tsdb_id"
 
-MEMORY_MODES = {
-    "internal": MemoryMode.MEMORY_INTERNAL,
-    "psram": MemoryMode.MEMORY_PSRAM,
-    "auto": MemoryMode.MEMORY_AUTO,
-}
-
-MISSING_POLICIES = {
-    "skip": MissingPolicy.MISSING_SKIP,
-    "hold": MissingPolicy.MISSING_HOLD,
-    "sentinel": MissingPolicy.MISSING_SENTINEL,
-}
+MEMORY_MODES = MemoryMode.options("internal", "psram", "auto", prefix="MEMORY_")
+MISSING_POLICIES = MissingPolicy.options(
+    "skip", "hold", "sentinel", prefix="MISSING_"
+)
 
 _SIZE_UNITS = {
     "": 1,
@@ -289,7 +281,7 @@ COLUMN_SCHEMA = cv.Schema(
         cv.Required(CONF_NAME): cv.All(
             cv.string_strict,
             cv.Length(min=1, max=TSDB_MAX_NAME_LENGTH),
-            _utf8_bytes(TSDB_MAX_NAME_BYTES),
+            _utf8_bytes(TSDB_MAX_NAME_LENGTH),
             _validate_column_name,
         ),
         cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_,
@@ -434,8 +426,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_aggregate_window(config[CONF_AGGREGATE_WINDOW]))
     cg.add(var.set_aggregate_interval(config[CONF_AGGREGATE_INTERVAL]))
     cg.add(var.set_dump_rows(config[CONF_DUMP_ROWS]))
-    if CONF_TIME_ID in config:
-        cg.add(var.set_time_source(await cg.get_variable(config[CONF_TIME_ID])))
+    await cg.add_variable(var.set_time_source, config.get(CONF_TIME_ID))
 
     cg.add_define("TSDB_COLUMN_COUNT", len(config[CONF_COLUMNS]))
     for index, column in enumerate(config[CONF_COLUMNS]):

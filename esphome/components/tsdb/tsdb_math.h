@@ -1,8 +1,9 @@
 #pragma once
-// Core math of the tsdb logger: int16 encoding and esp_tsdb 2.4.3 file geometry, checked in tsdb.cpp.
+// Core math of the tsdb logger: int16 encoding and esp_tsdb 2.4.4 file geometry, checked in tsdb.cpp.
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 

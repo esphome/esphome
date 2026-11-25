@@ -63,7 +63,7 @@ struct TsdbAggregateSensors {
 };
 #endif
 
-class TsdbComponent : public PollingComponent {
+class TsdbComponent final : public PollingComponent {
 #ifdef USE_SENSOR
   SUB_SENSOR(records)
   SUB_SENSOR(used)
