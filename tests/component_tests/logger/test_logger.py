@@ -1,8 +1,10 @@
 """Tests for the logger component."""
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 import re
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,6 +12,7 @@ from esphome.components.logger import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     _validate_libretiny_uart_pins,
+    request_tag_log_level,
     validate_task_log_buffer_alignment,
 )
 from esphome.config_validation import Invalid
@@ -355,3 +358,47 @@ def test_default_global_and_boot_log_levels(
     config = CONFIG_SCHEMA({})
     assert config["level"] == "DEBUG"
     assert config["boot_log_level"] == "WARN"
+
+
+@pytest.mark.parametrize(
+    ("logger_config", "expected"),
+    [
+        pytest.param({"level": "DEBUG", "logs": {}}, "WARN", id="not_set_by_user"),
+        pytest.param(
+            {"level": "DEBUG", "logs": {"lib": "DEBUG"}}, None, id="set_by_user"
+        ),
+        pytest.param(
+            {"level": "WARN", "logs": {}}, None, id="logger_level_already_drops_it"
+        ),
+        pytest.param(
+            {"level": "DEBUG", "initial_level": "ERROR", "logs": {}},
+            "ERROR",
+            id="capped_at_initial_level",
+        ),
+        pytest.param(None, None, id="no_logger"),
+    ],
+)
+def test_request_tag_log_level(
+    logger_config: dict | None, expected: str | None
+) -> None:
+    """A requested tag level is set unless the user sets the tag or the logger level drops it."""
+    CORE.config = (
+        {} if logger_config is None else {"logger": {"id": "log", **logger_config}}
+    )
+    log = MagicMock()
+    with (
+        patch("esphome.components.logger.cg.get_variable", AsyncMock(return_value=log)),
+        patch("esphome.components.logger.cg.add") as add,
+        patch("esphome.components.logger.cg.add_define") as add_define,
+    ):
+        asyncio.run(request_tag_log_level("lib", "WARN"))
+    if expected is None:
+        add.assert_not_called()
+        add_define.assert_not_called()
+        return
+    add_define.assert_called_once_with("USE_LOGGER_RUNTIME_TAG_LEVELS")
+    log.set_log_level.assert_called_once()
+    tag, level = log.set_log_level.call_args.args
+    assert tag == "lib"
+    # MockObj's == builds a C++ expression, so compare the text
+    assert str(level) == f"ESPHOME_LOG_LEVEL_{expected}"

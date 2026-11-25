@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -15,9 +16,16 @@ def test_button_valid_domains(generate_main: Callable[[str | Path], str]) -> Non
     """Both button and input_button entities are accepted and wired up."""
     main_cpp = generate_main(DIR / "button_valid.yaml")
 
-    assert "homeassistant::HomeassistantButton" in main_cpp
-    assert 'ha_button->set_entity_id("button.example");' in main_cpp
-    assert 'ha_input_button->set_entity_id("input_button.example");' in main_cpp
+    for button_id, entity_id in (
+        ("ha_button", "button.example"),
+        ("ha_input_button", "input_button.example"),
+    ):
+        fn = re.search(rf"new\({button_id}\) button::ApplyButton<(\w+)>\(\);", main_cpp)
+        assert fn is not None
+        assert (
+            f"static void {fn.group(1)}(button::Button * entity) {{\n"
+            f'  homeassistant::press_button_entity(entity, "{entity_id}");\n}}'
+        ) in main_cpp
     assert any(d.name == "USE_API_HOMEASSISTANT_SERVICES" for d in CORE.defines)
     assert any(d.name == "USE_API_HOMEASSISTANT_STATES" for d in CORE.defines)
 

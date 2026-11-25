@@ -35,9 +35,13 @@ BEDJET_CLIENT_SCHEMA = cv.Schema(
 )
 
 
+_register_child = cg.slot_list("BEDJET_CHILD_COUNT", "register_child", DOMAIN)
+
+
 async def register_bedjet_child(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_BEDJET_ID])
-    cg.add(parent.register_child(var))
+    await cg.register_parented(var, parent)
+    cg.add(_register_child(parent, var))
 
 
 async def to_code(config: ConfigType) -> None:
