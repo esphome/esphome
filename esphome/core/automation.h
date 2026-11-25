@@ -9,6 +9,7 @@
 #include "esphome/core/string_ref.h"
 #include <algorithm>
 #include <concepts>
+#include <cstring>
 #include <functional>
 #include <span>
 #include <type_traits>
