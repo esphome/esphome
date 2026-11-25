@@ -37,6 +37,6 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_source_url_static(config[CONF_SOURCE]))
 
-    ota.request_ota_state_listeners()
+    ota.request_ota_component_state_listeners()
 
     await cg.register_component(var, config)

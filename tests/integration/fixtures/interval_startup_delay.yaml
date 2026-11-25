@@ -30,8 +30,8 @@ interval:
       - lambda: |-
           id(delayed_count) += 1;
           if (id(delayed_count) == 1) {
-            // Lambdas reach the delayed interval through its IntervalTrigger base.
-            interval::IntervalTrigger *base = id(delayed_interval);
+            // Lambdas reach the delayed interval through its PollingComponent base.
+            PollingComponent *base = id(delayed_interval);
             ESP_LOGI("test", "DELAYED_FIRST uptime=%u plain_count=%d update_interval=%u", (unsigned) millis(),
                      id(plain_count), (unsigned) base->get_update_interval());
           }

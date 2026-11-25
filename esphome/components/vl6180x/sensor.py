@@ -6,11 +6,6 @@ from esphome.const import (
     CONF_GAIN,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
-    UNIT_MILLIMETER,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -29,18 +24,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_VL6180X_ID): cv.use_id(VL6180XComponent),
             cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MILLIMETER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_DISTANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.DISTANCE_MM
             ).extend(
                 {cv.Optional(CONF_SCALER, default=1): cv.one_of(1, 2, 3, int=True)}
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE, accuracy_decimals=1
             ).extend(
                 {
                     cv.Optional(CONF_GAIN, default=1): cv.enum(ALS_GAINS),

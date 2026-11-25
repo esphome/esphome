@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_HARDWARE_VERSION
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_VERSION, ENTITY_CATEGORY_DIAGNOSTIC, ICON_CHIP
 from esphome.types import ConfigType
@@ -7,8 +8,6 @@ from esphome.types import ConfigType
 from . import CONF_DFROBOT_SEN0609_ID, DFRobotSEN0609Component
 
 DEPENDENCIES = ["dfrobot_sen0609"]
-
-CONF_HARDWARE_VERSION = "hardware_version"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),

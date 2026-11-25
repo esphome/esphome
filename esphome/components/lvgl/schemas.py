@@ -26,7 +26,7 @@ from esphome.const import (
     CONF_Y,
 )
 from esphome.core import TimePeriod
-from esphome.core.config import StartupTrigger
+from esphome.core.config import StartupCallback
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     EnableSchemaExtraction,
@@ -487,7 +487,7 @@ def automation_schema(typ: LvType) -> dict[Any, Any]:
             for event in events
         },
         cv.Optional(CONF_ON_BOOT): _lazy_validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupCallback)}
         ),
     }
 

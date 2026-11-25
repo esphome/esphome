@@ -1,0 +1,49 @@
+# Restored counter, boot count and a per build soft reboot flag; boot 1 waits 30 s, syncs and soft reboots once.
+substitutions:
+  name: prefx
+esphome:
+  name: ${name}
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            id(boots) += 1;
+            ESP_LOGI("test", "BOOT build=${name} boots=%d counter=%d soft_reboot_done=%d", id(boots), id(counter),
+                     id(sr_${name}));
+        - delay: 30s
+        - if:
+            condition:
+              lambda: 'return id(sr_${name}) == 0;'
+            then:
+              - lambda: |-
+                  id(sr_${name}) = 1;
+                  global_preferences->sync();
+                  ESP_LOGI("test", "SOFT REBOOT now, counter=%d boots=%d", id(counter), id(boots));
+              - delay: 2s
+              - lambda: 'App.safe_reboot();'
+nrf52:
+  board: xiao_nrf54lm20a
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+preferences:
+  flash_write_interval: 2s
+globals:
+  - id: counter
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: boots
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: sr_${name}
+    type: int
+    restore_value: true
+    initial_value: "0"
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          id(counter) += 1;
+          ESP_LOGI("test", "counter=%d boots=%d", id(counter), id(boots));

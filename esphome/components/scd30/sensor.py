@@ -12,14 +12,7 @@ from esphome.const import (
     CONF_TEMPERATURE_OFFSET,
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -36,24 +29,12 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SCD30Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
             cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
@@ -81,15 +62,15 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_automatic_self_calibration(config[CONF_AUTOMATIC_SELF_CALIBRATION]))
-    if CONF_ALTITUDE_COMPENSATION in config:
-        cg.add(var.set_altitude_compensation(config[CONF_ALTITUDE_COMPENSATION]))
+    cg.add_optional(
+        var.set_altitude_compensation, config.get(CONF_ALTITUDE_COMPENSATION)
+    )
 
-    if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
-        cg.add(
-            var.set_ambient_pressure_compensation(
-                config[CONF_AMBIENT_PRESSURE_COMPENSATION]
-            )
+    cg.add(
+        var.set_ambient_pressure_compensation(
+            config[CONF_AMBIENT_PRESSURE_COMPENSATION]
         )
+    )
 
     cg.add_optional(var.set_temperature_offset, config.get(CONF_TEMPERATURE_OFFSET))
 
