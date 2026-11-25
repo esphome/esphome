@@ -146,7 +146,7 @@ async def to_code(config: ConfigType) -> None:
         if (timeout := _reply_timeout_ms(CORE.config)) != DEFAULT_REPLY_TIMEOUT_MS:
             cg.add(var.set_reply_timeout(timeout))
         if units := _served_units(CORE.config, str(config[CONF_ID])):
-            arr = cg.static_const_array(
+            arr = cg.progmem_array(
                 cg.unique_global_id(f"{config[CONF_ID]}_units", cg.uint8),
                 cg.ArrayInitializer(*units),
             )

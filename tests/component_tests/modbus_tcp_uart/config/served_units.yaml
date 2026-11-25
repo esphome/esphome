@@ -1,0 +1,30 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: test
+  password: testtest
+
+tcp_uart:
+  - id: inbound
+    role: server
+    port: 1502
+
+modbus_tcp_uart:
+  - id: answer
+    tcp_uart_id: inbound
+    role: server
+
+modbus:
+  - id: answer_hub
+    uart_id: answer
+    role: server
+
+modbus_server:
+  - id: answer_server
+    address: 5
+    modbus_id: answer_hub

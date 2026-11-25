@@ -1,5 +1,9 @@
 """Tests for the modbus_tcp_uart schema."""
 
+from collections.abc import Callable
+from pathlib import Path
+import re
+
 import pytest
 
 from esphome import config_validation as cv
@@ -45,3 +49,13 @@ def test_a_sensor_that_only_names_the_link_is_allowed(set_core_config) -> None:
     # The tcp_uart sensors read the connection state, not the bytes.
     _set(set_core_config, sensor=[{"tcp_uart_id": ID("link"), CONF_ID: ID("s")}])
     modbus_tcp_uart.FINAL_VALIDATE_SCHEMA(_adapter("first"))
+
+
+def test_served_units_are_kept_in_flash(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("served_units.yaml"))
+
+    # On ESP8266 a plain const array would sit in RAM.
+    assert re.search(r"uint8_t \w+\[\] PROGMEM = \{0x05\};", main_cpp)

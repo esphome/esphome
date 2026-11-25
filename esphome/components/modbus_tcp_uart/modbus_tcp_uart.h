@@ -23,7 +23,7 @@ class ModbusTcpUart : public uart::VirtualUARTComponent<RTU_FRAME_SIZE>, public 
 
   void set_server(bool server) { this->server_ = server; }
   void set_reply_timeout(uint32_t ms) { this->reply_timeout_ms_ = ms; }
-  // Server: the units that the server devices on the hub answer.
+  // Server: the units that the server devices on the hub answer. The array is in PROGMEM.
   void set_units(const uint8_t *units, uint8_t count) {
     this->units_ = units;
     this->units_count_ = count;
@@ -45,6 +45,7 @@ class ModbusTcpUart : public uart::VirtualUARTComponent<RTU_FRAME_SIZE>, public 
   void send_rtu_as_mbap_();
   void consume_tx_(size_t len);
   void clear_tx_();
+  bool serves_unit_(uint8_t unit) const;
   void discard_parent_();
   bool drop_log_due_();
   void note_drop_(const LogString *message);

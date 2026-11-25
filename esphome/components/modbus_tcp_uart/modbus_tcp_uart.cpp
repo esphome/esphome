@@ -3,6 +3,7 @@
 #include "mbap.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -46,6 +47,16 @@ void ModbusTcpUart::dump_config() {
 }
 
 bool ModbusTcpUart::is_connected() { return this->parent_->is_connected(); }
+
+// The units are in flash on ESP8266.
+bool ModbusTcpUart::serves_unit_(uint8_t unit) const {
+  for (uint8_t i = 0; i != this->units_count_; i++) {
+    if (progmem_read_byte(this->units_ + i) == unit) {
+      return true;
+    }
+  }
+  return false;
+}
 
 void ModbusTcpUart::clear_tx_() {
   this->tx_len_ = 0;
@@ -248,9 +259,7 @@ void ModbusTcpUart::deliver_mbap_() {
             this->txn_pending_ = false;
           }
           // The hub would wait for another device's reply to it, and none is on this link.
-          const uint8_t *units_end = this->units_ + this->units_count_;
-          if (frame.unit != 0 && this->units_ != nullptr &&
-              std::find(this->units_, units_end, frame.unit) == units_end) {
+          if (frame.unit != 0 && this->units_ != nullptr && !this->serves_unit_(frame.unit)) {
             if (this->drop_log_due_()) {
               ESP_LOGW(TAG, "No server for unit %u, request dropped", frame.unit);
             }
