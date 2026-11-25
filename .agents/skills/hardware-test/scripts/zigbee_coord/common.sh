@@ -5,6 +5,7 @@ Z=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd); export PY=${PY:-${TREE:?set TRE
 # join_fresh NAME YAML SECS: open the network, flash YAML (log capture for SECS), wait for the join and interrogate
 # the device as "NAME boot"; sets short and booted (time the flash finished).
 join_fresh() {
+  "$Z/../pio_build.sh" compile "$1" "$2" || exit 1  # build first: permit join lasts only 254 s
   $D send "network open -t 254" || exit 1
   local since; since=$($D pos); $D mark "$1 start"
   CHIP=${CHIP-esp32c6} "$Z/flashdev.sh" "$1" "$2" "$3" || exit 1
