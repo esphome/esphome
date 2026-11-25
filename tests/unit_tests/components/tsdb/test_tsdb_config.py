@@ -124,7 +124,7 @@ def test_utf8_bytes_counts_encoded_length() -> None:
     assert validate("abcd") == "abcd"
     # Three characters, but six bytes once UTF-8 encoded.
     with pytest.raises(cv.Invalid, match="at most 4 bytes"):
-        validate("äöü")
+        validate("\u00e4\u00f6\u00fc")
 
 
 @pytest.mark.parametrize("name", ["a,b", 'a"b', "a\nb", "a\rb"])

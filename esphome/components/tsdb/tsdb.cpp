@@ -35,6 +35,11 @@ static constexpr uint32_t STATS_INTERVAL_MS = 60000;
 static constexpr uint32_t DROP_LOG_EVERY = 10;
 // Rate limit for the free space probe failures.
 static constexpr uint32_t PROBE_LOG_EVERY = 100;
+// The engine keeps its durable header slots beside the database, in two layouts.
+static constexpr const char *const SIDECAR_SUFFIXES[] = {".h0", ".h1", ".d/h0", ".d/h1"};
+// A shutdown gives up on a sync task that does not finish in this time.
+static constexpr uint32_t SHUTDOWN_SYNC_TIMEOUT_MS = 30000;
+#ifdef USE_TSDB_DUMP
 // One CSV dump line.
 static constexpr size_t CSV_LINE_SIZE = 256;
 // "timestamp" plus one maximum-length name per column with its comma and terminator.
@@ -52,14 +57,12 @@ static constexpr size_t CSV_HEADER_LIMIT =
     LOG_LINE_SIZE > LOG_LINE_OVERHEAD ? std::min(CSV_HEADER_SIZE, LOG_LINE_SIZE - LOG_LINE_OVERHEAD) : 0;
 // Dump window margin for jitter and single gaps.
 static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
+#endif
 static constexpr uint32_t REOPEN_RETRY_MS = 300000;
 // The sync task only folds the header into the file: 4 KB of stack is enough for the
 // stdio and littlefs calls, and it runs below the main loop.
 static constexpr uint32_t SYNC_TASK_STACK_SIZE = 4096;
 static constexpr UBaseType_t SYNC_TASK_PRIORITY = 1;
-// mount_point is at most 32 bytes and file at most 64, plus the slash, a slot suffix
-// ("/.d/h0") and the terminator. The schema enforces the byte limits.
-static constexpr size_t PATH_BUFFER_SIZE = 128;
 
 // dump_config() names, indexed by the tsdbmath enums (last entry is the fallback).
 PROGMEM_STRING_TABLE(MissingPolicyStrings, "skip", "hold", "sentinel", "unknown");
@@ -73,10 +76,17 @@ static const LogString *memory_mode_to_string(tsdbmath::MemoryMode mode) {
   return MemoryModeStrings::get_log_str(static_cast<uint8_t>(mode), MemoryModeStrings::LAST_INDEX);
 }
 
-// esp_tsdb free-space callback takes no context; the mounted label lives here.
-static const char *g_free_space_label = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// Failed free-space probes, to rate limit the warning the callback emits.
-static uint32_t g_probe_failures = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// The esp_tsdb free-space callback takes no context: the mounted label and the count of
+// failed probes (to rate limit the warning) live in one function-local instance.
+struct FreeSpaceProbe {
+  const char *label{nullptr};
+  uint32_t failures{0};
+};
+
+static FreeSpaceProbe &free_space_state() {
+  static FreeSpaceProbe state;
+  return state;
+}
 
 static_assert(tsdbmath::BLOCK_SIZE == TSDB_BLOCK_SIZE, "esp_tsdb changed TSDB_BLOCK_SIZE");
 static_assert(tsdbmath::BLOCK_HEADER_SIZE == TSDB_BLOCK_HEADER_SIZE, "esp_tsdb changed the block header");
@@ -134,11 +144,11 @@ static bool header_is_sane(const tsdb_header_t &header) {
 }
 
 static bool partition_is_blank(const esp_partition_t *partition) {
-  static constexpr size_t CHUNK = 256;
-  uint8_t buffer[CHUNK];
-  for (uint32_t offset = 0; offset < partition->size; offset += CHUNK) {
+  static constexpr size_t chunk = 256;
+  uint8_t buffer[chunk];
+  for (uint32_t offset = 0; offset < partition->size; offset += chunk) {
     const size_t remaining = static_cast<size_t>(partition->size) - offset;
-    const size_t length = remaining < CHUNK ? remaining : CHUNK;
+    const size_t length = remaining < chunk ? remaining : chunk;
     const esp_err_t err = esp_partition_read(partition, offset, buffer, length);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "partition read at offset %" PRIu32 " failed: %s", offset, esp_err_to_name(err));
@@ -162,20 +172,20 @@ void TsdbComponent::add_column(const char *name, double scale, double offset) {
 
 void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { this->columns_[index].source = source; }
 
-// NOLINTNEXTLINE(readability-non-const-parameter) -- snprintf() writes through the buffer.
-void TsdbComponent::format_path_(char *buffer, size_t size) const {
-  snprintf(buffer, size, "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
+PathBuffer TsdbComponent::format_path_() const {
+  PathBuffer buffer{};
+  snprintf(buffer.data(), buffer.size(), "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
+  return buffer;
 }
 
 // The engine keeps two alternating durable header copies beside the database: the legacy
 // <file>.h0/.h1 and, from 2.4.4, <file>.d/h0 and h1. It adopts the newer one on open when
 // it describes at least as many records.
 bool TsdbComponent::remove_sidecars_() {
-  static constexpr const char *SUFFIXES[] = {".h0", ".h1", ".d/h0", ".d/h1"};
-  char path[PATH_BUFFER_SIZE];
-  this->format_path_(path, sizeof(path));
+  const PathBuffer path_buffer = this->format_path_();
+  const char *path = path_buffer.data();
   bool removed = true;
-  for (const char *suffix : SUFFIXES) {
+  for (const char *suffix : SIDECAR_SUFFIXES) {
     char sidecar[PATH_BUFFER_SIZE + 8];
     snprintf(sidecar, sizeof(sidecar), "%s%s", path, suffix);
     if (remove(sidecar) != 0 && errno != ENOENT) {
@@ -199,11 +209,10 @@ bool TsdbComponent::sidecar_advanced_() {
 }
 
 uint32_t TsdbComponent::newest_sidecar_seq_on_disk_() const {
-  static constexpr const char *SLOT_SUFFIXES[] = {".h0", ".h1", ".d/h0", ".d/h1"};
-  char path[PATH_BUFFER_SIZE];
-  this->format_path_(path, sizeof(path));
+  const PathBuffer path_buffer = this->format_path_();
+  const char *path = path_buffer.data();
   uint32_t newest = 0;
-  for (const char *suffix : SLOT_SUFFIXES) {
+  for (const char *suffix : SIDECAR_SUFFIXES) {
     char slot[PATH_BUFFER_SIZE + 8];
     snprintf(slot, sizeof(slot), "%s%s", path, suffix);
     FILE *file = fopen(slot, "rb");
@@ -221,8 +230,8 @@ uint32_t TsdbComponent::newest_sidecar_seq_on_disk_() const {
 
 // The header as it currently is on disk, independent of the engine's in-memory copy.
 bool TsdbComponent::read_disk_header_(tsdb_header_t *header) const {
-  char path[PATH_BUFFER_SIZE];
-  this->format_path_(path, sizeof(path));
+  const PathBuffer path_buffer = this->format_path_();
+  const char *path = path_buffer.data();
   FILE *file = fopen(path, "rb");
   if (file == nullptr)
     return false;
@@ -252,11 +261,6 @@ bool TsdbComponent::folded_header_matches_() {
 }
 
 void TsdbComponent::setup() {
-  if (this->columns_.empty()) {
-    ESP_LOGE(TAG, "no columns configured");
-    this->fail_setup_(LOG_STR("no columns configured"));
-    return;
-  }
   if (!this->mount_filesystem_()) {
     this->log_init_failure_();
     this->fail_setup_(LOG_STR("mounting the LittleFS partition"));
@@ -293,7 +297,10 @@ void TsdbComponent::fail_setup_(const LogString *reason) {
 
 void TsdbComponent::on_shutdown() {
   // Wait for an in-flight sync, then fold once more inline: a shutdown may block.
-  this->wait_for_sync_();
+  if (!this->wait_for_sync_()) {
+    ESP_LOGE(TAG, "%s: the sync task did not finish - leaving the database open", this->file_.c_str());
+    return;
+  }
   if (this->db_ == nullptr) {
     this->unmount_filesystem_();
     return;
@@ -351,7 +358,7 @@ bool TsdbComponent::mount_filesystem_() {
   }
 
   this->mounted_ = true;
-  g_free_space_label = this->partition_label_.c_str();
+  free_space_state().label = this->partition_label_.c_str();
   size_t total = 0;
   size_t used = 0;
   if (esp_littlefs_info(this->partition_label_.c_str(), &total, &used) == ESP_OK) {
@@ -383,8 +390,8 @@ static uint32_t read_stored_columns(const char *path) {
 
 // One stat() covers both the presence and the size of the database file.
 void TsdbComponent::log_init_failure_() {
-  char path[PATH_BUFFER_SIZE];
-  this->format_path_(path, sizeof(path));
+  const PathBuffer path_buffer = this->format_path_();
+  const char *path = path_buffer.data();
   const esp_partition_t *partition = esp_partition_find_first(
       ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(LITTLEFS_SUBTYPE), this->partition_label_.c_str());
   if (partition == nullptr) {
@@ -415,7 +422,7 @@ void TsdbComponent::unmount_filesystem_() {
     ESP_LOGE(TAG, "%s: unmounting the filesystem failed: %s", this->file_.c_str(), esp_err_to_name(err));
   }
   this->mounted_ = false;
-  g_free_space_label = nullptr;
+  free_space_state().label = nullptr;
 }
 
 HistoryState TsdbComponent::inspect_history_(const char *path, const LogString **reason) const {
@@ -463,8 +470,8 @@ bool TsdbComponent::open_database_() {
     ESP_LOGE(TAG, "%s: max_file_size too small for %" PRIu32 " columns", this->file_.c_str(), columns);
     return false;
   }
-  char path[PATH_BUFFER_SIZE];
-  this->format_path_(path, sizeof(path));
+  const PathBuffer path_buffer = this->format_path_();
+  const char *path = path_buffer.data();
 
   // tsdb_open() unlinks a history file it cannot read or reconstruct, before any schema
   // check. Inspect it first so only a column mismatch the config allows may delete it.
@@ -551,8 +558,8 @@ bool TsdbComponent::open_database_() {
 }
 
 bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
-  char path[PATH_BUFFER_SIZE];
-  this->format_path_(path, sizeof(path));
+  const PathBuffer path_buffer = this->format_path_();
+  const char *path = path_buffer.data();
   FILE *file = fopen(path, "rb");
   const int32_t field = static_cast<int32_t>(offsetof(tsdb_header_t, index_stride));
   uint32_t value = 0;
@@ -608,16 +615,17 @@ void TsdbComponent::reopen_if_lost_() {
 uint64_t TsdbComponent::free_space_probe() {
   size_t total = 0;
   size_t used = 0;
-  if (g_free_space_label == nullptr || esp_littlefs_info(g_free_space_label, &total, &used) != ESP_OK) {
+  FreeSpaceProbe &state = free_space_state();
+  if (state.label == nullptr || esp_littlefs_info(state.label, &total, &used) != ESP_OK) {
     // Fail closed: an unreadable free-space value must not disable min_free_bytes.
-    if (g_probe_failures++ % PROBE_LOG_EVERY == 0) {
+    if (state.failures++ % PROBE_LOG_EVERY == 0) {
       ESP_LOGW(TAG, "free space could not be read - refusing to grow the database");
     }
     return 0;
   }
   // A working probe clears the failure count, so a new outage warns at once
   // instead of after PROBE_LOG_EVERY more failures.
-  g_probe_failures = 0;
+  state.failures = 0;
   return static_cast<uint64_t>(total) - static_cast<uint64_t>(used);
 }
 
@@ -632,7 +640,7 @@ void TsdbComponent::update() {
   this->consume_sync_result_();
   // The sync task holds the engine lock for the whole fold; touching the database here
   // would park the main loop behind it, so this interval's sample is dropped and counted.
-  if (this->sync_pending_) {
+  if (this->sync_in_flight_()) {
     this->note_dropped_();
     return;
   }
@@ -646,7 +654,7 @@ void TsdbComponent::update() {
   this->handle_requests_();
   // A requested flush can fail and drop the handle, and it may have just started a fold
   // that holds the engine lock; leave the rest of this pass to the next interval.
-  if (this->db_ == nullptr || this->sync_pending_) {
+  if (this->db_ == nullptr || this->sync_in_flight_()) {
     this->note_dropped_();
     return;
   }
@@ -657,11 +665,13 @@ void TsdbComponent::update() {
     return;
 
   const uint32_t now = App.get_loop_component_start_time();
+#ifdef USE_TSDB_AGGREGATES
   if (this->aggregate_interval_ > 0 &&
       (this->last_aggregate_ == 0 || now - this->last_aggregate_ >= this->aggregate_interval_)) {
     this->last_aggregate_ = now;
     this->publish_aggregates_();
   }
+#endif
   if (this->last_stats_ == 0 || now - this->last_stats_ >= STATS_INTERVAL_MS) {
     this->last_stats_ = now;
     this->publish_stats_();
@@ -734,14 +744,16 @@ void TsdbComponent::handle_requests_() {
 
   // A requested flush that failed dropped the handle; a running fold holds the engine
   // lock, so the dump request stays queued for the next pass.
-  if (this->db_ == nullptr || this->sync_pending_)
+  if (this->db_ == nullptr || this->sync_in_flight_())
     return;
 
+#ifdef USE_TSDB_DUMP
   if (this->dump_requested_ > 0) {
     const uint32_t rows = this->dump_requested_;
     this->dump_requested_ = 0;
     this->dump_csv_(rows);
   }
+#endif
 }
 
 bool TsdbComponent::resolve_timestamp_(uint32_t *timestamp, const LogString *&degraded) {
@@ -920,7 +932,7 @@ void TsdbComponent::publish_errors_() {
 }
 
 void TsdbComponent::flush_(bool force) {
-  if (this->db_ == nullptr || !this->dirty_ || this->sync_pending_)
+  if (this->db_ == nullptr || !this->dirty_ || this->sync_in_flight_())
     return;
   const uint32_t now = App.get_loop_component_start_time();
   if (!force && this->last_sync_ != 0 && this->sync_interval_ > 0 && now - this->last_sync_ < this->sync_interval_)
@@ -931,7 +943,7 @@ void TsdbComponent::flush_(bool force) {
     return;
   }
   // The fold rewrites the whole file (seconds on a large history); leave it to the task.
-  this->sync_pending_ = true;
+  this->sync_state_.store(static_cast<uint8_t>(SyncState::SYNC_STATE_RUNNING), std::memory_order_release);
   xTaskNotify(this->sync_task_.get_handle(), 1, eSetValueWithOverwrite);
 }
 
@@ -976,12 +988,12 @@ void TsdbComponent::sync_task_fn(void *arg) {
     esp_err_t err = ESP_ERR_INVALID_STATE;
     if (db != nullptr)
       err = tsdb_sync_h(db);
-    SyncResult result = SyncResult::SYNC_RESULT_CLOSED;
+    SyncState result = SyncState::SYNC_STATE_CLOSED;
     if (err == ESP_OK) {
       // Same check as the inline path: the engine does not report a failed fold.
-      result = self->folded_header_matches_() ? SyncResult::SYNC_RESULT_OK : SyncResult::SYNC_RESULT_FAILED;
+      result = self->folded_header_matches_() ? SyncState::SYNC_STATE_OK : SyncState::SYNC_STATE_FAILED;
     } else if (db != nullptr && tsdb_is_initialized_h(db)) {
-      result = SyncResult::SYNC_RESULT_FAILED;
+      result = SyncState::SYNC_STATE_FAILED;
     }
     self->sync_state_.store(static_cast<uint8_t>(result), std::memory_order_release);
   }
@@ -989,15 +1001,12 @@ void TsdbComponent::sync_task_fn(void *arg) {
 
 // Consumes the sync task's outcome on the main loop; true when one was pending.
 bool TsdbComponent::consume_sync_result_() {
-  if (!this->sync_pending_)
+  const auto result = static_cast<SyncState>(this->sync_state_.load(std::memory_order_acquire));
+  if (result == SyncState::SYNC_STATE_IDLE || result == SyncState::SYNC_STATE_RUNNING)
     return false;
-  const auto result = static_cast<SyncResult>(this->sync_state_.load(std::memory_order_acquire));
-  if (result == SyncResult::SYNC_RESULT_IDLE)
-    return false;
-  this->sync_state_.store(static_cast<uint8_t>(SyncResult::SYNC_RESULT_IDLE), std::memory_order_relaxed);
-  this->sync_pending_ = false;
+  this->sync_state_.store(static_cast<uint8_t>(SyncState::SYNC_STATE_IDLE), std::memory_order_relaxed);
 
-  if (result == SyncResult::SYNC_RESULT_OK) {
+  if (result == SyncState::SYNC_STATE_OK) {
     this->sync_failed_ = false;
     this->dirty_ = false;
     ESP_LOGD(TAG, "%s: synced after %" PRIu32 " writes", this->file_.c_str(), this->writes_);
@@ -1015,39 +1024,49 @@ bool TsdbComponent::consume_sync_result_() {
   ESP_LOGE(TAG, "%s: sync failed", this->file_.c_str());
   this->status_set_warning(LOG_STR("syncing the history failed"));
   this->publish_errors_();
-  if (result == SyncResult::SYNC_RESULT_CLOSED)
+  if (result == SyncState::SYNC_STATE_CLOSED)
     this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
   return true;
 }
 
-void TsdbComponent::wait_for_sync_() {
-  while (this->sync_pending_) {
-    if (!this->consume_sync_result_())
-      delay(10);
+bool TsdbComponent::wait_for_sync_() {
+  const uint32_t started = millis();
+  while (this->sync_in_flight_() && !this->consume_sync_result_()) {
+    if (millis() - started > SHUTDOWN_SYNC_TIMEOUT_MS)
+      return false;
+    delay(10);
   }
+  return true;
 }
 
 void TsdbComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "tsdb:");
-  ESP_LOGCONFIG(TAG, "  file: %s/%s", this->mount_point_.c_str(), this->file_.c_str());
-  ESP_LOGCONFIG(TAG, "  partition: %s, %" PRIu32 " KB, format on first boot: %s, recreate on schema change: %s",
-                this->partition_label_.c_str(), this->partition_size_ / 1024, YESNO(this->format_on_first_boot_),
-                YESNO(this->recreate_on_schema_change_));
-  ESP_LOGCONFIG(TAG, "  budget: max file %" PRIu32 " KB, min free %" PRIu32 " KB, index stride %" PRIu32,
-                this->max_file_size_ / 1024, this->min_free_bytes_ / 1024, this->index_stride_);
-  ESP_LOGCONFIG(TAG, "  columns: %" PRIu32, static_cast<uint32_t>(this->columns_.size()));
+  ESP_LOGCONFIG(TAG,
+                "tsdb:\n"
+                "  file: %s/%s\n"
+                "  partition: %s, %" PRIu32 " KB, format on first boot: %s, recreate on schema change: %s\n"
+                "  budget: max file %" PRIu32 " KB, min free %" PRIu32 " KB, index stride %" PRIu32 "\n"
+                "  columns: %" PRIu32,
+                this->mount_point_.c_str(), this->file_.c_str(), this->partition_label_.c_str(),
+                this->partition_size_ / 1024, YESNO(this->format_on_first_boot_),
+                YESNO(this->recreate_on_schema_change_), this->max_file_size_ / 1024, this->min_free_bytes_ / 1024,
+                this->index_stride_, static_cast<uint32_t>(this->columns_.size()));
   for (const TsdbColumn &column : this->columns_) {
     ESP_LOGCONFIG(TAG, "    %s: scale %.6g, offset %.6g", column.name.c_str(), column.scale, column.offset);
   }
-  ESP_LOGCONFIG(TAG, "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms", this->get_update_interval(),
-                this->sync_interval_);
-  ESP_LOGCONFIG(TAG, "  buffer pool: %" PRIu32 " bytes (page size: %" PRIu32 "), memory: %s, paged allocation: %s",
-                this->buffer_pool_size_, this->page_size_, LOG_STR_ARG(memory_mode_to_string(this->memory_mode_)),
-                YESNO(this->paged_allocation_));
-  ESP_LOGCONFIG(TAG, "  time required: %s, missing values: %s", YESNO(this->require_time_),
-                LOG_STR_ARG(missing_policy_to_string(this->missing_policy_)));
-  ESP_LOGCONFIG(TAG, "  aggregates: window %" PRIu32 " s, interval %" PRIu32 " ms, dump rows: %" PRIu32,
-                this->aggregate_window_, this->aggregate_interval_, this->dump_rows_);
+  ESP_LOGCONFIG(TAG,
+                "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms\n"
+                "  buffer pool: %" PRIu32 " bytes (page size: %" PRIu32 "), memory: %s, paged allocation: %s\n"
+                "  time required: %s, missing values: %s",
+                this->get_update_interval(), this->sync_interval_, this->buffer_pool_size_, this->page_size_,
+                LOG_STR_ARG(memory_mode_to_string(this->memory_mode_)), YESNO(this->paged_allocation_),
+                YESNO(this->require_time_), LOG_STR_ARG(missing_policy_to_string(this->missing_policy_)));
+#ifdef USE_TSDB_AGGREGATES
+  ESP_LOGCONFIG(TAG, "  aggregates: window %" PRIu32 " s, interval %" PRIu32 " ms", this->aggregate_window_,
+                this->aggregate_interval_);
+#endif
+#ifdef USE_TSDB_DUMP
+  ESP_LOGCONFIG(TAG, "  dump rows: %" PRIu32, this->dump_rows_);
+#endif
   ESP_LOGCONFIG(TAG,
                 "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32
                 ", sentinel: %" PRIu32 ", uptime: %" PRIu32,
@@ -1058,8 +1077,8 @@ void TsdbComponent::dump_config() {
   }
 }
 
+#ifdef USE_TSDB_AGGREGATES
 void TsdbComponent::publish_aggregates_() {
-#if defined(USE_SENSOR) && defined(USE_TIME)
   if (this->time_ == nullptr || this->aggregate_window_ == 0)
     return;
   // Nothing to publish: skip scanning the window when no aggregate sensor is configured.
@@ -1102,8 +1121,8 @@ void TsdbComponent::publish_aggregates_() {
     PUBLISH_STATE(sensors.min, static_cast<float>(windows[index].min()));
     PUBLISH_STATE(sensors.max, static_cast<float>(windows[index].max()));
   }
-#endif
 }
+#endif  // USE_TSDB_AGGREGATES
 
 // Wall-clock seconds, or 0 when no clock is synced (record ages are then unknown).
 uint32_t TsdbComponent::wall_clock_() const {
@@ -1154,6 +1173,7 @@ void TsdbComponent::publish_stats_() {
       this->file_.c_str(), this->records_, stats.total_evictions, this->writes_, this->dropped_, this->write_errors_);
 }
 
+#ifdef USE_TSDB_DUMP
 void TsdbComponent::dump_csv_(uint32_t rows) {
   auto *db = static_cast<tsdb_t *>(this->db_);
   tsdb_stats_t stats = {};
@@ -1244,6 +1264,7 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
   tsdb_query_close(&query);
   ESP_LOGI(TAG, "%s: csv-dump end (%" PRIu32 " rows)", this->file_.c_str(), count);
 }
+#endif  // USE_TSDB_DUMP
 
 void TsdbComponent::publish_log_(const char *message) {
 #ifdef USE_TEXT_SENSOR

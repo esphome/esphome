@@ -29,11 +29,13 @@ from esphome.const import (
     CONF_ID,
     CONF_NAME,
     CONF_OFFSET,
+    CONF_PLATFORM,
     CONF_SENSOR,
     CONF_TIME,
     CONF_TIME_ID,
     Framework,
 )
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -80,6 +82,7 @@ LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 FILE_NAME_MAX_BYTES = 64
 MOUNT_POINT_MAX_BYTES = 32
 
+CONF_SENSOR_DOMAIN = "sensor"
 CONF_MOUNT_POINT = "mount_point"
 CONF_PARTITION = "partition"
 CONF_PARTITION_SIZE = "partition_size"
@@ -102,9 +105,7 @@ CONF_DUMP_ROWS = "dump_rows"
 CONF_TSDB_ID = "tsdb_id"
 
 MEMORY_MODES = MemoryMode.options("internal", "psram", "auto", prefix="MEMORY_")
-MISSING_POLICIES = MissingPolicy.options(
-    "skip", "hold", "sentinel", prefix="MISSING_"
-)
+MISSING_POLICIES = MissingPolicy.options("skip", "hold", "sentinel", prefix="MISSING_")
 
 _SIZE_UNITS = {
     "": 1,
@@ -395,6 +396,26 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _contains_key(node: object, key: str) -> bool:
+    """Whether the validated configuration holds `key` anywhere, as an action name does."""
+    if isinstance(node, dict):
+        return key in node or any(_contains_key(value, key) for value in node.values())
+    if isinstance(node, list):
+        return any(_contains_key(item, key) for item in node)
+    return False
+
+
+def _uses_aggregates() -> bool:
+    """Whether a tsdb sensor platform asks for an average, minimum or maximum."""
+    return any(
+        key in column
+        for entry in CORE.config.get(CONF_SENSOR_DOMAIN, [])
+        if entry.get(CONF_PLATFORM) == DOMAIN
+        for column in entry.get(CONF_COLUMNS, [])
+        for key in ("average", "min", "max")
+    )
+
+
 async def to_code(config: ConfigType) -> None:
     for name, ref in IDF_COMPONENTS.items():
         add_idf_component(name=name, ref=ref)
@@ -404,12 +425,14 @@ async def to_code(config: ConfigType) -> None:
     require_vfs_dir()
     add_idf_sdkconfig_option("CONFIG_LITTLEFS_WDT_RESET", True)
 
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        config[CONF_FILE],
+        config[CONF_MOUNT_POINT],
+        config[CONF_PARTITION],
+    )
     await cg.register_component(var, config)
 
-    cg.add(var.set_file(config[CONF_FILE]))
-    cg.add(var.set_mount_point(config[CONF_MOUNT_POINT]))
-    cg.add(var.set_partition_label(config[CONF_PARTITION]))
     cg.add(var.set_partition_size(config[CONF_PARTITION_SIZE]))
     cg.add(var.set_format_on_first_boot(config[CONF_FORMAT_ON_FIRST_BOOT]))
     cg.add(var.set_recreate_on_schema_change(config[CONF_RECREATE_ON_SCHEMA_CHANGE]))
@@ -423,9 +446,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_min_free_bytes(config[CONF_MIN_FREE_BYTES]))
     cg.add(var.set_require_time(config[CONF_REQUIRE_TIME]))
     cg.add(var.set_missing_policy(MISSING_POLICIES[config[CONF_ON_MISSING]]))
-    cg.add(var.set_aggregate_window(config[CONF_AGGREGATE_WINDOW]))
-    cg.add(var.set_aggregate_interval(config[CONF_AGGREGATE_INTERVAL]))
-    cg.add(var.set_dump_rows(config[CONF_DUMP_ROWS]))
+    if _uses_aggregates():
+        cg.add_define("USE_TSDB_AGGREGATES")
+        cg.add(var.set_aggregate_window(config[CONF_AGGREGATE_WINDOW]))
+        cg.add(var.set_aggregate_interval(config[CONF_AGGREGATE_INTERVAL]))
+    if _contains_key(CORE.config, "tsdb.dump"):
+        cg.add_define("USE_TSDB_DUMP")
+        cg.add(var.set_dump_rows(config[CONF_DUMP_ROWS]))
     await cg.add_variable(var.set_time_source, config.get(CONF_TIME_ID))
 
     cg.add_define("TSDB_COLUMN_COUNT", len(config[CONF_COLUMNS]))

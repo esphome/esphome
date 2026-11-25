@@ -27,6 +27,11 @@
 
 namespace esphome::tsdb {
 
+// mount_point is at most 32 bytes and file at most 64, plus the slash, a slot suffix
+// ("/.d/h0") and the terminator. The schema enforces the byte limits.
+static constexpr size_t PATH_BUFFER_SIZE = 128;
+using PathBuffer = std::array<char, PATH_BUFFER_SIZE>;
+
 // Result of the header inspection done before tsdb_open(), which unlinks a file it
 // cannot read before any schema check.
 enum class HistoryState : uint8_t {
@@ -35,12 +40,15 @@ enum class HistoryState : uint8_t {
   HISTORY_STATE_UNREADABLE = 2,
 };
 
-// State the sync task leaves for the main loop to consume.
-enum class SyncResult : uint8_t {
-  SYNC_RESULT_IDLE = 0,
-  SYNC_RESULT_OK = 1,
-  SYNC_RESULT_FAILED = 2,
-  SYNC_RESULT_CLOSED = 3,
+// The one flag shared with the sync task: the main loop sets RUNNING, the task leaves the
+// outcome, and the main loop consumes it back to IDLE. The main loop leaves the database
+// alone in every state but IDLE.
+enum class SyncState : uint8_t {
+  SYNC_STATE_IDLE = 0,
+  SYNC_STATE_RUNNING = 1,
+  SYNC_STATE_OK = 2,
+  SYNC_STATE_FAILED = 3,
+  SYNC_STATE_CLOSED = 4,
 };
 
 struct TsdbColumn {
@@ -54,7 +62,7 @@ struct TsdbColumn {
   bool saturated_warned{false};
 };
 
-#ifdef USE_SENSOR
+#ifdef USE_TSDB_AGGREGATES
 // Kept apart from TsdbColumn: the sensor platform may set these before the hub adds its columns.
 struct TsdbAggregateSensors {
   sensor::Sensor *average{nullptr};
@@ -75,14 +83,14 @@ class TsdbComponent final : public PollingComponent {
 #endif
 
  public:
+  TsdbComponent(const char *file, const char *mount_point, const char *partition_label)
+      : file_(file), mount_point_(mount_point), partition_label_(partition_label) {}
+
   void setup() override;
   void update() override;
   void dump_config() override;
   void on_shutdown() override;
 
-  void set_file(const char *file) { this->file_ = StringRef(file); }
-  void set_mount_point(const char *mount_point) { this->mount_point_ = StringRef(mount_point); }
-  void set_partition_label(const char *label) { this->partition_label_ = StringRef(label); }
   void set_partition_size(uint32_t bytes) { this->partition_size_ = bytes; }
   void set_format_on_first_boot(bool format) { this->format_on_first_boot_ = format; }
   void set_recreate_on_schema_change(bool recreate) { this->recreate_on_schema_change_ = recreate; }
@@ -96,16 +104,20 @@ class TsdbComponent final : public PollingComponent {
   void set_min_free_bytes(uint32_t bytes) { this->min_free_bytes_ = bytes; }
   void set_require_time(bool require) { this->require_time_ = require; }
   void set_missing_policy(tsdbmath::MissingPolicy policy) { this->missing_policy_ = policy; }
+#ifdef USE_TSDB_AGGREGATES
   void set_aggregate_window(uint32_t seconds) { this->aggregate_window_ = seconds; }
   void set_aggregate_interval(uint32_t ms) { this->aggregate_interval_ = ms; }
+#endif
+#ifdef USE_TSDB_DUMP
   void set_dump_rows(uint32_t rows) { this->dump_rows_ = rows; }
+#endif
 #ifdef USE_TIME
   void set_time_source(time::RealTimeClock *clock) { this->time_ = clock; }
 #endif
 
   void add_column(const char *name, double scale, double offset);
   void set_column_source(size_t index, sensor::Sensor *source);
-#ifdef USE_SENSOR
+#ifdef USE_TSDB_AGGREGATES
   void set_column_average_sensor(size_t index, sensor::Sensor *sensor) { this->aggregates_[index].average = sensor; }
   void set_column_min_sensor(size_t index, sensor::Sensor *sensor) { this->aggregates_[index].min = sensor; }
   void set_column_max_sensor(size_t index, sensor::Sensor *sensor) { this->aggregates_[index].max = sensor; }
@@ -115,7 +127,9 @@ class TsdbComponent final : public PollingComponent {
 #endif
 
   void request_flush() { this->flush_requested_ = true; }
+#ifdef USE_TSDB_DUMP
   void request_dump(uint32_t rows = 0) { this->dump_requested_ = rows == 0 ? this->dump_rows_ : rows; }
+#endif
   void request_clear() { this->clear_requested_ = true; }
   uint32_t get_records() const { return this->records_; }
   bool is_ready() const { return this->db_ != nullptr; }
@@ -140,17 +154,24 @@ class TsdbComponent final : public PollingComponent {
   void flush_(bool force);
   void sync_now_();
   bool consume_sync_result_();
-  void wait_for_sync_();
+  bool wait_for_sync_();
+  bool sync_in_flight_() const {
+    return this->sync_state_.load(std::memory_order_acquire) != static_cast<uint8_t>(SyncState::SYNC_STATE_IDLE);
+  }
   static void sync_task_fn(void *arg);
-  void format_path_(char *buffer, size_t size) const;  // NOLINT(readability-non-const-parameter)
+  PathBuffer format_path_() const;
   bool remove_sidecars_();
   bool sidecar_advanced_();
   uint32_t newest_sidecar_seq_on_disk_() const;
   bool read_disk_header_(tsdb_header_t *header) const;
   bool folded_header_matches_();
+#ifdef USE_TSDB_AGGREGATES
   void publish_aggregates_();
+#endif
   void publish_stats_();
+#ifdef USE_TSDB_DUMP
   void dump_csv_(uint32_t rows);
+#endif
   void publish_log_(const char *message);
   uint32_t wall_clock_() const;
   static uint64_t free_space_probe();
@@ -158,12 +179,12 @@ class TsdbComponent final : public PollingComponent {
   // Sized by TSDB_COLUMN_COUNT, emitted by the Python config; defines.h covers static analysis.
   StaticVector<TsdbColumn, TSDB_COLUMN_COUNT> columns_;
   StaticVector<int16_t, TSDB_COLUMN_COUNT> values_;
-#ifdef USE_SENSOR
+#ifdef USE_TSDB_AGGREGATES
   std::array<TsdbAggregateSensors, TSDB_COLUMN_COUNT> aggregates_{};
 #endif
-  StringRef file_{"history.tsdb"};
-  StringRef mount_point_{"/littlefs"};
-  StringRef partition_label_{"littlefs"};
+  StringRef file_;
+  StringRef mount_point_;
+  StringRef partition_label_;
 #ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};
 #endif
@@ -179,9 +200,15 @@ class TsdbComponent final : public PollingComponent {
   uint32_t page_size_{2048};
   uint32_t sync_interval_{60000};
   uint32_t min_free_bytes_{32768};
+#ifdef USE_TSDB_AGGREGATES
   uint32_t aggregate_window_{3600};
   uint32_t aggregate_interval_{300000};
+  uint32_t last_aggregate_{0};
+#endif
+#ifdef USE_TSDB_DUMP
   uint32_t dump_rows_{60};
+  uint32_t dump_requested_{0};
+#endif
   tsdbmath::MemoryMode memory_mode_{tsdbmath::MEMORY_AUTO};
   tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   uint32_t last_reopen_{0};
@@ -189,15 +216,13 @@ class TsdbComponent final : public PollingComponent {
   uint32_t last_timestamp_{0};
   // Added to an uptime timestamp so the series continues after the newest stored record.
   uint32_t uptime_offset_{0};
-  uint32_t last_aggregate_{0};
   uint32_t last_stats_{0};
   uint32_t records_{0};
-  uint32_t dump_requested_{0};
   // Newest durable header slot sequence seen, so a failed slot write is noticed.
   uint32_t newest_sidecar_seq_{0};
   StaticTask sync_task_;
   // Written by the sync task, read and reset by the main loop.
-  std::atomic<uint8_t> sync_state_{static_cast<uint8_t>(SyncResult::SYNC_RESULT_IDLE)};
+  std::atomic<uint8_t> sync_state_{static_cast<uint8_t>(SyncState::SYNC_STATE_IDLE)};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
   uint32_t reopen_errors_{0};
@@ -222,8 +247,6 @@ class TsdbComponent final : public PollingComponent {
   bool clear_requested_{false};
   bool format_attempted_{false};
   bool warned_time_{false};
-  // Main loop only: a sync is outstanding, so db_ must not be closed or replaced.
-  bool sync_pending_{false};
   // Report the next completed sync as the answer to a flush request.
   bool report_flush_{false};
   // Raised by a failed sync and cleared by the next one, never by a successful write.
