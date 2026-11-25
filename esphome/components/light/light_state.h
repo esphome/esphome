@@ -155,9 +155,10 @@ class LightState : public EntityBase, public Component {
    * Lazily allocates the callback list it shares with add_remote_values_callback() on first registration.
    */
   void add_remote_values_listener(LightRemoteValuesListener *listener);
-  /// For a listener of a derived type: a final one is called directly, without the vtable.
+  /// For a listener of a derived type with a public override: a final one is called directly, without the vtable.
   template<typename T>
-    requires(std::derived_from<T, LightRemoteValuesListener> && !std::same_as<T, LightRemoteValuesListener>)
+    requires(std::derived_from<T, LightRemoteValuesListener> && !std::same_as<T, LightRemoteValuesListener> &&
+             requires(T *l) { l->on_light_remote_values_update(); })
   void add_remote_values_listener(T *listener) {
     this->remote_values_callback_.add([listener]() { listener->on_light_remote_values_update(); });
   }
@@ -167,9 +168,11 @@ class LightState : public EntityBase, public Component {
    * Lazily allocates the callback list it shares with add_target_state_reached_callback() on first registration.
    */
   void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
-  /// For a listener of a derived type: a final one is called directly, without the vtable.
+  /// For a listener of a derived type with a public override: a final one is called directly, without the vtable.
   template<typename T>
-    requires(std::derived_from<T, LightTargetStateReachedListener> && !std::same_as<T, LightTargetStateReachedListener>)
+    requires(std::derived_from<T, LightTargetStateReachedListener> &&
+             !std::same_as<T, LightTargetStateReachedListener> &&
+             requires(T *l) { l->on_light_target_state_reached(); })
   void add_target_state_reached_listener(T *listener) {
     this->target_state_reached_callback_.add([listener]() { listener->on_light_target_state_reached(); });
   }
