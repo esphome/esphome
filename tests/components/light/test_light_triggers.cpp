@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "esphome/components/light/automation.h"
 #include "esphome/components/light/light_effect.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"
@@ -37,15 +38,12 @@ class NoopEffect : public LightEffect {
 // attaches every on_turn_on first, then every on_turn_off, then every on_state, so the tests do the same.
 class Triggers {
  public:
-  // One callback per list, built like the function codegen generates for each light
+  // One callback per list, built like the functions codegen generates for each light
   explicit Triggers(LightState *state) : state_(state) {
     state->add_remote_values_callback([this]() {
-      const bool is_on = this->state_->remote_values.is_on();
-      const bool turned_on = is_on && !this->last_on_;
-      this->last_on_ = is_on;
-      if (turned_on) {
-        for (auto &action : this->on_turn_on_)
-          action();
+      for (auto &on_turn_on : this->on_turn_on_) {
+        if (update_turned_on(on_turn_on.last, this->state_->remote_values.is_on()))
+          on_turn_on.action();
       }
       for (auto &action : this->on_state_)
         action();
@@ -58,14 +56,17 @@ class Triggers {
     });
   }
 
-  void on_turn_on(std::function<void()> action) { this->on_turn_on_.push_back(std::move(action)); }
+  void on_turn_on(std::function<void()> action) { this->on_turn_on_.push_back({std::move(action)}); }
   void on_turn_off(std::function<void()> action) { this->on_turn_off_.push_back(std::move(action)); }
   void on_state(std::function<void()> action) { this->on_state_.push_back(std::move(action)); }
 
  protected:
   LightState *state_;
-  bool last_on_{false};
-  std::vector<std::function<void()>> on_turn_on_;
+  struct OnTurnOn {
+    std::function<void()> action;
+    bool last{false};
+  };
+  std::vector<OnTurnOn> on_turn_on_;
   std::vector<std::function<void()>> on_turn_off_;
   std::vector<std::function<void()>> on_state_;
 };
