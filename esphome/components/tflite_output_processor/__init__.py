@@ -20,6 +20,11 @@ CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "tflite_output_processor"
 
+# Shared by every model kind that decodes an output, so each is defined once.
+CONF_DECODER_ID = "decoder_id"
+CONF_OUTPUT_PROCESSING = "output_processing"
+CONF_SCALE_FACTOR = "scale_factor"
+
 output_processor_ns = cg.esphome_ns.namespace("tflite_output_processor")
 
 OutputProcessing = output_processor_ns.enum("OutputProcessing", is_class=True)
