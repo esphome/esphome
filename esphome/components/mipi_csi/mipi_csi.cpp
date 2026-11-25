@@ -39,10 +39,10 @@ static constexpr uint32_t CAPTURE_RETRY_DELAY_MS = 100;
 
 void MipiCsiCamera::setup() {
   setup_output_pin(this->power_pin_, true);
-  pulse_reset(this->reset_pin_, {.low_ms = 10, .high_after_ms = 20});
-
+  // Sensors need their clock running while they come out of reset
   if (!this->start_external_clock_())
     return this->fail_(LOG_STR("Failed to start external clock"));
+  pulse_reset(this->reset_pin_, {.low_ms = 10, .high_after_ms = 20});
   if (!this->init_video_())
     return this->fail_(LOG_STR("Failed to initialize video pipeline"));
   const size_t frame_size = this->configure_device_();
@@ -178,6 +178,9 @@ bool MipiCsiCamera::is_better_sensor_format_(const esp_cam_sensor_format_t &cand
   // tuning algorithms, so they are always preferred.
   if ((candidate.isp_info != nullptr) != (current.isp_info != nullptr))
     return candidate.isp_info != nullptr;
+  // Without the ISP, only a sensor output in the configured pixel format works on every chip revision
+  if ((candidate.format == this->sensor_format_) != (current.format == this->sensor_format_))
+    return candidate.format == this->sensor_format_;
 
   // Prefer the rate closest to the configured one that the driver can reach by dropping frames
   return this->reachable_framerate_(candidate.fps) > this->reachable_framerate_(current.fps);

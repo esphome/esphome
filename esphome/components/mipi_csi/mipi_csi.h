@@ -72,7 +72,8 @@ class MipiCsiCamera final : public camera::Camera {
   /// @p jpeg_input with @p bytes_per_pixel.
   MipiCsiCamera(const char *sensor_name, i2c::InternalI2CBus *i2c_bus, uint32_t sccb_frequency, uint32_t fourcc,
                 uint8_t bytes_per_pixel, jpeg_enc_input_format_t jpeg_input, jpeg_down_sampling_type_t sub_sample,
-                uint8_t jpeg_quality, uint8_t frame_buffer_count, uint8_t framerate, uint32_t idle_update_interval)
+                uint8_t jpeg_quality, uint8_t frame_buffer_count, uint8_t framerate, uint32_t idle_update_interval,
+                esp_cam_sensor_output_format_t sensor_format)
       : sensor_name_(sensor_name),
         i2c_bus_(i2c_bus),
         sccb_frequency_(sccb_frequency),
@@ -81,7 +82,8 @@ class MipiCsiCamera final : public camera::Camera {
         encoder_(jpeg_input, sub_sample, jpeg_quality),
         bytes_per_pixel_(bytes_per_pixel),
         frame_buffer_count_(frame_buffer_count),
-        framerate_(framerate) {}
+        framerate_(framerate),
+        sensor_format_(sensor_format) {}
 
   void set_resolution(uint16_t width, uint16_t height) {
     this->width_ = width;
@@ -190,6 +192,8 @@ class MipiCsiCamera final : public camera::Camera {
   uint8_t frame_buffer_count_;
   uint8_t framerate_;
   uint8_t flip_flags_{0};
+  /// The sensor output that needs no conversion for the configured pixel format
+  uint8_t sensor_format_;
   uint8_t listener_count_{0};
   int8_t xclk_pin_{-1};
   /// Requesters recorded when the frame currently being captured was asked for.

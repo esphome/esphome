@@ -8,12 +8,17 @@ from esphome.components.const import CONF_PIXEL_FORMAT
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.esp32.const import VARIANT_ESP32P4
 from esphome.components.esp_ldo import DOMAIN as ESP_LDO_DOMAIN
+from esphome.components.logger import (
+    DOMAIN as LOGGER_DOMAIN,
+    LOG_LEVELS as LOGGER_LEVELS,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_LOGS,
     CONF_PIN,
     CONF_RESET_PIN,
     CONF_RESOLUTION,
@@ -60,13 +65,21 @@ def _fourcc(code: str) -> int:
     return int.from_bytes(code.encode(), "little")
 
 
-# Capture format: V4L2 fourcc, JPEG encoder input, chroma subsampling, bytes per pixel.
+# V4L2 fourcc, JPEG encoder input, chroma subsampling, bytes per pixel, matching sensor output
 PIXEL_FORMATS = {
-    "RGB565": (_fourcc("RGBP"), "RGB565", "YUV422", 2),
-    "RGB888": (_fourcc("RGB3"), "RGB888", "YUV444", 3),
-    "YUV422": (_fourcc("UYVY"), "YUV422", "YUV422", 2),
-    "GRAYSCALE": (_fourcc("GREY"), "GRAY", "GRAY", 1),
+    "RGB565": (_fourcc("RGBP"), "RGB565", "YUV422", 2, "RGB565"),
+    "RGB888": (_fourcc("RGB3"), "RGB888", "YUV444", 3, "RGB888"),
+    "YUV422": (_fourcc("UYVY"), "YUV422", "YUV422", 2, "YUV422"),
+    "GRAYSCALE": (_fourcc("GREY"), "GRAY", "GRAY", 1, "GRAYSCALE"),
 }
+# The prebuilt esp_ipa library logs at DEBUG on every frame, past ESPHome's IDF log level
+IPA_LOG_TAGS = (
+    "esp_ipa_ian",
+    "esp_ipa_agc",
+    "esp_ipa_acc",
+    "esp_ipa_adn",
+    "esp_ipa_atc",
+)
 
 FLIP_FLAGS = {CONF_HORIZONTAL_FLIP: 0, CONF_VERTICAL_FLIP: 2}
 
@@ -75,14 +88,13 @@ def validate_sensor(value: str) -> str:
     """A built-in sensor, or one whose driver comes from another IDF component."""
     value = cv.string_strict(value).strip().upper()
     if value not in SENSOR_FORMATS:
-        if close := difflib.get_close_matches(value, SENSOR_FORMATS, n=1, cutoff=0.8):
-            raise cv.Invalid(f"Unknown sensor '{value}', did you mean '{close[0]}'?")
+        # Warn only: real sensors such as SC2356 are one digit from a built-in name
+        close = difflib.get_close_matches(value, SENSOR_FORMATS, n=1, cutoff=0.8)
         _LOGGER.warning(
-            "Sensor '%s' is not built into esp_cam_sensor. Its driver must come from another "
-            "IDF component (for example under esp32: framework: components:). Built-in "
-            "sensors are: %s",
+            "Sensor '%s' is not built into esp_cam_sensor%s. Its driver must come from another "
+            "IDF component (for example under esp32: framework: components:).",
             value,
-            ", ".join(SENSOR_FORMATS),
+            f" (did you mean '{close[0]}'?)" if close else "",
         )
     return value
 
@@ -171,7 +183,7 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CAMERA")
-    fourcc, jpeg_input, sub_sample, bytes_per_pixel = PIXEL_FORMATS[
+    fourcc, jpeg_input, sub_sample, bytes_per_pixel, sensor_format = PIXEL_FORMATS[
         config[CONF_PIXEL_FORMAT]
     ]
     idle_framerate = config[CONF_IDLE_FRAMERATE]
@@ -188,7 +200,16 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_FRAME_BUFFER_COUNT],
         int(config[CONF_FRAMERATE]),
         int(1000 / idle_framerate) if idle_framerate else 0,
+        cg.RawExpression(f"ESP_CAM_SENSOR_PIXFORMAT_{sensor_format}"),
     )
+    # Unless set by the user, quiet esp_ipa: on a UART logger it starves the main loop
+    if (logger_conf := CORE.config.get(LOGGER_DOMAIN)) is not None and (
+        tags := [tag for tag in IPA_LOG_TAGS if tag not in logger_conf[CONF_LOGS]]
+    ):
+        cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
+        log = await cg.get_variable(logger_conf[CONF_ID])
+        for tag in tags:
+            cg.add(log.set_log_level(tag, LOGGER_LEVELS["WARN"]))
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
 
