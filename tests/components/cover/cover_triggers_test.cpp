@@ -215,7 +215,7 @@ TEST_F(CoverTriggersTest, PublishFromTriggerDoesNotRefire) {
   EXPECT_EQ(this->cover_.tilt, 0.5f);
 }
 
-// The old CoverTrigger stored the operation only after triggering, so this looped.
+// An operation republished from its own trigger fires that trigger once.
 TEST_F(CoverTriggersTest, OperationPublishFromTriggerDoesNotRefire) {
   attach<is_in<COVER_OPERATION_OPENING>>(
       &this->cover_,
