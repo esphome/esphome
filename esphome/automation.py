@@ -38,6 +38,7 @@ from esphome.cpp_generator import (
     LambdaExpression,
     MockObj,
     MockObjClass,
+    Statement,
     TemplateArgsType,
     call_lambda,
 )
@@ -387,6 +388,11 @@ def _run_statements(run: list[_InlineAction]) -> list[str]:
     return statements
 
 
+def _unstoppable_statements(run: list[_InlineAction]) -> list[str]:
+    """``_run_statements`` without its stop checks, nested ones included, for a run nothing can stop."""
+    return [line for line in _run_statements(run) if line != _STOP_CHECK]
+
+
 def _plan_statements(plan: list[MockObj | list[_InlineAction]] | None) -> list[str]:
     return _run_statements(plan[0]) if plan else []
 
@@ -717,10 +723,19 @@ def apply_static_function(
     statements: list[str],
     share: bool = False,
     suffix: str = "fn",
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj:
-    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one."""
+    """Emit the static function for ``id_``; ``suffix`` names a second one, ``share`` reuses an identical one.
+
+    ``add_global_`` places the declaration (e.g. at a ``LatePvariable``); such a function is never shared.
+    """
     return cg.shared_static_function(
-        _apply_function_name(id_, suffix), return_type, params, statements, share=share
+        _apply_function_name(id_, suffix),
+        return_type,
+        params,
+        statements,
+        share=share,
+        add_global_=add_global_,
     )
 
 
@@ -1954,19 +1969,31 @@ def _emit_inline_run(
     """
     if len(run) == 1 and run[0].emit is not None:
         return run[0].emit()
-    statements = _run_statements(run)
     id_ = run[0].id_.copy()
     id_.type = ApplyRunAction
-    fn = apply_static_function(
-        id_,
-        cg.void,
-        [
-            (cg.RawExpression("const int &"), _RUNNING_PARAM),
-            *_apply_params(args),
-        ],
-        statements,
+    return cg.new_Pvariable(
+        id_, cg.TemplateArguments(_run_function(id_, run, args), *template_arg)
     )
-    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
+
+
+def _run_function(
+    id_: ID,
+    run: list[_InlineAction],
+    args: TemplateArgsType,
+    stoppable: bool = True,
+    add_global_: Callable[[Statement], object] | None = None,
+) -> MockObj:
+    """Emit the function that runs ``run``; a stoppable one takes the run count first and
+    returns once a stop clears it. ``add_global_`` is passed to ``apply_static_function``."""
+    params = _apply_params(args)
+    if stoppable:
+        params = [(cg.RawExpression("const int &"), _RUNNING_PARAM), *params]
+        statements = _run_statements(run)
+    else:
+        statements = _unstoppable_statements(run)
+    return apply_static_function(
+        id_, cg.void, params, statements, add_global_=add_global_
+    )
 
 
 async def _build_action_plan(
@@ -2153,10 +2180,10 @@ def _automation_from_plan(
 
 
 def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) -> bool:
-    """Whether a callback automation is all inline actions, so it needs no objects.
+    """Whether an automation is all inline actions without a manual id, so it needs no objects.
 
-    Without a Trigger or an automation id set by hand nothing can reach such an automation
-    to stop it, so no stop checks are needed either. Only for callers that create no Trigger.
+    Without a Trigger or a manual id nothing can reach such an automation to stop it, so a
+    caller that creates no Trigger needs no stop checks either.
     """
     return (
         not config[CONF_AUTOMATION_ID].is_manual
@@ -2170,7 +2197,7 @@ def _direct_statements(
 ) -> list[str] | None:
     if not _is_direct(plan, config):
         return None
-    return [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
+    return _unstoppable_statements(plan[0])
 
 
 def _direct_function(
@@ -2178,11 +2205,10 @@ def _direct_function(
     args: TemplateArgsType,
     config: ConfigType,
 ) -> MockObj | None:
-    if (statements := _direct_statements(plan, config)) is None:
+    """The function that runs ``plan`` if it is direct, named after its first action."""
+    if not _is_direct(plan, config):
         return None
-    return apply_static_function(
-        plan[0][0].id_, cg.void, _apply_params(args), statements
-    )
+    return _run_function(plan[0][0].id_, plan[0], args, stoppable=False)
 
 
 def _call_target(
@@ -2219,6 +2245,40 @@ async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
     return await new_automation(args, config, trigger)
+
+
+@dataclass(frozen=True)
+class AutomationPlan:
+    """The built actions of an automation, before it becomes an Automation or a function."""
+
+    plan: list[MockObj | list[_InlineAction]]
+    args: TemplateArgsType
+    config: ConfigType
+
+    @property
+    def direct(self) -> bool:
+        """Whether it can run as a function: every action inline and no manual id."""
+        return _is_direct(self.plan, self.config)
+
+
+async def plan_automation(args: TemplateArgsType, config: ConfigType) -> AutomationPlan:
+    """Build the actions of ``config``; ``automation_or_run_function`` emits the result."""
+    return AutomationPlan(await _build_automation_plan(args, config), args, config)
+
+
+def automation_or_run_function(
+    plan: AutomationPlan,
+    trigger: MockObj,
+    add_global_: Callable[[Statement], object] | None = None,
+    direct: bool = True,
+) -> MockObj | None:
+    """Build ``plan`` on ``trigger`` like ``build_automation`` and return None; if ``direct``
+    and every action is inline, return the stoppable function ``esphome__<trigger id>__fn``
+    instead."""
+    if direct and plan.direct:
+        return _run_function(trigger.base, plan.plan[0], plan.args, True, add_global_)
+    _automation_from_plan(plan.plan, plan.args, plan.config, trigger)
+    return None
 
 
 async def build_component_automation(
