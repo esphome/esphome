@@ -15,6 +15,11 @@ from esphome.components.tflite_micro_runtime import (
     final_validate,
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
+from esphome.components.tflite_output_processor import (
+    CONF_DECODER_ID,
+    CONF_OUTPUT_PROCESSING,
+    CONF_SCALE_FACTOR,
+)
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -29,13 +34,10 @@ FINAL_VALIDATE_SCHEMA = final_validate
 CONF_SCORE_THRESHOLD = "score_threshold"
 CONF_MAX_DETECTIONS = "max_detections"
 CONF_IOU_THRESHOLD = "iou_threshold"
-CONF_DECODER_ID = "decoder_id"
 
 # The image schema also carries the classification options. A detection decoder
 # does not read them, so they are removed here instead of being accepted and
 # silently ignored.
-CONF_OUTPUT_PROCESSING = "output_processing"
-CONF_SCALE_FACTOR = "scale_factor"
 
 tflite_detection_ns = cg.esphome_ns.namespace("tflite_detection")
 DetectionDecoder = tflite_detection_ns.class_("DetectionDecoder")

@@ -55,7 +55,7 @@ size_t insert_detection(Detection *detections, size_t count, size_t max_detectio
 #ifdef USE_TFLITE_MICRO_HELPER
 
 namespace {
-static const char *const TAG = "tflite_detection";
+ESPHOME_LOG_TAG(TAG, "tflite_detection");
 
 /// Number of entries a tensor can hold; 0 for a tensor without usable dimensions.
 size_t tensor_elements(const TfLiteTensor *tensor) {
