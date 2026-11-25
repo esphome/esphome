@@ -31,16 +31,26 @@ ModbusTcpUart = modbus_tcp_uart_ns.class_(
     "ModbusTcpUart", uart.VirtualUARTComponent, cg.Component
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(ModbusTcpUart),
-        cv.Required(CONF_TCP_UART_ID): cv.use_id(tcp_uart.TcpUart),
-        cv.Optional(CONF_ROLE, default="client"): cv.one_of(
-            "client", "server", lower=True
-        ),
-        cv.Optional(CONF_DEBUG): uart.maybe_empty_debug,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+
+def _inherit_settings(config: ConfigType) -> ConfigType:
+    # A device on this link is checked against the tcp_uart's baud rate and framing.
+    uart.inherit_settings(config[CONF_ID], config[CONF_TCP_UART_ID])
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ModbusTcpUart),
+            cv.Required(CONF_TCP_UART_ID): cv.use_id(tcp_uart.TcpUart),
+            cv.Optional(CONF_ROLE, default="client"): cv.one_of(
+                "client", "server", lower=True
+            ),
+            cv.Optional(CONF_DEBUG): uart.maybe_empty_debug,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    _inherit_settings,
+)
 
 
 def _final_validate(config: ConfigType) -> None:
