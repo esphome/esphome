@@ -221,6 +221,8 @@ class ATM90E32Component final : public PollingComponent,
   void start_offset_calibration_(OffsetCalibrationType type);
   void sample_offset_calibration_(OffsetCalibrationType type);
   void complete_offset_calibration_(OffsetCalibrationType type, CalibrationOperation operation);
+  bool write_and_verify_offsets_(const OffsetCalibration (&offsets)[3], OffsetCalibrationType type);
+  void settle_offset_rollback_();
   void finish_gain_calibration_(const GainCalibration (&previous)[3],
                                 CalibrationOperation operation = CalibrationOperation::CALIBRATION_OPERATION_SAVE);
   bool finish_offset_calibration_(const OffsetCalibration (&previous)[3], OffsetCalibrationType type,

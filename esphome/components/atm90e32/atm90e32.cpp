@@ -467,15 +467,7 @@ int32_t ATM90E32Component::read16_checked_(uint16_t a_register) {
   const uint16_t value = this->read16_(a_register);
   const uint16_t last = this->read16_(ATM90E32_REGISTER_LASTSPIDATA);
   if (last != value) {
-    if (a_register >= ATM90E32_REGISTER_APENERGY && a_register <= ATM90E32_REGISTER_ANENERGY + 2) {
-      // Read-clear energy survives in LastSPIData; require two matching reads without clearing energy again.
-      const uint16_t recovered = this->read16_(ATM90E32_REGISTER_LASTSPIDATA);
-      if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) == recovered) {
-        ESP_LOGW(TAG, "Recovered energy register 0x%04" PRIX16 " after SPI read mismatch", a_register);
-        return recovered;
-      }
-      // The untrustworthy delta is already cleared; discard it and leave the published total unchanged.
-    }
+    // A missed address leaves the previous transaction in LastSPIData, even when repeated reads agree.
     this->status_set_warning();
     ESP_LOGW(TAG, "SPI read mismatch: expected 0x%04X, got 0x%04X", value, last);
     return -1;
@@ -832,7 +824,8 @@ bool ATM90E32Component::finish_calibration_(const LogString *name, const LogStri
   // Raw stored bytes, re-saved on rollback; all zero (the cleared sentinel) when nothing was stored.
   uint8_t previous_stored[CALIBRATION_PAYLOAD_SIZE]{};
   bool attempt = writes_verified && operation != CalibrationOperation::CALIBRATION_OPERATION_ABORT;
-  if (attempt && previous_has_stored && !preference.load(&previous_stored)) {
+  const bool have_backup = !previous_has_stored || (attempt && preference.load(&previous_stored));
+  if (attempt && !have_backup && !clear) {
     attempt = false;
     ESP_LOGE(TAG,
              "[CALIBRATION][%s] Failed to load stored %s calibration "
@@ -872,7 +865,7 @@ bool ATM90E32Component::finish_calibration_(const LogString *name, const LogStri
 
   const bool rollback_verified = rollback();
 
-  if (attempt) {
+  if (attempt && have_backup) {
     const bool rollback_saved = preference.save(&previous_stored);
     const bool rollback_synced = global_preferences->sync();
     if (!rollback_saved || !rollback_synced) {
@@ -917,10 +910,35 @@ bool ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
       power_offsets ? this->restored_power_offset_calibration_ : this->restored_offset_calibration_,
       power_offsets ? this->power_offset_calibration_mismatch_ : this->offset_calibration_mismatch_, operation,
       [this, &previous, type]() {
-        for (uint8_t phase = 0; phase < 3; phase++)
-          this->write_offsets_to_registers_(phase, previous[phase].first_offset, previous[phase].second_offset, type);
-        return this->verify_offset_writes_(type);
+        if (this->write_and_verify_offsets_(previous, type)) {
+          if (this->offset_calibration_pending_)
+            this->settle_offset_rollback_();
+          return true;
+        }
+        this->offset_calibration_pending_ = true;
+        this->set_publish_interval_flag_(false);
+        static constexpr uint32_t ROLLBACK_INTERVAL_ID = 0;
+        this->set_interval(ROLLBACK_INTERVAL_ID, 1000, [this, type]() {
+          // The failed rollback already copied the intended values into the runtime table.
+          const auto &offsets = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER ? this->power_offset_phase_
+                                                                                             : this->offset_phase_;
+          if (this->write_and_verify_offsets_(offsets, type)) {
+            this->cancel_interval(ROLLBACK_INTERVAL_ID);
+            this->settle_offset_rollback_();
+          }
+        });
+        return false;
       });
+}
+
+bool ATM90E32Component::write_and_verify_offsets_(const OffsetCalibration (&offsets)[3], OffsetCalibrationType type) {
+  for (uint8_t phase = 0; phase < 3; phase++)
+    this->write_offsets_to_registers_(phase, offsets[phase].first_offset, offsets[phase].second_offset, type);
+  return this->verify_offset_writes_(type);
+}
+
+void ATM90E32Component::settle_offset_rollback_() {
+  this->set_timeout(1000, [this]() { this->offset_calibration_pending_ = false; });
 }
 
 void ATM90E32Component::run_offset_calibrations() {
@@ -1000,12 +1018,8 @@ void ATM90E32Component::sample_offset_calibration_(OffsetCalibrationType type) {
 }
 
 void ATM90E32Component::complete_offset_calibration_(OffsetCalibrationType type, CalibrationOperation operation) {
-  if (this->finish_offset_calibration_(this->previous_offsets_, type, operation)) {
+  if (this->finish_offset_calibration_(this->previous_offsets_, type, operation))
     this->offset_calibration_pending_ = false;
-  } else {
-    // A rollback also needs fresh measurements with the restored offsets.
-    this->set_timeout(1000, [this]() { this->offset_calibration_pending_ = false; });
-  }
 }
 
 void ATM90E32Component::write_gains_to_registers_() {

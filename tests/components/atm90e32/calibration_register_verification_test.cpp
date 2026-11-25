@@ -54,6 +54,11 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
 
     const uint16_t address = static_cast<uint16_t>(((data[0] & 0x03) << 8) | data[1]);
     ++this->read_counts_[address];
+    if (address == this->missed_address_) {
+      data[2] = data[3] = 0xFF;
+      this->missed_address_ = 0xFFFF;
+      return;
+    }
     const uint16_t value = this->registers_[address];
     uint16_t received = address == this->corrupt_read_address_ ? value ^ 0x8000 : value;
     if (address == ATM90E32_REGISTER_LASTSPIDATA && this->unstable_last_spi_)
@@ -108,7 +113,8 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
   }
 
   void drop_next_calibration_write() { this->drop_calibration_writes_++; }
-  void corrupt_calibration_writes() { this->corrupt_calibration_writes_ = true; }
+  void corrupt_calibration_writes(bool corrupt = true) { this->corrupt_calibration_writes_ = corrupt; }
+  void miss_next_address(uint16_t address) { this->missed_address_ = address; }
   void corrupt_read(uint16_t address) { this->corrupt_read_address_ = address; }
   void set_register(uint16_t address, uint16_t value) { this->registers_[address] = value; }
   void unstable_last_spi(bool unstable = true) { this->unstable_last_spi_ = unstable; }
@@ -135,6 +141,7 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
   uint8_t drop_calibration_writes_{0};
   bool corrupt_calibration_writes_{false};
   uint16_t corrupt_read_address_{0xFFFF};
+  uint16_t missed_address_{0xFFFF};
 };
 
 struct CalibrationTraits {
@@ -247,8 +254,11 @@ class ATM90E32CalibrationTestAccess {
   }
 
   ~ATM90E32CalibrationTestAccess() {
-    if (this->component.offset_calibration_pending_)
+    if (this->component.offset_calibration_pending_) {
+      this->delegate.corrupt_calibration_writes(false);
+      this->delegate.corrupt_read(0xFFFF);
       this->settle_calibration();
+    }
     global_preferences = this->previous_preferences_;
     host::host_preferences = this->previous_host_preferences_;
     if (this->had_prefdir_) {
@@ -506,7 +516,7 @@ TEST(ATM90E32Measurements, RejectsCorruptSamplesAndRecovers) {
   }
 }
 
-TEST(ATM90E32Measurements, RecoversReadClearEnergyWithoutReadingItTwice) {
+TEST(ATM90E32Measurements, AccumulatesOnlyVerifiedReadClearEnergy) {
   for (const bool reverse : {false, true}) {
     for (const bool corrupt : {false, true}) {
       Access access;
@@ -514,24 +524,46 @@ TEST(ATM90E32Measurements, RecoversReadClearEnergyWithoutReadingItTwice) {
       access.delegate.set_register(address, 65535);
       if (corrupt)
         access.delegate.corrupt_read(address);
-      EXPECT_FLOAT_EQ(access.energy(reverse), 65535 * (10.0f / 3200.0f));
+      const float reading = access.energy(reverse);
+      if (corrupt) {
+        EXPECT_TRUE(std::isnan(reading));
+      } else {
+        EXPECT_FLOAT_EQ(reading, 65535 * (10.0f / 3200.0f));
+      }
       EXPECT_EQ(access.delegate.read_count(address), 1);
-      EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_LASTSPIDATA), corrupt ? 3 : 1);
-      EXPECT_FALSE(access.component.status_has_warning());
+      EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_LASTSPIDATA), 1);
+      EXPECT_EQ(access.component.status_has_warning(), corrupt);
       access.delegate.corrupt_read(0xFFFF);
-      EXPECT_FLOAT_EQ(access.energy(reverse), 65535 * (10.0f / 3200.0f));
+      EXPECT_FLOAT_EQ(access.energy(reverse), corrupt ? 0.0f : 65535 * (10.0f / 3200.0f));
     }
   }
 }
 
-TEST(ATM90E32Measurements, BoundsEnergyRecoveryWhenLastSpiRemainsUnstable) {
+TEST(ATM90E32Measurements, MissedEnergyAddressPreservesTheDeltaForTheNextPoll) {
+  for (const bool reverse : {false, true}) {
+    Access access;
+    const uint16_t address = reverse ? ATM90E32_REGISTER_ANENERGY : ATM90E32_REGISTER_APENERGY;
+    access.delegate.set_register(ATM90E32_REGISTER_URMS, 12000);
+    ASSERT_EQ(access.read16(ATM90E32_REGISTER_URMS), 12000);
+    access.delegate.set_register(address, 32);
+    access.delegate.miss_next_address(address);
+
+    EXPECT_TRUE(std::isnan(access.energy(reverse)));
+    EXPECT_TRUE(access.component.status_has_warning());
+    EXPECT_EQ(access.delegate.read_count(address), 1);
+    EXPECT_FLOAT_EQ(access.energy(reverse), 0.1f);
+    EXPECT_FLOAT_EQ(access.energy(reverse), 0.1f);
+  }
+}
+
+TEST(ATM90E32Measurements, DiscardsEnergyWhenLastSpiIsUnstable) {
   Access access;
   access.delegate.set_register(ATM90E32_REGISTER_APENERGY, 100);
   access.delegate.unstable_last_spi();
   EXPECT_TRUE(std::isnan(access.energy(false)));
   EXPECT_TRUE(access.component.status_has_warning());
   EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_APENERGY), 1);
-  EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_LASTSPIDATA), 3);
+  EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_LASTSPIDATA), 1);
 }
 
 TEST(ATM90E32Measurements, CapturesEnergyBeforeLoggingCallbacksReadOtherRegisters) {
@@ -558,9 +590,12 @@ TEST(ATM90E32Measurements, CapturesEnergyBeforeLoggingCallbacksReadOtherRegister
       access.delegate.set_register(ATM90E32_REGISTER_URMS, 12000);
       access.delegate.set_register(address, 100);
       access.delegate.corrupt_read(address);
-      EXPECT_FLOAT_EQ(access.energy(reverse), 100 * (10.0f / 3200.0f));
+      EXPECT_TRUE(std::isnan(access.energy(reverse)));
       EXPECT_EQ(access.delegate.read_count(address), 1);
       EXPECT_GT(callbacks, 0);
+      access.delegate.corrupt_read(0xFFFF);
+      access.delegate.set_register(address, 100);
+      EXPECT_FLOAT_EQ(access.energy(reverse), 100 * (10.0f / 3200.0f));
       logger::global_logger = previous_logger;
     }
   }
@@ -953,6 +988,42 @@ TEST_P(ATM90E32OffsetPersistence, FailedZeroingRestoresPreviousCalibration) {
   EXPECT_TRUE(access.component.*kind.restored);
 }
 
+TEST_P(ATM90E32OffsetPersistence, ResumesPollingOnlyAfterRollbackRegistersRecoverAndSettle) {
+  const auto &kind = GetParam();
+  Access access;
+  auto &component = access.component;
+  save_values(access.make_preference(kind), kind, SavedValue::SAVED_VALUE_OLD);
+  access.restore(kind);
+  component.set_enable_offset_calibration(true);
+  sensor::Sensor voltage;
+  component.set_voltage_sensor(0, &voltage);
+  voltage.publish_state(42.0f);
+  access.delegate.set_register(ATM90E32_REGISTER_METEREN, 1);
+  access.delegate.set_register(ATM90E32_REGISTER_URMS, 12000);
+  auto poll = [&]() {
+    component.update();
+    component.loop();
+    return voltage.get_state();
+  };
+
+  access.delegate.corrupt_calibration_writes();
+  access.run_offsets(kind);
+  access.advance_calibration();
+  EXPECT_FLOAT_EQ(poll(), 42.0f);
+  EXPECT_TRUE(component.status_has_warning());
+
+  access.delegate.corrupt_calibration_writes(false);
+  access.advance_calibration();
+  const auto reg = kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER
+                       ? component.power_offset_registers[0]
+                       : component.voltage_offset_registers[0];
+  EXPECT_EQ(access.read16(reg), 11);
+  EXPECT_FLOAT_EQ(poll(), 42.0f);
+  access.advance_calibration();
+  EXPECT_FLOAT_EQ(poll(), 120.0f);
+  EXPECT_FALSE(component.status_has_warning());
+}
+
 TEST_P(ATM90E32OffsetPersistence, DefersOffsetWritesUntilSensorCallbacksReturn) {
   const auto &kind = GetParam();
   for (const bool raw_callback : {false, true}) {
@@ -1136,7 +1207,7 @@ TEST_P(ATM90E32CalibrationPersistence, FailedPersistencePreservesStoredPayloadAn
   }
 }
 
-TEST_P(ATM90E32CalibrationPersistence, StoredPayloadLoadFailureRefusesOverwrite) {
+TEST_P(ATM90E32CalibrationPersistence, UnreadableStoredCalibrationBlocksSaveButAllowsExplicitClear) {
   const auto &kind = GetParam();
   Access access;
   const uint32_t key = Access::next_preference_key();
@@ -1156,6 +1227,10 @@ TEST_P(ATM90E32CalibrationPersistence, StoredPayloadLoadFailureRefusesOverwrite)
   EXPECT_FALSE(access.component.*kind.restored);
   EXPECT_NE(output.find("refusing to overwrite them"), std::string::npos);
   EXPECT_EQ(output.find("completed and verified"), std::string::npos);
+
+  (access.component.*kind.clear)();
+  expect_values(access.preference(kind), kind, SavedValue::SAVED_VALUE_ZERO);
+  EXPECT_FALSE(access.component.*kind.has_stored);
 }
 
 TEST_P(ATM90E32CalibrationPersistence, FreshPersistenceUsesZeroSentinelAndCanRetry) {
