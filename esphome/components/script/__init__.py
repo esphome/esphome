@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -52,11 +51,8 @@ SCRIPT_MODES = {mode: classes[0] for mode, classes in MODES.items()}
 
 @dataclass
 class ScriptData:
-    # By script id: the class script.wait is templated on, or the script.wait actions to
-    # create once the script's class is known
-    waits: dict[str, cg.MockObj | list[Callable[[cg.MockObj], None]]] = field(
-        default_factory=dict
-    )
+    # By script id: the Script<...> base, which script.wait is templated on
+    bases: dict[str, cg.MockObj] = field(default_factory=dict)
 
 
 def _data() -> ScriptData:
@@ -216,14 +212,14 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     # Register all variables first, so that scripts can use other scripts. Each is created
     # once its actions are built, which decides its class, in the place it was declared.
-    waits = _data().waits
+    bases = _data().bases
     scripts = []
     for conf in config:
         template, func_args = parameters_to_template(conf[CONF_PARAMETERS])
         id_ = conf[CONF_ID].copy()
         id_.type = id_.type.template(template)
         late = cg.LatePvariable(id_)
-        waits[id_.id] = []
+        bases[id_.id] = Script.template(template)
         script = late.var
         # Add a human-readable name to the script
         cg.add(script.set_name(cg.LogStringLiteral(id_.id)))
@@ -243,23 +239,20 @@ async def to_code(config):
         fn = automation.automation_or_run_function(
             plan, late.var, late.global_slot.add, direct=direct
         )
-        script_class = wait_class = late.id.type
+        script_class = late.id.type
         ctor_args = []
         if fn is not None:
-            wait_class = MODES[conf[CONF_MODE]][1].template(
+            mode_class = MODES[conf[CONF_MODE]][1].template(
                 FunctionBody.template(template), *template
             )
             if conf[CONF_MODE] == CONF_QUEUED:
                 # One class for all of them: a per-script class would also copy the
                 # Component vtable, which costs more flash than the pointer's RAM
-                script_class = FunctionPointerScript.template(wait_class, *template)
+                script_class = FunctionPointerScript.template(mode_class, *template)
                 ctor_args = [fn]
             else:
-                script_class = FunctionScript.template(wait_class, fn, *template)
+                script_class = FunctionScript.template(mode_class, fn, *template)
         late.define(script_class, *ctor_args)
-        for create_wait in waits[late.id.id]:
-            create_wait(wait_class)
-        waits[late.id.id] = wait_class
 
     # A mode's code is compiled once only if all its scripts with the same parameters take one
     # path, so one that needs an Automation keeps the rest on it. Those, and every on_stop, are
@@ -374,23 +367,12 @@ automation.register_apply_action(
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    # A Script declared by another component is not in waits; its class is already known
-    script_waits = _data().waits.get(full_id.id, full_id.type)
-    if not isinstance(script_waits, list):
-        var = cg.new_Pvariable(
-            action_id, cg.TemplateArguments(script_waits, *template_arg), paren
-        )
-    else:
-        # Created where it is built, once the class of the script it waits for is known
-        id_ = action_id.copy()
-        id_.type = id_.type.template(full_id.type, *template_arg)
-        late = cg.LatePvariable(id_)
-        script_waits.append(
-            lambda script_class: late.define(
-                action_id.type, cg.TemplateArguments(script_class, *template_arg), paren
-            )
-        )
-        var = late.var
+    # Waits on the script's Script<...> base, so it does not depend on the class its actions
+    # decide; a Script declared by another component is waited on with its own class
+    script_class = _data().bases.get(full_id.id, full_id.type)
+    var = cg.new_Pvariable(
+        action_id, cg.TemplateArguments(script_class, *template_arg), paren
+    )
     await cg.register_component(var, {})
     return var
 

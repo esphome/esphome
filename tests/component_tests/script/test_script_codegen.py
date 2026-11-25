@@ -6,6 +6,8 @@ ids, so adding or changing one script does not break the others.
 
 import re
 
+import pytest
+
 from tests.component_tests.helpers import constructed, function_body
 
 CONFIG = "tests/component_tests/script/test_script_codegen.yaml"
@@ -42,11 +44,6 @@ def _assert_function_script(main_cpp: str, mode: str, script: str, *types: str) 
     assert (
         constructed(main_cpp, script) == f"{_function_script(mode, script, *types)}()"
     )
-
-
-def _wait_class(script_class: str, *types: str) -> str:
-    """The script.wait action on ``script_class`` in a script with parameters ``types``."""
-    return f"script::ScriptWaitAction<{script_class}{_template_tail(types)}>"
 
 
 def _script_body(main_cpp: str, script: str) -> str:
@@ -174,35 +171,41 @@ def test_manual_automation_id(generate_main) -> None:
     assert '"MANUAL"' in constructed(main_cpp, action)
 
 
-def test_script_wait(generate_main) -> None:
-    """``script.wait`` on a script that runs a function uses the class shared by its mode."""
+@pytest.mark.parametrize(
+    ("waiting", "index", "expected"),
+    [
+        # Runs a function
+        ("waits", 0, "script::ScriptWaitAction<script::Script<>, bool>(inline_single)"),
+        # Built before the script it waits for
+        (
+            "waits_early",
+            0,
+            "script::ScriptWaitAction<script::Script<>, bool>(late_target)",
+        ),
+        # Has an Automation
+        (
+            "waits_early",
+            1,
+            "script::ScriptWaitAction<script::Script<bool>, bool>(with_delay)",
+        ),
+        # The waiting script's own parameter types are kept
+        (
+            "waits_with_param",
+            0,
+            "script::ScriptWaitAction<script::Script<>, script::SingleScript<>*>(late_target)",
+        ),
+        (
+            "waits_mixed",
+            0,
+            "script::ScriptWaitAction<script::Script<int>, bool>(mixed_inline)",
+        ),
+    ],
+)
+def test_script_wait(generate_main, waiting: str, index: int, expected: str) -> None:
+    """``script.wait`` is templated on the Script base, whatever class the script gets."""
     main_cpp = generate_main(CONFIG)
-    (action,) = _actions_of(main_cpp, _automation(main_cpp, "waits"))
-    class_ = _wait_class(_mode_class("SingleMode"), "bool")
-    assert constructed(main_cpp, action) == f"{class_}(inline_single)"
-
-
-def test_script_wait_built_first(generate_main) -> None:
-    """A ``script.wait`` built before the script it waits for gets the shared class too."""
-    main_cpp = generate_main(CONFIG)
-    late, delay = _actions_of(main_cpp, _automation(main_cpp, "waits_early"))
-    class_ = _wait_class(_mode_class("SingleMode"), "bool")
-    assert constructed(main_cpp, late) == f"{class_}(late_target)"
-    assert f"static {class_} *const {late}" in main_cpp
-    assert constructed(main_cpp, delay) == (
-        f"{_wait_class('script::SingleScript<bool>', 'bool')}(with_delay)"
-    )
-
-
-def test_script_wait_keeps_waiting_script_parameters(generate_main) -> None:
-    """Only the waited-for script's class changes, not a parameter with the same name."""
-    main_cpp = generate_main(CONFIG)
-    automation = _automation(main_cpp, "waits_with_param")
-    wait, _ = _actions_of(main_cpp, automation)
-    assert constructed(main_cpp, wait) == (
-        f"script::ScriptWaitAction<{_mode_class('SingleMode')}, "
-        "script::SingleScript<>*>(late_target)"
-    )
+    action = _actions_of(main_cpp, _automation(main_cpp, waiting))[index]
+    assert constructed(main_cpp, action) == expected
 
 
 def test_script_needing_automation_keeps_its_group_on_it(generate_main) -> None:
@@ -215,10 +218,6 @@ def test_script_needing_automation_keeps_its_group_on_it(generate_main) -> None:
     (log,) = _actions_of(main_cpp, _automation(main_cpp, "mixed_inline"))
     assert '"MIXED inline %d"' in constructed(main_cpp, log)
     assert "QueueingMode<script::FunctionBody<int>" not in main_cpp
-    (wait,) = _actions_of(main_cpp, _automation(main_cpp, "waits_mixed"))
-    assert constructed(main_cpp, wait) == (
-        f"{_wait_class('script::QueueingScript<int>', 'bool')}(mixed_inline)"
-    )
 
 
 def test_later_script_reaches_hand_named_automations(generate_main) -> None:
