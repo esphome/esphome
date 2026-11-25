@@ -53,10 +53,7 @@ void M5StackPM1Component::setup() {
   }
   if (this->wake_enable_ != 0) {
     // Once every component has set up its pins: the edge first, then the enable
-    this->defer([this]() {
-      this->status_comm_result(this->write_byte(REG_GPIO_WAKE_CFG, this->wake_rising_) &&
-                               this->write_byte(REG_GPIO_WAKE_EN, this->wake_enable_));
-    });
+    this->defer([this]() { this->apply_wake_(); });
   }
 
   if (this->interrupt_pin_ != nullptr) {
@@ -161,8 +158,17 @@ void M5StackPM1Component::apply_pin_config_(uint8_t pin, gpio::Flags flags) {
   if (!output) {
     this->enable_polling_loop_();
   }
-  this->set_pin_config_pending_(pin, !success);
-  // Keep the warning while any pin is still waiting for its configuration.
+  this->report_config_(pin, success);
+}
+
+void M5StackPM1Component::apply_wake_() {
+  this->report_config_(WAKE_PENDING_BIT, this->write_byte(REG_GPIO_WAKE_CFG, this->wake_rising_) &&
+                                             this->write_byte(REG_GPIO_WAKE_EN, this->wake_enable_));
+}
+
+void M5StackPM1Component::report_config_(uint8_t bit, bool success) {
+  this->set_pin_config_pending_(bit, !success);
+  // Keep the warning while anything is still waiting for its configuration.
   if (this->pending_pin_config_mask_ != 0) {
     this->status_comm_check(success);
   } else {
@@ -195,9 +201,14 @@ void M5StackPM1Component::retry_pin_config_() {
       this->apply_pin_config_(pin, this->pin_flags_[pin]);
     }
   }
+  if ((this->pending_pin_config_mask_ & (1 << WAKE_PENDING_BIT)) != 0)
+    this->apply_wake_();
 }
 
 bool M5StackPM1Component::digital_read_hw(uint8_t pin) {
+  if (this->is_failed()) {
+    return false;
+  }
   const bool ok = this->read_byte(REG_GPIO_IN, &this->input_[0]);
   // A successful read must not hide a pin that is still waiting for its configuration.
   if (this->pending_pin_config_mask_ != 0) {

@@ -220,6 +220,9 @@ TEST_F(M5StackPM1Test, SetupFailsOnAnUnexpectedDeviceId) {
   EXPECT_TRUE(this->component_.is_failed());
   // An unrecognised device does not get its rails or status LED enabled.
   EXPECT_EQ(this->bus_.regs[REG_PWR_CFG], 0x00);
+  // Nor does it supply input states.
+  this->bus_.regs[REG_GPIO_IN] = 0x1F;
+  EXPECT_FALSE(this->component_.digital_read(0));
 }
 
 TEST_F(M5StackPM1Test, PinConfigurationRetriesFromTheInterval) {
@@ -232,6 +235,28 @@ TEST_F(M5StackPM1Test, PinConfigurationRetriesFromTheInterval) {
   App.scheduler.call(millis());
 
   EXPECT_EQ(this->bus_.regs[REG_GPIO_PU_PD_0], 0x01);
+  EXPECT_FALSE(this->component_.status_has_warning());
+}
+
+TEST_F(M5StackPM1Test, WakeConfigurationRetriesFromTheInterval) {
+  this->load_device_info_();
+  this->component_.set_wake_config(0x05, 0x01);
+  this->component_.setup();
+
+  this->bus_.fail_transactions = 1;
+  App.scheduler.process_to_add();
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 0x00);
+  EXPECT_TRUE(this->component_.status_has_warning());
+
+  // A pin configured meanwhile does not hide the missing wake configuration.
+  this->component_.pin_mode(2, gpio::FLAG_INPUT);
+  EXPECT_TRUE(this->component_.status_has_warning());
+
+  delay(1050);  // NOLINT
+  App.scheduler.call(millis());
+
+  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 0x05);
   EXPECT_FALSE(this->component_.status_has_warning());
 }
 

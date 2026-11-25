@@ -38,12 +38,16 @@ class M5StackPM1Component final : public gpio_expander::CachedGpioExpanderCompon
  protected:
   static constexpr uint32_t PIN_CONFIG_RETRY_ID = 0;
   static constexpr uint32_t PIN_CONFIG_RETRY_INTERVAL_MS = 1000;
+  /// Bit in pending_pin_config_mask_ for the wake registers; bits 0-4 are the pins
+  static constexpr uint8_t WAKE_PENDING_BIT = 7;
 
   bool digital_read_hw(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   void apply_pin_config_(uint8_t pin, gpio::Flags flags);
   void set_pin_config_pending_(uint8_t pin, bool pending);
+  void apply_wake_();
+  void report_config_(uint8_t bit, bool success);
   void retry_pin_config_();
   bool read_device_info_();
   bool process_irq_();
