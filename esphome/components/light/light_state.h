@@ -15,6 +15,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
+#include <concepts>
 #include <strings.h>
 #include <vector>
 
@@ -154,12 +155,24 @@ class LightState : public EntityBase, public Component {
    * Lazily allocates the callback list it shares with add_remote_values_callback() on first registration.
    */
   void add_remote_values_listener(LightRemoteValuesListener *listener);
+  /// For a listener of a derived type: a final one is called directly, without the vtable.
+  template<typename T>
+    requires(std::derived_from<T, LightRemoteValuesListener> && !std::same_as<T, LightRemoteValuesListener>)
+  void add_remote_values_listener(T *listener) {
+    this->remote_values_callback_.add([listener]() { listener->on_light_remote_values_update(); });
+  }
 
   /** Add a listener for target state reached.
    * Listener is notified when the light finishes a transition and reaches its target state.
    * Lazily allocates the callback list it shares with add_target_state_reached_callback() on first registration.
    */
   void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
+  /// For a listener of a derived type: a final one is called directly, without the vtable.
+  template<typename T>
+    requires(std::derived_from<T, LightTargetStateReachedListener> && !std::same_as<T, LightTargetStateReachedListener>)
+  void add_target_state_reached_listener(T *listener) {
+    this->target_state_reached_callback_.add([listener]() { listener->on_light_target_state_reached(); });
+  }
 
   /// Called on every publish_state(), in one list with the remote values listeners.
   template<typename F> void add_remote_values_callback(F &&callback) {
