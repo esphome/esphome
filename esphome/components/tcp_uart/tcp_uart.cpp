@@ -293,8 +293,9 @@ void TcpUart::accept_slot_(uint32_t now) {
     if (quietest == NO_SLOT) {
       return;
     }
-    // A full pool closes the quietest connection other than the holder. One waiting for its turn is closed only when
-    // all others wait too; Modbus TCP [4.2.1.1] asks for the oldest unused one.
+    // A full pool closes the quietest connection other than the holder and a last holder whose reply still sits in the
+    // shared TX buffer. Of the rest, one waiting for its turn is closed only when all of them wait; Modbus TCP
+    // [4.2.1.1] asks for the oldest unused one.
     ESP_LOGI(TAG, "All %u connections in use, closing the quietest", count);
     slot = quietest;
     this->slot_(slot).close();
