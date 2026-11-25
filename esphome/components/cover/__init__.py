@@ -39,7 +39,14 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import (
+    AssignmentExpression,
+    MockObj,
+    MockObjClass,
+    Statement,
+    VariableDeclarationExpression,
+    statement,
+)
 from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
@@ -86,13 +93,13 @@ CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
 CONF_STOP_TILT = "stop_tilt"
 
-# The state each trigger fires on entering, as a test of the cover.
+# The cover member and value each trigger fires on entering.
 _STATE_TRIGGERS = {
-    CONF_ON_OPENED: f"position == {COVER_OPEN}",
-    CONF_ON_CLOSED: f"position == {COVER_CLOSED}",
-    CONF_ON_CLOSING: f"current_operation == {CoverOperation.COVER_OPERATION_CLOSING}",
-    CONF_ON_OPENING: f"current_operation == {CoverOperation.COVER_OPERATION_OPENING}",
-    CONF_ON_IDLE: f"current_operation == {CoverOperation.COVER_OPERATION_IDLE}",
+    CONF_ON_OPENED: ("position", COVER_OPEN),
+    CONF_ON_CLOSED: ("position", COVER_CLOSED),
+    CONF_ON_CLOSING: ("current_operation", CoverOperation.COVER_OPERATION_CLOSING),
+    CONF_ON_OPENING: ("current_operation", CoverOperation.COVER_OPERATION_OPENING),
+    CONF_ON_IDLE: ("current_operation", CoverOperation.COVER_OPERATION_IDLE),
 }
 
 
@@ -203,24 +210,25 @@ async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
 async def _build_state_triggers(var: MockObj, config: ConfigType) -> None:
     """Register one state callback that runs each state trigger once on entering its state.
 
-    Each automation keeps its own bit of whether it saw its state on the last publish, so a
+    Each automation keeps its own flag of whether it saw its state on the last publish, so a
     publish from an action is seen the same way as with one callback per trigger.
     """
     parent = automation.parent_ref(var)
-    statements: list[str] = []
-    for conf_key, test in _STATE_TRIGGERS.items():
+    seen: list[Statement] = []
+    checks: list[Statement] = []
+    for conf_key, (member, value) in _STATE_TRIGGERS.items():
         for conf in config.get(conf_key, []):
-            index = len(statements)
+            flag = MockObj(f"seen_{len(seen)}")
+            declaration = VariableDeclarationExpression(cg.bool_, "", flag, static=True)
+            seen.append(statement(AssignmentExpression(None, None, declaration, False)))
+            entered = cover_ns.state_entered(flag, getattr(parent, member) == value)
             target = await automation.build_trigger_callback([], conf, [])
-            statements.append(
-                f"if (cover::state_entered(seen_{index // 8}, {1 << index % 8:#04x}, "
-                f"{parent}->{test}))\n  {target}();"
-            )
-    if not statements:
+            run = statement(MockObj(target)())
+            checks.append(cg.RawStatement(f"if ({entered})\n  {run}"))
+    if not checks:
         return
-    seen = [f"static uint8_t seen_{i} = 0;" for i in range((len(statements) + 7) // 8)]
     callback = automation.apply_static_function(
-        config[CONF_ID], cg.void, [], seen + statements, suffix="state_triggers"
+        config[CONF_ID], cg.void, [], seen + checks, suffix="state_triggers"
     )
     cg.add(var.add_on_state_callback(callback))
 

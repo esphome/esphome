@@ -75,9 +75,9 @@ template<CoverOperation OP> static bool is_in(const Cover &cover) { return cover
 template<InState T> static void attach(Cover *cover, Action<> *action) {
   auto *automation = new Automation<>();  // NOLINT(cppcoreguidelines-owning-memory)
   automation->add_action(action);
-  auto *seen = new uint8_t(0);  // NOLINT(cppcoreguidelines-owning-memory)
+  auto *seen = new bool(false);  // NOLINT(cppcoreguidelines-owning-memory)
   cover->add_on_state_callback([cover, automation, seen]() {
-    if (state_entered(*seen, 0x01, T(*cover)))
+    if (state_entered(*seen, T(*cover)))
       automation->trigger();
   });
 }
@@ -215,7 +215,7 @@ TEST_F(CoverTriggersTest, PublishFromTriggerDoesNotRefire) {
   EXPECT_EQ(this->cover_.tilt, 0.5f);
 }
 
-// On dev this looped forever: CoverTrigger stored the operation only after triggering.
+// The old CoverTrigger stored the operation only after triggering, so this looped.
 TEST_F(CoverTriggersTest, OperationPublishFromTriggerDoesNotRefire) {
   attach<is_in<COVER_OPERATION_OPENING>>(
       &this->cover_,
