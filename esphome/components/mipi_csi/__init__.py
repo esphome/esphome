@@ -3,7 +3,7 @@ import logging
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import esp32, i2c, logger
+from esphome.components import esp32, i2c, logger, network
 from esphome.components.const import CONF_PIXEL_FORMAT
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.esp32.const import VARIANT_ESP32P4
@@ -115,6 +115,12 @@ def _whole_framerate(value: float) -> float:
     return value
 
 
+def _request_high_performance_networking(config: ConfigType) -> ConfigType:
+    """Streams send whole frames; the default lwIP buffers cap them at about a third of the frame rate."""
+    network.require_high_performance_networking()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
@@ -154,6 +160,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_resolution,
+    _request_high_performance_networking,
     cv.only_with_framework(Framework.ESP_IDF),
     esp32.only_on_variant(supported=[VARIANT_ESP32P4]),
 )
