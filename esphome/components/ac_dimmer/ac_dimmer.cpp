@@ -45,8 +45,8 @@ static constexpr int32_t MAX_EDGE_LATENCY_US = 1500;
 static constexpr int32_t GATE_OFF_MARGIN_US = 100;
 #ifdef USE_ESP32
 /// The zero-cross interrupt runs at a higher level than the timer and updates the same timing
-static portMUX_TYPE timing_lock =
-    portMUX_INITIALIZER_UNLOCKED;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static portMUX_TYPE timing_lock = portMUX_INITIALIZER_UNLOCKED;
 #endif
 
 #ifdef USE_ESP8266
