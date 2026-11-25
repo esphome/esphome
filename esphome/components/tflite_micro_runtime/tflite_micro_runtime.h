@@ -145,10 +145,12 @@ class TFLiteMicroHelper : public Component {
   bool run(const uint8_t *src_data, size_t src_size, int frame_width, int frame_height);
 
   /// Called after run() decoded a result, or run_inference() produced one. The
-  /// callbacks are dispatched from the main loop after the inference lock is
-  /// released. A callback must return before the next run: run() and
-  /// run_inference() are refused while callbacks run. Read the kind's decoder,
-  /// or get_last_result() for a raw model without one.
+  /// callbacks run on the main loop, synchronously, while the result is reserved:
+  /// run() and run_inference() are refused until they return. Read the kind's
+  /// decoder, or get_last_result() for a raw model without one. An action that
+  /// keeps running after the callback returns (delay, script.execute, defer) is
+  /// outside that window: the next inference reuses the tensors and the decoder,
+  /// so copy the values it needs or read the entities the callback published.
   template<typename F> void add_on_result_callback(F &&callback) {
     this->result_callback_.add(std::forward<F>(callback));
   }
