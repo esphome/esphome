@@ -54,7 +54,7 @@ class Number : public EntityBase {
    */
   virtual void control(float value) = 0;
 
-  LazyCallbackManager<void(float)> state_callback_;
+  EntityCallbackManager<void(float)> state_callback_;
 };
 
 /// Calls the codegen-generated Fn(this, value) on a new value; the hub and any publish are baked into Fn.

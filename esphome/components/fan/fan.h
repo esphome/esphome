@@ -185,7 +185,7 @@ class Fan : public EntityBase {
   /// Wire the Fan-owned preset modes pointer into the given traits object.
   void wire_preset_modes_(FanTraits &traits) { traits.set_supported_preset_modes_(&this->supported_preset_modes_); }
 
-  LazyCallbackManager<void()> state_callback_{};
+  EntityCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_{FanRestoreMode::NO_RESTORE};
 

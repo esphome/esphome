@@ -181,7 +181,7 @@ class Lock : public EntityBase {
   virtual void control(const LockCall &call) = 0;
 
   Deduplicator<LockState> publish_dedup_;  // packs with state and traits ahead of the pointer members
-  LazyCallbackManager<void(LockState)> state_callback_{};
+  EntityCallbackManager<void(LockState)> state_callback_{};
   ESPPreferenceObject rtc_;
 };
 

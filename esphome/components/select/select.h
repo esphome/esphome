@@ -108,7 +108,7 @@ class Select : public EntityBase {
     }
   }
 
-  LazyCallbackManager<void(size_t)> state_callback_;
+  EntityCallbackManager<void(size_t)> state_callback_;
 };
 
 /// Calls the codegen-generated Fn(this, index) on a new index; the hub and any publish are baked into Fn.

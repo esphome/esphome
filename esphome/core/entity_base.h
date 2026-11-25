@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <span>
 #include <string>
+#include "defines.h"
 #include "string_ref.h"
 #include "helpers.h"
 #include "log.h"
@@ -17,6 +18,13 @@ void setup();           // NOLINT(readability-redundant-declaration) - may be de
 void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
 
 namespace esphome {
+
+// MQTT registers on every exposed entity, so the list is held inline instead of allocated on first add.
+#ifdef USE_MQTT
+template<typename Sig> using EntityCallbackManager = CallbackManager<Sig>;
+#else
+template<typename Sig> using EntityCallbackManager = LazyCallbackManager<Sig>;
+#endif
 
 // Extern lookup functions for entity string tables.
 // Generated code provides strong definitions; weak defaults return "".
@@ -389,6 +397,6 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   /// Subclasses implement this to store the actual value into their own storage.
   virtual void set_state_value(const T &value) = 0;
   LazyCallbackManager<void(optional<T> previous, optional<T> current)> full_state_callbacks_;
-  LazyCallbackManager<void(T)> state_callbacks_;
+  EntityCallbackManager<void(T)> state_callbacks_;
 };
 }  // namespace esphome

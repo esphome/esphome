@@ -2216,6 +2216,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
     }
   }
   uint16_t size() const { return this->size_; }
+  bool empty() const { return this->size_ == 0; }
 
   /// Call all callbacks in this manager.
   void operator()(const Ts &...args) { this->call(args...); }

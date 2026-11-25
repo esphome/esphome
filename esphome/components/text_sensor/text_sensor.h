@@ -100,7 +100,7 @@ class TextSensor : public EntityBase {
   std::string raw_state_;  ///< Backing storage for the raw (pre-filter) value. Only used when a filter is attached.
   LazyCallbackManager<void(const std::string &)> raw_callback_;  ///< Storage for raw state callbacks.
 #endif
-  LazyCallbackManager<void(const std::string &)> callback_;  ///< Storage for filtered state callbacks.
+  EntityCallbackManager<void(const std::string &)> callback_;  ///< Storage for filtered state callbacks.
 
 #ifdef USE_TEXT_SENSOR_FILTER
   Filter *filter_list_{nullptr};  ///< Store all active filters.

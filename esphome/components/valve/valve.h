@@ -140,7 +140,7 @@ class Valve : public EntityBase {
 
   optional<ValveRestoreState> restore_state_();
 
-  LazyCallbackManager<void()> state_callback_{};
+  EntityCallbackManager<void()> state_callback_{};
 
   ESPPreferenceObject rtc_;
 };

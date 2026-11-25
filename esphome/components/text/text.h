@@ -44,7 +44,7 @@ class Text : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  LazyCallbackManager<void(const std::string &)> state_callback_;
+  EntityCallbackManager<void(const std::string &)> state_callback_;
 };
 
 /// Calls the codegen-generated Fn(this, value) on a new value; the hub and any publish are baked into Fn.

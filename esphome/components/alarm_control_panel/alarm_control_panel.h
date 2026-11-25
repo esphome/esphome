@@ -152,7 +152,7 @@ class AlarmControlPanel : public EntityBase {
   // the call control function
   virtual void control(const AlarmControlPanelCall &call) = 0;
   // state callback - passes the new state to listeners
-  LazyCallbackManager<void(AlarmControlPanelState)> state_callback_{};
+  EntityCallbackManager<void(AlarmControlPanelState)> state_callback_{};
   // clear callback - fires when leaving TRIGGERED state
   LazyCallbackManager<void()> cleared_callback_{};
   // chime callback
