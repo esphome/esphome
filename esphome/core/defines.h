@@ -115,6 +115,7 @@
 // gauge_needle_detector is plain C++, so it is built on every platform.
 #define USE_GAUGE_NEEDLE_DETECTOR
 #define USE_GAUGE_NEEDLE_INTENSITY_SCAN
+#define USE_GAUGE_NEEDLE_PREPROCESSOR
 #define USE_GAUGE_NEEDLE_RADIAL_PROFILE
 #define USE_GAUGE_NEEDLE_HOUGH_TRANSFORM
 #define USE_GAUGE_NEEDLE_TEMPLATE_MATCH

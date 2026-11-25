@@ -13,6 +13,9 @@ ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
 
 namespace {
 
+/// A bin may hold at most this share of the pixels before it is clipped.
+constexpr size_t HISTOGRAM_CLIP_DIVISOR = 32;
+
 /// Stretches the histogram, clipping dominant bins so a flat background cannot
 /// flatten the needle. One mapping for the whole crop, so it adds no tile edges.
 void apply_contrast_stretch(uint8_t *img, size_t pixels, std::array<uint32_t, 256> &hist) {
@@ -20,7 +23,7 @@ void apply_contrast_stretch(uint8_t *img, size_t pixels, std::array<uint32_t, 25
   for (size_t i = 0; i < pixels; i++)
     hist[img[i]]++;
 
-  const uint32_t limit = std::max<uint32_t>(1, static_cast<uint32_t>(pixels / 32));
+  const uint32_t limit = std::max<uint32_t>(1, static_cast<uint32_t>(pixels / HISTOGRAM_CLIP_DIVISOR));
   uint32_t excess = 0;
   for (auto &bin : hist) {
     if (bin > limit) {

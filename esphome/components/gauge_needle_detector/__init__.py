@@ -31,11 +31,13 @@ def enable_detectors(algorithms: Iterable[str]) -> None:
     # Also set here, so a consumer that calls this from its own to_code() gets
     # the component even when it does not list it in AUTO_LOAD.
     cg.add_define("USE_GAUGE_NEEDLE_DETECTOR")
-    for algorithm in algorithms:
-        if algorithm == "auto":
-            for define in ALGORITHM_DEFINES.values():
-                cg.add_define(define)
-        elif (define := ALGORITHM_DEFINES.get(algorithm)) is not None:
-            cg.add_define(define)
-        else:
-            raise ValueError(f"Unknown gauge needle algorithm: {algorithm}")
+    enabled = set(ALGORITHM_DEFINES) if "auto" in algorithms else set(algorithms)
+    if unknown := enabled - set(ALGORITHM_DEFINES):
+        raise ValueError(
+            f"Unknown gauge needle algorithm: {', '.join(sorted(unknown))}"
+        )
+    for algorithm in enabled:
+        cg.add_define(ALGORITHM_DEFINES[algorithm])
+    # The filtered detectors share the preprocessor; the raw scan does not need it.
+    if enabled - {"legacy"}:
+        cg.add_define("USE_GAUGE_NEEDLE_PREPROCESSOR")
