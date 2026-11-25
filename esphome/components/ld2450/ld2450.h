@@ -226,9 +226,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_LD2450_TARGET_XY
   void update_target_xy_(uint8_t target, bool changed);
-#endif
 #ifdef USE_LD2450_XY_UNFILTERED
-  void bypass_xy_filters_(bool bypass);
+  void set_xy_unfiltered_(bool unfiltered);
+#endif
 #endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
@@ -254,6 +254,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   // Byte aligned, so it packs after zone_config_ instead of padding before data_callback_
   std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
 #endif
+#ifdef USE_LD2450_XY_UNFILTERED
+  bool xy_unfiltered_{false};  // the xy text sensors publish past their filters
+#endif
 
 #ifdef USE_NUMBER
   ESPPreferenceObject pref_;  // only used when numbers are in use
@@ -276,10 +279,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
   std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
-#endif
-#ifdef USE_LD2450_XY_UNFILTERED
-  // Filter chains of the xy text sensors, held while they publish unfiltered
-  std::array<text_sensor::Filter *, MAX_TARGETS> xy_filters_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT

@@ -9,6 +9,7 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
 #include <espectre_sdk.h>
+#include <array>
 #include <cmath>
 #include <string>
 #ifdef USE_BINARY_SENSOR
@@ -26,8 +27,15 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+#include "esphome/components/text/text.h"
+#endif
 
 namespace esphome::espectre {
+
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+using TargetMac = std::array<uint8_t, 6>;  // All zero represents "auto".
+#endif
 
 class ESPectreComponent final : public Component, public ::espectre::IRuntimeListener {
 #ifdef USE_NUMBER
@@ -105,6 +113,11 @@ class ESPectreComponent final : public Component, public ::espectre::IRuntimeLis
 #ifdef USE_SWITCH
   void request_sensing(bool enabled) { this->pending_sensing_ = enabled; }
 #endif
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+  void set_target_mac_text(text::Text *text) { this->target_mac_text_ = text; }
+  /// Request a wifi_raw destination: auto or a unicast MAC address.
+  void request_traffic_generator_target_mac(const std::string &target);
+#endif
 
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(motion)
@@ -129,7 +142,7 @@ class ESPectreComponent final : public Component, public ::espectre::IRuntimeLis
   void apply_pending_traffic_mode_();
   void publish_traffic_mode_();
 #endif
-  // Threshold, motion hits, detection algorithm, sample spacing and sensing.
+  // Threshold, motion hits, detection algorithm, sample spacing, target MAC and sensing.
   void restore_controls_();
   void apply_pending_controls_();
   void publish_controls_();
@@ -156,6 +169,13 @@ class ESPectreComponent final : public Component, public ::espectre::IRuntimeLis
 #endif
 #ifdef USE_SWITCH
   optional<bool> pending_sensing_;
+#endif
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+  void restore_target_mac_();
+  text::Text *target_mac_text_{nullptr};
+  ESPPreferenceObject target_mac_pref_;
+  TargetMac pending_target_mac_{};
+  bool target_mac_pending_{false};
 #endif
   bool recalibrate_pending_{false};
   bool movement_pending_{false};
