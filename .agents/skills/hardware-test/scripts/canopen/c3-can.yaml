@@ -1,0 +1,16 @@
+# ESP32-C3 devkit with an SN65HVD230 on GPIO5/GPIO6 (reference/boards.md); included by buscheck, client and node B.
+esp32:
+  variant: esp32c3
+  board: esp32-c3-devkitc-02
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: UART0
+  level: DEBUG
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 250kbps
+    tx_pin: GPIO5
+    rx_pin: GPIO6

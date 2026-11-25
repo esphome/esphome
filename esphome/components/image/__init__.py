@@ -137,8 +137,10 @@ class ImageEncoder:
 
 def is_alpha_only(image: Image):
     """
-    Check if an image (assumed to be RGBA) is only alpha
+    Check if an image has an alpha channel and no color, only alpha
     """
+    if "A" not in image.getbands():
+        return False
     # Any alpha data?
     if image.split()[-1].getextrema()[0] == 0xFF:
         return False

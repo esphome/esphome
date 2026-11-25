@@ -1,0 +1,33 @@
+# Shared Bluetooth proxy package for an A/B of two builds (first used for ESP-IDF 5.5.6 vs 6.1.1): default proxy
+# settings, active connections, the connection interval logger and a heap line every 30 s
+esphome:
+  name: ${name}
+  includes: [../ble_conn_interval/ivlog.hpp, heaplog.hpp]
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=esp_ble_gattc_register_callback
+      - -Wl,--wrap=esp_ble_gap_register_callback
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: heaplog::log();
+logger:
+  level: DEBUG
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+bluetooth_proxy:
+  active: true
+interval:
+  - interval: 30s
+    then:
+      - lambda: heaplog::log();
+  - interval: 100ms
+    then:
+      - lambda: heaplog::watch();

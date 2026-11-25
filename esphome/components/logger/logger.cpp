@@ -7,9 +7,26 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#if defined(USE_ESP32) && defined(USE_NETWORK)
+#include <sdkconfig.h>
+#if defined(CONFIG_LWIP_TCPIP_CORE_LOCKING) && defined(USE_ESPHOME_TASK_LOG_BUFFER)
+#include "lwip/sys.h"
+#define USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+#endif
+#endif
+
 namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
+
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+// lwIP code run under the core lock (tcpip_api_call, netif callbacks) can log. A listener that writes to a socket would
+// take that lock again and deadlock, so such a line is queued for loop() instead. It can print after later inline
+// lines; on_powerdown() prints what is still queued at a restart.
+static inline bool HOT ESPHOME_ALWAYS_INLINE under_lwip_core_lock() {
+  return sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED);
+}
+#endif
 
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 // Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS,
@@ -32,7 +49,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // Get task handle once - used for both main task check and passing to non-main thread handler
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   const bool is_main_task = (current_task == this->main_task_);
-#elif (USE_ZEPHYR)
+#elif defined(USE_ZEPHYR)
   k_tid_t current_task = k_current_get();
   const bool is_main_task = (current_task == this->main_task_);
 #else  // USE_HOST
@@ -42,6 +59,12 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // Fast path: main thread, no recursion (99.9% of all logs)
   // Pass nullptr for thread_name since we already know this is the main task
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+    if (under_lwip_core_lock()) [[unlikely]] {
+      this->log_vprintf_non_main_thread_(level, tag, line, format, args, nullptr);
+      return;
+    }
+#endif
     this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
     return;
   }
@@ -57,10 +80,10 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // (we already have the handle from the main task check above).
   // Host: pass a stack buffer for pthread_getname_np to write into.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  const char *thread_name = get_thread_name_(current_task);
+  const char *thread_name = this->get_thread_name_(current_task);
 #elif defined(USE_ZEPHYR)
   char thread_name_buf[MAX_POINTER_REPRESENTATION];
-  const char *thread_name = get_thread_name_(thread_name_buf, current_task);
+  const char *thread_name = this->get_thread_name_(thread_name_buf, current_task);
 #else  // USE_HOST
   char thread_name_buf[THREAD_NAME_BUF_SIZE];
   const char *thread_name = this->get_thread_name_(thread_name_buf);
@@ -103,10 +126,10 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
   {
 #ifdef USE_HOST
     // Host always has console output - no baud_rate check needed
-    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 512;
+    static constexpr size_t MAX_CONSOLE_LOG_MSG_SIZE = 512;
 #else
     // Maximum size for console log messages (includes null terminator)
-    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
+    static constexpr size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
 #endif
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
     LogBuffer buf{console_buffer, MAX_CONSOLE_LOG_MSG_SIZE};
@@ -118,13 +141,11 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
 }
 #else
 // Implementation for single-task platforms (ESP8266, RP2040)
-// Logging calls are NOT thread-safe: global_recursion_guard_ is a plain bool and tx_buffer_ has no locking.
-// Not a problem in practice yet since Zephyr has no API support (logs are console-only).
+// Logging calls are NOT thread-safe: the recursion guard is a plain bool and tx_buffer_ has no locking.
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
-  if (level > this->level_for(tag) || global_recursion_guard_)
+  if (level > this->level_for(tag) || this->main_task_recursion_guard_)
     return;
-  // Other single-task platforms don't have thread names, so pass nullptr
-  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
+  this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
 }
 #endif  // USE_ESP32 || USE_HOST || USE_LIBRETINY || USE_ZEPHYR
 
@@ -136,10 +157,53 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 //
 void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
-  if (level > this->level_for(tag) || global_recursion_guard_)
+  if (level > this->level_for(tag) || this->main_task_recursion_guard_)
     return;
 
-  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
+  this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
+}
+#endif  // USE_ESP8266
+
+// Not shared with log_message_to_buffer_and_send_(): sharing it slows formatted lines
+inline void HOT ESPHOME_ALWAYS_INLINE Logger::send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf) {
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  if (!this->boot_log_done_)
+    this->boot_log_capture_(level, tag, buf);
+#endif
+  this->notify_listeners_(level, tag, buf);
+  this->write_log_buffer_to_console_(buf);
+}
+
+bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *msg) {
+  if (level > this->level_for(tag))
+    return true;
+  // Check the task first: the guard belongs to the main task and must not be read from other threads
+  if (!this->is_main_task_())
+    return false;
+  if (this->main_task_recursion_guard_)
+    return true;
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+  // The formatting path queues it
+  if (under_lwip_core_lock()) [[unlikely]]
+    return false;
+#endif
+  RecursionGuard guard(this->main_task_recursion_guard_);
+  LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+  buf.write_header(level, tag, line, nullptr);
+  buf.write_unformatted_body(msg, strlen(msg));
+  this->send_unformatted_line_(level, tag, buf);
+  return true;
+}
+
+#ifdef USE_ESP8266
+void Logger::log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg) {
+  if (level > this->level_for(tag) || this->main_task_recursion_guard_)
+    return;
+  RecursionGuard guard(this->main_task_recursion_guard_);
+  LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+  buf.write_header(level, tag, line, nullptr);
+  buf.write_unformatted_body_p(reinterpret_cast<PGM_P>(msg));
+  this->send_unformatted_line_(level, tag, buf);
 }
 #endif  // USE_ESP8266
 
@@ -184,11 +248,22 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #endif
 }
 
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_ZEPHYR_CDC_LOOP)
 void Logger::loop() {
   this->process_messages_();
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef USE_LOGGER_ZEPHYR_CDC_LOOP
   this->cdc_loop_();
+#endif
+}
+#endif
+
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_WAIT_TX_DONE)
+void Logger::on_powerdown() {
+  // The loop no longer runs, so print what other tasks logged; not when a log listener itself restarted
+  if (!this->main_task_recursion_guard_)
+    this->process_messages_();
+#ifdef USE_LOGGER_WAIT_TX_DONE
+  this->wait_tx_done_();
 #endif
 }
 #endif
@@ -213,11 +288,11 @@ void Logger::process_messages_() {
       this->write_log_buffer_to_console_(buf);
     }
   }
-#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+  // Zephyr with USB CDC keeps the loop running for cdc_loop_()
+#ifndef USE_LOGGER_ZEPHYR_CDC_LOOP
   else {
-    // No messages to process, disable loop if appropriate
-    // This reduces overhead when there's no async logging activity
-    this->disable_loop_when_buffer_empty_();
+    // A concurrent enable_loop_soon_any_context() still wakes the next iteration
+    this->disable_loop();
   }
 #endif
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
@@ -265,7 +340,7 @@ void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &
 
 void Logger::replay_boot_logs() {
   // The replay shares tx_buffer_ with normal logging, so it is dropped like any other re-entrant log
-  bool &recursion_guard = this->main_loop_recursion_guard_();
+  bool &recursion_guard = this->main_task_recursion_guard_;
   if (recursion_guard)
     return;
   this->boot_log_done_ = true;  // Stops capture first, so the replay output is not buffered again
@@ -303,17 +378,32 @@ void Logger::set_boot_log_level(const char *tag, uint8_t log_level) { this->boot
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
 
-static const LogString *get_log_level_str(uint8_t level) {
-  return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
+#ifndef USE_HOST
+const LogString *Logger::get_uart_selection_() {
+#ifdef USE_LOGGER_UART_SELECTION_DEFAULT
+  // LibreTiny resolves DEFAULT to the board's port only when serial logging is on
+  if (this->baud_rate_ > 0) {
+    switch (this->get_uart()) {
+      case UART_SELECTION_UART0:
+        return LOG_STR("UART0");
+      case UART_SELECTION_UART1:
+        return LOG_STR("UART1");
+      default:
+        return LOG_STR("UART2");
+    }
+  }
+#endif
+  return LOG_STR(ESPHOME_LOGGER_UART_NAME);
 }
+#endif
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)),
-                LOG_STR_ARG(get_log_level_str(this->current_level_)));
+                LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)),
+                LOG_STR_ARG(LogLevelStrings::get_log_str(this->current_level_)));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
@@ -333,16 +423,16 @@ void Logger::dump_config() {
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
   }
 #endif
 #ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
   for (auto &it : this->boot_log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
   }
 #endif
 #ifdef USE_ZEPHYR
-  dump_crash_();
+  this->dump_crash_();
 #ifdef USE_BOOTLOADER_ADAFRUIT
   this->dump_bootloader_();
 #endif
@@ -366,7 +456,7 @@ void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s",
-             LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)));
+             LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)));
   }
   this->current_level_ = level;
 #ifdef USE_LOGGER_LEVEL_LISTENERS

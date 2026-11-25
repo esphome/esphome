@@ -50,6 +50,11 @@ class TestableLD2450 : public LD2450Component {
 #ifdef USE_NUMBER
   using LD2450Component::pref_;
 #endif
+#ifdef USE_LD2450_XY_UNFILTERED
+  using LD2450Component::cancel_timeout;
+  using LD2450Component::set_xy_unfiltered_;
+  using LD2450Component::xy_unfiltered_;
+#endif
 
   void feed(const std::vector<uint8_t> &data) {
     for (uint8_t byte : data) {

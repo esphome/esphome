@@ -10,8 +10,7 @@
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 #include "esp_openthread_border_router.h"
-#include "esphome/components/wifi/wifi_component.h"
-#ifndef USE_OPENTHREAD_RCP_UART
+#if !defined(USE_OPENTHREAD_RCP_UART) && defined(USE_WIFI)
 #include "esp_coexist.h"
 #endif
 #endif
@@ -22,7 +21,6 @@
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
 #include "esp_openthread_types.h"
-#include "esp_task_wdt.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -46,15 +44,17 @@ namespace esphome::openthread {
 
 void OpenThreadComponent::setup() {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  esp_netif_t *backbone_netif = wifi::global_wifi_component->get_esp_netif_sta();
-  if (backbone_netif == nullptr) {
-    ESP_LOGE(TAG, "Wi-Fi STA backbone netif is not initialized");
+  esp_netif_t *netif = backbone_netif();
+  if (netif == nullptr) {
+    ESP_LOGE(TAG, "%s backbone netif is not initialized", BACKBONE_NAME);
     this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
     this->mark_failed();
     return;
   }
-  esp_openthread_set_backbone_netif(backbone_netif);
+  esp_openthread_set_backbone_netif(netif);
+#ifndef USE_OPENTHREAD_BACKBONE_ETHERNET  // codegen registers the Ethernet listener
   wifi::global_wifi_component->add_connect_state_listener(this);
+#endif
 #endif
 
   // Used eventfds: netif, ot task queue, radio driver, and one more for a border router on the
@@ -162,7 +162,7 @@ void OpenThreadComponent::ot_main_() {
 
   otInstance *instance = esp_openthread_get_instance();
   bool launch_mainloop = true;
-#if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART)
+#if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART) && defined(USE_WIFI)
   // The native 802.15.4 radio shares the RF frontend with Wi-Fi. Coexistence has to be on before
   // the Thread network starts below, or Wi-Fi scanning and association can fail outright.
   if (const esp_err_t err = esp_coex_wifi_i154_enable(); err != ESP_OK) {
@@ -247,18 +247,35 @@ void OpenThreadComponent::ot_main_() {
     }
   }
 
-  if (launch_mainloop) {
+  while (launch_mainloop) {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-    this->mainloop_running_ = true;
+    this->set_border_router_flag_(MAINLOOP_RUNNING, true);
 #endif
     const esp_err_t err = esp_openthread_launch_mainloop();
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-    this->mainloop_running_ = false;
+    this->set_border_router_flag_(MAINLOOP_RUNNING, false);
+    // ESP-IDF 5.5 returns a processing error with the exit it handled; teardown() posts one too
+    const bool exit_requested = this->set_border_router_flag_(MAINLOOP_EXIT_REQUESTED, false) ||
+                                this->teardown_stage_ != TeardownStage::TEARDOWN_STAGE_NOT_STARTED;
+#else
+    const bool exit_requested = this->teardown_stage_ != TeardownStage::TEARDOWN_STAGE_NOT_STARTED;
 #endif
-    if (err != ESP_OK) {
+    if (err != ESP_OK && !exit_requested) {
       ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
       this->mark_task_failed_(LOG_STR("Main loop failed"));
+      break;
     }
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "OpenThread main loop returned %s on a requested exit", esp_err_to_name(err));
+    }
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+    // Only teardown ends the task; any other exit restarts the main loop
+    if (this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_NOT_STARTED) {
+      this->start_border_router_();
+      continue;
+    }
+#endif
+    break;
   }
 
   // Clean up. Taking the lock once more lets every guard finish; the stack is stopped and the
@@ -267,9 +284,9 @@ void OpenThreadComponent::ot_main_() {
   // Best effort: after a normal teardown all of this is done already
   otIp6SetAddressCallback(instance, nullptr, nullptr);
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  if (this->border_router_started_) {
+  if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
     (void) esp_openthread_border_router_deinit();
-    this->border_router_started_ = false;
+    this->set_border_router_flag_(BORDER_ROUTER_STARTED, false);
   }
 #endif
   (void) otThreadSetEnabled(instance, false);
@@ -360,64 +377,101 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 static constexpr uint32_t BORDER_ROUTER_RETRY_MS = 10000;
+static constexpr uint32_t BORDER_ROUTER_RETRY_ID = 0;
 
 void OpenThreadComponent::loop() {
-  // Thread starts on its own. Border routing starts once the Wi-Fi backbone has an address. When the
-  // backbone goes away the stack is told so it pauses routing on that interface; when it comes back
-  // the border router is created afresh, since the port's infra interface keeps the socket and the
-  // addresses of the backbone as it was. The Wi-Fi listener enables the loop on every link change
-  if (!this->mainloop_running_) {
+  // Border routing pauses when the backbone goes and is recreated when it returns: the port's infra
+  // interface keeps the old socket. The backbone's connect state listener enables the loop
+  if (!this->has_border_router_flag_(MAINLOOP_RUNNING)) {
     return;
   }
-  const bool backbone_up = wifi::global_wifi_component->is_connected();
+  const bool backbone_up = backbone_connected();
   if (backbone_up == this->backbone_up_) {
     this->disable_loop();
     return;
   }
-  // Never wait for the lock on the main loop; the OpenThread task releases it between events
+  // Never wait here; holding the lock keeps the task's clean-up from deleting the queue under the exit post
   auto lock = InstanceLock::try_acquire(0);
   if (!lock) {
     return;
   }
-  auto retry_later = [this](const LogString *reason) {
-    this->status_set_error(reason);
-    this->disable_loop();
-    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
-  };
   if (!backbone_up) {
-    if (this->border_router_started_) {
-      ESP_LOGI(TAG, "Wi-Fi backbone lost, border routing pauses");
+    if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
+      ESP_LOGI(TAG, "%s backbone lost, border routing pauses", BACKBONE_NAME);
       esp_netif_t *backbone = esp_openthread_get_backbone_netif();
       // A refused report is not retried: the border router is created afresh when the backbone returns
       if (otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), false) !=
           OT_ERROR_NONE) {
-        ESP_LOGW(TAG, "Stack did not take the backbone loss, routes stay until Wi-Fi returns");
+        ESP_LOGW(TAG, "Stack did not take the backbone loss, routes stay until the %s backbone returns", BACKBONE_NAME);
       }
     }
+    // Drop a start the OpenThread task has not taken yet
+    this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false);
     this->backbone_up_ = false;
     this->disable_loop();
     return;
   }
-  if (this->border_router_started_) {
-    ESP_LOGI(TAG, "Wi-Fi backbone back, border routing restarts");
-    // The old router stays marked as started until it is gone, so a retry tears it down first
-    if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
-      retry_later(LOG_STR("Border router deinit failed"));
-      return;
-    }
-    this->border_router_started_ = false;
+  if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
+    ESP_LOGI(TAG, "%s backbone back, border routing restarts", BACKBONE_NAME);
   }
-  if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
-    retry_later(LOG_STR("Border router init failed"));
+  this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED | MAINLOOP_EXIT_REQUESTED, true);
+  if (const esp_err_t err = esp_openthread_mainloop_exit(); err != ESP_OK) {
+    this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED | MAINLOOP_EXIT_REQUESTED, false);
+    ESP_LOGE(TAG, "Failed to stop the OpenThread main loop: %s", esp_err_to_name(err));
+    this->retry_border_router_later_(LOG_STR("Border router start failed"));
     return;
   }
-  this->status_clear_error();
-  this->border_router_started_ = true;
   this->backbone_up_ = true;
-  ESP_LOGI(TAG, "Border routing started");
   this->disable_loop();
+}
+
+// On the OpenThread task between main loop runs: elsewhere, the deinit deadlocks on the lwIP core lock
+void OpenThreadComponent::start_border_router_() {
+  esp_openthread_lock_acquire(portMAX_DELAY);
+  // Checked under the lock: a teardown or a backbone loss in loop() either came first or sees the result
+  if (this->teardown_stage_ != TeardownStage::TEARDOWN_STAGE_NOT_STARTED ||
+      !this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false)) {
+    esp_openthread_lock_release();
+    return;
+  }
+  bool deinit_failed = false;
+  esp_err_t err = ESP_OK;
+  if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
+    err = esp_openthread_border_router_deinit();
+    deinit_failed = err != ESP_OK;
+    // The old router stays marked as started until it is gone, so a retry tears it down first
+    this->set_border_router_flag_(BORDER_ROUTER_STARTED, deinit_failed);
+  }
+  if (!deinit_failed) {
+    err = esp_openthread_border_router_init();
+    this->set_border_router_flag_(BORDER_ROUTER_STARTED, err == ESP_OK);
+  }
+  esp_openthread_lock_release();
+  const LogString *failure = nullptr;
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to %s OpenThread Border Router: %s",
+             deinit_failed ? LOG_STR_LITERAL("deinitialize") : LOG_STR_LITERAL("initialize"), esp_err_to_name(err));
+    failure = deinit_failed ? LOG_STR("Border router deinit failed") : LOG_STR("Border router init failed");
+  }
+  // Two pointers fit std::function's inline storage
+  this->defer([this, failure]() {
+    if (failure == nullptr) {
+      this->status_clear_error();
+      ESP_LOGI(TAG, "Border routing started");
+      // loop() rechecks the backbone
+      this->enable_loop();
+      return;
+    }
+    this->backbone_up_ = false;
+    this->retry_border_router_later_(failure);
+  });
+}
+
+void OpenThreadComponent::retry_border_router_later_(const LogString *reason) {
+  this->status_set_error(reason);
+  // loop() asks again after the retry delay
+  this->disable_loop();
+  this->set_timeout(BORDER_ROUTER_RETRY_ID, BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
 }
 #endif
 
@@ -470,11 +524,11 @@ InstanceLock InstanceLock::acquire() {
       abort();
     }
     delay(10);
-    esp_task_wdt_reset();
+    arch_feed_wdt();
   }
   while (!esp_openthread_lock_acquire(100)) {
     abort_if_task_exited();
-    esp_task_wdt_reset();
+    arch_feed_wdt();
   }
   // The clean-up may have released the lock to this waiter just before deinit destroys it
   if (global_openthread_component->is_task_exited()) {

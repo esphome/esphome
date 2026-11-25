@@ -17,7 +17,7 @@ from esphome.components.zephyr.const import (
     KEY_PM_STATIC,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import CONF_ID
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -38,10 +38,6 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema({cv.GenerateID(): cv.declare_id(Coredump)}).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_nrf52,
 )
-
-
-def _framework_version() -> cv.Version:
-    return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
 
 def _partition_address() -> int:
@@ -91,7 +87,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CRASH_HANDLER")
     zephyr_add_prj_conf("DEBUG_COREDUMP", True)
     zephyr_add_prj_conf("DEBUG_COREDUMP_BACKEND_FLASH_PARTITION", True)
-    framework_ver = _framework_version()
+    framework_ver = CORE.framework_version
     if framework_ver >= DUMP_THREADS_MIN_VERSION:
         zephyr_add_prj_conf("DEBUG_COREDUMP_MEMORY_DUMP_THREADS", True)
     else:

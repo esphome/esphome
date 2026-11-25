@@ -1,28 +1,11 @@
-import logging
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE
 from esphome.components.const import CONF_AQI
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_PM_1_0,
-    CONF_PM_2_5,
-    CONF_PM_10_0,
-    DEVICE_CLASS_AQI,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
-    ICON_CHEMICAL_WEAPON,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-)
+from esphome.const import CONF_PM_1_0, CONF_PM_2_5, CONF_PM_10_0
 from esphome.types import ConfigType
 
-_LOGGER = logging.getLogger(__name__)
-
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["aqi"]
 CODEOWNERS = ["@freekode"]
 
 hm3301_ns = cg.esphome_ns.namespace("hm3301")
@@ -30,60 +13,23 @@ HM3301Component = hm3301_ns.class_(
     "HM3301Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-UNIT_INDEX = "index"
-
-
-def _validate(config: ConfigType) -> ConfigType:
-    if CONF_AQI in config and CONF_PM_2_5 not in config:
-        raise cv.Invalid("AQI sensor requires PM 2.5")
-    if CONF_AQI in config and CONF_PM_10_0 not in config:
-        raise cv.Invalid("AQI sensor requires PM 10 sensors")
-    return config
-
-
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HM3301Component),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_AQI): sensor.sensor_schema(
-                unit_of_measurement=UNIT_INDEX,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
-                        AQI_CALCULATION_TYPE, upper=True
-                    ),
-                }
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
+            # Removed in 2026.12.0 - kept to provide helpful error message
+            cv.Optional(CONF_AQI): cv.invalid(
+                "The 'aqi' option of hm3301 was removed in ESPHome 2026.12.0. "
+                "Give 'pm_2_5' and 'pm_10_0' an 'id' and add a sensor with "
+                "'platform: aqi' that uses them."
             ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x40)),
-    _validate,
+    .extend(i2c.i2c_device_schema(0x40))
 )
 
 
@@ -94,13 +40,3 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
     await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
     await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
-
-    # Remove before 2026.12.0
-    if CONF_AQI in config:
-        _LOGGER.warning(
-            "The 'aqi' option in hm3301 is deprecated, "
-            "please use the standalone 'aqi' sensor platform instead."
-        )
-        sens = await sensor.new_sensor(config[CONF_AQI])
-        cg.add(var.set_aqi_sensor(sens))
-        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))

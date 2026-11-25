@@ -1,0 +1,90 @@
+# Package for a recdisp scene run: draws every image type, alpha with explicit colors, fills and anti-aliased text
+# on the recording display, logs each result and times each draw (21 runs, min/med/max). Run mkimg.py first.
+# Device file:
+#   esphome: {name: recdisp8266}
+#   esp8266: {board: nodemcuv2}        # or esp32: ..., or host:
+#   packages: {common: !include scene-common.yaml}
+# Capture from a reset until "DONE", then: python ana.py CAPTURE VARIANT PLATFORM
+external_components:
+  - source:
+      type: local
+      path: components
+
+logger:
+  baud_rate: 460800
+  level: INFO
+  tx_buffer_size: 1024
+
+image:
+  - {file: ring.png, id: ring_gray, type: GRAYSCALE}
+  - {file: ring_rgba.png, id: ring_gray_ck, type: GRAYSCALE, transparency: chroma_key}
+  - {file: ring_alpha.png, id: ring_ga, type: GRAYSCALE, transparency: alpha_channel}
+  - {file: agrad.png, id: agrad, type: GRAYSCALE, transparency: alpha_channel}
+  - {file: ring.png, id: ring_565, type: RGB565}
+  - {file: ring_rgba.png, id: ring_565ck, type: RGB565, transparency: chroma_key}
+  - {file: ring_rgba.png, id: ring_565a, type: RGB565, transparency: alpha_channel}
+  - {file: ring_rgba.png, id: ring_rgba, type: RGB, transparency: alpha_channel}
+  - {file: ring.png, id: ring_rgb, type: RGB}
+  - {file: ring.png, id: ring_bin, type: BINARY}
+  - {file: rgb111.png, id: ring_111, type: RGB111, transparency: alpha_channel}
+
+font:
+  - file: "gfonts://Noto Sans"
+    id: f16
+    size: 16
+    bpp: 4
+    glyphs: "Ag"
+
+display:
+  - platform: recdisp
+    id: rec
+    update_interval: never
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - delay: 4s
+      - lambda: |-
+          auto *d = id(rec);
+          ESP_LOGI("rec", "BEGIN");
+          struct Sc { const char *n; image::Image *img; };
+          const Sc imgs[] = {{"gray", id(ring_gray)}, {"gray_ck", id(ring_gray_ck)}, {"gray_a", id(ring_ga)},
+                             {"agrad", id(agrad)}, {"565", id(ring_565)}, {"565_ck", id(ring_565ck)},
+                             {"565_a", id(ring_565a)}, {"rgb_a", id(ring_rgba)}, {"rgb", id(ring_rgb)},
+                             {"bin", id(ring_bin)}, {"rgb111_a", id(ring_111)}};
+          for (auto &s : imgs) {
+            d->dump_get_pixel(s.n, s.img);
+            d->reset();
+            d->image(8, 8, s.img);
+            d->report(s.n, 8, 8, s.img->get_width(), s.img->get_height());
+          }
+          // alpha grayscale with explicit colors
+          const Color ON_W(0, 0, 0, 255), ON_X(200, 30, 90, 170), OFF_X(10, 250, 60, 5);
+          d->reset(); d->image(8, 8, id(agrad), ON_W, display::COLOR_OFF); d->report("agrad_wonly", 8, 8, 16, 16);
+          d->reset(); d->image(8, 8, id(agrad), ON_X, OFF_X); d->report("agrad_rgbw", 8, 8, 16, 16);
+          d->reset(); d->image(8, 8, id(ring_ga), ON_W, display::COLOR_OFF); d->report("gray_a_wonly", 8, 8, 48, 48);
+          d->reset(); d->image(8, 8, id(ring_ga), ON_X, OFF_X); d->report("gray_a_rgbw", 8, 8, 48, 48);
+          // fills, gray4 levels of plain colors
+          struct Fc { const char *n; Color c; };
+          const Fc fills[] = {{"rgb_white", Color(255, 255, 255, 0)}, {"rgb_gray", Color(128, 128, 128, 0)},
+                              {"rgb_red", Color(255, 0, 0, 0)}, {"w_half", Color(0, 0, 0, 128)},
+                              {"color_on", display::COLOR_ON}, {"color_off", display::COLOR_OFF}};
+          for (auto &f : fills) {
+            d->reset();
+            d->filled_rectangle(2, 2, 4, 4, f.c);
+            d->report(f.n, 2, 2, 4, 1);
+            d->level(f.n, f.c);
+          }
+          // anti-aliased text
+          d->reset(); d->print(4, 4, id(f16), Color(0, 0, 0, 255), display::TextAlign::TOP_LEFT, "Ag", Color(0, 0, 0, 64));
+          d->report("text_wonly", 4, 4, 28, 22);
+          d->reset(); d->print(4, 4, id(f16), Color(255, 255, 255), display::TextAlign::TOP_LEFT, "Ag", Color(0, 0, 0));
+          d->report("text_rgb", 4, 4, 28, 22);
+          // timings
+          for (auto &s : imgs) {
+            auto *img = s.img;
+            d->time(s.n, [d, img]() { d->image(8, 8, img); });
+          }
+          d->time("agrad_rgbw", [d, ON_X, OFF_X]() { for (int i = 0; i < 9; i++) d->image(8 + (i % 3) * 16, 8 + (i / 3) * 16, id(agrad), ON_X, OFF_X); });
+          ESP_LOGI("rec", "DONE");

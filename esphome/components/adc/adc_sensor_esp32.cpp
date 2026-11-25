@@ -2,6 +2,7 @@
 
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cinttypes>
 
 namespace esphome::adc {
@@ -10,20 +11,8 @@ ESPHOME_LOG_TAG(TAG, "adc");
 
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
-const LogString *attenuation_to_str(adc_atten_t attenuation) {
-  switch (attenuation) {
-    case ADC_ATTEN_DB_0:
-      return LOG_STR("0 dB");
-    case ADC_ATTEN_DB_2_5:
-      return LOG_STR("2.5 dB");
-    case ADC_ATTEN_DB_6:
-      return LOG_STR("6 dB");
-    case ADC_ATTEN_DB_12_COMPAT:
-      return LOG_STR("12 dB");
-    default:
-      return LOG_STR("Unknown Attenuation");
-  }
-}
+// Indexed by adc_atten_t
+PROGMEM_STRING_TABLE(AttenuationStrings, "0 dB", "2.5 dB", "6 dB", "12 dB", "Unknown Attenuation");
 
 const LogString *adc_unit_to_str(adc_unit_t unit) {
   switch (unit) {
@@ -140,8 +129,8 @@ void ADCSensor::dump_config() {
                 "    Calibration:  %s\n"
                 "    Overall Init: %s",
                 this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-                this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
-                LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
+                this->autorange_ ? "Auto" : LOG_STR_ARG(AttenuationStrings::get_log_str(this->attenuation_)),
+                this->sample_count_, LOG_STR_ARG(SamplingModeStrings::get_log_str(this->sampling_mode_)),
                 this->setup_flags_.handle_init_complete ? "OK" : "FAILED",
                 this->setup_flags_.config_complete ? "OK" : "FAILED", calibration_status,
                 this->setup_flags_.init_complete ? "OK" : "FAILED");
