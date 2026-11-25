@@ -50,6 +50,7 @@ struct AcDimmerDataStore {
 
   /// Timer work at `now`: starts half cycles and drives the gate; returns µs until the next event
   uint32_t timer_intr(uint32_t now);
+  uint32_t timer_step_(uint32_t now);
   /// Zero-cross edge at `now`: acquires the lock or corrects the timing
   void zero_cross_edge(uint32_t now);
   /// Edge while not locked: locks once two gaps in a row agree

@@ -46,6 +46,7 @@ struct PhaseLockCase {
   int drop_count;                 // crossings in a row without an edge
   int32_t tolerance;              // allowed distance of the predicted crossing from the real one
   bool jitter_from_start{false};  // the jitter also applies while locking
+  int32_t period_tolerance{20};   // allowed distance of the measured half cycle from the real one
 };
 
 class PhaseLockTest : public ::testing::TestWithParam<PhaseLockCase> {};
@@ -73,7 +74,7 @@ TEST_P(PhaseLockTest, FollowsCrossings) {
   bench.run_until(last + c.period / 2);
   EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
   EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - last)), c.tolerance);
-  EXPECT_LE(std::abs(static_cast<int32_t>(store.period - c.period)), 20);
+  EXPECT_LE(std::abs(static_cast<int32_t>(store.period - c.period)), c.period_tolerance);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -83,7 +84,8 @@ INSTANTIATE_TEST_SUITE_P(
         PhaseLockCase{"Clean60Hz", 1000, 8333, 50, 0, 0, 0, 0, 2},
         // micros() wraps around, and one crossing is exactly at 0
         PhaseLockCase{"CrossingAtZeroMicros", 0U - 30000U, 10000, 50, 0, 0, 0, 0, 2},
-        PhaseLockCase{"AlternatingJitter", 1000, 10000, 200, 250, 0, 0, 0, 200},
+        // Strictly alternating jitter wider than the follow window: the prediction rests at its early end
+        PhaseLockCase{"AlternatingJitter", 1000, 10000, 200, 250, 0, 0, 0, 260, false, 80},
         // Locked on an early edge, the prediction stays at the early end of the jitter: late edges only confirm
         PhaseLockCase{"AlternatingJitterWhileLocking", 1000, 10000, 200, 250, 0, 0, 0, 250, true},
         // Noise half way through every half cycle (the triac firing) is outside the window
@@ -95,30 +97,55 @@ INSTANTIATE_TEST_SUITE_P(
         PhaseLockCase{"SevenMissedCrossings", 1000, 10000, 50, 0, 0, 20, 7, 2}),
     [](const ::testing::TestParamInfo<PhaseLockCase> &info) { return info.param.name; });
 
-class LateServiceTest : public ::testing::TestWithParam<int32_t> {};
+struct EdgeOffsetCase {
+  const char *name;
+  uint32_t period;
+  int32_t offset;  // every edge from crossing `from` up to `to` comes this far from the crossing
+  int from;
+  int to;
+};
 
-// The zero-cross interrupt served late for a while (WiFi on the ESP8266): the edges still confirm the crossings,
-// and the prediction does not follow them towards the next crossing
-TEST_P(LateServiceTest, KeepsLockAndPhase) {
+class EdgeOffsetTest : public ::testing::TestWithParam<EdgeOffsetCase> {};
+
+// Edges served late for a while (WiFi on the ESP8266) or early detector pulses only confirm the crossings: the
+// prediction neither follows them nor drifts afterwards
+TEST_P(EdgeOffsetTest, KeepsLockAndPhase) {
+  const auto &c = GetParam();
   AcDimmerDataStore store{};
   store.value = 32768;
   Bench bench(store, 1000);
   uint32_t crossing = 1000;
-  for (int i = 0; i < 300; i++, crossing += 10000) {
-    const bool late = i >= 50 && i < 250;
-    bench.edge(crossing + (late ? GetParam() : 0));
-    if (i == 249) {
-      bench.run_until(crossing + 5000);
-      EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
-      EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - crossing)), 10);
-    }
-  }
-  bench.run_until(crossing - 10000 + 5000);
+  for (int i = 0; i < 300; i++, crossing += c.period)
+    bench.edge(crossing + (i >= c.from && i < c.to ? c.offset : 0));
+  const uint32_t last = crossing - c.period;
+  bench.run_until(last + c.period / 2);
   EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
-  EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - (crossing - 10000))), 10);
+  EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - last)), 10);
+  EXPECT_LE(std::abs(static_cast<int32_t>(store.period - c.period)), 2);
 }
 
-INSTANTIATE_TEST_SUITE_P(AcDimmer, LateServiceTest, ::testing::Values(500, 1000, 1500));
+INSTANTIATE_TEST_SUITE_P(AcDimmer, EdgeOffsetTest,
+                         ::testing::Values(EdgeOffsetCase{"Late500", 10000, 500, 50, 250},
+                                           EdgeOffsetCase{"Late1500", 10000, 1500, 50, 250},
+                                           EdgeOffsetCase{"Late1500At60Hz", 8333, 1500, 50, 250},
+                                           EdgeOffsetCase{"ThreeEarlyPulses", 10000, -470, 100, 103}),
+                         [](const ::testing::TestParamInfo<EdgeOffsetCase> &info) { return info.param.name; });
+
+// A first half cycle measured 150 µs short still converges on the real one
+TEST(AcDimmerTimerTest, ShortFirstMeasurementConverges) {
+  AcDimmerDataStore store{};
+  store.value = 32768;
+  Bench bench(store, 1000);
+  for (uint32_t at : {1150U, 11000U, 20850U})
+    bench.edge(at);
+  uint32_t crossing = 31000;
+  for (int i = 0; i < 300; i++, crossing += 10000)
+    bench.edge(crossing);
+  bench.run_until(crossing - 10000 + 5000);
+  EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
+  EXPECT_LE(std::abs(static_cast<int32_t>(store.period - 10000)), 2);
+  EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - (crossing - 10000))), 10);
+}
 
 /// Locks a dimmer on crossings at 1, 11 and 21 ms; the caller runs the timer at 21 ms to start that half cycle
 static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
@@ -220,7 +247,7 @@ TEST_P(LateEnableTest, SkipsEnableNearTheEnd) {
 
 INSTANTIATE_TEST_SUITE_P(AcDimmer, LateEnableTest,
                          ::testing::Values(LateEnableCase{"OnTime", 9600, 9650, 50},
-                                           LateEnableCase{"LatePulseEndsBeforeCrossing", 9900, 9950, 50},
+                                           LateEnableCase{"LatePulseEndsBeforeCrossing", 9800, 9850, 50},
                                            // not switched on; the pending switch-off runs at once
                                            LateEnableCase{"LatePulseWouldPassCrossing", 9960, 0, 40}),
                          [](const ::testing::TestParamInfo<LateEnableCase> &info) { return info.param.name; });

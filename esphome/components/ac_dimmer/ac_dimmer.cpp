@@ -39,6 +39,15 @@ static constexpr uint32_t MAX_HALF_CYCLE_US = 25000;
 static constexpr uint8_t MAX_MISSES = 8;
 /// taken_err when no correction is waiting (outside any window)
 static constexpr int16_t NO_EDGE_ERR = INT16_MIN;
+/// The zero-cross interrupt can be served this late on the ESP8266
+static constexpr int32_t MAX_EDGE_LATENCY_US = 1500;
+/// A late timer still needs this long after a pulse to switch the gate off before the crossing
+static constexpr int32_t GATE_OFF_MARGIN_US = 100;
+#ifdef USE_ESP32
+/// The zero-cross interrupt runs at a higher level than the timer and updates the same timing
+static portMUX_TYPE timing_lock =
+    portMUX_INITIALIZER_UNLOCKED;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 #ifdef USE_ESP8266
 /// Timer interval while no dimmer is locked; a zero-cross edge re-arms the timer anyway
@@ -64,9 +73,16 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   }
 
 #ifdef USE_ESP32
-  // The zero-cross interrupt runs at a higher level and updates the same timing
-  InterruptLock lock;
+  portENTER_CRITICAL_ISR(&timing_lock);
 #endif
+  const uint32_t next = this->timer_step_(now);
+#ifdef USE_ESP32
+  portEXIT_CRITICAL_ISR(&timing_lock);
+#endif
+  return next;
+}
+
+uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step_(uint32_t now) {
   auto since = static_cast<int32_t>(now - this->zc_at);
   if (since >= this->period) {
     // The window of the crossing at zc_at closed long ago: its best edge is final
@@ -98,8 +114,8 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   if (this->value != 65535 && this->value != 0) {
     if (this->enable_time_us != 0 && since >= this->enable_time_us) {
       this->enable_time_us = 0;
-      // A late timer does not start a pulse that would last past the crossing: the triac would stay on
-      if (since + static_cast<int32_t>(GATE_ENABLE_TIME) < period) {
+      // A late timer does not start a pulse that could last past the crossing: the triac would stay on
+      if (since + static_cast<int32_t>(GATE_ENABLE_TIME) + GATE_OFF_MARGIN_US < period) {
         this->gate_pin.digital_write(true);
         // Prevent too short pulses
         this->disable_time_us = std::max<int32_t>(this->disable_time_us, since + GATE_ENABLE_TIME);
@@ -160,8 +176,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
   // The edge belongs to the crossing at zc_at (served after the timer started it) or the one at zc_at + period
   const bool next = static_cast<int32_t>(now - this->zc_at) > this->period / 2;
   int32_t err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
-  // Late edges get a wider window: the interrupt can be served up to 1.5 ms late on the ESP8266
-  if (err > this->period / 6 || err < -this->period / 8)
+  // Late edges get a wider window: the interrupt can be served late
+  if (err > std::max<int32_t>(this->period / 6, MAX_EDGE_LATENCY_US) || err < -this->period / 8)
     return;
   if (next ? this->edge_next : this->edge_now) {
     // Another edge for the same crossing, such as noise from the triac firing just before it: the one closest to
@@ -186,12 +202,13 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
-  // Mains timing is steady and single edges jitter: follow the edges slowly. An edge served late only confirms the
-  // crossing: following it would move the gate pulses towards the next crossing.
-  if (this->taken_err <= this->period / 32) {
+  // Mains timing is steady, so follow slowly. An edge served late only confirms the crossing unless it is close
+  // (following it would move pulses towards the next crossing); the half cycle follows close edges only.
+  const int32_t close = this->period / 32;
+  if (this->taken_err <= close)
     this->zc_at += this->taken_err / 4;
+  if (std::abs(static_cast<int32_t>(this->taken_err)) <= close)
     this->period += this->taken_err / 16;
-  }
   this->taken_err = NO_EDGE_ERR;
 }
 
