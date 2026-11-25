@@ -179,19 +179,12 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
-
- // Indexed by node type - 1 (types 1-49); last entry is the unknown fallback.
- PROGMEM_STRING_TABLE(NodeTypeStrings,
-                      "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", "CLIMA",
-                      "UCBAT", "UC", "UCRH", "UCVOC", "UCCO2", "VLV",
-                      "VLVRH", "VLVVOC", "VLVCO2", "BOX", "SWITCH",
-                      "ACTUAT", "UCBATRH", "PWMIN", "IAV", "IAVRH",
-                      "IAVVOC", "IAVCO2", "BOILER", "TRONIC", "VLVCO2RH",
-                      "UCSUN", "UCVENT", "EAV", "EAVRH", "EAVVOC",
-                      "EAVCO2", "BSRH", "BSVOC", "BSCO2", "MOTORRLY",
-                      "WXSENSOR", "MOTORMB", "DI", "DO", "COMM",
-                      "RLYMB", "PERILEX", "RO", "HEATODA", "AO",
-                      "CSCO2", "UNKNOWN");
+// Indexed by node type - 1 (types 1-49); last entry is the unknown fallback.
+PROGMEM_STRING_TABLE(NodeTypeStrings, "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", "CLIMA", "UCBAT", "UC", "UCRH", "UCVOC",
+                     "UCCO2", "VLV", "VLVRH", "VLVVOC", "VLVCO2", "BOX", "SWITCH", "ACTUAT", "UCBATRH", "PWMIN", "IAV",
+                     "IAVRH", "IAVVOC", "IAVCO2", "BOILER", "TRONIC", "VLVCO2RH", "UCSUN", "UCVENT", "EAV", "EAVRH",
+                     "EAVVOC", "EAVCO2", "BSRH", "BSVOC", "BSCO2", "MOTORRLY", "WXSENSOR", "MOTORMB", "DI", "DO",
+                     "COMM", "RLYMB", "PERILEX", "RO", "HEATODA", "AO", "CSCO2", "UNKNOWN");
 
 static_assert(NodeTypeStrings::LAST_INDEX == 49);
 
@@ -204,9 +197,7 @@ const LogString *node_type_name(uint8_t type) {
   if (bs && base_type == 12)
     return LOG_STR("BSCO2");
 
-  return NodeTypeStrings::get_log_str(
-      static_cast<uint8_t>(base_type - 1),
-      NodeTypeStrings::LAST_INDEX);
+  return NodeTypeStrings::get_log_str(static_cast<uint8_t>(base_type - 1), NodeTypeStrings::LAST_INDEX);
 }
 
 void DucoDiscovery::setup() {
