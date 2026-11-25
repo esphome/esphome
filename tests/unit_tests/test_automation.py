@@ -3519,34 +3519,22 @@ async def test_run_function_for_inline_plan() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-async def test_run_function_declined_builds_automation() -> None:
-    """``direct=False`` puts an inline plan on the trigger as an Automation."""
-    plan = await plan_automation([], _automation_conf(_action("my.a", "act_a")))
-
-    assert automation_or_run_function(plan, _run_trigger(), direct=False) is None
-
-    assert "esphome__trig__fn" not in CORE.cpp_global_section
-    assert "Automation<>(trig);" in CORE.cpp_main_section
-
-
-@pytest.mark.asyncio
-@pytest.mark.usefixtures("apply_actions")
 @pytest.mark.parametrize(
-    ("then", "is_manual"),
+    ("then", "is_manual", "direct"),
     [
-        ((_action("my.a", "act_a"), _delay("act_d")), False),
-        ((_action("my.a", "act_a"),), True),
+        ((_action("my.a", "act_a"),), False, False),
+        ((_action("my.a", "act_a"), _delay("act_d")), False, True),
+        ((_action("my.a", "act_a"),), True, True),
     ],
-    ids=["delay", "manual_automation_id"],
+    ids=["declined", "delay", "manual_automation_id"],
 )
-async def test_plan_needing_automation_is_not_direct(
-    then: tuple[ConfigType, ...], is_manual: bool
+async def test_automation_built_on_trigger(
+    then: tuple[ConfigType, ...], is_manual: bool, direct: bool
 ) -> None:
-    """A deferring action or a hand-set automation_id keeps the Automation."""
+    """``direct=False``, a deferring action or a hand-set automation_id builds the Automation."""
     plan = await plan_automation([], _automation_conf(*then, is_manual=is_manual))
-    assert not plan.direct
 
-    assert automation_or_run_function(plan, _run_trigger()) is None
+    assert automation_or_run_function(plan, _run_trigger(), direct=direct) is None
 
     assert "esphome__trig__fn" not in CORE.cpp_global_section
     assert "Automation<>(trig);" in CORE.cpp_main_section

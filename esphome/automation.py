@@ -729,9 +729,8 @@ def apply_static_function(
 
     ``add_global_`` places the declaration (e.g. at a ``LatePvariable``); such a function is never shared.
     """
-    name = _apply_function_name(id_, suffix)
     return cg.shared_static_function(
-        name,
+        _apply_function_name(id_, suffix),
         return_type,
         params,
         statements,

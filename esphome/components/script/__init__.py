@@ -134,20 +134,6 @@ def validate_parameter_name(value):
     raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
 
 
-def validate_parameter_names(value: Any) -> Any:
-    """Reject reserved parameter names here: as dict keys of a schema they would only be
-    reported as "extra keys not allowed"."""
-    if isinstance(value, dict):
-        for name in value:
-            # Generated C++ code names its own variables like this
-            if str(name).startswith("esphome__"):
-                raise cv.Invalid(
-                    "Names starting with 'esphome__' are reserved for generated code",
-                    path=[name],
-                )
-    return value
-
-
 ALLOWED_PARAM_TYPE_CHARSET = set("abcdefghijklmnopqrstuvwxyz0123456789_:*&[]<>")
 
 
@@ -215,9 +201,10 @@ CONFIG_SCHEMA = cv.All(
                 *SCRIPT_MODES, lower=True
             ),
             cv.Optional(CONF_MAX_RUNS): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_PARAMETERS, default={}): cv.All(
-                validate_parameter_names,
-                cv.Schema({validate_parameter_name: validate_parameter_type}),
+            cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
+                {
+                    validate_parameter_name: validate_parameter_type,
+                }
             ),
             cv.Optional(CONF_ON_STOP): automation.validate_automation(single=True),
         },
@@ -243,15 +230,15 @@ async def to_code(config):
 
         cg.add_optional(script.set_max_runs, conf.get(CONF_MAX_RUNS))
 
-        if queued := conf[CONF_MODE] == CONF_QUEUED:
+        if conf[CONF_MODE] == CONF_QUEUED:
             await cg.register_component(script, conf)
 
-        scripts.append((late, template, func_args, conf, queued))
+        scripts.append((late, template, func_args, conf))
 
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
 
-    def define(late, template, conf, queued, plan, direct: bool) -> None:
+    def define(late, template, conf, plan, direct: bool = True) -> None:
         # The class or its constructor names the function, so it is declared in the script's place
         fn = automation.automation_or_run_function(
             plan, late.var, late.global_slot.add, direct=direct
@@ -262,7 +249,7 @@ async def to_code(config):
             wait_class = MODES[conf[CONF_MODE]][1].template(
                 FunctionBody.template(template), *template
             )
-            if queued:
+            if conf[CONF_MODE] == CONF_QUEUED:
                 # One class for all of them: a per-script class would also copy the
                 # Component vtable, which costs more flash than the pointer's RAM
                 script_class = FunctionPointerScript.template(wait_class, *template)
@@ -274,26 +261,30 @@ async def to_code(config):
             create_wait(wait_class)
         waits[late.id.id] = wait_class
 
-    # Scripts of one mode and parameters share the mode code only if they all take the same
-    # path, so one that needs an Automation keeps the others on it too. It is created at once,
-    # as is every on_stop, so later scripts can reach a hand-named one; the scripts that can
-    # run a function wait until every group is known.
+    # A mode's code is compiled once only if all its scripts with the same parameters take one
+    # path, so one that needs an Automation keeps the rest on it. Those, and every on_stop, are
+    # created at once so later scripts can use a hand-named Automation.
     needs_automation = set()
     pending = []
-    for late, template, func_args, conf, queued in scripts:
+    for late, template, func_args, conf in scripts:
         plan = await automation.plan_automation(func_args, conf)
-        group = (conf[CONF_MODE], str(template))
         if plan.direct:
-            pending.append((late, template, conf, queued, plan, group))
+            pending.append((late, template, conf, plan))
         else:
-            needs_automation.add(group)
-            define(late, template, conf, queued, plan, direct=False)
+            needs_automation.add((conf[CONF_MODE], str(template)))
+            define(late, template, conf, plan)
         if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
             await automation.build_automation(
                 late.var.get_stop_trigger(), [], stop_conf
             )
-    for late, template, conf, queued, plan, group in pending:
-        define(late, template, conf, queued, plan, direct=group not in needs_automation)
+    for late, template, conf, plan in pending:
+        define(
+            late,
+            template,
+            conf,
+            plan,
+            (conf[CONF_MODE], str(template)) not in needs_automation,
+        )
 
 
 @automation.register_action(
@@ -385,24 +376,21 @@ async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     # A Script declared by another component is not in waits; its class is already known
     script_waits = _data().waits.get(full_id.id, full_id.type)
-    pending = isinstance(script_waits, list)
-    # Created where it is built, once the class of the script it waits for is known
-    id_ = action_id.copy()
-    id_.type = id_.type.template(
-        full_id.type if pending else script_waits, *template_arg
-    )
-    late = cg.LatePvariable(id_)
-
-    def create(script_class: cg.MockObj) -> None:
-        late.define(
-            action_id.type, cg.TemplateArguments(script_class, *template_arg), paren
+    if not isinstance(script_waits, list):
+        var = cg.new_Pvariable(
+            action_id, cg.TemplateArguments(script_waits, *template_arg), paren
         )
-
-    if pending:
-        script_waits.append(create)
     else:
-        create(script_waits)
-    var = late.var
+        # Created where it is built, once the class of the script it waits for is known
+        id_ = action_id.copy()
+        id_.type = id_.type.template(full_id.type, *template_arg)
+        late = cg.LatePvariable(id_)
+        script_waits.append(
+            lambda script_class: late.define(
+                action_id.type, cg.TemplateArguments(script_class, *template_arg), paren
+            )
+        )
+        var = late.var
     await cg.register_component(var, {})
     return var
 

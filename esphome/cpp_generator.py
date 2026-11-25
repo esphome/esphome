@@ -1005,10 +1005,10 @@ def shared_static_function(
 ) -> RawExpression:
     """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
 
-    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
-    ``add_global_`` places the declaration, as for ``static_function``; such a function is never shared.
+    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state;
+    only such a function takes ``add_global_``, which places the declaration as for ``static_function``.
     """
-    if not share or add_global_ is not None:
+    if not share:
         return _new_static_function(name, return_type, parameters, body, add_global_)
     data: SharedStaticFunctions = CORE.data.setdefault(
         "shared_static_function", SharedStaticFunctions()

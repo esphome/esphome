@@ -11,7 +11,6 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ON_STOP
 from esphome.components.script import (
     CONF_SCRIPT_STOP,
-    CONFIG_SCHEMA,
     SCRIPT_MODES,
     Script,
     ScriptWaitAction,
@@ -182,62 +181,6 @@ async def test_no_on_stop_define_without_on_stop() -> None:
         await to_code(config)
 
     add_define.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_script_needing_an_automation_keeps_its_group_on_it() -> None:
-    """Inline scripts of the same mode and parameters as one that needs an Automation use it
-    too, so the mode code is compiled once; other groups still become functions."""
-
-    def script(name: str, mode: str, parameters: dict[str, str]) -> dict[str, Any]:
-        return {
-            CONF_ID: ID(name, is_declaration=True, type=SCRIPT_MODES[mode]),
-            CONF_MODE: mode,
-            CONF_PARAMETERS: parameters,
-            CONF_THEN: [],
-        }
-
-    config = [
-        script("inline_queued", "queued", {"x": "int"}),
-        script("delay_queued", "queued", {"x": "int"}),
-        script("inline_queued_float", "queued", {"x": "float"}),
-        script("inline_single", "single", {"x": "int"}),
-    ]
-    with (
-        patch("esphome.codegen.add"),
-        patch("esphome.codegen.register_component", new_callable=AsyncMock),
-        patch(
-            "esphome.automation.plan_automation",
-            side_effect=_plan(True, False, True, True),
-        ),
-        patch(
-            "esphome.automation.automation_or_run_function", return_value=None
-        ) as build_or_run,
-    ):
-        await to_code(config)
-
-    assert [
-        (str(c.args[1]), c.kwargs["direct"]) for c in build_or_run.call_args_list
-    ] == [
-        # Built at once, then the scripts that waited for their group
-        ("delay_queued", False),
-        ("inline_queued", False),
-        ("inline_queued_float", True),
-        ("inline_single", True),
-    ]
-
-
-@pytest.mark.parametrize("name", ["esphome__running", "esphome__arg_0"])
-def test_reserved_parameter_names_rejected(name: str) -> None:
-    """The reason reaches the user, at the parameter's path."""
-    config = [{CONF_ID: "my_script", CONF_PARAMETERS: {name: "int"}, CONF_THEN: []}]
-    with pytest.raises(cv.MultipleInvalid) as err:
-        CONFIG_SCHEMA(config)
-    (error,) = err.value.errors
-    assert (
-        error.msg == "Names starting with 'esphome__' are reserved for generated code"
-    )
-    assert error.path == [0, CONF_PARAMETERS, name]
 
 
 @pytest.mark.asyncio

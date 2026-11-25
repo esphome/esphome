@@ -1223,28 +1223,6 @@ def test_late_pvariable_is_a_static_pointer_before_define() -> None:
     assert str(table) == "table"
 
 
-def test_shared_static_function_declaration_sink_gets_a_unique_name() -> None:
-    """A placed declaration is never shared and is named unique against registered ids."""
-    CORE.config = {}
-    cg.new_Pvariable(
-        ID("esphome__s__fn", is_declaration=True, type=ct.esphome_ns.class_("C"))
-    )
-    declarations: list[cg.Statement] = []
-    body = ["return;"]
-    a = cg.shared_static_function(
-        "esphome__s__fn", ct.void, [], body, add_global_=declarations.append
-    )
-    b = cg.shared_static_function(
-        "esphome__s__fn", ct.void, [], body, add_global_=declarations.append
-    )
-    assert [str(a), str(b)] == ["esphome__s__fn_2", "esphome__s__fn_3"]
-    assert [str(st) for st in declarations] == [
-        "static void esphome__s__fn_2();",
-        "static void esphome__s__fn_3();",
-    ]
-    assert ID("esphome__s__fn_2") in CORE.variables
-
-
 def test_declare_static_function_defines_the_body_later() -> None:
     """The declaration is emitted at once; the body only when define() is called."""
     define = cg.declare_static_function("esphome__act__fn", ct.void, [])
