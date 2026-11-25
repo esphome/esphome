@@ -1,6 +1,7 @@
 # Run artifacts the runners write next to their scripts; none of these patterns match a tracked file.
 .esphome/
 __pycache__/
+ac_dimmer/*.txt
 api/overflow/putbe-sensors.yaml
 apikey.txt
 ble_adv_triggers/rxbk72xx*.yaml
@@ -31,6 +32,11 @@ climate_ir_loop/whirlpool/w??base.yaml
 climate_ir_loop/whirlpool/w??pr.yaml
 esp8266_edges/*-cap.txt
 esp8266_edges/*.log
+esp8266_flash_prefs/*-api.txt
+esp8266_flash_prefs/*-cap.err
+esp8266_flash_prefs/*-ping.txt
+esp8266_flash_prefs/*-results.txt
+esp8266_flash_prefs/*.log
 espnow_link/*.err
 espnow_link/*.log
 ezo_fake_bus/ezo?*.yaml
@@ -96,6 +102,8 @@ rp2_sched_lock/*.txt
 rp2_uart_loop/*-cap.err
 rp2_uart_loop/*-cap.txt
 rp2_uart_loop/u??.yaml
+rp2_usbncm/*.log
+rp2_usbncm/*.txt
 rp2_web_ble/*.log
 rp2_web_ble/*.pcap
 rp2_web_ble/*.txt
@@ -110,6 +118,8 @@ sx127x_sim/*pair/
 tca9548a_real/*-cap.txt
 tca9548a_real/*.log
 tcp_link/*.txt
+tcpbench/cap-*.txt
+tcpbench/results.txt
 tuya_sim/*.json
 tuya_sim/*.txt
 twai_self/can?*.yaml
@@ -132,6 +142,7 @@ web_server/churnmix/*.json
 web_server/churnmix/evbody.txt
 web_server/churnmix/ext/components/https_test/certs.h
 wifi_outage/*.txt
+wifi_sniff/*.txt
 wpa3_sniff/*.txt
 xiaomi_ble/*-cap.txt
 xiaomi_ble/expected_all.json
