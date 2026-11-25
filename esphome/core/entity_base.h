@@ -19,9 +19,18 @@ void original_setup();  // NOLINT(readability-redundant-declaration) - used by c
 
 namespace esphome {
 
+/// CallbackManager whose call() copies the arguments like LazyCallbackManager, so a listener that
+/// publishes again does not change what later listeners see.
+template<typename... X> class InlineCallbackManager;
+template<typename... Ts> class InlineCallbackManager<void(Ts...)> : public CallbackManager<void(Ts...)> {
+ public:
+  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) { CallbackManager<void(Ts...)>::call(args...); }
+  void operator()(Ts... args) { this->call(args...); }
+};
+
 // MQTT registers on every exposed entity, so the list is held inline instead of allocated on first add.
 #ifdef USE_MQTT
-template<typename Sig> using EntityCallbackManager = CallbackManager<Sig>;
+template<typename Sig> using EntityCallbackManager = InlineCallbackManager<Sig>;
 #else
 template<typename Sig> using EntityCallbackManager = LazyCallbackManager<Sig>;
 #endif
