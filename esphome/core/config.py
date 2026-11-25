@@ -114,15 +114,6 @@ def make_app_name_cpp(
     return cpp_string_escape(value), None, len(value.encode("utf-8"))
 
 
-StartupTrigger = cg.esphome_ns.class_(
-    "StartupTrigger", cg.Component, automation.Trigger.template()
-)
-ShutdownTrigger = cg.esphome_ns.class_(
-    "ShutdownTrigger", cg.Component, automation.Trigger.template()
-)
-LoopTrigger = cg.esphome_ns.class_(
-    "LoopTrigger", cg.Component, automation.Trigger.template()
-)
 StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
 ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
 LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
@@ -442,19 +433,19 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_LOOP): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopCallback),
                 }
             ),
             cv.Optional(

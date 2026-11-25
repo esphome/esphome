@@ -53,6 +53,7 @@ from esphome.automation import (
     build_automation_lists,
     build_callback_automation,
     build_callback_automations,
+    build_component_automation,
     build_condition,
     build_parent_callback_automation,
     build_trigger_automations,
@@ -100,6 +101,7 @@ from esphome.const import (
     CONF_THEN,
     CONF_TIME,
     CONF_TIMEOUT,
+    CONF_TRIGGER_ID,
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
@@ -3507,6 +3509,80 @@ async def test_trigger_callback_all_inline_is_direct() -> None:
     assert str(callback) == "esphome__auto__fn"
     assert "esphome__act_a__fn(index + 1);" in CORE.cpp_global_section
     assert "Automation" not in CORE.cpp_main_section
+
+
+FLOAT_CALLBACK = cg.esphome_ns.class_("FloatCallback", cg.Component)
+
+
+def _component_conf(*then: ConfigType, is_manual: bool = False) -> ConfigType:
+    CORE.component_ids.add("trig")
+    return {
+        **_automation_conf(*then),
+        CONF_TRIGGER_ID: ID(
+            "trig", is_declaration=True, type=FLOAT_CALLBACK, is_manual=is_manual
+        ),
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize("is_manual", [False, True])
+async def test_component_automation_args_inline(is_manual: bool) -> None:
+    """The component's function takes the arguments and passes them to the actions.
+
+    A hand-set id only names the component.
+    """
+    conf = _component_conf(
+        _action("my.a", "act_a"),
+        _lambda_action("act_l", "use(x);"),
+        is_manual=is_manual,
+    )
+
+    var = await build_component_automation(
+        conf, FLOAT_CALLBACK, args=[(cg.float_, "x")]
+    )
+
+    assert str(var) == "trig"
+    main = CORE.cpp_main_section
+    assert "new(trig) FloatCallback<esphome__auto__fn>();" in main
+    assert "Automation" not in main
+    text = CORE.cpp_global_section
+    assert "static void esphome__auto__fn(const std::remove_cvref_t<float> & x)" in text
+    assert "::comp->do_a();" in text
+    # The lambda gets the trigger argument
+    assert "[](float x) -> void {\n    use(x);\n  }(x);" in text
+    assert "esphome__act_a__fn" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_component_automation_ctor_args() -> None:
+    """Constructor arguments follow the template arguments."""
+    conf = _component_conf(_action("my.a", "act_a"))
+
+    await build_component_automation(
+        conf,
+        FLOAT_CALLBACK,
+        template_args=[7],
+        ctor_args=[cg.RawExpression("parent"), 3],
+    )
+
+    assert (
+        "new(trig) FloatCallback<esphome__auto__fn, 7>(parent, 3);"
+        in CORE.cpp_main_section
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_component_automation_args_delay_triggers_automation() -> None:
+    """With a delay the function passes its arguments to the Automation."""
+    conf = _component_conf(_action("my.a", "act_a"), _delay("act_d"))
+
+    await build_component_automation(conf, FLOAT_CALLBACK, args=[(cg.float_, "x")])
+
+    assert "new(auto) Automation<float>();" in CORE.cpp_main_section
+    assert "::auto->trigger(x);" in CORE.cpp_global_section
 
 
 @pytest.mark.asyncio
