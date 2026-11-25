@@ -281,6 +281,8 @@ class VoiceAssistant final : public Component {
   /// Fire on_end once for the requested pipeline
   void end_session_();
   void defer_idle_trigger_();
+  /// Fire an on_idle that waited for Home Assistant's run to end
+  void release_pending_idle_();
   /// Mark Home Assistant's run as over and drop the RUN_END fallback timer
   void end_run_();
   /// Stop a playing or queued response and tell Home Assistant when the TTS stream is still open

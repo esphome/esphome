@@ -727,10 +727,7 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
     // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
     this->end_pending_ = false;
     this->end_run_();
-    if (this->idle_pending_) {
-      this->idle_pending_ = false;
-      this->defer_idle_trigger_();
-    }
+    this->release_pending_idle_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     this->wake_word_audio_requested_ = false;
 #endif
@@ -805,6 +802,13 @@ void VoiceAssistant::set_state_(State state) {
   }
 }
 
+void VoiceAssistant::release_pending_idle_() {
+  if (!this->idle_pending_)
+    return;
+  this->idle_pending_ = false;
+  this->defer_idle_trigger_();
+}
+
 void VoiceAssistant::defer_idle_trigger_() {
   // Deferred after on_end, so a stop in on_end cannot cancel a start from on_idle
   this->defer([this]() {
@@ -827,10 +831,7 @@ void VoiceAssistant::end_session_() {
     if (this->api_client_ != nullptr)
       this->end_trigger_.trigger();
   });
-  if (this->idle_pending_) {
-    this->idle_pending_ = false;
-    this->defer_idle_trigger_();
-  }
+  this->release_pending_idle_();
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
