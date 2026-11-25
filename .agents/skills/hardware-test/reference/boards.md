@@ -636,6 +636,14 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - nPM1300 power-on state: BUCK2 on at 3.3 V, BUCK1 off, LDO1 and LDO2 off in load switch mode (enabling one as is
   passes VINLDO straight through), charger off, VBUS limit 100 mA, NTC select 10 k. Flows: `recipes/npm1300.md`.
 
+## ESP32-C3-DevKitC-02 CAN pair
+
+- Two ESP32-C3-DevKitC-02 (CP2102N bridge, logger `hardware_uart: UART0`); RTS/DTR auto-reset works, so the host can
+  hold one board in reset with RTS on and DTR off.
+- Each has an SN65HVD230: TWAI TX GPIO5 to CTX, RX GPIO6 to CRX; CANH, CANL and GND linked, 120 ohm on each board.
+  `scripts/canopen/buscheck.yaml` at 250 kbit/s shows 0 errors both ways.
+- Alone on the bus a sender goes error passive (TEC 128), never bus off.
+
 ## I2C and SPI breakouts
 
 - GPIO switches on an I2C expander (XL9535 and others) write `value_or(false)` at setup even with

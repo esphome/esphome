@@ -50,7 +50,35 @@ TEST(CallbackCreate, InlineCallableIsCalled) {
   EXPECT_EQ(value, 42);
 }
 
+int small_seen = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 int mutable_seen = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+TEST(CallbackCreate, SmallerThanPointerCaptureIsCalled) {
+  uint8_t offset = 7;
+  small_seen = -1;
+  auto add = [offset](int x) { small_seen = x + offset; };
+  static_assert(sizeof(add) < sizeof(void *));
+  ASSERT_TRUE(fits_inline(add));
+  auto cb = IntCallback::create(add);
+  cb.call(35);
+  EXPECT_EQ(small_seen, 42);
+}
+
+void set_small_seen(int x) { small_seen = x; }
+
+TEST(CallbackCreate, FunctionReferenceIsCalled) {
+  small_seen = -1;
+  auto cb = IntCallback::create(set_small_seen);
+  cb.call(9);
+  EXPECT_EQ(small_seen, 9);
+}
+
+TEST(CallbackCreate, CapturelessLambdaIsCalled) {
+  small_seen = -1;
+  auto cb = IntCallback::create([](int x) { small_seen = x * 2; });
+  cb.call(21);
+  EXPECT_EQ(small_seen, 42);
+}
 
 // A pointer-sized mutable lambda used to be stored inline and run on a copy, losing its state.
 TEST(CallbackCreate, MutableStateIsKeptAcrossCalls) {
@@ -140,6 +168,27 @@ TEST(LazyCallbackManager, NonTrivialArgumentIsNotCopiedMoreThanCallbackManager) 
   lazy.call(arg);
   // The one extra copy is the by-value parameter of call(), as before call_all() existed.
   EXPECT_EQ(CopyCounter::copies, plain_copies + 1);
+}
+
+// A copy from a mutable source marks that source, so a listener only sees a clean value if it was
+// copied from a const one. Listeners take a mutable reference for the same clang-tidy reason as above.
+struct SourceMarker {
+  bool marked{false};
+  SourceMarker() = default;
+  SourceMarker(const SourceMarker &other) = default;
+  SourceMarker(SourceMarker &other) : marked(other.marked) {
+    other.marked = true;  // NOLINT(bugprone-copy-constructor-mutates-argument,cert-oop58-cpp)
+  }
+  SourceMarker(SourceMarker &&) noexcept = default;
+};
+
+TEST(LazyCallbackManager, EveryListenerCopiesFromConstSource) {
+  LazyCallbackManager<void(SourceMarker)> lazy;
+  std::vector<bool> seen;
+  lazy.add([&seen](SourceMarker &m) { seen.push_back(m.marked); });
+  lazy.add([&seen](SourceMarker &m) { seen.push_back(m.marked); });
+  lazy.call(SourceMarker{});
+  EXPECT_EQ(seen, (std::vector<bool>{false, false}));
 }
 
 // The argument type may still be incomplete where the manager is declared; it is only checked by call().

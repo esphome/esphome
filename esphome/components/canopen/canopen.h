@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <utility>
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"  // CO_CONFIG_* for clang-tidy, before CANopenNode
@@ -18,7 +19,7 @@ namespace esphome::canopen {
 
 void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf);
 
-// CANopenNode SDO client only: no node id, NMT, heartbeat or SDO server.
+// CANopenNode SDO client and raw frames: no node id, NMT, heartbeat or SDO server.
 class CANopenComponent : public Component {
  public:
   explicit CANopenComponent(canbus::Canbus *canbus) : canbus_(canbus) {}
@@ -60,9 +61,32 @@ class CANopenComponent : public Component {
                      void *context);
   bool write_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, const uint8_t *data, size_t len,
                       SDOCallback callback = nullptr, void *context = nullptr);
+  // Drops all queued requests of context and aborts its transfer in flight, without callbacks.
+  void cancel_sdo(void *context);
+
+  // Raw frames the SDO client doesn't use (e.g. other devices' PDOs). The callback gets every standard-ID data frame
+  // with (can_id ^ id) & mask == 0, after CANopenNode has seen it. Can be called before or after setup(), also from a
+  // frame callback. Adding a listener twice does nothing; each hub needs its own listener object. It can't be removed
+  // and must stay alive (make it static).
+  void add_frame_listener(FrameListener &listener);
+  // Sends a standard-ID data frame now. Returns false for an extended CAN ID, more than 8 bytes, or if the canbus
+  // platform refuses it (e.g. TX buffers full); it isn't queued or retried, unlike CANopenNode's own frames.
+  bool send_frame(uint32_t can_id, const uint8_t *data, size_t len);
+  // every heartbeat / EMCY frame on the bus, from any node
+#ifdef USE_CANOPEN_HEARTBEAT
+  template<typename F> void add_on_heartbeat_callback(F &&callback) {
+    this->heartbeat_callback_.add(std::forward<F>(callback));
+  }
+#endif
+#ifdef USE_CANOPEN_EMCY
+  template<typename F> void add_on_emcy_callback(F &&callback) { this->emcy_callback_.add(std::forward<F>(callback)); }
+#endif
 
  protected:
   void on_frame_(const canbus::CanFrame &frame);
+  // frame listeners and heartbeat / EMCY callbacks for a received frame, after CANopenNode
+  void dispatch_frame_(const CO_CANrxMsg_t &msg);
+  void check_frame_listener_(uint16_t can_id, uint16_t mask);
   bool idle_() const;
   void fail_setup_(const LogString *reason);
 
@@ -96,6 +120,9 @@ class CANopenComponent : public Component {
   bool drain_upload_(uint32_t dt_us, CO_SDO_return_t &ret, CO_SDO_abortCode_t &abort);
   CO_SDO_return_t start_sdo_();
   void finish_sdo_(SDOResult result, uint32_t abort_code);
+  void abort_sdo_();
+  // ends an abort the bus refused for a response timeout, then runs down the guard after it (ABORT_GUARD_US)
+  void process_sdo_abort_(uint32_t dt_us);
   // the 0x1280 entry for CO_SDOclient_init(); not const, CANopenNode writes it
   std::array<OD_obj_record_t, 4> sdo_cli_record_{};
   OD_entry_t sdo_cli_entry_{};
@@ -104,6 +131,9 @@ class CANopenComponent : public Component {
   // bytes handed to the fifo (writes) or received, including those past the buffer (reads)
   size_t sdo_len_{0};
   uint32_t last_ms_{0};  // when time was last charged to the SDO client
+  // after a cancel: while the abort waits to be sent, the time left to send it; once sent, the time left before a
+  // request may start
+  uint32_t sdo_abort_guard_us_{0};
   // OD 0x1280 fields, set per request
   uint32_t sdo_cli_cob_tx_{0x80000000};
   uint32_t sdo_cli_cob_rx_{0x80000000};
@@ -112,6 +142,17 @@ class CANopenComponent : public Component {
   uint8_t sdo_cli_highest_sub_{3};
   uint8_t sdo_cli_node_{0};
   bool sdo_busy_{false};
+  bool sdo_abort_pending_{false};   // the abort of a cancelled transfer waits to be sent
+  bool sdo_cancel_pending_{false};  // cancel_sdo() hit the active transfer: process_sdo_() aborts it
+
+  FrameListener *frame_listeners_{nullptr};
+  // Compiled only when on_heartbeat / on_emcy are configured, so never empty: no lazy allocation needed
+#ifdef USE_CANOPEN_HEARTBEAT
+  CallbackManager<void(uint8_t, NMTState)> heartbeat_callback_;
+#endif
+#ifdef USE_CANOPEN_EMCY
+  CallbackManager<void(uint8_t, const Emergency &)> emcy_callback_;
+#endif
 };
 
 }  // namespace esphome::canopen
