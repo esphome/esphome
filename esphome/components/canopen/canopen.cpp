@@ -222,16 +222,18 @@ void CANopenComponent::loop() {
     this->sdo_last_ms_ = now;
   }
 #endif
-  // The only flush of queued frames, also for a node: CO_process() flushes too, but not while a received frame is
-  // processed (in_frame_).
+  // The only flush of queued frames, also for a node: CO_process() doesn't flush (hold_flush_).
   CO_CANmodule_process(this->co_->CANmodule);
 #ifdef USE_CANOPEN_SDO_CLIENT
   // CANopenNode started the response timeout when it queued the frame: start it again now that the frame is sent
   if (unsent && !cli->CANtxBuff->bufferFull)
     cli->timeoutTimer = 0;
 #endif
-  if (!this->is_client_only())
+  if (!this->is_client_only()) {
+    this->hold_flush_ = true;
     this->process_node_();
+    this->hold_flush_ = false;
+  }
 }
 
 void CANopenComponent::process_node_() {

@@ -114,7 +114,8 @@ bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t s
 
 bool CANopenComponent::queue_sdo_(const SDORequest &request) {
   // before setup() the request waits in the queue
-  if (this->is_failed() || request.node_id == 0 || request.node_id > 127 || !this->sdo_queue_.push(request)) {
+  if (this->is_failed() || this->sdo_stopped_() || request.node_id == 0 || request.node_id > 127 ||
+      !this->sdo_queue_.push(request)) {
     reject(request.node_id, request.index, request.sub, request.callback, request.context);
     return false;
   }
@@ -221,7 +222,36 @@ void CANopenComponent::process_sdo_abort_(uint32_t dt_us) {
   this->sdo_abort_guard_us_ = this->sdo_abort_guard_us_ > dt_us ? this->sdo_abort_guard_us_ - dt_us : 0;
 }
 
+// CiA 301: a STOPPED node sends only NMT and heartbeat frames, so no SDO: requests end with REJECTED, without a frame,
+// until the node leaves STOPPED. A client-only hub has no NMT state.
+bool CANopenComponent::sdo_stopped_() const {
+#ifdef USE_CANOPEN_NODE
+  return !this->is_client_only() && this->nmt_state_ == NMTState::NMT_STATE_STOPPED;
+#else
+  return false;
+#endif
+}
+
+// The node entered STOPPED: the running transfer and the queue end with REJECTED. An unsent request or abort is
+// dropped; the server ends the transfer at its own timeout.
+void CANopenComponent::stop_sdo_() {
+  if (this->sdo_abort_pending_) {
+    CO_SDOclient_t *cli = this->co_->SDOclient;
+    discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
+    this->sdo_abort_pending_ = false;
+  }
+  this->sdo_abort_guard_us_ = 0;
+  this->sdo_cancel_pending_ = false;
+  if (this->sdo_busy_)
+    this->finish_sdo_(SDOResult::SDO_RESULT_REJECTED, 0);
+  this->reject_queued_sdo_();
+}
+
 void CANopenComponent::process_sdo_(uint32_t dt_us) {
+  if (this->sdo_stopped_()) {
+    this->stop_sdo_();
+    return;
+  }
   this->process_sdo_abort_(dt_us);
   if (this->sdo_cancel_pending_) {
     // after process_sdo_abort_(): the abort's time starts with this pass

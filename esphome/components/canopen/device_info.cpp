@@ -11,13 +11,18 @@ namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen");
 
-void CANopenComponent::add_device_info_od_() {
-  auto &od = this->od_;
-  od.add_var(0x1000, ODA_SDO_R, &this->dev_type_, sizeof(this->dev_type_));
+// for setup() and dump_config(): setup() stops before it on a failed CAN bus, dump_config() runs anyway
+void CANopenComponent::set_device_info_defaults_() {
   if (this->device_name_ == nullptr)
     this->device_name_ = App.get_name().c_str();
   if (this->software_version_ == nullptr)
     this->software_version_ = ESPHOME_VERSION;
+}
+
+void CANopenComponent::add_device_info_od_() {
+  auto &od = this->od_;
+  od.add_var(0x1000, ODA_SDO_R, &this->dev_type_, sizeof(this->dev_type_));
+  this->set_device_info_defaults_();
   od.add_string(0x1008, this->device_name_);
   if (this->hardware_version_ != nullptr)
     od.add_string(0x1009, this->hardware_version_);
@@ -39,6 +44,7 @@ void CANopenComponent::config_device_info_(CO_config_t &cfg) {
 }
 
 void CANopenComponent::dump_device_info_config_() {
+  this->set_device_info_defaults_();
   ESP_LOGCONFIG(
       TAG, "  Identity: vendor 0x%08" PRIx32 ", product 0x%08" PRIx32 ", revision 0x%08" PRIx32 ", serial 0x%08" PRIx32,
       this->identity_[0], this->identity_[1], this->identity_[2], this->identity_[3]);

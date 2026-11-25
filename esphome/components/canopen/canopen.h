@@ -79,9 +79,10 @@ class CANopenComponent : public Component {
   // buffers, frame listeners, callbacks) and process it in their next loop(), so no node's processing runs inside
   // another's.
   bool transmit(uint16_t ident, const uint8_t *data, uint8_t len);
-  // Used by the CANopenNode driver: while a received frame is processed, queued frames aren't retried (only loop()
-  // does that: on ESP32 a refused frame can block for the controller's enqueue timeout).
-  bool in_frame() const { return this->in_frame_; }
+  // Used by the CANopenNode driver: CO_process() flushes the queued frames too, but the hub flushes them only once,
+  // early in loop(): not while a received frame is processed (on ESP32 a refused frame can block for the controller's
+  // enqueue timeout), nor again in loop()'s CO_process() (the SDO response timer restarts after that one flush).
+  bool flush_held() const { return this->hold_flush_; }
 
 #ifdef USE_CANOPEN_NODE
   // --- Identity and device information (device_info.cpp) ---
@@ -180,7 +181,7 @@ class CANopenComponent : public Component {
   CO_config_t config_{};  // must outlive co_
   ObjectDictionary od_;
 
-  bool in_frame_{false};
+  bool hold_flush_{false};
   uint16_t response_timeout_ms_{500};
 
 #ifdef USE_CANOPEN_NODE
@@ -193,6 +194,7 @@ class CANopenComponent : public Component {
   LazyCallbackManager<void(NMTState)> nmt_state_callback_;
 
   // --- Identity and device information (device_info.cpp) ---
+  void set_device_info_defaults_();
   void add_device_info_od_();
   void config_device_info_(CO_config_t &cfg);
   void dump_device_info_config_();
@@ -248,6 +250,8 @@ class CANopenComponent : public Component {
   bool init_sdo_client_();
   bool queue_sdo_(const SDORequest &request);
   void reject_queued_sdo_();
+  bool sdo_stopped_() const;
+  void stop_sdo_();
   bool sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const;
   void process_sdo_(uint32_t dt_us);
   // true when an overlong read ended the request

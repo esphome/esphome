@@ -30,7 +30,7 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   if (frame.use_extended_id || len > 8)
     return;
   this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
-  this->in_frame_ = true;
+  this->hold_flush_ = true;
 #ifdef USE_CANOPEN_SDO_CLIENT
   // A reply for the running request is handled right away; CANopenNode restarts its response timer for it (and may
   // send the next segment), so the time loop() charges starts again here. A reply from another local node comes by
@@ -44,7 +44,7 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   // RPDO), so a later frame of a burst would overwrite it.
   if (!this->is_client_only())
     this->process_node_();
-  this->in_frame_ = false;
+  this->hold_flush_ = false;
 }
 
 void CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len) {
@@ -168,7 +168,7 @@ void CO_CANclearPendingSyncPDOs(CO_CANmodule_t *CANmodule) {
 
 void CO_CANmodule_process(CO_CANmodule_t *CANmodule) {
   // also called by CO_process(); on a received frame the queue waits for loop()
-  if (static_cast<esphome::canopen::CANopenComponent *>(CANmodule->CANptr)->in_frame())
+  if (static_cast<esphome::canopen::CANopenComponent *>(CANmodule->CANptr)->flush_held())
     return;
   for (uint16_t i = 0; i < CANmodule->txSize && CANmodule->CANtxCount > 0; i++) {
     CO_CANtx_t *tx = &CANmodule->txArray[i];
