@@ -175,7 +175,19 @@ void Cover::publish_state(bool save) {
   }
   ESP_LOGV(TAG, "  Current Operation: %s", LOG_STR_ARG(cover_operation_to_str(this->current_operation)));
 
+#ifdef USE_COVER_STATE_TRIGGERS
+  uint8_t state_bits = 1 << (2 + this->current_operation);
+  if (this->position == COVER_OPEN) {
+    state_bits |= COVER_ENTERED_OPEN;
+  } else if (this->position == COVER_CLOSED) {
+    state_bits |= COVER_ENTERED_CLOSED;
+  }
+  const uint8_t entered = state_bits & ~this->last_state_bits_;
+  this->last_state_bits_ = state_bits;
+  this->state_callback_.call(entered);
+#else
   this->state_callback_.call();
+#endif
 #if defined(USE_COVER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_cover_update(this);
 #endif

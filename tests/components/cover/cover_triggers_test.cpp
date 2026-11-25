@@ -2,7 +2,6 @@
 
 #include <cmath>
 
-#include "esphome/components/cover/automation.h"
 #include "esphome/components/cover/cover.h"
 #include "esphome/core/automation.h"
 
@@ -54,23 +53,28 @@ struct Fired {
   int idle{0};
 };
 
-template<typename T> static void attach(Cover *cover, Action<> *action) {
-  auto *automation = new Automation<>(new T(cover));  // NOLINT(cppcoreguidelines-owning-memory)
+// What codegen registers for on_opened, on_closed, on_opening, on_closing and on_idle.
+template<uint8_t ENTERED> static void attach(Cover *cover, Action<> *action) {
+  auto *automation = new Automation<>();  // NOLINT(cppcoreguidelines-owning-memory)
   automation->add_action(action);
+  cover->add_on_state_entered_callback([automation](uint8_t entered) {
+    if (entered & ENTERED)
+      automation->trigger();
+  });
 }
 
-template<typename T> static void count(Cover *cover, int *counter) {
-  attach<T>(cover, new CountAction(counter));  // NOLINT(cppcoreguidelines-owning-memory)
+template<uint8_t ENTERED> static void count(Cover *cover, int *counter) {
+  attach<ENTERED>(cover, new CountAction(counter));  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 class CoverTriggersTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    count<CoverOpenedTrigger>(&this->cover_, &this->fired_.opened);
-    count<CoverClosedTrigger>(&this->cover_, &this->fired_.closed);
-    count<CoverTrigger<COVER_OPERATION_OPENING>>(&this->cover_, &this->fired_.opening);
-    count<CoverTrigger<COVER_OPERATION_CLOSING>>(&this->cover_, &this->fired_.closing);
-    count<CoverTrigger<COVER_OPERATION_IDLE>>(&this->cover_, &this->fired_.idle);
+    count<COVER_ENTERED_OPEN>(&this->cover_, &this->fired_.opened);
+    count<COVER_ENTERED_CLOSED>(&this->cover_, &this->fired_.closed);
+    count<COVER_ENTERED_OPENING>(&this->cover_, &this->fired_.opening);
+    count<COVER_ENTERED_CLOSING>(&this->cover_, &this->fired_.closing);
+    count<COVER_ENTERED_IDLE>(&this->cover_, &this->fired_.idle);
   }
 
   TestCover cover_;
@@ -184,12 +188,24 @@ TEST_F(CoverTriggersTest, UnknownPositionDoesNotFire) {
 }
 
 TEST_F(CoverTriggersTest, PublishFromTriggerDoesNotRefire) {
-  attach<CoverOpenedTrigger>(&this->cover_,
+  attach<COVER_ENTERED_OPEN>(&this->cover_,
                              new RepublishAction(&this->cover_));  // NOLINT(cppcoreguidelines-owning-memory)
   this->cover_.publish(COVER_OPEN, COVER_OPERATION_IDLE);
   EXPECT_EQ(this->fired_.opened, 1);
   EXPECT_EQ(this->fired_.idle, 1);
   EXPECT_EQ(this->cover_.tilt, 0.5f);
+}
+
+TEST(CoverStateCallbackTest, PlainCallbacksRunOnEveryPublish) {
+  TestCover cover;
+  int calls = 0;
+  int mutable_calls = 0;
+  cover.add_on_state_callback([&calls]() { ++calls; });
+  cover.add_on_state_callback([&mutable_calls, seen = 0]() mutable { mutable_calls = ++seen; });
+  cover.publish(COVER_OPEN, COVER_OPERATION_IDLE);
+  cover.publish(COVER_OPEN, COVER_OPERATION_IDLE);
+  EXPECT_EQ(calls, 2);
+  EXPECT_EQ(mutable_calls, 2);
 }
 
 }  // namespace esphome::cover::testing

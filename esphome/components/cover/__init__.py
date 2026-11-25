@@ -19,7 +19,6 @@ from esphome.const import (
     CONF_TILT,
     CONF_TILT_COMMAND_TOPIC,
     CONF_TILT_STATE_TOPIC,
-    CONF_TRIGGER_ID,
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
     DEVICE_CLASS_CURTAIN,
@@ -80,14 +79,7 @@ COVER_OPERATIONS = CoverOperation.options(
 )
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
-# Actions
-CoverOpenedTrigger = cover_ns.class_(
-    "CoverOpenedTrigger", automation.Trigger.template()
-)
-CoverClosedTrigger = cover_ns.class_(
-    "CoverClosedTrigger", automation.Trigger.template()
-)
-CoverTrigger = cover_ns.class_("CoverTrigger", automation.Trigger.template())
+CoverEntered = cover_ns.enum("CoverEntered")
 
 # Cover-specific constants
 CONF_ON_CLOSED = "on_closed"
@@ -96,13 +88,23 @@ CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
 CONF_STOP_TILT = "stop_tilt"
 
-TRIGGERS = {
-    CONF_ON_OPENED: CoverOpenedTrigger,
-    CONF_ON_CLOSED: CoverClosedTrigger,
-    CONF_ON_CLOSING: CoverTrigger.template(CoverOperation.COVER_OPERATION_CLOSING),
-    CONF_ON_OPENING: CoverTrigger.template(CoverOperation.COVER_OPERATION_OPENING),
-    CONF_ON_IDLE: CoverTrigger.template(CoverOperation.COVER_OPERATION_IDLE),
-}
+# Each fires on the publish that moves the cover into its state.
+_CALLBACK_AUTOMATIONS = tuple(
+    automation.CallbackAutomation(
+        conf,
+        "add_on_state_entered_callback",
+        params=[(cg.uint8, "entered")],
+        forward=[],
+        when=f"entered & {entered}",
+    )
+    for conf, entered in (
+        (CONF_ON_OPENED, CoverEntered.COVER_ENTERED_OPEN),
+        (CONF_ON_CLOSED, CoverEntered.COVER_ENTERED_CLOSED),
+        (CONF_ON_CLOSING, CoverEntered.COVER_ENTERED_CLOSING),
+        (CONF_ON_OPENING, CoverEntered.COVER_ENTERED_OPENING),
+        (CONF_ON_IDLE, CoverEntered.COVER_ENTERED_IDLE),
+    )
+)
 
 
 _COVER_SCHEMA = (
@@ -132,12 +134,8 @@ _COVER_SCHEMA = (
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
             **{
-                cv.Optional(conf): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
-                    }
-                )
-                for conf, trigger_class in TRIGGERS.items()
+                cv.Optional(entry.conf_key): automation.validate_automation({})
+                for entry in _CALLBACK_AUTOMATIONS
             },
             # Removed in 2026.12.0 - kept to provide helpful error message
             cv.Optional(CONF_ON_OPEN): cv.invalid(
@@ -194,10 +192,9 @@ def cover_schema(
 async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
-    for trigger_conf in TRIGGERS:
-        for conf in config.get(trigger_conf, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, [], conf)
+    if any(entry.conf_key in config for entry in _CALLBACK_AUTOMATIONS):
+        cg.add_define("USE_COVER_STATE_TRIGGERS")
+        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
     if mqtt_ is not None:
