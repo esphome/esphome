@@ -34,7 +34,6 @@ from esphome.const import (
     CONF_RGB_ORDER,
     CONF_SETUP_PRIORITY,
     CONF_STATE,
-    CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
 from esphome.core import (
@@ -89,9 +88,6 @@ from .types import (  # noqa: F401
     LightOutput,
     LightState,
     LightStateRTCState,
-    LightStateTrigger,
-    LightTurnOffTrigger,
-    LightTurnOnTrigger,
     PowerEstimation,
     light_ns,
 )
@@ -457,21 +453,9 @@ LIGHT_SCHEMA = (
                 *LEGACY_RESTORE_MODES, upper=True, space="_"
             ),
             cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
-            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(),
+            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(),
+            cv.Optional(CONF_ON_STATE): auto.validate_automation(),
             cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
             cv.Optional(CONF_RESUME_EFFECT, default=False): cv.boolean,
             cv.Optional(CONF_WRITE_ON_SETUP, default=False): cv.boolean,
@@ -640,6 +624,51 @@ def _effects_table(effects: list[MockObj]) -> MockObj:
     )
 
 
+async def _trigger_calls(config: ConfigType, key: str) -> list[str]:
+    return [
+        f"{await auto.build_trigger_callback([], conf, [])}();"
+        for conf in config.get(key, [])
+    ]
+
+
+async def _light_triggers_to_code(light_var: MockObj, config: ConfigType) -> None:
+    """Register one generated callback per light for each listener list its automations need.
+
+    on_turn_on keeps the previous state in a static of that function, so other lights store nothing.
+    """
+    on_turn_on = await _trigger_calls(config, CONF_ON_TURN_ON)
+    on_state = await _trigger_calls(config, CONF_ON_STATE)
+    if on_turn_on or on_state:
+        body: list[str] = []
+        if on_turn_on:
+            # Stored first: an automation that changes the light publishes again from inside this call
+            body += [
+                "static bool last_on = false;",
+                f"const bool is_on = {light_var}->remote_values.is_on();",
+                "const bool turned_on = is_on && !last_on;",
+                "last_on = is_on;",
+                "if (turned_on) {",
+                *(f"  {call}" for call in on_turn_on),
+                "}",
+            ]
+        body += on_state
+        cg.add_define("USE_LIGHT_REMOTE_VALUES_CALLBACK")
+        callback = auto.apply_static_function(
+            config[CONF_ID], cg.void, [], body, suffix="remote_values"
+        )
+        cg.add(light_var.add_remote_values_callback(callback))
+    if on_turn_off := await _trigger_calls(config, CONF_ON_TURN_OFF):
+        cg.add_define("USE_LIGHT_TARGET_STATE_REACHED_CALLBACK")
+        callback = auto.apply_static_function(
+            config[CONF_ID],
+            cg.void,
+            [],
+            [f"if ({light_var}->current_values.is_on())", "  return;", *on_turn_off],
+            suffix="target_state_reached",
+        )
+        cg.add(light_var.add_target_state_reached_callback(callback))
+
+
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     # All 8 legacy restore_mode values, and the restore_state key, are just different
@@ -714,15 +743,7 @@ async def setup_light_core_(light_var, config, output_var):
     if effects:
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
+    await _light_triggers_to_code(light_var, config)
 
     if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:
         cg.add(output_var.set_correction(*color_correct))

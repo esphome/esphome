@@ -1,15 +1,12 @@
 #include <gtest/gtest.h>
 
 #include <functional>
-#include <memory>
 #include <string>
 #include <vector>
 
-#include "esphome/components/light/automation.h"
 #include "esphome/components/light/light_effect.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"
-#include "esphome/core/base_automation.h"
 #include "esphome/core/hal.h"
 
 // Pins when the light on_turn_on, on_turn_off and on_state automations run. Each run appends one letter to
@@ -40,25 +37,37 @@ class NoopEffect : public LightEffect {
 // attaches every on_turn_on first, then every on_turn_off, then every on_state, so the tests do the same.
 class Triggers {
  public:
-  explicit Triggers(LightState *state) : state_(state) {}
-
-  void on_turn_on(std::function<void()> action) { this->attach_<LightTurnOnTrigger>(std::move(action)); }
-  void on_turn_off(std::function<void()> action) { this->attach_<LightTurnOffTrigger>(std::move(action)); }
-  void on_state(std::function<void()> action) { this->attach_<LightStateTrigger>(std::move(action)); }
-
- protected:
-  template<typename T> void attach_(std::function<void()> action) {
-    auto trigger = std::make_shared<T>(this->state_);
-    auto automation = std::make_shared<Automation<>>(trigger.get());
-    auto lambda = std::make_shared<LambdaAction<>>(std::move(action));
-    automation->add_action(lambda.get());
-    this->keep_.push_back(trigger);
-    this->keep_.push_back(automation);
-    this->keep_.push_back(lambda);
+  // One callback per list, built like the function codegen generates for each light
+  explicit Triggers(LightState *state) : state_(state) {
+    state->add_remote_values_callback([this]() {
+      const bool is_on = this->state_->remote_values.is_on();
+      const bool turned_on = is_on && !this->last_on_;
+      this->last_on_ = is_on;
+      if (turned_on) {
+        for (auto &action : this->on_turn_on_)
+          action();
+      }
+      for (auto &action : this->on_state_)
+        action();
+    });
+    state->add_target_state_reached_callback([this]() {
+      if (this->state_->current_values.is_on())
+        return;
+      for (auto &action : this->on_turn_off_)
+        action();
+    });
   }
 
+  void on_turn_on(std::function<void()> action) { this->on_turn_on_.push_back(std::move(action)); }
+  void on_turn_off(std::function<void()> action) { this->on_turn_off_.push_back(std::move(action)); }
+  void on_state(std::function<void()> action) { this->on_state_.push_back(std::move(action)); }
+
+ protected:
   LightState *state_;
-  std::vector<std::shared_ptr<void>> keep_;
+  bool last_on_{false};
+  std::vector<std::function<void()>> on_turn_on_;
+  std::vector<std::function<void()>> on_turn_off_;
+  std::vector<std::function<void()>> on_state_;
 };
 
 class LightTriggersTest : public ::testing::Test {
