@@ -4,6 +4,8 @@ Objects are found from the script ids and the links between them, not from auto-
 ids, so adding or changing one script does not break the others.
 """
 
+from collections.abc import Callable
+from pathlib import Path
 import re
 
 import pytest
@@ -11,6 +13,8 @@ import pytest
 from tests.component_tests.helpers import constructed, function_body
 
 CONFIG = "tests/component_tests/script/test_script_codegen.yaml"
+
+GenerateMain = Callable[[str | Path], str]
 
 
 def _automation(main_cpp: str, trigger: str) -> str:
@@ -52,7 +56,7 @@ def _script_body(main_cpp: str, script: str) -> str:
     return function_body(main_cpp, f"esphome__{script}__fn")
 
 
-def test_inline_actions_run_as_one_function(generate_main) -> None:
+def test_inline_actions_run_as_one_function(generate_main: GenerateMain) -> None:
     """A script of inline actions calls one function, declared before the script."""
     main_cpp = generate_main(CONFIG)
     class_ = _function_script("SingleMode", "inline_single")
@@ -69,7 +73,7 @@ def test_inline_actions_run_as_one_function(generate_main) -> None:
     assert "if (!esphome__running)\n    return;" in body
 
 
-def test_one_lambda_action(generate_main) -> None:
+def test_one_lambda_action(generate_main: GenerateMain) -> None:
     """A single inline action is the whole function."""
     main_cpp = generate_main(CONFIG)
     body = _script_body(main_cpp, "one_action")
@@ -77,7 +81,7 @@ def test_one_lambda_action(generate_main) -> None:
     assert "esphome__running" not in body
 
 
-def test_modes(generate_main) -> None:
+def test_modes(generate_main: GenerateMain) -> None:
     """Each mode has its own template; max_runs is set on queued and parallel scripts."""
     main_cpp = generate_main(CONFIG)
     for mode, script in (
@@ -97,7 +101,7 @@ def test_modes(generate_main) -> None:
     assert '"PARALLEL run"' in _script_body(main_cpp, "inline_parallel")
 
 
-def test_restart_executes_itself(generate_main) -> None:
+def test_restart_executes_itself(generate_main: GenerateMain) -> None:
     """A script can execute itself; on_stop keeps its own Automation."""
     main_cpp = generate_main(CONFIG)
     body = _script_body(main_cpp, "inline_restart")
@@ -107,7 +111,7 @@ def test_restart_executes_itself(generate_main) -> None:
     assert '"RESTART stopped"' in constructed(main_cpp, action)
 
 
-def test_parameters_by_value(generate_main) -> None:
+def test_parameters_by_value(generate_main: GenerateMain) -> None:
     """Lambdas take the parameters by value, so ``x *= 2`` compiles in every form."""
     main_cpp = generate_main(CONFIG)
     _assert_function_script(main_cpp, "SingleMode", "with_params", "int", "std::string")
@@ -131,7 +135,7 @@ def test_parameters_by_value(generate_main) -> None:
     assert body.count("::sink->execute(std::move(esphome__arg_0));") == 2
 
 
-def test_script_stop_inside(generate_main) -> None:
+def test_script_stop_inside(generate_main: GenerateMain) -> None:
     """``script.stop`` without an id stops the script it is in; the next action checks."""
     main_cpp = generate_main(CONFIG)
     body = _script_body(main_cpp, "stops_itself")
@@ -141,7 +145,7 @@ def test_script_stop_inside(generate_main) -> None:
     assert '"STOPS not reached"' in rest
 
 
-def test_calls_itself_with_parameter(generate_main) -> None:
+def test_calls_itself_with_parameter(generate_main: GenerateMain) -> None:
     """A parallel script with a parameter can execute itself from an ``if``."""
     main_cpp = generate_main(CONFIG)
     _assert_function_script(main_cpp, "ParallelMode", "calls_itself", "int")
@@ -150,7 +154,7 @@ def test_calls_itself_with_parameter(generate_main) -> None:
     assert "::calls_itself->execute(std::move(esphome__arg_0));" in body
 
 
-def test_delay_keeps_separate_actions(generate_main) -> None:
+def test_delay_keeps_separate_actions(generate_main: GenerateMain) -> None:
     """A delay keeps today's class, Automation and separate actions."""
     main_cpp = generate_main(CONFIG)
     assert constructed(main_cpp, "with_delay") == "script::SingleScript<bool>()"
@@ -162,7 +166,7 @@ def test_delay_keeps_separate_actions(generate_main) -> None:
     assert "esphome__with_delay__fn" not in main_cpp
 
 
-def test_manual_automation_id(generate_main) -> None:
+def test_manual_automation_id(generate_main: GenerateMain) -> None:
     """An automation_id set by hand names the Automation, so a lambda can reach it."""
     main_cpp = generate_main(CONFIG)
     assert constructed(main_cpp, "manual_automation") == "script::SingleScript<bool>()"
@@ -201,14 +205,18 @@ def test_manual_automation_id(generate_main) -> None:
         ),
     ],
 )
-def test_script_wait(generate_main, waiting: str, index: int, expected: str) -> None:
+def test_script_wait(
+    generate_main: GenerateMain, waiting: str, index: int, expected: str
+) -> None:
     """``script.wait`` is templated on the Script base, whatever class the script gets."""
     main_cpp = generate_main(CONFIG)
     action = _actions_of(main_cpp, _automation(main_cpp, waiting))[index]
     assert constructed(main_cpp, action) == expected
 
 
-def test_script_needing_automation_keeps_its_group_on_it(generate_main) -> None:
+def test_script_needing_automation_keeps_its_group_on_it(
+    generate_main: GenerateMain,
+) -> None:
     """An inline script with the mode and parameters of one that needs an Automation uses
     the Automation too, so the queue code is compiled once."""
     main_cpp = generate_main(CONFIG)
@@ -220,7 +228,9 @@ def test_script_needing_automation_keeps_its_group_on_it(generate_main) -> None:
     assert "QueueingMode<script::FunctionBody<int>" not in main_cpp
 
 
-def test_later_script_reaches_hand_named_automations(generate_main) -> None:
+def test_later_script_reaches_hand_named_automations(
+    generate_main: GenerateMain,
+) -> None:
     """An Automation named by hand, including an on_stop one, is created before later scripts
     are built, so a lambda in a later script can use it."""
     main_cpp = generate_main(CONFIG)
