@@ -173,7 +173,7 @@ TEST(LazyCallbackManager, StaticSlotKeepsCallbacksInOrder) {
   std::vector<int> calls;
   manager.add([&calls](int x) { calls.push_back(x); });
   const void *storage = manager.storage();
-  // The core test build reserves more slots than the other tests use
+  // The core test manifest reserves more slots than any test build uses
   ASSERT_TRUE(callback_manager_is_static(storage));
   manager.add([&calls](int x) { calls.push_back(x * 10); });
   EXPECT_EQ(manager.storage(), storage);
