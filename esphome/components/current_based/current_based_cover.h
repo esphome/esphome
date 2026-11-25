@@ -82,6 +82,9 @@ class CurrentBasedCover final : public cover::Cover, public Component {
   void recompute_position_();
   void end_reached_(float position);
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  void learn_travel_(bool opened, uint32_t measured, bool from_end, bool end_confirmed);
+#endif
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
   void save_learned_durations_();
 #endif
 

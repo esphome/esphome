@@ -89,8 +89,10 @@ void CurrentBasedCover::loop() {
 
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
   if (!this->motor_current_seen_) {
+    const bool opening = this->current_operation == COVER_OPERATION_OPENING;
+    const sensor::Sensor *current_sensor = opening ? this->open_sensor_ : this->close_sensor_;
     this->motor_current_seen_ =
-        this->current_operation == COVER_OPERATION_OPENING ? this->is_opening_() : this->is_closing_();
+        std::isfinite(current_sensor->get_state()) && (opening ? this->is_opening_() : this->is_closing_());
   }
 #endif
   if (this->current_operation == COVER_OPERATION_OPENING) {
@@ -168,10 +170,19 @@ void CurrentBasedCover::end_reached_(float position) {
   const bool from_end = this->from_end_;
   const sensor::Sensor *current_sensor = opened ? this->open_sensor_ : this->close_sensor_;
   const bool end_confirmed =
-      this->learn_durations_ && this->motor_current_seen_ && !std::isnan(current_sensor->get_state());
+      this->learn_durations_ && this->motor_current_seen_ && std::isfinite(current_sensor->get_state());
 #endif
-  this->direction_idle_(position);
+  // Learned before the state is published, so automations on it see the new values and can start a travel
+  this->start_direction_(COVER_OPERATION_IDLE);
+  this->position = position;
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  this->learn_travel_(opened, measured, from_end, end_confirmed);
+#endif
+  this->publish_state();
+}
+
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+void CurrentBasedCover::learn_travel_(bool opened, uint32_t measured, bool from_end, bool end_confirmed) {
   if (!end_confirmed)
     return;
   if (from_end) {
@@ -193,8 +204,8 @@ void CurrentBasedCover::end_reached_(float position) {
     }
   }
   this->from_end_ = true;
-#endif
 }
+#endif
 
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
 void CurrentBasedCover::save_learned_durations_() {
