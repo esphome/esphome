@@ -21,6 +21,10 @@ def _defines() -> set[str]:
     return {define.name for define in CORE.defines}
 
 
+def _define_value(name: str) -> object:
+    return next(define.value for define in CORE.defines if define.name == name)
+
+
 def test_ota_automations_generated(generate_main: Callable[[str], str]) -> None:
     """Every key builds its automation on every platform and compiles in the
     state notifications."""
@@ -39,6 +43,8 @@ def test_ota_automations_generated(generate_main: Callable[[str], str]) -> None:
     ):
         assert message in main_cpp
     assert "USE_OTA_STATE_LISTENER" in _defines()
+    # The triggers listen on their own OTA component, so no global listener slot
+    assert str(_define_value("ESPHOME_OTA_GLOBAL_LISTENER_COUNT")) == "0"
 
 
 def test_ota_without_automations_skips_state_listener(

@@ -18,30 +18,13 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from aioesphomeapi import LogLevel  # noqa: E402
-from apiconn import connect, log_text, stop_event  # noqa: E402
+from apiconn import adv_name, connect, log_text, stop_event  # noqa: E402
 
 PEERS = [p for p in os.environ.get("PEERS", "").split(",") if p]
 HK_NAME = os.environ.get("HK_NAME", "Eve Flare")
 WRITE_UUID = "5ec2ff01-0000-1000-8000-00805f9b34fb"
 BUDGET = float(os.environ.get("BUDGET", "10"))
 MAX_ATTEMPTS = 5
-
-
-def adv_name(data: bytes) -> str | None:
-    """Complete local name, else the shortened one."""
-    i = 0
-    short = None
-    while i < len(data):
-        ln = data[i]
-        if ln == 0 or i + 1 + ln > len(data):
-            break
-        t = data[i + 1]
-        if t == 0x09:
-            return data[i + 2 : i + 1 + ln].decode(errors="replace")
-        if t == 0x08:
-            short = data[i + 2 : i + 1 + ln].decode(errors="replace")
-        i += 1 + ln
-    return short
 
 
 class Driver:

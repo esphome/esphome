@@ -82,4 +82,14 @@ TEST(UpdateLock, SecondBackendBeginIsBusy) {
   second->abort();
 }
 
+TEST(UpdateLock, AnyHeldFollowsTheLock) {
+  EXPECT_FALSE(UpdateLock::any_held());
+  {
+    UpdateLock lock;
+    ASSERT_TRUE(lock.try_acquire());
+    EXPECT_TRUE(UpdateLock::any_held());
+  }
+  EXPECT_FALSE(UpdateLock::any_held());
+}
+
 }  // namespace esphome::ota::testing
