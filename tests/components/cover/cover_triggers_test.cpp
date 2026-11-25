@@ -3,7 +3,6 @@
 #include <cmath>
 #include <string>
 
-#include "esphome/components/cover/automation.h"
 #include "esphome/components/cover/cover.h"
 #include "esphome/core/automation.h"
 
@@ -83,7 +82,7 @@ template<InState T> static void attach(Cover *cover, Action<> *action) {
   auto *ctx = new StateAutomation{cover, {}, false};  // NOLINT(cppcoreguidelines-owning-memory)
   ctx->automation.add_action(action);
   cover->add_on_state_callback([ctx]() {
-    if (state_entered(ctx->seen, T(*ctx->cover)))
+    if (change_trigger::entered(ctx->seen, T(*ctx->cover)))
       ctx->automation.trigger();
   });
 }

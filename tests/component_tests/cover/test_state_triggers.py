@@ -11,8 +11,8 @@ def test_state_triggers_share_one_callback(
     main_cpp = generate_main(component_config_path("state_triggers.yaml"))
 
     assert main_cpp.count("door->add_on_state_callback(") == 1
-    assert "door->add_on_state_callback(esphome__door__state_triggers);" in main_cpp
-    body = main_cpp.split("static void esphome__door__state_triggers() {")[1]
+    assert "door->add_on_state_callback(esphome__door__on_state_callback);" in main_cpp
+    body = main_cpp.split("static void esphome__door__on_state_callback() {")[1]
     body = body.split("\n}")[0]
     # Same order as dev's trigger objects: opened, closed, closing, opening, idle.
     checks = [
@@ -22,9 +22,13 @@ def test_state_triggers_share_one_callback(
         "::door->current_operation == cover::COVER_OPERATION_OPENING",
         "::door->current_operation == cover::COVER_OPERATION_IDLE",
     ]
-    for index, check in enumerate(checks):
-        assert f"static bool seen_{index} = false;" in body
-        assert f"if (cover::state_entered(seen_{index}, ({check})))" in body
+    keys = ["on_opened", "on_closed", "on_closing", "on_opening", "on_idle"]
+    for key, check in zip(keys, checks, strict=True):
+        assert f"static bool door_{key}_0_last;" in body
+        assert (
+            f"if (esphome::change_trigger::entered(door_{key}_0_last, ({check})))"
+            in body
+        )
     positions = [body.index(f"({check})") for check in checks]
     assert positions == sorted(positions)
     assert "Trigger" not in main_cpp
@@ -37,5 +41,5 @@ def test_nothing_emitted_without_state_triggers(
 ) -> None:
     main_cpp = generate_main(component_config_path("no_state_triggers.yaml"))
 
-    assert "state_triggers" not in main_cpp
+    assert "on_state_callback" not in main_cpp
     assert "add_on_state_callback" not in main_cpp
