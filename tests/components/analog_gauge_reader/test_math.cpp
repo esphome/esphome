@@ -6,6 +6,9 @@
 
 // The reader is guarded by its USE_ macro, which is only set for ESP32 builds.
 #define USE_ANALOG_GAUGE_READER
+#define ANALOG_GAUGE_READER_CALIBRATION_POINTS 2
+#define ANALOG_GAUGE_READER_DIAL_COUNT 2
+#define USE_ANALOG_GAUGE_READER_STACKED_DIGITS
 #include "esphome/components/analog_gauge_reader/analog_gauge_reader.h"
 
 namespace esphome::analog_gauge_reader::testing {
@@ -19,6 +22,11 @@ DialConfig make_dial(float min_angle, float max_angle, float min_value, float ma
   dial.min_value = min_value;
   dial.max_value = max_value;
   return dial;
+}
+
+void set_calibration(DialConfig &dial, float raw_a, float mapped_a, float raw_b, float mapped_b) {
+  dial.calibration = {{{raw_a, mapped_a}, {raw_b, mapped_b}}};
+  dial.calibration_count = 2;
 }
 
 DialReading make_reading(const DialConfig *dial, float value) { return DialReading{dial, value, 0.0f, 1.0f}; }
@@ -97,20 +105,20 @@ TEST(AngleMapping, LargeOffsetAndNegativeAngleStayInRange) {
   // not as a negative angle before its first point.
   DialConfig dial = make_dial(0.0f, 360.0f, 0.0f, 10.0f);
   dial.angle_offset = 300.0f;
-  dial.calibration_mapping = {{0.0f, 100.0f}, {340.0f, 110.0f}};
+  set_calibration(dial, 0.0f, 100.0f, 340.0f, 110.0f);
   EXPECT_NEAR(angle_to_value(-170.0f, dial), 110.0f, 1e-4f);
 }
 
 TEST(AngleMapping, CalibrationWinsOverWrapAround) {
   DialConfig dial = make_dial(300.0f, 60.0f, 0.0f, 10.0f);
-  dial.calibration_mapping = {{0.0f, 100.0f}, {360.0f, 200.0f}};
+  set_calibration(dial, 0.0f, 100.0f, 360.0f, 200.0f);
   EXPECT_NEAR(angle_to_value(-90.0f, dial), 100.0f, 1e-4f);
   EXPECT_NEAR(angle_to_value(0.0f, dial), 125.0f, 1e-4f);
 }
 
 TEST(AngleMapping, CalibrationClampsOutsideItsPoints) {
   DialConfig dial = make_dial(0.0f, 360.0f, 0.0f, 10.0f);
-  dial.calibration_mapping = {{30.0f, 1.0f}, {60.0f, 2.0f}};
+  set_calibration(dial, 30.0f, 1.0f, 60.0f, 2.0f);
   EXPECT_NEAR(angle_to_value(-90.0f, dial), 1.0f, 1e-4f);  // dial angle 0
   EXPECT_NEAR(angle_to_value(0.0f, dial), 2.0f, 1e-4f);    // dial angle 90
 }

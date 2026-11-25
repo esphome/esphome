@@ -292,22 +292,50 @@ async def to_code(config: ConfigType) -> None:
     gauge_needle_detector.enable_detectors(algorithms)
     cg.add(var.set_pause_processing(config[CONF_PAUSED]))
     cg.add(var.set_debug(config[CONF_DEBUG]))
-    cg.add(var.set_stacked_digits(config[CONF_STACKED_DIGITS]))
 
-    crops = [(dial[CONF_CROP_W], dial[CONF_CROP_H]) for dial in config[CONF_DIALS]]
+    dials = config[CONF_DIALS]
+    cg.add_define("ANALOG_GAUGE_READER_DIAL_COUNT", len(dials))
+    if config[CONF_STACKED_DIGITS]:
+        cg.add_define("USE_ANALOG_GAUGE_READER_STACKED_DIGITS")
+    if calibration_sizes := [
+        len(d[CONF_CALIBRATION]) for d in dials if CONF_CALIBRATION in d
+    ]:
+        cg.add_define("ANALOG_GAUGE_READER_CALIBRATION_POINTS", max(calibration_sizes))
     cg.add(
-        var.init_dials(
-            len(crops),
-            max(w for w, _ in crops),
-            max(h for _, h in crops),
-            max(w * h for w, h in crops),
+        var.set_max_crop(
+            max(d[CONF_CROP_W] for d in dials), max(d[CONF_CROP_H] for d in dials)
         )
     )
-    for dial in config[CONF_DIALS]:
-        target_color = dial.get(CONF_TARGET_COLOR)
+    if any(_needs_color(dial) for dial in dials):
+        cg.add_define("USE_ANALOG_GAUGE_READER_COLOR")
+        scratch = cg.static_buffer(
+            config[CONF_ID],
+            cg.uint8,
+            max(d[CONF_CROP_W] * d[CONF_CROP_H] for d in dials),
+        )
+        cg.add(var.set_scratch_buffer(scratch))
+
+    for dial in dials:
+        channels = 3 if _needs_color(dial) else 1
+        crop = cg.static_buffer(
+            config[CONF_ID],
+            cg.uint8,
+            dial[CONF_CROP_W] * dial[CONF_CROP_H] * channels,
+        )
+        calibration = None
+        if points := dial.get(CONF_CALIBRATION):
+            # Sorted here so the firmware does not sort at boot.
+            pairs = ", ".join(
+                f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}"
+                for item in sorted(points, key=lambda item: item[CONF_RAW])
+            )
+            calibration = cg.RawExpression(f"{{{{ {pairs} }}}}")
+        # The fields follow the order of the C++ struct, which designated initializers require.
         s = cg.StructInitializer(
             analog_gauge_reader_ns.struct("DialConfig"),
             ("id", dial[CONF_ID]),
+            ("crop", crop),
+            ("calibration", calibration),
             ("scale", dial[CONF_SCALE]),
             ("crop_x", dial[CONF_CROP_X]),
             ("crop_y", dial[CONF_CROP_Y]),
@@ -323,19 +351,13 @@ async def to_code(config: ConfigType) -> None:
             ("min_scan_radius", dial[CONF_MIN_SCAN_RADIUS]),
             ("max_scan_radius", dial[CONF_MAX_SCAN_RADIUS]),
             ("deadzone_diameter", dial[CONF_DEADZONE_DIAMETER]),
-            ("target_color", target_color),
+            ("target_color", dial.get(CONF_TARGET_COLOR)),
             ("needle_type", NEEDLE_TYPES[dial[CONF_NEEDLE_TYPE]]),
             ("algorithm", ALGORITHMS[dial[CONF_ALGORITHM]]),
             ("process_channel", PROCESS_CHANNELS[dial[CONF_PROCESS_CHANNEL]]),
-            ("channels", 3 if _needs_color(dial) else 1),
+            ("channels", channels),
+            ("calibration_count", len(points) if points else None),
             ("clockwise", dial[CONF_CLOCKWISE]),
             ("auto_contrast", dial[CONF_AUTO_CONTRAST]),
         )
-        if (calibration := dial.get(CONF_CALIBRATION)) is not None:
-            # Sorted here so the firmware does not sort at boot.
-            points = ", ".join(
-                f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}"
-                for item in sorted(calibration, key=lambda item: item[CONF_RAW])
-            )
-            s.args["calibration_mapping"] = cg.RawExpression(f"{{ {points} }}")
         cg.add(var.add_dial(s))

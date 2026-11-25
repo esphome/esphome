@@ -11,12 +11,12 @@
 #include "esphome/core/component.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <memory>
 #include <numeric>
 #include <utility>
-#include <vector>
 
 namespace esphome::analog_gauge_reader {
 
@@ -30,10 +30,23 @@ enum ProcessChannel : uint8_t {
 
 /// `target_color` value when the dial is read by brightness instead of a colour.
 inline constexpr uint32_t NO_TARGET_COLOR = 0xFFFFFFFF;
+/// Largest distance between two RGB colours, sqrt(3 * 255^2).
+inline constexpr float MAX_COLOR_DISTANCE = 442.0f;
+/// Beyond this many steps the stacked total is no longer exact in a float.
+inline constexpr float MAX_EXACT_STEPS = 1e15f;
 
 struct DialConfig {
   /// Dial name used in logs. Points to a string literal.
   const char *id{""};
+  /// Crop buffer, a static array from codegen: crop_w * crop_h * channels bytes.
+  uint8_t *crop{nullptr};
+  sensor::Sensor *value_sensor{nullptr};
+  sensor::Sensor *confidence_sensor{nullptr};
+  sensor::Sensor *angle_sensor{nullptr};
+#ifdef ANALOG_GAUGE_READER_CALIBRATION_POINTS
+  /// Sorted by raw angle; the first calibration_count entries are used.
+  std::array<std::pair<float, float>, ANALOG_GAUGE_READER_CALIBRATION_POINTS> calibration{};
+#endif
   float scale{1.0f};
   int crop_x{0};
   int crop_y{0};
@@ -45,22 +58,18 @@ struct DialConfig {
   float min_value{0.0f};
   float max_value{10.0f};
   float contrast{1.0f};                    // Multiplier (1.0 = original)
-  float color_tolerance{0.0f};             // 0 = legacy 0-442 map; off-colour pixels become background
-  float min_scan_radius{0.3f};             // % of radius (0.0-1.0)
-  float max_scan_radius{0.9f};             // % of radius (0.0-1.0)
+  float color_tolerance{0.0f};             // 0 = the whole colour range; off-colour pixels become background
+  float min_scan_radius{0.3f};             // Fraction of the radius
+  float max_scan_radius{0.9f};             // Fraction of the radius
   float deadzone_diameter{0.0f};           // Pixels (center circle ignored by detection)
   uint32_t target_color{NO_TARGET_COLOR};  // RGB hex, or NO_TARGET_COLOR
-  sensor::Sensor *value_sensor{nullptr};
-  sensor::Sensor *confidence_sensor{nullptr};
-  sensor::Sensor *angle_sensor{nullptr};
   gauge_needle_detector::NeedleType needle_type{gauge_needle_detector::NEEDLE_TYPE_DARK};
   gauge_needle_detector::Algorithm algorithm{gauge_needle_detector::ALGORITHM_RADIAL_PROFILE};
   ProcessChannel process_channel{PROCESS_CHANNEL_GRAYSCALE};
-  uint8_t channels{1};       // 3 when the dial is read from colour, 1 otherwise
+  uint8_t channels{1};  // 3 when the dial is read from colour, 1 otherwise
+  uint8_t calibration_count{0};
   bool clockwise{true};      // Needle sweep direction (false = counter-clockwise)
   bool auto_contrast{true};  // Normalization (Min-Max Stretch)
-  /// Sorted by raw angle; codegen sorts it.
-  std::vector<std::pair<float, float>> calibration_mapping;
 };
 
 /// One dial's reading, published only once the whole frame has been read.
@@ -86,14 +95,14 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
   if (!dial.clockwise)
     dial_angle = wrap360(-dial_angle);
 
+#ifdef ANALOG_GAUGE_READER_CALIBRATION_POINTS
   // A calibration map wins over the angle range, including a wrap-around range.
-  if (!dial.calibration_mapping.empty()) {
-    const auto &points = dial.calibration_mapping;
-    if (dial_angle <= points.front().first)
-      return points.front().second;
-    if (dial_angle >= points.back().first)
-      return points.back().second;
-    for (size_t i = 0; i < points.size() - 1; i++) {
+  if (dial.calibration_count > 0) {
+    const auto &points = dial.calibration;
+    const size_t last = dial.calibration_count - 1;
+    if (dial_angle <= points[0].first)
+      return points[0].second;
+    for (size_t i = 0; i < last; i++) {
       const float x1 = points[i].first;
       const float x2 = points[i + 1].first;
       if (dial_angle >= x1 && dial_angle <= x2) {
@@ -103,8 +112,9 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
         return points[i].second + t * (points[i + 1].second - points[i].second);
       }
     }
-    return points.back().second;
+    return points[last].second;
   }
+#endif
 
   // Measure clockwise from min_angle; off the scale the needle reads the nearer
   // stop, so one before the start reads the minimum, not the maximum.
@@ -121,6 +131,7 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
   return dial.min_value + std::clamp(fraction, 0.0f, 1.0f) * (dial.max_value - dial.min_value);
 }
 
+#ifdef USE_ANALOG_GAUGE_READER_STACKED_DIGITS
 /// Carry-corrects stacked dials and returns the combined value, or NAN.
 inline float combine_stacked_digits(const DialReading *readings, size_t count, int *order, float *phase, int *digits) {
   auto wrap10 = [](float x) -> float {
@@ -160,14 +171,14 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
 
   // Round without llroundf(), which not every ESP-IDF target provides.
   const float steps = total / finest_scale;
-  if (!std::isfinite(steps) || std::abs(steps) > 1e15f)
+  if (!std::isfinite(steps) || std::abs(steps) > MAX_EXACT_STEPS)
     return NAN;
   const long long rounded_steps = static_cast<long long>(steps + (steps >= 0.0f ? 0.5f : -0.5f));
 
   // Derive the digits from the rounded total so the carry is consistent.
   for (size_t i = 0; i < count; i++) {
     const float ratio = readings[i].dial->scale / finest_scale;
-    if (!std::isfinite(ratio) || std::abs(ratio) > 1e15f)
+    if (!std::isfinite(ratio) || std::abs(ratio) > MAX_EXACT_STEPS)
       continue;
     long long place = static_cast<long long>(ratio + (ratio >= 0.0f ? 0.5f : -0.5f));
     if (place <= 0)
@@ -177,6 +188,7 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
   }
   return static_cast<float>(rounded_steps) * finest_scale;
 }
+#endif  // USE_ANALOG_GAUGE_READER_STACKED_DIGITS
 
 /// Stretches the crop to the full 0-255 range.
 inline void apply_auto_contrast(uint8_t *data, int size) {
@@ -214,51 +226,46 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   void set_dial_angle_sensor(size_t index, sensor::Sensor *s) { this->dials_[index].angle_sensor = s; }
   void set_pause_processing(bool paused) { this->paused_ = paused; }
   void set_debug(bool debug) { this->debug_ = debug; }
-  // Combine dials as odometer digits with carry correction instead of a weighted sum.
-  void set_stacked_digits(bool enabled) { this->stacked_digits_ = enabled; }
-  /// Reserves the dial list and records the largest crop; codegen calls it before the first add_dial().
-  void init_dials(size_t count, int max_crop_w, int max_crop_h, size_t max_crop_area) {
-    this->dials_.init(count);
-    this->max_crop_w_ = max_crop_w;
-    this->max_crop_h_ = max_crop_h;
-    this->max_crop_area_ = max_crop_area;
+  /// The largest dial crop, which the detector reserves its buffers for.
+  void set_max_crop(int width, int height) {
+    this->max_crop_w_ = width;
+    this->max_crop_h_ = height;
   }
   void add_dial(DialConfig config) { this->dials_.push_back(std::move(config)); }
+#ifdef USE_ANALOG_GAUGE_READER_COLOR
+  /// Holds one converted crop; a static array from codegen, sized for the largest crop.
+  void set_scratch_buffer(uint8_t *buffer) { this->scratch_buffer_ = buffer; }
+#endif
 
  protected:
   static constexpr uint32_t FRAME_TIMEOUT_ID = 0;
   /// How long a requested frame may take before the request is abandoned.
   static constexpr uint32_t FRAME_TIMEOUT_MS = 5000;
-  /// One dial crop, allocated once in setup() and kept for the life of the firmware.
-  struct DialBuffer {
-    uint8_t *data{nullptr};
-  };
   esphome::camera::Camera *camera_;
   esphome::camera::Decoder *decoder_;
   sensor::Sensor *value_sensor_{nullptr};
+#ifdef USE_ANALOG_GAUGE_READER_COLOR
   uint8_t *scratch_buffer_{nullptr};
+#endif
   std::shared_ptr<esphome::camera::CameraImage> pending_frame_;
-  RAMAllocator<uint8_t> allocator_;
   gauge_needle_detector::NeedleDetector detector_;
-  FixedVector<DialConfig> dials_;
-  /// One crop buffer per entry in dials_, in the same order.
-  FixedVector<DialBuffer> dial_buffers_;
-  FixedVector<DialReading> readings_;
-  FixedVector<int> digits_;
-  FixedVector<float> phase_;
-  FixedVector<int> order_;
-  size_t max_crop_area_{0};
+  StaticVector<DialConfig, ANALOG_GAUGE_READER_DIAL_COUNT> dials_;
+  StaticVector<DialReading, ANALOG_GAUGE_READER_DIAL_COUNT> readings_;
+#ifdef USE_ANALOG_GAUGE_READER_STACKED_DIGITS
+  std::array<int, ANALOG_GAUGE_READER_DIAL_COUNT> digits_{};
+  std::array<float, ANALOG_GAUGE_READER_DIAL_COUNT> phase_{};
+  std::array<int, ANALOG_GAUGE_READER_DIAL_COUNT> order_{};
+#endif
   int img_width_;
   int img_height_;
   int max_crop_w_{0};
   int max_crop_h_{0};
   bool paused_{false};
-  bool stacked_digits_{false};
   bool debug_{false};
   /// Reads every dial of one decoded frame; true when the sensors were published.
   bool process_image_(const uint8_t *data, size_t len);
-  /// Copies a dial rectangle out of a frame, converting to luma when colour is not needed.
-  bool crop_dial_(const uint8_t *src, const camera::CameraImageSpec &spec, const DialConfig &dial, DialBuffer &out);
+  /// Copies a dial rectangle out of a frame into its crop buffer, as luma unless the dial needs colour.
+  bool crop_dial_(const uint8_t *src, const camera::CameraImageSpec &spec, const DialConfig &dial);
 };
 
 }  // namespace esphome::analog_gauge_reader
