@@ -222,7 +222,7 @@ bool M5StackPM1Component::digital_read_hw(uint8_t pin) {
 }
 
 void M5StackPM1Component::digital_write_hw(uint8_t pin, bool value) {
-  if (!this->valid_pin_(pin) || pin == this->interrupt_gpio_) {
+  if (this->is_failed() || !this->valid_pin_(pin) || pin == this->interrupt_gpio_) {
     return;
   }
   assign_bits(this->output_mask_, 1 << pin, value);
