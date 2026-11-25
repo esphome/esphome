@@ -114,4 +114,25 @@ TEST(LazyCallbackManager, CallRunsEveryCallbackInOrder) {
   EXPECT_EQ(seen, (std::vector<int>{1, 2, 20, 3, 30}));
 }
 
+struct CopyCounter {
+  CopyCounter() = default;
+  CopyCounter(const CopyCounter &other) : copies(other.copies + 1) {}
+  int copies{0};
+};
+
+TEST(LazyCallbackManager, NonTrivialArgumentIsNotCopiedAgain) {
+  LazyCallbackManager<void(CopyCounter)> manager;
+  int dev_copies = -1;
+  int seen = -1;
+  manager.add([&seen](const CopyCounter &c) { seen = c.copies; });
+  CopyCounter arg;
+  manager.call(arg);
+  {
+    CallbackManager<void(CopyCounter)> plain;
+    plain.add([&dev_copies](const CopyCounter &c) { dev_copies = c.copies; });
+    plain.call(arg);
+  }
+  EXPECT_EQ(seen, dev_copies + 1);
+}
+
 }  // namespace esphome::core::testing
