@@ -284,6 +284,7 @@ void CiA402Drive::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   const bool online = this->operational_(now);
   if (!online) {
+    this->pending_poll_ = false;
     this->poll_due_ = false;
     this->poll_suspended_ = true;
     this->poll_index_ = 0;
@@ -407,9 +408,10 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
       ESP_LOGW(TAG, "Node %u stop 0x%04X failed: %s", this->node_, static_cast<unsigned>(step.value),
                LOG_STR_ARG(canopen::sdo_result_to_string(result)));
     }
-    if (notify)
+    if (notify) {
       this->result_callback_.call(success ? DriveResult::DRIVE_RESULT_SUCCESS
                                           : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
+    }
     return;
   }
   const bool valid = success && (step.kind == StepKind::STEP_KIND_WRITE || size == step.size);
