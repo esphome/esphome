@@ -121,6 +121,8 @@ sx127x_sim/*pair/
 tca9548a_real/*-cap.txt
 tca9548a_real/*.log
 tcp_link/*.txt
+tcpbench/cap-*.txt
+tcpbench/results.txt
 tuya_sim/*.json
 tuya_sim/*.txt
 twai_self/can?*.yaml
@@ -143,6 +145,7 @@ web_server/churnmix/*.json
 web_server/churnmix/evbody.txt
 web_server/churnmix/ext/components/https_test/certs.h
 wifi_outage/*.txt
+wifi_sniff/*.txt
 wpa3_sniff/*.txt
 xiaomi_ble/*-cap.txt
 xiaomi_ble/expected_all.json
