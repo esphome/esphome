@@ -2122,8 +2122,8 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       DecayF decayed = std::forward<F>(callable);
       __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
       cb.fn_ = [](void *c, Ts... args) {
-        // Union read (defined by GCC and Clang) instead of a byte buffer: a local array costs a
-        // stack slot and, with -fstack-protector-strong, a canary. std::bit_cast needs GCC 11.
+        // Union read (defined by GCC and Clang) instead of a byte buffer: a local array costs a stack
+        // slot and, with -fstack-protector-strong, a canary. std::bit_cast rejects smaller captures.
         union {
           void *ptr;
           DecayF fn;

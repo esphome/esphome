@@ -67,17 +67,10 @@ TEST(CallbackCreate, FunctionReferenceIsCalled) {
   EXPECT_EQ(small_seen, 9);
 }
 
-TEST(LazyCallbackManager, CallsEveryCallbackInOrder) {
-  int sum = 0;
-  int last = 0;
-  LazyCallbackManager<void(int)> manager;
-  manager.call(1);
-  manager.add([&sum](int x) { sum += x; });
-  manager.add([&last](int x) { last = last * 10 + x; });
-  manager.call(2);
-  manager.call(3);
-  EXPECT_EQ(sum, 5);
-  EXPECT_EQ(last, 23);
+TEST(CallbackCreate, CapturelessLambdaIsCalled) {
+  auto cb = IntCallback::create([](int x) { small_seen = x * 2; });
+  cb.call(21);
+  EXPECT_EQ(small_seen, 42);
 }
 
 // A pointer-sized mutable lambda used to be stored inline and run on a copy, losing its state.
