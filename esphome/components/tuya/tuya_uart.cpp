@@ -42,12 +42,9 @@ static bool network_is_connected() {
 
 void TuyaUART::setup() {
 #ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_()) {
-    // Validation rejects force_time_sync and status_pin for this protocol.
-    this->setup_low_power_();
-    return;
-  }
-#endif
+  // Validation rejects force_time_sync and status_pin for this protocol.
+  this->setup_low_power_();
+#else
   this->set_interval(HEARTBEAT_INTERVAL_ID, 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 #ifdef USE_TIME
   if (this->force_time_sync_) {
@@ -59,6 +56,7 @@ void TuyaUART::setup() {
   if (this->status_pin_ != nullptr) {
     this->status_pin_->digital_write(false);
   }
+#endif
 }
 
 void TuyaUART::loop() {
@@ -69,12 +67,10 @@ void TuyaUART::loop() {
                     RECEIVE_TIMEOUT);
   this->handling_frame_ = false;
 #ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_()) {
-    this->loop_low_power_();
-    return;
-  }
-#endif
+  this->loop_low_power_();
+#else
   process_command_queue_();
+#endif
 }
 
 void TuyaUART::dump_config() {
@@ -86,9 +82,7 @@ void TuyaUART::dump_config() {
 void TuyaUART::dump_mcu_config_() {
   ESP_LOGCONFIG(TAG, "Tuya:");
 #ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_()) {
-    ESP_LOGCONFIG(TAG, "  Protocol: low_power");
-  }
+  ESP_LOGCONFIG(TAG, "  Protocol: low_power");
 #endif
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
     if (this->init_failed_) {
@@ -133,7 +127,7 @@ bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
   const uint8_t command = frame[3];
 #ifdef USE_TUYA_LOW_POWER
   // Low-power MCUs frame with version 0 or 3
-  if (this->is_low_power_() && version != 0 && version != 3) {
+  if (version != 0 && version != 3) {
     ESP_LOGW(TAG, "Invalid low-power MCU frame version: %u", version);
     return false;
   }
@@ -151,11 +145,8 @@ bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
 
 void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
 #ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_()) {
-    this->handle_low_power_frame_(command, version, buffer, len);
-    return;
-  }
-#endif
+  this->handle_low_power_frame_(command, version, buffer, len);
+#else
   TuyaCommandType command_type = (TuyaCommandType) command;
 
   if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
@@ -357,6 +348,7 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
     default:
       ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
+#endif
 }
 
 void TuyaUART::handle_datapoints_(const uint8_t *buffer, size_t len) {
@@ -443,12 +435,6 @@ void TuyaUART::handle_datapoints_(const uint8_t *buffer, size_t len) {
 }
 
 void TuyaUART::send_raw_command_(TuyaCommand command) {
-#ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_()) {
-    this->send_low_power_raw_command_(command);
-    return;
-  }
-#endif
   uint8_t len_hi = (uint8_t) (command.payload.size() >> 8);
   uint8_t len_lo = (uint8_t) (command.payload.size() & 0xFF);
   uint8_t version = 0;
@@ -489,11 +475,8 @@ void TuyaUART::send_raw_command_(TuyaCommand command) {
 
 void TuyaUART::process_command_queue_() {
 #ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_()) {
-    this->process_low_power_queue_();
-    return;
-  }
-#endif
+  this->process_low_power_queue_();
+#else
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
 
@@ -522,6 +505,7 @@ void TuyaUART::process_command_queue_() {
     if (!this->expected_response_.has_value())
       this->command_queue_.erase(command_queue_.begin());
   }
+#endif
 }
 
 void TuyaUART::send_command_(TuyaCommand command) {
@@ -536,11 +520,8 @@ void TuyaUART::send_empty_command_(TuyaCommandType command) {
 void TuyaUART::send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint8_t *data,
                                       size_t len) {
 #ifdef USE_TUYA_LOW_POWER
-  if (this->is_low_power_()) {
-    this->send_low_power_datapoint_(datapoint_id, datapoint_type, data, len);
-    return;
-  }
-#endif
+  this->send_low_power_datapoint_(datapoint_id, datapoint_type, data, len);
+#else
   std::vector<uint8_t> buffer;
   buffer.reserve(4 + len);
   buffer.push_back(datapoint_id);
@@ -550,6 +531,7 @@ void TuyaUART::send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType da
   buffer.insert(buffer.end(), data, data + len);
 
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_DELIVER, .payload = std::move(buffer)});
+#endif
 }
 
 void TuyaUART::set_status_pin_() {

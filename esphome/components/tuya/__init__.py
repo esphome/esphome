@@ -31,7 +31,6 @@ CONF_MCU_WAKE_PIN = "mcu_wake_pin"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
-TuyaProtocol = tuya_ns.enum("TuyaProtocol", is_class=True)
 Tuya = tuya_ns.class_("Tuya", cg.Component)
 TuyaUART = tuya_ns.class_("TuyaUART", Tuya, uart.UARTDevice)
 
@@ -167,7 +166,6 @@ async def to_code(config: ConfigType | AutoLoad) -> None:
     if config[CONF_PROTOCOL] == PROTOCOL_LOW_POWER:
         # Standard Tuya builds must not carry the low-power driver code or state.
         cg.add_define("USE_TUYA_LOW_POWER")
-        cg.add(var.set_protocol(TuyaProtocol.TUYA_PROTOCOL_LOW_POWER))
         await cg.add_pin(var.set_mcu_wake_pin, config.get(CONF_MCU_WAKE_PIN))
     if (time_id := config.get(CONF_TIME_ID)) is not None:
         await cg.add_variable(var.set_time_id, time_id)

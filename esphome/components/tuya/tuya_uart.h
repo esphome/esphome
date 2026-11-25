@@ -10,6 +10,7 @@
 #include "esphome/core/helpers.h"
 
 #ifdef USE_TUYA_LOW_POWER
+#include <initializer_list>
 #include "tuya_low_power.h"
 #include "tuya_low_power_product.h"
 #include "tuya_low_power_wire_transactions.h"
@@ -66,13 +67,6 @@ enum class TuyaInitState : uint8_t {
   INIT_DONE,
 };
 
-#ifdef USE_TUYA_LOW_POWER
-enum class TuyaProtocol : uint8_t {
-  TUYA_PROTOCOL_STANDARD = 0,
-  TUYA_PROTOCOL_LOW_POWER = 1,
-};
-#endif
-
 struct TuyaCommand {
   TuyaCommandType cmd;
   std::vector<uint8_t> payload;
@@ -86,7 +80,6 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   void dump_config() override;
   void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
 #ifdef USE_TUYA_LOW_POWER
-  void set_protocol(TuyaProtocol protocol) { this->protocol_ = protocol; }
   void set_mcu_wake_pin(GPIOPin *pin) { this->mcu_wake_pin_ = pin; }
   /// Called once after boot, when the MCU's state is known and it takes writes.
   template<typename F> void add_on_mcu_ready_callback(F &&callback) {
@@ -107,16 +100,19 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
 #ifdef USE_TUYA_LOW_POWER
-  bool is_low_power_() const { return this->protocol_ == TuyaProtocol::TUYA_PROTOCOL_LOW_POWER; }
   // Entry points called from the standard Tuya code paths in tuya_uart.cpp.
   void setup_low_power_();
   void loop_low_power_();
   void handle_low_power_frame_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
-  void send_low_power_raw_command_(const TuyaCommand &command);
   void send_low_power_datapoint_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint8_t *data,
                                  size_t len);
   void handle_low_power_command_(uint8_t command, uint8_t version, const uint8_t *data, size_t len);
-  void send_low_power_direct_(uint8_t command, const std::vector<uint8_t> &payload);
+  void send_low_power_raw_command_(const TuyaCommand &command);
+  void send_low_power_direct_(uint8_t command, const uint8_t *data, size_t len);
+  // The list lives on the stack, so short replies need no heap
+  void send_low_power_direct_(uint8_t command, std::initializer_list<uint8_t> payload) {
+    this->send_low_power_direct_(command, payload.begin(), payload.size());
+  }
   void send_low_power_time_(uint8_t command);
   void send_low_power_network_();
   void send_low_power_product_query_(bool direct_probe);
@@ -159,7 +155,6 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   bool gmt_time_sync_callback_registered_{false};
 #endif
 #ifdef USE_TUYA_LOW_POWER
-  TuyaProtocol protocol_{TuyaProtocol::TUYA_PROTOCOL_STANDARD};
   GPIOPin *mcu_wake_pin_{nullptr};
   TuyaLowPowerSession lp_session_{};
   TuyaLowPowerWireTransactions lp_wire_{};

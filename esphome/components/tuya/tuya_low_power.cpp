@@ -5,6 +5,7 @@
 #include "tuya_uart.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 
 #include "esphome/core/application.h"
@@ -16,7 +17,7 @@
 
 namespace esphome::tuya {
 
-static const char *const LP_TAG = "tuya.low_power";
+ESPHOME_LOG_TAG(LP_TAG, "tuya.low_power");
 // A version-3 MCU (firmware 1.0.9) reports changes made at the device only when asked.
 static constexpr uint32_t LP_V3_STATUS_POLL_MS = 60000;
 static constexpr uint32_t LP_COMMAND_DELAY_MS = 10;
@@ -43,13 +44,11 @@ static constexpr uint32_t LP_NETWORK_STATUS_INTERVAL_ID = 1;
 // sent, because the version is only known from the product info.
 static constexpr auto LP_WRITE_CMD = static_cast<TuyaCommandType>(0x09);
 static bool is_low_power_write(const TuyaCommand &command) { return command.cmd == LP_WRITE_CMD; }
+// The network state (CMD02), queued so it does not cross a write
+static constexpr auto LP_NETWORK_CMD = static_cast<TuyaCommandType>(0x02);
 
 void TuyaUART::setup_low_power_() {
   this->init_state_ = TuyaInitState::INIT_PRODUCT;
-  if (this->parent_ == nullptr) {
-    this->mark_failed(LOG_STR("MCU UART missing"));
-    return;
-  }
   if (this->mcu_wake_pin_ != nullptr) {
     this->mcu_wake_pin_->setup();
     this->mcu_wake_pin_->digital_write(false);  // Inactive logical level.
@@ -145,7 +144,7 @@ void TuyaUART::send_low_power_raw_command_(const TuyaCommand &command) {
   if (cmd == 0x09)
     this->lp_session_.begin_write(now);
   ESP_LOGV(LP_TAG, "Sending MCU CMD=0x%02X len=%u", cmd, static_cast<unsigned>(command.payload.size()));
-  this->send_low_power_direct_(cmd, command.payload);
+  this->send_low_power_direct_(cmd, command.payload.data(), command.payload.size());
 }
 
 void TuyaUART::send_low_power_datapoint_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint8_t *data,
@@ -300,22 +299,22 @@ void TuyaUART::process_low_power_queue_() {
     command.cmd = static_cast<TuyaCommandType>(0x06);
   // A partial frame kept by an idle flush must not merge into the reply
   this->reader_.drop_kept();
-  this->send_raw_command_(command);
+  this->send_low_power_raw_command_(command);
 }
 
 // Sends one frame right away, outside the queue: ACKs and time replies must not wait behind a write.
-void TuyaUART::send_low_power_direct_(uint8_t command, const std::vector<uint8_t> &payload) {
-  if (payload.size() > 65535)
+void TuyaUART::send_low_power_direct_(uint8_t command, const uint8_t *data, size_t len) {
+  if (len > 65535)
     return;
   // A partial frame kept by an idle flush must not merge into the reply
   this->reader_.drop_kept();
   const uint8_t header[] = {
-      0x55, 0xAA, 0x00, command, static_cast<uint8_t>(payload.size() >> 8), static_cast<uint8_t>(payload.size()),
+      0x55, 0xAA, 0x00, command, static_cast<uint8_t>(len >> 8), static_cast<uint8_t>(len),
   };
-  const uint8_t checksum = sum_bytes(header, sizeof(header)) + sum_bytes(payload.data(), payload.size());
+  const uint8_t checksum = sum_bytes(header, sizeof(header)) + sum_bytes(data, len);
   this->write_array(header, sizeof(header));
-  if (!payload.empty())
-    this->write_array(payload.data(), payload.size());
+  if (len != 0)
+    this->write_array(data, len);
   this->write_byte(checksum);
 }
 
@@ -339,12 +338,19 @@ void TuyaUART::send_low_power_network_() {
     return;
   }
   this->lp_session_.reset_status();
-  this->send_command_({.cmd = static_cast<TuyaCommandType>(0x02), .payload = {status}});
+  // Only the latest network state matters: one still queued is updated in place, keeping the order on the wire
+  for (auto &queued : this->command_queue_) {
+    if (queued.cmd == LP_NETWORK_CMD) {
+      queued.payload[0] = status;
+      return;
+    }
+  }
+  this->send_command_({.cmd = LP_NETWORK_CMD, .payload = {status}});
 }
 
 void TuyaUART::send_low_power_time_(uint8_t command) {
   // Local calendar time (version 0: CMD06, version 3: CMD1C).
-  std::vector<uint8_t> payload(8, 0);
+  std::array<uint8_t, 8> payload{};
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
     const auto now = this->time_id_->now();
@@ -368,7 +374,7 @@ void TuyaUART::send_low_power_time_(uint8_t command) {
   } else {
     ESP_LOGD(LP_TAG, "Sending local time to the MCU (CMD%02X)", command);
   }
-  this->send_low_power_direct_(command, payload);
+  this->send_low_power_direct_(command, payload.data(), payload.size());
 }
 
 void TuyaUART::finish_low_power_sync_() {
