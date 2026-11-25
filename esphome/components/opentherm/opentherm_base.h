@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -16,7 +17,6 @@ enum OperationMode {
   RECEIVED = 3,  // data frame received with valid start and stop bit
 
   WRITE = 4,  // writing data to output
-  SENT = 5,   // all data written to output
 
   ERROR_PROTOCOL = 8,  // protocol error, can happen only during READ
   ERROR_TIMEOUT = 9,   // timeout while waiting for response from device, only during LISTEN
@@ -29,6 +29,7 @@ enum ProtocolErrorType {
   INVALID_STOP_BIT = 2,    // Stop bit wasn't present when expected
   PARITY_ERROR = 3,        // Parity check didn't pass
   NO_CHANGE_TOO_LONG = 4,  // No level change for too much timer ticks
+  INVALID_START_BIT = 5,   // Start bit wasn't present when expected
 };
 
 enum TimerErrorType {
@@ -219,11 +220,18 @@ class OpenThermBase {
   /// Configures the pins and brings up the transport.
   bool initialize();
 
-  /// Waits for a response. has_message() reports a decoded one, is_error() a failure.
-  void listen();
-
-  /// Sends a request. Poll is_active() until is_sent() or an error is reported.
+  /// Sends a request. The transport moves the conversation to listening when the last bit has left the line; call
+  /// listen() from then on, until an answer or an error arrives.
   void send(OpenthermData &data);
+
+  /// Called by the transport the moment the last bit has left the line: the conversation goes straight from writing
+  /// to listening, with nothing of the protocol left to do in between.
+  /// @return true when a request had finished, false when the completion was not the end of one
+  bool transmitted();
+
+  /// Arms the receiver for the answer. The state machine calls it from the listening state; whether that is a
+  /// repeat is the transport's business, since it knows whether it is already armed.
+  void listen() { this->listen_impl_(); }
 
   /// Aborts whatever is in progress and drives the line to its idle level.
   void stop();
@@ -247,12 +255,29 @@ class OpenThermBase {
   bool is_protocol_error() { return this->mode_ == OperationMode::ERROR_PROTOCOL; }
   bool is_timer_error() { return this->mode_ == OperationMode::ERROR_TIMER; }
   bool is_idle() { return this->mode_ == OperationMode::IDLE; }
-  bool is_sent() { return this->mode_ == OperationMode::SENT; }
   bool is_active() {
     return this->mode_ == OperationMode::LISTEN || this->mode_ == OperationMode::READ ||
            this->mode_ == OperationMode::WRITE;
   }
   OperationMode get_mode() { return this->mode_; }
+
+  // A bit is 1 ms. Manchester puts the value in the right half and its inverse in the left, so a frame is 34 bits
+  // of two halves each.
+  static constexpr uint32_t HALF_BIT_US = 500;
+  static constexpr size_t FRAME_BITS = 34;
+  static constexpr uint32_t FRAME_US = FRAME_BITS * 2 * HALF_BIT_US;
+  static constexpr uint32_t REQUEST_MS = FRAME_US / 1000;
+  // The longest pause allowed inside a frame. A capture also closes this long after the last edge.
+  static constexpr uint32_t FRAME_IDLE_US = 10000;
+
+  /// Milliseconds from the start of a request until the response is overdue. The response time in the protocol
+  /// covers the start of the reply alone, so the reply frame and the gap that closes it still have to fit after it.
+  uint32_t response_deadline_ms() const {
+    return REQUEST_MS + static_cast<uint32_t>(this->device_timeout_) + (FRAME_US + FRAME_IDLE_US) / 1000u;
+  }
+
+  /// Marks the wait for a response as timed out. The component owns the clock and calls this when the deadline passes.
+  void timeout() { this->mode_ = OperationMode::ERROR_TIMEOUT; }
 
   void debug_data(OpenthermData &data);
   void debug_error(OpenThermError &error) const;
@@ -274,6 +299,22 @@ class OpenThermBase {
   virtual void loop_impl_() = 0;
 
   static bool check_parity_(uint32_t val);
+
+  // Both edges of a pulse shorter than this are noise; the shortest real half bit is 500 us.
+  static constexpr uint32_t GLITCH_MAX_US = 50;
+  // Consecutive bit transitions are one bit apart, so anything closer is the boundary transition and is skipped.
+  static constexpr uint32_t BIT_GAP_MIN_US = 750;
+
+  /// Level of one half of a bit. Bit 0 is the start bit and bit 33 the stop bit; half 0 is the left half, which
+  /// carries the inverse of the value.
+  static bool half_bit_level_(uint32_t data, uint8_t bit, uint8_t half);
+
+  /// Reads a frame from its edges: drops noise, then takes 34 bits and validates the frame.
+  static ProtocolErrorType decode_edges_(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
+                                         uint8_t *bit_pos);
+
+  /// What a complete frame has to satisfy: it opens and closes with a 1 and carries even parity.
+  static ProtocolErrorType check_frame_(uint32_t data, bool start_bit, bool stop_bit);
 
   InternalGPIOPin *in_pin_;
   InternalGPIOPin *out_pin_;

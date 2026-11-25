@@ -30,11 +30,14 @@ bool OpenThermBase::initialize() {
   return this->initialize_impl_();
 }
 
-void OpenThermBase::listen() {
+bool IRAM_ATTR OpenThermBase::transmitted() {
+  if (this->mode_ != OperationMode::WRITE) {
+    return false;  // Not the end of a request: the idle level was written, or the request was abandoned.
+  }
   this->mode_ = OperationMode::LISTEN;
   this->data_ = 0;
   this->bit_pos_ = 0;
-  this->listen_impl_();
+  return true;
 }
 
 void OpenThermBase::send(OpenthermData &data) {
@@ -91,6 +94,86 @@ bool IRAM_ATTR OpenThermBase::check_parity_(uint32_t val) {
   return (~val) & 1;
 }
 
+bool IRAM_ATTR OpenThermBase::half_bit_level_(uint32_t data, uint8_t bit, uint8_t half) {
+  // The start and stop bits are 1; the data bits follow the start bit, most significant first.
+  const bool value = (bit == 0 || bit == FRAME_BITS - 1) ? true : read_bit(data, FRAME_BITS - 2 - bit);
+  return half == 0 ? !value : value;
+}
+
+ProtocolErrorType IRAM_ATTR OpenThermBase::check_frame_(uint32_t data, bool start_bit, bool stop_bit) {
+  if (!start_bit) {
+    return ProtocolErrorType::INVALID_START_BIT;
+  }
+  if (!stop_bit) {
+    return ProtocolErrorType::INVALID_STOP_BIT;
+  }
+  if (!check_parity_(data)) {
+    return ProtocolErrorType::PARITY_ERROR;
+  }
+  return ProtocolErrorType::NO_ERROR;
+}
+
+ProtocolErrorType OpenThermBase::decode_edges_(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
+                                               uint8_t *bit_pos) {
+  // A pulse shorter than GLITCH_MAX_US is noise. Both of its edges go: the pair leaves the line where it already
+  // was, so removing it keeps the level alternation intact.
+  size_t filtered = 0;
+  for (size_t i = 0; i < *count; i++) {
+    if (i + 1 < *count && edges_us[i + 1] - edges_us[i] < GLITCH_MAX_US) {
+      i++;
+      continue;
+    }
+    edges_us[filtered] = edges_us[i];
+    levels[filtered] = levels[i];
+    filtered++;
+  }
+  *count = filtered;
+
+  if (filtered < 2) {
+    *bit_pos = 0;
+    return ProtocolErrorType::NO_TRANSITION;
+  }
+
+  // Every bit, the start bit included, is one mid-bit transition, and consecutive ones are one bit apart. An edge
+  // closer than BIT_GAP_MIN_US to the previous bit is the optional boundary transition and is skipped.
+  uint32_t reference = edges_us[0];
+  size_t scan = 0;
+  uint32_t value = 0;
+  bool start_bit = false;
+  bool stop_bit = false;
+
+  for (uint8_t bit = 0; bit < FRAME_BITS; bit++) {
+    *bit_pos = bit;
+    if (bit > 0) {
+      const uint32_t low = reference + BIT_GAP_MIN_US;
+      while (scan < filtered && edges_us[scan] <= low) {
+        scan++;
+      }
+      if (scan >= filtered) {
+        return ProtocolErrorType::NO_TRANSITION;
+      }
+      reference = edges_us[scan];
+    }
+
+    // The value is the level held before the transition, which is the right half of the bit.
+    const bool level = (levels[scan] ^ 1) != 0;
+    if (bit == 0) {
+      start_bit = level;
+    } else if (bit == FRAME_BITS - 1) {
+      stop_bit = level;
+    } else {
+      value = (value << 1) | level;
+    }
+    scan++;
+  }
+
+  const ProtocolErrorType error = check_frame_(value, start_bit, stop_bit);
+  if (error == ProtocolErrorType::NO_ERROR) {
+    *data = value;
+  }
+  return error;
+}
+
 #define TO_STRING_MEMBER(name) \
   case name: \
     return #name;
@@ -102,7 +185,6 @@ const char *OpenThermBase::operation_mode_to_str(OperationMode mode) {
     TO_STRING_MEMBER(READ)
     TO_STRING_MEMBER(RECEIVED)
     TO_STRING_MEMBER(WRITE)
-    TO_STRING_MEMBER(SENT)
     TO_STRING_MEMBER(ERROR_PROTOCOL)
     TO_STRING_MEMBER(ERROR_TIMEOUT)
     TO_STRING_MEMBER(ERROR_TIMER)
@@ -117,6 +199,7 @@ const char *OpenThermBase::protocol_error_to_str(ProtocolErrorType error_type) {
     TO_STRING_MEMBER(INVALID_STOP_BIT)
     TO_STRING_MEMBER(PARITY_ERROR)
     TO_STRING_MEMBER(NO_CHANGE_TOO_LONG)
+    TO_STRING_MEMBER(INVALID_START_BIT)
     default:
       return "<INVALID>";
   }

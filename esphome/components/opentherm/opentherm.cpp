@@ -194,18 +194,18 @@ void OpenTherm::write_repeating_messages_(std::vector<MessageId> &target) {  // 
 }
 
 void OpenTherm::loop() {
-  // Decode a finished capture or expire the timeout, outside interrupt context.
+  // Decode an RMT capture first, so the state machine is updated with the latest state
   this->opentherm_->loop();
-#if !(defined(USE_ESP32) && SOC_RMT_SUPPORTED)
-  // Timer transport only: not compiled at all when the RMT transport is in use.
-  if (this->sync_mode_) {
-    this->sync_loop_();
-    return;
-  }
-#endif
 
+  // One pass per call, except in sync mode.
+  do {
+    this->run_state_machine_();
+  } while (this->sync_step_());
+}
+
+void OpenTherm::run_state_machine_() {
   auto cur_time = millis();
-  auto const cur_mode = this->opentherm_->get_mode();
+  const OperationMode cur_mode = this->opentherm_->get_mode();
 
   if (this->handle_error_(cur_mode)) {
     return;
@@ -213,8 +213,17 @@ void OpenTherm::loop() {
 
   switch (cur_mode) {
     case OperationMode::WRITE:
-    case OperationMode::READ:
+      break;
     case OperationMode::LISTEN:
+      // The transport arms its receiver on the first pass after the transmission completed. The answer cannot come
+      // sooner than 20 ms, so the loop is in time and the interrupt path stays free of it.
+      this->opentherm_->listen();
+      [[fallthrough]];
+    case OperationMode::READ:
+      // The response clock lives here, not in the transport: the deadline runs from the start of the request.
+      if (cur_time - this->last_conversation_start_ >= this->opentherm_->response_deadline_ms()) {
+        this->opentherm_->timeout();
+      }
       break;
     case OperationMode::IDLE:
       this->check_timings_(cur_time);
@@ -223,16 +232,32 @@ void OpenTherm::loop() {
       }
       this->start_conversation_();
       break;
-    case OperationMode::SENT:
-      // Message sent, now listen for the response.
-      this->opentherm_->listen();
-      break;
     case OperationMode::RECEIVED:
       this->read_response_();
       break;
     default:
       break;
   }
+}
+
+bool OpenTherm::sync_step_() {
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
+  return false;  // Sync mode does not exist on the RMT transport.
+#else
+  if (!this->sync_mode_ || this->opentherm_->is_idle()) {
+    return false;
+  }
+  if (!this->opentherm_->is_active()) {
+    return true;  // The stage already advanced; run the machine again.
+  }
+  // The transport advances in its interrupts, so wait for the stage to finish, within the response deadline.
+  const uint32_t deadline = this->opentherm_->response_deadline_ms();
+  const uint32_t elapsed = millis() - this->last_conversation_start_;
+  if (!this->opentherm_->wait_until_done(elapsed < deadline ? deadline - elapsed : 0)) {
+    this->opentherm_->timeout();
+  }
+  return true;
+#endif
 }
 
 bool OpenTherm::handle_error_(OperationMode mode) {
@@ -253,73 +278,6 @@ bool OpenTherm::handle_error_(OperationMode mode) {
       return false;
   }
 }
-
-#if !(defined(USE_ESP32) && SOC_RMT_SUPPORTED)
-void OpenTherm::sync_loop_() {
-  if (!this->opentherm_->is_idle()) {
-    ESP_LOGE(TAG, "OpenTherm is not idle at the start of the loop");
-    return;
-  }
-
-  auto cur_time = millis();
-
-  this->check_timings_(cur_time);
-
-  if (this->should_skip_loop_(cur_time)) {
-    return;
-  }
-
-  this->start_conversation_();
-  // There may be a timer error at this point
-  if (this->handle_error_(this->opentherm_->get_mode())) {
-    return;
-  }
-
-  // Wait for the message to be sent.
-  if (!this->opentherm_->wait_until_done(1150)) {
-    ESP_LOGE(TAG, "Hub timeout triggered during send");
-    this->stop_opentherm_();
-    return;
-  }
-
-  // Check for errors and ensure we are in the right state (message sent successfully)
-  if (this->handle_error_(this->opentherm_->get_mode())) {
-    return;
-  } else if (!this->opentherm_->is_sent()) {
-    ESP_LOGW(TAG, "Unexpected state after sending request: %s",
-             this->opentherm_->operation_mode_to_str(this->opentherm_->get_mode()));
-    this->stop_opentherm_();
-    return;
-  }
-
-  // Listen for the response
-  this->opentherm_->listen();
-  // There may be a timer error at this point
-  if (this->handle_error_(this->opentherm_->get_mode())) {
-    return;
-  }
-
-  // Wait while the response is being received
-  if (!this->opentherm_->wait_until_done(1150)) {
-    ESP_LOGE(TAG, "Hub timeout triggered during receive");
-    this->stop_opentherm_();
-    return;
-  }
-
-  // Check for errors and ensure we are in the right state (message received successfully)
-  if (this->handle_error_(this->opentherm_->get_mode())) {
-    return;
-  } else if (!this->opentherm_->has_message()) {
-    ESP_LOGW(TAG, "Unexpected state after receiving response: %s",
-             this->opentherm_->operation_mode_to_str(this->opentherm_->get_mode()));
-    this->stop_opentherm_();
-    return;
-  }
-
-  this->read_response_();
-}
-
-#endif  // !(USE_ESP32 && SOC_RMT_SUPPORTED)
 
 void OpenTherm::check_timings_(uint32_t cur_time) {
   if (this->last_conversation_start_ > 0 && (cur_time - this->last_conversation_start_) > 1150) {

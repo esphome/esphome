@@ -25,8 +25,10 @@ bool IRAM_ATTR HOT OpenThermRMT::rx_done_isr(rmt_channel_handle_t channel, const
 bool IRAM_ATTR HOT OpenThermRMT::tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *edata,
                                              void *user_ctx) {
   auto *arg = static_cast<OpenThermRMT *>(user_ctx);
-  // All data written to the line; the hub moves on to listening when it sees this.
-  arg->mode_ = OperationMode::SENT;
+  if (!arg->transmitted()) {
+    return false;  // Not the end of a request: the idle level was written, or the request was abandoned.
+  }
+  // The conversation is listening from here, and the loop arms the capture on its next pass.
   BaseType_t task_woken = pdFALSE;
   wake_loop_isrsafe(&task_woken);
   return task_woken != pdFALSE;
@@ -68,6 +70,15 @@ bool OpenThermRMT::init_rx_() {
     ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
     return false;
   }
+
+  // The glitch filter counts ticks of the RMT clock source in an 8 bit register, so 255 ticks is the ceiling -
+  // about 3.2 us at 80 MHz. Ask for the maximum, which is as much immunity as the peripheral offers.
+  uint32_t clock_hz = 80000000;
+  esp_clk_tree_src_get_freq_hz((soc_module_clk_t) RMT_CLK_SRC_DEFAULT, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
+                               &clock_hz);
+  memset(&this->rx_config_, 0, sizeof(this->rx_config_));
+  this->rx_config_.signal_range_min_ns = UINT8_MAX * 1000u / (clock_hz / 1000000u);
+  this->rx_config_.signal_range_max_ns = FRAME_IDLE_US * 1000;
   return true;
 }
 
@@ -84,10 +95,28 @@ bool OpenThermRMT::init_tx_() {
   // This inverts the whole output, the end-of-transmission idle level included.
   channel.flags.invert_out = this->out_pin_->is_inverted() ? 1 : 0;
 
+  // Keep the configured electrical mode: the driver would otherwise drive an open-drain line actively high.
+  const bool open_drain = (this->out_pin_->get_flags() & gpio::FLAG_OPEN_DRAIN) != 0;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+  channel.flags.io_loop_back = open_drain;
+  channel.flags.io_od_mode = open_drain;
+#endif
+
   esp_err_t error = rmt_new_tx_channel(&channel, &this->tx_);
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
     return false;
+  }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  if (open_drain) {
+    gpio_od_enable(gpio_num_t(this->out_pin_->get_pin()));
+    gpio_input_enable(gpio_num_t(this->out_pin_->get_pin()));
+  }
+#endif
+  if (this->out_pin_->get_flags() & gpio::FLAG_PULLUP) {
+    gpio_pullup_en(gpio_num_t(this->out_pin_->get_pin()));
+  } else {
+    gpio_pullup_dis(gpio_num_t(this->out_pin_->get_pin()));
   }
 
   rmt_tx_event_callbacks_t callbacks;
@@ -108,13 +137,34 @@ bool OpenThermRMT::init_tx_() {
     return false;
   }
 
+  // The pin is only driven once the channel has transmitted, so put the line at its idle level now.
+  this->write_idle_();
+
   ESP_LOGI(TAG, "RMT on GPIO%u (rx) and GPIO%u (tx), %" PRIu32 " symbols at %" PRIu32 " Hz", this->in_pin_->get_pin(),
            this->out_pin_->get_pin(), this->rmt_symbols_, this->clock_resolution_);
   return true;
 }
 
+void OpenThermRMT::write_idle_() {
+  rmt_symbol_word_t symbol = {
+      .duration0 = 1,
+      .level0 = 1,
+      .duration1 = 0,
+      .level1 = 1,
+  };
+  rmt_transmit_config_t config;
+  memset(&config, 0, sizeof(config));
+  config.flags.eot_level = 1;
+  const esp_err_t error = rmt_transmit(this->tx_, this->encoder_, &symbol, sizeof(symbol), &config);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
+  }
+}
+
 void OpenThermRMT::listen_impl_() {
-  this->listen_start_ = millis();
+  if (this->rx_armed_) {
+    return;  // Already waiting for the answer.
+  }
   this->arm_rx_();
 }
 
@@ -139,8 +189,13 @@ void OpenThermRMT::send_impl_() {
 }
 
 void OpenThermRMT::stop_impl_() {
-  // The conversation is over, so nothing has to be listening until the next request.
   this->disarm_rx_();
+  // A request still on the line is abandoned, and the line is put back to its idle level.
+  if (rmt_tx_wait_all_done(this->tx_, 0) == ESP_ERR_TIMEOUT) {
+    rmt_disable(this->tx_);
+    rmt_enable(this->tx_);
+    this->write_idle_();
+  }
 }
 
 void OpenThermRMT::loop_impl_() {
@@ -148,31 +203,16 @@ void OpenThermRMT::loop_impl_() {
     this->rx_done_ = false;
     this->decode_rx_();
   }
-  // A capture that found nothing is armed again, so the timeout is what ends an unanswered request. The response
-  // time covers the start of the reply alone, so a frame that begins at the limit still has to fit and be closed.
-  constexpr uint32_t REPLY_US = FRAME_BITS * 2 * HALF_BIT_US + RMT_IDLE_US;
-  if (this->mode_ == OperationMode::LISTEN &&
-      millis() - this->listen_start_ >= static_cast<uint32_t>(this->device_timeout_) + REPLY_US / 1000) {
-    this->mode_ = OperationMode::ERROR_TIMEOUT;
-  }
 }
 
 void OpenThermRMT::build_frame_() {
-  size_t index = 0;
-  // Manchester: the left half carries the inverse of the bit, the right half the bit itself.
-  auto add_bit = [&](uint8_t value) {
-    this->tx_symbols_[index].duration0 = this->from_microseconds_(HALF_BIT_US);
-    this->tx_symbols_[index].level0 = !value;
-    this->tx_symbols_[index].duration1 = this->from_microseconds_(HALF_BIT_US);
-    this->tx_symbols_[index].level1 = value;
-    index++;
-  };
-
-  add_bit(1);  // start bit
-  for (int8_t bit = 31; bit >= 0; bit--) {
-    add_bit(read_bit(this->data_, bit));
+  // One symbol per bit: the left half then the right half, each half a half bit long.
+  for (uint8_t bit = 0; bit < FRAME_BITS; bit++) {
+    this->tx_symbols_[bit].duration0 = this->from_microseconds_(HALF_BIT_US);
+    this->tx_symbols_[bit].level0 = half_bit_level_(this->data_, bit, 0);
+    this->tx_symbols_[bit].duration1 = this->from_microseconds_(HALF_BIT_US);
+    this->tx_symbols_[bit].level1 = half_bit_level_(this->data_, bit, 1);
   }
-  add_bit(1);  // stop bit
 }
 
 void OpenThermRMT::disarm_rx_() {
@@ -190,16 +230,6 @@ void OpenThermRMT::disarm_rx_() {
 void OpenThermRMT::arm_rx_() {
   this->rx_done_ = false;
   this->symbol_count_ = 0;
-
-  // The glitch filter counts ticks of the RMT clock source in an 8 bit register, so 255 ticks is the ceiling -
-  // about 3.2 us at 80 MHz. Ask for the maximum, which is as much immunity as the peripheral offers.
-  uint32_t clock_hz = 80000000;
-  esp_clk_tree_src_get_freq_hz((soc_module_clk_t) RMT_CLK_SRC_DEFAULT, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
-                               &clock_hz);
-  memset(&this->rx_config_, 0, sizeof(this->rx_config_));
-  this->rx_config_.signal_range_min_ns = UINT8_MAX * 1000u / (clock_hz / 1000000u);
-  this->rx_config_.signal_range_max_ns = RMT_IDLE_US * 1000;
-
   this->rx_armed_ =
       rmt_receive(this->rx_, this->buffer_.data(), this->buffer_.size_bytes(), &this->rx_config_) == ESP_OK;
   if (!this->rx_armed_) {
@@ -208,13 +238,18 @@ void OpenThermRMT::arm_rx_() {
 }
 
 void OpenThermRMT::decode_rx_() {
+  // A capture that completes after the conversation ended must not revive it.
+  if (this->is_idle()) {
+    return;
+  }
   // Rebuild edge timestamps from the recorded durations. Each symbol holds two (duration, level) halves.
   const auto *symbols = reinterpret_cast<const rmt_symbol_word_t *>(this->buffer_.data());
   const uint8_t invert = this->in_pin_->is_inverted() ? 1 : 0;
   size_t count = 0;
   uint32_t ticks = 0;
   int previous = -1;
-  for (size_t i = 0; i < this->symbol_count_ && i < this->buffer_.size(); i++) {
+  bool ended = false;
+  for (size_t i = 0; i < this->symbol_count_ && i < this->buffer_.size() && !ended; i++) {
     const rmt_symbol_word_t &symbol = symbols[i];
     for (uint8_t half = 0; half < 2; half++) {
       const uint32_t duration = half == 0 ? symbol.duration0 : symbol.duration1;
@@ -223,9 +258,9 @@ void OpenThermRMT::decode_rx_() {
         previous = level;  // The level the capture opened on is not a transition.
       } else if (level != previous) {
         const uint32_t edge_us = this->to_microseconds_(ticks);
-        if (count > 0 && edge_us - this->edge_us_[count - 1] < GLITCH_MAX_US) {
-          count--;  // The pulse is noise, so both of its edges go.
-        } else if (count < RMT_MAX_EDGES) {
+        // A pulse that opens the capture has no stored first edge, so its closing edge would be read as the start.
+        const bool opening_noise = count == 0 && edge_us < GLITCH_MAX_US;
+        if (!opening_noise && count < RMT_MAX_EDGES) {
           this->edge_us_[count] = edge_us;
           this->edge_level_[count] = level ^ invert;
           count++;
@@ -233,7 +268,9 @@ void OpenThermRMT::decode_rx_() {
         previous = level;
       }
       if (duration == 0) {
-        break;  // End of capture. The transition above still counts: the driver ends the capture on it.
+        // End of capture. The transition above still counts: the driver ends the capture on it.
+        ended = true;
+        break;
       }
       ticks += duration;
     }
@@ -247,7 +284,7 @@ void OpenThermRMT::decode_rx_() {
 
   uint32_t data = 0;
   uint8_t position = 0;
-  const ProtocolErrorType error = decode_edges_(this->edge_us_, this->edge_level_, count, &data, &position);
+  const ProtocolErrorType error = decode_edges_(this->edge_us_, this->edge_level_, &count, &data, &position);
 
   this->bit_pos_ = position;
   if (error == ProtocolErrorType::NO_ERROR) {
@@ -258,58 +295,6 @@ void OpenThermRMT::decode_rx_() {
     this->capture_ = 0;
     this->mode_ = OperationMode::ERROR_PROTOCOL;
   }
-}
-
-ProtocolErrorType OpenThermRMT::decode_edges_(const uint32_t *edges_us, const uint8_t *levels, uint8_t count,
-                                              uint32_t *data, uint8_t *bit_pos) {
-  if (count < 2) {
-    *bit_pos = 0;
-    return ProtocolErrorType::NO_TRANSITION;
-  }
-
-  // Every bit, the start bit included, is one mid-bit transition, and consecutive ones are one bit apart. An edge
-  // closer than 750 µs to the previous bit is the optional boundary transition and is skipped, so the frame is simply
-  // 34 bits long and the start and stop bits are the first and last of them.
-  constexpr uint32_t BIT_GAP_MIN_US = 750;
-
-  uint32_t reference = edges_us[0];
-  uint8_t scan = 0;
-  uint32_t value = 0;
-
-  for (uint8_t bit = 0; bit < 34; bit++) {
-    *bit_pos = bit;
-    if (bit > 0) {
-      const uint32_t low = reference + BIT_GAP_MIN_US;
-      while (scan < count && edges_us[scan] <= low) {
-        scan++;
-      }
-      if (scan >= count) {
-        return ProtocolErrorType::NO_TRANSITION;
-      }
-      reference = edges_us[scan];
-    }
-
-    // The value is the level held before the transition, which is the right half of the bit.
-    const uint8_t level = levels[scan] ^ 1;
-    if (bit == 0 && level != 1) {
-      return ProtocolErrorType::NO_TRANSITION;  // A response opens with the start bit.
-    }
-    if (bit >= 1 && bit <= 32) {
-      value = (value << 1) | level;
-    }
-    if (bit == BitPositions::STOP_BIT && level != 1) {
-      return ProtocolErrorType::INVALID_STOP_BIT;
-    }
-    scan++;
-  }
-
-  // The frame carries one parity bit over the whole 32-bit word.
-  if (!OpenThermBase::check_parity_(value)) {
-    return ProtocolErrorType::PARITY_ERROR;
-  }
-
-  *data = value;
-  return ProtocolErrorType::NO_ERROR;
 }
 
 }  // namespace esphome::opentherm

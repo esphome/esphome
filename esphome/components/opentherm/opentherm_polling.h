@@ -25,9 +25,9 @@ class OpenThermPolling : public OpenThermBase {
 
   void report_and_reset_timer_error() override;
 
-  /// Blocks while the transport is busy, or until the timeout expires. Only usable here: sampling and bit flipping
-  /// advance from interrupts, so nothing else has to run for a conversation to complete.
-  /// @return true when the transport finished, false on timeout
+  /// Blocks while the transport stays in its current stage, or until the timeout expires. Only usable here: sampling
+  /// and bit flipping advance from interrupts, so nothing else has to run for a conversation to complete.
+  /// @return true when the stage ended, false on timeout
   bool wait_until_done(uint32_t timeout);
 
 #ifdef USE_ESP32
@@ -49,8 +49,7 @@ class OpenThermPolling : public OpenThermBase {
 
   void read_();  // data detected, start reading
   void bit_read_(uint8_t value);
-  ProtocolErrorType verify_stop_bit_(uint8_t value);
-  void write_bit_(uint8_t high, uint8_t clock);
+  void write_half_bit_(uint8_t bit, uint8_t half);
 
   // 5 kHz timer_ to sample at 1/5 of manchester code bit length
   void start_read_timer_();
@@ -72,7 +71,8 @@ class OpenThermPolling : public OpenThermBase {
   TimerErrorType timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
 #endif
 
-  int32_t timeout_counter_{-1};  // <0 no timeout
+  // The read timer is running for this conversation's answer.
+  bool listening_{false};
 
 #ifdef ESP8266
   // ESP8266 timer can accept callback with no parameters, so we have this hack to save a static instance of

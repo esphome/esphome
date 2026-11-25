@@ -25,26 +25,33 @@ bool OpenThermPolling::initialize_impl_() {
 }
 
 void OpenThermPolling::listen_impl_() {
+  if (this->listening_) {
+    return;  // Already sampling for the answer.
+  }
+  this->listening_ = true;
   this->stop_timer_();
-  this->timeout_counter_ = this->device_timeout_ * 5;  // timer_ ticks at 5 ticks/ms
   this->start_read_timer_();
 }
 
 void OpenThermPolling::send_impl_() {
+  this->listening_ = false;
   this->stop_timer_();
   this->start_write_timer_();
 }
 
 void OpenThermPolling::stop_impl_() {
+  this->listening_ = false;
   this->stop_timer_();
   this->out_pin_->digital_write(true);
 }
 
 bool OpenThermPolling::wait_until_done(uint32_t timeout) {
   // Progress comes from the sampling and bit-flipping interrupts, so this only has to wait. Servicing the loop here
-  // would not advance anything, and not running other components is the whole point of the sync mode.
+  // would not advance anything, and not running other components is the whole point of the sync mode. Stop when the
+  // stage ends: between transmitting and listening the receiver still has to be armed from the loop.
+  const OperationMode stage = this->mode_;
   auto const start_time = millis();
-  while (this->is_active()) {
+  while (this->mode_ == stage) {
     yield();
     if (millis() - start_time >= timeout) {
       return false;
@@ -71,17 +78,9 @@ bool IRAM_ATTR OpenThermPolling::timer_isr(gptimer_handle_t timer, const gptimer
 bool IRAM_ATTR OpenThermPolling::timer_isr(OpenThermPolling *arg) {
 #endif
   if (arg->mode_ == OperationMode::LISTEN) {
-    if (arg->timeout_counter_ == 0) {
-      arg->mode_ = OperationMode::ERROR_TIMEOUT;
-      arg->stop_timer_();
-      return false;
-    }
     bool const value = arg->isr_in_pin_.digital_read();
     if (value) {  // incoming data (rising signal)
       arg->read_();
-    }
-    if (arg->timeout_counter_ > 0) {
-      arg->timeout_counter_--;
     }
   } else if (arg->mode_ == OperationMode::READ) {
     bool const value = arg->isr_in_pin_.digital_read();
@@ -98,7 +97,7 @@ bool IRAM_ATTR OpenThermPolling::timer_isr(OpenThermPolling *arg) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
         if (arg->bit_pos_ == BitPositions::STOP_BIT) {
           // expecting stop bit
-          auto stop_bit_error = arg->verify_stop_bit_(last);
+          auto stop_bit_error = arg->check_frame_(arg->data_, true, last != 0);
           if (stop_bit_error == ProtocolErrorType::NO_ERROR) {
             arg->mode_ = OperationMode::RECEIVED;
             arg->stop_timer_();
@@ -129,21 +128,16 @@ bool IRAM_ATTR OpenThermPolling::timer_isr(OpenThermPolling *arg) {
     }
     arg->capture_ = (arg->capture_ << 1) | value;
   } else if (arg->mode_ == OperationMode::WRITE) {
-    // write data to pin
-    if (arg->bit_pos_ == 33 || arg->bit_pos_ == 0) {  // start bit
-      arg->write_bit_(1, arg->clock_);
-    } else {  // data bits
-      arg->write_bit_(read_bit(arg->data_, arg->bit_pos_ - 1), arg->clock_);
-    }
-    if (arg->clock_ == 0) {
-      if (arg->bit_pos_ <= 0) {            // check termination
-        arg->mode_ = OperationMode::SENT;  // all data written
-        arg->stop_timer_();
-      }
-      arg->bit_pos_--;
+    // bit_pos_ counts the frame down from the start bit at 33 to the stop bit at 0; clock_ 1 is the left half.
+    arg->write_half_bit_(FRAME_BITS - 1 - arg->bit_pos_, arg->clock_ == 1 ? 0 : 1);
+    if (arg->clock_ == 1) {
+      arg->clock_ = 0;  // the right half of this bit comes next
+    } else if (arg->bit_pos_ > 0) {
+      arg->bit_pos_--;  // this bit is complete
       arg->clock_ = 1;
     } else {
-      arg->clock_ = 0;
+      // Right half of the stop bit: the request is on the line and the conversation moves to listening.
+      arg->transmitted();
     }
   }
 
@@ -159,20 +153,8 @@ void IRAM_ATTR OpenThermPolling::bit_read_(uint8_t value) {
   this->bit_pos_++;
 }
 
-ProtocolErrorType IRAM_ATTR OpenThermPolling::verify_stop_bit_(uint8_t value) {
-  if (value) {  // stop bit detected
-    return check_parity_(this->data_) ? ProtocolErrorType::NO_ERROR : ProtocolErrorType::PARITY_ERROR;
-  } else {  // no stop bit detected, error
-    return ProtocolErrorType::INVALID_STOP_BIT;
-  }
-}
-
-void IRAM_ATTR OpenThermPolling::write_bit_(uint8_t high, uint8_t clock) {
-  if (clock == 1) {                           // left part of manchester encoding
-    this->isr_out_pin_.digital_write(!high);  // low means logical 1 to protocol
-  } else {                                    // right part of manchester encoding
-    this->isr_out_pin_.digital_write(high);   // high means logical 0 to protocol
-  }
+void IRAM_ATTR OpenThermPolling::write_half_bit_(uint8_t bit, uint8_t half) {
+  this->isr_out_pin_.digital_write(half_bit_level_(this->data_, bit, half));
 }
 
 #ifdef USE_ESP32

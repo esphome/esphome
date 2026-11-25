@@ -111,10 +111,10 @@ class OpenTherm final : public Component {
   void read_response_();
   void check_timings_(uint32_t cur_time);
   bool should_skip_loop_(uint32_t cur_time) const;
-#if !(defined(USE_ESP32) && SOC_RMT_SUPPORTED)
-  // Runs a whole conversation inline so no other component can disable interrupts in the middle of a frame.
-  void sync_loop_();
-#endif
+  /// One pass of the conversation state machine.
+  void run_state_machine_();
+  /// Whether the state machine should run again in this call: only sync mode does, and only until the stage ends.
+  bool sync_step_();
 
   void write_initial_messages_(std::vector<MessageId> &target);
   void write_repeating_messages_(std::vector<MessageId> &target);
