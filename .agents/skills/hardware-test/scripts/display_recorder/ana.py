@@ -17,6 +17,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from lognorm import normalize  # noqa: E402
 
 cap, variant, plat = sys.argv[1:4]
+if variant not in ("base", "pr29", "pr26", "combo"):
+    sys.exit(f"unknown VARIANT {variant}")
 PR29 = variant in ("pr29", "combo")
 PR26 = variant in ("pr26", "combo")
 E8 = plat == "e8"

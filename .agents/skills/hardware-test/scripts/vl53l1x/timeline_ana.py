@@ -35,7 +35,10 @@ for line in (
         if k == "P":
             events.append((k, ms, v))
         else:
-            v = float(v.split()[0])
+            try:
+                v = float(v.split()[0])
+            except (IndexError, ValueError):  # line cut by the serial log
+                continue
             events.append((k, ms, v))
             nr += k == "R"
             nvalid += k == "R" and not math.isnan(v)
@@ -122,3 +125,5 @@ if vr:
     print(
         f"range mean {statistics.mean(vr):.4f} sd {statistics.pstdev(vr) * 1000:.1f} mm min {min(vr)} max {max(vr)}"
     )
+if bad or not nvalid or not ns:
+    sys.exit(f"FAIL: problems {len(bad)}, valid ranges {nvalid}, speeds {ns}")

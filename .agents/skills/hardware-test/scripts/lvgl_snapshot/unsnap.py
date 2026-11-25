@@ -10,13 +10,18 @@ import sys
 from PIL import Image
 
 log, pre = sys.argv[1], sys.argv[2]
-cur = None
+cur, bad = None, 0
 for line in (
     pathlib.Path(log).read_text(encoding="utf-8", errors="replace").splitlines()
 ):
     m = re.search(r"SNAPBEGIN tag=(\d+) w=(\d+) h=(\d+)", line)
-    if m:
-        cur = {"tag": int(m[1]), "w": int(m[2]), "h": int(m[3]), "lines": {}}
+    if m or "SNAPFAIL" in line:
+        if cur:
+            print(f"tag {cur['tag']} INCOMPLETE, no SNAPEND")
+        if not m:
+            print(line.strip())
+        bad += bool(cur) + (not m)
+        cur = m and {"tag": int(m[1]), "w": int(m[2]), "h": int(m[3]), "lines": {}}
         continue
     m = re.search(r"SNAP (\d+) (\d+) (\d+) ([0-9a-f]+)", line)
     if m and cur and int(m[1]) == cur["tag"]:
@@ -42,6 +47,7 @@ for line in (
         del data[w * hh :]
         got = len(covered)
         ok = got == w * hh and over == 0 and (s & 0xFFFFFFFF) == int(m[4])
+        bad += not ok
         img = Image.new("RGB", (w, hh))
         img.putdata(data)
         img = img.resize((w * 2, hh * 2), Image.NEAREST)
@@ -60,3 +66,6 @@ for line in (
             missing[:10],
         )
         cur = None
+if cur:
+    print(f"tag {cur['tag']} INCOMPLETE, log ends before SNAPEND")
+sys.exit(1 if bad or cur else 0)
