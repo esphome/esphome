@@ -14,7 +14,6 @@ wifi:
 mqtt:
   id: mqtt_client
   broker: "some.bro.ker"
-  port: 8883
   username: "mqtt_user"
   password: "mqtt_pass"
   log_topic: null

@@ -369,7 +369,8 @@ def _derive_tls(config: ConfigType) -> ConfigType:
             "transport 'ws' is unencrypted; remove the TLS options "
             "or switch to transport 'wss'"
         )
-    config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
+    tls = config.get(CONF_TLS) or CONF_SSL_FINGERPRINTS in config
+    config.setdefault(CONF_PORT, 8883 if tls else 1883)
     return config
 
 
@@ -386,22 +387,12 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_fingerprint(value: object) -> list[HexInt]:
+def validate_fingerprint(value: object) -> str:
+    """Return the SHA1 fingerprint as 40 lowercase hex digits without colons."""
     fingerprint = cv.string(value).strip()
     if _SHA1_FINGERPRINT_RE.fullmatch(fingerprint) is None:
         raise cv.Invalid("fingerprint must be a SHA1 hash with 40 hexadecimal digits")
-    fingerprint_bytes = fingerprint.replace(":", "")
-    return [
-        HexInt(int(fingerprint_bytes[index : index + 2], 16))
-        for index in range(0, len(fingerprint_bytes), 2)
-    ]
-
-
-def validate_ssl_fingerprints(value: object) -> list[list[HexInt]]:
-    fingerprints = cv.ensure_list(validate_fingerprint)(value)
-    if len(fingerprints) != 1:
-        raise cv.Invalid("ESP8266 MQTT TLS supports exactly one fingerprint")
-    return fingerprints
+    return fingerprint.replace(":", "").lower()
 
 
 # The parsed JSON document is freed once the automation returns
@@ -486,7 +477,13 @@ CONFIG_SCHEMA = cv.All(
                 validate_message_just_topic,
             ),
             cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
-                cv.only_on_esp8266, validate_ssl_fingerprints
+                cv.only_on_esp8266,
+                cv.ensure_list(validate_fingerprint),
+                cv.Length(
+                    min=1,
+                    max=1,
+                    msg="ESP8266 MQTT TLS supports exactly one fingerprint",
+                ),
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -815,8 +812,10 @@ async def to_code(config):
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
 
-    if CONF_SSL_FINGERPRINTS in config:
-        cg.add(var.set_ssl_fingerprint(config[CONF_SSL_FINGERPRINTS][0]))
+    if fingerprints := config.get(CONF_SSL_FINGERPRINTS):
+        cg.add(
+            var.set_ssl_fingerprint([HexInt(b) for b in bytes.fromhex(fingerprints[0])])
+        )
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 
     # The client queues subscriptions until it connects, so they can be made at construction.

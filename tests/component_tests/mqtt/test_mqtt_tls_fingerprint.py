@@ -9,7 +9,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.const import CONF_SSL_FINGERPRINTS
-from esphome.const import PlatformFramework
+from esphome.const import CONF_PORT, PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -22,7 +22,7 @@ ESP8266_ESP_ASYNC_TCP_VERSION = "2.1.2"
 def test_mqtt_esp8266_tls_fingerprint_validation(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """Test ESP8266 MQTT parses valid TLS fingerprints into bytes."""
+    """Test ESP8266 MQTT normalises a TLS fingerprint and defaults to port 8883."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     CORE.name = "test-mqtt"
 
@@ -37,30 +37,30 @@ def test_mqtt_esp8266_tls_fingerprint_validation(
         }
     )
 
-    assert config[CONF_SSL_FINGERPRINTS] == [
-        [
-            0x00,
-            0x11,
-            0x22,
-            0x33,
-            0x44,
-            0x55,
-            0x66,
-            0x77,
-            0x88,
-            0x99,
-            0xAA,
-            0xBB,
-            0xCC,
-            0xDD,
-            0xEE,
-            0xFF,
-            0x00,
-            0x11,
-            0x22,
-            0x33,
-        ],
-    ]
+    assert config[CONF_SSL_FINGERPRINTS] == ["00112233445566778899aabbccddeeff00112233"]
+    # Fingerprint TLS picks the TLS port when none is given
+    assert config[CONF_PORT] == 8883
+
+
+def test_mqtt_esp8266_tls_fingerprint_keeps_explicit_port(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Test an explicit port is kept when a TLS fingerprint is set."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    CORE.name = "test-mqtt"
+
+    from esphome.components.mqtt import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA(
+        {
+            "broker": "mqtt.example.test",
+            CONF_PORT: 1884,
+            CONF_SSL_FINGERPRINTS: "00112233445566778899aabbccddeeff00112233",
+        }
+    )
+
+    assert config[CONF_PORT] == 1884
+    assert config[CONF_SSL_FINGERPRINTS] == ["00112233445566778899aabbccddeeff00112233"]
 
 
 def test_mqtt_esp8266_tls_fingerprint_rejects_invalid_value(
