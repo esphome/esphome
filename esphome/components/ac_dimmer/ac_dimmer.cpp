@@ -178,12 +178,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
     return;
   }
   this->period = std::max(std::min(a, b), std::min(std::max(a, b), cycle)) / 2;
-  // Locked: the half cycle the edge before this one started counts as running. Its start is the middle of three
-  // estimates, each from one of the last three edges, so one early or late edge does not move it.
-  const uint32_t from_now = this->period;
-  const uint32_t from_last = gap;
-  const uint32_t from_first = gap + static_cast<uint32_t>(last_gap) - this->period;
-  this->zc_at = now - std::max(std::min(from_now, from_last), std::min(std::max(from_now, from_last), from_first));
+  // Locked: the half cycle the edge before this one started counts as running
+  this->zc_at = now - this->period;
   this->taken_err = NO_EDGE_ERR;
   this->misses = 0;
   this->edge_now = true;
@@ -191,7 +187,6 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   this->early_steps = 0;
   this->late_last = false;
   this->late_before = false;
-  this->late_step = false;
   this->phase = ZERO_CROSS_PHASE_LOCKED;
 }
 
@@ -211,8 +206,6 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
       this->taken_err = err;
     return;
   }
-  if (!next && this->edge_next)
-    return;
   if (this->taken_err != NO_EDGE_ERR) {
     // An edge for a later crossing: the earlier crossing's best edge is final
     this->apply_edge_err();
@@ -233,7 +226,6 @@ void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
   const int32_t close = this->period / 32;
   const int32_t err = this->taken_err;
   const bool late = err > close;
-  bool step = false;
   int32_t move = 0;
   if (!late) {
     move = std::max(err, -close);
@@ -247,25 +239,21 @@ void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
     // Early detector pulses moved the timing: the edges after them undo it
     this->early_steps--;
     move = close;
-  } else if (this->late_before && !this->late_last && err <= 2 * close) {
+  } else if (this->late_before && !this->late_last) {
     move = close;
-    step = true;
-  } else if (this->late_step) {
-    // Late again: served late, not an alternating detector
-    this->period -= close / 16;
   }
   this->zc_at += move / 4;
   this->period += move / 16;
   this->late_before = this->late_last;
   this->late_last = late;
-  this->late_step = step;
   this->taken_err = NO_EDGE_ERR;
 }
 
 /// GPIO interrupt routine, called when ZC pin triggers
-void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
-  this->zero_cross_edge(micros());
-#if !defined(USE_ESP8266) && !defined(USE_ESP32)
+void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr([[maybe_unused]] uint32_t now) {
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  this->zero_cross_edge(now);
+#else
   // No dimmer timer on this platform: only fully on and fully off work, switched at the crossing
   if (this->value == 65535) {
     this->gate_pin.digital_write(true);
@@ -318,11 +306,12 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
   // However, the user expects that multiple dimmers sharing the same ZC pin will work.
   // We solve this in a bit of a hacky way: On each pin interrupt, we check all dimmers
   // if any of them are using the same ZC pin, and also trigger the interrupt for *them*.
+  const uint32_t now = micros();
   for (auto *dimmer : all_dimmers) {
     if (dimmer == nullptr)
       break;
     if (dimmer->zero_cross_pin_number == store->zero_cross_pin_number) {
-      dimmer->gpio_intr();
+      dimmer->gpio_intr(now);
     }
   }
 #ifdef USE_ESP8266
@@ -330,6 +319,21 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
   esp8266_timer_in(2);
 #endif
 }
+
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+/// Runs the timer work of every dimmer; returns the µs until the earliest next event, 0 for none
+static uint32_t IRAM_ATTR HOT run_timers(uint32_t now) {
+  uint32_t next = 0;
+  for (auto *dimmer : all_dimmers) {
+    if (dimmer == nullptr)
+      break;
+    const uint32_t res = dimmer->timer_intr(now);
+    if (res != 0 && (next == 0 || res < next))
+      next = res;
+  }
+  return next;
+}
+#endif
 
 #ifdef USE_ESP8266
 // ESP8266: a one-shot maskable interrupt on CCOMPARE0 (timer0), only at the gate events. Not timer1: the waveform
@@ -351,30 +355,15 @@ static void IRAM_ATTR esp8266_timer_in(uint32_t us) { esp8266_timer_at(arch_get_
 static void IRAM_ATTR HOT esp8266_timer_isr() {
   // The returned delays count from here, not from after the handler
   const uint32_t start = arch_get_cpu_cycle_count();
-  const uint32_t now = micros();
-  uint32_t next = IDLE_TIMER_INTERVAL_US;
-  for (auto *dimmer : all_dimmers) {
-    if (dimmer == nullptr)
-      break;
-    const uint32_t res = dimmer->timer_intr(now);
-    if (res != 0 && res < next)
-      next = res;
-  }
-  esp8266_timer_at(start, next);
+  const uint32_t next = run_timers(micros());
+  esp8266_timer_at(start, next != 0 && next < IDLE_TIMER_INTERVAL_US ? next : IDLE_TIMER_INTERVAL_US);
 }
 #endif
 
 #ifdef USE_ESP32
 static HWTimer *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void IRAM_ATTR HOT AcDimmerDataStore::s_timer_intr() {
-  const uint32_t now = micros();
-  for (auto *dimmer : all_dimmers) {
-    if (dimmer == nullptr)
-      break;
-    dimmer->timer_intr(now);
-  }
-}
+void IRAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { run_timers(micros()); }
 #endif
 
 void AcDimmer::setup() {

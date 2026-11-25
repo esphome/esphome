@@ -43,18 +43,16 @@ struct AcDimmerDataStore {
   uint8_t edge_now : 1;
   /// An edge was taken for the crossing at zc_at + period
   uint8_t edge_next : 1;
-  /// Set to send the first half cycle complete
+  /// Set to send the first half cycle complete; written from the main loop, so not in a bit field
   bool init_cycle;
-  /// Dimmer method
-  DimMethod method;
   /// Edges followed by only `close` while far early, each undone by a late edge (capped)
   uint8_t early_steps : 3;
   /// The edge of the last crossing with one was late beyond `close`
   uint8_t late_last : 1;
   /// The same for the crossing with an edge before it
   uint8_t late_before : 1;
-  /// The last edge was a lone late one and counted as `close`
-  uint8_t late_step : 1;
+  /// Dimmer method; set before setup(), so it can share the byte with the interrupt's flags
+  DimMethod method : 2;
 
   /// Timer work at `now`: starts half cycles and drives the gate; returns µs until the next event
   uint32_t timer_intr(uint32_t now);
@@ -71,7 +69,7 @@ struct AcDimmerDataStore {
   /// Sets up the gate events of the half cycle that starts at zc_at
   void start_half_cycle();
 
-  void gpio_intr();
+  void gpio_intr(uint32_t now);
   static void s_gpio_intr(AcDimmerDataStore *store);
 #ifdef USE_ESP32
   static void s_timer_intr();

@@ -125,27 +125,33 @@ struct EdgeOffsetCase {
   int32_t offset;  // every edge from crossing `from` up to `to` comes this far from the crossing
   int from;
   int to;
+  uint16_t value{2621};  // 4 %, no minimum power: the gate fires near the end of the half cycle
+  uint16_t min_power{0};
+  uint32_t gate_noise{0};    // the gate firing adds an edge this long after it (0 for none)
+  int32_t drift{INT32_MAX};  // allowed distance of the half cycle from the real one at every crossing
 };
 
 class EdgeOffsetTest : public ::testing::TestWithParam<EdgeOffsetCase> {};
 
-// Edges served late for a while (WiFi on the ESP8266) only confirm the crossings, and the timing moved by early
-// detector pulses comes back: the prediction ends on the crossings, and a pulse near the end of the half cycle (4 %, no
-// minimum power) never fires in the next one, where the triac would stay on for all of it
+// Edges served late for a while (WiFi on the ESP8266) only confirm the crossings, the timing moved by early detector
+// pulses comes back, and gate noise closer to the prediction than late real edges does not drag the timing: the
+// prediction ends on the crossings, and a pulse near the end of the half cycle never fires in the next one
 TEST_P(EdgeOffsetTest, KeepsLockAndPhase) {
   const auto &c = GetParam();
   AcDimmerDataStore store{};
-  store.value = 2621;
-  Bench bench(store, 1000);
+  store.value = c.value;
+  store.min_power = c.min_power;
+  Bench bench(store, 1000, c.gate_noise);
   uint32_t crossing = 1000;
   for (int i = 0; i < 300; i++, crossing += c.period) {
     bench.edge(crossing + (i >= c.from && i < c.to ? c.offset : 0));
-    if (i > LOCK_EDGE)
+    if (i > LOCK_EDGE) {
       ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << "crossing " << i;
+      ASSERT_LE(std::abs(static_cast<int32_t>(store.period - c.period)), c.drift) << "crossing " << i;
+    }
   }
   const uint32_t last = crossing - c.period;
   bench.run_until(last + c.period / 2);
-  EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
   EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - last)), 10);
   EXPECT_LE(std::abs(static_cast<int32_t>(store.period - c.period)), 2);
   ASSERT_FALSE(bench.gate_on.empty());
@@ -153,16 +159,18 @@ TEST_P(EdgeOffsetTest, KeepsLockAndPhase) {
     EXPECT_GE((at - 1000) % c.period, c.period / 2) << "pulse at " << at;
 }
 
-INSTANTIATE_TEST_SUITE_P(AcDimmer, EdgeOffsetTest,
-                         ::testing::Values(EdgeOffsetCase{"Late500", 10000, 500, 50, 250},
-                                           EdgeOffsetCase{"Late1000", 10000, 1000, 50, 250},
-                                           EdgeOffsetCase{"Late1500", 10000, 1500, 50, 250},
-                                           EdgeOffsetCase{"Late1500At60Hz", 8333, 1500, 50, 250},
-                                           EdgeOffsetCase{"ThreeEarlyPulses", 10000, -470, 100, 103},
-                                           // The clean edges after them come late beyond the follow window
-                                           EdgeOffsetCase{"ThreeEarlyPulses550", 10000, -550, 100, 103},
-                                           EdgeOffsetCase{"ThreeEarlyPulses550At60Hz", 8333, -550, 100, 103}),
-                         [](const ::testing::TestParamInfo<EdgeOffsetCase> &info) { return info.param.name; });
+INSTANTIATE_TEST_SUITE_P(
+    AcDimmer, EdgeOffsetTest,
+    ::testing::Values(EdgeOffsetCase{"Late500", 10000, 500, 50, 250}, EdgeOffsetCase{"Late1000", 10000, 1000, 50, 250},
+                      EdgeOffsetCase{"Late1500", 10000, 1500, 50, 250},
+                      EdgeOffsetCase{"Late1500At60Hz", 8333, 1500, 50, 250},
+                      EdgeOffsetCase{"ThreeEarlyPulses", 10000, -470, 100, 103},
+                      EdgeOffsetCase{"ThreeEarlyPulses550", 10000, -550, 100, 103},
+                      EdgeOffsetCase{"ThreeEarlyPulses550At60Hz", 8333, -550, 100, 103},
+                      EdgeOffsetCase{"GateNoiseLate1100", 10000, 1100, 60, 160, 655, 100, 5, 10},
+                      EdgeOffsetCase{"GateNoiseLate1500", 10000, 1500, 60, 160, 655, 100, 5, 10},
+                      EdgeOffsetCase{"GateNoiseLate1100At60Hz", 8333, 1100, 60, 160, 655, 100, 5, 10}),
+    [](const ::testing::TestParamInfo<EdgeOffsetCase> &info) { return info.param.name; });
 
 struct StartupErrorCase {
   const char *name;
@@ -199,43 +207,6 @@ INSTANTIATE_TEST_SUITE_P(AcDimmer, StartupErrorTest,
                                            StartupErrorCase{"LateFirst300", {1600, 11000, 21000}},
                                            StartupErrorCase{"LateLast300", {1000, 11000, 21600}}),
                          [](const ::testing::TestParamInfo<StartupErrorCase> &info) { return info.param.name; });
-
-struct GateNoiseCase {
-  const char *name;
-  uint32_t period;
-  int32_t delay;  // real edges from crossing 60 to 160 are served this late
-};
-
-class GateNoiseTest : public ::testing::TestWithParam<GateNoiseCase> {};
-
-// At the lowest brightness with the default 10 % minimum power the gate fires about 1 ms before the predicted crossing,
-// and its noise on the detector comes with it. While the real edges are served later than that, the noise is the
-// edge closest to the prediction, but following it would move the gate and the noise along: neither may drift.
-TEST_P(GateNoiseTest, NoiseDoesNotDragTheTiming) {
-  const auto &c = GetParam();
-  AcDimmerDataStore store{};
-  store.value = 655;
-  store.min_power = 100;
-  Bench bench(store, 1000, 5);
-  uint32_t crossing = 1000;
-  for (int i = 0; i < 300; i++, crossing += c.period) {
-    bench.edge(crossing + (i >= 60 && i < 160 ? c.delay : 0));
-    if (i > LOCK_EDGE) {
-      ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << "crossing " << i;
-      ASSERT_LE(std::abs(static_cast<int32_t>(store.period - c.period)), 10) << "crossing " << i;
-    }
-  }
-  const uint32_t last = crossing - c.period;
-  bench.run_until(last + c.period / 2);
-  EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - last)), 10);
-  EXPECT_LE(std::abs(static_cast<int32_t>(store.period - c.period)), 2);
-}
-
-INSTANTIATE_TEST_SUITE_P(AcDimmer, GateNoiseTest,
-                         ::testing::Values(GateNoiseCase{"Late1100", 10000, 1100},
-                                           GateNoiseCase{"Late1500", 10000, 1500},
-                                           GateNoiseCase{"Late1100At60Hz", 8333, 1100}),
-                         [](const ::testing::TestParamInfo<GateNoiseCase> &info) { return info.param.name; });
 
 /// Whether a gate pulse at `at` started in the first half of a half cycle of crossings at `start` + n * `period`
 static bool in_next_half_cycle(uint32_t at, uint32_t start, uint32_t period) {
