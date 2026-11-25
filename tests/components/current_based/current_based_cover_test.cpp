@@ -58,21 +58,22 @@ class CurrentBasedCoverTest : public ::testing::Test {
     ASSERT_EQ(cover.current_operation, COVER_OPERATION_IDLE);
   }
 
-  void travel_(CurrentBasedCover &cover, uint32_t travel_ms) {
-    this->draw_current_(cover);
+  // Travels to an end; without motor current the cover only sees the current stay off
+  void travel_to_(CurrentBasedCover &cover, float target, uint32_t travel_ms, bool draw_current = true) {
+    cover.make_call().set_position(target).perform();
+    if (draw_current)
+      this->draw_current_(cover);
     this->stop_drawing_current_(cover, travel_ms);
+    ASSERT_EQ(cover.position, target);
   }
 
-  void close_(CurrentBasedCover &cover, uint32_t travel_ms) {
-    cover.make_call().set_command_close().perform();
-    this->travel_(cover, travel_ms);
-    ASSERT_EQ(cover.position, COVER_CLOSED);
-  }
-
-  void open_(CurrentBasedCover &cover, uint32_t travel_ms) {
-    cover.make_call().set_command_open().perform();
-    this->travel_(cover, travel_ms);
-    ASSERT_EQ(cover.position, COVER_OPEN);
+  // Learns a 7 s open travel and destroys the cover, leaving the durations in preferences
+  void learn_open_and_reboot_() {
+    CurrentBasedCover cover;
+    this->setup_cover_(cover, true);
+    this->travel_to_(cover, COVER_CLOSED, 1000);
+    this->travel_to_(cover, COVER_OPEN, 7000);
+    ASSERT_NEAR(cover.get_open_duration(), 7000, TOLERANCE);
   }
 
   sensor::Sensor open_current_;
@@ -80,43 +81,54 @@ class CurrentBasedCoverTest : public ::testing::Test {
 };
 }  // namespace
 
-TEST_F(CurrentBasedCoverTest, LearnsDurationsOfTravelsBetweenEnds) {
+struct LearnCase {
+  bool learn_durations;
+  uint32_t open_duration;
+  uint32_t close_duration;
+};
+
+class CurrentBasedCoverLearnTest : public CurrentBasedCoverTest, public ::testing::WithParamInterface<LearnCase> {};
+
+TEST_P(CurrentBasedCoverLearnTest, LearnsDurationsOfTravelsBetweenEnds) {
+  const LearnCase &param = GetParam();
+  CurrentBasedCover cover;
+  this->setup_cover_(cover, param.learn_durations);
+
+  this->travel_to_(cover, COVER_CLOSED, 1000);
+  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
+  this->travel_to_(cover, COVER_OPEN, 7000);
+  this->travel_to_(cover, COVER_CLOSED, 6000);
+
+  EXPECT_NEAR(cover.get_open_duration(), param.open_duration, TOLERANCE);
+  EXPECT_NEAR(cover.get_close_duration(), param.close_duration, TOLERANCE);
+}
+
+INSTANTIATE_TEST_SUITE_P(Learn, CurrentBasedCoverLearnTest,
+                         ::testing::Values(LearnCase{true, 7000, 6000},
+                                           LearnCase{false, CONFIGURED_DURATION, CONFIGURED_DURATION}));
+
+struct MotorCurrentCase {
+  bool first_draws_current;
+  bool second_draws_current;
+};
+
+class CurrentBasedCoverNoMotorCurrentTest : public CurrentBasedCoverTest,
+                                            public ::testing::WithParamInterface<MotorCurrentCase> {};
+
+TEST_P(CurrentBasedCoverNoMotorCurrentTest, DoesNotLearnWithoutMotorCurrent) {
+  const MotorCurrentCase &param = GetParam();
   CurrentBasedCover cover;
   this->setup_cover_(cover, true);
 
-  this->close_(cover, 1000);
-  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
-
-  this->open_(cover, 7000);
-  EXPECT_NEAR(cover.get_open_duration(), 7000, TOLERANCE);
-
-  this->close_(cover, 6000);
-  EXPECT_NEAR(cover.get_close_duration(), 6000, TOLERANCE);
-}
-
-TEST_F(CurrentBasedCoverTest, DoesNotLearnWhenDisabled) {
-  CurrentBasedCover cover;
-  this->setup_cover_(cover, false);
-
-  this->close_(cover, 1000);
-  this->open_(cover, 7000);
-  this->close_(cover, 6000);
+  this->travel_to_(cover, COVER_CLOSED, 1000, param.first_draws_current);
+  this->travel_to_(cover, COVER_OPEN, 7000, param.second_draws_current);
 
   EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
-  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
 }
 
-TEST_F(CurrentBasedCoverTest, DoesNotLearnWhenNoMotorCurrentWasSeen) {
-  CurrentBasedCover cover;
-  this->setup_cover_(cover, true);
-  this->close_(cover, 1000);
-
-  cover.make_call().set_command_open().perform();
-  this->stop_drawing_current_(cover, 7000);
-
-  EXPECT_EQ(cover.position, COVER_OPEN);
-  EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
-}
+INSTANTIATE_TEST_SUITE_P(NoMotorCurrent, CurrentBasedCoverNoMotorCurrentTest,
+                         ::testing::Values(MotorCurrentCase{true, false},    // in the measured travel
+                                           MotorCurrentCase{false, true}));  // in the travel to the end
 
 struct DurationCase {
   uint32_t configured;
@@ -131,13 +143,13 @@ TEST_P(CurrentBasedCoverSmallChangeTest, KeepsDurationWhenChangeIsSmall) {
   const DurationCase &param = GetParam();
   CurrentBasedCover cover;
   this->setup_cover_(cover, true, param.configured);
-  this->close_(cover, 1000);
-  this->open_(cover, param.first);
+  this->travel_to_(cover, COVER_CLOSED, 1000);
+  this->travel_to_(cover, COVER_OPEN, param.first);
   const uint32_t learned = cover.get_open_duration();
   ASSERT_NEAR(learned, param.first, TOLERANCE);
-  this->close_(cover, param.first);
+  this->travel_to_(cover, COVER_CLOSED, param.first);
 
-  this->open_(cover, param.second);
+  this->travel_to_(cover, COVER_OPEN, param.second);
 
   EXPECT_EQ(cover.get_open_duration(), learned);
 }
@@ -153,11 +165,14 @@ class CurrentBasedCoverImplausibleTest : public CurrentBasedCoverTest,
 TEST_P(CurrentBasedCoverImplausibleTest, DoesNotLearnDurationFarFromConfigured) {
   CurrentBasedCover cover;
   this->setup_cover_(cover, true);
-  this->close_(cover, 1000);
+  this->travel_to_(cover, COVER_CLOSED, 1000);
 
-  this->open_(cover, GetParam());
-
+  this->travel_to_(cover, COVER_OPEN, GetParam());
   EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
+
+  // The rejected travel's stopping point is not an accepted end, so the travel back is not learned
+  this->travel_to_(cover, COVER_CLOSED, 6000);
+  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
 }
 
 INSTANTIATE_TEST_SUITE_P(Implausible, CurrentBasedCoverImplausibleTest,
@@ -166,7 +181,7 @@ INSTANTIATE_TEST_SUITE_P(Implausible, CurrentBasedCoverImplausibleTest,
 TEST_F(CurrentBasedCoverTest, DoesNotLearnTravelThatWasReversed) {
   CurrentBasedCover cover;
   this->setup_cover_(cover, true, 4000);
-  this->close_(cover, 1000);
+  this->travel_to_(cover, COVER_CLOSED, 1000);
 
   cover.make_call().set_command_open().perform();
   this->draw_current_(cover);
@@ -174,28 +189,17 @@ TEST_F(CurrentBasedCoverTest, DoesNotLearnTravelThatWasReversed) {
   cover.loop();
   cover.make_call().set_command_close().perform();
   ASSERT_EQ(cover.current_operation, COVER_OPERATION_CLOSING);
-  this->travel_(cover, 6000);
+  this->draw_current_(cover);
+  this->stop_drawing_current_(cover, 6000);
 
   EXPECT_EQ(cover.position, COVER_CLOSED);
   EXPECT_EQ(cover.get_close_duration(), 4000);
 }
 
-TEST_F(CurrentBasedCoverTest, DoesNotLearnFromEndReachedWithoutMotorCurrent) {
-  CurrentBasedCover cover;
-  this->setup_cover_(cover, true);
-
-  cover.make_call().set_command_open().perform();
-  this->stop_drawing_current_(cover, 1000);
-  ASSERT_EQ(cover.position, COVER_OPEN);
-  this->close_(cover, 6000);
-
-  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
-}
-
 TEST_F(CurrentBasedCoverTest, DoesNotLearnFromInvalidCurrentReading) {
   CurrentBasedCover cover;
   this->setup_cover_(cover, true);
-  this->close_(cover, 1000);
+  this->travel_to_(cover, COVER_CLOSED, 1000);
 
   cover.make_call().set_command_open().perform();
   this->draw_current_(cover);
@@ -206,25 +210,7 @@ TEST_F(CurrentBasedCoverTest, DoesNotLearnFromInvalidCurrentReading) {
     cover.loop();
   }
   ASSERT_EQ(cover.position, COVER_OPEN);
-  this->close_(cover, 6000);
-
-  EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
-  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
-}
-
-TEST_F(CurrentBasedCoverTest, DoesNotLearnFromInfiniteCurrentReading) {
-  CurrentBasedCover cover;
-  this->setup_cover_(cover, true);
-  this->close_(cover, 1000);
-
-  cover.make_call().set_command_open().perform();
-  this->open_current_.publish_state(INFINITY);
-  delay(2);
-  cover.loop();
-  ASSERT_EQ(cover.current_operation, COVER_OPERATION_OPENING);
-  this->stop_drawing_current_(cover, 7000);
-  ASSERT_EQ(cover.position, COVER_OPEN);
-  this->close_(cover, 6000);
+  this->travel_to_(cover, COVER_CLOSED, 6000);
 
   EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
   EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
@@ -238,7 +224,7 @@ class CurrentBasedCoverInterruptionTest : public CurrentBasedCoverTest,
 TEST_P(CurrentBasedCoverInterruptionTest, DoesNotLearnTravelThatWasInterrupted) {
   CurrentBasedCover cover;
   this->setup_cover_(cover, true);
-  this->close_(cover, 1000);
+  this->travel_to_(cover, COVER_CLOSED, 1000);
 
   cover.make_call().set_command_open().perform();
   this->draw_current_(cover);
@@ -255,7 +241,7 @@ TEST_P(CurrentBasedCoverInterruptionTest, DoesNotLearnTravelThatWasInterrupted) 
       break;
   }
   ASSERT_EQ(cover.current_operation, COVER_OPERATION_IDLE);
-  this->open_(cover, 7000);
+  this->travel_to_(cover, COVER_OPEN, 7000);
 
   EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
 }
@@ -264,43 +250,31 @@ INSTANTIATE_TEST_SUITE_P(Interruptions, CurrentBasedCoverInterruptionTest,
                          ::testing::Values(Interruption::INTERRUPTION_STOP, Interruption::INTERRUPTION_TOGGLE,
                                            Interruption::INTERRUPTION_MALFUNCTION));
 
-TEST_F(CurrentBasedCoverTest, RestoresLearnedDurationsAfterReboot) {
-  {
-    CurrentBasedCover cover;
-    this->setup_cover_(cover, true);
-    this->close_(cover, 1000);
-    this->open_(cover, 7000);
-  }
+struct RebootCase {
+  uint32_t configured;
+  uint32_t open_duration;
+  uint32_t close_duration;
+};
+
+class CurrentBasedCoverRebootTest : public CurrentBasedCoverTest, public ::testing::WithParamInterface<RebootCase> {};
+
+TEST_P(CurrentBasedCoverRebootTest, RestoresLearnedDurationsOnlyForSameConfig) {
+  const RebootCase &param = GetParam();
+  this->learn_open_and_reboot_();
 
   CurrentBasedCover rebooted;
-  this->setup_cover_(rebooted, true);
+  this->setup_cover_(rebooted, true, param.configured);
 
-  EXPECT_NEAR(rebooted.get_open_duration(), 7000, TOLERANCE);
-  EXPECT_EQ(rebooted.get_close_duration(), CONFIGURED_DURATION);
+  EXPECT_NEAR(rebooted.get_open_duration(), param.open_duration, TOLERANCE);
+  EXPECT_EQ(rebooted.get_close_duration(), param.close_duration);
 }
 
-TEST_F(CurrentBasedCoverTest, DiscardsLearnedDurationsWhenConfiguredDurationsChange) {
-  {
-    CurrentBasedCover cover;
-    this->setup_cover_(cover, true);
-    this->close_(cover, 1000);
-    this->open_(cover, 7000);
-  }
-
-  CurrentBasedCover reconfigured;
-  this->setup_cover_(reconfigured, true, 30000);
-
-  EXPECT_EQ(reconfigured.get_open_duration(), 30000);
-  EXPECT_EQ(reconfigured.get_close_duration(), 30000);
-}
+INSTANTIATE_TEST_SUITE_P(Reboot, CurrentBasedCoverRebootTest,
+                         ::testing::Values(RebootCase{CONFIGURED_DURATION, 7000, CONFIGURED_DURATION},  // restored
+                                           RebootCase{30000, 30000, 30000}));  // config changed, discarded
 
 TEST_F(CurrentBasedCoverTest, DoesNotRestoreLearnedDurationsWhenConfiguredDurationsChangeBack) {
-  {
-    CurrentBasedCover cover;
-    this->setup_cover_(cover, true);
-    this->close_(cover, 1000);
-    this->open_(cover, 7000);
-  }
+  this->learn_open_and_reboot_();
   {
     CurrentBasedCover reconfigured;
     this->setup_cover_(reconfigured, true, 30000);

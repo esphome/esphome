@@ -25,6 +25,7 @@ CONF_MALFUNCTION_DETECTION = "malfunction_detection"
 CONF_MALFUNCTION_ACTION = "malfunction_action"
 CONF_START_SENSING_DELAY = "start_sensing_delay"
 CONF_LEARN_DURATIONS = "learn_durations"
+# Must match sizeof(LearnedDurations) in current_based_cover.h
 LEARNED_DURATIONS_BYTES = 16
 
 current_based_ns = cg.esphome_ns.namespace("current_based")

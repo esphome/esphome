@@ -80,7 +80,7 @@ class CurrentBasedCover final : public cover::Cover, public Component {
   void start_direction_(cover::CoverOperation dir);
 
   void recompute_position_();
-  void end_reached_(float position, uint32_t measured);
+  void end_reached_(float position);
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
   void save_learned_durations_();
 #endif
@@ -100,10 +100,10 @@ class CurrentBasedCover final : public cover::Cover, public Component {
   uint32_t max_duration_{UINT32_MAX};
   bool malfunction_detection_{true};
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
-  bool learn_durations_{false};
-  bool stopped_at_end_{false};
-  bool moving_from_end_{false};
-  bool motor_current_seen_{false};
+  bool learn_durations_ : 1 {false};
+  // Idle at an accepted end, or travelling from one
+  bool from_end_ : 1 {false};
+  bool motor_current_seen_ : 1 {false};
 #endif
   Trigger<> malfunction_trigger_;
   uint32_t start_sensing_delay_{0};
