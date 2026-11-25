@@ -388,8 +388,9 @@ def _run_statements(run: list[_InlineAction]) -> list[str]:
     return statements
 
 
-def _unstoppable_statements(run: list[_InlineAction]) -> list[str]:
-    """``_run_statements`` without its stop checks, nested ones included, for a run nothing can stop."""
+def _statements_without_stop_checks(run: list[_InlineAction]) -> list[str]:
+    """``_run_statements`` without its stop checks, nested ones included, for a run nothing can stop
+    (no Trigger or manual id reaches it)."""
     return [line for line in _run_statements(run) if line != _STOP_CHECK]
 
 
@@ -1971,17 +1972,17 @@ def _run_function(
     id_: ID,
     run: list[_InlineAction],
     args: TemplateArgsType,
-    stoppable: bool = True,
+    stop_checks: bool = True,
     add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj:
-    """Emit the function that runs ``run``; a stoppable one takes the run count first and
-    returns once a stop clears it. ``add_global_`` places its declaration."""
+    """Emit the function that runs ``run``. With ``stop_checks`` it takes the run count first and
+    returns as soon as a stop clears it. ``add_global_`` places its declaration."""
     params = _apply_params(args)
-    if stoppable:
+    if stop_checks:
         params = [(cg.RawExpression("const int &"), _RUNNING_PARAM), *params]
         statements = _run_statements(run)
     else:
-        statements = _unstoppable_statements(run)
+        statements = _statements_without_stop_checks(run)
     return cg.new_static_function(
         _apply_function_name(id_), cg.void, params, statements, add_global_
     )
@@ -2188,7 +2189,7 @@ def _direct_statements(
 ) -> list[str] | None:
     if not _is_direct(plan, config):
         return None
-    return _unstoppable_statements(plan[0])
+    return _statements_without_stop_checks(plan[0])
 
 
 def _direct_function(
@@ -2199,7 +2200,7 @@ def _direct_function(
     """The function that runs ``plan`` if it is direct, named after its first action."""
     if not _is_direct(plan, config):
         return None
-    return _run_function(plan[0][0].id_, plan[0], args, stoppable=False)
+    return _run_function(plan[0][0].id_, plan[0], args, stop_checks=False)
 
 
 def _call_target(
@@ -2254,7 +2255,8 @@ class AutomationPlan:
     def run_function(
         self, trigger: MockObj, add_global_: Callable[[Statement], object]
     ) -> MockObj:
-        """The stoppable function ``esphome__<trigger id>__fn`` running a direct plan."""
+        """The function ``esphome__<trigger id>__fn`` running a direct plan; it takes the run count
+        and returns as soon as a stop (``script.stop``) clears it."""
         return _run_function(
             trigger.base, self.actions[0], self.args, add_global_=add_global_
         )

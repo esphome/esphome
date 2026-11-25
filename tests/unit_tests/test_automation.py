@@ -3505,7 +3505,7 @@ def _run_trigger() -> MockObj:
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
 async def test_plan_run_function() -> None:
-    """Inline actions only: a stoppable function named after the trigger, declared where asked."""
+    """Inline actions only: a function with stop checks, named after the trigger, declared where asked."""
     plan = await plan_automation([], _automation_conf(_action("my.a", "act_a")))
     assert plan.direct
     declarations: list[cg.Statement] = []
