@@ -131,7 +131,7 @@ HOST_BAUD_RATES = [
 ]
 
 UARTDevice = uart_ns.class_("UARTDevice")
-UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
+UARTDebugger = uart_ns.class_("UARTDebugger", automation.FiringComponent)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
@@ -299,7 +299,7 @@ DEBUG_SCHEMA = cv.Schema(
         ),
         cv.Optional(
             CONF_SEQUENCE, default=DEFAULT_SEQUENCE
-        ): automation.validate_automation(),
+        ): automation.validate_automation(single=True),
         cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
         cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
         cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
@@ -431,33 +431,34 @@ def _validate_libretiny_pins(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def debug_to_code(config, parent):
-    trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent)
-    await cg.register_component(trigger, config)
-    for action in config[CONF_SEQUENCE]:
-        await automation.build_automation(
-            trigger,
-            [
-                (UARTDirection, "direction"),
-                (cg.std_vector.template(cg.uint8), "bytes"),
-                (cg.StringRef, "debug_prefix"),
-            ],
-            action,
-        )
-    cg.add(trigger.set_direction(config[CONF_DIRECTION]))
+async def debug_to_code(config: ConfigType, parent: cg.MockObj) -> None:
+    # The debugger is named by the debug block's trigger_id
+    sequence = {**config[CONF_SEQUENCE], CONF_TRIGGER_ID: config[CONF_TRIGGER_ID]}
+    debugger = await automation.build_component_automation(
+        sequence,
+        automation.FireCallback,
+        template_args=[UARTDebugger],
+        args=[
+            (UARTDirection, "direction"),
+            (cg.std_vector.template(cg.uint8), "bytes"),
+            (cg.StringRef, "debug_prefix"),
+        ],
+        ctor_args=[parent],
+    )
+    cg.add(debugger.set_direction(config[CONF_DIRECTION]))
     after = config[CONF_AFTER]
-    cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
-    cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
+    cg.add(debugger.set_after_bytes(after[CONF_BYTES]))
+    cg.add(debugger.set_after_timeout(after[CONF_TIMEOUT]))
     if delimiter := after.get(CONF_DELIMITER):
         table = cg.shared_progmem_array(
             "uart_debug_delimiter", cg.uint8, [int(b) for b in delimiter]
         )
-        cg.add(trigger.set_after_delimiter(table, len(delimiter)))
+        cg.add(debugger.set_after_delimiter(table, len(delimiter)))
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
     if debug_prefix := config[CONF_DEBUG_PREFIX]:
-        cg.add(trigger.set_debug_prefix(debug_prefix))
+        cg.add(debugger.set_debug_prefix(debug_prefix))
     cg.add_define("USE_UART_DEBUGGER")
 
 

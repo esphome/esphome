@@ -57,6 +57,14 @@ def current_path(port: str, serial_number: str | None, index: int) -> str:
     return port
 
 
+def reset_pulse(s: serial.Serial) -> None:
+    """Pulse EN/RST through RTS with DTR (GPIO0) released."""
+    s.dtr = False
+    s.rts = True
+    time.sleep(0.1)
+    s.rts = False
+
+
 def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
     s = serial.Serial(port=None, baudrate=args.baud, timeout=0.2)
     s.port = path
@@ -66,10 +74,7 @@ def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
     s.open()
     if args.reset:
         try:
-            s.dtr = False
-            s.rts = True
-            time.sleep(0.1)
-            s.rts = False
+            reset_pulse(s)
             s.reset_input_buffer()
         except PORT_ERRORS:
             s.close()

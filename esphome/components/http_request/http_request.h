@@ -3,6 +3,8 @@
 #include <list>
 #include <memory>
 #include <set>
+#include <span>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -609,9 +611,16 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 
   using JsonEntry = std::pair<const char *, TemplatableValue<std::string, Ts...>>;
   void set_json_storage(std::span<JsonEntry> storage) { this->json_.init(storage); }
-  void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.push_back({key, value}); }
+  void add_json(const char *key, const TemplatableValue<std::string, Ts...> &value) {
+    this->json_.push_back({key, value});
+  }
 
-  void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
+  /// Code generation passes a captureless lambda.
+  using json_func_t = void (*)(Ts..., JsonObject);
+  template<typename T>
+  using json_arg_t = std::conditional_t<std::is_lvalue_reference_v<T> && !std::is_const_v<std::remove_reference_t<T>>,
+                                        std::remove_cvref_t<T>, const T &>;
+  void set_json(json_func_t json_func) { this->json_func_ = json_func; }
 
 #ifdef USE_HTTP_REQUEST_RESPONSE
   Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> *get_success_trigger_with_response() {
@@ -666,11 +675,22 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     if (this->body_.has_value()) {
       body = this->body_.value(x...);
     }
-    if (!this->json_.empty()) {
-      body = json::build_json([this, x...](JsonObject root) mutable { this->encode_json_(x..., root); });
-    }
-    if (this->json_func_ != nullptr) {
-      body = json::build_json([this, x...](JsonObject root) mutable { this->json_func_(x..., root); });
+    if (this->json_func_ != nullptr || !this->json_.empty()) {
+      // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+      json::JsonBuilder builder;
+      JsonObject root = builder.root();
+      // Mutable reference args are copied, so a lambda that changes one does not change the request's saved args;
+      // the copies live until the body is serialized, as the document may point into them
+      [&](json_arg_t<Ts>... copy) {
+        if (this->json_func_ != nullptr) {
+          this->json_func_(copy..., root);
+        } else {
+          for (const auto &item : this->json_)
+            root[item.first] = item.second.value(copy...);
+        }
+        body = builder.serialize();
+      }(x...);
+      // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
     }
     std::vector<Header> request_headers;
     request_headers.reserve(this->request_headers_.size());
@@ -719,17 +739,11 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       std::apply([this](auto &...args) { this->play_next_(args...); }, request.args);
   }
 
-  void encode_json_(Ts... x, JsonObject root) {
-    for (const auto &item : this->json_) {
-      auto val = item.second;
-      root[item.first] = val.value(x...);
-    }
-  }
   HttpRequestComponent *parent_;
   ConstVector<RequestHeader<Ts...>> request_headers_{};
   std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};
   StaticFixedVector<JsonEntry> json_;
-  std::function<void(Ts..., JsonObject)> json_func_{nullptr};
+  json_func_t json_func_{nullptr};
 #ifdef USE_HTTP_REQUEST_RESPONSE
   Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> success_trigger_with_response_;
 #endif
