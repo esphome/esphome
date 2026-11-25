@@ -27,6 +27,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # through a log listener, which nothing else registers in this build.
         if any(Path(p) == TESTS_DIR for p in CORE.config[CONF_ESPHOME][CONF_INCLUDES]):
             config = {**config, CONF_BOOT_LOG_BUFFER_SIZE: 512}
+            # Two slots: the on_message tests attach two triggers to one logger
+            request_log_listener()
             request_log_listener()
             # FreeRTOS doubles for the LibreTiny task log buffer test
             cg.add_build_flag(

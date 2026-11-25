@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 import logging
 import os
 from pathlib import Path
@@ -58,6 +57,7 @@ from esphome.core import (
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
+from esphome.cpp_helpers import add_component_counts
 import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
@@ -117,9 +117,7 @@ def make_app_name_cpp(
 StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
 ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
 LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
-ProjectUpdateTrigger = cg.esphome_ns.class_(
-    "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
-)
+ProjectUpdateCallback = cg.esphome_ns.class_("ProjectUpdateCallback", cg.Component)
 Device = cg.esphome_ns.class_("Device")
 DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
 DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
@@ -492,7 +490,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                ProjectUpdateTrigger
+                                ProjectUpdateCallback
                             ),
                         }
                     ),
@@ -852,36 +850,6 @@ async def _add_controller_registry_dispatch() -> None:
     cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))
 
 
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_looping_components() -> None:
-    # Emit ESPHOME_LOOPING_COMPONENT_COUNT and its storage. Sizing of looping_components_
-    # happens in core to_code() so it lands before safe_mode's early return.
-    entries = CORE.data.get("looping_component_entries", [])
-
-    # Build constexpr sum for the exact count, deduplicating by type
-    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
-    type_counts = Counter(entries)
-    terms = [
-        f"({count} * HasLoopOverride<{cpp_type}>::value)"
-        for cpp_type, count in type_counts.items()
-    ] or ["0"]
-    constexpr_expr = " + \\\n  ".join(terms)
-    cg.add_global(
-        cg.RawStatement(
-            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
-            f"  {constexpr_expr};"
-        )
-    )
-    # In namespace esphome so analyze-memory counts it as core; sized at least 1 to avoid a zero-length array
-    cg.add_global(
-        cg.RawStatement(
-            "namespace esphome {\n"
-            "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];\n"
-            "}  // namespace esphome"
-        )
-    )
-
-
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     # using namespace esphome is hardcoded in writer.py to guarantee it
@@ -923,11 +891,10 @@ async def to_code(config: ConfigType) -> None:
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
-    # Define component count for static allocation
-    cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+    CORE.add_job(add_component_counts)
 
     # Pre-init the list with exact capacity so calculate_looping_components_()
-    # can skip the counting pass; the storage is emitted by _add_looping_components()
+    # can skip the counting pass; the storage is emitted by add_component_counts()
     cg.add(
         cg.RawExpression(
             "App.looping_components_.init(std::span<Component *>("
@@ -937,7 +904,6 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_dispatch)
-    CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
 
@@ -996,10 +962,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_PROJECT_VERSION", project_conf[CONF_VERSION])
         cg.add_define("ESPHOME_PROJECT_VERSION_30", project_conf[CONF_VERSION][:29])
         for conf in project_conf.get(CONF_ON_UPDATE, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await cg.register_component(trigger, conf)
-            await automation.build_automation(
-                trigger, [(cg.std_string, "version")], conf
+            await automation.build_component_automation(
+                conf,
+                ProjectUpdateCallback,
+                args=[(cg.std_string, "version")],
             )
 
     if config[CONF_PLATFORMIO_OPTIONS]:

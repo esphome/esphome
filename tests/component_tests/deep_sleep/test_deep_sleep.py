@@ -22,7 +22,11 @@ from esphome.components.esp32 import (
 )
 from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
 
+from ..helpers import callback_function, constructed, function_body
 from ..types import SetCoreConfigCallable
+
+# Bit pattern of 700.0f, the on_wake setup priority
+PRIORITY_700_BITS = "0x442F0000"
 
 
 def test_deep_sleep_setup(generate_main):
@@ -57,41 +61,52 @@ def test_deep_sleep_run_duration_simple(generate_main):
     assert "deepsleep->set_run_duration(10000);" in main_cpp
 
 
-def test_deep_sleep_on_wake_trigger(generate_main):
+def test_deep_sleep_on_wake_callback(generate_main) -> None:
+    """A component-level on_wake builds a WakeCallback on a function taking the wakeup cause."""
+    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
+
+    var = "deep_sleep_wakecallback_id"
+    function = callback_function(main_cpp, var)
+    assert (
+        constructed(main_cpp, var)
+        == f"deep_sleep::WakeCallback<{function}, {PRIORITY_700_BITS}>()"
+    )
+    assert (
+        f"static void {function}(const std::remove_cvref_t<deep_sleep::WakeupCause> & cause)"
+        in main_cpp
+    )
+    assert "cause %d" in function_body(main_cpp, function)
+
+
+def test_deep_sleep_ext1_on_wake_callbacks(generate_main) -> None:
     """
-    When deep sleep is configured with a component-level on_wake automation,
-    a WakeTrigger component should be registered with the wakeup cause as
-    the automation argument.
+    Each esp32_ext1_wakeup pin with an on_wake automation gets its own
+    Ext1WakeCallback with the pin number, and all pins (including the legacy
+    bare-pin shorthand) contribute to the ext1 wakeup mask.
     """
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
 
-    assert "deep_sleep::WakeTrigger();" in main_cpp
-    assert "Automation<deep_sleep::WakeupCause>" in main_cpp
-
-
-def test_deep_sleep_ext1_on_wake_triggers(generate_main):
-    """
-    Each esp32_ext1_wakeup pin with an on_wake automation should get its own
-    Ext1WakeTrigger with the pin number, and all pins (including the legacy
-    bare-pin shorthand) should contribute to the ext1 wakeup mask.
-    """
-    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
-
-    assert "deep_sleep::Ext1WakeTrigger(2);" in main_cpp
-    assert "deep_sleep::Ext1WakeTrigger(4);" in main_cpp
-    # GPIO13 has no on_wake, so no trigger is created for it
-    assert "deep_sleep::Ext1WakeTrigger(13)" not in main_cpp
+    for var, pin, text in (
+        ("deep_sleep_ext1wakecallback_id", 2, "left"),
+        ("deep_sleep_ext1wakecallback_id_2", 4, "right"),
+    ):
+        function = callback_function(main_cpp, var)
+        assert (
+            constructed(main_cpp, var)
+            == f"deep_sleep::Ext1WakeCallback<{function}, {PRIORITY_700_BITS}, {pin}>()"
+        )
+        assert text in function_body(main_cpp, function)
+    # GPIO13 has no on_wake, so no callback is created for it
+    assert len(re.findall(r"new\(\w+\) deep_sleep::Ext1WakeCallback<", main_cpp)) == 2
     # mask covers GPIO2, GPIO4 and GPIO13
     assert ".mask = 8212," in main_cpp
 
 
-def test_deep_sleep_no_on_wake_no_triggers(generate_main):
-    """
-    Without any on_wake automations, no wake trigger code should be generated.
-    """
+def test_deep_sleep_no_on_wake_no_callbacks(generate_main) -> None:
+    """Without any on_wake automations, no wake callback code is generated."""
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep1.yaml")
 
-    assert "WakeTrigger" not in main_cpp
+    assert "WakeCallback" not in main_cpp
 
 
 def test_deep_sleep_run_duration_dictionary(generate_main):
