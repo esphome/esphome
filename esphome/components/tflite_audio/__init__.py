@@ -17,7 +17,12 @@ from esphome.components.tflite_micro_runtime import (
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
 from esphome.components.tflite_model_source import resolve_model_source
-from esphome.components.tflite_output_processor import OUTPUT_PROCESSING
+from esphome.components.tflite_output_processor import (
+    CONF_DECODER_ID,
+    CONF_OUTPUT_PROCESSING,
+    CONF_SCALE_FACTOR,
+    OUTPUT_PROCESSING,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG
 from esphome.types import ConfigType
@@ -37,9 +42,6 @@ CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
 CONF_FEATURES_STEP_SIZE = "features_step_size"
 CONF_FEATURE_COUNT = "feature_count"
-CONF_OUTPUT_PROCESSING = "output_processing"
-CONF_SCALE_FACTOR = "scale_factor"
-CONF_DECODER_ID = "decoder_id"
 
 output_ns = cg.esphome_ns.namespace("tflite_output_processor")
 ClassificationDecoder = output_ns.class_("ClassificationDecoder")
