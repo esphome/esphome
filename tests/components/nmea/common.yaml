@@ -1,0 +1,39 @@
+gnss:
+  - platform: nmea
+    id: gnss_receiver
+
+sensor:
+  - platform: gnss
+    type: latitude
+    name: "Latitude"
+    id: gnss_lat
+    on_value:
+      then:
+        - logger.log:
+            format: "%.6f, %.6f"
+            args: [id(gnss_lat).state, id(gnss_long).state]
+  - platform: gnss
+    type: longitude
+    name: "Longitude"
+    id: gnss_long
+  - platform: gnss
+    type: altitude
+    name: "Altitude"
+  - platform: gnss
+    type: speed
+    name: "Speed"
+  - platform: gnss
+    type: course
+    name: "Course"
+  - platform: gnss
+    type: satellites
+    name: "Satellites"
+  - platform: gnss
+    type: hdop
+    name: "HDOP"
+
+time:
+  - platform: gnss
+    on_time_sync:
+      then:
+        logger.log: "It's time!"

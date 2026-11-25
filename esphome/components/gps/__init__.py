@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
@@ -19,6 +21,8 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 CONF_GPS_ID = "gps_id"
 CONF_HDOP = "hdop"
 
@@ -35,6 +39,11 @@ AUTO_LOAD = ["sensor"]
 
 CODEOWNERS = ["@coogle", "@ximex"]
 DOMAIN = "gps"
+
+DEPRECATED_COMPONENT = """
+The 'gps' component is deprecated in favour of 'gnss' with 'platform: nmea'.
+New features and fixes should target 'gnss'. It will be removed in ESPHome 2027.6.0.
+"""
 
 gps_ns = cg.esphome_ns.namespace("gps")
 GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
@@ -106,6 +115,12 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True
 
 
 async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.6.0
+    _LOGGER.warning(
+        "The 'gps' component is deprecated and will be removed in ESPHome 2027.6.0, migrate to a "
+        "'gnss:' entry with 'platform: nmea', 'sensor:' entries with 'platform: gnss' and a 'type:', "
+        "and 'time:' with 'platform: gnss'."
+    )
     var = await uart.new_uart_component(config)
 
     # Pre-create all sensor variables so automations that reference
