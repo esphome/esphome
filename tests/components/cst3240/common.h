@@ -13,6 +13,7 @@ namespace esphome::cst3240::testing {
 struct Write {
   uint16_t reg;
   size_t size;
+  bool zero_data;  // every byte after the register is zero
 };
 
 // Answers 16-bit register reads from a map; every write succeeds and is recorded.
@@ -27,7 +28,7 @@ class RegisterBus final : public i2c::I2CBus {
       return i2c::ERROR_NOT_ACKNOWLEDGED;
     const uint16_t reg = encode_uint16(data[0], data[1]);
     if (out_size == 0) {
-      this->writes.push_back({reg, size});
+      this->writes.push_back({reg, size, std::all_of(data + 2, data + size, [](uint8_t b) { return b == 0; })});
       return i2c::ERROR_OK;
     }
     auto &value = this->registers[reg];

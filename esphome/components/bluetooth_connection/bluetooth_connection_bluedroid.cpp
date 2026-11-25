@@ -41,7 +41,11 @@ using esp32_ble_tracker::ConnectionType;
 // ---- tracker surface ----
 
 void BluedroidGattClient::connect() { this->tracker_connect_(); }
-void BluedroidGattClient::disconnect() { this->gatt_disconnect(); }
+void BluedroidGattClient::disconnect() {
+  // OTA calls this and then blocks the loop, so a still-pending open must not keep BLE priority.
+  this->release_coex_priority_();
+  this->gatt_disconnect();
+}
 
 // ---- component ----
 
@@ -127,8 +131,8 @@ int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
   }
   ble_device_base::uint64_to_mac_msb_first(address, this->remote_bda_);
   this->remote_addr_type_ = addr_type;
-  // Hand the request to the tracker's promote loop: it stops the scan, raises
-  // coex, and calls tracker_connect_() - the tracker owns connect timing here.
+  // Hand the request to the tracker's promote loop: it stops the scan and
+  // calls tracker_connect_() - the tracker owns connect timing here.
   this->set_state(ClientState::DISCOVERED);
   return 0;
 }
@@ -154,6 +158,12 @@ void BluedroidGattClient::tracker_connect_() {
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+    if (!this->coex_held_) {
+      this->coex_held_ = true;
+      esp32_ble_tracker::coex_ble_priority_acquire();
+    }
+#endif
     // Fast params for the discovery phase; stepped down at SEARCH_CMPL.
     this->check_and_log_error_("esp_ble_gap_set_prefer_conn_params",
                                esp_ble_gap_set_prefer_conn_params(this->remote_bda_, FAST_MIN_CONN_INTERVAL,
@@ -364,13 +374,24 @@ bool BluedroidGattClient::check_addr_(const esp_bd_addr_t &addr) const {
 }
 
 void BluedroidGattClient::set_idle_() {
+  this->release_coex_priority_();
   this->set_state(ClientState::IDLE);
   this->conn_id_ = UNSET_CONN_ID;
   this->search_state_ = SearchState::NONE;
   this->search_status_ = 0;
 }
 
+void BluedroidGattClient::release_coex_priority_() {
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+  if (this->coex_held_) {
+    this->coex_held_ = false;
+    esp32_ble_tracker::coex_ble_priority_release();
+  }
+#endif
+}
+
 void BluedroidGattClient::set_disconnecting_() {
+  this->release_coex_priority_();
   this->disconnecting_started_ = millis();
   this->set_state(ClientState::DISCONNECTING);
   // The loop may be disabled while idle; the safety timeout needs it.
@@ -403,6 +424,7 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 // ---- service streaming ----
 
 int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
+  this->release_coex_priority_();
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   if (status != ESP_GATT_OK) {

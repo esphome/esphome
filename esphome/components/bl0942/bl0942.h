@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/datatypes.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
@@ -58,10 +59,10 @@ namespace esphome::bl0942 {
 //
 // Which makes BL0952_EREF = BL0942_PREF * 3600000 / 419430.4
 
-static const float BL0942_PREF = 623.0270705;  // calculated using UREF and IREF
-static const float BL0942_UREF = 15883.34116;  // calculated for (390k x 5 / 510R) voltage divider
-static const float BL0942_IREF = 251065.6814;  // calculated for 1mR shunt
-static const float BL0942_EREF = 5347.484240;  // calculated using UREF and IREF
+static constexpr float BL0942_PREF = 623.0270705;  // calculated using UREF and IREF
+static constexpr float BL0942_UREF = 15883.34116;  // calculated for (390k x 5 / 510R) voltage divider
+static constexpr float BL0942_IREF = 251065.6814;  // calculated for 1mR shunt
+static constexpr float BL0942_EREF = 5347.484240;  // calculated using UREF and IREF
 
 struct DataPacket {
   uint8_t frame_header;
@@ -133,7 +134,8 @@ class BL0942 final : public PollingComponent, public uart::UARTDevice {
   uint8_t address_ = 0;
   bool reset_ = false;
   LineFrequency line_freq_ = LINE_FREQUENCY_50HZ;
-  optional<uint32_t> rx_start_{};
+  // A full packet starts with 0x55
+  FrameReader<sizeof(DataPacket), 0x55> reader_;
 
   bool validate_checksum_(DataPacket *data);
   int read_reg_(uint8_t reg);

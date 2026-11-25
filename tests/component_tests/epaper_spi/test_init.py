@@ -797,6 +797,73 @@ def _gdey029z95_config(**overrides: Any) -> ConfigType:
     return config
 
 
+def test_waveshare_7p5in_hd_b_uses_the_ssd1677_bwr_driver() -> None:
+    """The 7.5" HD (B) uses EPaperSSD1677BWR, and its 528 rows are the last of the controller's 680 gates."""
+    model = MODELS["WAVESHARE-7.5IN-HD-B"]
+
+    assert model.class_name == "EPaperSSD1677BWR"
+    assert model.get_dimensions({}) == (880, 528)
+    assert model.get_constructor_args({}) == (152,)
+    assert model.get_init_sequence({}) == (
+        (0x0C, 0xAE, 0xC7, 0xC3, 0xC0, 0x40),
+        (0x01, 0xA7, 0x02, 0x01),
+        (0x11, 0x01),
+        (0x3C, 0x01),
+        (0x18, 0x80),
+    )
+
+
+@pytest.mark.parametrize(
+    ("dimensions", "error", "error_key"),
+    [
+        ({"width": 880, "height": 528}, None, None),
+        (
+            {"width": 880, "height": 528, "offset_height": 153},
+            "must not exceed 680 gates",
+            "height",
+        ),
+        ({"width": 880, "height": 680, "offset_height": 0}, None, None),
+        (
+            {"width": 880, "height": 681, "offset_height": 0},
+            "must not exceed 680 gates",
+            "height",
+        ),
+        # offset_height not written: the model's 152 applies, and the error must not point at a missing key
+        ({"width": 880, "height": 529}, "must not exceed 680 gates", "height"),
+        ({"width": 960, "height": 528}, None, None),
+        ({"width": 968, "height": 528}, "must not exceed 960 sources", "width"),
+    ],
+)
+def test_waveshare_7p5in_hd_b_dimensions_must_fit_the_controller(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
+    error: str | None,
+    error_key: str | None,
+) -> None:
+    """The SSD1677 has 960 sources for the width and 680 gates for offset_height plus the height."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+    config = {
+        "id": "test_display",
+        "model": "waveshare-7.5in-hd-b",
+        "dc_pin": 21,
+        "reset_pin": 22,
+        "busy_pin": 23,
+        "dimensions": dimensions,
+    }
+
+    if error is None:
+        run_schema_validation(config)
+    else:
+        with pytest.raises(cv.Invalid, match=error) as exc_info:
+            run_schema_validation(config)
+        assert exc_info.value.path[-2:] == ["dimensions", error_key]
+
+
 def test_gdey029z95_uses_the_good_display_driver() -> None:
     """The GDEY029Z95 uses EPaperGoodDisplay3C with the WeAct init sequence."""
     model = MODELS[GDEY029Z95.upper()]
@@ -1042,3 +1109,129 @@ def test_test_card_overrides_update_interval(
     match = re.search(r"epaper_display->set_update_interval\((\d+)\);", main_cpp)
     assert match is not None
     assert int(match.group(1)) != 4294967295
+
+
+GDEW029T5_MODELS = ["goodisplay-gdew029t5-2.9", "seeed-104990852"]
+
+
+def _gdew029t5_config(model: str, **overrides: Any) -> ConfigType:
+    config: ConfigType = {
+        "id": "test_display",
+        "model": model,
+        CONF_DC_PIN: 21,
+        CONF_RESET_PIN: 22,
+        CONF_BUSY_PIN: 23,
+    }
+    config.update(overrides)
+    return config
+
+
+@pytest.mark.parametrize("model", GDEW029T5_MODELS)
+def test_gdew029t5_uses_the_uc8151_mono_driver(model: str) -> None:
+    """Both names are the same 128x296 UC8151 panel with the mono driver and its init sequence."""
+    epaper_model = MODELS[model.upper()]
+
+    assert epaper_model.class_name == "EPaperUC8151"
+    assert epaper_model.source_files == (
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8151.cpp",
+    )
+    assert epaper_model.get_dimensions({}) == (128, 296)
+    assert epaper_model.get_init_sequence({}) == (
+        (0x00, 0x1F),
+        (0x61, 128, 0x01, 0x28),
+        (0x50, 0x97),
+    )
+
+
+@pytest.mark.parametrize("pin", [CONF_RESET_PIN, CONF_BUSY_PIN])
+@pytest.mark.parametrize("model", GDEW029T5_MODELS)
+def test_gdew029t5_requires_reset_and_busy_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    model: str,
+    pin: str,
+) -> None:
+    """Only a hardware reset wakes the panel from deep sleep, and refreshes are timed by busy."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = _gdew029t5_config(model)
+    del config[pin]
+    with pytest.raises(cv.Invalid, match=pin):
+        run_schema_validation(config)
+
+
+@pytest.mark.parametrize("model", GDEW029T5_MODELS)
+def test_gdew029t5_validates_with_partial_updates(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    model: str,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    assert run_schema_validation(_gdew029t5_config(model))["full_update_every"] == 1
+    result = run_schema_validation(_gdew029t5_config(model, full_update_every=5))
+    assert result["full_update_every"] == 5
+
+
+def test_gdew029t5_width_must_be_a_multiple_of_8_and_fit_the_controller(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="multiple of 8"):
+        run_schema_validation(
+            _gdew029t5_config(
+                "goodisplay-gdew029t5-2.9", dimensions={"width": 124, "height": 296}
+            )
+        )
+    with pytest.raises(cv.Invalid, match="at most 160x296"):
+        run_schema_validation(
+            _gdew029t5_config(
+                "goodisplay-gdew029t5-2.9", dimensions={"width": 128, "height": 300}
+            )
+        )
+
+
+def test_gdew029t5_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The model generates the UC8151 mono driver and its init sequence."""
+    main_cpp = generate_main(component_config_path("uc8151_gdew029t5_test.yaml"))
+
+    assert "epaper_spi::EPaperUC8151" in main_cpp
+    assert re.search(r'"GOODISPLAY-GDEW029T5-2.9",\s*128,\s*296', main_cpp)
+    # Resolution setting: command 0x61, 3 data bytes: 128 sources, 296 gates (0x0128)
+    assert "97, 3, 128, 1, 40" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("model", "class_name"),
+    [("uc8151", "EPaperWaveshareBWR"), ("waveshare-2.13in-bv3", "EPaperWaveshareBWR")],
+)
+def test_uc8151_bwr_models_keep_the_bwr_driver(model: str, class_name: str) -> None:
+    """The red-capable models are unaffected by the mono variant of the controller."""
+    epaper_model = MODELS[model.upper()]
+
+    assert epaper_model.class_name == class_name
+    assert epaper_model.get_init_sequence(
+        {"dimensions": {"width": 104, "height": 212}}
+    )[2] == (0x50, 0x57)
+    assert epaper_model.source_files == (
+        "epaper_spi_bwr.cpp",
+        "epaper_waveshare_bwr.cpp",
+    )

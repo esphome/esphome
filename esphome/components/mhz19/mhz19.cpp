@@ -1,6 +1,7 @@
 #include "mhz19.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/helpers.h"
 
 #include <cinttypes>
@@ -19,17 +20,11 @@ static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM[] = {0xFF, 0x01, 0x
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x27, 0x10};
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+// Indexed by MHZ19DetectionRange
+PROGMEM_STRING_TABLE(DetectionRangeStrings, "default", "0-2000 ppm", "0-5000 ppm", "0-10000 ppm");
+
 static const LogString *detection_range_to_log_string(MHZ19DetectionRange range) {
-  switch (range) {
-    case MHZ19_DETECTION_RANGE_0_2000PPM:
-      return LOG_STR("0-2000 ppm");
-    case MHZ19_DETECTION_RANGE_0_5000PPM:
-      return LOG_STR("0-5000 ppm");
-    case MHZ19_DETECTION_RANGE_0_10000PPM:
-      return LOG_STR("0-10000 ppm");
-    default:
-      return LOG_STR("default");
-  }
+  return DetectionRangeStrings::get_log_str(range, MHZ19_DETECTION_RANGE_DEFAULT);
 }
 #endif
 

@@ -1,0 +1,109 @@
+# Package: plant an I2C wedge in a real device on purpose (ESP8266), then software reset, so the next boot shows what
+# ESPHome's bus recovery and the device's setup do with it. Scenario k = 0..8 cuts a write of register byte `reg`
+# after k bits; k = 9..17 cuts a read of `reg reg2` after k - 9 bits. The scenario is kept in RTC user memory, tagged
+# with `magic`, which survives resets and reflashes: give each build its own magic or it never plants.
+# persist "false": cycle all 18 scenarios, one per boot, and free a stuck SDA by hand after setup (independent trials).
+# persist "true": plant scenario 8 (write cut before its ACK clock) once and leave it; later boots come from resets.
+# wedge_after "1000000" never plants: plain reads with the setup timing only.
+substitutions:
+  sda: "4"
+  scl: "5"
+  addr: "0x29"
+  reg: "0x01"
+  reg2: "0x0F"
+  wedge_after: "6"
+  persist: "false"
+  magic: "0x5A51"
+
+esphome:
+  name: ${name}
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: |-
+            pinMode(${sda}, INPUT_PULLUP);
+            pinMode(${scl}, INPUT_PULLUP);
+            delayMicroseconds(20);
+            id(t0) = micros();
+            uint32_t sc = 0;
+            ESP.rtcUserMemoryRead(0, &sc, sizeof(sc));
+            ESP_LOGI("rec", "boot before recovery: SDA=%d SCL=%d planted=%s reason=%s", digitalRead(${sda}),
+                     digitalRead(${scl}), (sc >> 16) == ${magic} ? "yes" : "no", ESP.getResetReason().c_str());
+    - priority: 999
+      then:
+        - lambda: 'ESP_LOGI("rec", "i2c setup (recovery + Wire.begin) took %u us", (unsigned) (micros() - id(t0)));'
+    - priority: -100
+      then:
+        - lambda: |-
+            int sda = digitalRead(${sda});
+            int pulses = 0;
+            if (!${persist} && sda == 0) {
+              for (; pulses < 50 && digitalRead(${sda}) == 0; pulses++) {
+                digitalWrite(${scl}, LOW); pinMode(${scl}, OUTPUT); delayMicroseconds(10);
+                pinMode(${scl}, INPUT_PULLUP); delayMicroseconds(10);
+              }
+              digitalWrite(${sda}, LOW); pinMode(${sda}, OUTPUT); delayMicroseconds(10); pinMode(${sda}, INPUT_PULLUP);
+            }
+            ESP_LOGI("rec", "after setup: SDA=%d SCL=%d, hand unstick pulses=%d", sda, digitalRead(${scl}), pulses);
+
+logger:
+  level: DEBUG
+
+i2c:
+  id: bus
+  sda: GPIO${sda}
+  scl: GPIO${scl}
+  scan: false
+
+globals:
+  - id: t0
+    type: uint32_t
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          static int n = 0;
+          if (++n != ${wedge_after}) return;
+          uint32_t sc = 0;
+          ESP.rtcUserMemoryRead(0, &sc, sizeof(sc));
+          const bool planted = (sc >> 16) == ${magic};
+          if (${persist} && planted) return;
+          uint32_t scen = ${persist} ? 8 : (planted ? (sc & 0xFFFF) + 1 : 0);
+          bool rd = (scen % 18) >= 9;
+          int k = (scen % 18) % 9;
+          const int SDA = ${sda}, SCL = ${scl};
+          auto lo = [](int p) { digitalWrite(p, LOW); pinMode(p, OUTPUT); delayMicroseconds(5); };
+          // the target may stretch SCL (an ATtiny firmware does), so wait for it to rise
+          auto hi = [](int p) {
+            pinMode(p, INPUT_PULLUP);
+            uint32_t t = micros();
+            while (!digitalRead(p) && micros() - t < 2000) {}
+            delayMicroseconds(5);
+          };
+          auto wbits = [&](uint8_t b, int nb) {
+            for (int i = 7; i > 7 - nb; i--) { if (b & (1 << i)) hi(SDA); else lo(SDA); hi(SCL); lo(SCL); }
+          };
+          auto wbyte = [&](uint8_t b) {
+            wbits(b, 8);
+            hi(SDA); hi(SCL); int ack = digitalRead(SDA); lo(SCL); return ack;
+          };
+          hi(SDA); hi(SCL); lo(SDA); lo(SCL);
+          int a1 = wbyte(${addr} << 1), a2 = 0, a3 = 0, a4 = 0;
+          uint8_t got = 0;
+          if (!rd) {
+            wbits(${reg}, k);
+          } else {
+            a2 = wbyte(${reg});
+            if (${reg2} >= 0) a3 = wbyte(${reg2});
+            hi(SDA); hi(SCL); lo(SDA); lo(SCL);
+            a4 = wbyte((${addr} << 1) | 1);
+            hi(SDA);
+            for (int i = 0; i < k; i++) { hi(SCL); got = (got << 1) | digitalRead(SDA); lo(SCL); }
+          }
+          sc = (${magic} << 16) | scen;
+          ESP.rtcUserMemoryWrite(0, &sc, sizeof(sc));
+          ESP_LOGW("rec", "wedge scenario %u: %s after %d bits, acks %d%d%d%d, got 0x%02X, SDA now %d; restarting",
+                   scen, rd ? "read" : "write", k, a1, a2, a3, a4, got, digitalRead(SDA));
+          delay(50);
+          ESP.restart();

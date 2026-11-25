@@ -23,7 +23,7 @@ def test_gpio_binary_sensor_basic_setup(
 
     assert "static gpio::GPIOBinarySensor *const" in main_cpp
     assert ") gpio::GPIOBinarySensor();" in main_cpp
-    assert "App.register_binary_sensor" in main_cpp
+    assert "esphome::app_lists::APP_BINARY_SENSOR_LIST PROGMEM = {" in main_cpp
     # set_use_interrupt(true) should NOT be generated (uses C++ default)
     assert "bs_gpio->set_use_interrupt(true);" not in main_cpp
     # ANY is the C++ default, so no setter call

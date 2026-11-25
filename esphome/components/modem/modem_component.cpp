@@ -1,5 +1,6 @@
 #ifdef USE_ESP32
 #include "modem_component.h"
+#include "at_reply.h"
 #include "soc/soc_caps.h"
 #include <driver/uart.h>
 
@@ -42,6 +43,14 @@ static constexpr uint32_t PROBE_TIMEOUT_MS = 100;
 // A silent modem is not going to answer the next second, so its probes are spaced out, doubling up to a minute
 static constexpr uint32_t PROBE_RETRY_DELAY_MS = 5000;
 static constexpr uint32_t PROBE_RETRY_MAX_MS = 60000;
+// A modem in command mode answers the ATE0 sent before the mode detection within this time
+static constexpr uint32_t ECHO_OFF_TIMEOUT_MS = 100;
+// The +++ escape needs a second of silence before it; esp_modem waits for the answer after it
+static constexpr uint32_t ESCAPE_GUARD_MS = 1100;
+// A SIM7670 left in CMUX by an ESP reset ignores every frame until this many flag bytes overflow its receive buffer;
+// it then reinitialises its AT channel within about 2 s
+static constexpr size_t CMUX_FLUSH_BYTES = 4096;
+static constexpr uint32_t CMUX_FLUSH_SETTLE_MS = 3000;
 // How long the task waits for the main loop to run on_sync before attaching
 static constexpr uint32_t SYNC_ACK_TIMEOUT_MS = 5000;
 // esp_modem's command strings and the log lines are built on this stack
@@ -56,7 +65,18 @@ static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
 // The attachment is polled every 4 s; the signal and operator queries only every 4th poll
 static constexpr uint32_t ATTACH_POLL_MS = 4000;
 static constexpr uint8_t ATTACH_DIAG_EVERY = 4;
-static constexpr int RADIO_STATE_RF_OFF = 4;  // CFUN=4: transmit and receive off, SIM still powered
+static constexpr uint8_t ATTACH_UNKNOWN_POLLS = 15;  // about a minute of polls
+// AT+CGATT=1: SIMCom documents up to 75 s, but a SIM7080G that is not registered yet held it for 141 s
+static constexpr uint32_t ATTACH_TIMEOUT_MS = 150000;
+// SIM status polls that fail before a warning, and between repeats of it
+static constexpr uint8_t SIM_WARN_AFTER = 10;
+static constexpr uint8_t SIM_WARN_EVERY = 60;
+static constexpr int RADIO_STATE_MINIMUM = 0;  // CFUN=0: radio off and the SIM powered down
+static constexpr int RADIO_STATE_RF_OFF = 4;   // CFUN=4: transmit and receive off, SIM still powered
+static constexpr int RADIO_STATE_FULL = 1;     // CFUN=1: radio on
+// After CFUN=0 a SIM7600 refuses CFUN=1 for about 0.5 s
+static constexpr uint8_t SIM_POWER_UP_ATTEMPTS = 8;
+static constexpr uint32_t SIM_POWER_UP_RETRY_MS = 250;
 static constexpr uint8_t UART_EVENT_QUEUE_SIZE = 10;
 static constexpr uint32_t BAUD_PREF_HASH = 76007670UL;
 static constexpr uint32_t PIN_PREF_HASH = 76007671UL;
@@ -65,21 +85,29 @@ static constexpr int FALLBACK_BAUD_RATE = 115200;
 // Indexed by ModemState
 PROGMEM_STRING_TABLE(ModemStateStrings, "DISABLED", "ENABLING", "SYNCED", "CONNECTING", "WAIT_IP", "CONNECTED",
                      "DISCONNECTING", "UNKNOWN");
-static const LogString *state_to_str(ModemState state) {
-  return ModemStateStrings::get_log_str(static_cast<uint8_t>(state), ModemStateStrings::LAST_INDEX);
-}
 
 // Indexed by ModemFault
 PROGMEM_STRING_TABLE(ModemFaultStrings, "", "Modem not responding", "Configured baud rate failed",
                      "init_at command failed", "SIM not ready", "SIM locked", "SIM PIN not sent; check pin_code",
-                     "PIN record not saved", "APN or radio setup failed", "No network attachment", "PPP link failed",
-                     "Modem teardown failed");
+                     "PIN record not saved", "APN or radio setup failed", "No network attachment",
+                     "Network registration denied", "PPP link failed", "Modem teardown failed");
+
+// Indexed by the AT+CEREG? <stat> value
+PROGMEM_STRING_TABLE(RegistrationStrings, "not searching", "registered", "searching", "denied", "unknown", "roaming",
+                     "registered for SMS only", "roaming for SMS only", "emergency only",
+                     "registered, CSFB not preferred", "roaming, CSFB not preferred", "other");
+static const LogString *registration_to_str(int registration) {
+  if (registration == REGISTRATION_UNSUPPORTED) {
+    return LOG_STR("not supported");
+  }
+  if (registration < 0) {
+    return LOG_STR("not reported");
+  }
+  return RegistrationStrings::get_log_str(registration);
+}
 
 // Indexed by esp_modem::command_result
 PROGMEM_STRING_TABLE(CommandResultStrings, "OK", "FAIL", "TIMEOUT");
-static const LogString *result_to_str(command_result result) {
-  return CommandResultStrings::get_log_str(static_cast<uint8_t>(result), CommandResultStrings::LAST_INDEX);
-}
 
 ModemComponent::ModemComponent(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, const char *model, DceFactory factory,
                                const char *apn)
@@ -201,7 +229,7 @@ void ModemComponent::publish_status_() {
     this->status_clear_error();
     return;
   }
-  const LogString *message = ModemFaultStrings::get_log_str(static_cast<uint8_t>(fault), ModemFaultStrings::LAST_INDEX);
+  const LogString *message = ModemFaultStrings::get_log_str(fault);
   // These stop the modem until the SIM or pin_code is fixed
   if (fault == ModemFault::MODEM_FAULT_SIM_LOCKED || fault == ModemFault::MODEM_FAULT_PIN_NOT_SENT ||
       fault == ModemFault::MODEM_FAULT_PIN_RECORD) {
@@ -537,6 +565,16 @@ uint32_t ModemComponent::next_probe_delay_() {
   return delay_ms;
 }
 
+bool ModemComponent::sim_power_up_cfun1_() {
+  for (uint8_t attempt = 0; attempt < SIM_POWER_UP_ATTEMPTS; attempt++) {
+    if (attempt != 0)
+      delay(SIM_POWER_UP_RETRY_MS);  // NOLINT
+    if (this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK)
+      return true;
+  }
+  return false;
+}
+
 ModemState ModemComponent::retry_(ModemState state, uint32_t delay_ms) {
   this->step_delay_ms_ = delay_ms;
   return state;
@@ -585,6 +623,9 @@ ModemState ModemComponent::compute_next_state_() {
 }
 
 ModemState ModemComponent::handle_state_enabling_() {
+  // With echo on (SIM7670G after power-up), the modem sends esp_modem's PPP probe back and the detection takes it for
+  // a PPP reply; in PPP or CMUX these bytes are dropped as a bad frame
+  this->at_reply_("ATE0", ECHO_OFF_TIMEOUT_MS);
   // Find the baud rate the modem answers at and leave it in command mode, synced
   if (!this->dce_->set_mode(modem_mode::AUTODETECT)) {
     // A failed detection keeps the previous mode, which would skip the baud rate search below
@@ -610,21 +651,18 @@ ModemState ModemComponent::handle_state_enabling_() {
       exited = false;
       const int bauds[] = {this->restored_baud_, this->baud_rate_, FALLBACK_BAUD_RATE};
       bool found = false;
-      bool probed = false;
       bool rejected = false;
       for (size_t i = 0; i != std::size(bauds) && !found; i++) {
         const int baud = bauds[i];
         if (baud == 0 || baud == detected || std::find(bauds, bauds + i, baud) != bauds + i) {
           continue;
         }
-        if (uart_set_baudrate(static_cast<uart_port_t>(this->uart_port_), baud) != ESP_OK) {
+        if (this->set_uart_baud_(baud) != ESP_OK) {
           ESP_LOGW(TAG, "UART rejected baud rate %d", baud);
           this->set_fault_(ModemFault::MODEM_FAULT_BAUD);
           rejected = true;
           continue;
         }
-        this->current_baud_rate_ = baud;
-        probed = true;
         std::string output;
         found = this->dce_->at("AT", output, PROBE_TIMEOUT_MS) == command_result::OK;
         if (!found) {
@@ -632,11 +670,31 @@ ModemState ModemComponent::handle_state_enabling_() {
         }
       }
       if (!found) {
-        // The detection at the current rate already failed; a UART that refused every other rate set BAUD
-        if (!probed && !rejected) {
+        // A modem left in data mode before PPP started, or stuck in CMUX, answers none of the probes; both recoveries
+        // go out at the rate the detection used
+        if (this->current_baud_rate_ != detected) {
+          const esp_err_t err = this->set_uart_baud_(detected);
+          if (err != ESP_OK) {
+            ESP_LOGW(TAG, "UART rejected baud rate %d (%s); data mode and CMUX recovery skipped", detected,
+                     esp_err_to_name(err));
+            this->set_fault_(ModemFault::MODEM_FAULT_BAUD);
+            rejected = true;
+          }
+        }
+        // The escape before the flush is what a stuck SIM7670G responds to; the order is measured, not arbitrary
+        if (this->current_baud_rate_ == detected && (this->escape_data_mode_() || this->flush_cmux_())) {
+          exited = true;
+          break;
+        }
+        // A UART that refused a rate set BAUD
+        if (!rejected) {
           this->not_responding_(detected);
         }
-        return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
+        const uint32_t delay_ms = this->next_probe_delay_();
+        if (delay_ms == PROBE_RETRY_MAX_MS) {
+          this->answered_ = false;  // silent for minutes, so the wiring hint applies again
+        }
+        return this->retry_(ModemState::MODEM_STATE_ENABLING, delay_ms);
       }
       ESP_LOGD(TAG, "Modem responded at baud %d", this->current_baud_rate_);
       break;
@@ -670,33 +728,56 @@ ModemState ModemComponent::handle_state_enabling_() {
     this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
     return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
   }
-  this->probe_backoff_.store(0, std::memory_order_relaxed);
+  // The modem answers AT, so it is in command mode. A failed data mode exit leaves esp_modem's UART side in data mode,
+  // from where its later switch to CMUX fails at once, so its mode is set to match; this sends nothing to the modem.
+  if (!this->dce_->set_mode(modem_mode::RESUME_COMMAND_MODE)) {
+    ESP_LOGW(TAG, "esp_modem refused command mode; the switch to PPP may fail");
+  }
   // esp_modem keeps the last line before OK as the reply, which can be the echoed command
   if (this->dce_->set_echo(false) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to disable command echo");
   }
-
-  int radio_state = 0;
-  if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
-    ESP_LOGW(TAG, "Failed to read the radio state; skipping the radio off step");
-  } else if (radio_state != RADIO_STATE_RF_OFF) {
-    // Drops a session left by a warm reboot; unlike CFUN=0, which powers the SIM down on the SIM7600, CFUN=4
-    // keeps the SIM readable for the PIN and the APN. A modem that refuses is used as it is.
-    if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to turn the radio off");
-    }
+  // Verbose +CME ERROR text, so a failed command or a missing SIM says why; a modem without it keeps plain ERROR
+  if (this->dce_->config_mobile_termination_error(2) != command_result::OK) {
+    ESP_LOGW(TAG, "Modem refused verbose errors (AT+CMEE=2)");
   }
+
+  // The SIM7670G only uses an APN written at CFUN=0 (else the attach fails with an ESM failure); CFUN=0 also drops a
+  // session left by a warm reboot. A modem that refuses gets the APN after the SIM check instead, as before.
+  esp_modem::PdpContext pdp(this->apn_);
+  const bool sim_down = this->dce_->set_radio_state(RADIO_STATE_MINIMUM) == command_result::OK;
+  this->apn_pending_ = !sim_down || this->dce_->set_pdp_context(pdp) != command_result::OK;
+  if (this->apn_pending_) {
+    ESP_LOGW(TAG, "Failed to set the APN with the SIM powered down; setting it after the SIM check");
+  }
+  // CFUN=4 powers the SIM up with the radio still off; a modem without it needs CFUN=1 to bring the SIM back.
+  // A modem that takes CFUN=0 but not the APN there (SIM7600) accepts CFUN=4 yet leaves the SIM at "SIM failure";
+  // only CFUN=1 powers it up again. The APN is still written after the SIM check, before the attach is waited for.
+  bool sim_up;
+  if (sim_down && this->apn_pending_) {
+    sim_up = this->sim_power_up_cfun1_();
+  } else {
+    sim_up = this->dce_->set_radio_state(RADIO_STATE_RF_OFF) == command_result::OK ||
+             this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK;
+  }
+  if (!sim_up) {
+    ESP_LOGW(TAG, "Failed to power the SIM up");
+    this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
+    this->modem_synced_ = true;  // it answers, so a disable() still tears it down
+    this->answered_ = true;
+    return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
+  }
+  this->probe_backoff_.store(0, std::memory_order_relaxed);
 
   if (this->baud_rate_ != 0 && this->baud_rate_ != this->current_baud_rate_) {
     ESP_LOGD(TAG, "Setting baud rate: %d -> %d", this->current_baud_rate_, this->baud_rate_);
     if (this->dce_->set_baud(this->baud_rate_) == command_result::OK) {
       delay(200);  // NOLINT
-      if (uart_set_baudrate(static_cast<uart_port_t>(this->uart_port_), this->baud_rate_) != ESP_OK) {
+      if (this->set_uart_baud_(this->baud_rate_) != ESP_OK) {
         ESP_LOGE(TAG, "UART rejected baud rate %d", this->baud_rate_);
         this->set_fault_(ModemFault::MODEM_FAULT_BAUD);
         return ModemState::MODEM_STATE_DISCONNECTING;
       }
-      this->current_baud_rate_ = this->baud_rate_;
       if (this->dce_->sync() != command_result::OK) {
         ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->baud_rate_);
         this->set_fault_(ModemFault::MODEM_FAULT_BAUD);
@@ -724,6 +805,7 @@ ModemState ModemComponent::handle_state_enabling_() {
     ESP_LOGW(TAG, "Modem refused hardware flow control; UART overruns are possible");
   }
   this->modem_synced_ = true;
+  this->answered_ = true;
   return ModemState::MODEM_STATE_SYNCED;
 }
 
@@ -739,12 +821,13 @@ ModemState ModemComponent::handle_state_synced_() {
     this->clear_config_fault_(ModemFault::MODEM_FAULT_INIT_AT);
   }
   this->connect_step_ = ConnectStep::CONNECT_STEP_START;
+  this->sim_polls_ = 0;
   return ModemState::MODEM_STATE_CONNECTING;
 }
 
 ModemState ModemComponent::handle_state_connecting_() {
   if (this->connect_step_ == ConnectStep::CONNECT_STEP_START) {
-    // ENABLING just synced; only a failed attachment read comes back here unsure of the modem
+    // ENABLING just synced; a command that timed out comes back here unsure of the modem
     if (this->resync_) {
       this->resync_ = false;
       if (this->dce_->sync() != command_result::OK) {
@@ -752,7 +835,8 @@ ModemState ModemComponent::handle_state_connecting_() {
         return ModemState::MODEM_STATE_ENABLING;
       }
     }
-    // ENABLING left the radio at CFUN=4, where the SIM answers but the modem cannot attach yet
+    // ENABLING powered the SIM up, so the SIM answers: CFUN=4, or CFUN=1 on a modem without it or after the APN was
+    // refused at CFUN=0, which leaves the radio on here
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
         break;
@@ -769,50 +853,94 @@ ModemState ModemComponent::handle_state_connecting_() {
         this->target_state_.store(ModemState::MODEM_STATE_DISABLED);
         return ModemState::MODEM_STATE_DISCONNECTING;
     }
-    // The APN has to be in the PDP context before the radio comes on and the modem attaches; esp_modem only
-    // sends it when PPP starts
-    esp_modem::PdpContext pdp(this->apn_);
-    if (this->dce_->set_pdp_context(pdp) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to set the APN");
-      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
-      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    if (this->apn_pending_) {
+      esp_modem::PdpContext pdp(this->apn_);
+      if (this->dce_->set_pdp_context(pdp) != command_result::OK) {
+        ESP_LOGW(TAG, "Failed to set the APN");
+        this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
+        return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+      }
+      this->apn_pending_ = false;
     }
-    if (this->dce_->set_radio_state(1) != command_result::OK) {
+    if (this->dce_->set_radio_state(RADIO_STATE_FULL) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to turn the radio on");
       this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
     this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;
     this->attach_polls_ = 0;
-  }
-
-  if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON) {
-    // A modem still searching for a network refuses this; the attachment poll asks again
-    if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
-      ESP_LOGD(TAG, "Network attachment request refused");
-    }
-    this->connect_step_ = ConnectStep::CONNECT_STEP_ATTACH_REQUESTED;
+    this->idle_polls_ = 0;
+    this->unknown_polls_ = 0;
   }
 
   int attached = 0;
   if (this->dce_->get_network_attachment_state(attached) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to read the network attachment state");
     this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
-    this->connect_step_ = ConnectStep::CONNECT_STEP_START;  // start over with a sync on the next pass
-    this->resync_ = true;
+    this->request_resync_();
     return this->retry_(ModemState::MODEM_STATE_CONNECTING);
   }
   if (!attached) {
+    const int registration = this->read_registration_();
+    if (registration == REGISTRATION_NO_ANSWER) {
+      // The state is open, so the modem is checked with a sync instead
+      ESP_LOGW(TAG, "No answer to a registration query");
+      this->request_resync_();
+      this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
+      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    }
+    // "Not searching" for a few polls in a row means the attachment is off; right after CFUN=1 it is only brief
+    this->idle_polls_ = registration == REGISTRATION_NOT_SEARCHING ? static_cast<uint8_t>(this->idle_polls_ + 1) : 0;
+    const bool idle = this->idle_polls_ >= ATTACH_DIAG_EVERY;
+    // A state that cannot be read or means nothing here holds the request back only for a while
+    const bool unknown = registration == REGISTRATION_UNKNOWN || registration == REGISTRATION_REPORTED_UNKNOWN ||
+                         (registration > REGISTRATION_ROAMING && !is_registered(registration));
+    this->unknown_polls_ = unknown ? static_cast<uint8_t>(this->unknown_polls_ + 1) : 0;
+    const bool unknown_too_long = this->unknown_polls_ >= ATTACH_UNKNOWN_POLLS;
+    if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON &&
+        (is_registered(registration) || registration == REGISTRATION_UNSUPPORTED || idle || unknown_too_long)) {
+      if (unknown_too_long) {
+        ESP_LOGI(TAG, "Registration state %d (%s) for %u polls; requesting the network attachment anyway", registration,
+                 LOG_STR_ARG(registration_to_str(registration)), this->unknown_polls_);
+        this->unknown_polls_ = 0;
+      }
+      // Before registration a modem can hold the AT channel on this for minutes and drop every command meanwhile,
+      // so it waits for one; the fallbacks above send it anyway, and ATTACH_TIMEOUT_MS covers that hold
+      const command_result attach = this->at_reply_("AT+CGATT=1", ATTACH_TIMEOUT_MS);
+      if (attach == command_result::TIMEOUT) {
+        ESP_LOGW(TAG, "No answer to the network attachment request");
+        this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
+        this->request_resync_();
+        return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+      }
+      if (attach != command_result::OK) {
+        ESP_LOGW(TAG, "Network attachment request refused: %s", this->reply_);
+      }
+      this->connect_step_ = ConnectStep::CONNECT_STEP_ATTACH_REQUESTED;
+      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    }
     if (this->attach_polls_++ % ATTACH_DIAG_EVERY == 0) {
-      int rssi = 99, ber = 99, registration = -1, mode = -1;  // -1 stays when the query fails
-      this->dce_->get_network_registration_state(registration);
+      int rssi = 99, ber = 99, mode = -1;  // -1 stays when the query fails
       this->dce_->get_signal_quality(rssi, ber);
       this->dce_->get_network_system_mode(mode);
-      ESP_LOGW(TAG, "Modem not attached yet: registration %d, network type %d, CSQ %d, BER %d", registration, mode,
-               rssi, ber);
+      ESP_LOGW(TAG, "Modem not attached yet: registration %d (%s), network type %d, CSQ %d, BER %d", registration,
+               LOG_STR_ARG(registration_to_str(registration)), mode, rssi, ber);
+      if (unknown) {
+        ESP_LOGW(TAG, "Network attachment request held back while the registration state is unknown (%u of %u polls)",
+                 this->unknown_polls_, ATTACH_UNKNOWN_POLLS);
+      }
+      if (registration == REGISTRATION_DENIED) {
+        // The modem's reason tells a rejected APN (ESM failure) from a SIM the network does not serve
+        const command_result reason_read = this->at_reply_("AT+CEER");
+        ESP_LOGW(TAG,
+                 "The network refused registration (AT+CEER %s: %s); check the APN and that the SIM's plan covers "
+                 "this modem's network types",
+                 LOG_STR_ARG(CommandResultStrings::get_log_str(reason_read)), this->reply_);
+      }
       this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;  // request the attachment again
     }
-    this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
+    this->set_fault_(registration == REGISTRATION_DENIED ? ModemFault::MODEM_FAULT_REGISTRATION_DENIED
+                                                         : ModemFault::MODEM_FAULT_NOT_ATTACHED);
     return this->retry_(ModemState::MODEM_STATE_CONNECTING, ATTACH_POLL_MS);
   }
 
@@ -862,11 +990,12 @@ ModemState ModemComponent::handle_state_disconnecting_() {
     ESP_LOGW(TAG, "Failed to leave data mode");
     this->set_teardown_fault_();
   }
-  // Turn the radio off; waiting for the lost IP event could take up to 2 min. A reconnect keeps the SIM powered
-  // so it is not unlocked again; only disable() powers it down.
-  const bool reconnect = this->target_state_.load() == ModemState::MODEM_STATE_CONNECTED;
-  if (this->dce_->set_radio_state(reconnect ? RADIO_STATE_RF_OFF : 0) == command_result::OK) {
+  // Turn the radio off; waiting for the lost IP event could take up to 2 min. The SIM is powered down as well, as
+  // ENABLING does anyway on a reconnect.
+  if (this->dce_->set_radio_state(RADIO_STATE_MINIMUM) == command_result::OK) {
     ESP_LOGI(TAG, "Radio off");
+  } else if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) == command_result::OK) {
+    ESP_LOGW(TAG, "Radio off, but the SIM could not be powered down");
   } else {
     ESP_LOGW(TAG, "Radio off failed");
     this->set_teardown_fault_();
@@ -880,7 +1009,8 @@ void ModemComponent::transition_to_(ModemState next_state) {
     return;
   }
   const bool lost = next_state == ModemState::MODEM_STATE_DISCONNECTING && state == ModemState::MODEM_STATE_CONNECTED;
-  ESP_LOGD(TAG, "State change: %s -> %s", LOG_STR_ARG(state_to_str(state)), LOG_STR_ARG(state_to_str(next_state)));
+  ESP_LOGD(TAG, "State change: %s -> %s", LOG_STR_ARG(ModemStateStrings::get_log_str(state)),
+           LOG_STR_ARG(ModemStateStrings::get_log_str(next_state)));
   this->component_state_.store(next_state);
   // The automations run on the main loop
   if (next_state == ModemState::MODEM_STATE_SYNCED) {
@@ -914,9 +1044,112 @@ void ModemComponent::transition_to_(ModemState next_state) {
   }
 }
 
+esp_err_t ModemComponent::set_uart_baud_(int baud) {
+  const esp_err_t err = uart_set_baudrate(static_cast<uart_port_t>(this->uart_port_), baud);
+  if (err == ESP_OK) {
+    this->current_baud_rate_ = baud;
+  }
+  return err;
+}
+
+bool ModemComponent::escape_data_mode_() {
+  delay(ESCAPE_GUARD_MS);  // NOLINT
+  if (this->dce_->set_command_mode() != command_result::OK) {
+    ESP_LOGD(TAG, "No answer after the data mode escape");
+    return false;
+  }
+  ESP_LOGW(TAG, "Modem was left in data mode; escaped to command mode");
+  return true;
+}
+
+bool ModemComponent::flush_cmux_() {
+  // With RTS/CTS a silent modem can hold CTS off; the flag bytes would then stay queued and block every later write
+  if (this->rts_pin_ != nullptr) {
+    ESP_LOGW(TAG, "CMUX recovery is not available with RTS/CTS flow control");
+    return false;
+  }
+  static constexpr uint8_t CMUX_FLAG = 0xF9;
+  uint8_t flags[64];
+  memset(flags, CMUX_FLAG, sizeof(flags));
+  const auto port = static_cast<uart_port_t>(this->uart_port_);
+  for (size_t sent = 0; sent < CMUX_FLUSH_BYTES; sent += sizeof(flags)) {
+    if (this->dte_->write(flags, sizeof(flags)) != static_cast<int>(sizeof(flags))) {
+      ESP_LOGW(TAG, "CMUX flush: short write after %u bytes", static_cast<unsigned>(sent));
+      return false;
+    }
+  }
+  // 10 bits per byte, plus a margin
+  const uint32_t send_ms = CMUX_FLUSH_BYTES * 10 * 1000 / this->current_baud_rate_ + 100;
+  if (uart_wait_tx_done(port, pdMS_TO_TICKS(send_ms)) != ESP_OK) {
+    ESP_LOGW(TAG, "CMUX flush: transmit not finished after %u ms", static_cast<unsigned>(send_ms));
+    return false;
+  }
+  delay(CMUX_FLUSH_SETTLE_MS);  // NOLINT
+  if (this->dce_->sync() != command_result::OK) {
+    ESP_LOGD(TAG, "No answer after the CMUX flush");
+    return false;
+  }
+  ESP_LOGW(TAG, "Modem was stuck in CMUX; reset it to command mode");
+  return true;
+}
+
+// A command timed out: the next pass checks with a sync that the modem still answers
+void ModemComponent::request_resync_() {
+  this->connect_step_ = ConnectStep::CONNECT_STEP_START;
+  this->resync_ = true;
+}
+
+// One registration query: the <stat>, REGISTRATION_UNSUPPORTED, REGISTRATION_NO_ANSWER or REGISTRATION_UNKNOWN
+int ModemComponent::read_stat_(const char *cmd, const char *prefix) {
+  const command_result result = this->at_reply_(cmd);
+  if (result == command_result::TIMEOUT) {
+    return REGISTRATION_NO_ANSWER;
+  }
+  if (result == command_result::FAIL && reply_names_unsupported(this->reply_)) {
+    return REGISTRATION_UNSUPPORTED;
+  }
+  const int stat = result == command_result::OK ? registration_from_reply(this->reply_, prefix) : REGISTRATION_UNKNOWN;
+  if (stat == REGISTRATION_UNKNOWN) {
+    // An error such as a SIM failure is a warning on the diagnostic polls, so it shows at the default log level
+    if (result == command_result::FAIL && this->attach_polls_ % ATTACH_DIAG_EVERY == 0) {
+      ESP_LOGW(TAG, "%s failed: %s", cmd, this->reply_);
+    } else {
+      ESP_LOGD(TAG, "%s gave no state: %s", cmd, this->reply_);
+    }
+  }
+  return stat;
+}
+
+// AT+CEREG covers LTE; on 2G and 3G the network registration is in AT+CREG, and AT+CGATT=1 is answered quickly once
+// it is set. Returns the <stat> that tells most, or one of the negative REGISTRATION_ values.
+int ModemComponent::read_registration_() {
+  const int lte = this->read_stat_("AT+CEREG?", "+CEREG:");
+  if (is_registered(lte)) {
+    return lte;
+  }
+  return merge_registration(lte, this->read_stat_("AT+CREG?", "+CREG:"));
+}
+
 void ModemComponent::not_responding_(int baud) {
-  ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
+  if (this->answered_) {
+    // It answered before, so the wiring is fine; a long command or a modem restart keeps it silent for minutes
+    ESP_LOGW(TAG, "Modem not responding at %d baud; it may be busy or restarting", baud);
+  } else {
+    ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
+  }
   this->set_fault_(ModemFault::MODEM_FAULT_NO_RESPONSE);
+}
+
+void ModemComponent::sim_not_ready_(const char *reason) {
+  // A missing or broken SIM never gets ready; the status is polled every second, so only some polls warn
+  if (++this->sim_polls_ == SIM_WARN_AFTER + SIM_WARN_EVERY) {
+    this->sim_polls_ = SIM_WARN_AFTER;
+  }
+  if (this->sim_polls_ == SIM_WARN_AFTER) {
+    ESP_LOGW(TAG, "SIM not ready: %s. Check that a working SIM is inserted",
+             reason[0] != '\0' ? reason : LOG_STR_LITERAL("no reply"));
+  }
+  this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
 }
 
 #ifdef USE_MODEM_SEND_AT
@@ -945,13 +1178,55 @@ bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
 
 #endif
 
+// at() keeps no text from a failed command, so the raw reply is collected into reply_ to show the +CME ERROR
+command_result ModemComponent::at_reply_(const char *cmd, uint32_t timeout) {
+  std::string line = cmd;  // poll commands fit the short string buffer
+  line += '\r';
+  this->reply_len_ = 0;
+  this->reply_[0] = '\0';
+#ifdef CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED
+  // The inflatable buffer gathers CMUX frames too, so every reply comes over whole each time
+  const bool whole = true;
+#else
+  // esp_modem hands a UART reply over whole each time, and a CMUX reply one frame at a time
+  const modem_mode mode = this->dce_->get_mode();
+  const bool whole = mode != modem_mode::CMUX_MODE && mode != modem_mode::CMUX_MANUAL_MODE &&
+                     mode != modem_mode::CMUX_MANUAL_DATA && mode != modem_mode::CMUX_MANUAL_COMMAND;
+#endif
+  struct {
+    bool whole;
+    bool cut;
+  } state{whole, false};
+  const command_result result = this->dce_->command(
+      line,
+      [this, &state](const uint8_t *data, size_t len) {
+        // OK, or FAIL once an ERROR line has ended (the +CME ERROR reason may still be on its way), else TIMEOUT
+        state.cut |= collect_reply(this->reply_, sizeof(this->reply_), this->reply_len_,
+                                   reinterpret_cast<const char *>(data), len, state.whole);
+        switch (reply_end(this->reply_, this->reply_len_, state.cut)) {
+          case ReplyEnd::REPLY_END_OK:
+            return command_result::OK;
+          case ReplyEnd::REPLY_END_ERROR:
+            return command_result::FAIL;
+          default:
+            return command_result::TIMEOUT;
+        }
+      },
+      timeout);
+  this->reply_len_ = flatten_reply(this->reply_, this->reply_len_);
+  this->reply_cut_ = state.cut;
+  return result;
+}
+
 command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
-  std::string output;
-  const command_result result = this->dce_->at(cmd, output, timeout);
+  const command_result result = this->at_reply_(cmd, timeout);
+  // A reply longer than the buffer kept only its end
+  const char *cut = this->reply_cut_ ? LOG_STR_LITERAL("...") : "";
   if (result == command_result::OK) {
-    ESP_LOGI(TAG, "AT '%s' -> OK: %s", cmd, output.c_str());
+    ESP_LOGI(TAG, "AT '%s' -> OK: %s%s", cmd, cut, this->reply_);
   } else {
-    ESP_LOGW(TAG, "AT '%s' -> %s: %s", cmd, LOG_STR_ARG(result_to_str(result)), output.c_str());
+    ESP_LOGW(TAG, "AT '%s' -> %s: %s%s", cmd, LOG_STR_ARG(CommandResultStrings::get_log_str(result)), cut,
+             this->reply_);
   }
   return result;
 }
@@ -964,25 +1239,27 @@ SimResult ModemComponent::prepare_sim_() {
     return SimResult::SIM_RESULT_RETRY;  // the save wakes the task
   }
 #endif
-  std::string output;
-  if (this->dce_->at("AT+CPIN?", output, COMMAND_TIMEOUT_MS) != command_result::OK) {
+  // The raw reply keeps the +CME ERROR text a missing SIM gives; status below points into it
+  const command_result result = this->at_reply_("AT+CPIN?");
+  if (result == command_result::TIMEOUT) {
+    // The next pass checks with a sync whether the modem or only the SIM interface is silent
+    ESP_LOGD(TAG, "No answer to the SIM status request");
+    this->sim_not_ready_(LOG_STR_LITERAL("no answer to AT+CPIN?"));
+    this->request_resync_();
+    return SimResult::SIM_RESULT_RETRY;
+  }
+  if (result != command_result::OK) {
     // A SIM that is still starting answers with an error for a second or so
-    ESP_LOGD(TAG, "SIM status not readable yet: %s", output.c_str());
-    this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
+    ESP_LOGD(TAG, "SIM status not readable yet: %s", this->reply_);
+    this->sim_not_ready_(this->reply_);
     return SimResult::SIM_RESULT_RETRY;
   }
   // Anything else, such as an echoed command, is not a status and must not reach the lock checks below
-  const char *found = strstr(output.c_str(), "+CPIN:");
-  if (found != nullptr) {
-    found += sizeof("+CPIN:") - 1;
-    while (*found == ' ') {
-      found++;
-    }
-  }
+  const char *found = sim_status(this->reply_);
   const StringRef status = found != nullptr ? StringRef(found) : StringRef();
   if (status.empty()) {
-    ESP_LOGD(TAG, "SIM status not reported yet: %s", output.c_str());
-    this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
+    ESP_LOGD(TAG, "SIM status not reported yet: %s", this->reply_);
+    this->sim_not_ready_(this->reply_);
     return SimResult::SIM_RESULT_RETRY;
   }
   ESP_LOGD(TAG, "SIM: %s", status.c_str());
@@ -1010,8 +1287,8 @@ SimResult ModemComponent::prepare_sim_() {
       this->set_fault_(ModemFault::MODEM_FAULT_SIM_LOCKED);
       return SimResult::SIM_RESULT_LOCKED;
     }
-    ESP_LOGW(TAG, "SIM not ready: %s", status.c_str());  // e.g. NOT READY or NOT INSERTED
-    this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
+    ESP_LOGD(TAG, "SIM not ready: %s", status.c_str());  // e.g. NOT READY or NOT INSERTED
+    this->sim_not_ready_(status.c_str());
     return SimResult::SIM_RESULT_RETRY;
   }
 #ifdef USE_MODEM_PIN_CODE
@@ -1123,8 +1400,7 @@ void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_un
   PUBLISH_STATE(this->ber_sensor_, ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  PUBLISH_STATE(this->network_type_text_sensor_,
-                NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
+  PUBLISH_STATE(this->network_type_text_sensor_, NetworkModeStrings::get_progmem_str(mode));
 #endif
 }
 #endif

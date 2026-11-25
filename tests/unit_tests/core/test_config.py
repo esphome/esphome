@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_BUILD_PATH,
     CONF_DEVICES,
     CONF_ESPHOME,
+    CONF_FRIENDLY_NAME,
     CONF_INCLUDES,
     CONF_INCLUDES_C,
     CONF_NAME,
@@ -28,6 +29,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_FRIENDLY_NAME_SEPARATOR,
     CONF_LOOP_INTERVAL,
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
@@ -42,6 +44,7 @@ from esphome.core.config import (
     valid_include,
     valid_project_name,
     validate_area_config,
+    validate_friendly_name_with_suffix,
     validate_hostname,
 )
 import esphome.final_validate as fv
@@ -179,7 +182,10 @@ async def test_core_area_recorded_at_config_load(
     # Recorded already at config-load time, before any code generation.
     assert CORE.area == expected_area
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -198,7 +204,10 @@ async def test_app_is_default_initialized(
     result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
     assert result is not None
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -228,7 +237,10 @@ async def test_no_exceptions_flag_skipped_on_native_cmake_builds(
     assert result is not None
     CORE.toolchain = toolchain
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -329,6 +341,19 @@ def test_loop_interval_warn_esp32(
     )
 
 
+def test_loop_interval_no_warn_esp32_watchdog_disabled(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With the task watchdog disabled the loop sleep is not capped."""
+    result = load_config_from_fixture(
+        yaml_file, "loop_interval_esp32_watchdog_disabled.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    assert "maximum sleep" not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("esphome_config", "expected_ms"),
     [
@@ -384,6 +409,10 @@ async def test_suspend_loop_and_loop_interval(
     assert esphome_config.get(CONF_SUSPEND_LOOP)
 
     with patch("esphome.core.config.cg") as mock_cg:
+        # Call through so the setter assertion below checks what is emitted.
+        mock_cg.add_optional.side_effect = lambda setter, value: (
+            None if value is None else setter(value)
+        )
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -476,7 +505,10 @@ async def test_device_relation_to_code(
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is not None
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -705,63 +737,6 @@ def test_to_code_priority_above_safe_mode() -> None:
         f"safe_mode to_code priority ({safe_mode_to_code.priority}) so that "
         "App.looping_components_.init() is emitted before safe_mode's early return"
     )
-
-
-@pytest.mark.asyncio
-async def test_add_looping_components_handles_empty_entries() -> None:
-    """Test that _add_looping_components emits a valid constexpr when there are
-    no looping component entries.
-
-    With zero entries the generated constexpr must still be syntactically valid
-    C++ (`= 0;`), not an empty expression (`= ;`). This guards the empty-list
-    case that would otherwise produce uncompilable main.cpp output.
-    """
-    CORE.data["looping_component_entries"] = []
-
-    await config._add_looping_components()
-
-    constexpr_lines = [
-        str(s)
-        for s in CORE.global_statements
-        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
-    ]
-    assert len(constexpr_lines) == 1
-    text = constexpr_lines[0]
-    assert "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in text
-    # The right-hand side must contain a literal `0`, not be empty.
-    rhs = text.split("=", 1)[1]
-    assert "0" in rhs
-    assert rhs.strip().rstrip(";").strip(), (
-        f"constexpr right-hand side must not be empty, got: {text!r}"
-    )
-    assert any(
-        "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];"
-        in str(s)
-        for s in CORE.global_statements
-    )
-
-
-@pytest.mark.asyncio
-async def test_add_looping_components_with_entries() -> None:
-    """Test that _add_looping_components builds a HasLoopOverride sum from entries."""
-    CORE.data["looping_component_entries"] = [
-        "esphome::wifi::WiFiComponent",
-        "esphome::logger::Logger",
-        "esphome::wifi::WiFiComponent",
-    ]
-
-    await config._add_looping_components()
-
-    constexpr_lines = [
-        str(s)
-        for s in CORE.global_statements
-        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
-    ]
-    assert len(constexpr_lines) == 1
-    text = constexpr_lines[0]
-    # Deduplicated by type, with per-type counts as multiplier.
-    assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
-    assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
 
 
 @pytest.mark.asyncio
@@ -1686,6 +1661,68 @@ def test_make_app_name_cpp_mac_suffix_space_sep() -> None:
     assert byte_len == len("My Device XXXXXX")
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("separator_line", "expected"),
+    [
+        ("", "my device XXXXXX"),
+        ('  friendly_name_separator: "-"\n', "my device-XXXXXX"),
+        ('  friendly_name_separator: ""\n', "my deviceXXXXXX"),
+    ],
+)
+async def test_friendly_name_separator(
+    yaml_file: Callable[[str], Path], separator_line: str, expected: str
+) -> None:
+    """The friendly name joins the MAC suffix with a space unless told otherwise."""
+    result = load_config_from_yaml(
+        yaml_file,
+        "esphome:\n"
+        "  name: my-device\n"
+        "  friendly_name: my device\n"
+        "  name_add_mac_suffix: true\n" + separator_line + "host:\n",
+    )
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    statements = [c.args[0] for c in mock_cg.RawStatement.call_args_list]
+    assert f'static char esphome_app_friendly_name_buf[] = "{expected}";' in statements
+    assert 'static char esphome_app_name_buf[] = "my-device-XXXXXX";' in statements
+
+
+@pytest.mark.asyncio
+async def test_friendly_name_separator_without_mac_suffix(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """Without the MAC suffix the separator is ignored, as when a device is adopted."""
+    result = load_config_from_yaml(
+        yaml_file,
+        "esphome:\n"
+        "  name: my-device\n"
+        "  friendly_name: my device\n"
+        "  name_add_mac_suffix: false\n"
+        '  friendly_name_separator: "-"\n'
+        "host:\n",
+    )
+    assert result is not None
+    assert result[CONF_ESPHOME][CONF_FRIENDLY_NAME_SEPARATOR] == "-"
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    assert not [
+        c
+        for c in mock_cg.RawStatement.call_args_list
+        if "esphome_app_friendly_name_buf" in c.args[0]
+    ]
+    assert '"my device"' in [c.args[0] for c in mock_cg.RawExpression.call_args_list]
+
+
 def test_make_app_name_cpp_non_ascii_utf8_length() -> None:
     """Test non-ASCII characters use UTF-8 byte length."""
     _, global_decl, byte_len = make_app_name_cpp(
@@ -1966,3 +2003,31 @@ def test_filter_source_files_drops_util_cpp_without_mqtt() -> None:
 
     CORE.defines = {core.Define("USE_API"), core.Define("USE_MQTT")}
     assert "util.cpp" not in config.FILTER_SOURCE_FILES()
+
+
+@pytest.mark.parametrize(
+    ("friendly_name", "separator", "valid"),
+    [
+        ("a" * 120, " ", True),  # 127 bytes, the most an API short string holds
+        ("a" * 120, " - ", False),
+        ("a" * 118, " - ", True),
+        ("\u00e9" * 60, " ", True),  # 120 bytes in UTF-8
+        ("\u00e9" * 60, "--", False),
+    ],
+)
+def test_validate_friendly_name_with_suffix(
+    friendly_name: str, separator: str, valid: bool
+) -> None:
+    config = {
+        CONF_NAME_ADD_MAC_SUFFIX: True,
+        CONF_FRIENDLY_NAME: friendly_name,
+        CONF_FRIENDLY_NAME_SEPARATOR: separator,
+    }
+    if valid:
+        assert validate_friendly_name_with_suffix(config) == config
+    else:
+        with pytest.raises(cv.Invalid, match="at most 127 fit"):
+            validate_friendly_name_with_suffix(config)
+    # Without the suffix nothing is appended
+    config[CONF_NAME_ADD_MAC_SUFFIX] = False
+    assert validate_friendly_name_with_suffix(config) == config
