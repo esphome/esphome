@@ -185,6 +185,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `bmp390/` (config generator, probe and fault injection header, runner and stats)
 - `bt_proxy_ab/` (proxy A/B packages with a heap logger, scenario driver, suite, flash chain and crossed runner,
   on-device self test, burst client and drop counters, reports)
+- `canopen/` (CANopen SDO client suite header, client, server with slow objects and MCP2515 node configs, action paths
+  package, bus check, two-board capture with a reset hold)
 - `cc1101_long/` (long packet and lambda length driver for two CC1101 radios, begin_tx in packet mode, async serial OOK
   package and driver)
 - `cc1101_sleep/` (register and PATABLE snapshot header, sleep and setter checks)
@@ -257,7 +259,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   loopback, CLASSIC window and bus-off configs, runner)
 - `mdns/` (unicast mDNS dump, hammer and latency)
 - `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards, AT commands for the UART
-  passthrough)
+  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow, OTA
+  flow, AT line filter, USB AT port client)
 - `mqtt/` (`ha_discovery/`, `disable/`, `retained_burst/` and `reconnect/` runners; broker config with TLS,
   client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner,
   flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards,

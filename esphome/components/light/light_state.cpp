@@ -83,12 +83,12 @@ void LightState::setup() {
   call.set_color_temperature_if_supported(recovered.color_temp);
   call.set_cold_white_if_supported(recovered.cold_white);
   call.set_warm_white_if_supported(recovered.warm_white);
-  if (recovered.state && recovered.effect != 0) {
+  if (recovered.state && recovered.effect != 0 && this->supports_effects()) {
     call.set_effect(recovered.effect);
   } else {
 #ifdef USE_LIGHT_RESUME_EFFECT
     // An off light cannot start its effect now; keep it for the first turn-on instead
-    this->previous_effect_index_ = recovered.effect;
+    this->previous_effect_index_ = this->supports_effects() ? recovered.effect : 0;
 #endif  // USE_LIGHT_RESUME_EFFECT
     // Not set_transition_length_if_supported(): without a known color mode it would leave the default transition,
     // a fade that only runs from loop(). perform() drops a 0 transition, also for lights without transitions.
@@ -385,6 +385,7 @@ float LightState::gamma_uncorrect_lut(float value) const {
 
 void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();
+#ifdef USE_LIGHT_EFFECTS
   if (effect_index == 0)
     return;
 
@@ -393,6 +394,7 @@ void LightState::start_effect_(uint32_t effect_index) {
   effect->start_internal();
   // Enable loop while effect is active
   this->enable_loop();
+#endif
 }
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0) {
@@ -406,7 +408,9 @@ void LightState::stop_effect_() {
   if (effect != nullptr) {
     effect->stop();
   }
+#ifdef USE_LIGHT_EFFECTS
   this->active_effect_index_ = 0;
+#endif
   // Disable loop if idle (no effect and no transformer)
   this->disable_loop_if_idle_();
 }
