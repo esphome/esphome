@@ -46,5 +46,6 @@ def test_mqtt_esp8266_tls_fingerprint_codegen_uses_esp8266_mqtt_libraries(
     assert "mqtt_client->set_ssl_fingerprint({" in main_cpp
     assert "mqtt_client->disable_log_message();" in main_cpp
     assert "0x00, 0x11, 0x22, 0x33" in main_cpp
+    assert "0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF" in main_cpp
     assert "-DASYNC_TCP_SSL_ENABLED=1" in CORE.build_flags
     _assert_esp8266_mqtt_libraries()

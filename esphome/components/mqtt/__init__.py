@@ -387,12 +387,16 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_fingerprint(value: object) -> str:
+def normalize_fingerprint(fingerprint: str) -> str:
     """Return the SHA1 fingerprint as 40 lowercase hex digits without colons."""
-    fingerprint = cv.string(value).strip()
-    if _SHA1_FINGERPRINT_RE.fullmatch(fingerprint) is None:
+    return fingerprint.strip().replace(":", "").lower()
+
+
+def validate_fingerprint(value: str) -> str:
+    """Check the SHA1 fingerprint, returning it unchanged so a !secret round-trips."""
+    if _SHA1_FINGERPRINT_RE.fullmatch(value.strip()) is None:
         raise cv.Invalid("fingerprint must be a SHA1 hash with 40 hexadecimal digits")
-    return fingerprint.replace(":", "").lower()
+    return value
 
 
 # The parsed JSON document is freed once the automation returns
@@ -478,7 +482,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
                 cv.only_on_esp8266,
-                cv.ensure_list(validate_fingerprint),
+                cv.ensure_list(cv.string, validate_fingerprint),
                 cv.Length(
                     min=1,
                     max=1,
@@ -814,7 +818,12 @@ async def to_code(config):
 
     if fingerprints := config.get(CONF_SSL_FINGERPRINTS):
         cg.add(
-            var.set_ssl_fingerprint([HexInt(b) for b in bytes.fromhex(fingerprints[0])])
+            var.set_ssl_fingerprint(
+                [
+                    HexInt(b)
+                    for b in bytes.fromhex(normalize_fingerprint(fingerprints[0]))
+                ]
+            )
         )
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 

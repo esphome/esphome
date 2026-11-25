@@ -177,6 +177,7 @@ def prepare(
         CONF_WS_PATH,
         DEFAULT_WS_PATH,
         MQTT_TRANSPORT_TCP,
+        normalize_fingerprint,
     )
 
     transport = config[CONF_MQTT].get(CONF_TRANSPORT, MQTT_TRANSPORT_TCP)
@@ -203,7 +204,9 @@ def prepare(
     host = str(mqtt_conf[CONF_BROKER])
     port = int(mqtt_conf[CONF_PORT])
     if fingerprints := mqtt_conf.get(CONF_SSL_FINGERPRINTS):
-        client.tls_set_context(_pinned_context(fingerprints))
+        client.tls_set_context(
+            _pinned_context([normalize_fingerprint(f) for f in fingerprints])
+        )
     # Validation sets tls whenever a certificate option or the wss transport implies it
     elif mqtt_conf.get(CONF_TLS):
         if mqtt_conf.get(CONF_VERIFY_SSL) is False:

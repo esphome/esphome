@@ -918,15 +918,20 @@ def test_prepare_loads_client_certificate() -> None:
 
 
 _BROKER_CERT = b"broker certificate"
+# Uppercase, colon separated and padded, as a !secret may hold it
+_BROKER_FINGERPRINT_AS_WRITTEN = " {} ".format(
+    ":".join(
+        hashlib.sha1(_BROKER_CERT).hexdigest().upper()[i : i + 2]
+        for i in range(0, 40, 2)
+    )
+)
 
 
 def _pinned_context_from_prepare() -> tuple[MagicMock, ssl.SSLContext]:
     """Runs prepare() with ssl_fingerprints pinned to _BROKER_CERT."""
     with patch("esphome.mqtt.mqtt.Client") as client_cls:
         prepare(
-            _mqtt_config(
-                {CONF_SSL_FINGERPRINTS: [hashlib.sha1(_BROKER_CERT).hexdigest()]}
-            ),
+            _mqtt_config({CONF_SSL_FINGERPRINTS: [_BROKER_FINGERPRINT_AS_WRITTEN]}),
             [],
             None,
             None,

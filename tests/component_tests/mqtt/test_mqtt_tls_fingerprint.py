@@ -25,7 +25,7 @@ def test_mqtt_esp8266_tls_fingerprint_validation(
     fingerprints: str | list[str],
     expected_port: int,
 ) -> None:
-    """Test ESP8266 MQTT normalises a TLS fingerprint and picks the port."""
+    """Test ESP8266 MQTT keeps a valid TLS fingerprint as written and picks the port."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     CORE.name = "test-mqtt"
 
@@ -35,7 +35,10 @@ def test_mqtt_esp8266_tls_fingerprint_validation(
         {"broker": "mqtt.example.test", CONF_SSL_FINGERPRINTS: fingerprints, **extra}
     )
 
-    assert config[CONF_SSL_FINGERPRINTS] == ["00112233445566778899aabbccddeeff00112233"]
+    # Kept as written so a !secret value round-trips through esphome config
+    assert config[CONF_SSL_FINGERPRINTS] == (
+        fingerprints if isinstance(fingerprints, list) else [fingerprints]
+    )
     assert config[CONF_PORT] == expected_port
 
 

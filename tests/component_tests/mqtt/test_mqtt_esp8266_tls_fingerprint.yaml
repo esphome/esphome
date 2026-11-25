@@ -18,4 +18,4 @@ mqtt:
   password: "mqtt_pass"
   log_topic: null
   ssl_fingerprints:
-    - 00112233445566778899aabbccddeeff00112233
+    - 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33
