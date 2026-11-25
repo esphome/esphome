@@ -167,6 +167,7 @@ TEST_F(UartSplitCopy, ReceiveOnlyFlushConfirmsNothing) {
 }
 
 TEST_F(UartSplitCopy, FullWriterStopsTheRead) {
+  this->pins_.set_rx_buffer_size(256);
   fill(&this->bus_, RX_BUFFER_SIZE);
   const uint8_t byte = 0x44;
   this->pins_.rx(&byte, 1);
@@ -211,7 +212,17 @@ TEST_F(UartSplitCopy, StalledWriterStopsHoldingTheReadAtHalfTheParentBuffer) {
   EXPECT_EQ(this->tap_.available(), 129u);
 }
 
+TEST_F(UartSplitCopy, UnknownParentBufferNeverHoldsTheRead) {
+  // A USB channel with buffer_size 64 reports no size and never holds 128 bytes.
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  this->pins_.rx_fill(10);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->tap_.available(), 10u);
+}
+
 TEST_F(UartSplitCopy, WriterReadEmptyHoldsTheReadAgain) {
+  this->pins_.set_rx_buffer_size(256);
   fill(&this->bus_, RX_BUFFER_SIZE);
   EXPECT_TRUE(this->bus_.start_dropping());
   drain(&this->bus_);
