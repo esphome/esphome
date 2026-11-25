@@ -1,6 +1,6 @@
 gnss:
   - platform: ubx
-    id: gnss_receiver
+    id: ubx_receiver
     rate: 2Hz
     dynamic_model: automotive
 

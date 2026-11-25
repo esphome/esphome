@@ -2,7 +2,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
 
 namespace esphome::ubx {
@@ -98,14 +97,19 @@ uint16_t parse_protocol_version(const uint8_t *payload, uint16_t len) {
     const char *ext = reinterpret_cast<const char *>(payload + off);
     if (strncmp(ext, KEY, sizeof(KEY) - 1) != 0)
       continue;
-    // the rest of the extension after the key and its separator
-    char buf[30 - sizeof(KEY) + 1];
-    memcpy(buf, ext + sizeof(KEY), sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
-    char *end;
-    long major = strtol(buf, &end, 10);
-    long minor = *end == '.' ? strtol(end + 1, nullptr, 10) : 0;
-    return static_cast<uint16_t>(major * 100 + minor);
+    // major.minor after the key and its separator, within the extension
+    const char *c = ext + sizeof(KEY);
+    const char *end = ext + 30;
+    uint16_t major = 0;
+    uint16_t minor = 0;
+    while (c < end && *c >= '0' && *c <= '9')
+      major = major * 10 + (*c++ - '0');
+    if (c < end && *c == '.') {
+      c++;
+      while (c < end && *c >= '0' && *c <= '9')
+        minor = minor * 10 + (*c++ - '0');
+    }
+    return major * 100 + minor;
   }
   return 0;
 }
