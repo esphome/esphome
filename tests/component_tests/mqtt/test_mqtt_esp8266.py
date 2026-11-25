@@ -25,9 +25,10 @@ def _assert_esp8266_mqtt_libraries() -> None:
 
 def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
     """Test ESP8266 MQTT uses the ESP8266 MQTT libraries."""
-    main_cpp = generate_main("tests/component_tests/mqtt/test_mqtt_esp8266.yaml")
+    main_cpp = generate_main(component_config_path("esp8266.yaml"))
 
     assert "set_ssl_fingerprint" not in main_cpp
     assert "-DASYNC_TCP_SSL_ENABLED=1" not in CORE.build_flags
@@ -36,11 +37,10 @@ def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
 
 def test_mqtt_esp8266_tls_fingerprint_codegen_uses_esp8266_mqtt_libraries(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
     """Test ESP8266 MQTT TLS fingerprint codegen uses the ESP8266 MQTT libraries."""
-    main_cpp = generate_main(
-        "tests/component_tests/mqtt/test_mqtt_esp8266_tls_fingerprint.yaml"
-    )
+    main_cpp = generate_main(component_config_path("esp8266_tls_fingerprint.yaml"))
 
     assert "mqtt_client->set_broker_port(8883);" in main_cpp
     assert "mqtt_client->set_ssl_fingerprint({" in main_cpp
