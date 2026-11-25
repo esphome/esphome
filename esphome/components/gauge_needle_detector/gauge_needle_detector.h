@@ -6,7 +6,9 @@
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
+#include <algorithm>
 #include <array>
+#include <cfloat>
 #include <cstddef>
 #include <cstdint>
 #include <numbers>
@@ -81,6 +83,25 @@ inline float ray_confidence(float support, float best, float worst) {
     return 0.0f;
   const float contrast = (best - worst) / best;
   return std::clamp(support * (0.5f + 0.5f * contrast), 0.0f, 1.0f);
+}
+
+/// Highest and lowest of the 360 ray scores, and the whole degree of the highest.
+struct ScoreRange {
+  int best_angle{0};
+  float best{-FLT_MAX};
+  float worst{FLT_MAX};
+};
+
+inline ScoreRange find_score_range(const float *scores) {
+  ScoreRange range;
+  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
+    if (scores[deg] > range.best) {
+      range.best = scores[deg];
+      range.best_angle = deg;
+    }
+    range.worst = std::min(range.worst, scores[deg]);
+  }
+  return range;
 }
 
 class Detector {
@@ -185,8 +206,9 @@ class NeedleDetector final {
 
  protected:
   static constexpr size_t MAX_DETECTORS = 4;
-  /// Dials whose problems have already been reported; beyond this the log stays quiet.
-  static constexpr size_t MAX_REPORTED_DIALS = 4;
+  /// Dials whose problems are reported once each. A consumer must not use more dials than this, or the
+  /// problems of the extra ones are never logged.
+  static constexpr size_t MAX_REPORTED_DIALS = 8;
 
 #ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
   Preprocessor preprocessor_;

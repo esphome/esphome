@@ -10,9 +10,12 @@ namespace esphome::gauge_needle_detector {
 
 namespace {
 
+constexpr int MAX_GAP = 5;
+constexpr int DARK_BACKGROUND_MIN = 150;
+constexpr int LIGHT_BACKGROUND_MAX = 100;
+
 DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, const DetectorConfig &config,
-                               float *scores, int max_gap = 5, int dark_background_min = 150,
-                               int light_background_max = 100) {
+                               float *scores) {
   if (raw == nullptr || !window.valid())
     return {};
 
@@ -33,10 +36,10 @@ DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, con
         score += (config.needle_type == NEEDLE_TYPE_LIGHT) ? val : (255 - val);
 
         const bool background =
-            (config.needle_type == NEEDLE_TYPE_DARK) ? val > dark_background_min : val < light_background_max;
+            (config.needle_type == NEEDLE_TYPE_DARK) ? val > DARK_BACKGROUND_MIN : val < LIGHT_BACKGROUND_MAX;
         gap_count = background ? gap_count + 1 : 0;
 
-        if (gap_count > max_gap)
+        if (gap_count > MAX_GAP)
           break;
       }
     }

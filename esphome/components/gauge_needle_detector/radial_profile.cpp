@@ -3,7 +3,6 @@
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
 #include <algorithm>
-#include <cfloat>
 #include <cmath>
 
 namespace esphome::gauge_needle_detector {
@@ -12,8 +11,11 @@ namespace esphome::gauge_needle_detector {
 
 namespace {
 
-DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &window, float *scores, int max_gap = 5,
-                                    int signal_threshold = 20, float parabola_epsilon = 0.0001f) {
+constexpr int MAX_GAP = 5;
+constexpr int SIGNAL_THRESHOLD = 20;
+constexpr float PARABOLA_EPSILON = 0.0001f;
+
+DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &window, float *scores) {
   if (filtered == nullptr || !window.valid())
     return {};
 
@@ -33,10 +35,10 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
         break;
 
       const uint8_t val = filtered[py * window.width + px];
-      if (val > signal_threshold) {
+      if (val > SIGNAL_THRESHOLD) {
         score += val;
         gap_count = 0;
-      } else if (++gap_count > max_gap) {
+      } else if (++gap_count > MAX_GAP) {
         break;
       }
     }
@@ -45,16 +47,8 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
   }
 
   // The top-hat image always has a bright needle, so the highest score wins.
-  float best_score = -FLT_MAX;
-  float min_score = FLT_MAX;
-  int best_angle_int = 0;
-  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
-    if (scores[deg] > best_score) {
-      best_score = scores[deg];
-      best_angle_int = deg;
-    }
-    min_score = std::min(min_score, scores[deg]);
-  }
+  const ScoreRange range = find_score_range(scores);
+  const int best_angle_int = range.best_angle;
 
   // Parabolic interpolation around the peak for sub-degree precision.
   float best_angle = static_cast<float>(best_angle_int);
@@ -64,7 +58,7 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
   const float y2 = scores[best_angle_int];
   const float y3 = scores[next];
   const float denom = y1 - 2 * y2 + y3;
-  if (std::fabs(denom) > parabola_epsilon)
+  if (std::fabs(denom) > PARABOLA_EPSILON)
     best_angle += (y1 - y3) / (2 * denom);
 
   if (best_angle < 0)
@@ -74,7 +68,7 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
 
   // Support is the covered share of the ray; contrast says the best ray stands out.
   const float sampled = static_cast<float>(window.end_r - window.start_r);
-  const float confidence = ray_confidence(best_score / (sampled * 255.0f), best_score, min_score);
+  const float confidence = ray_confidence(range.best / (sampled * 255.0f), range.best, range.worst);
 
   return {best_angle, confidence};
 }

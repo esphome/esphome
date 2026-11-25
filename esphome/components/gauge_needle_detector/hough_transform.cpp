@@ -12,8 +12,9 @@ namespace esphome::gauge_needle_detector {
 namespace {
 
 /// Votes edge pixels into a radial histogram, weighted by edge magnitude.
-DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, float *scores,
-                             int vote_magnitude_min = 40) {
+constexpr int VOTE_MAGNITUDE_MIN = 40;
+
+DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, float *scores) {
   if (filtered == nullptr || !window.valid())
     return {};
 
@@ -45,7 +46,7 @@ DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, 
                      2 * filtered[(y + 1) * window.width + x] + filtered[(y + 1) * window.width + (x + 1)];
 
       const int magnitude = static_cast<int>(std::sqrt(static_cast<float>(gx * gx + gy * gy)));
-      if (magnitude <= vote_magnitude_min)
+      if (magnitude <= VOTE_MAGNITUDE_MIN)
         continue;
 
       float theta = radians_to_degrees(std::atan2(static_cast<float>(dy), static_cast<float>(dx)));

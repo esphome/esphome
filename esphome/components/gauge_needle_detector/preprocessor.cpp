@@ -82,10 +82,13 @@ void morph(const uint8_t *src, uint8_t *horizontal, uint8_t *result, int width, 
   morph_vertical(horizontal, result, width, height, r, op);
 }
 
+constexpr int MIN_KERNEL = 7;
+constexpr int RADIUS_DIVISOR = 10;
+
 void apply_tophat(uint8_t *img, int width, int height, int radial_pixels, uint8_t *scratch, uint8_t *scratch_2,
-                  NeedleType needle_type, int min_kernel = 7, int radius_divisor = 10) {
+                  NeedleType needle_type) {
   // Wider than the needle, or the opening keeps it and the subtraction removes it.
-  int kernel_size = std::max(min_kernel, radial_pixels / radius_divisor);
+  int kernel_size = std::max(MIN_KERNEL, radial_pixels / RADIUS_DIVISOR);
   if (kernel_size % 2 == 0)
     kernel_size++;
   const int r = kernel_size / 2;

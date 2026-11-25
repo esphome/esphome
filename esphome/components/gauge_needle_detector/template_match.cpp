@@ -3,7 +3,6 @@
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
 #include <algorithm>
-#include <cfloat>
 
 namespace esphome::gauge_needle_detector {
 
@@ -32,23 +31,14 @@ DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uin
   };
 
   // Every whole degree, because a one-pixel needle can fall between coarser rays.
-  float best_score = -FLT_MAX;
-  float min_score = FLT_MAX;
-  int best_angle_int = 0;
-  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
-    const float score = ray_score(deg);
-    scores[deg] = score;
-    if (score > best_score) {
-      best_score = score;
-      best_angle_int = deg;
-    }
-    min_score = std::min(min_score, score);
-  }
+  for (int deg = 0; deg < ANGLE_COUNT; deg++)
+    scores[deg] = ray_score(deg);
+  const ScoreRange range = find_score_range(scores);
 
   // Same scale as radial_profile, so `auto` can rank the two.
-  const float confidence = ray_confidence(std::max(0.0f, best_score) / 255.0f, best_score, min_score);
+  const float confidence = ray_confidence(std::max(0.0f, range.best) / 255.0f, range.best, range.worst);
 
-  return {static_cast<float>(best_angle_int), confidence};
+  return {static_cast<float>(range.best_angle), confidence};
 }
 
 #endif  // USE_GAUGE_NEEDLE_TEMPLATE_MATCH
