@@ -76,71 +76,23 @@ void SonoffD1Output::skip_command_() {
   }
 }
 
-// Blocking read of the acknowledgement after a write
-bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
-  // Do consistency check
-  if (cmd == nullptr || len < 7) {
-    ESP_LOGW(TAG, "[%04d] Too short command buffer (actual len is %d bytes, minimal is 7)", this->write_count_, len);
-    return false;
-  }
-
-  // Read a minimal packet
-  if (this->read_array(cmd, 6)) {
-    ESP_LOGV_HEX(TAG, cmd, 6, 6, "[%04d] Reading from dimmer: %s", this->write_count_);
-
-    if (cmd[0] != 0xAA || cmd[1] != 0x55) {
-      ESP_LOGW(TAG, "[%04d] RX: wrong header (%x%x, must be AA55)", this->write_count_, cmd[0], cmd[1]);
-      this->skip_command_();
-      return false;
-    }
-    if ((cmd[5] + 7 /*mandatory header + crc suffix length*/) > len) {
-      ESP_LOGW(TAG, "[%04d] RX: Payload length is unexpected (%d, max expected %d)", this->write_count_, cmd[5],
-               len - 7);
-      this->skip_command_();
-      return false;
-    }
-    if (this->read_array(&cmd[6], cmd[5] + 1 /*checksum suffix*/)) {
-      ESP_LOGV_HEX(TAG, &cmd[6], cmd[5] + 1, SONOFF_D1_MAX_CMD_SIZE, "[%04d] %s", this->write_count_);
-
-      // Check the checksum
-      uint8_t valid_checksum = this->calc_checksum_(cmd, cmd[5] + 7);
-      if (valid_checksum != cmd[cmd[5] + 7 - 1]) {
-        ESP_LOGW(TAG, "[%04d] RX: checksum mismatch (%d, expected %d)", this->write_count_, cmd[cmd[5] + 7 - 1],
-                 valid_checksum);
-        this->skip_command_();
-        return false;
-      }
-      len = cmd[5] + 7 /*mandatory header + suffix length*/;
-
-      // Read remaining gardbled data (just in case, I don't see where this can appear now)
-      this->skip_command_();
-      return true;
-    }
-  } else {
-    ESP_LOGW(TAG, "[%04d] RX: feedback timeout", this->write_count_);
-    this->skip_command_();
-  }
-  return false;
-}
-
-bool SonoffD1Output::read_ack_(const uint8_t *cmd, const size_t len) {
+bool SonoffD1Output::read_ack_(const uint8_t *cmd) {
   // Expected acknowledgement from rf chip
-  uint8_t ref_buffer[7] = {0xAA, 0x55, cmd[2], cmd[3], 0x00, 0x00, 0x00};
-  uint8_t buffer[sizeof(ref_buffer)] = {0};
-  uint32_t pos = 0;
-  size_t buf_len = sizeof(ref_buffer);
-
-  // Update the reference checksum
+  uint8_t ref_buffer[SONOFF_D1_ACK_SIZE] = {0xAA, 0x55, cmd[2], cmd[3], 0x00, 0x00, 0x00};
+  uint8_t buffer[SONOFF_D1_ACK_SIZE] = {0};
   this->populate_checksum_(ref_buffer, sizeof(ref_buffer));
 
-  // Read ack code, this either reads 7 bytes or exits with a timeout
-  this->read_command_(buffer, buf_len);
-
-  // Compare response with expected response
-  while (pos < sizeof(ref_buffer) && ref_buffer[pos] == buffer[pos]) {
-    pos++;
+  // The ack is read straight from the UART, so a partial frame held by the reader would be cut short
+  this->reader_.reset();
+  // Blocking read: this either reads the whole ack or exits with a timeout
+  if (this->read_array(buffer, sizeof(buffer))) {
+    ESP_LOGV_HEX(TAG, buffer, sizeof(buffer), SONOFF_D1_ACK_SIZE, "[%04d] Reading from dimmer: %s", this->write_count_);
+  } else {
+    ESP_LOGW(TAG, "[%04d] RX: feedback timeout", this->write_count_);
   }
-  if (pos == sizeof(ref_buffer)) {
+  this->skip_command_();
+
+  if (std::memcmp(buffer, ref_buffer, sizeof(ref_buffer)) == 0) {
     ESP_LOGD(TAG, "[%04d] Acknowledge received", this->write_count_);
     return true;
   } else {
@@ -168,10 +120,6 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
     return false;
   }
   this->populate_checksum_(cmd, len);
-  if (needs_ack) {
-    // The ack is read straight from the UART, so a partial frame held by the reader would be cut short
-    this->reader_.reset();
-  }
 
   // Need retries here to handle the following cases:
   // 1. On power up companion MCU starts to respond with a delay, so few first commands are ignored
@@ -184,7 +132,7 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
     if (!needs_ack)
       return true;
     retries--;
-  } while (!this->read_ack_(cmd, len) && retries > 0);
+  } while (!this->read_ack_(cmd) && retries > 0);
 
   if (retries) {
     return true;
