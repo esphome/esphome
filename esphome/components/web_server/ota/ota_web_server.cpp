@@ -163,9 +163,7 @@ void WebServerOTAComponent::handleUpload(AsyncWebServerRequest *request, const P
     ESP_LOGD(TAG, "OTA final chunk: index=%zu, len=%zu, total_read=%" PRIu32 ", contentLength=%zu", index, len,
              this->ota_read_length_, request->contentLength());
 
-    // For Arduino framework, the Update library tracks expected size from firmware header
-    // If we haven't received enough data, calling end() will fail
-    // This can happen if the upload is interrupted or the client disconnects
+    // The closing boundary arrives even after lost bytes; end() verifies the image
     error_code = this->ota_backend_->end();
     if (error_code == ota::OTA_RESPONSE_OK) {
       this->ota_success_ = true;
