@@ -32,9 +32,6 @@ void DutyTimeSensor::update() {
 }
 
 void DutyTimeSensor::loop() {
-  if (this->func_ == nullptr)
-    return;
-
   const bool state = this->func_();
 
   if (state != this->last_state_)
@@ -50,6 +47,9 @@ void DutyTimeSensor::setup() {
   }
 
   this->set_value(seconds);
+  // Only a lambda is polled; a binary sensor source reports through its callback
+  if (this->func_ == nullptr)
+    this->disable_loop();
 }
 
 void DutyTimeSensor::set_value(const uint32_t sec) {
