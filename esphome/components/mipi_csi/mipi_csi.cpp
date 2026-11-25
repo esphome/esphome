@@ -287,7 +287,7 @@ void MipiCsiCamera::apply_control_(uint32_t id, int32_t value, const LogString *
   controls.controls = &control;
 
   if (ioctl(this->fd_, VIDIOC_S_EXT_CTRLS, &controls) != 0) {
-    ESP_LOGW(TAG, "The sensor does not support %s", LOG_STR_ARG(name));
+    ESP_LOGW(TAG, "Setting %s failed: %s", LOG_STR_ARG(name), strerror(errno));
   }
 }
 
