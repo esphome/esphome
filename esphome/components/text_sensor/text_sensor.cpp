@@ -33,11 +33,7 @@ void TextSensor::publish_state(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
   } else {
     // Has filters: need separate raw storage
-    // Only assign if changed to avoid heap allocation
-    if (len != this->raw_state_.size() || memcmp(state, this->raw_state_.data(), len) != 0) {
-      this->raw_state_.assign(state, len);
-    }
-    this->raw_callback_.call(this->raw_state_);
+    this->set_raw_state_(state, len);
     ESP_LOGV(TAG, "'%s': Received new state %s", LOG_STR_ARG(this->get_log_name()), this->raw_state_.c_str());
     this->filter_list_->input(this->raw_state_);
   }
@@ -84,23 +80,13 @@ void TextSensor::clear_filters() {
 void TextSensor::publish_state_unfiltered(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
   if (this->filter_list_ != nullptr) {
-    if (len != this->raw_state_.size() || memcmp(state, this->raw_state_.data(), len) != 0) {
-      this->raw_state_.assign(state, len);
-    }
-    this->raw_callback_.call(this->raw_state_);
+    this->set_raw_state_(state, len);
     // A raw callback may have published again or freed the caller's buffer
     this->internal_send_state_to_frontend(this->raw_state_.data(), this->raw_state_.size());
     return;
   }
 #endif
   this->publish_state(state, len);
-}
-
-void TextSensor::reapply_filters() {
-#ifdef USE_TEXT_SENSOR_FILTER
-  if (this->filter_list_ != nullptr)
-    this->filter_list_->input(this->raw_state_);
-#endif
 }
 
 const std::string &TextSensor::get_state() const { return this->state; }
