@@ -93,7 +93,7 @@ INSTANTIATE_TEST_SUITE_P(
                       PhaseLockCase{"SevenMissedCrossings", 1000, 10000, 50, 0, 0, 20, 7, 2}),
     [](const ::testing::TestParamInfo<PhaseLockCase> &info) { return info.param.name; });
 
-/// Locks a dimmer on crossings at 1, 11 and 21 ms, and runs the timer at 21 ms, which starts that half cycle
+/// Locks a dimmer on crossings at 1, 11 and 21 ms; the caller runs the timer at 21 ms to start that half cycle
 static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
   AcDimmerDataStore store{};
   store.method = method;
