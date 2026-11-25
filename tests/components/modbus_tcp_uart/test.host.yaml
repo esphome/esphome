@@ -15,11 +15,6 @@ modbus_tcp_uart:
     debug:
 
 # A user ID that equals the generated name of the served-units array must not collide with it.
-modbus_server:
-  - id: units_server
-    modbus_id: answer_hub
-    address: 3
-
 sensor:
   - platform: template
     id: answer_units
