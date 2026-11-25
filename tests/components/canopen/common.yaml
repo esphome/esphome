@@ -2,6 +2,14 @@ canopen:
   - id: canopen_hub
     canbus_id: can_bus
     response_timeout: 200ms
+    on_heartbeat:
+      - lambda: |-
+          if (state == esphome::canopen::NMTState::NMT_STATE_BOOTUP)
+            ESP_LOGI("canopen_test", "node 0x%02x booted", node_id);
+    on_emcy:
+      - logger.log:
+          format: "EMCY node 0x%02x: 0x%04x"
+          args: [node_id, emergency.error_code]
 
 script:
   - id: canopen_sdo
@@ -52,3 +60,15 @@ script:
             if (reply.ok())
               ESP_LOGI("canopen_test", "vendor id 0x%08x", (unsigned) reply.value);
           }, nullptr);
+      - lambda: |-
+          id(canopen_hub).cancel_sdo(nullptr);
+          const uint8_t data[2] = {0x01, 0x02};
+          id(canopen_hub).send_frame(0x210, data, sizeof(data));
+
+esphome:
+  on_boot:
+    - lambda: |-
+        static canopen::FrameListener tpdo1{0x180, 0x780, +[](void *, uint32_t can_id, const uint8_t *data, uint8_t len) {
+          ESP_LOGD("canopen_test", "TPDO1 0x%03x, %u bytes", (unsigned) can_id, len);
+        }, nullptr};
+        id(canopen_hub).add_frame_listener(tpdo1);

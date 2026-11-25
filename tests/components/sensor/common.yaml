@@ -33,6 +33,11 @@ sensor:
     name: "Publish Target"
     id: sensor_publish_target
 
+  # A YAML id equal to a generated list's name must not clash with that list
+  - platform: template
+    name: "List Name Clash"
+    id: APP_SENSOR_LIST
+
   # Streaming filters (window_size == send_every) - uses StreamingFilter base class
   - platform: copy
     source_id: source_sensor
