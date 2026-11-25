@@ -94,6 +94,8 @@ rp2_sched_lock/*.txt
 rp2_uart_loop/*-cap.err
 rp2_uart_loop/*-cap.txt
 rp2_uart_loop/u??.yaml
+rp2_usbncm/*.log
+rp2_usbncm/*.txt
 rp2_web_ble/*.log
 rp2_web_ble/*.pcap
 rp2_web_ble/*.txt

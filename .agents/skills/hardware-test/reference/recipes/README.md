@@ -91,6 +91,8 @@ One file per component, named after it:
 - [`combination.md`](combination.md): combination sensor NaN behaviour from the last source
 - [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes, logger console echo per transport, USB Serial/JTAG RX ring heap check with a console write stress
 - [`arduino_pico.md`](arduino_pico.md): arduino-pico framework bump A/B: W5100S Ethernet soak, Pico W fallback AP client count, Pico W bluetooth_proxy GATT hold, web_server SSE stalls, `/events` churn crashes and never completed connects, W5100S OTA without `interrupt_pin`
+- [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes, logger console echo per transport
+- [`arduino_pico.md`](arduino_pico.md): arduino-pico framework bump A/B: W5100S Ethernet soak, Pico W fallback AP client count, Pico W bluetooth_proxy GATT hold, web_server SSE stalls, `/events` churn crashes and never completed connects, W5100S OTA without `interrupt_pin`, USB NCM Ethernet boot hang, safe mode and host alt 0 analysis with a proposed fix
 - [`bluedroid_gattc_queue.md`](bluedroid_gattc_queue.md): queued MTU request and execute write recursion that overflows BTU_TASK, ble_client central against an ESP32-S3 peer
 - [`tcp_link.md`](tcp_link.md): tcp packet_interface link, host to host pair on one computer, raw framing peer, entity_transport both ways
 - [`serial_proxy.md`](serial_proxy.md): simulated serial device on a cross-wired UART, byte-exact client with read pauses, ASH tap ACK timing

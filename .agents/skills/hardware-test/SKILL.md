@@ -293,6 +293,9 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `rp2_sched_lock/` (IRQ context scheduler stress component, removed item race package, REST churn, loop timing and flow
   runner)
 - `rp2_uart_loop/` (RP2 UART pin owner and in-chip loopback check, config generator, runner)
+- `rp2_usbncm/` (RP2 USB NCM Ethernet: boot recorder build with panic capture, patched library and re-enumeration hammer
+  configs, OTA and restart cycle runner, macOS host log capture and enumeration summary, event ring reader, proposed
+  arduino-pico alt 0 patch)
 - `rp2_web_ble/` (RP2040/RP2350 web_server, API and BLE proxy A/B: role configs, soak, SSE stall and churn runners,
   churn and never completed connect heap flows, pcap summary, GATT hold, fallback AP flow)
 - `rs485_frame/` (simulated DLE/STX/ETX bus device, frame and gate cases, runner)
