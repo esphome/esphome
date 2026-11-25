@@ -25,8 +25,7 @@ static constexpr uint32_t LP_V3_STATUS_RETRY_MS = 3000;
 static constexpr uint32_t LP_COMMAND_DELAY_MS = 10;
 // The MCU sleeps within a second of its last byte; after this long without one it is woken before a command.
 static constexpr uint32_t LP_MCU_SILENT_MS = 200;
-// After a malformed product info or a lost answer, ask again every 500 ms, 5 times, then every 30 s until the
-// MCU answers.
+// After a malformed product info or a lost answer: 5 retries 500 ms apart, then one every 30 s.
 static constexpr uint32_t LP_PRODUCT_RETRY_MS = 500;
 static constexpr uint8_t LP_PRODUCT_RETRIES = 5;
 static constexpr uint32_t LP_PRODUCT_SLOW_RETRY_MS = 30000;
@@ -38,12 +37,10 @@ static constexpr uint8_t LP_V3_SLEEP_CMD = 0x91;
 static constexpr uint8_t LP_V3_SLEEP_REQUEST = 0x02;
 static constexpr uint8_t LP_V3_BUSY_NETWORK = 0x02;
 
-// Scheduler ids continue those in tuya_uart.cpp. The network status shares the Wi-Fi status slot
-// there, because a hub runs one protocol only.
+// The network status reuses the Wi-Fi status scheduler id of tuya_uart.cpp: a hub runs one protocol only.
 static constexpr uint32_t LP_NETWORK_STATUS_INTERVAL_ID = 1;
 
-// A queued datapoint write. It is CMD09 for version 0 and becomes the standard CMD06 for version 3 when it is
-// sent, because the version is only known from the product info.
+// A queued write: CMD09, sent as CMD06 to a version-3 MCU (the version is known only from the product info).
 static constexpr auto LP_WRITE_CMD = static_cast<TuyaCommandType>(0x09);
 static bool is_low_power_write(const TuyaCommand &command) { return command.cmd == LP_WRITE_CMD; }
 // The network state (CMD02), queued so it does not cross a write
@@ -126,8 +123,7 @@ void TuyaUART::poll_low_power_v3_status_() {
 void TuyaUART::handle_low_power_frame_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
   // Only a valid frame shows that the MCU is awake; noise on the line of a sleeping MCU does not
   this->lp_mcu_heard_ms_ = millis();
-  // CMD01/02/09 are acknowledged by the matching command. A late answer to an expired command must not
-  // complete a newer one.
+  // A late answer to an expired command must not complete a newer one.
   if (this->lp_wire_.overdue(App.get_loop_component_start_time()) && this->lp_wire_.accepts(command, len)) {
     ESP_LOGW(LP_TAG, "Discarding overdue MCU ACK CMD 0x%02X; recovery required", command);
     return;
@@ -136,8 +132,7 @@ void TuyaUART::handle_low_power_frame_(uint8_t command, uint8_t version, const u
   if (this->lp_wire_.complete(command, len))
     this->expected_response_.reset();
   this->handle_low_power_command_(command, version, buffer, len);
-  // A frame shows that the MCU is awake right now: during a recovery, ask for the product info at once instead
-  // of waiting for a retry that may reach it asleep.
+  // During a recovery a frame shows that the MCU is awake: ask for the product info now, not at the next retry.
   const uint32_t now = App.get_loop_component_start_time();
   if (command != 0x01 && this->lp_product_retry_active_ && !this->lp_wire_.active() && !this->lp_session_.busy() &&
       this->lp_probe_pending_ == ProductProbe::PRODUCT_PROBE_NONE &&
@@ -252,8 +247,7 @@ void TuyaUART::poll_low_power_product_recovery_() {
   if (!this->lp_product_retry_active_)
     return;
   const uint32_t now = App.get_loop_component_start_time();
-  // Never send CMD01 during a report series or a write. After an ACK timeout the queue is quarantined,
-  // so queued commands must not block the retry.
+  // Not during a report series or a write; the quarantined queue does not hold the retry back.
   const bool idle = !this->lp_session_.busy() && !this->lp_wire_.active() && !this->expected_response_.has_value() &&
                     !this->reader_.receiving();
   if (static_cast<int32_t>(now - this->lp_product_retry_at_) < 0 || !idle)
@@ -280,8 +274,7 @@ void TuyaUART::process_low_power_queue_() {
   // After the pulse check, which may stamp its end; the command timestamp of tuya_uart.cpp comes from millis() too.
   const uint32_t wire_now = millis();
 
-  // The standard 300 ms retry does not fit a version-0 MCU, which reports its state some time after the ACK.
-  // ACK and report have separate timeouts.
+  // A version-0 MCU reports some time after its ACK, so ACK and report have separate timeouts.
   const bool product_query = this->lp_wire_.active() && this->lp_wire_.command() == 0x01;
   if (this->lp_wire_.expire(now)) {
     this->expected_response_.reset();
@@ -308,8 +301,7 @@ void TuyaUART::process_low_power_queue_() {
   });
   if (next == this->command_queue_.end())
     return;
-  // A sleeping MCU listens only after a pulse on its wake line, so wake it before a command when it has
-  // been silent; the command goes out once the pulse is over.
+  // A silent MCU may sleep and listens only after a wake pulse; the command goes out once the pulse is over.
   if (this->mcu_wake_pin_ != nullptr && wire_now - this->lp_mcu_heard_ms_ > LP_MCU_SILENT_MS &&
       wire_now - this->lp_mcu_woken_ms_ > LP_MCU_SILENT_MS) {
     this->begin_mcu_wake_pulse_();
@@ -344,8 +336,7 @@ void TuyaUART::send_low_power_direct_(uint8_t command, const uint8_t *data, size
 void TuyaUART::send_low_power_network_() {
   if (!this->lp_session_.has_product())
     return;
-  // The MCU reports its state only to a module that is "connected to the cloud" (0x04), so that is what the
-  // module reports while the network is up, whether or not a client is connected.
+  // The MCU reports only to a module "connected to the cloud" (0x04): sent whenever the network is up.
   uint8_t status = 0x02;
 #ifdef USE_NETWORK
   if (network::is_connected())
@@ -355,14 +346,12 @@ void TuyaUART::send_low_power_network_() {
     return;
   this->lp_network_status_ = status;
   if (this->lp_v3_ && this->lp_v3_mode_acked_) {
-    // Standard Tuya framing: the network state is CMD03; CMD02 is the working-mode query. The MCU reports
-    // changes on its own only after it was told that the module is online. Queued, so a sleeping MCU is woken.
+    // Version 3 after the working-mode query (CMD02): the state is CMD03, queued so a sleeping MCU is woken.
     this->send_command_({.cmd = static_cast<TuyaCommandType>(0x03), .payload = {status}});
     return;
   }
   this->lp_session_.reset_status();
-  // Only the latest network state matters: one still queued is updated in place, keeping the order on the wire.
-  // For version 3 it is the empty working-mode query, and the state follows as CMD03.
+  // A queued CMD02 is updated in place, keeping the order on the wire (version 3: the empty mode query).
   for (auto &queued : this->command_queue_) {
     if (queued.cmd == LP_NETWORK_CMD) {
       if (!queued.payload.empty())
@@ -411,7 +400,7 @@ void TuyaUART::finish_low_power_sync_() {
     return;
   this->init_state_ = TuyaInitState::INIT_DONE;
   this->mark_initialized_();
-  this->notify_mcu_ready_();
+  this->mcu_ready_callback_.call();  // Once: init_state_ stays INIT_DONE
   ESP_LOGI(LP_TAG, "MCU status synchronized");
 }
 
@@ -421,8 +410,7 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
       if (len != 1 || data[0] != 0)
         return;
       if (!this->lp_session_.has_product()) {
-        // During a recovery the frame handler already sends the product query directly; a queued one would
-        // follow its answer and run the full resynchronization a second time.
+        // During a recovery the frame handler sends CMD01 directly; a queued one would resync a second time.
         if (!this->lp_product_retry_active_)
           this->send_empty_command_(TuyaCommandType::PRODUCT_QUERY);
       } else {

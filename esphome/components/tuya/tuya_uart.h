@@ -125,12 +125,6 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   void begin_low_power_product_retry_(uint32_t now);
   void poll_low_power_product_recovery_();
   void finish_low_power_sync_();
-  void notify_mcu_ready_() {
-    if (this->mcu_ready_)
-      return;
-    this->mcu_ready_ = true;
-    this->mcu_ready_callback_.call();
-  }
 #endif  // USE_TUYA_LOW_POWER
   void send_raw_command_(TuyaCommand command);
   void process_command_queue_();
@@ -164,7 +158,6 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   uint32_t lp_product_probe_ms_{0};  // Last product query of a recovery
   uint8_t lp_product_retries_{0};    // Fast CMD01 retries left before the slow ones
   bool lp_product_retry_active_{false};
-  bool mcu_ready_{false};
   // The MCU frames with protocol version 3: status via CMD08/CMD07, writes via CMD06.
   bool lp_v3_{false};
   bool lp_v3_mode_acked_{false};

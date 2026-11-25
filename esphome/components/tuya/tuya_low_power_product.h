@@ -19,7 +19,6 @@ struct TuyaLowPowerProductInfo {
   // mwkpt: length of the wake pulse to the MCU. The original module firmware uses 50 ms when the MCU
   // does not report it and limits a reported value to 5..200 ms.
   uint32_t mcu_wake_pulse_ms{50};
-  bool parsed{false};
 
   /// Index of the value after `"key":` in s[0..len), or len if the key is missing or malformed.
   static size_t find_key(const char *s, size_t len, const char *key) {
@@ -74,16 +73,14 @@ struct TuyaLowPowerProductInfo {
 
   bool parse(const uint8_t *data, size_t len) {
     *this = {};
-    if (data == nullptr || len < 12 || len > 512)
+    if (data == nullptr || len < 12)
       return false;
     const char *s = reinterpret_cast<const char *>(data);
     if (s[0] != '{' || s[len - 1] != '}')
       return false;
     // Like the original module firmware, only p and v are required; MCU firmware versions differ in the rest.
-    parsed = get_string(s, len, "p", pid) && get_string(s, len, "v", version);
-    if (!parsed) {
-      pid[0] = '\0';
-      version[0] = '\0';
+    if (!get_string(s, len, "p", pid) || !get_string(s, len, "v", version)) {
+      *this = {};
       return false;
     }
     int pulse_ms = 0;

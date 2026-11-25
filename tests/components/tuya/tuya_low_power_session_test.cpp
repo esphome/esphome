@@ -116,7 +116,7 @@ TEST(TuyaLowPowerProductInfo, Parse) {
   EXPECT_FALSE(info.parse(reinterpret_cast<const uint8_t *>(missing_v.data()), missing_v.size()));
   EXPECT_FALSE(info.parse(reinterpret_cast<const uint8_t *>(typed_p.data()), typed_p.size()));
   EXPECT_FALSE(info.parse(nullptr, 0));
-  EXPECT_FALSE(info.parsed);
+  EXPECT_EQ(info.pid[0], '\0');
   // A product field holds at most 48 characters.
   const std::string max_p = R"({"p":")" + std::string(48, 'a') + R"(","v":"1"})";
   const std::string long_p = R"({"p":")" + std::string(49, 'a') + R"(","v":"1"})";
