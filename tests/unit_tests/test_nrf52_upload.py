@@ -39,6 +39,7 @@ from esphome.const import (
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
+from tests.testing_helpers import symlink_or_skip
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1534,7 +1535,7 @@ def test_probe_ports_match_through_links(tmp_path: Path) -> None:
     node = tmp_path / "ttyACM0"
     node.write_text("")
     link = tmp_path / "usb-probe-if00"
-    link.symlink_to(node)
+    symlink_or_skip(link, node)
     dap = MagicMock(
         device=str(node),
         vid=0x2886,

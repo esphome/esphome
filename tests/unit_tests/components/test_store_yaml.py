@@ -42,6 +42,7 @@ from esphome.yaml_util import (
     SensitiveStr,
     discover_user_yaml_files,
 )
+from tests.testing_helpers import symlink_or_skip
 
 WIFI_PW = {"wifi": {"networks": [{"password": SensitiveStr("hunter2")}]}}
 API_KEY = {"api": {"encryption": {"key": SensitiveStr("SUPER_SECRET")}}}
@@ -212,7 +213,7 @@ def test_redacted_symlinked_secrets_outside_root(project: Path, tmp_path: Path) 
     target.write_text("api_key: SUPER_SECRET\n")
     link = project / "secrets.yaml"
     link.unlink()
-    link.symlink_to(target)
+    symlink_or_skip(link, target)
     resolved = link.resolve()
     files = _gather_redacted(
         DiscoveredYamlFiles([project / "entry.yaml", resolved], {resolved})
@@ -1067,7 +1068,7 @@ def test_redacted_symlinked_package_loads_relative_to_its_name(
 ) -> None:
     """A directory include inside a symlinked file resolves beside the link."""
     (shared / "pkg.yaml").write_text("sensor: !include_dir_merge_list sensors\n")
-    (project / "pkg.yaml").symlink_to(shared / "pkg.yaml")
+    symlink_or_skip(project / "pkg.yaml", shared / "pkg.yaml")
     (project / "sensors").mkdir()
     (project / "sensors" / "a.yaml").write_text("- platform: template\n  name: a\n")
     (project / "entry.yaml").write_text("packages:\n  p: !include pkg.yaml\n")
@@ -1084,7 +1085,7 @@ def test_redacted_symlinked_dir_include_rebases_where_the_loader_reads(
     (shared / "pkgs" / "base.yaml").write_text("wifi: !include ../wifi.yaml\n")
     (shared / "wifi.yaml").write_bytes(b"ssid: shared\n")
     (project / "wifi.yaml").write_bytes(b"ssid: project\n")
-    (project / "pkgs").symlink_to(shared / "pkgs")
+    symlink_or_skip(project / "pkgs", shared / "pkgs")
     (project / "entry.yaml").write_text("packages: !include_dir_named pkgs\n")
     files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
     # The file itself is captured at its real location, so its own include stays put.
@@ -1103,10 +1104,10 @@ def test_include_through_a_directory_symlink(
     """The include is pointed at the captured file and the note names the link,
     also when the config directory itself is reached through a symlink."""
     (shared / "wifi.yaml").write_text("ssid: shared\n")
-    (project / "linked").symlink_to(shared)
+    symlink_or_skip(project / "linked", shared)
     (project / "entry.yaml").write_text("wifi: !include linked/wifi.yaml\n")
     via = tmp_path / "via"
-    via.symlink_to(project)
+    symlink_or_skip(via, project)
     CORE.config_path = via / "entry.yaml"
     discovered = discover_user_yaml_files(via / "entry.yaml")
     assert _symlink_descriptions(discovered) == ["linked -> ../shared"]
@@ -1118,8 +1119,8 @@ def test_include_through_a_directory_symlink(
 def test_gather_emits_every_alias_of_one_file(project: Path, shared: Path) -> None:
     """Every name linking to one file appears in the envelope, in both modes."""
     (shared / "sensor.yaml").write_bytes(b"platform: template\n")
-    (project / "a.yaml").symlink_to(shared / "sensor.yaml")
-    (project / "b.yaml").symlink_to(shared / "sensor.yaml")
+    symlink_or_skip(project / "a.yaml", shared / "sensor.yaml")
+    symlink_or_skip(project / "b.yaml", shared / "sensor.yaml")
     (project / "entry.yaml").write_text(
         "sensor:\n  - !include {file: a.yaml, vars: {n: 1}}\n"
         "  - !include {file: b.yaml, vars: {n: 2}}\n"
