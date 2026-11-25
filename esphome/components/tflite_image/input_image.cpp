@@ -10,7 +10,7 @@
 
 namespace esphome::tflite_image {
 
-static const char *const TAG = "tflite_image";
+ESPHOME_LOG_TAG(TAG, "tflite_image");
 
 namespace {
 /// A pixel value after inversion, still on the 0-255 scale.

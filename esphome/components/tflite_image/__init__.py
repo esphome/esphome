@@ -9,14 +9,20 @@ from pathlib import Path
 
 import esphome.codegen as cg
 from esphome.components.tflite_micro_runtime import (
+    CONF_PIPELINE_ID,
     PER_MODEL_SCHEMA,
     declare_model,
     final_validate,
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
-from esphome.components.tflite_output_processor import OUTPUT_PROCESSING
+from esphome.components.tflite_output_processor import (
+    CONF_DECODER_ID,
+    CONF_OUTPUT_PROCESSING,
+    CONF_SCALE_FACTOR,
+    OUTPUT_PROCESSING,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG
+from esphome.const import CONF_DEBUG, CONF_INVERT
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
@@ -35,13 +41,8 @@ CONF_INPUT_WIDTH = "input_width"
 CONF_INPUT_HEIGHT = "input_height"
 CONF_INPUT_ORDER = "input_order"
 CONF_NORMALIZE = "normalize"
-CONF_INVERT = "invert"
 CONF_FRAME_WIDTH = "frame_width"
 CONF_FRAME_HEIGHT = "frame_height"
-CONF_OUTPUT_PROCESSING = "output_processing"
-CONF_SCALE_FACTOR = "scale_factor"
-CONF_PIPELINE_ID = "pipeline_id"
-CONF_DECODER_ID = "decoder_id"
 
 tflite_image_ns = cg.esphome_ns.namespace("tflite_image")
 ImageInputPipeline = tflite_image_ns.class_("ImageInputPipeline")
