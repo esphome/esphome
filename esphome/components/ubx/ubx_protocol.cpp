@@ -1,0 +1,177 @@
+#include "ubx_protocol.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/time.h"
+#include <cstdlib>
+#include <cstring>
+
+namespace esphome::ubx {
+
+static void checksum(const uint8_t *data, size_t len, uint8_t &a, uint8_t &b) {
+  for (size_t i = 0; i < len; i++) {
+    a += data[i];
+    b += a;
+  }
+}
+
+size_t build_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t len, uint8_t *out) {
+  out[0] = UBX_SYNC_1;
+  out[1] = UBX_SYNC_2;
+  out[2] = msg_class;
+  out[3] = msg_id;
+  put_le16(out + 4, len);
+  if (len > 0)
+    memcpy(out + 6, payload, len);
+  uint8_t a = 0, b = 0;
+  checksum(out + 2, len + 4, a, b);
+  out[6 + len] = a;
+  out[7 + len] = b;
+  return len + UBX_FRAME_OVERHEAD;
+}
+
+// Parser states; payload bytes are state 6 until length_ is reached
+enum : uint8_t {
+  STATE_SYNC_1,
+  STATE_SYNC_2,
+  STATE_CLASS,
+  STATE_ID,
+  STATE_LENGTH_1,
+  STATE_LENGTH_2,
+  STATE_PAYLOAD,
+  STATE_CK_A,
+  STATE_CK_B,
+};
+
+bool FrameParser::feed(uint8_t byte) {
+  switch (this->state_) {
+    case STATE_SYNC_1:
+      if (byte == UBX_SYNC_1)
+        this->state_ = STATE_SYNC_2;
+      return false;
+    case STATE_SYNC_2:
+      this->state_ = byte == UBX_SYNC_2 ? STATE_CLASS : (byte == UBX_SYNC_1 ? STATE_SYNC_2 : STATE_SYNC_1);
+      this->ck_a_ = 0;
+      this->ck_b_ = 0;
+      return false;
+    case STATE_CLASS:
+    case STATE_ID:
+    case STATE_LENGTH_1:
+      this->header_[this->state_ - STATE_CLASS] = byte;
+      checksum(&byte, 1, this->ck_a_, this->ck_b_);
+      this->state_++;
+      return false;
+    case STATE_LENGTH_2:
+      this->header_[3] = byte;
+      checksum(&byte, 1, this->ck_a_, this->ck_b_);
+      this->length_ = encode_value_le<uint16_t>(this->header_ + 2);
+      this->pos_ = 0;
+      // A longer frame is no message this platform reads, or a false sync in other data
+      if (this->length_ > UBX_MAX_PAYLOAD) {
+        this->state_ = STATE_SYNC_1;
+      } else {
+        this->state_ = this->length_ == 0 ? STATE_CK_A : STATE_PAYLOAD;
+      }
+      return false;
+    case STATE_PAYLOAD:
+      this->payload_[this->pos_++] = byte;
+      checksum(&byte, 1, this->ck_a_, this->ck_b_);
+      if (this->pos_ == this->length_)
+        this->state_ = STATE_CK_A;
+      return false;
+    case STATE_CK_A:
+      this->state_ = byte == this->ck_a_ ? STATE_CK_B : STATE_SYNC_1;
+      return false;
+    default:
+      this->state_ = STATE_SYNC_1;
+      return byte == this->ck_b_;
+  }
+}
+
+uint16_t parse_protocol_version(const uint8_t *payload, uint16_t len) {
+  // swVersion (30) and hwVersion (10), then 30-byte extensions such as "PROTVER=18.00" or "PROTVER 14.00"
+  static constexpr char KEY[] = "PROTVER";
+  for (uint16_t off = 40; off + 30 <= len; off += 30) {
+    const char *ext = reinterpret_cast<const char *>(payload + off);
+    if (strncmp(ext, KEY, sizeof(KEY) - 1) != 0)
+      continue;
+    char buf[24];
+    memcpy(buf, ext + sizeof(KEY), sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    char *end;
+    long major = strtol(buf, &end, 10);
+    long minor = *end == '.' ? strtol(end + 1, nullptr, 10) : 0;
+    return static_cast<uint16_t>(major * 100 + minor);
+  }
+  return 0;
+}
+
+static double degrees_1e7(const uint8_t *p) { return encode_value_le<int32_t>(p) * 1e-7; }
+static float millimeters(const uint8_t *p) { return encode_value_le<int32_t>(p) / 1000.0f; }
+
+bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms, gnss::GNSSData &data, bool &fix) {
+  switch (msg_id) {
+    case UBX_NAV_PVT: {
+      // 84 bytes in protocol 14, 92 from 15; the fields read here are the same
+      if (len < 84)
+        return false;
+      const uint8_t fix_type = p[20];
+      fix = fix_type >= 2 && fix_type <= 4 && (p[21] & 0x01) != 0;
+      data.satellites = p[23];
+      data.longitude = degrees_1e7(p + 24);
+      data.latitude = degrees_1e7(p + 28);
+      data.altitude = millimeters(p + 36);
+      data.horizontal_accuracy = encode_value_le<uint32_t>(p + 40) / 1000.0f;
+      data.vertical_accuracy = encode_value_le<uint32_t>(p + 44) / 1000.0f;
+      data.speed = encode_value_le<int32_t>(p + 60) * 0.0036f;  // mm/s
+      data.course = encode_value_le<int32_t>(p + 64) * 1e-5f;
+      return true;
+    }
+    case UBX_NAV_POSLLH:
+      if (len < 28)
+        return false;
+      data.longitude = degrees_1e7(p + 4);
+      data.latitude = degrees_1e7(p + 8);
+      data.altitude = millimeters(p + 16);
+      data.horizontal_accuracy = encode_value_le<uint32_t>(p + 20) / 1000.0f;
+      data.vertical_accuracy = encode_value_le<uint32_t>(p + 24) / 1000.0f;
+      return true;
+    case UBX_NAV_VELNED:
+      if (len < 36)
+        return false;
+      data.speed = encode_value_le<uint32_t>(p + 20) * 0.036f;  // cm/s
+      data.course = encode_value_le<int32_t>(p + 24) * 1e-5f;
+      return true;
+    case UBX_NAV_SOL:
+      if (len < 52)
+        return false;
+      fix = p[10] >= 2 && p[10] <= 4 && (p[11] & 0x01) != 0;
+      data.satellites = p[47];
+      return true;
+    case UBX_NAV_DOP:
+      if (len < 18)
+        return false;
+      data.hdop = encode_value_le<uint16_t>(p + 12) * 0.01f;
+      return true;
+    case UBX_NAV_TIMEUTC: {
+      if (len < 20)
+        return false;
+      // validUTC: the receiver knows the current leap seconds
+      if ((p[19] & 0x04) == 0)
+        return true;
+      ESPTime t{};
+      t.year = encode_value_le<uint16_t>(p + 12);
+      t.month = p[14];
+      t.day_of_month = p[15];
+      t.hour = p[16];
+      t.minute = p[17];
+      t.second = p[18];
+      t.recalc_timestamp_utc(false);
+      data.utc = t.timestamp;
+      data.utc_millis = now_ms;
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+}  // namespace esphome::ubx

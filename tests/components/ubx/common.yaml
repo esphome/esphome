@@ -1,0 +1,22 @@
+gnss:
+  - platform: ubx
+    id: gnss_receiver
+    rate: 2Hz
+    dynamic_model: automotive
+
+sensor:
+  - platform: gnss
+    type: latitude
+    name: "Latitude"
+  - platform: gnss
+    type: longitude
+    name: "Longitude"
+  - platform: gnss
+    type: horizontal_accuracy
+    name: "Horizontal Accuracy"
+  - platform: gnss
+    type: vertical_accuracy
+    name: "Vertical Accuracy"
+
+time:
+  - platform: gnss

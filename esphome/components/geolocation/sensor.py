@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_SATELLITES,
     CONF_SPEED,
     CONF_TYPE,
+    DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_MEASUREMENT_ANGLE,
@@ -20,6 +21,8 @@ from esphome.types import ConfigType
 from . import CONF_GEOLOCATION_ID, DATA, DATA_PUBLISHER, GEOLOCATION_CHILD_SCHEMA
 
 CONF_HDOP = "hdop"
+CONF_HORIZONTAL_ACCURACY = "horizontal_accuracy"
+CONF_VERTICAL_ACCURACY = "vertical_accuracy"
 
 ICON_ALTIMETER = "mdi:altimeter"
 ICON_CIRCLE_DOUBLE = "mdi:circle-double"
@@ -28,6 +31,16 @@ ICON_LATITUDE = "mdi:latitude"
 ICON_LONGITUDE = "mdi:longitude"
 ICON_SATELLITE = "mdi:satellite-variant"
 ICON_SPEEDOMETER = "mdi:speedometer"
+
+
+def _accuracy_schema() -> cv.Schema:
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_METER,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_DISTANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+
 
 TYPES = {
     CONF_LATITUDE: sensor.sensor_schema(
@@ -65,6 +78,8 @@ TYPES = {
         accuracy_decimals=3,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
+    CONF_HORIZONTAL_ACCURACY: _accuracy_schema(),
+    CONF_VERTICAL_ACCURACY: _accuracy_schema(),
 }
 
 CONFIG_SCHEMA = cv.typed_schema(
