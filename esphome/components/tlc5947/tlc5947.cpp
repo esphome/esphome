@@ -6,16 +6,10 @@ namespace esphome::tlc5947 {
 ESPHOME_LOG_TAG(TAG, "tlc5947");
 
 void TLC5947::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(true);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(true);
-  this->lat_pin_->setup();
-  this->lat_pin_->digital_write(true);
-  if (this->outenable_pin_ != nullptr) {
-    this->outenable_pin_->setup();
-    this->outenable_pin_->digital_write(false);
-  }
+  setup_output_pin(this->data_pin_, true);
+  setup_output_pin(this->clock_pin_, true);
+  setup_output_pin(this->lat_pin_, true);
+  setup_output_pin(this->outenable_pin_, false);
 }
 void TLC5947::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -50,9 +44,7 @@ void TLC5947::loop() {
   this->clock_pin_->digital_write(false);
 
   // latch the values, so they will be applied
-  this->lat_pin_->digital_write(true);
-  delayMicroseconds(1);  // TWH1 > 30ns
-  this->lat_pin_->digital_write(false);
+  pulse_pin(this->lat_pin_, true, 1);  // TWH1 > 30ns
 
   this->update_ = false;
 }

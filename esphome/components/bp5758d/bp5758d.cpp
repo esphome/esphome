@@ -19,11 +19,9 @@ static constexpr uint8_t BP5758D_ALL_DATA_CHANNEL_ENABLEMENT = 0b00011111;
 static constexpr uint8_t BP5758D_DELAY = 2;
 
 void BP5758D::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(false);
+  setup_output_pin(this->data_pin_, false);
   delayMicroseconds(BP5758D_DELAY);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(false);
+  setup_output_pin(this->clock_pin_, false);
   delayMicroseconds(BP5758D_DELAY);
 }
 void BP5758D::dump_config() {
@@ -76,9 +74,7 @@ void BP5758D::write_channel(uint8_t channel, float state) {
 void BP5758D::write_bit_(bool value) {
   this->data_pin_->digital_write(value);
   delayMicroseconds(BP5758D_DELAY);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(BP5758D_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, BP5758D_DELAY);
   delayMicroseconds(BP5758D_DELAY);
 }
 
@@ -89,9 +85,7 @@ void BP5758D::write_byte_(uint8_t data) {
 
   // ack bit
   this->data_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(BP5758D_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, BP5758D_DELAY);
   delayMicroseconds(BP5758D_DELAY);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }

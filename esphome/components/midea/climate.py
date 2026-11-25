@@ -23,18 +23,9 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_USE_FAHRENHEIT,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_POWER,
     ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-    UNIT_WATT,
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
@@ -124,25 +115,13 @@ CONFIG_SCHEMA = cv.All(
                 validate_custom_fan_modes
             ),
             cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_POWER_USAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                icon=ICON_POWER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=0
             ),
             cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=0
             ),
         }
     )
@@ -220,8 +199,9 @@ async def to_code(config):
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
     cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
     cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
-    if CONF_SUPPORTED_SWING_MODES in config:
-        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
+    cg.add_optional(
+        var.set_supported_swing_modes, config.get(CONF_SUPPORTED_SWING_MODES)
+    )
     cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
     climate.set_custom_presets(var, config.get(CONF_CUSTOM_PRESETS, []))
     climate.set_custom_fan_modes(var, config.get(CONF_CUSTOM_FAN_MODES, []))

@@ -1,0 +1,89 @@
+binary_sensor:
+  - platform: template
+    name: Door
+    device_class: door
+    lambda: 'return (millis() / 3000) % 2;'
+    web_server:
+      sorting_group_id: grp_a
+switch:
+  - platform: template
+    name: Relay
+    optimistic: true
+    web_server:
+      sorting_group_id: grp_a
+text_sensor:
+  - platform: template
+    name: Long text
+    update_interval: 2s
+    lambda: |-
+      std::string s;
+      for (int i = 0; i < 30; i++) s += "abcdefghijklmnopqrstuvwxyz0123456789-";
+      s += std::to_string(millis() / 2000);
+      return s;
+select:
+  - platform: template
+    name: Big select
+    optimistic: true
+    options:
+      - "Option 01 with a fairly long label that pads the JSON document out"
+      - "Option 02 with a fairly long label that pads the JSON document out"
+      - "Option 03 with a fairly long label that pads the JSON document out"
+      - "Option 04 with a fairly long label that pads the JSON document out"
+      - "Option 05 with a fairly long label that pads the JSON document out"
+      - "Option 06 with a fairly long label that pads the JSON document out"
+      - "Option 07 with a fairly long label that pads the JSON document out"
+      - "Option 08 with a fairly long label that pads the JSON document out"
+      - "Option 09 with a fairly long label that pads the JSON document out"
+      - "Option 10 with a fairly long label that pads the JSON document out"
+      - "Option 11 with a fairly long label that pads the JSON document out"
+      - "Option 12 with a fairly long label that pads the JSON document out"
+      - "Option 13 with a fairly long label that pads the JSON document out"
+      - "Option 14 with a fairly long label that pads the JSON document out"
+      - "Option 15 with a fairly long label that pads the JSON document out"
+      - "Option 16 with a fairly long label that pads the JSON document out"
+      - "Option 17 with a fairly long label that pads the JSON document out"
+      - "Option 18 with a fairly long label that pads the JSON document out"
+      - "Option 19 with a fairly long label that pads the JSON document out"
+      - "Option 20 with a fairly long label that pads the JSON document out"
+number:
+  - platform: template
+    name: Level
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 0.5
+    unit_of_measurement: "%"
+button:
+  - platform: template
+    name: Poke
+    on_press:
+      - logger.log: "poked"
+text:
+  - platform: template
+    name: Note
+    optimistic: true
+    mode: text
+    max_length: 64
+output:
+  - platform: template
+    id: dummy_out
+    type: float
+    write_action:
+      - lambda: ''
+light:
+  - platform: monochromatic
+    name: Lamp
+    output: dummy_out
+fan:
+  - platform: template
+    name: Vent
+    speed_count: 3
+cover:
+  - platform: template
+    name: Shade
+    optimistic: true
+    has_position: true
+lock:
+  - platform: template
+    name: Latch
+    optimistic: true

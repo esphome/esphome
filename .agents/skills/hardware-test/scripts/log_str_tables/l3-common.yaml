@@ -1,0 +1,132 @@
+esphome:
+  name: ${name}
+  includes: [fakes.hpp]
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: 'id(ac)->set_uart_parent(&fk::cn);'
+    - priority: -100
+      then:
+        - mitsubishi_cn105.set_remote_temperature:
+            id: ac
+            temperature: 22.0
+        - delay: 3s
+        - logger.log: "MARK ira211"
+        - remote_transmitter.transmit_ira211: {command: temp_up, temperature: 22.5, mode: comfort, fan_mode: low}
+        - delay: 500ms
+        - remote_transmitter.transmit_ira211: {command: temp_down, temperature: 21, mode: comfort, fan_mode: medium}
+        - delay: 500ms
+        - remote_transmitter.transmit_ira211: {command: mode, temperature: 20, mode: timer, fan_mode: high}
+        - delay: 500ms
+        - remote_transmitter.transmit_ira211: {command: fan, temperature: 19.5, mode: comfort, fan_mode: auto}
+        - delay: 500ms
+        - remote_transmitter.transmit_ira211: {command: power, temperature: 23, mode: comfort, fan_mode: low}
+        - delay: 500ms
+        - remote_transmitter.transmit_ira211: {command: sync, temperature: 24, mode: timer, fan_mode: high}
+        - delay: 500ms
+        - logger.log: "MARK climate change"
+        - climate.control: {id: ac_climate, mode: COOL, target_temperature: 24}
+        - delay: 20s
+        - logger.log: "MARK ALLDONE"
+
+logger:
+  baud_rate: 460800
+  level: VERBOSE
+  logs:
+    remote.raw: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    remote_receiver: DEBUG
+
+uart:
+  - id: uart_bus
+    tx_pin: {number: '${uart_tx}', allow_other_uses: '${uart_share}'}
+    rx_pin: {number: '${uart_rx}', allow_other_uses: '${uart_share}'}
+    baud_rate: 2400
+    parity: EVEN
+
+i2c:
+  - id: i2c_bus
+    sda: ${sda}
+    scl: ${scl}
+    scan: false
+
+mitsubishi_cn105:
+  id: ac
+  uart_id: uart_bus
+  update_interval: 5s
+
+climate:
+  - platform: mitsubishi_cn105
+    id: ac_climate
+    mitsubishi_cn105_id: ac
+    name: "AC"
+
+remote_transmitter:
+  id: irtx
+  pin: {number: '${ir_pin}', allow_other_uses: true}
+  carrier_duty_percent: 100%
+
+remote_receiver:
+  pin: {number: '${ir_pin}', allow_other_uses: true}
+  dump: [ira211]
+
+stepper:
+  - {platform: uln2003, id: st1, step_mode: FULL_STEP, max_speed: 100 steps/s, pin_a: {number: '${st_a}', allow_other_uses: true}, pin_b: {number: '${st_b}', allow_other_uses: true}, pin_c: {number: '${st_c}', allow_other_uses: true}, pin_d: {number: '${st_d}', allow_other_uses: true}}
+  - {platform: uln2003, id: st2, step_mode: HALF_STEP, max_speed: 100 steps/s, pin_a: {number: '${st_a}', allow_other_uses: true}, pin_b: {number: '${st_b}', allow_other_uses: true}, pin_c: {number: '${st_c}', allow_other_uses: true}, pin_d: {number: '${st_d}', allow_other_uses: true}}
+  - {platform: uln2003, id: st3, step_mode: WAVE_DRIVE, max_speed: 100 steps/s, pin_a: {number: '${st_a}', allow_other_uses: true}, pin_b: {number: '${st_b}', allow_other_uses: true}, pin_c: {number: '${st_c}', allow_other_uses: true}, pin_d: {number: '${st_d}', allow_other_uses: true}}
+
+display:
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    id: oled
+    model: SSD1306_128X64
+    update_interval: 60s
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 12
+    glyphs: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 "
+
+number:
+  - {platform: template, id: m_number, min_value: 0, max_value: 10, step: 1, optimistic: true}
+select:
+  - {platform: template, id: m_select, options: [one, two], optimistic: true}
+switch:
+  - {platform: template, id: m_switch, optimistic: true}
+
+graphical_display_menu:
+  id: menu
+  display: oled
+  font: roboto
+  active: false
+  mode: rotary
+  items:
+    - type: back
+      text: "Back"
+    - type: label
+      text: "Label"
+    - type: menu
+      text: "Submenu"
+      items:
+        - type: back
+          text: "Back"
+    - type: select
+      text: "Select"
+      select: m_select
+    - type: number
+      text: "Number"
+      number: m_number
+    - type: command
+      text: "Command"
+    - type: switch
+      text: "Switch"
+      switch: m_switch
+    - type: custom
+      text: "Custom"
+      value_lambda: 'return "Val";'

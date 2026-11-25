@@ -99,3 +99,7 @@ pairings. Facts from that run:
 - udp `packet_interface` with broadcast between a D1 mini and an ESP32 loses most hdlc acks; unicast `addresses:` still
   resets the reliability session a few times a minute (dev and PR alike). A D1 mini's API can deliver states 5 to 11 s
   late under that load.
+
+## Driver pitfalls
+
+- `aioesphomeapi`'s `execute_service` is a coroutine now: without `await` the action silently never runs.

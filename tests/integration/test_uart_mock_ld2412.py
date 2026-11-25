@@ -38,6 +38,9 @@ module's values and send the device code of the chosen option, that the name tak
 name the same way, and that an unknown name sends nothing at all.
 
 test_uart_mock_ld2412_short_answers: answers cut short publish nothing, the whole ones after them do.
+
+The output pin tests share one build and every other test shares a second one; LD2412_SCENARIO tells the
+binary which scenario's answers and injections to play.
 """
 
 from __future__ import annotations
@@ -92,6 +95,15 @@ THRESHOLD_NUMBERS = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _ld2412_scenario(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pick this test's scenario in the shared fixture: the test name after the ld2412 prefix."""
+    name = request.node.name.removeprefix("test_uart_mock_ld2412").removeprefix("_")
+    monkeypatch.setenv("LD2412_SCENARIO", name or "frames")
+
+
 def _is_tx(line: str) -> bool:
     return "uart_mock" in line and "TX " in line
 
@@ -143,6 +155,7 @@ class _LogEvents:
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -279,6 +292,7 @@ async def test_uart_mock_ld2412(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412_engineering(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -364,6 +378,7 @@ async def test_uart_mock_ld2412_engineering(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412_engineering_truncated(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -456,6 +471,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412_footer_in_payload(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -541,6 +557,7 @@ async def test_uart_mock_ld2412_footer_in_payload(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412_truncated_answer(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -605,6 +622,7 @@ async def test_uart_mock_ld2412_truncated_answer(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412_requery_after_giveup(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -707,6 +725,7 @@ async def test_uart_mock_ld2412_requery_after_giveup(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412_out_pin_level")
 async def test_uart_mock_ld2412_out_pin_level(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -741,6 +760,7 @@ async def test_uart_mock_ld2412_out_pin_level(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412_out_pin_level")
 async def test_uart_mock_ld2412_out_pin_level_held_back(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -781,6 +801,7 @@ async def test_uart_mock_ld2412_out_pin_level_held_back(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412_selects(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -855,6 +876,7 @@ async def test_uart_mock_ld2412_selects(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("uart_mock_ld2412")
 async def test_uart_mock_ld2412_short_answers(
     yaml_config: str,
     run_compiled: RunCompiledFunction,

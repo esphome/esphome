@@ -135,11 +135,13 @@ void RP2UartComponent::setup() {
   }
 #endif
 
+  // Both Serial classes always allocate the RX queue; one entry is the smallest they take
+  const size_t rx_queue_size = rx_configured ? this->rx_buffer_size_ : 1;
   if (hw_uart == -1) {
     ESP_LOGV(TAG, "Using SerialPIO");
     pin_size_t tx = this->tx_pin_ == nullptr ? NOPIN : this->tx_pin_->get_pin();
     pin_size_t rx = this->rx_pin_ == nullptr ? NOPIN : this->rx_pin_->get_pin();
-    auto *serial = new SerialPIO(tx, rx, this->rx_buffer_size_);  // NOLINT(cppcoreguidelines-owning-memory)
+    auto *serial = new SerialPIO(tx, rx, rx_queue_size);  // NOLINT(cppcoreguidelines-owning-memory)
     serial->begin(this->baud_rate_, config);
     if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
       gpio_set_outover(tx, GPIO_OVERRIDE_INVERT);
@@ -153,12 +155,26 @@ void RP2UartComponent::setup() {
       serial->setTX(this->tx_pin_->get_pin());
     if (this->rx_pin_ != nullptr)
       serial->setRX(this->rx_pin_->get_pin());
-    serial->setFIFOSize(this->rx_buffer_size_);
+    serial->setFIFOSize(rx_queue_size);
     serial->begin(this->baud_rate_, config);
     this->serial_ = serial;
     this->hw_serial_ = true;
   }
 }
+
+#ifdef USE_UART_TX_BREAK
+bool RP2UartComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr || this->serial_ == nullptr)
+    return false;
+  // the pad override works for the hardware UART and for SerialPIO alike
+  const bool inverted = this->tx_pin_->is_inverted();
+  uint32_t value = inverted ? GPIO_OVERRIDE_INVERT : GPIO_OVERRIDE_NORMAL;
+  if (enable)
+    value = inverted ? GPIO_OVERRIDE_HIGH : GPIO_OVERRIDE_LOW;
+  gpio_set_outover(this->tx_pin_->get_pin(), value);
+  return true;
+}
+#endif
 
 void RP2UartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
