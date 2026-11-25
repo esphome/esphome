@@ -1,7 +1,7 @@
 # Package for a LibreTiny board (BK72xx, RTL87xx): logs how long on_disconnect waits after AsyncMqttClient's own
 # disconnect callback (lat_us), the task each automation runs in (ctx) and on_connect with session_present.
 # lat.hpp reaches the private backend and client members through explicitly instantiated member pointers and adds a
-# second onDisconnect callback (before the component's own) from an on_boot lambda at priority 700.
+# second onDisconnect callback (runs after the component's own) from an on_boot lambda at priority 700.
 # Host serial timestamps cannot measure this: pyserial reads with a 0.2 s timeout quantize them.
 # Device file: substitutions name, broker; bk72xx: or rtl87xx: board; packages: common: !include latency-common.yaml
 esphome:
