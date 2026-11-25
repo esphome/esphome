@@ -20,6 +20,19 @@ struct GNSSData {
   uint8_t satellites{0};
 };
 
+/// Receivers send UTC at least once a second; an older one means the receiver stopped sending it.
+static constexpr uint64_t MAX_UTC_AGE_MS = 10000;
+
+/// The UTC of `data` advanced to `now_ms` (a millis_64() value), or 0 when it has none or it is stale.
+inline time_t current_utc(const GNSSData &data, uint64_t now_ms) {
+  if (data.utc == 0)
+    return 0;
+  const uint64_t age = now_ms - data.utc_millis;
+  if (age > MAX_UTC_AGE_MS)
+    return 0;
+  return data.utc + static_cast<time_t>(age / 1000);
+}
+
 /// Base of the gnss platforms: they fill data_ and call publish_fix_() after each new solution.
 class GNSSComponent : public PollingComponent {
  public:
