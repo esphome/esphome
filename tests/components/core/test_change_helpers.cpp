@@ -39,10 +39,10 @@ TEST(ChangeHelpers, ChangedComparesByValue) {
   float last = 0.0f;
   EXPECT_TRUE(changed(last, 0.5f));
   EXPECT_FALSE(changed(last, 0.5f));
-  enum class Direction : uint8_t { FORWARD, REVERSE };
-  Direction direction = Direction::FORWARD;
-  EXPECT_TRUE(changed(direction, Direction::REVERSE));
-  EXPECT_FALSE(changed(direction, Direction::REVERSE));
+  enum class Direction : uint8_t { DIRECTION_FORWARD, DIRECTION_REVERSE };
+  Direction direction = Direction::DIRECTION_FORWARD;
+  EXPECT_TRUE(changed(direction, Direction::DIRECTION_REVERSE));
+  EXPECT_FALSE(changed(direction, Direction::DIRECTION_REVERSE));
 }
 
 TEST(ChangeHelpers, ChangedComparesTextAndKeepsThePointer) {
