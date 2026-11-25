@@ -35,10 +35,8 @@ class OpenThermRMT : public OpenThermBase, public remote_base::RemoteRMTChannel 
   void listen() override;
   void loop() override;
 
-  static bool IRAM_ATTR HOT rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *edata,
-                                        void *user_ctx);
-  static bool IRAM_ATTR HOT tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *edata,
-                                        void *user_ctx);
+  static bool rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *edata, void *user_ctx);
+  static bool tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *edata, void *user_ctx);
 
  private:
   void write_frame() override;

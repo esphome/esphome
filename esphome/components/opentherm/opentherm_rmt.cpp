@@ -11,8 +11,8 @@ namespace esphome::opentherm {
 
 ESPHOME_LOG_TAG(TAG, "opentherm");
 
-bool IRAM_ATTR HOT OpenThermRMT::rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *edata,
-                                             void *user_ctx) {
+bool IRAM_ATTR OpenThermRMT::rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *edata,
+                                         void *user_ctx) {
   auto *arg = static_cast<OpenThermRMT *>(user_ctx);
   arg->symbol_count_ = edata->num_symbols;
   arg->rx_armed_ = false;
@@ -22,8 +22,8 @@ bool IRAM_ATTR HOT OpenThermRMT::rx_done_isr(rmt_channel_handle_t channel, const
   return task_woken != pdFALSE;
 }
 
-bool IRAM_ATTR HOT OpenThermRMT::tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *edata,
-                                             void *user_ctx) {
+bool IRAM_ATTR OpenThermRMT::tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *edata,
+                                         void *user_ctx) {
   auto *arg = static_cast<OpenThermRMT *>(user_ctx);
   if (!arg->transmitted()) {
     return false;  // Not the end of a request: the idle level was written, or the request was abandoned.
