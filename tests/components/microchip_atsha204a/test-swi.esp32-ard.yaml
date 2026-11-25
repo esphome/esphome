@@ -1,0 +1,7 @@
+packages:
+  uart_230400_none_7bits_rx: !include ../../test_build_components/common/uart_230400_none_7bits_rx/esp32-idf.yaml
+
+microchip_atsha204a:
+  - id: atsha204a_rmt
+    type: swi_rmt
+    uart_id: uart_rx_bus

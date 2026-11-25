@@ -1,13 +1,19 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/gpio.h"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 
-#ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
+#ifdef USE_MICROCHIP_ATSHA204A_I2C
+#include "esphome/components/i2c/i2c.h"
+#endif
+#if defined(USE_MICROCHIP_ATSHA204A_SWI_UART) || defined(USE_MICROCHIP_ATSHA204A_SWI_RMT)
 #include "esphome/components/uart/uart.h"
+#endif
+#ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
 #include "driver/rmt_tx.h"
 #endif
 
@@ -31,7 +37,20 @@ class Transport {
   virtual bool power_down(bool idle, bool allow_nack = false) = 0;
 };
 
-#ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
+#ifdef USE_MICROCHIP_ATSHA204A_I2C
+class I2CTransport : public Transport, public i2c::I2CDevice {
+ public:
+  bool setup() override { return true; }
+  void dump_config() override;
+  bool wake() override;
+  bool command(const uint8_t *packet, size_t size) override;
+  bool request_response() override { return true; }
+  Receive receive(uint8_t *packet) override;
+  bool power_down(bool idle, bool allow_nack) override;
+};
+#endif
+
+#if defined(USE_MICROCHIP_ATSHA204A_SWI_UART) || defined(USE_MICROCHIP_ATSHA204A_SWI_RMT)
 class SWITransport : public Transport, public uart::UARTDevice {
  public:
   bool is_single_wire() const override { return true; }
@@ -49,6 +68,24 @@ class SWITransport : public Transport, public uart::UARTDevice {
   uint32_t received_at_{};
   bool received_packet_{};
 };
+#endif
+
+#ifdef USE_MICROCHIP_ATSHA204A_SWI_UART
+class UARTTransport : public SWITransport {
+ public:
+  explicit UARTTransport(InternalGPIOPin *wake_pin) : wake_pin_(wake_pin) {}
+  bool setup() override;
+  void dump_config() override;
+  bool wake() override;
+
+ protected:
+  bool send(const uint8_t *bytes, size_t size) override;
+
+  InternalGPIOPin *const wake_pin_;
+};
+#endif
+
+#ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
 class RMTTransport : public SWITransport {
  public:
   explicit RMTTransport(uint8_t pin) : pin_(pin) {}

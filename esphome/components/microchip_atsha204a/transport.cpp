@@ -2,9 +2,15 @@
 
 #include <algorithm>
 
+#include "esphome/core/gpio_pin.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#if defined(USE_MICROCHIP_ATSHA204A_SWI_UART) && defined(USE_RP2)
+#include "esphome/components/uart/uart_component_rp2.h"
+#elif defined(USE_MICROCHIP_ATSHA204A_SWI_UART) && defined(USE_LIBRETINY)
+#include "esphome/components/uart/uart_component_libretiny.h"
+#endif
 #ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
 #include "driver/gpio.h"
 #include "esp_err.h"
@@ -15,7 +21,64 @@ namespace esphome::microchip_atsha204a {
 ESPHOME_LOG_TAG(TAG, "microchip_atsha204a");
 static constexpr uint8_t MIN_RESPONSE_SIZE = 4;
 
-#ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
+#ifdef USE_MICROCHIP_ATSHA204A_I2C
+static constexpr uint8_t I2C_COMMAND = 0x03;
+static constexpr uint8_t I2C_IDLE = 0x02;
+static constexpr uint8_t I2C_SLEEP = 0x01;
+// Keep transfers within the smallest supported Wire buffer (32 bytes).
+static constexpr size_t I2C_CHUNK_SIZE = 30;
+
+void I2CTransport::dump_config() {
+  ESP_LOGCONFIG(TAG, "  Transport: I2C");
+  LOG_I2C_DEVICE(this);
+}
+
+bool I2CTransport::wake() {
+  // The address byte holds SDA low for eight clocks. A sleeping chip is expected to NACK.
+  const uint8_t zero = 0;
+  const auto status = this->bus_->write(0, &zero, 1);
+  return status == i2c::ERROR_OK || status == i2c::ERROR_NOT_ACKNOWLEDGED;
+}
+
+bool I2CTransport::command(const uint8_t *packet, size_t size) {
+  uint8_t data[I2C_CHUNK_SIZE + 1]{I2C_COMMAND};
+  while (size != 0) {
+    // Each I2C write repeats the word address and continues at the chip's input counter.
+    const size_t count = std::min(size, I2C_CHUNK_SIZE);
+    std::copy_n(packet, count, data + 1);
+    if (this->write(data, count + 1) != i2c::ERROR_OK)
+      return false;
+    packet += count;
+    size -= count;
+  }
+  return true;
+}
+
+Receive I2CTransport::receive(uint8_t *packet) {
+  const auto status = this->read(packet, 1);
+  if (status == i2c::ERROR_NOT_ACKNOWLEDGED)
+    return Receive::RECEIVE_PENDING;
+  if (status != i2c::ERROR_OK)
+    return Receive::RECEIVE_IO_ERROR;
+  if (packet[0] < MIN_RESPONSE_SIZE || packet[0] > MAX_RESPONSE)
+    return Receive::RECEIVE_INVALID_LENGTH;
+  for (size_t offset = 1; offset < packet[0];) {
+    const size_t count = std::min<size_t>(packet[0] - offset, I2C_CHUNK_SIZE);
+    if (this->read(packet + offset, count) != i2c::ERROR_OK)
+      return Receive::RECEIVE_IO_ERROR;
+    offset += count;
+  }
+  return Receive::RECEIVE_COMPLETE;
+}
+
+bool I2CTransport::power_down(bool idle, bool allow_nack) {
+  const uint8_t flag = idle ? I2C_IDLE : I2C_SLEEP;
+  const auto status = this->write(&flag, 1);
+  return status == i2c::ERROR_OK || (allow_nack && status == i2c::ERROR_NOT_ACKNOWLEDGED);
+}
+#endif
+
+#if defined(USE_MICROCHIP_ATSHA204A_SWI_UART) || defined(USE_MICROCHIP_ATSHA204A_SWI_RMT)
 static constexpr uint8_t decode_byte(const uint8_t *tokens) {
   uint8_t value = 0;
   for (unsigned bit = 0; bit < 8; bit++) {
@@ -81,6 +144,60 @@ bool SWITransport::power_down(bool idle, bool) {
   const uint8_t flag = idle ? SWI_IDLE : SWI_SLEEP;
   return this->send(&flag, 1);
 }
+#endif
+
+#ifdef USE_MICROCHIP_ATSHA204A_SWI_UART
+bool UARTTransport::setup() {
+#if defined(USE_ESP8266)
+  // The ESP8266 software UART reports unlimited write space because it has no TX FIFO.
+  const bool hardware_uart = this->parent_->available_for_write() != SIZE_MAX;
+#elif defined(USE_RP2)
+  const bool hardware_uart = static_cast<uart::RP2UartComponent *>(this->parent_)->is_hw_serial();
+#elif defined(USE_LIBRETINY)
+  const bool hardware_uart = static_cast<uart::LibreTinyUARTComponent *>(this->parent_)->get_hw_serial_number() >= 0;
+#else
+  constexpr bool hardware_uart = true;
+#endif
+  if (!hardware_uart) {
+    ESP_LOGE(TAG, "Single-wire UART requires a hardware UART");
+    return false;
+  }
+  setup_output_pin(this->wake_pin_, true);
+  return true;
+}
+
+bool UARTTransport::wake() {
+  this->wake_pin_->digital_write(false);
+  delayMicroseconds(SWI_WAKE_US);
+  this->wake_pin_->digital_write(true);
+  return true;
+}
+
+bool UARTTransport::send(const uint8_t *bytes, size_t size) {
+  uint8_t tokens[16];
+  while (size != 0) {
+    const size_t count = std::min<size_t>(2, size);
+    for (size_t i = 0; i < count; i++) {
+      for (unsigned bit = 0; bit < 8; bit++)
+        tokens[i * 8 + bit] = (bytes[i] & (1U << bit)) ? 0x7F : 0x7D;
+    }
+    this->write_array(tokens, count * 8);
+    bytes += count;
+    size -= count;
+  }
+  const auto status = this->flush();
+  return status == uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS ||
+         status == uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
+}
+
+void UARTTransport::dump_config() {
+  ESP_LOGCONFIG(TAG, "  Transport: Single-wire UART");
+  LOG_PIN("  Wake pin: ", this->wake_pin_);
+}
+
+#endif
+
+#ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
 static constexpr uint32_t RMT_RESOLUTION_HZ = 2000000;
 static constexpr size_t RMT_SYMBOLS = 64;
 static constexpr uint8_t RMT_WAKE = 0;

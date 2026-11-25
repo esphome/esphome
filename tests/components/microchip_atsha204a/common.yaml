@@ -1,19 +1,19 @@
 microchip_atsha204a:
-  - id: atsha204a_rmt
-    type: swi_rmt
-    uart_id: uart_rx_bus
+  - id: atsha204a_i2c
+    type: i2c
+    i2c_id: i2c_bus
     update_interval: 10s
 
 binary_sensor:
   - platform: microchip_atsha204a
-    atsha204a_id: atsha204a_rmt
+    atsha204a_id: atsha204a_i2c
     name: ATSHA204A Present
 
 script:
   - id: atsha204a_test_commands
     then:
       - microchip_atsha204a.command:
-          id: atsha204a_rmt
+          id: atsha204a_i2c
           opcode: nonce
           param1: 0x03
           data: [
@@ -29,7 +29,7 @@ script:
                   lambda: return status == 0 && session != 0;
                 then:
                   - microchip_atsha204a.command:
-                      id: atsha204a_rmt
+                      id: atsha204a_i2c
                       opcode: dev_rev
                       session: !lambda return session;
                       data: !lambda return std::vector<uint8_t>{};
@@ -40,5 +40,5 @@ script:
                               ESP_LOGD("test", "Device revision: %02X", data[0]);
                 else:
                   - microchip_atsha204a.end_session:
-                      id: atsha204a_rmt
+                      id: atsha204a_i2c
                       session: !lambda return session;
