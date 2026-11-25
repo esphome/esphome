@@ -150,10 +150,8 @@ message HelloResponse {
   // max_data_length matches ESPHOME_DEVICE_NAME_MAX_LEN (validated by validate_hostname)
   string name = 4 [(max_data_length) = 31, (force) = true];
 
-  // Keepalive interval the server uses, in seconds. 0 means the default (60s).
-  // Clients should not ping more often than this and should scale their pong
-  // timeout to it. Lets sleepy devices (e.g. Thread MTD/SED with a long
-  // poll_period) avoid being woken by pings and dropped as unresponsive.
+  // Keepalive interval in seconds when it differs from 60; the device pings after this idle time
+  // and drops a client that has not answered within min(1.5x the interval, 300 s)
   uint32 keepalive_interval = 5 [(field_ifdef) = "USE_API_KEEPALIVE_INTERVAL"];
 }
 

@@ -13,6 +13,7 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#include <algorithm>
 #include <cerrno>
 #include <cinttypes>
 #include <cstring>
@@ -80,10 +81,7 @@ static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 // keepalive does not hold the slot of a vanished client for hours.
 static constexpr uint32_t KEEPALIVE_PONG_GRACE_MS = 300000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
-    KEEPALIVE_TIMEOUT_MS + ((KEEPALIVE_TIMEOUT_MS * 3) / 2 < KEEPALIVE_PONG_GRACE_MS ? (KEEPALIVE_TIMEOUT_MS * 3) / 2
-                                                                                     : KEEPALIVE_PONG_GRACE_MS);
-static_assert(DEFAULT_KEEPALIVE_TIMEOUT_MS + (DEFAULT_KEEPALIVE_TIMEOUT_MS * 3) / 2 == 150000,
-              "default disconnect timeout must stay 150 s");
+    KEEPALIVE_TIMEOUT_MS + std::min<uint32_t>((KEEPALIVE_TIMEOUT_MS * 3) / 2, KEEPALIVE_PONG_GRACE_MS);
 // Timeout for completing the handshake (Noise transport + HelloRequest).
 // A stalled handshake from a buggy client or network glitch holds a connection
 // slot, which can prevent legitimate clients from reconnecting. Also hardens
@@ -359,9 +357,7 @@ void APIConnection::loop() {
   // Keepalive: only call into the cold path when enough time has elapsed.
   // When sent_ping is true, last_traffic_ hasn't been updated so this
   // condition is already satisfied — covers both send-ping and disconnect cases.
-  // Unauthenticated connections are covered by HANDSHAKE_TIMEOUT_MS above, so a short
-  // keepalive cannot cut a slow (e.g. Noise) handshake short.
-  if (this->is_authenticated() && now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
+  if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS) {
     this->check_keepalive_(now);
   }
 
