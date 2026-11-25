@@ -882,7 +882,8 @@ async def request_tag_log_level(tag: str, level: str) -> None:
     """Set the log level of `tag` unless `logger: logs:` sets it; call from to_code.
 
     For libraries that log too much and cannot be filtered at build time, such as prebuilt ESP-IDF libraries.
-    Does nothing when the logger's own level already drops those messages.
+    Does nothing when the logger's own level already drops those messages. ESP-IDF libraries keep their tags only
+    with ESP-IDF Log V2 (6.1 and later, not ESP32-C2/S2); otherwise they log under `esp-idf`.
     """
     if (
         (config := CORE.config.get(DOMAIN)) is None
