@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, sensor
-from esphome.components.const import CONF_OUT_PIN
+from esphome.components.const import CONF_HOLD_STATE, CONF_OUT_PIN
 from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RMT_SYMBOLS, PLATFORM_ESP32, PLATFORM_ESP8266
@@ -110,6 +110,13 @@ def _final_validate(config: dict[str, Any]) -> None:
             "'%s' has no effect as this target uses the RMT peripheral, and can be safely removed from the %s component.",
             CONF_SYNC_MODE,
             config[CONF_ID],
+        )
+    # RMT drives the pad through the peripheral, which bypasses the hold refresh the polling transport does.
+    if _rmt_transport() and config[CONF_OUT_PIN].get(CONF_HOLD_STATE):
+        raise cv.Invalid(
+            f"'{CONF_HOLD_STATE}' is not supported on '{CONF_OUT_PIN}' for this target, because the RMT peripheral "
+            f"drives the pin directly.",
+            [CONF_OUT_PIN],
         )
 
 

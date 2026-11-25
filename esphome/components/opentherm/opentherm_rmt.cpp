@@ -146,24 +146,19 @@ bool OpenThermRMT::init_tx_() {
 }
 
 void OpenThermRMT::write_idle_() {
-  rmt_symbol_word_t symbol = {
-      .duration0 = 1,
-      .level0 = 1,
-      .duration1 = 0,
-      .level1 = 1,
-  };
   rmt_transmit_config_t config;
   memset(&config, 0, sizeof(config));
   config.flags.eot_level = 1;
-  const esp_err_t error = rmt_transmit(this->tx_, this->encoder_, &symbol, sizeof(symbol), &config);
+  const esp_err_t error =
+      rmt_transmit(this->tx_, this->encoder_, &this->idle_symbol_, sizeof(this->idle_symbol_), &config);
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
   }
 }
 
 void OpenThermRMT::listen() {
-  if (this->rx_armed_) {
-    return;  // Already waiting for the answer.
+  if (this->rx_armed_ || this->rx_done_) {
+    return;
   }
   this->arm_rx_();
 }
@@ -183,8 +178,7 @@ void OpenThermRMT::write_frame() {
       rmt_transmit(this->tx_, this->encoder_, this->tx_symbols_, FRAME_BITS * sizeof(rmt_symbol_word_t), &config);
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
-    // The closest existing state: the transport, not the protocol, failed.
-    this->mode_ = OperationMode::ERROR_TIMER;
+    this->fail_transport_();
   }
 }
 
@@ -216,12 +210,11 @@ void OpenThermRMT::build_frame_() {
 }
 
 void OpenThermRMT::disarm_rx_() {
-  if (!this->rx_armed_) {
-    return;
+  if (this->rx_armed_) {
+    // The driver has no way to cancel a pending capture, so the channel is disabled and enabled again to abandon it.
+    rmt_disable(this->rx_);
+    rmt_enable(this->rx_);
   }
-  // The driver has no way to cancel a pending capture, so the channel is disabled and enabled again to abandon it.
-  rmt_disable(this->rx_);
-  rmt_enable(this->rx_);
   this->rx_armed_ = false;
   this->rx_done_ = false;
   this->symbol_count_ = 0;
@@ -233,9 +226,13 @@ void OpenThermRMT::arm_rx_() {
   this->rx_armed_ =
       rmt_receive(this->rx_, this->buffer_.data(), this->buffer_.size_bytes(), &this->rx_config_) == ESP_OK;
   if (!this->rx_armed_) {
-    ESP_LOGW(TAG, "Failed to arm RMT capture, no response will be decoded this round");
+    // The answer is not lost for good: the hub retries on its next cycle, so this is not a device failure.
+    ESP_LOGD(TAG, "Failed to arm RMT capture, no response will be decoded this round");
+    this->fail_transport_();
   }
 }
+
+void OpenThermRMT::fail_transport_() { this->mode_ = OperationMode::ERROR_TRANSPORT; }
 
 void OpenThermRMT::decode_rx_() {
   // A capture that completes after the conversation ended must not revive it.
@@ -258,14 +255,18 @@ void OpenThermRMT::decode_rx_() {
         previous = level;  // The level the capture opened on is not a transition.
       } else if (level != previous) {
         const uint32_t edge_us = this->to_microseconds_(ticks);
-        // A pulse that opens the capture has no stored first edge, so its closing edge would be read as the start.
-        const bool opening_noise = count == 0 && edge_us < GLITCH_MAX_US;
-        if (!opening_noise && count < RMT_MAX_EDGES) {
+        previous = level;
+        if (count == 0 && edge_us < GLITCH_MAX_US) {
+          // A pulse that opens the capture has no stored first edge, so its closing edge would be read as the start.
+          previous = -1;  // The line level is no reference either, so the next edge becomes the baseline.
+        } else if (count > 0 && edge_us - this->edge_us_[count - 1] < GLITCH_MAX_US) {
+          // A pulse shorter than GLITCH_MAX_US is noise. Go back one to catch & remove the leading edge of the glitch
+          count--;
+        } else if (count < RMT_MAX_EDGES) {
           this->edge_us_[count] = edge_us;
           this->edge_level_[count] = level ^ invert;
           count++;
         }
-        previous = level;
       }
       if (duration == 0) {
         // End of capture. The transition above still counts: the driver ends the capture on it.
@@ -284,7 +285,7 @@ void OpenThermRMT::decode_rx_() {
 
   uint32_t data = 0;
   uint8_t position = 0;
-  const ProtocolErrorType error = decode_edges(this->edge_us_, this->edge_level_, &count, &data, &position);
+  const ProtocolErrorType error = decode_edges(this->edge_us_, this->edge_level_, count, &data, &position);
 
   this->bit_pos_ = position;
   if (error == ProtocolErrorType::NO_ERROR) {

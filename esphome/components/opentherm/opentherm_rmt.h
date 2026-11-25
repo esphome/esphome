@@ -49,6 +49,7 @@ class OpenThermRMT : public OpenThermBase, public remote_base::RemoteRMTChannel 
   void write_idle_();
   void decode_rx_();
   void build_frame_();
+  void fail_transport_();
 
   rmt_channel_handle_t rx_{nullptr};
   rmt_channel_handle_t tx_{nullptr};
@@ -57,8 +58,17 @@ class OpenThermRMT : public OpenThermBase, public remote_base::RemoteRMTChannel 
 
   // A 34-bit frame has one mid-bit transition per bit, so at most 68 edges plus the leading idle.
   static constexpr size_t RMT_MAX_EDGES = 80;
+  // Both edges of a pulse shorter than this are noise; the shortest real half bit is 500 us.
+  static constexpr uint32_t GLITCH_MAX_US = 50;
 
   rmt_symbol_word_t tx_symbols_[FRAME_BITS]{};
+  // The encoder reads a payload after rmt_transmit returns, so the idle symbol outlives the call.
+  rmt_symbol_word_t idle_symbol_{
+      .duration0 = 1,
+      .level0 = 1,
+      .duration1 = 0,
+      .level1 = 1,
+  };
   uint32_t edge_us_[RMT_MAX_EDGES]{};
   uint8_t edge_level_[RMT_MAX_EDGES]{};
   volatile size_t symbol_count_{0};

@@ -1,3 +1,10 @@
+/*
+ * OpenTherm protocol implementation. Originally taken from https://github.com/jpraus/arduino-opentherm, but
+ * heavily modified to comply with ESPHome coding standards and provide better logging.
+ * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+ * Public License, which is compatible with GPLv3 license, which covers C++ part of ESPHome project.
+ */
+
 #include "opentherm_base.h"
 #include "esphome/core/helpers.h"
 #include <cinttypes>
@@ -113,27 +120,8 @@ ProtocolErrorType IRAM_ATTR OpenThermBase::check_frame(uint32_t data, bool start
   return ProtocolErrorType::NO_ERROR;
 }
 
-ProtocolErrorType OpenThermBase::decode_edges(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
-                                              uint8_t *bit_pos) {
-  // A pulse shorter than GLITCH_MAX_US is noise. Both of its edges go: the pair leaves the line where it already
-  // was, so removing it keeps the level alternation intact.
-  size_t filtered = 0;
-  for (size_t i = 0; i < *count; i++) {
-    if (i + 1 < *count && edges_us[i + 1] - edges_us[i] < GLITCH_MAX_US) {
-      i++;
-      continue;
-    }
-    edges_us[filtered] = edges_us[i];
-    levels[filtered] = levels[i];
-    filtered++;
-  }
-  *count = filtered;
-
-  if (filtered < 2) {
-    *bit_pos = 0;
-    return ProtocolErrorType::NO_TRANSITION;
-  }
-
+ProtocolErrorType OpenThermBase::decode_edges(const uint32_t *edges_us, const uint8_t *levels, size_t count,
+                                              uint32_t *data, uint8_t *bit_pos) {
   // Every bit, the start bit included, is one mid-bit transition, and consecutive ones are one bit apart. An edge
   // closer than BIT_GAP_MIN_US to the previous bit is the optional boundary transition and is skipped.
   uint32_t reference = edges_us[0];
@@ -146,10 +134,10 @@ ProtocolErrorType OpenThermBase::decode_edges(uint32_t *edges_us, uint8_t *level
     *bit_pos = bit;
     if (bit > 0) {
       const uint32_t low = reference + BIT_GAP_MIN_US;
-      while (scan < filtered && edges_us[scan] <= low) {
+      while (scan < count && edges_us[scan] <= low) {
         scan++;
       }
-      if (scan >= filtered) {
+      if (scan >= count) {
         return ProtocolErrorType::NO_TRANSITION;
       }
       reference = edges_us[scan];
@@ -188,6 +176,7 @@ const char *OpenThermBase::operation_mode_to_str(OperationMode mode) {
     TO_STRING_MEMBER(ERROR_PROTOCOL)
     TO_STRING_MEMBER(ERROR_TIMEOUT)
     TO_STRING_MEMBER(ERROR_TIMER)
+    TO_STRING_MEMBER(ERROR_TRANSPORT)
     default:
       return "<INVALID>";
   }
@@ -334,36 +323,22 @@ void OpenThermBase::debug_data(OpenthermData &data) {
   ESP_LOGD(TAG, "%s %s %s %s", format_bin_to(type_buf, data.type), format_bin_to(id_buf, data.id),
            format_bin_to(hb_buf, data.valueHB), format_bin_to(lb_buf, data.valueLB));
   ESP_LOGD(TAG, "type: %s; id: %u; HB: %u; LB: %u; uint_16: %u; float: %f",
-           this->message_type_to_str((MessageType) data.type), data.id, data.valueHB, data.valueLB, data.get_u16(),
-           data.get_f88());
+           this->message_type_to_str((MessageType) data.type), data.id, data.valueHB, data.valueLB,
+           encode_uint16(data.valueHB, data.valueLB), data.get_f88());
 }
 void OpenThermBase::debug_error(OpenThermError &error) const {
   ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, error.clock,
            error.capture, error.bit_pos);
 }
 
-float OpenthermData::get_f88() { return ((float) this->get_s16()) / 256.0f; }
-
-void OpenthermData::set_f88(float value) { this->set_s16((int16_t) (value * 256)); }
-
-uint16_t OpenthermData::get_u16() {
-  uint16_t const value = this->valueHB;
-  return (value << 8) | this->valueLB;
+float OpenthermData::get_f88() {
+  return ((float) static_cast<int16_t>(encode_uint16(this->valueHB, this->valueLB))) / 256.0f;
 }
 
-void OpenthermData::set_u16(uint16_t value) {
-  this->valueLB = value & 0xFF;
-  this->valueHB = (value >> 8) & 0xFF;
-}
-
-int16_t OpenthermData::get_s16() {
-  int16_t const value = this->valueHB;
-  return (value << 8) | this->valueLB;
-}
-
-void OpenthermData::set_s16(int16_t value) {
-  this->valueLB = value & 0xFF;
-  this->valueHB = (value >> 8) & 0xFF;
+void OpenthermData::set_f88(float value) {
+  const auto bytes = decode_value(static_cast<uint16_t>(static_cast<int16_t>(value * 256)));
+  this->valueHB = bytes[0];
+  this->valueLB = bytes[1];
 }
 
 }  // namespace esphome::opentherm

@@ -1,5 +1,12 @@
 #pragma once
 
+/*
+ * OpenTherm protocol implementation. Originally taken from https://github.com/jpraus/arduino-opentherm, but
+ * heavily modified to comply with ESPHome coding standards and provide better logging.
+ * Original code is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+ * Public License, which is compatible with GPLv3 license, which covers C++ part of ESPHome project.
+ */
+
 #include <cstddef>
 #include <cstdint>
 #include "esphome/core/hal.h"
@@ -18,9 +25,10 @@ enum OperationMode {
 
   WRITE = 4,  // writing data to output
 
-  ERROR_PROTOCOL = 8,  // protocol error, can happen only during READ
-  ERROR_TIMEOUT = 9,   // timeout while waiting for response from device, only during LISTEN
-  ERROR_TIMER = 10     // error operating the transport: the ESP32 timer, or the RMT driver on a failed transmit
+  ERROR_PROTOCOL = 8,   // protocol error, can happen only during READ
+  ERROR_TIMEOUT = 9,    // timeout while waiting for response from device, only during LISTEN
+  ERROR_TIMER = 10,     // error operating the transport: the ESP32 timer, or the RMT driver on a failed transmit
+  ERROR_TRANSPORT = 11  // a recoverable transport failure: the request can be retried on the next cycle
 };
 
 enum ProtocolErrorType {
@@ -159,7 +167,7 @@ enum BitPositions { STOP_BIT = 33 };
 
 /**
  * Structure to hold Opentherm data packet content.
- * Use get_f88(), get_u16() or get_s16() functions to get appropriate value of data packet according to id of message.
+ * The value bytes are laid out big endian; use encode_uint16()/decode_value() to convert them.
  */
 struct OpenthermData {
   uint8_t type;
@@ -178,26 +186,6 @@ struct OpenthermData {
    * @param float number to set as value of this data packet
    */
   void set_f88(float value);
-
-  /**
-   * @return unsigned 16b integer representation of data packet value
-   */
-  uint16_t get_u16();
-
-  /**
-   * @param unsigned 16b integer number to set as value of this data packet
-   */
-  void set_u16(uint16_t value);
-
-  /**
-   * @return signed 16b integer representation of data packet value
-   */
-  int16_t get_s16();
-
-  /**
-   * @param signed 16b integer number to set as value of this data packet
-   */
-  void set_s16(int16_t value);
 };
 
 struct OpenThermError {
@@ -249,7 +237,7 @@ class OpenThermBase {
 
   bool is_error() {
     return this->mode_ == OperationMode::ERROR_TIMEOUT || this->mode_ == OperationMode::ERROR_PROTOCOL ||
-           this->mode_ == OperationMode::ERROR_TIMER;
+           this->mode_ == OperationMode::ERROR_TIMER || this->mode_ == OperationMode::ERROR_TRANSPORT;
   }
   bool is_timeout() { return this->mode_ == OperationMode::ERROR_TIMEOUT; }
   bool is_protocol_error() { return this->mode_ == OperationMode::ERROR_PROTOCOL; }
@@ -297,8 +285,6 @@ class OpenThermBase {
 
   static bool check_parity(uint32_t val);
 
-  // Both edges of a pulse shorter than this are noise; the shortest real half bit is 500 us.
-  static constexpr uint32_t GLITCH_MAX_US = 50;
   // Consecutive bit transitions are one bit apart, so anything closer is the boundary transition and is skipped.
   static constexpr uint32_t BIT_GAP_MIN_US = 750;
 
@@ -306,8 +292,8 @@ class OpenThermBase {
   /// carries the inverse of the value.
   static bool half_bit_level(uint32_t data, uint8_t bit, uint8_t half);
 
-  /// Reads a frame from its edges: drops noise, then takes 34 bits and validates the frame.
-  static ProtocolErrorType decode_edges(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
+  /// Reads a frame from its edges: takes 34 bits and validates the frame.
+  static ProtocolErrorType decode_edges(const uint32_t *edges_us, const uint8_t *levels, size_t count, uint32_t *data,
                                         uint8_t *bit_pos);
 
   /// What a complete frame has to satisfy: it opens and closes with a 1 and carries even parity.

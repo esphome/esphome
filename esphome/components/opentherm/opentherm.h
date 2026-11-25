@@ -106,6 +106,7 @@ class OpenTherm final : public Component {
   void handle_protocol_error_();
   void handle_timeout_error_();
   void handle_timer_error_();
+  void handle_transport_error_();
   void stop_opentherm_();
   void start_conversation_();
   void read_response_();

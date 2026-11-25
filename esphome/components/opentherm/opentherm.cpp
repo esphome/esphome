@@ -27,10 +27,10 @@ uint8_t parse_u8_lb(OpenthermData &data) { return data.valueLB; }
 uint8_t parse_u8_hb(OpenthermData &data) { return data.valueHB; }
 int8_t parse_s8_lb(OpenthermData &data) { return (int8_t) data.valueLB; }
 int8_t parse_s8_hb(OpenthermData &data) { return (int8_t) data.valueHB; }
-uint16_t parse_u16(OpenthermData &data) { return data.get_u16(); }
+uint16_t parse_u16(OpenthermData &data) { return encode_uint16(data.valueHB, data.valueLB); }
 uint16_t parse_u8_lb_60(OpenthermData &data) { return data.valueLB * 60; }
 uint16_t parse_u8_hb_60(OpenthermData &data) { return data.valueHB * 60; }
-int16_t parse_s16(OpenthermData &data) { return data.get_s16(); }
+int16_t parse_s16(OpenthermData &data) { return static_cast<int16_t>(encode_uint16(data.valueHB, data.valueLB)); }
 float parse_f88(OpenthermData &data) { return data.get_f88(); }
 
 void write_flag8_lb_0(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 0, value); }
@@ -53,8 +53,12 @@ void write_u8_lb(const uint8_t value, OpenthermData &data) { data.valueLB = valu
 void write_u8_hb(const uint8_t value, OpenthermData &data) { data.valueHB = value; }
 void write_s8_lb(const int8_t value, OpenthermData &data) { data.valueLB = (uint8_t) value; }
 void write_s8_hb(const int8_t value, OpenthermData &data) { data.valueHB = (uint8_t) value; }
-void write_u16(const uint16_t value, OpenthermData &data) { data.set_u16(value); }
-void write_s16(const int16_t value, OpenthermData &data) { data.set_s16(value); }
+void write_u16(const uint16_t value, OpenthermData &data) {
+  const auto bytes = decode_value(value);
+  data.valueHB = bytes[0];
+  data.valueLB = bytes[1];
+}
+void write_s16(const int16_t value, OpenthermData &data) { write_u16(static_cast<uint16_t>(value), data); }
 void write_f88(const float value, OpenthermData &data) { data.set_f88(value); }
 
 }  // namespace message_data
@@ -274,6 +278,10 @@ bool OpenTherm::handle_error_(OperationMode mode) {
       // Transport failure: the timer on ESP32 and ESP8266, or the RMT driver when a transmit cannot be queued.
       this->handle_timer_error_();
       return true;
+    case OperationMode::ERROR_TRANSPORT:
+      // The driver rejected a transmit or a capture. Both are retried on the next cycle, so this is not fatal.
+      this->handle_transport_error_();
+      return true;
     default:
       return false;
   }
@@ -358,6 +366,12 @@ void OpenTherm::handle_timer_error_() {
   this->stop_opentherm_();
   // Timer error is critical, there is no point in retrying.
   this->mark_failed();
+}
+
+void OpenTherm::handle_transport_error_() {
+  // The device is still there, the driver is not; the next conversation retries the same request.
+  ESP_LOGW(TAG, "Transport error, retrying on the next cycle");
+  this->stop_opentherm_();
 }
 
 void OpenTherm::dump_config() {
