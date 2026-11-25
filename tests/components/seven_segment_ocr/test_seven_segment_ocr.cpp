@@ -273,4 +273,36 @@ TEST(SevenSegmentOcr, ThresholdsTheImage) {
   EXPECT_TRUE(ocr.recognize(image.pixels.data(), image.width, NORMAL.height, 1).complete());
 }
 
+TEST(SevenSegmentOcr, RejectsInvalidReserveWidth) {
+  SevenSegmentOCR ocr;
+  EXPECT_FALSE(ocr.reserve(0));
+  EXPECT_FALSE(ocr.reserve(-4));
+}
+
+TEST(SevenSegmentOcr, IgnoresRunsNarrowerThanAnyDigit) {
+  Image image{std::vector<uint8_t>(static_cast<size_t>(NORMAL.width) * NORMAL.height, 0), NORMAL.width};
+  fill_rect(image.pixels.data(), image.width, NORMAL, 5, 0, 5, NORMAL.height - 1);
+  SevenSegmentOCR ocr;
+  ASSERT_TRUE(ocr.reserve(image.width));
+  const OcrResult result = ocr.recognize(image.pixels.data(), image.width, NORMAL.height, 1);
+  EXPECT_EQ(result.digits, 0);
+  EXPECT_FALSE(result.complete());
+}
+
+TEST(SevenSegmentOcr, SaturatesTheDigitRunCount) {
+  Image image = render(std::string(300, '1'), SMALL);
+  SevenSegmentOCR ocr;
+  ASSERT_TRUE(ocr.reserve(image.width));
+  const OcrResult result = ocr.recognize(image.pixels.data(), image.width, SMALL.height, 1);
+  EXPECT_EQ(result.digits, UINT8_MAX);
+  EXPECT_FALSE(result.complete());
+}
+
+TEST(SevenSegmentOcr, ReportsTheThresholdLevel) {
+  SevenSegmentOCR ocr;
+  EXPECT_EQ(ocr.get_threshold_level(), 128);
+  ocr.set_threshold_level(50);
+  EXPECT_EQ(ocr.get_threshold_level(), 50);
+}
+
 }  // namespace esphome::seven_segment_ocr

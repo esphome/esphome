@@ -33,7 +33,8 @@ float probe_ratio(const uint8_t *image, int width, int height, int stride, int x
         lit++;
     }
   }
-  return sampled > 0 ? static_cast<float>(lit) / static_cast<float>(sampled) : 0.0f;
+  // The centre is always inside the image, so at least one pixel is sampled.
+  return static_cast<float>(lit) / static_cast<float>(sampled);
 }
 
 }  // namespace
@@ -98,9 +99,9 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
       float confidence = 0.0f;
       const bool narrow = digit_width * 3 < height;
       const int image_stride = width;
-      const int8_t digit = narrow ? recognize_narrow(image + digit_x, digit_width, height, image_stride, &confidence)
+      const int8_t digit = narrow ? recognize_narrow(image + digit_x, digit_width, height, image_stride, confidence)
                                   : recognize_digit(image + digit_x, this->column_sums_.get() + digit_x, digit_width,
-                                                    height, image_stride, &confidence);
+                                                    height, image_stride, confidence);
       if (digit < 0) {
         result.unknown++;
       } else if (result.value > (UINT32_MAX - static_cast<uint32_t>(digit)) / 10u) {
@@ -119,7 +120,7 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
 }
 
 int8_t SevenSegmentOCR::recognize_narrow(const uint8_t *image, int digit_width, int height, int image_stride,
-                                         float *confidence) {
+                                         float &confidence) {
   const int probe_x = digit_width / 2;
   float margin = 0.0f;
   bool complete = true;
@@ -130,13 +131,12 @@ int8_t SevenSegmentOCR::recognize_narrow(const uint8_t *image, int digit_width, 
     if (ratio <= 0.5f)
       complete = false;
   }
-  if (confidence != nullptr)
-    *confidence = margin / 2.0f;
+  confidence = margin / 2.0f;
   return complete ? 1 : -1;
 }
 
 int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *columns, int digit_width, int height,
-                                        int image_stride, float *confidence) {
+                                        int image_stride, float &confidence) {
   // The horizontal strokes span the whole run, so the run width does not say where
   // the vertical strokes are. Use the strongest column of each half for them, which
   // also covers displays whose strokes sit at the outer edges.
@@ -165,8 +165,9 @@ int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *co
       right_columns++;
     }
   }
-  const int left_x = left_columns > 0 ? left_sum / left_columns : 0;
-  const int right_x = right_columns > 0 ? right_sum / right_columns : digit_width - 1;
+  // A run is at least two columns wide, so each half holds a column.
+  const int left_x = left_sum / left_columns;
+  const int right_x = right_sum / right_columns;
 
   uint8_t mask = 0;
   float margin = 0.0f;
@@ -178,8 +179,7 @@ int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *co
     if (ratio > 0.5f)
       mask |= static_cast<uint8_t>(1 << i);
   }
-  if (confidence != nullptr)
-    *confidence = margin / 7.0f;
+  confidence = margin / 7.0f;
   for (uint8_t i = 0; i < 10; i++) {
     if (progmem_read_byte(&DIGIT_MASKS[i]) == mask)
       return static_cast<int8_t>(i);

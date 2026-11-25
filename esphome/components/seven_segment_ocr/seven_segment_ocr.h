@@ -50,9 +50,9 @@ class SevenSegmentOCR final {
 
  protected:
   static int8_t recognize_digit(const uint8_t *image, const uint16_t *columns, int digit_width, int height,
-                                int image_stride, float *confidence);
+                                int image_stride, float &confidence);
   static int8_t recognize_narrow(const uint8_t *image, int digit_width, int height, int image_stride,
-                                 float *confidence);
+                                 float &confidence);
 
   RAMUniquePtr<uint16_t[]> column_sums_;
   size_t column_capacity_{0};
