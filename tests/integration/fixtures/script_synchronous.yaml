@@ -222,10 +222,16 @@ script:
             script.is_running: sync_script
           then:
             - logger.log: "SYNC running inside"
-      - script.execute: waiter_script
+      - script.execute:
+          id: waiter_script
+          from_sync: true
       - logger.log: "SYNC end"
 
+  # The parameter keeps this waiting script out of the group of the inline scripts without
+  # parameters, so those still run as functions
   - id: waiter_script
+    parameters:
+      from_sync: bool
     then:
       - script.wait: sync_script
       - logger.log: "WAITER done"
