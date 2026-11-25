@@ -879,16 +879,14 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 
 
 async def request_tag_log_level(tag: str, level: str) -> None:
-    """Set the log level of `tag` unless `logger: logs:` sets it; call from to_code.
+    """Quiet a noisy library tag; call from to_code.
 
-    For libraries that log too much and cannot be filtered at build time, such as prebuilt ESP-IDF libraries.
-    Does nothing when the logger's own level already drops those messages. ESP-IDF libraries keep their tags only
-    with ESP-IDF Log V2 (6.1 and later, not ESP32-C2/S2); otherwise they log under `esp-idf`.
+    Skipped when `logger: logs:` sets the tag or the logger's (initial) level already drops it. ESP-IDF library
+    tags need ESP-IDF Log V2 (6.1+, not ESP32-C2/S2); otherwise they log as `esp-idf`.
     """
     if (
         (config := CORE.config.get(DOMAIN)) is None
         or tag in config[CONF_LOGS]
-        # The device starts at initial_level when it is set
         or LOG_LEVEL_SEVERITY.index(config.get(CONF_INITIAL_LEVEL, config[CONF_LEVEL]))
         <= LOG_LEVEL_SEVERITY.index(level)
     ):
