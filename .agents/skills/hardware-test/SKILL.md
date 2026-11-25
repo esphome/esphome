@@ -159,9 +159,15 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 
 Per-topic scripts, each described in the matching `reference/recipes/<component>.md`:
 
+- `ac_dimmer/` (ESP8266 zero cross and gate timing loop harness with noise injection, per window and per phase
+  summaries, runner with a web_server load)
 - `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext,
   `overflow/` API overflow buffer counters with a sensor config generator)
+- `api_client_synced/` (on_client_synced config generator, API client and reboot timing drivers, late fire, shutdown and
+  argument summaries, Home Assistant token renewal)
 - `api_outgoing/` (wake cycle and Wi-Fi drop timing readers)
+- `app_lists/` (17 type entity package with sub-devices and areas, API listing and command driver, `/events` and
+  dump_config normalisers)
 - `att_reorder/` (Read By Type reorder wrapper for the proxy, GATT servers, service reader, table, read and notify
   check, runner)
 - `automation_trace/` (automation marker trace driver and runner)
@@ -185,6 +191,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `bmp390/` (config generator, probe and fault injection header, runner and stats)
 - `bt_proxy_ab/` (proxy A/B packages with a heap logger, scenario driver, suite, flash chain and crossed runner,
   on-device self test, burst client and drop counters, reports)
+- `canopen/` (CANopen SDO client suite header, client, server with slow objects and MCP2515 node configs, action paths
+  package, bus check, two-board capture with a reset hold)
 - `cc1101_long/` (long packet and lambda length driver for two CC1101 radios, begin_tx in packet mode, async serial OOK
   package and driver)
 - `cc1101_sleep/` (register and PATABLE snapshot header, sleep and setter checks)
@@ -196,12 +204,15 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `crc32/` (vector header and package)
 - `cse7766/` (API observer with ping)
 - `dfrobot_sen0395/` (API driver and case runner)
+- `display_recorder/` (recording fake display component, test image writer, scene package, host checker)
 - `ds248x_sim/` (DS2482-800 simulator, configs, driver)
 - `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a
   comparer)
 - `entity_transport/trcheck.py` (remote entity values against the sender's)
 - `esp8266_edges/` (GPIO edge logger and 8N1 decoder, `jsn_sr04t` probe and counters, I2C bus sniffer and decoder, SDA
   unstick, VL53L1X register logger)
+- `esp8266_flash_prefs/` (Wi-Fi scan versus flash erase repro, interrupt load during the flash sync, reset and restore
+  driver, API hold, crash, heap and pulse rate summaries)
 - `esp8266_lock_load/` (DS18B20 search and one-pin IR DUTs with a busy-wait control, UDP and HTTP load, runner)
 - `espnow_link/` and `tcp_link/` (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
 - `ezo_fake_bus/` (fake EZO I2C bus and step config, runner)
@@ -228,7 +239,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `i2c_wire_ab/` (I2C wire token streams from host stubs, GPIO sniffers and an in-firmware target, `mux/` simulated
   TCA9548A host harness, device sweep, target and comparers)
 - `i2s_loopback/` (I2S microphone loopback with a DC generator)
-- `improv/` (Improv serial and BLE clients, serial scan reply dump, open AP config, package and runner)
+- `improv/` (Improv serial and BLE clients, serial scan reply dump, open AP config, package and runner, USB Serial/JTAG
+  heap and log burst configs, console write stress, log burst checker)
 - `interval/` (plain and delayed interval package, timing summary and runner)
 - `ipv6_boot/` (milestone probe header with a netif fault injection wrap, base config with busy loop and injection
   add-ons, runner and analyzer)
@@ -241,7 +253,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   sensor soak)
 - `libretiny_crash/` (BK72xx crash probe header, capture decoder, RTL8720C ROM dump versus report matcher)
 - `libretiny_edges/` (pulse generator for BK72xx and BW15, RTL8710B pull-toggle edge and ISR read probe with two pin
-  layouts, timing bench config, summary)
+  layouts, timing bench config, summary, AmebaZ OTA image RAM section check)
 - `libretiny_prefs/` (rtc preference harness header)
 - `light_sleep_wake/` (LEDC wave and edge timer for light sleep wakeup on a C3, external wave generator and per-call
   edge detail probe for peripheral power-down on the P4)
@@ -250,17 +262,21 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   coverage)
 - `lognorm.py` (strips colours, timestamps and source line numbers from logs before a diff)
 - `lt_platform.py` (newest LibreTiny platform for the flash wrappers)
+- `lvgl_snapshot/` (LVGL snapshot and chart series dump header, package, PNG rebuilder)
+- `lzss_link/` (packet_interface compression config generator, checked JSON, hex and binary streams with wire checks and
+  codec timing, runner and summary)
 - `manual_ip/` (station and AP manual IP configs, DNS probe and runners)
 - `mcp23017/` (IOCON and INT test component, three interrupt wiring variants, runner)
 - `mcp251xfd/` (CAN FD loopback stream, queue, TX object, forced mode, chip reset and CS counter harness, package with
   loopback, CLASSIC window and bus-off configs, runner)
 - `mdns/` (unicast mDNS dump, hammer and latency)
 - `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards, AT commands for the UART
-  passthrough)
+  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow,
+  OTA flow, AT line filter, USB AT port client)
 - `mqtt/` (`ha_discovery/`, `disable/`, `retained_burst/` and `reconnect/` runners; broker config with TLS,
   client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner,
   flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards,
-  `shutdown/` shutdown message runner and matcher)
+  `shutdown/` shutdown message runner and matcher, `disconnect_latency/` LibreTiny on_disconnect delay hook)
 - `mqtt/dns_boot/` (broker lookup at boot by hostname, IP, unresolvable name and no DNS server, broker restart and Wi-Fi
   drop runners, analyzers)
 - `npm1300/` (nPM1300 probe, every-entity and register dump configs, flash and capture runner)
@@ -274,6 +290,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   link drop, restart loop with an OMR prefix sensor read over the API, meshcop check)
 - `ota_automations/` (OTA automation package for both OTA platforms, four case runner, repeated web upload runner and
   per case summary)
+- `ota_relay/` (serial to TCP relay header with frame checks and an AP drop op, host side, fallback AP and network drop
+  DUTs, upload runners timed to retries and drops, per drop and per upload summaries)
 - `ota_timing/` (OTA upload timer with deflate, raw and TCP modes, API build check, A/B runner and median summary,
   `inflate_bench/` on-device inflate benchmark with stream generator, configs and syslog runner)
 - `output_button/` (pad edge timer header, button package and runner)
@@ -289,6 +307,9 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `rp2_sched_lock/` (IRQ context scheduler stress component, removed item race package, REST churn, loop timing and flow
   runner)
 - `rp2_uart_loop/` (RP2 UART pin owner and in-chip loopback check, config generator, runner)
+- `rp2_usbncm/` (RP2 USB NCM Ethernet: boot recorder build with panic capture, patched library and re-enumeration hammer
+  configs, OTA and restart cycle runner, macOS host log capture and enumeration summary, event ring reader, proposed
+  arduino-pico alt 0 patch)
 - `rp2_web_ble/` (RP2040/RP2350 web_server, API and BLE proxy A/B: role configs, soak, SSE stall and churn runners,
   churn and never completed connect heap flows, pcap summary, GATT hold, fallback AP flow)
 - `rs485_frame/` (simulated DLE/STX/ETX bus device, frame and gate cases, runner)
@@ -310,6 +331,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `sun/` (longitude sweep package, runner and checker)
 - `sx127x_sim/` (fake SX1276 and SX126x, two radios on a simulated air, SPI byte stream recorder and comparer)
 - `tca9548a_real/` (mux scan, Wire transaction trace, soft watchdog runner)
+- `tcpbench/` (TCP and UDP throughput component, host bench, P4-WIFI6 builds, round runner, summary, C6 co-processor
+  update)
 - `trf7962a_sim/` (fake TRF7962A behind the SPI bus with a scenario phase table)
 - `tuya_sim/` (Tuya MCU simulator on a cross-wired UART, driver, runner and comparer)
 - `twai_self/` (TWAI self-reception header, on_frame config and counter runner)
@@ -318,11 +341,14 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors)
 - `uart_sim/duco/` (Duco box model, config generator, runner)
 - `uart_sim/pms_feed/` (PMS5003T feeder and capture on the logger port, power management variants)
+- `uart_sim/virtual_uart/` (sds011 and mhz19 models on virtual_uart buses with overflow and ring checks, per platform
+  configs, API capture)
 - `uart_tx_break/` (TX break cycle components for ESP32, ESP8266 and LibreTiny with their configs)
 - `udp/` (datagram recorder, `udp.write` payload checker and case driver)
 - `usb_audio/` (URL player)
 - `usb_cdc_acm/` (host driver, Zephyr driver probe)
 - `value_range/` (on_value_range sequence with a restart, runner)
+- `vl53l1x/` (speed sensor timeline package, range-to-speed checker)
 - `vl6180x/` (probe, config generator with register, XSHUT and injection extras, runner and analyzers)
 - `voice_announce/` (slow announce on the Voice PE)
 - `voice_wake_word_audio/` (wake word audio capture and stale audio checks)
@@ -330,6 +356,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   connection churn with a TIME_WAIT runner, main task stack high-water mark under web_server load with `arena/` configs
   and runner)
 - `web_handlers/` (late handler, web_server, captive_portal and prometheus variants, web OTA runner)
+- `web_ota/` (damaged multipart upload sender with six modes, per case runner, captive portal on STA DUT)
 - `web_server/` (SSE client, request mix, SSE and HTTPD case runners, per-session `/events` listing check with its
   config, `/events` head, multi-client, stall, Wi-Fi drop and churn modes with their config, head comparer and runner,
   `async_bump/` ESPAsyncWebServer bump flows and ESP8266 web OTA cases)
@@ -339,6 +366,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `wifi_channel/` (channel switching with a bench AP)
 - `wifi_outage/` (test router and outage driver with a DHCP release hook)
 - `wifi_restart/` (WPA3 mixed WISP upstream, static IP DUTs with syslog, runner and summary)
+- `wifi_sniff/` (promiscuous per-destination frame counter component, sniffer config, timeline)
 - `wisp_ap/` (WISP upstream with AP buttons, WISP and ALWAYS_ON DUTs, client, runner and per phase summary)
 - `wpa3_ap/` (PMF AP with join and leave logging, BK7238 and CB3S DUTs, runner and summary)
 - `wpa3_sniff/` (management frame sniffer AP and reboot stations)
@@ -346,7 +374,10 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   counter and runner)
 - `zephyr_ble_server/` (nRF52 server, looping ESP32 client and UF2 flash and count runner)
 - `zephyr_coredump/` (reader flow, decode with the Zephyr tools)
-- `zwave_proxy/` (checksum verifier, device info)
+- `zigbee_coord/` (ESP32-H2 Zigbee console coordinator: build, console bridge, driver and parser, network setup, device
+  flash and capture, entity, number, copy and light flows with configs, per-build summary, endpoint dump and write
+  injection header, leave debug wraps, S3 hold config for the Thread BR board)
+- `zwave_proxy/` (checksum verifier, device info, `usb_unplug/` UART list and root port power cycle package)
 
 ## Templates in `$SKILL/templates`
 

@@ -137,3 +137,16 @@ case); an `esp_pm_configure()` failure always fails.
 
 - The plain build parses every frame (run it with `--expect-all 0`); frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
   classic devkit, has the numbers and the REF_TICK workaround).
+
+## virtual_uart: sensors without any UART (#20428)
+
+`scripts/uart_sim/virtual_uart/`: `vu-common.yaml` and `vu.hpp` put an sds011 and an mhz19 on `virtual_uart` buses.
+`on_tx` models the mhz19 (collects 9 bytes, answers GET_PPM with 400 + n*37 ppm), and the sds011 gets a static frame
+and a lambda frame every 2 s. It also has an overflow round (21 B dropped, 20 B exact fit, 1 B dropped), a 128 B ring
+with no reader read back as 0..127 every 200 ms, and a write to the bus's own UART from `on_tx`. Counters are logged
+as `SUM` lines every 10 s, so early boot logs lost on a USB CDC port do not matter. `drive.py HOST SECONDS OUT`
+records API states and logs. No wiring; `vu-esp8266.yaml`, `vu-c3.yaml` and `vu-pico.yaml` build it per platform.
+
+- `discard_available()` is on `UARTDevice`, not on the component; drain with `read_array` in a harness.
+- A RP2040 build with only virtual buses still links arduino-pico `SerialUART` (about 2 KB flash, 400 B RAM),
+  because `uart_component_rp2.cpp` is compiled.
