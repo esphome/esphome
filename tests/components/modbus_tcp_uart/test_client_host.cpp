@@ -235,6 +235,21 @@ TEST(ModbusTcpUartClient, PartThatTheNextWriteCannotContinueIsDropped) {
   EXPECT_EQ(link.held(), 0u);
 }
 
+TEST(ModbusTcpUartClient, PartIsJoinedEvenWhenTheNextWriteLooksLikeAFrame) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  // A write of 4 registers whose data starts with 02 03 00 00 00 01 84 39, a request to unit 2, split after 7 bytes.
+  const uint8_t write[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x04, 0x08, 0x02, 0x03,
+                           0x00, 0x00, 0x00, 0x01, 0x84, 0x39, 0xF6, 0x71};
+  ASSERT_TRUE(rtu_crc_ok(write, sizeof(write)));
+  link.write_array(write, 7);
+  link.write_array(write + 7, sizeof(write) - 7);
+  ASSERT_EQ(pipe.n_, MBAP_HEADER_SIZE + sizeof(write) - 3);
+  EXPECT_EQ(pipe.buf_[6], 1);
+  EXPECT_EQ(pipe.buf_[7], 0x10);
+  EXPECT_EQ(link.held(), 0u);
+}
+
 TEST(ModbusTcpUartClient, WriteThatIsNotAFrameIsDropped) {
   Pipe pipe;
   ClientLink link(&pipe);

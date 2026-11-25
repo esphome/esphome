@@ -97,10 +97,18 @@ void ModbusTcpUart::write_array(const uint8_t *data, size_t len) {
     this->consume_tx_(this->tx_frame_len_);
   }
   size_t frame_len = 0;
-  if (this->tx_len_ != 0 &&
-      (this->tx_len_ + len > sizeof(this->tx_) || take_rtu(data, len, this->server_, &frame_len) == RtuTake::FRAME)) {
-    this->note_drop_(LOG_STR("Part of a Modbus frame dropped"));
-    this->tx_len_ = 0;
+  if (this->tx_len_ != 0) {
+    // The part goes on in this write when the two together are a frame, even if this write holds a frame by itself.
+    const bool fits = this->tx_len_ + len <= sizeof(this->tx_);
+    bool continues = false;
+    if (fits) {
+      std::memcpy(this->tx_ + this->tx_len_, data, len);
+      continues = take_rtu(this->tx_, this->tx_len_ + len, this->server_, &frame_len) == RtuTake::FRAME;
+    }
+    if (!fits || (!continues && take_rtu(data, len, this->server_, &frame_len) == RtuTake::FRAME)) {
+      this->note_drop_(LOG_STR("Part of a Modbus frame dropped"));
+      this->tx_len_ = 0;
+    }
   }
   if (len > sizeof(this->tx_)) {
     this->note_drop_(LOG_STR("Not a Modbus frame, dropped"));
