@@ -357,13 +357,14 @@ void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) 
 void VoiceAssistant::loop() {
   if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
       this->state_ != State::STOPPING_MICROPHONE) {
+    // Before the state change, so a disconnect reaches on_idle with or without a running microphone
+    this->continuous_ = false;
     if (this->mic_source_->is_running() || (this->mic_source2_ && this->mic_source2_->is_running()) ||
         this->state_ == State::STARTING_MICROPHONE) {
       this->set_state_(State::STOP_MICROPHONE, State::IDLE);
     } else {
       this->set_state_(State::IDLE, State::IDLE);
     }
-    this->continuous_ = false;
     this->signal_stop_();
     this->clear_buffers_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
