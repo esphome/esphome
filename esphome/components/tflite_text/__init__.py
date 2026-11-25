@@ -25,6 +25,7 @@ MULTI_CONF = True
 FINAL_VALIDATE_SCHEMA = final_validate
 
 CONF_MAX_SEQUENCE_LENGTH = "max_sequence_length"
+CONF_POSITION_OUTPUT = "position_output"
 
 tflite_text_ns = cg.esphome_ns.namespace("tflite_text")
 TextInputPipeline = tflite_text_ns.class_("TextInputPipeline")
@@ -36,6 +37,8 @@ CONF_DECODER_ID = "decoder_id"
 TEXT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_MAX_SEQUENCE_LENGTH): cv.positive_int,
+        # A two-entry output is ambiguous: two class logits or start/end positions.
+        cv.Optional(CONF_POSITION_OUTPUT, default=False): cv.boolean,
         cv.GenerateID(CONF_PIPELINE_ID): cv.declare_id(TextInputPipeline),
         cv.GenerateID(CONF_DECODER_ID): cv.declare_id(TextDecoder),
     }
@@ -47,7 +50,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_model_io(model_path: Path) -> None:
+def validate_model_io(model_path: Path, position_output: bool = False) -> None:
     """Reject a model whose tensors the text pipeline cannot fill."""
     try:
         model_io = read_model_io(model_path)
@@ -81,14 +84,19 @@ def validate_model_io(model_path: Path) -> None:
             f"Model '{name}' declares the output {list(output.shape)}; the "
             f"decoder needs [1, classes]"
         )
+    if position_output and output.shape[1] != 2:
+        raise cv.Invalid(
+            f"position_output needs a [1, 2] output (start and end), but model "
+            f"'{name}' declares {list(output.shape)}"
+        )
 
 
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the token pipeline and the output decoder for one model."""
-    validate_model_io(model_path)
+    validate_model_io(model_path, config[CONF_POSITION_OUTPUT])
     pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
     cg.add(var.set_input_pipeline(pipeline))
-    decoder = cg.new_Pvariable(config[CONF_DECODER_ID])
+    decoder = cg.new_Pvariable(config[CONF_DECODER_ID], config[CONF_POSITION_OUTPUT])
     cg.add(var.set_output_decoder(decoder))
 
 

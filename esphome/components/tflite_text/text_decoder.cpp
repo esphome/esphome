@@ -23,7 +23,11 @@ bool TextDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   const int classes = tensor->dims->data[1];
   if (classes <= 0)
     return false;
-  if (classes == 2) {
+  if (this->position_output_) {
+    if (classes != 2) {
+      ESP_LOGE(TAG, "A position output needs 2 entries, this one has %d", classes);
+      return false;
+    }
     float start;
     float end;
     if (!tflite_output_processor::read_tensor_value(tensor, 0, &start) ||

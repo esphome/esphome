@@ -24,7 +24,7 @@ bool TextInputPipeline::fill_all(TfLiteTensor *const *inputs, size_t count, cons
     }
   }
   if (size > static_cast<size_t>(inputs[0]->bytes)) {
-    ESP_LOGE(TAG, "%zu bytes of tokens do not fit the %d-byte input", size, inputs[0]->bytes);
+    ESP_LOGE(TAG, "%zu bytes of tokens do not fit the %zu-byte input", size, static_cast<size_t>(inputs[0]->bytes));
     return false;
   }
   // Clear first, so a shorter request cannot reuse the previous call's tail.
