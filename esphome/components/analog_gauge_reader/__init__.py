@@ -1,6 +1,7 @@
 """Reads analog gauges out of frames from an esp32_camera."""
 
 from itertools import pairwise
+import logging
 import math
 
 import esphome.codegen as cg
@@ -37,6 +38,7 @@ CONF_MIN_ANGLE = "min_angle"
 CONF_MAX_ANGLE = "max_angle"
 CONF_ANGLE_OFFSET = "angle_offset"
 CONF_CLOCKWISE = "clockwise"
+CONF_SCALE = "scale"
 CONF_CROP_X = "crop_x"
 CONF_CROP_Y = "crop_y"
 CONF_CROP_W = "crop_w"
@@ -54,6 +56,11 @@ CONF_MIN_SCAN_RADIUS = "min_scan_radius"
 CONF_MAX_SCAN_RADIUS = "max_scan_radius"
 CONF_DEADZONE_DIAMETER = "deadzone_diameter"
 CONF_PROCESS_CHANNEL = "process_channel"
+
+# The detector reports a dial's problems once, for this many dials.
+MAX_DIALS = 8
+
+_LOGGER = logging.getLogger(__name__)
 
 analog_gauge_reader_ns = cg.esphome_ns.namespace("analog_gauge_reader")
 AnalogGaugeReader = analog_gauge_reader_ns.class_(
@@ -96,7 +103,7 @@ DIAL_SCHEMA = cv.Schema(
         cv.Optional(CONF_ALGORITHM, default="radial_profile"): cv.one_of(
             *ALGORITHMS, lower=True
         ),
-        cv.Optional("scale", default=1.0): cv.positive_not_null_float,
+        cv.Optional(CONF_SCALE, default=1.0): cv.positive_not_null_float,
         cv.Optional(CONF_CROP_X, default=0): cv.int_range(min=0),
         cv.Optional(CONF_CROP_Y, default=0): cv.int_range(min=0),
         cv.Optional(CONF_CROP_W, default=64): cv.positive_int,
@@ -138,7 +145,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(AnalogGaugeReader),
         cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
         cv.Required(CONF_DECODER_ID): cv.use_id(camera.Decoder),
-        cv.Required(CONF_DIALS): cv.All(cv.ensure_list(DIAL_SCHEMA), cv.Length(min=1)),
+        cv.Required(CONF_DIALS): cv.All(
+            cv.ensure_list(DIAL_SCHEMA), cv.Length(min=1, max=MAX_DIALS)
+        ),
         cv.Optional(CONF_PAUSED, default=False): cv.boolean,
         cv.Optional(CONF_DEBUG, default=False): cv.boolean,
         cv.Optional(CONF_STACKED_DIGITS, default=False): cv.boolean,
@@ -160,6 +169,11 @@ def _resolution_dimensions(resolution: object) -> tuple[int, int]:
     if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
         return int(parts[0]), int(parts[1])
     raise cv.Invalid(f"Unknown camera resolution {resolution}")
+
+
+def _needs_color(dial: ConfigType) -> bool:
+    """Whether the dial is read from the colour channels of the frame."""
+    return CONF_TARGET_COLOR in dial or dial[CONF_PROCESS_CHANNEL] != "GRAYSCALE"
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
@@ -191,11 +205,10 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"output_type: RGB888 or GRAYSCALE.",
             path=[CONF_DECODER_ID],
         )
-    needs_color = any(
-        CONF_TARGET_COLOR in dial or dial[CONF_PROCESS_CHANNEL] != "GRAYSCALE"
-        for dial in config[CONF_DIALS]
-    )
-    if needs_color and output_format != "PIXEL_FORMAT_RGB888":
+    if (
+        any(_needs_color(dial) for dial in config[CONF_DIALS])
+        and output_format != "PIXEL_FORMAT_RGB888"
+    ):
         raise cv.Invalid(
             "Dials using target_color or a colour process_channel need the "
             "decoder's RGB888 output. Set output_type: RGB888 on the "
@@ -204,7 +217,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         )
     if config[CONF_STACKED_DIGITS]:
         # Each dial carries one digit, so adjacent dials must be one decade apart.
-        scales = sorted(dial["scale"] for dial in config[CONF_DIALS])
+        scales = sorted(dial[CONF_SCALE] for dial in config[CONF_DIALS])
         for lower, upper in pairwise(scales):
             if not math.isclose(upper, lower * 10.0, rel_tol=1e-6):
                 raise cv.Invalid(
@@ -228,6 +241,12 @@ def _final_validate(config: ConfigType) -> ConfigType:
         if dial[CONF_MIN_SCAN_RADIUS] >= dial[CONF_MAX_SCAN_RADIUS]:
             raise cv.Invalid(
                 f"Dial '{dial[CONF_ID]}' scan window is empty", path=[CONF_DIALS]
+            )
+        if CONF_CALIBRATION in dial and dial[CONF_MIN_ANGLE] > dial[CONF_MAX_ANGLE]:
+            _LOGGER.warning(
+                "Dial '%s' has both a calibration map and a wrap-around angle "
+                "range; the calibration map takes precedence",
+                dial[CONF_ID],
             )
         sweep = (dial[CONF_MAX_ANGLE] - dial[CONF_MIN_ANGLE]) % 360.0
         full_circle = (dial[CONF_MIN_ANGLE], dial[CONF_MAX_ANGLE]) == (0.0, 360.0)
@@ -279,12 +298,21 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_debug(config[CONF_DEBUG]))
     cg.add(var.set_stacked_digits(config[CONF_STACKED_DIGITS]))
 
+    crops = [(dial[CONF_CROP_W], dial[CONF_CROP_H]) for dial in config[CONF_DIALS]]
+    cg.add(
+        var.init_dials(
+            len(crops),
+            max(w for w, _ in crops),
+            max(h for _, h in crops),
+            max(w * h for w, h in crops),
+        )
+    )
     for dial in config[CONF_DIALS]:
         target_color = dial.get(CONF_TARGET_COLOR)
         s = cg.StructInitializer(
             analog_gauge_reader_ns.struct("DialConfig"),
             ("id", dial[CONF_ID]),
-            ("scale", dial["scale"]),
+            ("scale", dial[CONF_SCALE]),
             ("crop_x", dial[CONF_CROP_X]),
             ("crop_y", dial[CONF_CROP_Y]),
             ("crop_w", dial[CONF_CROP_W]),
@@ -299,16 +327,19 @@ async def to_code(config: ConfigType) -> None:
             ("min_scan_radius", dial[CONF_MIN_SCAN_RADIUS]),
             ("max_scan_radius", dial[CONF_MAX_SCAN_RADIUS]),
             ("deadzone_diameter", dial[CONF_DEADZONE_DIAMETER]),
-            ("target_color", target_color if target_color is not None else 0xFFFFFFFF),
+            ("target_color", target_color),
             ("needle_type", NEEDLE_TYPES[dial[CONF_NEEDLE_TYPE]]),
             ("algorithm", ALGORITHMS[dial[CONF_ALGORITHM]]),
             ("process_channel", PROCESS_CHANNELS[dial[CONF_PROCESS_CHANNEL]]),
+            ("channels", 3 if _needs_color(dial) else 1),
             ("clockwise", dial[CONF_CLOCKWISE]),
             ("auto_contrast", dial[CONF_AUTO_CONTRAST]),
         )
         if (calibration := dial.get(CONF_CALIBRATION)) is not None:
+            # Sorted here so the firmware does not sort at boot.
             points = ", ".join(
-                f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}" for item in calibration
+                f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}"
+                for item in sorted(calibration, key=lambda item: item[CONF_RAW])
             )
             s.args["calibration_mapping"] = cg.RawExpression(f"{{ {points} }}")
         cg.add(var.add_dial(s))

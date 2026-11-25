@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdint>
+#include <vector>
 
 // The reader is guarded by its USE_ macro, which is only set for ESP32 builds.
 #define USE_ANALOG_GAUGE_READER
@@ -160,6 +162,38 @@ TEST(StackedDigits, SortsDialsByScale) {
   EXPECT_NEAR(total, 10.0f, 1e-4f);
   EXPECT_EQ(digits[0], 1);
   EXPECT_EQ(digits[1], 0);
+}
+
+TEST(AutoContrast, StretchesToTheFullRange) {
+  std::vector<uint8_t> data = {50, 100, 150};
+  apply_auto_contrast(data.data(), static_cast<int>(data.size()));
+  EXPECT_EQ(0, data[0]);
+  EXPECT_EQ(127, data[1]);
+  EXPECT_EQ(255, data[2]);
+}
+
+TEST(AutoContrast, FlatCropIsLeftAlone) {
+  std::vector<uint8_t> data = {80, 80, 80};
+  apply_auto_contrast(data.data(), static_cast<int>(data.size()));
+  EXPECT_EQ(80, data[0]);
+  EXPECT_EQ(80, data[2]);
+}
+
+TEST(Contrast, ScalesAroundMidGreyAndClamps) {
+  std::vector<uint8_t> data = {0, 100, 128, 156, 255};
+  apply_contrast(data.data(), static_cast<int>(data.size()), 2.0f);
+  EXPECT_EQ(0, data[0]);
+  EXPECT_EQ(72, data[1]);
+  EXPECT_EQ(128, data[2]);
+  EXPECT_EQ(184, data[3]);
+  EXPECT_EQ(255, data[4]);
+}
+
+TEST(Contrast, UnityMultiplierKeepsTheCrop) {
+  std::vector<uint8_t> data = {10, 200};
+  apply_contrast(data.data(), static_cast<int>(data.size()), 1.0f);
+  EXPECT_EQ(10, data[0]);
+  EXPECT_EQ(200, data[1]);
 }
 
 }  // namespace esphome::analog_gauge_reader::testing

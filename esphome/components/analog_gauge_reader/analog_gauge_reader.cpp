@@ -1,7 +1,6 @@
 #include "analog_gauge_reader.h"
 
 #include "esphome/components/camera_decoder/jpeg_grayscale.h"
-#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -10,12 +9,9 @@
 #include <cstring>
 #include <memory>
 
-#ifdef USE_ESP32
 #include <esp_heap_caps.h>
-#endif
 
-namespace esphome {
-namespace analog_gauge_reader {
+namespace esphome::analog_gauge_reader {
 
 ESPHOME_LOG_TAG(TAG, "analog_gauge_reader");
 
@@ -26,52 +22,31 @@ void AnalogGaugeReader::setup() {
   // The loop only has work between a request and its frame.
   this->disable_loop();
 
-  for (auto &dial : this->dials_) {
-    if (!dial.calibration_mapping.empty()) {
-      std::sort(dial.calibration_mapping.begin(), dial.calibration_mapping.end(),
-                [](const std::pair<float, float> &a, const std::pair<float, float> &b) { return a.first < b.first; });
-      ESP_LOGD(TAG, "Sorted calibration mapping for dial %s (%d points)", dial.id,
-               static_cast<int>(dial.calibration_mapping.size()));
-      if (dial.min_angle > dial.max_angle) {
-        ESP_LOGW(TAG,
-                 "Dial %s has BOTH calibration_mapping and a wrap-around angle range (min_angle > max_angle). "
-                 "calibration_mapping takes precedence; the wrap-around branch is skipped for this dial.",
-                 dial.id);
-      }
-    }
-  }
+  const size_t dial_count = this->dials_.size();
+  this->scratch_buffer_ = this->allocator_.allocate(this->max_crop_area_);
+  bool allocated = this->scratch_buffer_ != nullptr && this->detector_.reserve(this->max_crop_w_, this->max_crop_h_);
 
-  size_t max_crop_area = 0;
-  int max_crop_w = 0;
-  int max_crop_h = 0;
-  for (const auto &dial : this->dials_) {
-    max_crop_area = std::max(max_crop_area, static_cast<size_t>(dial.crop_w) * static_cast<size_t>(dial.crop_h));
-    max_crop_w = std::max(max_crop_w, dial.crop_w);
-    max_crop_h = std::max(max_crop_h, dial.crop_h);
-  }
-  this->scratch_buffer_ = std::make_unique<uint8_t[]>(max_crop_area);
-  if (!this->detector_.reserve(max_crop_w, max_crop_h)) {
-    this->mark_failed(LOG_STR("Could not allocate the detector buffers"));
-    return;
-  }
-  ESP_LOGD(TAG, "Reserved scratch buffers for max area: %d pixels", static_cast<int>(max_crop_area));
-
-  this->dial_buffers_.clear();
-  this->dial_buffers_.reserve(this->dials_.size());
+  this->dial_buffers_.init(dial_count);
   for (const auto &dial : this->dials_) {
     DialBuffer buffer;
-    buffer.channels =
-        (dial.target_color != NO_TARGET_COLOR || dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) ? 3 : 1;
-    const size_t size = static_cast<size_t>(dial.crop_w) * static_cast<size_t>(dial.crop_h) * buffer.channels;
-    buffer.data = std::make_unique<uint8_t[]>(size);
-    this->dial_buffers_.push_back(std::move(buffer));
+    buffer.data = this->allocator_.allocate(static_cast<size_t>(dial.crop_w) * dial.crop_h * dial.channels);
+    allocated = allocated && buffer.data != nullptr;
+    this->dial_buffers_.push_back(buffer);
+  }
+  if (!allocated) {
+    this->mark_failed(LOG_STR("Could not allocate the dial and detector buffers"));
+    return;
   }
 
-  const size_t dial_count = this->dials_.size();
-  this->readings_.reserve(dial_count);
-  this->digits_.resize(dial_count);
-  this->phase_.resize(dial_count);
-  this->order_.resize(dial_count);
+  this->readings_.init(dial_count);
+  this->digits_.init(dial_count);
+  this->phase_.init(dial_count);
+  this->order_.init(dial_count);
+  for (size_t i = 0; i < dial_count; i++) {
+    this->digits_.push_back(0);
+    this->phase_.push_back(0.0f);
+    this->order_.push_back(0);
+  }
 
   if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) == 0) {
     ESP_LOGW(TAG, "No PSRAM detected; the decoder may not be able to allocate the decoded frame");
@@ -79,37 +54,59 @@ void AnalogGaugeReader::setup() {
 }
 
 void AnalogGaugeReader::dump_config() {
-  ESP_LOGCONFIG(TAG, "Analog Gauge Reader: Frame=%dx%d, Debug=%s, Update Interval=%" PRIu32 " ms, Stacked Digits=%s",
-                this->img_width_, this->img_height_, this->debug_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"),
-                this->get_update_interval(), this->stacked_digits_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
+  ESP_LOGCONFIG(TAG,
+                "Analog Gauge Reader:
+                "
+                "  Frame: %dx%d
+                "
+                "  Debug: %s
+                "
+                "  Stacked digits: %s",
+                this->img_width_, this->img_height_, YESNO(this->debug_), YESNO(this->stacked_digits_));
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Value", this->value_sensor_);
   for (const auto &dial : this->dials_) {
     ESP_LOGCONFIG(TAG,
-                  "  Dial '%s': Algorithm=%s, Scale=%.3f, Crop=[%d,%d,%d,%d], AutoContrast=%s, Contrast=%.2f, "
-                  "Deadzone=%.1fpx",
+                  "  Dial '%s':
+                  "
+                  "    Algorithm: %s
+                  "
+                  "    Scale: %.3f
+                  "
+                  "    Crop: [%d,%d,%d,%d]
+                  "
+                  "    Auto contrast: %s
+                  "
+                  "    Contrast: %.2f
+                  "
+                  "    Deadzone: %.1fpx",
                   dial.id, LOG_STR_ARG(gauge_needle_detector::algorithm_name(dial.algorithm)), dial.scale, dial.crop_x,
-                  dial.crop_y, dial.crop_w, dial.crop_h,
-                  dial.auto_contrast ? LOG_STR_LITERAL("ON") : LOG_STR_LITERAL("OFF"), dial.contrast,
+                  dial.crop_y, dial.crop_w, dial.crop_h, YESNO(dial.auto_contrast), dial.contrast,
                   dial.deadzone_diameter);
+    LOG_SENSOR("    ", "Value", dial.value_sensor);
+    LOG_SENSOR("    ", "Angle", dial.angle_sensor);
+    LOG_SENSOR("    ", "Confidence", dial.confidence_sensor);
   }
   this->decoder_->dump_config();
 }
 
 void AnalogGaugeReader::update() {
-  if (this->paused_ || this->requested_)
+  if (this->paused_)
     return;
-  this->requested_ = true;
-  this->last_request_time_ = App.get_loop_component_start_time();
-  this->enable_loop();
+  this->set_timeout(FRAME_TIMEOUT_ID, FRAME_TIMEOUT_MS, [this]() {
+    ESP_LOGW(TAG, "Frame timeout");
+    this->status_set_warning();
+  });
   this->camera_->request_image(camera::IDLE);
   ESP_LOGV(TAG, "Requesting frame");
 }
 
 void AnalogGaugeReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
   // Frames the camera captures for other listeners are not ours to process.
-  if (!this->requested_ || this->paused_)
+  if (this->paused_ || !this->cancel_timeout(FRAME_TIMEOUT_ID))
     return;
   this->pending_frame_ = image;
-  this->requested_ = false;
+  this->enable_loop();
 }
 
 void AnalogGaugeReader::loop() {
@@ -117,68 +114,29 @@ void AnalogGaugeReader::loop() {
   std::shared_ptr<esphome::camera::CameraImage> frame = std::move(this->pending_frame_);
   if (frame) {
     this->disable_loop();
-    if (frame->get_data_length() > 0) {
-      this->process_image_from_buffer(frame->get_data_buffer(), frame->get_data_length());
+    if (frame->get_data_length() == 0 || frame->get_data_buffer() == nullptr) {
+      ESP_LOGW(TAG, "The camera delivered an empty frame");
+      this->status_set_warning();
+    } else if (this->process_image_(frame->get_data_buffer(), frame->get_data_length())) {
+      this->status_clear_warning();
+    } else {
+      this->status_set_warning();
     }
-    return;
-  }
-
-  // Watchdog: a requested frame that never arrives must not block later polls.
-  if (this->requested_ && App.get_loop_component_start_time() - this->last_request_time_ > FRAME_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "Frame timeout");
-    this->requested_ = false;
-    this->disable_loop();
-  }
-}
-
-static void apply_auto_contrast(uint8_t *data, int size) {
-  uint8_t min_val = 255;
-  uint8_t max_val = 0;
-  for (int i = 0; i < size; i++) {
-    if (data[i] < min_val)
-      min_val = data[i];
-    if (data[i] > max_val)
-      max_val = data[i];
-  }
-  if (max_val > min_val) {
-    float scale = 255.0f / static_cast<float>(max_val - min_val);
-    for (int i = 0; i < size; i++) {
-      data[i] = static_cast<uint8_t>(static_cast<float>(data[i] - min_val) * scale);
-    }
-  }
-}
-
-static void apply_contrast(uint8_t *data, int size, float contrast) {
-  if (std::abs(contrast - 1.0f) < 0.01f)
-    return;
-  for (int i = 0; i < size; i++) {
-    float val = static_cast<float>(data[i]);
-    val = (val - 128.0f) * contrast + 128.0f;
-    if (val < 0)
-      val = 0;
-    if (val > 255)
-      val = 255;
-    data[i] = static_cast<uint8_t>(val);
   }
 }
 
 // Main-task only.
-void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t len) {
-  if (this->dials_.empty())
-    return;
-  if (data == nullptr || len == 0)
-    return;
-
+bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
   camera::CameraImageSpec spec{};
   camera::DecoderError error = this->decoder_->decode(data, len, &spec);
   if (error != camera::DECODER_ERROR_SUCCESS) {
     ESP_LOGW(TAG, "JPEG decode failed: %s", camera::to_string(error));
-    return;
+    return false;
   }
   camera::Buffer *decoded = this->decoder_->get_output_buffer();
   if (decoded == nullptr || decoded->get_data_buffer() == nullptr) {
     ESP_LOGW(TAG, "Decoder returned no output buffer");
-    return;
+    return false;
   }
 
   const uint8_t *pixels = decoded->get_data_buffer();
@@ -192,7 +150,7 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     ESP_LOGW(TAG,
              "Decoded dimensions larger than config: %dx%d vs %dx%d. Skipping analog processing to avoid conflict.",
              processing_w, processing_h, this->img_width_, this->img_height_);
-    return;
+    return false;
   }
 
   float total_value = 0.0f;
@@ -203,13 +161,13 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     DialBuffer &buffer = this->dial_buffers_[index];
     if (!this->crop_dial_(pixels, spec, dial, buffer)) {
       ESP_LOGE(TAG, "Could not crop dial %s from the %dx%d frame", dial.id, processing_w, processing_h);
-      return;
+      return false;
     }
     const int crop_w = dial.crop_w;
     const int crop_h = dial.crop_h;
-    uint8_t *gray = buffer.data.get();
+    uint8_t *gray = buffer.data;
     if (dial.target_color != NO_TARGET_COLOR) {
-      uint8_t *scratch = this->scratch_buffer_.get();
+      uint8_t *scratch = this->scratch_buffer_;
       const uint8_t tr = (dial.target_color >> 16) & 0xFF;
       const uint8_t tg = (dial.target_color >> 8) & 0xFF;
       const uint8_t tb = dial.target_color & 0xFF;
@@ -226,7 +184,7 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
       }
       gray = scratch;
     } else if (dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) {
-      uint8_t *scratch = this->scratch_buffer_.get();
+      uint8_t *scratch = this->scratch_buffer_;
       const int offset = static_cast<int>(dial.process_channel) - 1;
       for (int i = 0; i < crop_w * crop_h; i++) {
         scratch[i] = gray[i * 3 + offset];
@@ -253,8 +211,8 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     const uint32_t dur_algo = micros() - start_algo;
     // Zero confidence means no needle; its angle must not become a value.
     if (result.confidence <= 0.0f) {
-      ESP_LOGW(TAG, "No needle found for dial %s; dropping this frame", dial.id);
-      return;
+      ESP_LOGW(TAG, "No needle found for dial %s (or the detector failed, see its log); dropping this frame", dial.id);
+      return false;
     }
 
     const float val = angle_to_value(result.angle, dial);
@@ -274,15 +232,11 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
   float precision = DECIMAL_PRECISION;
   if (this->stacked_digits_) {
     const size_t n = this->readings_.size();
-    if (n == 0) {
-      ESP_LOGW(TAG, "No valid dial readings available for stacked digit calculation");
-      return;
-    }
-    total_value = combine_stacked_digits(this->readings_.data(), n, this->order_.data(), this->phase_.data(),
-                                         this->digits_.data());
+    total_value = combine_stacked_digits(this->readings_.begin(), n, this->order_.begin(), this->phase_.begin(),
+                                         this->digits_.begin());
     if (!std::isfinite(total_value)) {
       ESP_LOGE(TAG, "Stacked dial values cannot be combined; dropping this frame");
-      return;
+      return false;
     }
     precision = 1.0f / this->readings_[this->order_[0]].dial->scale;
     for (size_t i = 0; i < n; i++) {
@@ -301,6 +255,7 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
   total_value = roundf(total_value * precision) / precision;
   ESP_LOGV(TAG, "Result: %.6f", total_value);
   PUBLISH_STATE(this->value_sensor_, total_value);
+  return true;
 }
 
 bool AnalogGaugeReader::crop_dial_(const uint8_t *src, const camera::CameraImageSpec &spec, const DialConfig &dial,
@@ -321,18 +276,18 @@ bool AnalogGaugeReader::crop_dial_(const uint8_t *src, const camera::CameraImage
   const uint8_t *source_row =
       src + static_cast<size_t>(dial.crop_y) * source_stride + static_cast<size_t>(dial.crop_x) * source_bpp;
 
-  if (out.channels == 3) {
+  if (dial.channels == 3) {
     if (source_is_gray)
       return false;
     for (int y = 0; y < crop_h; y++) {
-      std::memcpy(out.data.get() + static_cast<size_t>(y) * crop_w * 3,
-                  source_row + static_cast<size_t>(y) * source_stride, static_cast<size_t>(crop_w) * 3);
+      std::memcpy(out.data + static_cast<size_t>(y) * crop_w * 3, source_row + static_cast<size_t>(y) * source_stride,
+                  static_cast<size_t>(crop_w) * 3);
     }
     return true;
   }
   for (int y = 0; y < crop_h; y++) {
     const uint8_t *row = source_row + static_cast<size_t>(y) * source_stride;
-    uint8_t *dst = out.data.get() + static_cast<size_t>(y) * crop_w;
+    uint8_t *dst = out.data + static_cast<size_t>(y) * crop_w;
     if (source_is_gray) {
       std::memcpy(dst, row, crop_w);
       continue;
@@ -347,5 +302,4 @@ bool AnalogGaugeReader::crop_dial_(const uint8_t *src, const camera::CameraImage
   return true;
 }
 
-}  // namespace analog_gauge_reader
-}  // namespace esphome
+}  // namespace esphome::analog_gauge_reader

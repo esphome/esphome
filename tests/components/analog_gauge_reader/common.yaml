@@ -6,22 +6,13 @@ analog_gauge_reader:
   id: gauge
   camera_id: test_camera
   decoder_id: gauge_decoder
-  update_interval: 60s
   stacked_digits: true
   dials:
     # Single-channel dial with the default radial profile algorithm.
     - id: dial_1
-      crop_x: 0
-      crop_y: 0
       crop_w: 64
       crop_h: 64
-      scale: 1.0
       process_channel: GREEN
-      min_value: 0
-      max_value: 10
-      min_angle: 0
-      max_angle: 360
-      angle_offset: 0
     # Colour-target dial with a wrap-around angle range, contrast and a calibration map.
     - id: dial_2
       crop_x: 200
@@ -32,8 +23,6 @@ analog_gauge_reader:
       target_color: 0xFF0000
       contrast: 1.5
       algorithm: hough_transform
-      min_value: 0
-      max_value: 10
       min_angle: 300
       max_angle: 60
       deadzone_diameter: 8
