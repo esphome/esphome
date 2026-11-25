@@ -46,7 +46,39 @@ TEST(CallbackCreate, InlineCallableIsCalled) {
   EXPECT_EQ(value, 42);
 }
 
+int small_seen = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 int mutable_seen = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+TEST(CallbackCreate, SmallerThanPointerCaptureIsCalled) {
+  uint8_t offset = 7;
+  auto add = [offset](int x) { small_seen = x + offset; };
+  static_assert(sizeof(add) < sizeof(void *));
+  ASSERT_TRUE(fits_inline(add));
+  auto cb = IntCallback::create(add);
+  cb.call(35);
+  EXPECT_EQ(small_seen, 42);
+}
+
+void set_small_seen(int x) { small_seen = x; }
+
+TEST(CallbackCreate, FunctionReferenceIsCalled) {
+  auto cb = IntCallback::create(set_small_seen);
+  cb.call(9);
+  EXPECT_EQ(small_seen, 9);
+}
+
+TEST(LazyCallbackManager, CallsEveryCallbackInOrder) {
+  int sum = 0;
+  int last = 0;
+  LazyCallbackManager<void(int)> manager;
+  manager.call(1);
+  manager.add([&sum](int x) { sum += x; });
+  manager.add([&last](int x) { last = last * 10 + x; });
+  manager.call(2);
+  manager.call(3);
+  EXPECT_EQ(sum, 5);
+  EXPECT_EQ(last, 23);
+}
 
 // A pointer-sized mutable lambda used to be stored inline and run on a copy, losing its state.
 TEST(CallbackCreate, MutableStateIsKeptAcrossCalls) {

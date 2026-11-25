@@ -2091,7 +2091,7 @@ constexpr float celsius_to(float value, TemperatureUnit unit) {
 template<typename... X> struct Callback;
 
 template<typename... Ts> struct Callback<void(Ts...)> {
-  // The inline storage path stores callable bytes in ctx_ via memcpy.
+  // The inline storage path stores callable bytes in ctx_ via memcpy and reads them back through a union.
   // sizeof equality with uintptr_t ensures void* can round-trip arbitrary bit patterns,
   // which combined with flat address spaces on all ESPHome targets means no trap representations.
   static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
@@ -2116,17 +2116,19 @@ template<typename... Ts> struct Callback<void(Ts...)> {
     using DecayF = std::decay_t<F>;
     if constexpr (fits_inline<F>()) {
       // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
-      // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
-      // creates objects of implicit-lifetime types (trivially copyable qualifies).
       Callback cb;  // fn and ctx are zero-initialized by default
       // Decay callable to a local variable first. When F is a function reference
       // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
       DecayF decayed = std::forward<F>(callable);
       __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
       cb.fn_ = [](void *c, Ts... args) {
-        alignas(DecayF) char buf[sizeof(DecayF)];
-        __builtin_memcpy(buf, &c, sizeof(DecayF));
-        (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
+        // Union read (defined by GCC and Clang) instead of a byte buffer: a local array costs a
+        // stack slot and, with -fstack-protector-strong, a canary. std::bit_cast needs GCC 11.
+        union {
+          void *ptr;
+          DecayF fn;
+        } stored{c};
+        stored.fn(args...);
       };
       return cb;
     } else {
