@@ -12,7 +12,7 @@ class CANopenNode {
 
   // Call once during setup; nodes and registered callbacks must outlive the hub.
   void setup_canopen() {
-    this->parent_->add_on_heartbeat_callback([this](uint8_t node, uint8_t state) {
+    this->parent_->add_on_node_heartbeat_callback([this](uint8_t node, uint8_t state) {
       if (node == this->node_) {
         this->last_heartbeat_ms_ = millis();
         this->heartbeat_seen_ = true;

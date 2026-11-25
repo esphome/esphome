@@ -32,8 +32,10 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
     const auto id = frame.can_id;
     const auto *data = frame.data;
     if (id >= 0x701 && id <= 0x77F && len == 1) {
-      if (data[0] == 0 || data[0] == 4 || data[0] == 5 || data[0] == 127)
+      if (data[0] == 0 || data[0] == 4 || data[0] == 5 || data[0] == 127) {
+        this->node_heartbeat_callback_.call(id - 0x700, data[0]);
         this->heartbeat_callback_.call(id - 0x700, data[0]);
+      }
       return;
     }
     if (id >= 0x81 && id <= 0xFF && len == 8) {

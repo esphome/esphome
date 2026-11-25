@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "esphome/core/application.h"
 #include "esphome/components/cia402/cia402.h"
-#include "../canopen/test_helpers.h"
+#include "../fixtures/canopen_test_helpers.h"
 
 namespace esphome::cia402::testing {
 using canopen::testing::MockCANbus;
@@ -21,6 +21,7 @@ class ProbeDrive : public CiA402Drive {
     this->loop();
   }
   void expire() { this->started_ms_ -= this->operation_timeout_ms_; }
+  void age_heartbeat(uint32_t age) { this->last_heartbeat_ms_ = millis() - age; }
 };
 
 class DriveTest : public ::testing::Test {
@@ -91,6 +92,93 @@ TEST_F(DriveTest, StopDrainsOutstandingReplyWithoutContinuingEnable) {
   EXPECT_FALSE(drive.busy());
 }
 
+TEST_F(DriveTest, EnablingAnEnabledDriveDoesNotWriteControlword) {
+  ASSERT_TRUE(drive.enable());
+  EXPECT_EQ(index(next()), 0x6041);
+  reply(0x27);
+  drive.tick();
+  EXPECT_EQ(bus.sent.size(), 1);
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_SUCCESS);
+}
+
+TEST_F(DriveTest, QuickStopRecoveryFirstDisablesVoltage) {
+  ASSERT_TRUE(drive.enable());
+  next();
+  reply(0x07);
+  const auto frame = next();
+  EXPECT_EQ(index(frame), 0x6040);
+  EXPECT_EQ(frame.data[4], 0);
+  reply();
+  EXPECT_EQ(index(next()), 0x6041);
+  reply(0x40);
+  EXPECT_EQ(next().data[4], 6);
+}
+
+TEST_F(DriveTest, HaltNeverEnablesASwitchedOnDrive) {
+  ASSERT_TRUE(drive.enable());
+  next();
+  reply(0x21);
+  EXPECT_EQ(next().data[4], 7);
+  ASSERT_TRUE(drive.halt());
+  reply();
+  EXPECT_EQ(index(next()), 0x6041);
+  reply(0x23);
+  const auto stop = next();
+  EXPECT_EQ(index(stop), 0x6040);
+  EXPECT_EQ(stop.data[4], 0);
+  EXPECT_EQ(stop.data[5], 0);
+}
+
+TEST_F(DriveTest, TimedOutEnableDisablesIfEnableOperationWasSubmitted) {
+  ASSERT_TRUE(drive.enable());
+  next();
+  reply(0x23);
+  EXPECT_EQ(next().data[4], 15);
+  drive.expire();
+  drive.tick();
+  reply();
+  const auto stop = next();
+  EXPECT_EQ(index(stop), 0x6040);
+  EXPECT_EQ(stop.data[4], 0);
+}
+
+TEST_F(DriveTest, LatePreflightReplyCannotAdvanceReplacementOperation) {
+  ASSERT_TRUE(drive.move_to(100));
+  EXPECT_EQ(index(next()), 0x6041);
+  drive.expire();
+  drive.tick();
+  ASSERT_TRUE(drive.move_to(200));
+  reply(0x27);
+  EXPECT_EQ(index(next()), 0x6041);
+  reply(0x40);
+  ASSERT_EQ(results.size(), 2);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_TIMEOUT);
+  EXPECT_EQ(results[1], DriveResult::DRIVE_RESULT_REJECTED);
+}
+
+TEST_F(DriveTest, FirstOperationalHeartbeatUpdatesNodeBeforeHubAutomation) {
+  ProbeDrive cold_drive(&client, 33);
+  bool accepted = false;
+  client.add_on_heartbeat_callback([&](uint8_t, uint8_t) { accepted = cold_drive.enable(); });
+  cold_drive.setup();
+  client.on_frame_(0x721, false, false, {5});
+  EXPECT_TRUE(accepted);
+}
+
+TEST_F(DriveTest, OfflinePollingWaitsForOperationalHeartbeat) {
+  ProbeDrive cold_drive(&client, 33);
+  cold_drive.setup();
+  cold_drive.tick();
+  client.loop();
+  EXPECT_TRUE(bus.sent.empty());
+  client.on_frame_(0x721, false, false, {5});
+  cold_drive.tick();
+  client.loop();
+  ASSERT_EQ(bus.sent.size(), 1);
+  EXPECT_EQ(index(bus.sent.back()), 0x6041);
+}
+
 TEST_F(DriveTest, WrongWidthStopsSequence) {
   ASSERT_TRUE(drive.enable());
   next();
@@ -156,6 +244,37 @@ TEST_F(DriveTest, RequiresOperationalHeartbeat) {
   EXPECT_TRUE(bus.sent.empty());
 }
 
+TEST_F(DriveTest, HeartbeatOlderThanSignedRangeCannotAuthorizeMotion) {
+  drive.age_heartbeat(0x80000001);
+  EXPECT_FALSE(drive.move_to(100));
+  EXPECT_TRUE(bus.sent.empty());
+}
+
+TEST_F(DriveTest, PollWarningClearsOnlyAfterACompleteSuccessfulCycle) {
+  drive.update();
+  EXPECT_EQ(index(next()), 0x6041);
+  reply(0x27, 1);
+  EXPECT_EQ(index(next()), 0x6061);
+  reply(1, 1);
+  EXPECT_EQ(index(next()), 0x6064);
+  reply(0, 4);
+  EXPECT_EQ(index(next()), 0x606C);
+  reply(0, 4);
+  EXPECT_TRUE(drive.status_has_warning());
+
+  drive.update();
+  EXPECT_EQ(index(next()), 0x6041);
+  reply(0x27);
+  EXPECT_EQ(index(next()), 0x6061);
+  reply(1, 1);
+  EXPECT_EQ(index(next()), 0x6064);
+  reply(0, 4);
+  EXPECT_TRUE(drive.status_has_warning());
+  EXPECT_EQ(index(next()), 0x606C);
+  reply(0, 4);
+  EXPECT_FALSE(drive.status_has_warning());
+}
+
 TEST_F(DriveTest, SdoAbortCancelsSequence) {
   ASSERT_TRUE(drive.enable());
   auto frame = next();
@@ -172,6 +291,8 @@ TEST_F(DriveTest, NewDisableIsNotLostWhileQuickStopAcknowledgementIsPending) {
   drive.quick_stop();
   next();
   drive.disable();
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_CANCELLED);
   reply();
   EXPECT_TRUE(drive.busy());
   const auto frame = next();
@@ -230,7 +351,8 @@ TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
         status = 0x1027;
       }
       if (object == 0x6040 && frame.data[4] == 15) {
-        status = started ? 0x427 : 0x27;
+        EXPECT_TRUE(started);
+        status = 0x427;
       }
       reply();
     } else if (object == 0x6041) {
@@ -249,6 +371,39 @@ TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
   EXPECT_TRUE(started);
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_SUCCESS);
+}
+
+TEST_F(DriveTest, CancelledMoveDropsQueuedStartBeforeStopping) {
+  ASSERT_TRUE(drive.move_to(100));
+  bool target_loaded = false;
+  for (unsigned i = 0; i < 20 && !target_loaded; i++) {
+    const auto frame = next();
+    const auto object = index(frame);
+    if (frame.data[0] != 0x40) {
+      target_loaded = object == 0x607A;
+      reply();
+    } else if (object == 0x6041) {
+      reply(0x27);
+    } else if (object == 0x6061) {
+      reply(1, 1);
+    } else {
+      reply(0, 4);
+    }
+  }
+  ASSERT_TRUE(target_loaded);
+  ASSERT_TRUE(client.read_sdo(33, 0x6041, 0, 2, nullptr, nullptr));
+  client.loop();
+  ASSERT_EQ(bus.sent.back().can_id, 0x621);
+  drive.tick();  // The start SDO is queued behind node 33.
+  ASSERT_TRUE(drive.quick_stop());
+  client.on_frame_(0x5A1, false, false, {0x4B, 0x41, 0x60, 0, 0x27, 0, 0, 0});
+  const auto stop = next();
+  EXPECT_EQ(index(stop), 0x6040);
+  EXPECT_EQ(stop.data[4], 2);
+  reply();
+  ASSERT_EQ(results.size(), 2);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_CANCELLED);
+  EXPECT_EQ(results[1], DriveResult::DRIVE_RESULT_SUCCESS);
 }
 
 TEST_F(DriveTest, TimeoutAfterSubmittingMoveSendsQuickStop) {

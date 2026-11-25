@@ -91,6 +91,7 @@ def run_tests(selected_components: list[str]) -> int:
         build_flags=BUILD_FLAGS + sanitizer_flags(),
         main_entry="main.cpp",
         label="unit tests",
+        extra_include_dirs=[COMPONENTS_TESTS_DIR / "fixtures"],
     )
 
 

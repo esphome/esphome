@@ -77,7 +77,8 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
     STEP_KIND_READ,
     STEP_KIND_CHECK,
     STEP_KIND_WAIT,
-    STEP_KIND_RELATIVE
+    STEP_KIND_RELATIVE,
+    STEP_KIND_ENABLE
   };
   struct Step {
     uint32_t value;
@@ -97,6 +98,9 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   virtual void received_value(uint16_t index, uint32_t value);
   bool request_stop_(uint16_t controlword);
   void finish_(DriveResult result);
+  void clear_sequence_();
+  void cancel_unsent_controlword_();
+  void advance_enable_(DriveState state);
   void fail_(DriveResult result);
   static void on_result(void *context, const canopen::SDOReply &reply);
   void process_result_(canopen::SDOResult result, uint32_t value, uint8_t size);
@@ -122,6 +126,7 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   int32_t velocity_{0};
   uint16_t statusword_{0};
   uint16_t stop_controlword_{2};
+  DriveState enable_state_{DriveState::DRIVE_STATE_UNKNOWN};
   int8_t mode_{0};
   uint8_t step_count_{0};
   uint8_t step_index_{0};
@@ -129,11 +134,20 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   bool pending_{false};
   bool pending_sequence_{false};
   bool pending_stop_{false};
+  bool pending_poll_{false};
   bool notify_stop_{false};
+  bool stop_superseded_{false};
+  bool check_halt_state_{false};
   bool running_{false};
   bool motion_requested_{false};
+  bool enable_requested_{false};
+  bool enabling_{false};
   bool stopping_{false};
   bool poll_due_{false};
+  bool poll_suspended_{true};
+  bool poll_cycle_failed_{false};
+  bool poll_warning_{false};
+  bool command_warning_{false};
   bool resetting_{false};
   bool position_limits_{false};
 };

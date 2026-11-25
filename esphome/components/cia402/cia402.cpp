@@ -38,6 +38,12 @@ DriveState CiA402Drive::state_from_statusword(uint16_t value) {
 
 void CiA402Drive::setup() {
   this->setup_canopen();
+  this->add_on_heartbeat_callback([this](uint8_t state) {
+    if (state == 5 && this->poll_suspended_) {
+      this->poll_suspended_ = false;
+      this->update();
+    }
+  });
   this->add_on_emcy_callback([this](const canopen::Emergency &emergency) {
     if (emergency.error_code != 0 && this->running_)
       this->fail_(DriveResult::DRIVE_RESULT_FAULT);
@@ -51,9 +57,7 @@ void CiA402Drive::dump_config() {
 }
 
 bool CiA402Drive::operational_(uint32_t now) const {
-  return this->heartbeat_seen_ &&
-         static_cast<int32_t>(now - this->last_heartbeat_ms_) < static_cast<int32_t>(this->heartbeat_timeout_ms_) &&
-         this->get_nmt_state() == 5;
+  return this->is_online(now, this->heartbeat_timeout_ms_) && this->get_nmt_state() == 5;
 }
 
 bool CiA402Drive::begin_() {
@@ -90,14 +94,40 @@ void CiA402Drive::read_(uint16_t index, uint8_t size, uint32_t mask, uint32_t va
 bool CiA402Drive::enable() {
   if (!this->begin_())
     return false;
-  this->read_(0x6041, 2, 8, 0);
-  this->write_(0x6040, 6, 2);
-  this->read_(0x6041, 2, 0x6F, 0x21, true);
-  this->write_(0x6040, 7, 2);
-  this->read_(0x6041, 2, 0x6F, 0x23, true);
-  this->write_(0x6040, 15, 2);
-  this->read_(0x6041, 2, 0x6F, 0x27, true);
+  this->enabling_ = true;
+  this->enable_state_ = DriveState::DRIVE_STATE_UNKNOWN;
+  this->append_({0, 0, 0x6041, 0, 2, StepKind::STEP_KIND_ENABLE});
+  this->write_(0x6040, 0, 2);
   return true;
+}
+
+void CiA402Drive::advance_enable_(DriveState state) {
+  if (state == this->enable_state_)
+    return;
+  this->enable_state_ = state;
+  uint16_t controlword;
+  switch (state) {
+    case DriveState::DRIVE_STATE_OPERATION_ENABLED:
+      this->step_index_ = this->step_count_;
+      return;
+    case DriveState::DRIVE_STATE_SWITCH_ON_DISABLED:
+      controlword = 6;
+      break;
+    case DriveState::DRIVE_STATE_READY_TO_SWITCH_ON:
+      controlword = 7;
+      break;
+    case DriveState::DRIVE_STATE_SWITCHED_ON:
+      controlword = 15;
+      break;
+    case DriveState::DRIVE_STATE_QUICK_STOP_ACTIVE:
+      // Disable voltage first instead of re-enabling a potentially interrupted move.
+      controlword = 0;
+      break;
+    default:
+      return;
+  }
+  this->steps_[1].value = controlword;
+  this->step_index_ = 1;
 }
 
 bool CiA402Drive::fault_reset() {
@@ -142,7 +172,7 @@ void CiA402Drive::append_move_(int32_t position, bool relative) {
   this->write_(0x6060, 1, 1);
   this->read_(0x6061, 1, 0xFF, 1, true);
   this->append_profile();
-  this->write_(0x6040, 15, 2);
+  // Keep any existing Halt asserted until the replacement target is loaded.
   this->read_(0x6041, 2, 0x1000, 0, true);
   if (relative)
     this->append_({static_cast<uint32_t>(position), 0, 0x6064, 0, 4, StepKind::STEP_KIND_RELATIVE});
@@ -178,34 +208,71 @@ bool CiA402Drive::halt() { return this->request_stop_(0x10F); }
 bool CiA402Drive::quick_stop() { return this->request_stop_(2); }
 
 bool CiA402Drive::request_stop_(uint16_t controlword) {
-  // Drain the single outstanding request; its reply must never advance the cancelled sequence.
+  const bool superseded = this->stopping_ && this->notify_stop_;
+  const bool interrupted = this->running_;
+  this->stop_superseded_ = this->pending_stop_;
+  if (this->pending_stop_ && this->pending_step_.kind == StepKind::STEP_KIND_WRITE &&
+      this->parent_->cancel_unsent_write(on_result, this)) {
+    this->pending_ = false;
+    this->pending_stop_ = false;
+    this->stop_superseded_ = false;
+  }
   this->stopping_ = true;
   this->notify_stop_ = true;
   this->stop_controlword_ = controlword;
-  if (this->running_)
-    this->finish_(DriveResult::DRIVE_RESULT_CANCELLED);
+  this->check_halt_state_ = controlword == 0x10F;
+  this->cancel_unsent_controlword_();
+  if (interrupted)
+    this->clear_sequence_();
   this->enable_loop();
+  if (superseded || interrupted)
+    this->result_callback_.call(DriveResult::DRIVE_RESULT_CANCELLED);
   return true;
 }
 
-void CiA402Drive::finish_(DriveResult result) {
+void CiA402Drive::cancel_unsent_controlword_() {
+  if (this->pending_sequence_ && this->pending_step_.kind == StepKind::STEP_KIND_WRITE &&
+      this->pending_step_.index == 0x6040 && this->parent_->cancel_unsent_write(on_result, this)) {
+    this->pending_ = false;
+    if (this->pending_step_.value == START_PROFILE_POSITION)
+      this->motion_requested_ = false;
+    if (this->enabling_ && this->pending_step_.value == 15)
+      this->enable_requested_ = false;
+  }
+}
+
+void CiA402Drive::clear_sequence_() {
+  this->pending_sequence_ = false;
   this->running_ = false;
   this->motion_requested_ = false;
+  this->enable_requested_ = false;
+  this->enabling_ = false;
   this->step_count_ = 0;
   this->step_index_ = 0;
   this->resetting_ = false;
+}
+
+void CiA402Drive::finish_(DriveResult result) {
+  this->clear_sequence_();
+  this->command_warning_ = false;
+  if (!this->poll_warning_)
+    this->status_clear_warning();
   this->result_callback_.call(result);
 }
 
 void CiA402Drive::fail_(DriveResult result) {
-  this->status_set_warning();
-  ESP_LOGW(TAG, "Node %u sequence failed: %u", this->node_, static_cast<unsigned>(result));
-  if (this->motion_requested_) {
+  this->cancel_unsent_controlword_();
+  if (this->motion_requested_ || this->enable_requested_) {
     this->stopping_ = true;
     this->notify_stop_ = false;
-    this->stop_controlword_ = 2;
+    this->stop_controlword_ = this->enable_requested_ ? 0 : 2;
+    this->check_halt_state_ = false;
   }
-  this->finish_(result);
+  this->clear_sequence_();
+  this->command_warning_ = true;
+  this->status_set_warning();
+  ESP_LOGW(TAG, "Node %u sequence failed: %u", this->node_, static_cast<unsigned>(result));
+  this->result_callback_.call(result);
 }
 
 void CiA402Drive::update() {
@@ -215,19 +282,28 @@ void CiA402Drive::update() {
 
 void CiA402Drive::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  if (this->running_ && (!this->operational_(now) || static_cast<int32_t>(now - this->started_ms_) >=
-                                                         static_cast<int32_t>(this->operation_timeout_ms_)))
+  const bool online = this->operational_(now);
+  if (!online) {
+    this->poll_due_ = false;
+    this->poll_suspended_ = true;
+    this->poll_index_ = 0;
+    this->poll_cycle_failed_ = false;
+  }
+  if (this->running_ && (!online || now - this->started_ms_ >= this->operation_timeout_ms_))
     this->fail_(DriveResult::DRIVE_RESULT_TIMEOUT);
   if (this->pending_)
     return;
   if (this->stopping_) {
     this->pending_stop_ = true;
-    this->send_step_({this->stop_controlword_, 0, 0x6040, 0, 2, StepKind::STEP_KIND_WRITE});
+    if (this->check_halt_state_) {
+      this->send_step_({0, 0, 0x6041, 0, 2, StepKind::STEP_KIND_READ});
+    } else {
+      this->send_step_({this->stop_controlword_, 0, 0x6040, 0, 2, StepKind::STEP_KIND_WRITE});
+    }
     return;
   }
   if (this->running_) {
     if (this->step_index_ == this->step_count_) {
-      this->status_clear_warning();
       this->finish_(DriveResult::DRIVE_RESULT_SUCCESS);
     } else if (now - this->last_request_ms_ >= 50) {
       this->pending_sequence_ = true;
@@ -252,9 +328,10 @@ void CiA402Drive::loop() {
         size = 4;
         break;
     }
-    this->send_step_({0, 0, index, 0, size, StepKind::STEP_KIND_READ});
     this->poll_index_ = (this->poll_index_ + 1) % 4;
     this->poll_due_ = this->poll_index_ != 0;
+    this->pending_poll_ = true;
+    this->send_step_({0, 0, index, 0, size, StepKind::STEP_KIND_READ});
     return;
   }
   this->disable_loop();
@@ -266,8 +343,12 @@ void CiA402Drive::send_step_(const Step &step) {
   this->last_request_ms_ = App.get_loop_component_start_time();
   if (step.kind == StepKind::STEP_KIND_WRITE) {
     // The drive may start moving even if the acknowledgement never arrives.
-    if (step.index == 0x6040 && step.value == START_PROFILE_POSITION)
-      this->motion_requested_ = true;
+    if (this->pending_sequence_ && step.index == 0x6040) {
+      if (step.value == START_PROFILE_POSITION)
+        this->motion_requested_ = true;
+      if (this->enabling_ && step.value == 15)
+        this->enable_requested_ = true;
+    }
     this->write_sdo(step.index, step.subindex, step.value, step.size, on_result, this);
   } else {
     this->read_sdo(step.index, step.subindex, on_result, this);
@@ -305,37 +386,79 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
   const bool stop = this->pending_stop_;
   this->pending_stop_ = false;
   const bool success = result == canopen::SDOResult::SDO_RESULT_SUCCESS;
+  const Step step = this->pending_step_;
   if (stop) {
-    if (this->pending_step_.value != this->stop_controlword_)
+    if (this->stop_superseded_) {
+      this->stop_superseded_ = false;
       return;
+    }
+    if (this->check_halt_state_) {
+      this->check_halt_state_ = false;
+      if (!success || size != 2 || state_from_statusword(value) != DriveState::DRIVE_STATE_OPERATION_ENABLED)
+        this->stop_controlword_ = 0;
+      return;
+    }
+    const bool notify = this->notify_stop_;
     this->stopping_ = false;
-    if (!success)
+    this->notify_stop_ = false;
+    if (!success) {
+      this->command_warning_ = true;
       this->status_set_warning();
-    if (this->notify_stop_) {
+      ESP_LOGW(TAG, "Node %u stop 0x%04X failed: %s", this->node_, static_cast<unsigned>(step.value),
+               LOG_STR_ARG(canopen::sdo_result_to_string(result)));
+    }
+    if (notify)
       this->result_callback_.call(success ? DriveResult::DRIVE_RESULT_SUCCESS
                                           : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
+    return;
+  }
+  const bool valid = success && (step.kind == StepKind::STEP_KIND_WRITE || size == step.size);
+  if (!sequence) {
+    // A detached sequence reply must drain without affecting a replacement operation or its polls.
+    if (this->pending_poll_) {
+      this->pending_poll_ = false;
+      if (!valid) {
+        this->poll_cycle_failed_ = true;
+        this->poll_warning_ = true;
+        this->status_set_warning();
+      } else {
+        if (step.index == 0x606C && !this->poll_cycle_failed_) {
+          this->poll_warning_ = false;
+          if (!this->command_warning_)
+            this->status_clear_warning();
+        }
+        this->received_value(step.index, value);
+      }
+      if (step.index == 0x606C)
+        this->poll_cycle_failed_ = false;
     }
     return;
   }
-  if (this->stopping_ || (sequence && !this->running_))
-    return;
-  const auto &step = this->pending_step_;
-  if (!success || (step.kind != StepKind::STEP_KIND_WRITE && size != step.size)) {
-    this->status_set_warning();
-    if (sequence) {
-      if (step.index == 0x6040 && step.value == START_PROFILE_POSITION &&
-          (result == canopen::SDOResult::SDO_RESULT_ABORT || result == canopen::SDOResult::SDO_RESULT_REJECTED))
+  if (!valid) {
+    if (step.index == 0x6040 &&
+        (result == canopen::SDOResult::SDO_RESULT_ABORT || result == canopen::SDOResult::SDO_RESULT_REJECTED)) {
+      if (step.value == START_PROFILE_POSITION)
         this->motion_requested_ = false;
-      this->fail_(success ? DriveResult::DRIVE_RESULT_INVALID_RESPONSE : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
+      if (this->enabling_ && step.value == 15)
+        this->enable_requested_ = false;
     }
+    this->fail_(success ? DriveResult::DRIVE_RESULT_INVALID_RESPONSE : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
     return;
   }
   if (step.kind != StepKind::STEP_KIND_WRITE)
     this->received_value(step.index, value);
-  if (!sequence || !this->running_ || this->stopping_)
+  if (!this->running_ || this->stopping_)
     return;
   if (!this->resetting_ && step.index == 0x6041 && (value & 8)) {
     this->fail_(DriveResult::DRIVE_RESULT_FAULT);
+    return;
+  }
+  if (this->enabling_) {
+    if (step.kind == StepKind::STEP_KIND_ENABLE) {
+      this->advance_enable_(state_from_statusword(value));
+    } else {
+      this->step_index_ = 0;
+    }
     return;
   }
   const bool matches = step.index == 0x606C ? this->velocity_ >= -STANDSTILL_VELOCITY_TOLERANCE &&
