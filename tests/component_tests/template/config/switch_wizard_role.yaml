@@ -19,7 +19,7 @@ switch:
     id: bluetooth_switch
     name: Bluetooth
     optimistic: true
-    wizard_role: bluetooth_enabled
+    wizard_role: template.bluetooth_enabled
   - platform: template
     id: plain_switch
     name: Plain

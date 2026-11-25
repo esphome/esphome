@@ -10,29 +10,29 @@ CONF_WIZARD_ROLE = "wizard_role"
 
 template_ns = cg.esphome_ns.namespace("template_")
 
-_WIZARD_ROLE_NAME_MAX_LENGTH = wizard.WIZARD_ROLE_MAX_LENGTH - len(DOMAIN) - 1
 
-
-def _wizard_role_name(value: str) -> str:
-    """Validate the name of a wizard role; the role itself is template.<name>."""
+def _wizard_role(value: str) -> str:
+    """Validate a wizard role set in the configuration."""
     if (
-        not wizard.WIZARD_ROLE_NAME_PATTERN.fullmatch(value)
-        or len(value) > _WIZARD_ROLE_NAME_MAX_LENGTH
+        len(value) > wizard.WIZARD_ROLE_MAX_LENGTH
+        or not wizard.WIZARD_ROLE_PATTERN.fullmatch(value)
+        or not value.startswith(f"{DOMAIN}.")
     ):
         raise cv.Invalid(
-            f"A wizard role is 1 to {_WIZARD_ROLE_NAME_MAX_LENGTH} lowercase letters, "
+            f"A wizard role of a template entity is {DOMAIN}.<name>: at most "
+            f"{wizard.WIZARD_ROLE_MAX_LENGTH} characters, with a name of lowercase letters, "
             "digits and underscores"
         )
     return value
 
 
 WIZARD_ROLE_SCHEMA = cv.Schema(
-    {cv.Optional(CONF_WIZARD_ROLE): cv.All(cv.string_strict, _wizard_role_name)}
+    {cv.Optional(CONF_WIZARD_ROLE): cv.All(cv.string_strict, _wizard_role)}
 )
 
 
 def register_wizard_role(config: ConfigType) -> ConfigType:
-    """Give the entity the wizard role template.<wizard_role>, when it sets one."""
-    if (name := config.get(CONF_WIZARD_ROLE)) is not None:
-        wizard.register_entity_role(config[CONF_ID], f"{DOMAIN}.{name}")
+    """Give the entity the wizard role it sets, if any."""
+    if (role := config.get(CONF_WIZARD_ROLE)) is not None:
+        wizard.register_entity_role(config[CONF_ID], role)
     return config

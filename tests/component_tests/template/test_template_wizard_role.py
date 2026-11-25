@@ -1,4 +1,4 @@
-"""A template switch can name its wizard role, which is sent as template.<name>."""
+"""A template switch can set its wizard role, written in full as template.<name>."""
 
 from collections.abc import Callable
 import json
@@ -16,7 +16,7 @@ from esphome.helpers import zstd_module
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
-MAX_LENGTH = wizard.WIZARD_ROLE_MAX_LENGTH - len("template.")
+LONGEST_ROLE = "template." + "a" * (wizard.WIZARD_ROLE_MAX_LENGTH - len("template."))
 
 
 def _switch_config(role: str) -> ConfigType:
@@ -51,22 +51,30 @@ def test_role_is_sent_in_the_wizard(
     "role",
     [
         "",
-        "Bluetooth",
-        "template.bluetooth",
-        "bluetooth enabled",
-        "a" * (MAX_LENGTH + 1),
+        "template",
+        "template.",
+        "template.Bluetooth",
+        "template.bluetooth enabled",
+        "template.bluetooth.enabled",
+        LONGEST_ROLE + "a",
+        "bluetooth_enabled",
+        "bluetooth.enabled",
+        "sendspin.enabled",
+        "templates.enabled",
     ],
 )
-def test_invalid_role_names_are_rejected(
+def test_other_roles_are_rejected(
     set_core_config: SetCoreConfigCallable, role: str
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    with pytest.raises(cv.Invalid, match=f"A wizard role is 1 to {MAX_LENGTH} "):
+    with pytest.raises(
+        cv.Invalid, match="A wizard role of a template entity is template.<name>"
+    ):
         CONFIG_SCHEMA(_switch_config(role))
 
 
-def test_longest_role_name_is_accepted(set_core_config: SetCoreConfigCallable) -> None:
+def test_longest_role_is_accepted(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    CONFIG_SCHEMA(_switch_config("a" * MAX_LENGTH))
+    CONFIG_SCHEMA(_switch_config(LONGEST_ROLE))

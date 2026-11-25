@@ -73,10 +73,8 @@ WIZARD_DESCRIPTION_MAX_LENGTH = 255
 WIZARD_FILTER_MAX_LENGTH = 63
 WIZARD_SUPPORTED_FEATURE_MAX_LENGTH = 127
 WIZARD_ROLE_MAX_LENGTH = 63
-_WIZARD_ROLE_PART = "[a-z0-9_]+"
-WIZARD_ROLE_NAME_PATTERN = re.compile(_WIZARD_ROLE_PART)
 # <component>.<name>, so roles of different components never clash
-_WIZARD_ROLE_PATTERN = re.compile(rf"{_WIZARD_ROLE_PART}\.{_WIZARD_ROLE_PART}")
+WIZARD_ROLE_PATTERN = re.compile(r"[a-z0-9_]+\.[a-z0-9_]+")
 
 
 @dataclass
@@ -95,10 +93,10 @@ def register_entity_role(entity_id: ID, role: str) -> None:
     """Give an entity a role, a stable name that Home Assistant recognises it by on a wizard page.
 
     For a component to call while its config is validated, so the role is known before the wizard
-    is built. The role is <component>.<name>; the component picks the name or takes it from its config.
+    is built. The role is <component>.<name>; the component picks it or takes it from its config.
     The wizard only sends it when the entity is on one of its pages.
     """
-    if len(role) > WIZARD_ROLE_MAX_LENGTH or not _WIZARD_ROLE_PATTERN.fullmatch(role):
+    if len(role) > WIZARD_ROLE_MAX_LENGTH or not WIZARD_ROLE_PATTERN.fullmatch(role):
         raise ValueError(f"Invalid wizard role '{role}'")
     _get_data().roles.append((entity_id, role))
 
