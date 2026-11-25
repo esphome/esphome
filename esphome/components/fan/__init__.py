@@ -42,6 +42,7 @@ from esphome.cpp_generator import (
     CallExpression,
     Expression,
     MockObj,
+    StaticCastExpression,
     TemplateArgsType,
     UnaryOpExpression,
     VariableDeclarationExpression,
@@ -248,16 +249,22 @@ async def _build_change_triggers(var: MockObj, config: ConfigType) -> None:
     for conf_key, args, watched, last_type, check in _CHANGE_TRIGGERS:
         value = watched(fan)
         for index, conf in enumerate(config.get(conf_key, [])):
-            last = cg.MockObj(f"esphome__{var}__{conf_key}_{index}__last")
+            last_id = cg.unique_global_id(
+                f"esphome__{var}__{conf_key}_{index}__last", last_type
+            )
+            last = cg.MockObj(last_id)
+            CORE.register_variable(last_id, last)
             cg.add_global(
                 VariableDeclarationExpression(last_type, "", last, static=True)
             )
+            # A copy, as the actions take x by reference and may change the fan
+            forward = [StaticCastExpression(type_, value) for type_, _ in args]
             callbacks.append(
                 await automation.build_trigger_callback(
                     args,
                     conf,
                     params=[],
-                    forward=[value] if args else [],
+                    forward=forward,
                     when=str(check(last, value)),
                 )
             )
