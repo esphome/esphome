@@ -1,0 +1,30 @@
+# ESP32-S3 with a jumper from GPIO17 (TX) to GPIO18 (RX): plain, load_settings() and apply_settings_live() cycles
+esphome:
+  name: txbrk-s3
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+external_components:
+  - source: {type: local, path: ext}
+    components: [txbrk]
+uart:
+  id: u
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  baud_rate: 9600
+txbrk:
+  - id: tb
+    uart_id: u
+    tx_gpio: 17
+    rx_gpio: 18
+    label: s3
+    loopback: true
+    live: true
+interval:
+  - interval: 2s
+    startup_delay: 8s
+    then:
+      - lambda: id(tb).run_next(false);

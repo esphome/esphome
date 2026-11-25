@@ -149,7 +149,7 @@ binary_sensor:
 ```
 
 **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
-`sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`, `sub_selects` in
+`sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`, `sub_selects`, `sub_texts` in
 their domains), adding `parent=hub` for entities that derive from `Parented<T>`, then make one call per
 key, even when there is only one. A call creates the entity only when its key is configured, passes it to
 the setter and returns it (or `None`); extra arguments such as `min_value` or `options` go on the call.
@@ -173,10 +173,10 @@ async def to_code(config):
     await buttons(CONF_RESTART, hub.set_restart_button)
 ```
 
-**Hub forwarding entities need no C++ class:** a button, switch, number or select that only calls its hub
-uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
-and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
-`index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the
+**Hub forwarding entities need no C++ class:** a button, switch, number, select or text that only calls its hub
+uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`, `text.ApplyText`)
+in its schema and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value`
+or `index`/`option` in scope; on a switch, number, select or text `publish="before"` or `"after"` publishes the
 state, and `publish="on_success"` publishes only when the hub call returns true (a write the device can
 refuse). `publish="momentary"` is only for legacy action switches (restart, factory reset): it publishes off
 and runs the body only when turned on. Never use it for a new entity; an action is a button.

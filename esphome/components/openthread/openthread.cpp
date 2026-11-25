@@ -18,11 +18,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-#include "esp_err.h"
-#include "esp_openthread_border_router.h"
-#endif
-
 ESPHOME_LOG_TAG(TAG, "openthread");
 
 namespace esphome::openthread {
@@ -72,9 +67,11 @@ void OpenThreadComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Radio: Native 802.15.4");
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  ESP_LOGCONFIG(TAG, "  Border Router: ENABLED\n"
-                     "  Backbone: Wi-Fi STA\n"
-                     "  Experimental: YES");
+  ESP_LOGCONFIG(TAG,
+                "  Border Router: ENABLED\n"
+                "  Backbone: %s\n"
+                "  Experimental: YES",
+                BACKBONE_NAME);
 #endif
 }
 
@@ -299,14 +296,7 @@ bool OpenThreadComponent::teardown() {
         // stack drops from here on would otherwise become an MLD message that is sent, through
         // the event loop, after the clean-up has deleted the glue's packet queue, which aborts.
         otIp6SetAddressCallback(instance, nullptr, nullptr);
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-        if (this->border_router_started_) {
-          if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
-          }
-          this->border_router_started_ = false;
-        }
-#endif
+        // The OpenThread task's clean-up deinitializes the border router
 #ifdef USE_OPENTHREAD_SRP
         ESP_LOGV(TAG, "Clear SRP");
         otSrpClientClearHostAndServices(instance);
@@ -318,14 +308,14 @@ bool OpenThreadComponent::teardown() {
         if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
           ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
         }
-      }
-      // Stop OpenThread
-      global_openthread_component = nullptr;
-      ESP_LOGV(TAG, "Stop OpenThread");
-      if (int error = this->openthread_stop_(); error != 0) {
-        // Nothing will mark the stage complete for us; do not wait out the teardown timeout
-        ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
-        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+        // Under the lock, so the task's clean-up cannot delete the queue before the exit post
+        global_openthread_component = nullptr;
+        ESP_LOGV(TAG, "Stop OpenThread");
+        if (int error = this->openthread_stop_(); error != 0) {
+          // Nothing will mark the stage complete for us; do not wait out the teardown timeout
+          ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+          this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+        }
       }
     } break;
     case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
@@ -339,7 +329,7 @@ bool OpenThreadComponent::teardown() {
   return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
-void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback) {
+void OpenThreadComponent::on_factory_reset(void (*callback)()) {
 #ifndef USE_OPENTHREAD_SRP
   // Nothing registered with an SRP server to remove first
   callback();

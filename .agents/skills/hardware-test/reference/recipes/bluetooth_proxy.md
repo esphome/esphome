@@ -164,3 +164,46 @@ device's cold discovery with bleak for reference.
   local receive time so `devtime.py` works, and `apirun.sh NAME YAML TAG SCENARIO...` OTA flashes it, logs and pings it
   (`pinger.py`) while `suite.sh` runs. `sidefx.py TAG` compares ping RTT inside the uncached discovery windows with
   outside them and counts `TCP buffer full` lines and API closes.
+
+## ESP-IDF version A/B of a proxy, and notification bursts (#22962, #22955)
+
+`scripts/bt_proxy_ab/` compares two proxy builds with the same scenarios. `proxy-common.yaml` is the proxy package
+(active connections, the `ivlog.hpp` connection interval logger from `ble_conn_interval/`, `heaplog.hpp`), with
+`proxy-c3.yaml`, `proxy-s3e.yaml` (Waveshare ESP32-S3-ETH, W5500 first, Wi-Fi second) and `proxy-s3w.yaml` (Wi-Fi only)
+on top. `heaplog.hpp` logs internal and total heap every 30 s and a `HEAPMIN` line on every 1 KB drop of the internal
+low-water mark. The servers: L is a large table with a burst service, built with
+`../ble_conn_interval/gen_peri.py OUT bpab-l ESP32S3 esp32-s3-devkitc-1 26 4 --burst`; M is a mid size `gen_peri.py`
+server; the third is a real HomeKit device (`HK_NAME`). Set `PEER_L`, `PEER_M`, `HK_NAME` and `PEER_ADDRS=L=MAC,M=MAC,
+eve=MAC` (see `peers.py`); passive scans see no scan response, so `drive.py` also matches the servers by address.
+
+- `drive.py HOST adv|disc|third|notify|churn|eve ...` is the aioesphomeapi driver (see its docstring); it keeps the
+  ff01 to ff03 handles of each server in `handles.json` so cached connects skip discovery. `suite.sh TAG HOST
+  PORT|api [steps]` runs the steps with a serial log capture (or `apilogcap.py` for `api`) and a pinger, `chain.sh
+  NAME:YAML:TREE:FLASHDEV:LOGPORT[:NSEC[:STEPS]]...` flashes, resolves `NAME.local` and runs the suite per build, and
+  `report.py TAG` gives per step the API results, device-side link and discovery times from the capture, heap, warning
+  and error counts and ping. `cross.sh PORT YAML NAME TREE_A TREE_B` alternates two builds on one board (idle ping,
+  then the advert test). `stress.sh HOST SECONDS` adds Wi-Fi load with eight large pings.
+- `selftest.hpp` with `selftest-e32.yaml` runs the same scenarios on the device with three `ble_client`s (V3
+  connection types through the tracker's DISCOVERED path) for a board whose Wi-Fi cannot carry the API test; set
+  the three addresses with `-s mac_l ... -s mac_m ... -s mac_eve ...` and the ff01 handles of L and M from
+  `handles.json` with `-s handle_l ... -s handle_m ...`. `stparse.py CAPTURE` summarises it. Its phase table is a
+  fixed copy of the `suite.sh` steps; change both when a scenario changes.
+- Bursts: `burst.py HOST RUNS OUT [COUNT PER_TICK]` writes [count_hi, count_lo, per_tick] to fe03 on L, counts the 2
+  byte sequence notifications on fe01 and the final notification on fe02, and records gaps; the final value carries the
+  server's own send failures (`server_send_failed_min`, refused sends plus late failures counted by `srvconf.hpp`; a
+  lower bound), so they are not taken for proxy loss. `ndrop.hpp` with `ndrop-pkg.yaml` prints temporary drop counters
+  added to `BluetoothConnection::on_notify_data` in a local tree.
+- ESP-IDF 5.5.6 against 6.1.1 showed no Bluetooth difference on a classic ESP32, C3, S3 (Wi-Fi and W5500) or C6. Heap
+  low-water drops land at "Service discovery complete" of a large table (the Bluedroid cache build, about 15 KB)
+  and under a TCP backlog, on both versions.
+- A bench Wi-Fi can degrade over hours (a C6 control build without Bluetooth went from 2 % to 30 % ping loss);
+  compare builds only with back-to-back crossed runs.
+- Bursts are lost at the API send gate (refused frames), not in the BLE stack. Ethernet on an Olimex ESP32-POE
+  delivered 200/s and 400/s; W5500 at 400/s blocks the loop and logs "Dropped N BLE events".
+  `network: enable_high_performance` on a C3 proxy under a burst ate the heap (9 KB free, low-water 392 B) and once
+  aborted in Bluedroid (`host_recv_pkt_cb hci_hal_h4.c:656`, osi_calloc failed).
+- An S3 GATT server logging on USB-Serial-JTAG boot-looped right after "Log initialized" (ISR assert in
+  `usb_serial_jtag_isr_handler_default`, then LoadProhibited) once its USB console had been unread for hours. A
+  recovery image with `hardware_uart: UART0` that calls `esp32::crash_handler_clear()` broke the loop, so the burst
+  server logs on UART0. Not reproduced on purpose; a replug would tell whether the host side was stuck.
+- A board that joins only at -73 to -76 dBm may just be badly oriented; check the RSSI before blaming a build.

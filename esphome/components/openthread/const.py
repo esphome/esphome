@@ -1,3 +1,4 @@
+CONF_BACKBONE = "backbone"
 CONF_CORE_OPTIONS = "core_options"
 CONF_EXT_PAN_ID = "ext_pan_id"
 CONF_FORCE_DATASET = "force_dataset"
