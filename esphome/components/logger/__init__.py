@@ -19,7 +19,6 @@ from esphome.const import (
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
-    CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -94,6 +93,7 @@ UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
+# Read by device-builder
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
     UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
@@ -248,6 +248,10 @@ def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
     # A level more verbose than the global one is compiled out, so it could never log or be captured
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
+    config.setdefault(
+        CONF_BOOT_LOG_LEVEL,
+        min("WARN", global_level, key=LOG_LEVEL_SEVERITY.index),
+    )
     errs = []
     for key in (CONF_LOGS, CONF_BOOT_LOGS):
         for tag, level in config.get(key, {}).items():
@@ -332,10 +336,6 @@ def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
 
 
 Logger = logger_ns.class_("Logger", cg.Component)
-LoggerMessageTrigger = logger_ns.class_(
-    "LoggerMessageTrigger",
-    automation.Trigger.template(cg.uint8, cg.const_char_ptr, cg.const_char_ptr),
-)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -355,7 +355,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.int_range(min=512, max=16384),
                 ),
             ),
-            cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
+            cv.Optional(CONF_BOOT_LOG_LEVEL): is_log_level,
             cv.Optional(CONF_BOOT_LOGS, default={}): cv.Schema(
                 {
                     cv.string: is_log_level,
@@ -410,7 +410,8 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
                 nrf52_54lm20=USB_CDC,
-                # No USB device on the nRF52832 and the nRF54L15
+                # No USB device on the nRF51822, the nRF52832 and the nRF54L15
+                nrf52_51822=UART0,
                 nrf52_52832=UART0,
                 nrf52_54l15=UART0,
             ): cv.All(
@@ -437,7 +438,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RUNTIME_TAG_LEVELS, default=False): cv.boolean,
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoggerMessageTrigger),
                     cv.Optional(CONF_LEVEL, default="WARN"): is_log_level,
                 }
             ),
@@ -538,17 +538,17 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(log.set_boot_log_level(tag, LOG_LEVELS[log_level]))
     if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
-    # set_uart_selection() must be called before pre_setup() because
-    # pre_setup() switches on uart_ to decide which hardware to initialize
-    # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
-    # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
-    # uart_ is UART0 in C++ except on LibreTiny where it is DEFAULT; skip the
-    # setter when the config matches it.
-    cpp_default_uart = DEFAULT if CORE.is_libretiny else UART0
-    if (
-        hardware_uart := config.get(CONF_HARDWARE_UART)
-    ) is not None and hardware_uart != cpp_default_uart:
-        cg.add(log.set_uart_selection(HARDWARE_UART_TO_UART_SELECTION[hardware_uart]))
+    if (hardware_uart := config.get(CONF_HARDWARE_UART)) is not None:
+        cg.add_define(f"USE_LOGGER_UART_SELECTION_{hardware_uart}")
+        cg.add_define(
+            "ESPHOME_LOGGER_UART_SELECTION",
+            cg.RawExpression(f"logger::UART_SELECTION_{hardware_uart}"),
+        )
+        # ESP8266 without serial logging never opens a port
+        cg.add_define(
+            "ESPHOME_LOGGER_UART_NAME",
+            "NONE" if CORE.is_esp8266 and baud_rate == 0 else hardware_uart,
+        )
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
@@ -645,7 +645,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
-            cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
         # Log V2 formats centrally in esp_log() (~4KB flash, ~180B RAM). 6.1
         # adds CONSTRAINED_ENV_SAFE=n, keeping early/DRAM logs on
         # esp_rom_printf instead of pulling ~1.2KB esp_rom_vprintf into IRAM.
@@ -663,10 +662,12 @@ async def _late_logger_init(config: ConfigType) -> None:
             # --wrap: a strong definition collides; see logger_esp32.cpp
             cg.add_build_flag("-Wl,--wrap=esp_log_format")
     # Zephyr polls the USB port only when it logs there
-    if config.get(CONF_HARDWARE_UART) == USB_CDC and (
-        has_serial_logging or not CORE.is_nrf52
+    if (
+        CORE.using_zephyr
+        and has_serial_logging
+        and config[CONF_HARDWARE_UART] == USB_CDC
     ):
-        cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
+        cg.add_define("USE_LOGGER_ZEPHYR_CDC_LOOP")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
@@ -721,19 +722,19 @@ async def _late_logger_init(config: ConfigType) -> None:
     # Register at end for safe mode
     await cg.register_component(log, config)
 
+    args = [
+        (cg.uint8, "level"),
+        (cg.const_char_ptr, "tag"),
+        (cg.const_char_ptr, "message"),
+    ]
     for conf in config.get(CONF_ON_MESSAGE, []):
-        request_log_listener()  # Each on_message trigger needs a listener slot
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], log, LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL])
-        )
-        await automation.build_automation(
-            trigger,
-            [
-                (cg.uint8, "level"),
-                (cg.const_char_ptr, "tag"),
-                (cg.const_char_ptr, "message"),
-            ],
-            conf,
+        request_log_listener()  # Each on_message automation needs a listener slot
+        fn = await automation.build_trigger_callback(args, conf, args)
+        level = LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL])
+        cg.add(
+            log.add_log_callback(
+                cg.nullptr, logger_ns.on_message_callback.template(level, fn)
+            )
         )
 
 
@@ -871,6 +872,29 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 )
 
 
+async def request_tag_log_level(tag: str, level: str) -> None:
+    """Quiet a noisy library tag; call from to_code.
+
+    Skipped when `logger: logs:` sets the tag or the logger's level already drops it; never louder than
+    `initial_level`. ESP-IDF library tags need ESP-IDF Log V2 (6.1+, not ESP32-C2/S2); otherwise they log as
+    `esp-idf`.
+    """
+    if (
+        (config := CORE.config.get(DOMAIN)) is None
+        or tag in config[CONF_LOGS]
+        or LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+        <= LOG_LEVEL_SEVERITY.index(level)
+    ):
+        return
+    # Kept as a tag level, so it still holds when the level is raised at run time
+    level = min(
+        level, config.get(CONF_INITIAL_LEVEL, level), key=LOG_LEVEL_SEVERITY.index
+    )
+    cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
+    log = await cg.get_variable(config[CONF_ID])
+    cg.add(log.set_log_level(tag, LOG_LEVELS[level]))
+
+
 def request_logger_level_listeners() -> None:
     """Request that logger level listeners be compiled in.
 
@@ -882,6 +906,15 @@ def request_logger_level_listeners() -> None:
 
 
 _request_log_listener_slot = cg.slot_counter("ESPHOME_LOG_MAX_LISTENERS")
+
+
+def request_console() -> None:
+    """Compile in Logger::console_read() and console_write(); call from to_code.
+
+    On ESP32 a USB_CDC logger only has a console where ESP-IDF sets CONFIG_ESP_CONSOLE_USB_CDC (targets with
+    USB OTG); elsewhere, such as the C3, C6 or H2, both do nothing. Host and Zephyr have no console API.
+    """
+    cg.add_define("USE_LOGGER_CONSOLE")
 
 
 def request_log_listener() -> None:

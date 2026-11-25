@@ -1,3 +1,6 @@
+packages:
+  tx_break: !include tx_break.yaml
+
 esphome:
   on_boot:
     then:
@@ -65,3 +68,7 @@ binary_sensor:
     id: down
     uart_id: uart_id
     data: [0x1B, 0x5B, 0x42]
+
+# set_tx_break() of the hardware bus too
+uart_tx_break_test:
+  - uart_id: uart_swapped

@@ -1,8 +1,6 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
-#include <utility>
-#include <vector>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -44,6 +42,12 @@ class I2CBus {
   virtual ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
                                 size_t read_count) = 0;
 
+  /// @brief Writes `prefix` then `data` in one transaction, as for a register address followed by its data.
+  /// The built-in buses send the two parts without copying them; the default joins them in a buffer for
+  /// write_readv(), on the stack for up to 20 bytes.
+  virtual ErrorCode write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *data,
+                                   size_t len);
+
   // Legacy functions for compatibility
 
   ErrorCode read(uint8_t address, uint8_t *buffer, size_t len) {
@@ -64,13 +68,13 @@ class I2CBus {
 #endif
 
  protected:
-  /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
-  /// that contains the address and the corresponding bool presence flag.
+  /// @brief Scans the I2C bus and keeps each address that answered (ERROR_OK) or returned ERROR_UNKNOWN
   void i2c_scan_();
   /// @brief Logs the scan results at config level, if the bus was scanned
   void dump_scan_results_();
-  std::vector<std::pair<uint8_t, bool>> scan_results_;  ///< array containing scan results
-  bool scan_{false};                                    ///< Should we scan ? Can be set in the yaml
+  /// One byte per kept address, bit 7 set for ERROR_UNKNOWN; inline for up to 4 devices
+  SmallInlineBuffer<4> scan_results_;
+  bool scan_{false};  ///< Should we scan ? Can be set in the yaml
 };
 
 class InternalI2CBus : public I2CBus {

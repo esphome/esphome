@@ -10,8 +10,7 @@ static const uint32_t HLW8012_CLOCK_FREQUENCY = 3579000;
 
 void HLW8012Component::setup() {
   float reference_voltage = 0;
-  this->sel_pin_->setup();
-  this->sel_pin_->digital_write(this->current_mode_);
+  setup_output_pin(this->sel_pin_, this->current_mode_);
   this->cf_store_.pulse_counter_setup(this->cf_pin_);
   this->cf1_store_.pulse_counter_setup(this->cf1_pin_);
 

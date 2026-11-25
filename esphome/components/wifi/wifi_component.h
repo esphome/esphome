@@ -6,6 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_ESP32
 #include "esphome/core/lock_free_queue.h"
 #endif
@@ -15,6 +16,10 @@
 #include "esphome/core/freertos_queue.h"
 #endif
 #include "esphome/core/string_ref.h"
+
+#if defined(USE_WIFI_AP) && defined(USE_OTA)
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -241,6 +246,10 @@ class CompactString {
 
   CompactString() : length_(0), is_heap_(0) { this->storage_[0] = '\0'; }
   CompactString(const char *str, size_t len);
+#ifdef USE_ESP8266
+  /// Copy a string kept in flash with ESPHOME_F.
+  static CompactString from_progmem(ProgmemStr str);
+#endif
   CompactString(const CompactString &other);
   CompactString(CompactString &&other) noexcept;
   CompactString &operator=(const CompactString &other);
@@ -296,11 +305,17 @@ class WiFiAP {
   void set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
   void set_ssid(const char *ssid) { this->set_ssid(StringRef(ssid)); }
   void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
+#ifdef USE_ESP8266
+  void set_ssid(ProgmemStr ssid) { this->ssid_ = CompactString::from_progmem(ssid); }
+#endif
   void set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
   void clear_bssid() { this->bssid_ = {}; }
   void set_password(const std::string &password) { this->password_ = CompactString(password.c_str(), password.size()); }
   void set_password(const char *password) { this->set_password(StringRef(password)); }
   void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
+#ifdef USE_ESP8266
+  void set_password(ProgmemStr password) { this->password_ = CompactString::from_progmem(password); }
+#endif
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif  // USE_WIFI_WPA2_EAP
@@ -907,6 +922,14 @@ class WiFiComponent final : public Component {
   bool is_dpp_active_();
   /// A portal, improv or DPP is waiting for credentials, so the retry machine must not disturb the radio
   bool is_provisioning_active_();
+  /// An OTA upload may be running over the AP
+  bool ota_hold_() const {
+#if defined(USE_WIFI_AP) && defined(USE_OTA)
+    return this->ap_setup_ && ota::UpdateLock::any_held();
+#else
+    return false;
+#endif
+  }
   /// The provisioning window has closed, so no new provisioning surface may start
   bool is_provisioning_closed_();
   bool is_captive_portal_active_();

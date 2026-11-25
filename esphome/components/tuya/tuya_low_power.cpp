@@ -17,7 +17,6 @@
 namespace esphome::tuya {
 
 static const char *const LP_TAG = "tuya.low_power";
-static constexpr uint32_t LP_RX_TIMEOUT_MS = 300;
 // A version-3 MCU (firmware 1.0.9) reports changes made at the device only when asked.
 static constexpr uint32_t LP_V3_STATUS_POLL_MS = 60000;
 static constexpr uint32_t LP_COMMAND_DELAY_MS = 10;
@@ -90,7 +89,7 @@ void TuyaUART::loop_low_power_() {
 
 void TuyaUART::poll_low_power_v3_status_() {
   if (!this->lp_v3_ || this->lp_v3_pushes_ || !this->lp_session_.ready() || !this->lp_wire_.idle() ||
-      !this->command_queue_.empty() || !this->rx_message_.empty())
+      !this->command_queue_.empty() || this->reader_.receiving())
     return;
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->lp_v3_last_poll_ms_ < LP_V3_STATUS_POLL_MS)
@@ -101,6 +100,8 @@ void TuyaUART::poll_low_power_v3_status_() {
 }
 
 void TuyaUART::handle_low_power_frame_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
+  // Only a valid frame shows that the MCU is awake; noise on the line of a sleeping MCU does not
+  this->lp_mcu_heard_ms_ = millis();
   // CMD01/02/09 are acknowledged by the matching command. A late answer to an expired command must not
   // complete a newer one.
   if (this->lp_wire_.overdue(App.get_loop_component_start_time()) && this->lp_wire_.accepts(command, len)) {
@@ -230,7 +231,7 @@ void TuyaUART::poll_low_power_product_recovery_() {
   // Never send CMD01 during a report series or a write. After an ACK timeout the queue is quarantined,
   // so queued commands must not block the retry.
   const bool idle = !this->lp_session_.busy() && !this->lp_wire_.active() && !this->expected_response_.has_value() &&
-                    this->rx_message_.empty();
+                    !this->reader_.receiving();
   if (static_cast<int32_t>(now - this->lp_product_retry_at_) < 0 || !idle)
     return;
   if (this->lp_product_retries_ > 0) {
@@ -250,10 +251,8 @@ void TuyaUART::poll_low_power_product_recovery_() {
 
 void TuyaUART::process_low_power_queue_() {
   const uint32_t now = App.get_loop_component_start_time();
-  // The byte and command timestamps of tuya_uart.cpp come from millis(), so compare them with it.
+  // The command timestamp of tuya_uart.cpp comes from millis(), so compare it with millis().
   const uint32_t wire_now = millis();
-  if (static_cast<uint32_t>(wire_now - this->last_rx_char_timestamp_) > LP_RX_TIMEOUT_MS)
-    this->rx_message_.clear();
   if (this->mcu_wake_pulse_running_())
     return;
 
@@ -276,7 +275,7 @@ void TuyaUART::process_low_power_queue_() {
   }
 
   if (this->lp_session_.busy() || this->lp_wire_.active() || this->lp_wire_.faulted() ||
-      this->expected_response_.has_value() || !this->rx_message_.empty() ||
+      this->expected_response_.has_value() || this->reader_.receiving() || this->handling_frame_ ||
       static_cast<uint32_t>(wire_now - this->last_command_timestamp_) <= LP_COMMAND_DELAY_MS)
     return;
   // Before the product info only CMD01 may go out; writes wait until the MCU's state is known.
@@ -289,7 +288,7 @@ void TuyaUART::process_low_power_queue_() {
     return;
   // A sleeping MCU listens only after a pulse on its wake line, so wake it before a command when it has
   // been silent; the command goes out once the pulse is over.
-  if (this->mcu_wake_pin_ != nullptr && wire_now - this->last_rx_char_timestamp_ > LP_MCU_SILENT_MS &&
+  if (this->mcu_wake_pin_ != nullptr && wire_now - this->lp_mcu_heard_ms_ > LP_MCU_SILENT_MS &&
       wire_now - this->lp_mcu_woken_ms_ > LP_MCU_SILENT_MS) {
     this->begin_mcu_wake_pulse_();
     return;
@@ -299,6 +298,8 @@ void TuyaUART::process_low_power_queue_() {
   this->command_queue_.erase(next);
   if (this->lp_v3_ && is_low_power_write(command))
     command.cmd = static_cast<TuyaCommandType>(0x06);
+  // A partial frame kept by an idle flush must not merge into the reply
+  this->reader_.drop_kept();
   this->send_raw_command_(command);
 }
 
@@ -306,6 +307,8 @@ void TuyaUART::process_low_power_queue_() {
 void TuyaUART::send_low_power_direct_(uint8_t command, const std::vector<uint8_t> &payload) {
   if (payload.size() > 65535)
     return;
+  // A partial frame kept by an idle flush must not merge into the reply
+  this->reader_.drop_kept();
   const uint8_t header[] = {
       0x55, 0xAA, 0x00, command, static_cast<uint8_t>(payload.size() >> 8), static_cast<uint8_t>(payload.size()),
   };

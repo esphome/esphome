@@ -1,0 +1,5 @@
+# Plain build: every frame should parse
+substitutions:
+  name: pms-dut
+packages:
+  common: !include pms-common.yaml

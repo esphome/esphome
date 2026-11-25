@@ -140,6 +140,13 @@ void EthernetComponent::loop() {
   }
 #endif
 
+  const bool link_up = this->link_up_.load(std::memory_order_relaxed);
+  if (link_up && !this->link_was_up_) {
+    // Give DHCP a full window after the link comes up before the timeout below restarts it
+    this->connect_begin_ = now;
+  }
+  this->link_was_up_ = link_up;
+
   switch (this->state_) {
     case EthernetComponentState::STOPPED:
       if (this->started_) {
@@ -162,9 +169,17 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
         this->connect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(true);
       } else if (now - this->connect_begin_ > 15000) {
-        ESP_LOGW(TAG, "Connecting failed; reconnecting");
-        this->start_connect_();
+        if (link_up) {
+          ESP_LOGW(TAG, "Connecting failed; reconnecting");
+          this->start_connect_();
+        } else {
+          // Restarting DHCP without a link only empties lwIP's DNS servers (espressif/esp-idf#19082);
+          // the DHCP client already running resumes when the link comes up.
+          ESP_LOGD(TAG, "Connecting failed: no link");
+          this->connect_begin_ = now;
+        }
       }
       break;
     case EthernetComponentState::CONNECTED:
@@ -174,6 +189,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
@@ -181,6 +197,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else {
         this->finish_connect_();
         // When connected and stable, disable the loop to save CPU cycles
@@ -770,10 +787,12 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       event_name = "ETH stopped";
       global_eth_component->started_ = false;
       global_eth_component->connected_ = false;
+      global_eth_component->link_up_.store(false, std::memory_order_relaxed);
       global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
+      global_eth_component->link_up_.store(true, std::memory_order_relaxed);
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_ETHERNET_IP_STATE_LISTENERS) && defined(USE_ETHERNET_MANUAL_IP)
       global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
@@ -790,6 +809,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
       global_eth_component->connected_ = false;
+      global_eth_component->link_up_.store(false, std::memory_order_relaxed);
       global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     default:

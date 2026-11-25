@@ -1,0 +1,55 @@
+# PMS5003T fed from the host: the devkit's USB adapter TX also reaches GPIO3, so a second UART with rx_pin GPIO3
+# receives what pmsfeed.py writes while the logger stays on UART0 at 9600. Counts pm_1_0 publishes.
+esphome:
+  name: ${name}
+esp32:
+  board: esp32dev
+  cpu_frequency: 80MHZ
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 9600
+  hardware_uart: UART0
+  level: DEBUG
+  logs:
+    sensor: INFO
+    component: INFO
+
+uart:
+  id: pms_uart
+  rx_pin: GPIO3
+  tx_pin: GPIO4
+  baud_rate: 9600
+  rx_buffer_size: 1024
+  rx_full_threshold: 1
+  rx_timeout: 2
+
+globals:
+  - id: n_parse
+    type: uint32_t
+    initial_value: "0"
+
+sensor:
+  - platform: pmsx003
+    type: PMS5003T
+    uart_id: pms_uart
+    update_interval: 0s
+    pm_1_0:
+      name: PM 1.0
+      on_value:
+        - lambda: id(n_parse)++;
+    pm_2_5:
+      name: PM 2.5
+    pm_10_0:
+      name: PM 10.0
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("cnt", "parses=%u uptime=%u", id(n_parse), (unsigned) (millis() / 1000));

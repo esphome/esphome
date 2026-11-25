@@ -92,3 +92,61 @@ ends with `check.py` against `expected.txt` (exit 1 on a mismatch), and the mode
 
 The worst case for an unlock after a trailing run of high bits is a frame of bytes all below 0x80; a mixed frame
 hides it.
+
+## RP2 UART choice and loopback without wires (#22841)
+
+`scripts/rp2_uart_loop/`: `lb.hpp` `lb::check(label, uart, tx, rx, loop, inverted)` logs which peripheral owns each
+pin (`gpio_get_function`: UART0, UART1 or PIO0 to PIO2) and, with `loop`, feeds the bus back into itself: the PL011
+`LBE` bit on a hardware UART, or for SerialPIO the RX state machine's IN_BASE and JMP_PIN rewritten to the TX pin
+(plus `gpio_set_inover` on TX for an inverted bus). It compares 3 rounds of 64 bytes. `gen.py` writes three pin set
+configs per board (`ua`, `ub`, `uc` for the Pico W and Pico 2 W) next to `lb.hpp`.
+`run.sh NAME YAML USBSERIAL` (env `TREE`, `PY`) uploads over the 1200 baud touch, follows the board by its USB
+serial number, captures 30 s and counts the `CHOICE`, `LOOP` and `SETDONE` lines. Setup DEBUG lines are lost
+before USB CDC opens, so the boot lambda calls each bus's `dump_config()` again.
+
+## LengthFrameReader injection: ld2410 and tuya (#22884, #22885)
+
+`scripts/length_frame_reader/`: `lfh.hpp` builds ld2410 data frames (a unique moving distance per frame) and tuya dp
+101 reports (a unique int), with cases A (noise, a lone `55`, a whole `55 AA` before a frame), B (bad footer or
+checksum, a cut frame), C (announced lengths of 200, 28 and 31, or 200 and 1024, then 1 s of silence) and D (footer
+and header bytes inside the payload); the `LD_STEPS` and `TU_STEPS` tables list them and `lfh-base.yaml` plays one
+table per call. `lfh-common.yaml` is an ESP8266 harness with UART0 looped back inside the chip (the logger goes over
+the API), `lfh-common-bw.yaml` the BW15 kit with UART1 PA02 and PA03 jumpered. The parts files hold the component and
+the tables to play: `lfh-ld-parts.yaml` (ld2410), `lfh-tu-parts.yaml` (tuya, 9600 baud) and `lfh-raw-parts.yaml`
+(both through the bare reader in `lfhraw.hpp`, needs #22884). `lfh-ld.yaml` is a run file. Values are collected in
+`on_raw_value` or `on_datapoint_update` and logged once per case (`CASE LD A seen=...`), so API state coalescing
+hides nothing. `drive.py HOST LOG RUNS [GAP]` presses Run.
+
+- Results on #22885: tuya 8/15 on dev, 15/15 on the PR; ld2410 22/22 on both, since the ld24xx splitter on dev
+  already recovered.
+- On a real radar, `soak.py HOST SECONDS OUT` counts state updates per entity and keeps the W and E log lines across
+  reconnects; compare a soak per build. Use `ld2450/zonedrive.py` for LD2450 zone readbacks. LD2412 gate thresholds
+  are read back only at boot, so check a write by setting it, rebooting the ESP and reading it, then restore it.
+
+## PMS5003T fed from the host without wires, and UART RX under power management (#23038)
+
+`scripts/uart_sim/pms_feed/`: on an ESP32 devkit the USB adapter's TX also reaches GPIO3, so a second hardware UART
+with `rx_pin: GPIO3` (TX GPIO4) receives what the host writes while the logger stays on UART0 at 9600: one port at
+9600 reads the logs and carries the frames. `pmsfeed.py PORT SECONDS OUT --reset` sends one PMS5003T frame per
+second (PM1.0 = frame number), captures the log and prints the feed, parse and warning counts; `pms-common.yaml`
+counts the pm_1_0 publishes on the device. `pms-dut.yaml` is the plain build, `pms-dfs.yaml` adds frequency scaling
+(`enable_light_sleep: true` for the light sleep case) and `pms-manual-pm.yaml` calls `esp_pm_configure()` by hand
+(`pmh.hpp`) for a tree without `esp32_power_management`. Run both power management builds with `--expect-pm`,
+which fails unless the capture proves power management was on (add `--expect-light-sleep` for the light sleep
+case); an `esp_pm_configure()` failure always fails.
+
+- The plain build parses every frame (run it with `--expect-all 0`); frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
+  classic devkit, has the numbers and the REF_TICK workaround).
+
+## virtual_uart: sensors without any UART (#20428)
+
+`scripts/uart_sim/virtual_uart/`: `vu-common.yaml` and `vu.hpp` put an sds011 and an mhz19 on `virtual_uart` buses.
+`on_tx` models the mhz19 (collects 9 bytes, answers GET_PPM with 400 + n*37 ppm), and the sds011 gets a static frame
+and a lambda frame every 2 s. It also has an overflow round (21 B dropped, 20 B exact fit, 1 B dropped), a 128 B ring
+with no reader read back as 0..127 every 200 ms, and a write to the bus's own UART from `on_tx`. Counters are logged
+as `SUM` lines every 10 s, so early boot logs lost on a USB CDC port do not matter. `drive.py HOST SECONDS OUT`
+records API states and logs. No wiring; `vu-esp8266.yaml`, `vu-c3.yaml` and `vu-pico.yaml` build it per platform.
+
+- `discard_available()` is on `UARTDevice`, not on the component; drain with `read_array` in a harness.
+- A RP2040 build with only virtual buses still links arduino-pico `SerialUART` (about 2 KB flash, 400 B RAM),
+  because `uart_component_rp2.cpp` is compiled.
