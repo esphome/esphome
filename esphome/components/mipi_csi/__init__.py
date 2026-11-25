@@ -1,5 +1,4 @@
 import logging
-import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -7,8 +6,10 @@ from esphome.components import esp32, i2c
 from esphome.components.const import CONF_PIXEL_FORMAT
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.esp32.const import VARIANT_ESP32P4
+from esphome.components.esp_ldo import DOMAIN as ESP_LDO_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_I2C_ID,
     CONF_ID,
@@ -19,6 +20,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     Framework,
 )
+from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 from esphome.types import ConfigType
 
@@ -28,7 +30,6 @@ from .const import (
     CONF_FRAMERATE,
     CONF_HORIZONTAL_FLIP,
     CONF_IDLE_FRAMERATE,
-    CONF_INIT_LDO,
     CONF_JPEG_QUALITY,
     CONF_ON_IMAGE,
     CONF_ON_STREAM_START,
@@ -37,9 +38,7 @@ from .const import (
     CONF_SCCB_FREQUENCY,
     CONF_VERTICAL_FLIP,
 )
-from .sensors import SENSOR_FORMATS
-
-_LOGGER = logging.getLogger(__name__)
+from .sensors import SENSOR_FORMATS, format_resolution, sensor_formats
 
 DOMAIN = "mipi_csi"
 CODEOWNERS = ["@Horstexplorer"]
@@ -60,19 +59,30 @@ MipiCsiStreamStopTrigger = mipi_csi_ns.class_(
     "MipiCsiStreamStopTrigger", automation.Trigger.template()
 )
 
-PixelFormat = mipi_csi_ns.enum("PixelFormat", is_class=True)
-PIXEL_FORMATS = PixelFormat.options(
-    "RGB565", "RGB888", "YUV422", "GRAYSCALE", prefix="PIXEL_FORMAT_"
-)
+_LOGGER = logging.getLogger(__name__)
 
-_RESOLUTION_PATTERN = re.compile(r"^\s*(\d+)\s*[xX]\s*(\d+)\s*$")
+# esp_video powers the MIPI D-PHY from this LDO channel unless another component already does.
+CSI_LDO_CHANNEL = 3
+
+
+def _fourcc(code: str) -> int:
+    return int.from_bytes(code.encode(), "little")
+
+
+# Capture format: V4L2 fourcc, JPEG encoder input, chroma subsampling, bytes per pixel.
+PIXEL_FORMATS = {
+    "RGB565": (_fourcc("RGBP"), "RGB565", "YUV422", 2),
+    "RGB888": (_fourcc("RGB3"), "RGB888", "YUV444", 3),
+    "YUV422": (_fourcc("UYVY"), "YUV422", "YUV422", 2),
+    "GRAYSCALE": (_fourcc("GREY"), "GRAY", "GRAY", 1),
+}
+
+FLIP_FLAGS = {CONF_HORIZONTAL_FLIP: 0, CONF_VERTICAL_FLIP: 2}
 
 
 def validate_sensor(value: str) -> str:
     """Accepts a built-in sensor, or the name of one whose driver comes from another IDF component."""
     value = cv.string_strict(value).strip().upper()
-    if not value:
-        raise cv.Invalid("Sensor name must not be empty")
     if value not in SENSOR_FORMATS:
         _LOGGER.warning(
             "Sensor '%s' is not built into esp_cam_sensor. Its driver must come from another "
@@ -84,21 +94,18 @@ def validate_sensor(value: str) -> str:
     return value
 
 
-def validate_resolution(value: str) -> tuple[int, int]:
-    """Parses a `WIDTHxHEIGHT` resolution into a pair of pixel counts."""
-    value = cv.string(value)
-    match = _RESOLUTION_PATTERN.match(value)
-    if match is None:
-        raise cv.Invalid(f"Resolution must be written as WIDTHxHEIGHT, got '{value}'")
-    width, height = int(match.group(1)), int(match.group(2))
-    # A zero is what tells the component to keep the sensor's own resolution, and anything above
-    # 65535 does not fit the size the component stores, so neither may reach it from here.
-    for dimension, name in ((width, "Width"), (height, "Height")):
-        if not 1 <= dimension <= 65535:
-            raise cv.Invalid(
-                f"{name} must be between 1 and 65535, got {dimension} in '{value}'"
-            )
-    return width, height
+def _validate_resolution(config: ConfigType) -> ConfigType:
+    if (resolution := config.get(CONF_RESOLUTION)) is None:
+        return config
+    sensor = config[CONF_SENSOR]
+    if sensor in SENSOR_FORMATS and not sensor_formats(sensor, resolution):
+        supported = sorted({format_resolution(fmt) for fmt in SENSOR_FORMATS[sensor]})
+        raise cv.Invalid(
+            f"{sensor} cannot capture {resolution[0]}x{resolution[1]}. Supported "
+            f"resolutions are: {', '.join(f'{w}x{h}' for w, h in supported)}",
+            path=[CONF_RESOLUTION],
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -106,9 +113,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(MipiCsiCamera),
             cv.Required(CONF_SENSOR): validate_sensor,
-            cv.Optional(CONF_RESOLUTION): validate_resolution,
-            cv.Optional(CONF_PIXEL_FORMAT, default="RGB565"): cv.enum(
-                PIXEL_FORMATS, upper=True
+            cv.Optional(CONF_RESOLUTION): cv.dimensions,
+            cv.Optional(CONF_PIXEL_FORMAT, default="RGB565"): cv.one_of(
+                *PIXEL_FORMATS, upper=True
             ),
             cv.Optional(CONF_JPEG_QUALITY, default=40): cv.int_range(min=10, max=100),
             cv.Optional(CONF_FRAMERATE, default="10 fps"): cv.All(
@@ -118,7 +125,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.framerate, cv.Range(min=0, max=1)
             ),
             cv.Optional(CONF_FRAME_BUFFER_COUNT, default=2): cv.int_range(min=1, max=3),
-            cv.Optional(CONF_INIT_LDO, default=True): cv.boolean,
             cv.Optional(CONF_HORIZONTAL_FLIP): cv.boolean,
             cv.Optional(CONF_VERTICAL_FLIP): cv.boolean,
             cv.GenerateID(CONF_I2C_ID): cv.use_id(i2c.InternalI2CBus),
@@ -154,48 +160,46 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _validate_resolution,
     cv.only_with_framework(Framework.ESP_IDF),
     esp32.only_on_variant(supported=[VARIANT_ESP32P4]),
 )
 
-SETTERS = {
-    CONF_PIXEL_FORMAT: "set_pixel_format",
-    CONF_JPEG_QUALITY: "set_jpeg_quality",
-    CONF_HORIZONTAL_FLIP: "set_horizontal_flip",
-    CONF_VERTICAL_FLIP: "set_vertical_flip",
-    CONF_FRAME_BUFFER_COUNT: "set_frame_buffer_count",
-}
-
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CAMERA")
-    var = cg.new_Pvariable(config[CONF_ID])
+    fourcc, jpeg_input, sub_sample, bytes_per_pixel = PIXEL_FORMATS[
+        config[CONF_PIXEL_FORMAT]
+    ]
+    idle_framerate = config[CONF_IDLE_FRAMERATE]
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        config[CONF_SENSOR],
+        await cg.get_variable(config[CONF_I2C_ID]),
+        int(config[CONF_SCCB_FREQUENCY]),
+        cg.RawExpression(f"{fourcc:#010x}"),
+        bytes_per_pixel,
+        cg.RawExpression(f"JPEG_ENCODE_IN_FORMAT_{jpeg_input}"),
+        cg.RawExpression(f"JPEG_DOWN_SAMPLING_{sub_sample}"),
+        config[CONF_JPEG_QUALITY],
+        config[CONF_FRAME_BUFFER_COUNT],
+        int(config[CONF_FRAMERATE]),
+        int(1000 / idle_framerate) if idle_framerate else 0,
+    )
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
 
-    for key, setter in SETTERS.items():
-        if key in config:
-            cg.add_optional(getattr(var, setter), config.get(key))
-
     if (resolution := config.get(CONF_RESOLUTION)) is not None:
         cg.add(var.set_resolution(*resolution))
-    cg.add(var.set_sensor_name(config[CONF_SENSOR]))
-    cg.add(var.set_init_ldo(config[CONF_INIT_LDO]))
-    cg.add(var.set_framerate(int(config[CONF_FRAMERATE])))
-    cg.add(var.set_sccb_frequency(int(config[CONF_SCCB_FREQUENCY])))
-    idle_framerate = config[CONF_IDLE_FRAMERATE]
-    cg.add(
-        var.set_idle_update_interval(
-            int(1000 / idle_framerate) if idle_framerate else 0
-        )
-    )
-
-    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
-
-    if (reset_pin := config.get(CONF_RESET_PIN)) is not None:
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
-    if (power_pin := config.get(CONF_POWER_PIN)) is not None:
-        cg.add(var.set_power_pin(await cg.gpio_pin_expression(power_pin)))
+    # Bit n marks the flip as configured, bit n + 1 holds its value.
+    if flip_flags := sum(
+        (1 | config[key] << 1) << shift
+        for key, shift in FLIP_FLAGS.items()
+        if key in config
+    ):
+        cg.add(var.set_flip_flags(flip_flags))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_power_pin, config.get(CONF_POWER_PIN))
 
     if (external_clock := config.get(CONF_EXTERNAL_CLOCK)) is not None:
         cg.add(
@@ -204,6 +208,13 @@ async def to_code(config: ConfigType) -> None:
             )
         )
         add_idf_sdkconfig_option("CONFIG_CAMERA_XCLK_USE_ESP_CLOCK_ROUTER", True)
+
+    # An esp_ldo entry for the CSI channel already powers the D-PHY; claiming it again fails.
+    if any(
+        ldo[CONF_CHANNEL] == CSI_LDO_CHANNEL
+        for ldo in CORE.config.get(ESP_LDO_DOMAIN, [])
+    ):
+        cg.add_define("USE_MIPI_CSI_EXTERNAL_LDO")
 
     for conf_key, args in (
         (CONF_ON_STREAM_START, []),
@@ -223,10 +234,11 @@ def _add_idf_config(config: ConfigType) -> None:
     add_idf_component(name="espressif/esp_ipa", ref="2.5.0")
 
     sensor = config[CONF_SENSOR]
-    if (formats := SENSOR_FORMATS.get(sensor)) is not None:
+    # A sensor whose driver comes from another IDF component brings its own Kconfig.
+    if sensor in SENSOR_FORMATS:
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}", True)
-        for format_option in formats:
-            add_idf_sdkconfig_option(f"CONFIG_{format_option}", True)
+        for fmt in sensor_formats(sensor, config.get(CONF_RESOLUTION)):
+            add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
 
     for option, value in {
         # The MIPI-CSI capture path is the only one used. DVP defaults to on, so turn it off; SPI

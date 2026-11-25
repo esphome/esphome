@@ -1,136 +1,142 @@
 """The MIPI-CSI sensors that espressif/esp_cam_sensor supports.
 
-Each sensor maps to the Kconfig options that compile in its output formats. A sensor can only
-produce the resolutions whose register tables were built into the firmware, and most of them are
-off by default. Every format of the selected sensor is therefore enabled, which lets `resolution`
-pick any of them. The driver for the selected sensor is the only one built.
-
-Sensors not listed here are still accepted when their driver comes from a separate IDF component;
-those get no Kconfig options from this table.
+Each sensor maps to the formats its driver can be built with, named by the suffix of their
+Kconfig option (`CONFIG_CAMERA_<SENSOR>_MIPI_<FORMAT>`). A sensor can only produce the
+resolutions whose register tables were built into the firmware, and most of them are off by
+default, so the formats matching the configured `resolution` (or all of them without one) are
+enabled. The driver for the selected sensor is the only one built.
 """
 
-SENSOR_FORMATS = {
-    "GC2053": [
-        "CAMERA_GC2053_MIPI_RAW10_1920X1080_30FPS",
-        "CAMERA_GC2053_MIPI_RAW8_1920X1080_25FPS",
-    ],
-    "GC2145": [
-        "CAMERA_GC2145_MIPI_RGB565_640X480_15FPS",
-        "CAMERA_GC2145_MIPI_RGB565_800X600_30FPS",
-        "CAMERA_GC2145_MIPI_RGB565_1600X1200_7FPS",
-    ],
-    "GC2607": [
-        "CAMERA_GC2607_MIPI_RAW10_1920X1080_25FPS",
-    ],
-    "GC4053": [
-        "CAMERA_GC4053_MIPI_RAW10_1440X1440_25FPS",
-    ],
-    "LT6911": [
-        "CAMERA_LT6911_MIPI_YUV422_1280X720_60FPS",
-        "CAMERA_LT6911_MIPI_YUV422_1920X1080_48FPS",
-    ],
-    "MIRA220": [
-        "CAMERA_MIRA220_MIPI_RAW8_1024X600_15FPS",
-    ],
-    "MIT245": [
-        "CAMERA_MIT245_MIPI_RAW8_1920X1080_30FPS",
-        "CAMERA_MIT245_MIPI_RAW10_1920X1080_30FPS",
-    ],
-    "OS02N10": [
-        "CAMERA_OS02N10_MIPI_RAW8_960X540_25FPS",
-        "CAMERA_OS02N10_MIPI_RAW8_1280X720_50FPS",
-        "CAMERA_OS02N10_MIPI_RAW8_1920X1080_25FPS",
-        "CAMERA_OS02N10_MIPI_RAW10_1280X720_50FPS",
-        "CAMERA_OS02N10_MIPI_RAW10_1920X1080_25FPS",
-    ],
-    "OS04C10": [
-        "CAMERA_OS04C10_MIPI_RAW10_810X1080_30FPS",
-        "CAMERA_OS04C10_MIPI_RAW10_960X1280_30FPS",
-        "CAMERA_OS04C10_MIPI_RAW10_1280X720_25FPS",
-    ],
-    "OV2710": [
-        "CAMERA_OV2710_MIPI_RAW10_1280X720_25FPS",
-        "CAMERA_OV2710_MIPI_RAW10_1920X1080_25FPS",
-    ],
-    "OV5640": [
-        "CAMERA_OV5640_MIPI_RGB565_1280X720_14FPS",
-    ],
-    "OV5645": [
-        "CAMERA_OV5645_MIPI_RGB565_1280X960_30FPS",
-        "CAMERA_OV5645_MIPI_YUV420_1280X960_30FPS",
-        "CAMERA_OV5645_MIPI_YUV422_640X480_24FPS",
-        "CAMERA_OV5645_MIPI_YUV422_1280X960_30FPS",
-        "CAMERA_OV5645_MIPI_YUV422_1920X1080_15FPS",
-        "CAMERA_OV5645_MIPI_YUV422_2592X1944_15FPS",
-    ],
-    "OV5647": [
-        "CAMERA_OV5647_MIPI_RAW8_800X640_50FPS",
-        "CAMERA_OV5647_MIPI_RAW8_800X800_50FPS",
-        "CAMERA_OV5647_MIPI_RAW8_800X1280_50FPS",
-        "CAMERA_OV5647_MIPI_RAW10_1920X1080_30FPS",
-        "CAMERA_OV5647_MIPI_RAW10_1280X960_BINNING_45FPS",
-    ],
-    "OV9281": [
-        "CAMERA_OV9281_MIPI_RAW8_640X400_100FPS",
-        "CAMERA_OV9281_MIPI_RAW8_1280X720_50FPS",
-    ],
-    "SC035HGS": [
-        "CAMERA_SC035HGS_MIPI_RAW8_640X480_50FPS",
-        "CAMERA_SC035HGS_MIPI_RAW8_640X480_100FPS",
-        "CAMERA_SC035HGS_MIPI_RAW10_640X480_48FPS",
-        "CAMERA_SC035HGS_MIPI_RAW10_640X480_120FPS",
-    ],
-    "SC121AT": [
-        "CAMERA_SC121AT_MIPI_YUV422_1280X800_25FPS",
-        "CAMERA_SC121AT_MIPI_YUV422_1280X960_30FPS",
-    ],
-    "SC132GS": [
-        "CAMERA_SC132GS_MIPI_RAW10_544X640_60FPS",
-        "CAMERA_SC132GS_MIPI_RAW10_1080X1280_60FPS",
-    ],
-    "SC1346": [
-        "CAMERA_SC1346_MIPI_RAW10_1280X720_25FPS",
-        "CAMERA_SC1346_MIPI_RAW10_1280X720_30FPS",
-        "CAMERA_SC1346_MIPI_RAW8_1280X720_30FPS",
-    ],
-    "SC202CS": [
-        "CAMERA_SC202CS_MIPI_RAW8_1280X720_30FPS",
-        "CAMERA_SC202CS_MIPI_RAW8_1600X1200_30FPS",
-        "CAMERA_SC202CS_MIPI_RAW10_1600X900_30FPS",
-        "CAMERA_SC202CS_MIPI_RAW10_1600X1200_30FPS",
-    ],
-    "SC2331": [
-        "CAMERA_SC2331_MIPI_RAW8_1280X720_25FPS",
-        "CAMERA_SC2331_MIPI_RAW8_1280X720_30FPS",
-        "CAMERA_SC2331_MIPI_RAW8_1920X1080_5FPS",
-        "CAMERA_SC2331_MIPI_RAW8_1920X1080_25FPS",
-        "CAMERA_SC2331_MIPI_RAW10_1920X1080_25FPS",
-        "CAMERA_SC2331_MIPI_RAW8_1920X1080_30FPS",
-    ],
-    "SC2336": [
-        "CAMERA_SC2336_MIPI_RAW8_800X800_30FPS",
-        "CAMERA_SC2336_MIPI_RAW8_1024X600_30FPS",
-        "CAMERA_SC2336_MIPI_RAW8_1280X720_30FPS",
-        "CAMERA_SC2336_MIPI_RAW8_1920X1080_30FPS",
-        "CAMERA_SC2336_MIPI_RAW10_640X480_50FPS",
-        "CAMERA_SC2336_MIPI_RAW10_800X800_30FPS",
-        "CAMERA_SC2336_MIPI_RAW10_1280X720_30FPS",
-        "CAMERA_SC2336_MIPI_RAW10_1280X720_50FPS",
-        "CAMERA_SC2336_MIPI_RAW10_1280X720_60FPS",
-        "CAMERA_SC2336_MIPI_RAW10_1920X1080_25FPS_1_LANE",
-        "CAMERA_SC2336_MIPI_RAW10_1920X1080_25FPS_2_LANE",
-        "CAMERA_SC2336_MIPI_RAW10_1920X1080_30FPS",
-    ],
-    "SC2337P": [
-        "CAMERA_SC2337P_MIPI_RAW10_1088X1080_30FPS",
-        "CAMERA_SC2337P_MIPI_RAW10_1920X1080_30FPS",
-        "CAMERA_SC2337P_MIPI_RAW8_1920X1080_30FPS",
-    ],
-    "STI2250": [
-        "CAMERA_STI2250_MIPI_RAW8_800X600_50FPS",
-    ],
-    "TC358743": [
-        "CAMERA_TC358743_MIPI_RGB888_1920X1080_30FPS",
-        "CAMERA_TC358743_MIPI_YUV422_1920X1080_30FPS",
-    ],
+import re
+
+_RESOLUTION = re.compile(r"_(\d+)X(\d+)_")
+
+SENSOR_FORMATS: dict[str, tuple[str, ...]] = {
+    "GC2053": (
+        "RAW10_1920X1080_30FPS",
+        "RAW8_1920X1080_25FPS",
+    ),
+    "GC2145": (
+        "RGB565_640X480_15FPS",
+        "RGB565_800X600_30FPS",
+        "RGB565_1600X1200_7FPS",
+    ),
+    "GC2607": ("RAW10_1920X1080_25FPS",),
+    "GC4053": ("RAW10_1440X1440_25FPS",),
+    "LT6911": (
+        "YUV422_1280X720_60FPS",
+        "YUV422_1920X1080_48FPS",
+    ),
+    "MIRA220": ("RAW8_1024X600_15FPS",),
+    "MIT245": (
+        "RAW8_1920X1080_30FPS",
+        "RAW10_1920X1080_30FPS",
+    ),
+    "OS02N10": (
+        "RAW8_960X540_25FPS",
+        "RAW8_1280X720_50FPS",
+        "RAW8_1920X1080_25FPS",
+        "RAW10_1280X720_50FPS",
+        "RAW10_1920X1080_25FPS",
+    ),
+    "OS04C10": (
+        "RAW10_810X1080_30FPS",
+        "RAW10_960X1280_30FPS",
+        "RAW10_1280X720_25FPS",
+    ),
+    "OV2710": (
+        "RAW10_1280X720_25FPS",
+        "RAW10_1920X1080_25FPS",
+    ),
+    "OV5640": ("RGB565_1280X720_14FPS",),
+    "OV5645": (
+        "RGB565_1280X960_30FPS",
+        "YUV420_1280X960_30FPS",
+        "YUV422_640X480_24FPS",
+        "YUV422_1280X960_30FPS",
+        "YUV422_1920X1080_15FPS",
+        "YUV422_2592X1944_15FPS",
+    ),
+    "OV5647": (
+        "RAW8_800X640_50FPS",
+        "RAW8_800X800_50FPS",
+        "RAW8_800X1280_50FPS",
+        "RAW10_1920X1080_30FPS",
+        "RAW10_1280X960_BINNING_45FPS",
+    ),
+    "OV9281": (
+        "RAW8_640X400_100FPS",
+        "RAW8_1280X720_50FPS",
+    ),
+    "SC035HGS": (
+        "RAW8_640X480_50FPS",
+        "RAW8_640X480_100FPS",
+        "RAW10_640X480_48FPS",
+        "RAW10_640X480_120FPS",
+    ),
+    "SC121AT": (
+        "YUV422_1280X800_25FPS",
+        "YUV422_1280X960_30FPS",
+    ),
+    "SC132GS": (
+        "RAW10_544X640_60FPS",
+        "RAW10_1080X1280_60FPS",
+    ),
+    "SC1346": (
+        "RAW10_1280X720_25FPS",
+        "RAW10_1280X720_30FPS",
+        "RAW8_1280X720_30FPS",
+    ),
+    "SC202CS": (
+        "RAW8_1280X720_30FPS",
+        "RAW8_1600X1200_30FPS",
+        "RAW10_1600X900_30FPS",
+        "RAW10_1600X1200_30FPS",
+    ),
+    "SC2331": (
+        "RAW8_1280X720_25FPS",
+        "RAW8_1280X720_30FPS",
+        "RAW8_1920X1080_5FPS",
+        "RAW8_1920X1080_25FPS",
+        "RAW10_1920X1080_25FPS",
+        "RAW8_1920X1080_30FPS",
+    ),
+    "SC2336": (
+        "RAW8_800X800_30FPS",
+        "RAW8_1024X600_30FPS",
+        "RAW8_1280X720_30FPS",
+        "RAW8_1920X1080_30FPS",
+        "RAW10_640X480_50FPS",
+        "RAW10_800X800_30FPS",
+        "RAW10_1280X720_30FPS",
+        "RAW10_1280X720_50FPS",
+        "RAW10_1280X720_60FPS",
+        "RAW10_1920X1080_25FPS_1_LANE",
+        "RAW10_1920X1080_25FPS_2_LANE",
+        "RAW10_1920X1080_30FPS",
+    ),
+    "SC2337P": (
+        "RAW10_1088X1080_30FPS",
+        "RAW10_1920X1080_30FPS",
+        "RAW8_1920X1080_30FPS",
+    ),
+    "STI2250": ("RAW8_800X600_50FPS",),
+    "TC358743": (
+        "RGB888_1920X1080_30FPS",
+        "YUV422_1920X1080_30FPS",
+    ),
 }
+
+
+def format_resolution(fmt: str) -> tuple[int, int]:
+    """Width and height of a format suffix such as `RAW10_1920X1080_30FPS`."""
+    width, height = _RESOLUTION.search(fmt).groups()
+    return int(width), int(height)
+
+
+def sensor_formats(sensor: str, resolution: list[int] | None) -> list[str]:
+    """Formats of `sensor` that capture `resolution`, or all of them without one."""
+    formats = SENSOR_FORMATS[sensor]
+    if resolution is None:
+        return list(formats)
+    return [fmt for fmt in formats if format_resolution(fmt) == tuple(resolution)]

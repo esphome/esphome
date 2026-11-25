@@ -19,21 +19,11 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include "jpeg_encoder.h"
 
 namespace esphome::mipi_csi {
-
-/// Raw capture format requested from the video device.
-///
-/// Only formats the hardware JPEG encoder can consume are offered, because every captured frame is
-/// encoded to JPEG before it leaves this component.
-enum class PixelFormat : uint8_t {
-  PIXEL_FORMAT_RGB565,
-  PIXEL_FORMAT_RGB888,
-  PIXEL_FORMAT_YUV422,
-  PIXEL_FORMAT_GRAYSCALE,
-};
 
 /// Payload handed to the `on_image` automation.
 struct CameraImageData {
@@ -87,21 +77,27 @@ class MipiCsiImageReader : public camera::CameraImageReader {
 /// own, so there is nothing to configure here beyond enabling it at build time.
 class MipiCsiCamera final : public camera::Camera {
  public:
-  void set_sensor_name(const char *sensor_name) { this->sensor_name_ = sensor_name; }
+  /// @param fourcc V4L2 pixel format captured from the video device, which the encoder takes as
+  /// @p jpeg_input with @p bytes_per_pixel.
+  MipiCsiCamera(const char *sensor_name, i2c::InternalI2CBus *i2c_bus, uint32_t sccb_frequency, uint32_t fourcc,
+                uint8_t bytes_per_pixel, jpeg_enc_input_format_t jpeg_input, jpeg_down_sampling_type_t sub_sample,
+                uint8_t jpeg_quality, uint8_t frame_buffer_count, uint8_t framerate, uint32_t idle_update_interval)
+      : sensor_name_(sensor_name),
+        i2c_bus_(i2c_bus),
+        sccb_frequency_(sccb_frequency),
+        fourcc_(fourcc),
+        idle_update_interval_(idle_update_interval),
+        encoder_(jpeg_input, sub_sample, jpeg_quality),
+        bytes_per_pixel_(bytes_per_pixel),
+        frame_buffer_count_(frame_buffer_count),
+        framerate_(framerate) {}
+
   void set_resolution(uint16_t width, uint16_t height) {
     this->width_ = width;
     this->height_ = height;
   }
-  void set_pixel_format(PixelFormat format) { this->pixel_format_ = format; }
-  void set_jpeg_quality(uint8_t quality) { this->jpeg_quality_ = quality; }
-  void set_horizontal_flip(bool flip) { this->set_flip_(HORIZONTAL_FLIP_SET, HORIZONTAL_FLIP_VALUE, flip); }
-  void set_vertical_flip(bool flip) { this->set_flip_(VERTICAL_FLIP_SET, VERTICAL_FLIP_VALUE, flip); }
-  void set_framerate(uint8_t framerate) { this->framerate_ = framerate; }
-  void set_idle_update_interval(uint32_t interval) { this->idle_update_interval_ = interval; }
-  void set_frame_buffer_count(uint8_t count) { this->frame_buffer_count_ = count; }
-  void set_i2c_bus(i2c::InternalI2CBus *bus) { this->i2c_bus_ = bus; }
-  void set_sccb_frequency(uint32_t frequency) { this->sccb_frequency_ = frequency; }
-  void set_init_ldo(bool init_ldo) { this->init_ldo_ = init_ldo; }
+  /// Bits as in FLIP_*: whether each flip is configured, and its value.
+  void set_flip_flags(uint8_t flags) { this->flip_flags_ = flags; }
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
   void set_power_pin(GPIOPin *pin) { this->power_pin_ = pin; }
   void set_external_clock(int8_t pin, uint32_t frequency) {
@@ -127,87 +123,63 @@ class MipiCsiCamera final : public camera::Camera {
     size_t length;
   };
 
+  static constexpr uint8_t FLIP_HORIZONTAL_SET = 1 << 0;
+  static constexpr uint8_t FLIP_HORIZONTAL_ON = 1 << 1;
+  static constexpr uint8_t FLIP_VERTICAL_SET = 1 << 2;
+  static constexpr uint8_t FLIP_VERTICAL_ON = 1 << 3;
+
+  /// Releases everything setup() acquired and marks the component failed.
+  void fail_(const LogString *reason);
   bool start_external_clock_();
   bool init_video_();
   bool select_sensor_format_();
-  bool configure_device_();
-  bool start_streaming_();
-  void teardown_();
-  void report_throughput_(uint32_t now);
-  /// Logs every MIPI-CSI format the sensor offers, used when the configured resolution is rejected.
-  void log_sensor_formats_();
+  /// Returns the size of one raw frame, or 0 on failure.
+  size_t configure_device_();
+  bool start_streaming_(size_t frame_size);
+  /// Calls @p fn with every MIPI-CSI format the sensor offers.
+  template<typename F> void for_each_sensor_format_(F &&fn);
   /// Ranks two sensor formats of the same resolution against each other.
   bool is_better_sensor_format_(const esp_cam_sensor_format_t &candidate, const esp_cam_sensor_format_t &current) const;
   /// Reduces the configured frame rate to one the driver can actually produce.
   uint8_t resolve_framerate_(uint8_t sensor_fps) const;
   /// Applies a V4L2 user control, logging a warning if the sensor does not support it.
-  void apply_control_(uint32_t id, int32_t value, const char *name);
+  void apply_control_(uint32_t id, int32_t value, const LogString *name);
   /// Reads back the format the driver settled on, which the JPEG encoder has to match exactly.
-  bool read_back_format_(uint32_t expected_fourcc, uint8_t bytes_per_pixel, const char *name);
+  bool read_back_format_();
   bool has_requested_image_() const { return this->single_requesters_ != 0 || this->stream_requesters_ != 0; }
 
   static void capture_task(void *param);
 
-  static constexpr uint8_t HORIZONTAL_FLIP_SET = 1 << 0;
-  static constexpr uint8_t HORIZONTAL_FLIP_VALUE = 1 << 1;
-  static constexpr uint8_t VERTICAL_FLIP_SET = 1 << 2;
-  static constexpr uint8_t VERTICAL_FLIP_VALUE = 1 << 3;
-
-  void set_flip_(uint8_t set_bit, uint8_t value_bit, bool value) {
-    this->flip_flags_ |= set_bit;
-    if (value) {
-      this->flip_flags_ |= value_bit;
-    } else {
-      this->flip_flags_ &= ~value_bit;
-    }
-  }
-
-  bool flip_is_set_(uint8_t set_bit) const { return (this->flip_flags_ & set_bit) != 0; }
-  bool flip_value_(uint8_t value_bit) const { return (this->flip_flags_ & value_bit) != 0; }
-
-  const char *sensor_name_{""};
-  /// Configured capture size, or zero to keep whatever resolution the sensor driver starts with.
-  uint32_t sccb_frequency_{100000};
-  uint32_t idle_update_interval_{15000};
+  const char *sensor_name_;
+  i2c::InternalI2CBus *i2c_bus_;
+  uint32_t sccb_frequency_;
+  uint32_t fourcc_;
+  uint32_t idle_update_interval_;
   uint32_t xclk_frequency_{0};
-  uint16_t width_{0};
-  uint16_t height_{0};
-  PixelFormat pixel_format_{PixelFormat::PIXEL_FORMAT_RGB565};
-  uint8_t jpeg_quality_{40};
-  uint8_t framerate_{10};
-  uint8_t frame_buffer_count_{2};
-  uint8_t flip_flags_{0};
-  bool init_ldo_{true};
-  i2c::InternalI2CBus *i2c_bus_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *power_pin_{nullptr};
-  int8_t xclk_pin_{-1};
   int fd_{-1};
-  /// Frame size the driver reports and the encoder is set up for. A frame that arrives at a
-  /// different size did not come out of the pipeline we configured.
-  size_t expected_frame_size_{0};
-  // Rolling counters behind the throughput report, which tells whether the delivered frame rate is
-  // anywhere near the configured one.
-  uint32_t published_frames_{0};
-  size_t published_bytes_{0};
-  uint32_t last_stats_{0};
   FixedVector<FrameBuffer> buffers_;
   JpegEncoder encoder_;
   QueueHandle_t result_queue_{nullptr};
-  TaskHandle_t capture_task_handle_{nullptr};
-  /// Set by the main loop to ask the capture task for one frame, cleared by the task when done.
-  std::atomic<bool> frame_wanted_{false};
-
   std::shared_ptr<MipiCsiImage> reusable_image_;
   std::shared_ptr<MipiCsiImage> current_image_;
   std::vector<camera::CameraListener *> listeners_;
-  std::atomic<uint8_t> single_requesters_{0};
-  std::atomic<uint8_t> stream_requesters_{0};
-  /// Requesters recorded when the frame currently being captured was asked for.
-  uint8_t pending_requesters_{0};
-  uint32_t update_interval_{100};
   uint32_t last_request_{0};
   uint32_t last_idle_request_{0};
+  uint16_t width_{0};
+  uint16_t height_{0};
+  uint8_t bytes_per_pixel_;
+  uint8_t frame_buffer_count_;
+  uint8_t framerate_;
+  uint8_t flip_flags_{0};
+  int8_t xclk_pin_{-1};
+  /// Requesters recorded when the frame currently being captured was asked for.
+  uint8_t pending_requesters_{0};
+  std::atomic<uint8_t> single_requesters_{0};
+  std::atomic<uint8_t> stream_requesters_{0};
+  /// Set by the main loop to ask the capture task for one frame, cleared by the task when done.
+  std::atomic<bool> frame_wanted_{false};
 };
 
 class MipiCsiImageTrigger final : public Trigger<CameraImageData>, public camera::CameraListener {

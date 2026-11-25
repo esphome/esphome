@@ -3,7 +3,6 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 
 #include <algorithm>
-#include <array>
 #include <cerrno>
 #include <cinttypes>
 #include <cstring>
@@ -33,97 +32,32 @@ static constexpr BaseType_t CAPTURE_TASK_CORE = tskNO_AFFINITY;
 #else
 static constexpr BaseType_t CAPTURE_TASK_CORE = 1;
 #endif
-/// How often the delivered frame rate is summarised at debug level.
-static constexpr uint32_t THROUGHPUT_REPORT_INTERVAL_MS = 5000;
 /// How long the capture task waits before retrying after a dequeue error.
 static constexpr uint32_t CAPTURE_RETRY_DELAY_MS = 100;
-
-/// How a configured pixel format maps onto the video device and the JPEG encoder.
-struct FormatMapping {
-  uint32_t fourcc;
-  jpeg_enc_input_format_t jpeg_input;
-  jpeg_down_sampling_type_t sub_sample;
-  uint8_t bytes_per_pixel;
-  const char *name;
-};
-
-static constexpr std::array<FormatMapping, 4> FORMAT_MAPPINGS{{
-    {V4L2_PIX_FMT_RGB565, JPEG_ENCODE_IN_FORMAT_RGB565, JPEG_DOWN_SAMPLING_YUV422, 2, "RGB565"},
-    {V4L2_PIX_FMT_RGB24, JPEG_ENCODE_IN_FORMAT_RGB888, JPEG_DOWN_SAMPLING_YUV444, 3, "RGB888"},
-    {V4L2_PIX_FMT_UYVY, JPEG_ENCODE_IN_FORMAT_YUV422, JPEG_DOWN_SAMPLING_YUV422, 2, "YUV422"},
-    {V4L2_PIX_FMT_GREY, JPEG_ENCODE_IN_FORMAT_GRAY, JPEG_DOWN_SAMPLING_GRAY, 1, "GRAYSCALE"},
-}};
-
-static constexpr const FormatMapping &get_format_mapping(PixelFormat format) {
-  return FORMAT_MAPPINGS[static_cast<uint8_t>(format)];
-}
-
-/// Holds the four characters of a fourcc code plus a terminator, for logging.
-using FourccName = char[5];
-
-static void format_fourcc(uint32_t fourcc, FourccName out) {
-  out[0] = static_cast<char>(fourcc & 0xFF);
-  out[1] = static_cast<char>((fourcc >> 8) & 0xFF);
-  out[2] = static_cast<char>((fourcc >> 16) & 0xFF);
-  out[3] = static_cast<char>((fourcc >> 24) & 0xFF);
-  out[4] = '\0';
-}
 
 /* ---------------- MipiCsiCamera: setup ---------------- */
 
 void MipiCsiCamera::setup() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-  }
-  if (this->power_pin_ != nullptr) {
-    this->power_pin_->setup();
-    this->power_pin_->digital_write(true);
-  }
+  setup_output_pin(this->power_pin_, true);
+  pulse_reset(this->reset_pin_, {.low_ms = 10, .high_after_ms = 20});
 
-  if (!this->start_external_clock_()) {
-    this->teardown_();
-    this->mark_failed(LOG_STR("Failed to start external clock"));
-    return;
-  }
-
-  if (!this->init_video_()) {
-    this->teardown_();
-    this->mark_failed(LOG_STR("Failed to initialize video pipeline"));
-    return;
-  }
-
-  if (!this->configure_device_()) {
-    this->teardown_();
-    this->mark_failed(LOG_STR("Failed to configure video device"));
-    return;
-  }
+  if (!this->start_external_clock_())
+    return this->fail_(LOG_STR("Failed to start external clock"));
+  if (!this->init_video_())
+    return this->fail_(LOG_STR("Failed to initialize video pipeline"));
+  const size_t frame_size = this->configure_device_();
+  if (frame_size == 0)
+    return this->fail_(LOG_STR("Failed to configure video device"));
 
   this->reusable_image_ = std::make_shared<MipiCsiImage>();
-
-  this->update_interval_ = 1000 / this->framerate_;
   this->result_queue_ = xQueueCreate(1, sizeof(size_t));
-  if (this->result_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Not enough memory for the frame queue");
-    this->teardown_();
-    this->mark_failed(LOG_STR("Failed to create frame queue"));
-    return;
-  }
-
-  if (!this->start_streaming_()) {
-    this->teardown_();
-    this->mark_failed(LOG_STR("Failed to start video stream"));
-    return;
-  }
-
+  if (this->result_queue_ == nullptr)
+    return this->fail_(LOG_STR("Failed to create frame queue"));
+  if (!this->start_streaming_(frame_size))
+    return this->fail_(LOG_STR("Failed to start video stream"));
   if (xTaskCreatePinnedToCore(&MipiCsiCamera::capture_task, "mipi_csi", CAPTURE_TASK_STACK_SIZE, this,
-                              CAPTURE_TASK_PRIORITY, &this->capture_task_handle_, CAPTURE_TASK_CORE) != pdPASS) {
-    ESP_LOGE(TAG, "Not enough memory to start the capture task");
-    this->capture_task_handle_ = nullptr;
-    this->teardown_();
-    this->mark_failed(LOG_STR("Failed to start capture task"));
-    return;
-  }
+                              CAPTURE_TASK_PRIORITY, nullptr, CAPTURE_TASK_CORE) != pdPASS)
+    return this->fail_(LOG_STR("Failed to start capture task"));
 }
 
 bool MipiCsiCamera::start_external_clock_() {
@@ -167,9 +101,9 @@ bool MipiCsiCamera::init_video_() {
   csi_config.sccb_config.freq = this->sccb_frequency_;
   csi_config.reset_pin = GPIO_NUM_NC;
   csi_config.pwdn_pin = GPIO_NUM_NC;
-  // When another peripheral already powers the D-PHY rail, claiming it a second time fails and
-  // takes the whole camera down with it, so in that case it is left alone.
-  csi_config.dont_init_ldo = !this->init_ldo_;
+#ifdef USE_MIPI_CSI_EXTERNAL_LDO
+  csi_config.dont_init_ldo = true;
+#endif
 
   esp_video_init_config_t video_config{};
   video_config.csi = &csi_config;
@@ -179,12 +113,17 @@ bool MipiCsiCamera::init_video_() {
   err = esp_video_init_with_flags(&video_config, ESP_VIDEO_INIT_FLAGS_MIPI_CSI | ESP_VIDEO_INIT_FLAGS_ISP);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Camera sensor initialization failed: %s", esp_err_to_name(err));
-    if (this->init_ldo_) {
-      ESP_LOGE(TAG, "If another peripheral already powers the camera's supply rail, set 'init_ldo: false'");
-    }
     return false;
   }
   return true;
+}
+
+template<typename F> void MipiCsiCamera::for_each_sensor_format_(F &&fn) {
+  v4l2_sensor_format_enum enumerator{};
+  for (enumerator.index = 0; ioctl(this->fd_, VIDIOC_ENUM_SENSOR_FMT, &enumerator) == 0; enumerator.index++) {
+    if (enumerator.format.port == ESP_CAM_SENSOR_MIPI_CSI)
+      fn(enumerator.format);
+  }
 }
 
 bool MipiCsiCamera::select_sensor_format_() {
@@ -198,22 +137,21 @@ bool MipiCsiCamera::select_sensor_format_() {
     }
   } else {
     bool found = false;
-    v4l2_sensor_format_enum enumerator{};
-    for (enumerator.index = 0; ioctl(this->fd_, VIDIOC_ENUM_SENSOR_FMT, &enumerator) == 0; enumerator.index++) {
-      const esp_cam_sensor_format_t &candidate = enumerator.format;
-      if (candidate.port != ESP_CAM_SENSOR_MIPI_CSI || candidate.width != this->width_ ||
-          candidate.height != this->height_) {
-        continue;
-      }
+    this->for_each_sensor_format_([&](const esp_cam_sensor_format_t &candidate) {
+      if (candidate.width != this->width_ || candidate.height != this->height_)
+        return;
       if (!found || this->is_better_sensor_format_(candidate, chosen)) {
         chosen = candidate;
         found = true;
       }
-    }
+    });
 
     if (!found) {
       ESP_LOGE(TAG, "The sensor cannot capture %ux%u. Supported resolutions are:", this->width_, this->height_);
-      this->log_sensor_formats_();
+      this->for_each_sensor_format_([](const esp_cam_sensor_format_t &format) {
+        ESP_LOGE(TAG, "  %ux%u at %u fps (%s)", format.width, format.height, format.fps,
+                 format.name != nullptr ? format.name : LOG_STR_LITERAL("unnamed"));
+      });
       return false;
     }
 
@@ -235,17 +173,6 @@ bool MipiCsiCamera::select_sensor_format_() {
   return true;
 }
 
-void MipiCsiCamera::log_sensor_formats_() {
-  v4l2_sensor_format_enum enumerator{};
-  for (enumerator.index = 0; ioctl(this->fd_, VIDIOC_ENUM_SENSOR_FMT, &enumerator) == 0; enumerator.index++) {
-    const esp_cam_sensor_format_t &format = enumerator.format;
-    if (format.port != ESP_CAM_SENSOR_MIPI_CSI)
-      continue;
-    ESP_LOGE(TAG, "  %ux%u at %u fps (%s)", format.width, format.height, format.fps,
-             format.name != nullptr ? format.name : LOG_STR_LITERAL("unnamed"));
-  }
-}
-
 bool MipiCsiCamera::is_better_sensor_format_(const esp_cam_sensor_format_t &candidate,
                                              const esp_cam_sensor_format_t &current) const {
   // Formats that carry ISP information are the RAW ones, and only those let the ISP run the image
@@ -257,10 +184,7 @@ bool MipiCsiCamera::is_better_sensor_format_(const esp_cam_sensor_format_t &cand
   // can reach the configured rate exactly.
   const bool candidate_fits = candidate.fps != 0 && candidate.fps % this->framerate_ == 0;
   const bool current_fits = current.fps != 0 && current.fps % this->framerate_ == 0;
-  if (candidate_fits != current_fits)
-    return candidate_fits;
-
-  return false;
+  return candidate_fits && !current_fits;
 }
 
 uint8_t MipiCsiCamera::resolve_framerate_(uint8_t sensor_fps) const {
@@ -269,39 +193,34 @@ uint8_t MipiCsiCamera::resolve_framerate_(uint8_t sensor_fps) const {
 
   // The driver slows the stream down by dropping whole frames, so it can only divide the sensor's
   // rate. Step down to the closest rate that divides it evenly.
-  for (uint8_t fps = std::min<uint8_t>(this->framerate_, sensor_fps); fps >= 1; fps--) {
-    if (sensor_fps % fps == 0) {
-      if (fps != this->framerate_) {
-        ESP_LOGW(TAG, "The sensor runs at %u fps, so %u fps is used instead of %u fps", sensor_fps, fps,
-                 this->framerate_);
-      }
-      return fps;
-    }
+  uint8_t fps = std::min(this->framerate_, sensor_fps);
+  while (sensor_fps % fps != 0)
+    fps--;
+  if (fps != this->framerate_) {
+    ESP_LOGW(TAG, "The sensor runs at %u fps, so %u fps is used instead of %u fps", sensor_fps, fps, this->framerate_);
   }
-  return sensor_fps;
+  return fps;
 }
 
-bool MipiCsiCamera::configure_device_() {
+size_t MipiCsiCamera::configure_device_() {
   this->fd_ = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR);
   if (this->fd_ < 0) {
     ESP_LOGE(TAG, "Opening %s failed: %s", ESP_VIDEO_MIPI_CSI_DEVICE_NAME, strerror(errno));
-    return false;
+    return 0;
   }
 
   if (!this->select_sensor_format_())
-    return false;
-
-  const FormatMapping mapping = get_format_mapping(this->pixel_format_);
+    return 0;
 
   v4l2_format format{};
   format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   format.fmt.pix.width = this->width_;
   format.fmt.pix.height = this->height_;
-  format.fmt.pix.pixelformat = mapping.fourcc;
+  format.fmt.pix.pixelformat = this->fourcc_;
   if (ioctl(this->fd_, VIDIOC_S_FMT, &format) != 0) {
-    ESP_LOGE(TAG, "The camera cannot deliver %s at %ux%u: %s", mapping.name, this->width_, this->height_,
-             strerror(errno));
-    return false;
+    ESP_LOGE(TAG, "The camera cannot deliver '%.4s' at %ux%u: %s", reinterpret_cast<const char *>(&this->fourcc_),
+             this->width_, this->height_, strerror(errno));
+    return 0;
   }
 
   // Must come after the format has been set, and not every sensor offers a choice of frame rates.
@@ -314,19 +233,19 @@ bool MipiCsiCamera::configure_device_() {
     ESP_LOGW(TAG, "The sensor kept its own frame rate: %s", strerror(errno));
   }
 
-  if (this->flip_is_set_(HORIZONTAL_FLIP_SET))
-    this->apply_control_(V4L2_CID_HFLIP, this->flip_value_(HORIZONTAL_FLIP_VALUE), "horizontal flip");
-  if (this->flip_is_set_(VERTICAL_FLIP_SET))
-    this->apply_control_(V4L2_CID_VFLIP, this->flip_value_(VERTICAL_FLIP_VALUE), "vertical flip");
+  if (this->flip_flags_ & FLIP_HORIZONTAL_SET)
+    this->apply_control_(V4L2_CID_HFLIP, (this->flip_flags_ & FLIP_HORIZONTAL_ON) != 0, LOG_STR("horizontal flip"));
+  if (this->flip_flags_ & FLIP_VERTICAL_SET)
+    this->apply_control_(V4L2_CID_VFLIP, (this->flip_flags_ & FLIP_VERTICAL_ON) != 0, LOG_STR("vertical flip"));
 
-  if (!this->read_back_format_(mapping.fourcc, mapping.bytes_per_pixel, mapping.name))
-    return false;
+  if (!this->read_back_format_())
+    return 0;
 
-  return this->encoder_.init(this->width_, this->height_, mapping.jpeg_input, mapping.sub_sample, this->jpeg_quality_,
-                             this->expected_frame_size_);
+  const size_t frame_size = static_cast<size_t>(this->width_) * this->height_ * this->bytes_per_pixel_;
+  return this->encoder_.init(this->width_, this->height_, frame_size) ? frame_size : 0;
 }
 
-bool MipiCsiCamera::read_back_format_(uint32_t expected_fourcc, uint8_t bytes_per_pixel, const char *name) {
+bool MipiCsiCamera::read_back_format_() {
   v4l2_format actual{};
   actual.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->fd_, VIDIOC_G_FMT, &actual) != 0) {
@@ -338,28 +257,24 @@ bool MipiCsiCamera::read_back_format_(uint32_t expected_fourcc, uint8_t bytes_pe
   // be set up for what actually comes out, not for what was requested. Only the geometry and the
   // pixel format are meaningful here: esp_video hands back the very struct it was given, so its
   // bytesperline and sizeimage fields stay at whatever the caller left them.
-  FourccName fourcc_name;
-  format_fourcc(actual.fmt.pix.pixelformat, fourcc_name);
-  ESP_LOGD(TAG, "Capture format: %" PRIu32 "x%" PRIu32 " '%s'", actual.fmt.pix.width, actual.fmt.pix.height,
-           fourcc_name);
+  const char *actual_fourcc = reinterpret_cast<const char *>(&actual.fmt.pix.pixelformat);
+  ESP_LOGD(TAG, "Capture format: %" PRIu32 "x%" PRIu32 " '%.4s'", actual.fmt.pix.width, actual.fmt.pix.height,
+           actual_fourcc);
 
   // A different pixel format means every byte of the frame would be read with the wrong layout, so
   // the encoder would turn out a corrupted picture rather than a wrong-looking one.
-  if (actual.fmt.pix.pixelformat != expected_fourcc) {
-    FourccName expected_name;
-    format_fourcc(expected_fourcc, expected_name);
-    ESP_LOGE(TAG, "The camera delivers '%s' instead of the configured %s ('%s'); pick another 'pixel_format'",
-             fourcc_name, name, expected_name);
+  if (actual.fmt.pix.pixelformat != this->fourcc_) {
+    ESP_LOGE(TAG, "The camera delivers '%.4s' instead of the configured '%.4s'; pick another 'pixel_format'",
+             actual_fourcc, reinterpret_cast<const char *>(&this->fourcc_));
     return false;
   }
 
   this->width_ = actual.fmt.pix.width;
   this->height_ = actual.fmt.pix.height;
-  this->expected_frame_size_ = static_cast<size_t>(this->width_) * this->height_ * bytes_per_pixel;
   return true;
 }
 
-void MipiCsiCamera::apply_control_(uint32_t id, int32_t value, const char *name) {
+void MipiCsiCamera::apply_control_(uint32_t id, int32_t value, const LogString *name) {
   v4l2_ext_control control{};
   control.id = id;
   control.value = value;
@@ -370,11 +285,11 @@ void MipiCsiCamera::apply_control_(uint32_t id, int32_t value, const char *name)
   controls.controls = &control;
 
   if (ioctl(this->fd_, VIDIOC_S_EXT_CTRLS, &controls) != 0) {
-    ESP_LOGW(TAG, "The sensor does not support %s", name);
+    ESP_LOGW(TAG, "The sensor does not support %s", LOG_STR_ARG(name));
   }
 }
 
-bool MipiCsiCamera::start_streaming_() {
+bool MipiCsiCamera::start_streaming_(size_t frame_size) {
   v4l2_requestbuffers request{};
   request.count = this->frame_buffer_count_;
   request.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -406,9 +321,9 @@ bool MipiCsiCamera::start_streaming_() {
     }
     this->buffers_.push_back({static_cast<uint8_t *>(data), buffer.length});
 
-    if (buffer.length < this->expected_frame_size_) {
+    if (buffer.length < frame_size) {
       ESP_LOGE(TAG, "Frame buffer %" PRIu32 " holds %" PRIu32 " bytes but a frame needs %zu", i, buffer.length,
-               this->expected_frame_size_);
+               frame_size);
       return false;
     }
 
@@ -426,37 +341,32 @@ bool MipiCsiCamera::start_streaming_() {
   return true;
 }
 
-void MipiCsiCamera::teardown_() {
-  if (this->capture_task_handle_ != nullptr) {
-    vTaskDelete(this->capture_task_handle_);
-    this->capture_task_handle_ = nullptr;
-  }
-
+void MipiCsiCamera::fail_(const LogString *reason) {
   if (this->result_queue_ != nullptr) {
     vQueueDelete(this->result_queue_);
     this->result_queue_ = nullptr;
   }
 
-  if (this->fd_ < 0)
-    return;
+  if (this->fd_ >= 0) {
+    // Ignored if the stream was never turned on: VIDIOC_STREAMOFF then just reports an error.
+    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(this->fd_, VIDIOC_STREAMOFF, &type);
 
-  // Ignored if the stream was never turned on: VIDIOC_STREAMOFF then just reports an error.
-  int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  ioctl(this->fd_, VIDIOC_STREAMOFF, &type);
+    for (auto &buffer : this->buffers_) {
+      munmap(buffer.data, buffer.length);
+    }
+    this->buffers_.release();
 
-  for (auto &buffer : this->buffers_) {
-    munmap(buffer.data, buffer.length);
+    close(this->fd_);
+    this->fd_ = -1;
   }
-  this->buffers_.release();
-
-  close(this->fd_);
-  this->fd_ = -1;
+  this->mark_failed(reason);
 }
 
-static const char *flip_state(bool is_set, bool value) {
-  if (!is_set)
-    return LOG_STR_LITERAL("default");
-  return value ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off");
+static const LogString *flip_state(uint8_t flags, uint8_t set_bit, uint8_t on_bit) {
+  if ((flags & set_bit) == 0)
+    return LOG_STR("default");
+  return (flags & on_bit) != 0 ? LOG_STR("on") : LOG_STR("off");
 }
 
 void MipiCsiCamera::dump_config() {
@@ -464,16 +374,21 @@ void MipiCsiCamera::dump_config() {
                 "MIPI-CSI camera '%s':\n"
                 "  Sensor: %s\n"
                 "  Resolution: %ux%u\n"
-                "  Capture format: %s\n"
+                "  Capture format: %.4s\n"
                 "  JPEG quality: %u\n"
                 "  Frame rate: %u fps\n"
                 "  Frame buffers: %u\n"
                 "  Flip: horizontal %s, vertical %s",
                 LOG_STR_ARG(this->get_log_name()), this->sensor_name_, this->width_, this->height_,
-                get_format_mapping(this->pixel_format_).name, this->jpeg_quality_, this->framerate_,
+                reinterpret_cast<const char *>(&this->fourcc_), this->encoder_.get_quality(), this->framerate_,
                 this->frame_buffer_count_,
-                flip_state(this->flip_is_set_(HORIZONTAL_FLIP_SET), this->flip_value_(HORIZONTAL_FLIP_VALUE)),
-                flip_state(this->flip_is_set_(VERTICAL_FLIP_SET), this->flip_value_(VERTICAL_FLIP_VALUE)));
+                LOG_STR_ARG(flip_state(this->flip_flags_, FLIP_HORIZONTAL_SET, FLIP_HORIZONTAL_ON)),
+                LOG_STR_ARG(flip_state(this->flip_flags_, FLIP_VERTICAL_SET, FLIP_VERTICAL_ON)));
+  if (this->xclk_pin_ >= 0) {
+    ESP_LOGCONFIG(TAG, "  External clock: GPIO%d at %" PRIu32 " Hz", this->xclk_pin_, this->xclk_frequency_);
+  }
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  Power Pin: ", this->power_pin_);
 }
 
 /* ---------------- MipiCsiCamera: capture ---------------- */
@@ -540,16 +455,12 @@ void MipiCsiCamera::loop() {
       this->reusable_image_->set_frame(this->encoder_.get_output_buffer(), length, this->pending_requesters_);
       this->current_image_ = this->reusable_image_;
       this->pending_requesters_ = 0;
-      this->published_frames_++;
-      this->published_bytes_ += length;
       for (auto *listener : this->listeners_) {
         listener->on_camera_image(this->current_image_);
       }
       return;
     }
   }
-
-  this->report_throughput_(now);
 
   // Ask Home Assistant's still image to refresh every so often even when nobody is watching.
   if (!this->has_requested_image_() && this->idle_update_interval_ != 0 &&
@@ -563,7 +474,7 @@ void MipiCsiCamera::loop() {
   if (this->current_image_ || this->frame_wanted_.load() || uxQueueMessagesWaiting(this->result_queue_) != 0 ||
       !this->has_requested_image_())
     return;
-  if (now - this->last_request_ < this->update_interval_)
+  if (now - this->last_request_ < 1000U / this->framerate_)
     return;
 
   this->pending_requesters_ = this->single_requesters_.exchange(0) | this->stream_requesters_.load();
@@ -572,21 +483,6 @@ void MipiCsiCamera::loop() {
 }
 
 /* ---------------- MipiCsiCamera: requests ---------------- */
-
-void MipiCsiCamera::report_throughput_(uint32_t now) {
-  if (now - this->last_stats_ < THROUGHPUT_REPORT_INTERVAL_MS)
-    return;
-  // Only interesting while frames are actually being delivered.
-  if (this->published_frames_ != 0) {
-    const uint32_t elapsed = now - this->last_stats_;
-    ESP_LOGD(TAG, "Delivered %" PRIu32 " frames in %" PRIu32 " ms (%.1f fps, avg %zu bytes), configured %u fps",
-             this->published_frames_, elapsed, this->published_frames_ * 1000.0f / elapsed,
-             static_cast<size_t>(this->published_bytes_ / this->published_frames_), this->framerate_);
-    this->published_frames_ = 0;
-    this->published_bytes_ = 0;
-  }
-  this->last_stats_ = now;
-}
 
 void MipiCsiCamera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
 
