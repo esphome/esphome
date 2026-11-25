@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from esphome import automation
@@ -35,7 +34,6 @@ CONF_ON_HEARTBEAT = "on_heartbeat"
 CONF_ON_EMCY = "on_emcy"
 CONF_ON_NMT_STATE_CHANGE = "on_nmt_state_change"
 CONF_NMT_STARTUP = "nmt_startup"
-CONF_CANOPENNODE_PATH = "canopennode_path"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SDO_CLIENT = "sdo_client"
 CONF_SUBINDEX = "subindex"
@@ -128,11 +126,6 @@ CALLBACK_AUTOMATIONS = (
 )
 
 
-def absolute_path(value: Any) -> str:
-    # the zephyr library converter rejects relative file:// sources
-    return str(Path(cv.string(value)).expanduser().resolve())
-
-
 # 0x1017 (producer time) and response_timeout hold uint16 ms
 UINT16_MS = cv.All(
     cv.positive_time_period_milliseconds,
@@ -212,8 +205,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEVICE_NAME): cv.string,
             cv.Optional(CONF_HARDWARE_VERSION): cv.string,
             cv.Optional(CONF_SOFTWARE_VERSION): cv.string,
-            # local CANopenNode checkout instead of the registry package (development)
-            cv.Optional(CONF_CANOPENNODE_PATH): absolute_path,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_client_only,
@@ -264,23 +255,19 @@ def _final_validate(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def add_canopennode_library(path: str | None = None) -> None:
+def add_canopennode_library() -> None:
     """Add the CANopenNode library (also used by the C++ unit tests).
 
     Its target header (CO_driver_target.h) is in the library itself, so no include path is needed.
     """
     if CORE.is_esp32:
-        esp32.add_idf_component(
-            name="esphome/canopennode", ref=CANOPENNODE_VERSION, path=path
-        )
-    elif path is not None:
-        cg.add_library("CANopenNode", None, f"file://{path}")
+        esp32.add_idf_component(name="esphome/canopennode", ref=CANOPENNODE_VERSION)
     else:
         cg.add_library("esphome/CANopenNode", CANOPENNODE_VERSION)
 
 
 async def to_code(config: ConfigType) -> None:
-    add_canopennode_library(config.get(CONF_CANOPENNODE_PATH))
+    add_canopennode_library()
 
     canbus = await cg.get_variable(config[CONF_CANBUS_ID])
     var = cg.new_Pvariable(
