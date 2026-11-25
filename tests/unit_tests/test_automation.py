@@ -2005,7 +2005,7 @@ async def test_change_automations_single_registers_its_function(
     assert _registered_function(mock_cg) == (
         "light->add_remote_values_callback(esphome__automation_1__fn)",
         (
-            "static void esphome__automation_1__fn() { if (!(entered("
+            "static void esphome__automation_1__fn() { if (!(esphome::entered("
             "esphome__light__on_turn_on_0__last, ::light->remote_values.is_on()))) return; "
             f"::{NEW_OBJ}->trigger(); }}"
         ),
@@ -2058,9 +2058,29 @@ async def test_change_automations_changed_forwards_the_value(
     assert _statics(mock_cg) == ["static int esphome__fan__on_speed_set_0__last"]
     _, definition = _registered_function(mock_cg)
     assert (
-        "if (!(changed(esphome__fan__on_speed_set_0__last, ::fan->speed))) "
+        "if (!(esphome::changed(esphome__fan__on_speed_set_0__last, ::fan->speed))) "
         f"return; ::{NEW_OBJ}->trigger(::fan->speed);"
     ) in definition
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("change_filter", "helper"),
+    [(ChangeFilter.ENTERED, "entered"), (ChangeFilter.CHANGED, "changed")],
+)
+async def test_change_automations_qualify_the_helpers(
+    mock_cg: MockCodegen, change_filter: ChangeFilter, helper: str
+) -> None:
+    """The helpers are named with esphome::, so a YAML global called entered or changed cannot clash."""
+    entry = ChangeAutomation("on_x", change_filter, lambda parent: parent.value)
+    await build_change_automations(
+        LIGHT, {"on_x": [_conf(1)]}, "add_on_state_callback", (entry,)
+    )
+    _, definition = _registered_function(mock_cg)
+    assert (
+        f"if (!(esphome::{helper}(esphome__light__on_x_0__last, ::light->value)))"
+        in definition
+    )
 
 
 @pytest.mark.asyncio

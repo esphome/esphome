@@ -2505,9 +2505,11 @@ class ChangeAutomation:
     when: str | None = None
 
 
+# Qualified: cg.esphome_ns renders bare names, which a YAML global of the same name would make ambiguous
+_QUALIFIED_ESPHOME_NS = cg.global_ns.namespace("esphome")
 _CHANGE_HELPERS = {
-    ChangeFilter.ENTERED: cg.esphome_ns.entered,
-    ChangeFilter.CHANGED: cg.esphome_ns.changed,
+    ChangeFilter.ENTERED: _QUALIFIED_ESPHOME_NS.entered,
+    ChangeFilter.CHANGED: _QUALIFIED_ESPHOME_NS.changed,
 }
 
 
