@@ -176,7 +176,7 @@ class DMXComponent : public Component {
   }
 
  protected:
-  void publish_inputs_();
+  void publish_inputs_(size_t received_size);
   void send_universe_();
   void setup_rdm_();
   void sync_rdm_to_numbers_();
@@ -206,12 +206,12 @@ class DMXComponent : public Component {
   // Combined registry of fixed and dynamic RX sensor channels.
   std::vector<RdmChannel> rdm_channels_{};
 
-#if __has_include(<rdm/responder.h>)
+  #if __has_include(<rdm/responder.h>)
   // The RDM driver stores pointers to these definitions and descriptions.
   // Keep both vectors alive for the lifetime of the component.
   std::vector<std::string> rdm_descriptions_{};
   std::vector<rdm_parameter_definition_t> rdm_definitions_{};
-#endif
+  #endif
 
   [[no_unique_address]] SlotList<StaticChannelSensor, DMX_STATIC_SENSOR_COUNT> static_sensors_;
   [[no_unique_address]] SlotList<DynamicChannelSensor, DMX_DYNAMIC_SENSOR_COUNT> dynamic_sensors_;
