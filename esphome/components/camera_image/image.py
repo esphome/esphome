@@ -36,6 +36,9 @@ CONF_ON_IMAGE = "on_image"
 # camera's resolution is known, and read back by to_code.
 _KEY_DECODED_SIZE = "_decoded_size"
 
+# Bytes per pixel of the types a crop or rotation accepts.
+_BYTES_PER_PIXEL = {"GRAYSCALE": 1, "RGB565": 2, "RGB": 3}
+
 _CROP_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_X): cv.int_range(min=0, max=8192),
@@ -236,6 +239,18 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_TRANSPARENCY],
     )
 
+    # A rotation needs one scratch frame of the output size; a crop alone copies
+    # rows in place. It is a static buffer, in PSRAM when the build has it.
+    transform_buffer = cg.nullptr
+    transform_buffer_size = 0
+    if config[CONF_ROTATION]:
+        transform_buffer_size = (
+            output_width * output_height * _BYTES_PER_PIXEL[config[CONF_TYPE]]
+        )
+        transform_buffer = cg.static_buffer(
+            config[CONF_ID], cg.uint8, transform_buffer_size, psram=True
+        )
+
     camera_var = await cg.get_variable(config[CONF_CAMERA_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
@@ -247,6 +262,8 @@ async def to_code(config: ConfigType) -> None:
         settings.transparent,
         settings.placeholder or cg.nullptr,
         settings.byte_order_big_endian,
+        transform_buffer,
+        transform_buffer_size,
     )
     await cg.register_component(var, config)
 

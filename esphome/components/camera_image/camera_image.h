@@ -20,7 +20,8 @@ namespace esphome::camera_image {
 class CameraImage final : public PollingComponent, public runtime_image::RuntimeImage, public camera::CameraListener {
  public:
   CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format, image::ImageType type,
-              image::Transparency transparency, image::Image *placeholder, bool is_big_endian);
+              image::Transparency transparency, image::Image *placeholder, bool is_big_endian,
+              uint8_t *transform_buffer, size_t transform_buffer_size);
 
   void setup() override;
   void update() override;
@@ -66,9 +67,9 @@ class CameraImage final : public PollingComponent, public runtime_image::Runtime
   /// Size of the decoded frame, kept so a transformed frame does not resize the buffer.
   int decode_width_{0};
   int decode_height_{0};
-  /// Scratch buffer for rotation, allocated in setup() through RAMAllocator.
-  RAMUniquePtr<uint8_t[]> transform_buffer_;
-  size_t transform_buffer_size_{0};
+  /// Scratch buffer for rotation, a static buffer from code generation (nullptr when it could not be allocated).
+  uint8_t *transform_buffer_;
+  size_t transform_buffer_size_;
   uint16_t rotation_{0};
   bool waiting_{false};
   LazyCallbackManager<void()> on_image_callback_{};

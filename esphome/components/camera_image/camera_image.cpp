@@ -3,6 +3,7 @@
 #ifdef USE_CAMERA_IMAGE
 
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cstdint>
 #include <cstring>
@@ -18,22 +19,7 @@ static constexpr uint32_t REQUEST_TIMEOUT_ID = 0;
 
 namespace {
 
-/// Reads better in dump_config than the raw enum value.
-const LogString *image_type_name(image::ImageType type) {
-  switch (type) {
-    case image::IMAGE_TYPE_BINARY:
-      return LOG_STR("BINARY");
-    case image::IMAGE_TYPE_GRAYSCALE:
-      return LOG_STR("GRAYSCALE");
-    case image::IMAGE_TYPE_RGB:
-      return LOG_STR("RGB");
-    case image::IMAGE_TYPE_RGB565:
-      return LOG_STR("RGB565");
-    case image::IMAGE_TYPE_RGB111:
-      return LOG_STR("RGB111");
-  }
-  return LOG_STR("UNKNOWN");
-}
+PROGMEM_STRING_TABLE(ImageTypeStrings, "BINARY", "GRAYSCALE", "RGB", "RGB565", "RGB111", "UNKNOWN");
 
 /// Rotates the crop rectangle into `output`. The pixel size is a template
 /// parameter, so every copy has a compile-time length the compiler inlines
@@ -75,27 +61,17 @@ void rotate_crop_into(uint8_t *output, const uint8_t *crop, int crop_width, int 
 
 CameraImage::CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
-                         bool is_big_endian)
-    : RuntimeImage(format, type, transparency, placeholder, is_big_endian, width, height), camera_(camera) {}
+                         bool is_big_endian, uint8_t *transform_buffer, size_t transform_buffer_size)
+    : RuntimeImage(format, type, transparency, placeholder, is_big_endian, width, height),
+      camera_(camera),
+      transform_buffer_(transform_buffer),
+      transform_buffer_size_(transform_buffer_size) {}
 
 void CameraImage::setup() {
   this->camera_->add_listener(this);
 
   // A crop only copies rows in place, so only a rotation needs scratch memory.
-  if (this->rotation_ == 0 || this->transform_width_ <= 0 || this->transform_height_ <= 0)
-    return;
-
-  const size_t bytes_per_pixel = (this->get_bpp() + 7) / 8;
-  const uint64_t bytes_64 = static_cast<uint64_t>(this->transform_width_) *
-                            static_cast<uint64_t>(this->transform_height_) * static_cast<uint64_t>(bytes_per_pixel);
-  if (bytes_64 > SIZE_MAX) {
-    this->mark_failed(LOG_STR("Crop/rotation buffer size overflows"));
-    return;
-  }
-
-  this->transform_buffer_size_ = static_cast<size_t>(bytes_64);
-  this->transform_buffer_ = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(this->transform_buffer_size_);
-  if (!this->transform_buffer_) {
+  if (this->rotation_ != 0 && this->transform_buffer_ == nullptr) {
     this->mark_failed(LOG_STR("Could not allocate the rotation buffer"));
   }
 }
@@ -233,13 +209,11 @@ bool CameraImage::apply_crop_rotation_() {
                    crop_origin + static_cast<size_t>(y) * source_stride, output_stride);
     }
   } else {
-    const size_t expected_size =
-        static_cast<size_t>(this->transform_width_) * static_cast<size_t>(this->transform_height_) * pixel_size;
-    if (this->transform_buffer_ == nullptr || output_size > expected_size) {
+    if (this->transform_buffer_ == nullptr || output_size > this->transform_buffer_size_) {
       ESP_LOGE(TAG, "No buffer allocated for a %dx%d crop/rotation", output_width, output_height);
       return false;
     }
-    uint8_t *output = this->transform_buffer_.get();
+    uint8_t *output = this->transform_buffer_;
     // Dispatch once per frame so each rotation loop copies a fixed-size pixel.
     switch (pixel_size) {
       case 1:
@@ -276,7 +250,7 @@ void CameraImage::dump_config() {
                 "  Format: %s\n"
                 "  Type: %s",
                 LOG_STR_ARG(runtime_image::get_format_name(this->get_format())),
-                LOG_STR_ARG(image_type_name(this->get_type())));
+                LOG_STR_ARG(ImageTypeStrings::get_log_str(this->get_type())));
   if (this->crop_width_ > 0) {
     ESP_LOGCONFIG(TAG, "  Crop: %d,%d %dx%d", this->crop_x_, this->crop_y_, this->crop_width_, this->crop_height_);
   }
