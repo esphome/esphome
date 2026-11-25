@@ -3,6 +3,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <thread>
 #include <unistd.h>
@@ -23,6 +24,14 @@ namespace esphome::tcp_uart::testing {
 class TcpUartConnectionsUnderTest : public TcpUart {
  public:
   uint8_t open_connections() const { return static_cast<uint8_t>(__builtin_popcount(this->up_mask_)); }
+  // Hands slot i one end of a local socket pair, as an accept would, and returns the client's end. Unlike loopback
+  // TCP its buffers never grow, so a client that stops reading stops the writes at a fixed point.
+  int adopt_socket_pair(uint8_t i) {
+    int peer_fd = -1;
+    tcp_uart::testing::adopt_socket_pair(this->slot_(i), &peer_fd);
+    this->slot_edge_(i);
+    return peer_fd;
+  }
 };
 
 // A server with two connection slots and a 100 ms turn timeout. Clients A and B are real TCP
@@ -115,6 +124,28 @@ class TcpUartTwoClients : public ::testing::Test {
     EXPECT_TRUE(this->uart_.read_array(reinterpret_cast<uint8_t *>(buf), n));
     return std::string(buf, n);
   }
+  // A asks "ping", which takes the turn; the consumer reads it and holds the turn for its reply.
+  void a_asks_and_holds() {
+    send(this->a_, "ping");
+    this->wait_for_bytes(4);
+    this->uart_.hold_turn();
+    EXPECT_EQ(this->read_all(), "ping");
+  }
+  // The consumer answers the current request; the next turn brings expected.
+  void answer_then_expect(const char *expected) {
+    this->uart_.hold_turn();
+    this->uart_.release_turn();
+    this->wait_for_bytes(strlen(expected));
+    EXPECT_EQ(this->read_all(), expected);
+  }
+  // A closes, and the loop runs until the UART saw it.
+  void close_a() {
+    ::close(this->a_);
+    this->a_ = -1;
+    for (int i = 0; i < 50 && this->uart_.open_connections() == 2; i++) {
+      this->loops(1);
+    }
+  }
   void write(const char *text) { this->uart_.write_array(reinterpret_cast<const uint8_t *>(text), strlen(text)); }
   // Writes text and returns what that logged. The test logger only prints while it has a baud rate.
   std::string write_logged(const char *text) {
@@ -174,37 +205,9 @@ TEST_F(TcpUartTwoClients, SecondClientWaitsUntilTheFirstIsQuietFor100ms) {
 }
 
 TEST_F(TcpUartTwoClients, HeldTurnStaysUntilReleased) {
-  send(this->a_, "ping");
-  this->wait_for_bytes(4);
-  this->uart_.hold_turn();
-  EXPECT_EQ(this->read_all(), "ping");
+  this->a_asks_and_holds();
 
   send(this->b_, "hi");
-  this->at(5000);
-  this->loops(3);
-  EXPECT_EQ(this->uart_.available(), 0u);
-
-  this->uart_.release_turn();
-  this->wait_for_bytes(2);
-  EXPECT_EQ(this->read_all(), "hi");
-}
-
-TEST_F(TcpUartTwoClients, ReleaseWaitsForTheBytesAlreadyRead) {
-  // A sends two requests, "1" and "2", that arrive in one read; both come before B's.
-  send(this->a_, "12");
-  this->wait_for_bytes(2);
-  send(this->b_, "hi");
-  this->uart_.hold_turn();
-  uint8_t request;
-  ASSERT_TRUE(this->uart_.read_byte(&request));
-  EXPECT_EQ(request, '1');
-  this->uart_.release_turn();
-  this->loops(3);
-
-  // The consumer takes "2" and holds the turn again for its reply.
-  this->uart_.hold_turn();
-  ASSERT_TRUE(this->uart_.read_byte(&request));
-  EXPECT_EQ(request, '2');
   this->at(5000);
   this->loops(3);
   EXPECT_EQ(this->uart_.available(), 0u);
@@ -226,10 +229,14 @@ TEST_F(TcpUartTwoClients, ReleasedTurnReadsNothingNewFromItsConnection) {
   this->uart_.release_turn();
   this->loops(3);
 
-  // The consumer takes "2" and holds the turn for its reply; meanwhile A sends "3".
+  // The consumer takes "2" and holds the turn for its reply; B waits.
   this->uart_.hold_turn();
   ASSERT_TRUE(this->uart_.read_byte(&request));
   EXPECT_EQ(request, '2');
+  this->at(5000);
+  this->loops(3);
+  EXPECT_EQ(this->uart_.available(), 0u);
+  // Meanwhile A sends "3".
   send(this->a_, "3");
   this->deliver();
   // "3" stays in A's socket for A's next turn.
@@ -268,10 +275,7 @@ TEST_F(TcpUartTwoClients, RequestSplitAfterAReleaseKeepsItsTurn) {
   EXPECT_EQ(this->read_all(), ".");
 
   // Request 3 is answered; then B has its turn.
-  this->uart_.hold_turn();
-  this->uart_.release_turn();
-  this->wait_for_bytes(2);
-  EXPECT_EQ(this->read_all(), "hi");
+  this->answer_then_expect("hi");
 }
 
 TEST_F(TcpUartTwoClients, RestOfASplitRequestIsAllTheReleasedTurnReads) {
@@ -283,14 +287,8 @@ TEST_F(TcpUartTwoClients, RestOfASplitRequestIsAllTheReleasedTurnReads) {
   EXPECT_EQ(this->read_all(), ".");
 
   // Request 2 is answered. B has the next turn, and A's "3." comes in the turn after it.
-  this->uart_.hold_turn();
-  this->uart_.release_turn();
-  this->wait_for_bytes(2);
-  EXPECT_EQ(this->read_all(), "hi");
-  this->uart_.hold_turn();
-  this->uart_.release_turn();
-  this->wait_for_bytes(2);
-  EXPECT_EQ(this->read_all(), "3.");
+  this->answer_then_expect("hi");
+  this->answer_then_expect("3.");
 }
 
 TEST_F(TcpUartTwoClients, ExactRestLeavesNoEmptyTurn) {
@@ -301,10 +299,7 @@ TEST_F(TcpUartTwoClients, ExactRestLeavesNoEmptyTurn) {
   EXPECT_EQ(this->read_all(), ".");
 
   // Request 2 is answered, then B's "hi".
-  this->uart_.hold_turn();
-  this->uart_.release_turn();
-  this->wait_for_bytes(2);
-  EXPECT_EQ(this->read_all(), "hi");
+  this->answer_then_expect("hi");
 
   // B is answered and asks again. A has nothing left, so B does not wait the 100 ms turn timeout for A.
   this->uart_.hold_turn();
@@ -318,11 +313,7 @@ TEST_F(TcpUartTwoClients, ClosingDuringItsTurnDropsItsBytes) {
   send(this->a_, "abc");
   this->wait_for_bytes(3);
   const uint16_t turn_of_a = this->uart_.turn();
-  ::close(this->a_);
-  this->a_ = -1;
-  for (int i = 0; i < 50 && this->uart_.open_connections() == 2; i++) {
-    this->loops(1);
-  }
+  this->close_a();
   EXPECT_EQ(this->uart_.available(), 0u);
   EXPECT_NE(this->uart_.turn(), turn_of_a);
   EXPECT_TRUE(this->uart_.is_connected());
@@ -352,11 +343,7 @@ TEST_F(TcpUartTwoClients, WriteAfterTheLastHolderClosedNeverReachesTheNextClient
   this->at(1100);
   this->loops(1);
   const uint16_t turn_of_a = this->uart_.turn();
-  ::close(this->a_);
-  this->a_ = -1;
-  for (int i = 0; i < 50 && this->uart_.open_connections() == 2; i++) {
-    this->loops(1);
-  }
+  this->close_a();
   // A's turn ended at 1100, but writes went to A until it closed, so the close changes the turn.
   EXPECT_NE(this->uart_.turn(), turn_of_a);
   // C takes the slot A left.
@@ -397,14 +384,41 @@ TEST_F(TcpUartTwoClients, FullPoolClosesTheClientQuietLongest) {
 class TcpUartThreeSlots : public TcpUartTwoClients {
  protected:
   TcpUartThreeSlots() { this->slots_ = 3; }
+
+  // C asks, then stops reading while its reply fills its socket, until a part stays in the TX buffer that all
+  // clients share. C's turn ends at 1000 ms. Then B asks. Returns C's turn.
+  uint16_t stall_c_then_b_asks() {
+    this->c_ = this->uart_.adopt_socket_pair(2);
+    send(this->c_, "1.");
+    this->wait_for_bytes(2);
+    const uint16_t turn_of_c = this->uart_.turn();
+    this->uart_.hold_turn();
+    EXPECT_EQ(this->read_all(), "1.");
+    this->fill_shared_tx();
+    EXPECT_LT(this->uart_.available_for_write(), 1024u);
+    this->uart_.release_turn();
+    send(this->b_, "hi");
+    this->deliver();
+    return turn_of_c;
+  }
+  // Writes 1024-byte blocks until a flush leaves bytes in the TX buffer that all clients share.
+  void fill_shared_tx() {
+    const std::string block(1024, 'x');
+    for (int i = 0; i < 1000 && this->uart_.flush() == uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; i++) {
+      this->write(block.c_str());
+    }
+  }
+  // Reads what reached C, as a client would.
+  void c_reads() {
+    char sink[4096];
+    while (::recv(this->c_, sink, sizeof(sink), MSG_DONTWAIT) > 0) {
+    }
+  }
 };
 
 TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseRequestWaits) {
   // A has the turn and holds it for its reply; B's request waits for its turn.
-  send(this->a_, "ping");
-  this->wait_for_bytes(4);
-  this->uart_.hold_turn();
-  EXPECT_EQ(this->read_all(), "ping");
+  this->a_asks_and_holds();
   send(this->b_, "hi");
   this->loops(3);
   EXPECT_EQ(this->uart_.available(), 0u);
@@ -423,6 +437,85 @@ TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseRequestWaits) {
   // A is answered; B's request is still there and gets the next turn.
   this->uart_.release_turn();
   this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
+}
+
+TEST_F(TcpUartThreeSlots, NextTurnWaitsUntilTheLastReplyLeftTheSharedBuffer) {
+  const uint16_t turn_of_c = this->stall_c_then_b_asks();
+
+  // B's request waits: its reply would need the buffer that still holds C's.
+  EXPECT_EQ(this->uart_.turn(), turn_of_c);
+  EXPECT_EQ(this->uart_.available(), 0u);
+
+  // C reads everything. Once its reply has left the buffer, B gets the turn and its reply reaches B alone.
+  for (int i = 0; i < 1000 && this->uart_.available() == 0; i++) {
+    this->c_reads();
+    this->loops(1);
+  }
+  EXPECT_NE(this->uart_.turn(), turn_of_c);
+  EXPECT_EQ(this->read_all(), "hi");
+  this->write("ok");
+  this->loops(1);
+  EXPECT_EQ(received(this->b_), "ok");
+  // C's last bytes arrived while it read; after them nothing more came.
+  this->c_reads();
+  EXPECT_EQ(received(this->c_), "");
+}
+
+TEST_F(TcpUartThreeSlots, ClientThatStopsReadingIsClosedAfterFiveSecondsWhileAnotherWaits) {
+  const uint16_t turn_of_c = this->stall_c_then_b_asks();
+  // C sends its next request but still reads nothing, so it never looks idle.
+  send(this->c_, "2.");
+
+  // At 5999 ms no byte of C's reply has left the buffer for 4999 ms: B still waits, C stays open.
+  this->at(5999);
+  this->deliver();
+  EXPECT_EQ(this->uart_.turn(), turn_of_c);
+  EXPECT_EQ(this->uart_.available(), 0u);
+  EXPECT_EQ(this->uart_.open_connections(), 3);
+
+  // At 6000 ms that is 5 s: C is closed and B gets the turn. B's reply reaches B alone.
+  this->at(6000);
+  this->loops(1);
+  EXPECT_EQ(this->uart_.open_connections(), 2);
+  EXPECT_FLOAT_EQ(this->disconnects_.state, 1);
+  EXPECT_EQ(this->read_all(), "hi");
+  this->write("ok");
+  this->loops(1);
+  EXPECT_EQ(received(this->b_), "ok");
+}
+
+TEST_F(TcpUartThreeSlots, BytesThatStallLongAfterTheTurnGetTheirOwnFiveSeconds) {
+  // C asks and is answered at once: its turn ends at 1000 ms and the shared buffer is empty.
+  this->c_ = this->uart_.adopt_socket_pair(2);
+  send(this->c_, "1.");
+  this->wait_for_bytes(2);
+  const uint16_t turn_of_c = this->uart_.turn();
+  this->uart_.hold_turn();
+  EXPECT_EQ(this->read_all(), "1.");
+  this->write("ok");
+  this->uart_.release_turn();
+  this->loops(1);
+
+  // At 10000 ms the device sends C more than C takes, as C reads no more, and fills the buffer to the top. B asks.
+  this->at(10000);
+  this->loops(1);
+  this->fill_shared_tx();
+  this->write(std::string(this->uart_.available_for_write(), 'y').c_str());
+  send(this->b_, "hi");
+  this->deliver();
+
+  // The 5 s count from 10000 ms, not from the end of C's turn: at 14999 ms B still waits and C stays open.
+  this->at(14999);
+  this->deliver();
+  EXPECT_EQ(this->uart_.turn(), turn_of_c);
+  EXPECT_EQ(this->uart_.open_connections(), 3);
+
+  // At 15000 ms C is closed and B gets the turn.
+  this->at(15000);
+  this->loops(1);
+  EXPECT_EQ(this->uart_.open_connections(), 2);
+  EXPECT_FLOAT_EQ(this->disconnects_.state, 1);
   EXPECT_EQ(this->read_all(), "hi");
 }
 
@@ -480,10 +573,7 @@ TEST_F(TcpUartIdleTimeout, ClientThatKeepsSendingStaysOpen) {
 
 TEST_F(TcpUartIdleTimeout, HeldTurnKeepsItsClientOpenUntilReleased) {
   // A's request takes the turn at 1000. Its reply takes 1500 ms, and the turn is held meanwhile.
-  send(this->a_, "ping");
-  this->wait_for_bytes(4);
-  this->uart_.hold_turn();
-  EXPECT_EQ(this->read_all(), "ping");
+  this->a_asks_and_holds();
   this->at(2500);
   this->loops(2);
   // A sent nothing for 1500 ms, but it waits for its reply. B, quiet since 1000, is closed.
@@ -502,10 +592,7 @@ TEST_F(TcpUartIdleTimeout, HeldTurnKeepsItsClientOpenUntilReleased) {
 
 TEST_F(TcpUartIdleTimeout, RequestWaitingForItsTurnKeepsItsClientOpen) {
   // As above, A's request takes the turn at 1000 and A holds it for its reply. This time B's request waits.
-  send(this->a_, "ping");
-  this->wait_for_bytes(4);
-  this->uart_.hold_turn();
-  EXPECT_EQ(this->read_all(), "ping");
+  this->a_asks_and_holds();
   send(this->b_, "hi");
   this->at(2500);
   this->loops(2);
@@ -516,6 +603,20 @@ TEST_F(TcpUartIdleTimeout, RequestWaitingForItsTurnKeepsItsClientOpen) {
   this->uart_.release_turn();
   this->wait_for_bytes(2);
   EXPECT_EQ(this->read_all(), "hi");
+}
+
+TEST_F(TcpUartIdleTimeout, UnreadRequestKeepsItsClientOpen) {
+  // A's request takes the turn at 1000, and the consumer leaves it unread. B sends nothing.
+  send(this->a_, "ping");
+  this->wait_for_bytes(4);
+
+  // At 2000 neither client has sent anything for 1000 ms. A's request still waits on the consumer, so only B is
+  // closed and the request stays readable.
+  this->at(2000);
+  this->loops(2);
+  EXPECT_EQ(received(this->b_), "<closed>");
+  EXPECT_EQ(this->uart_.open_connections(), 1);
+  EXPECT_EQ(this->read_all(), "ping");
 }
 
 TEST_F(TcpUartIdleTimeout, FullReceiveBufferKeepsItsOwnClientOpen) {

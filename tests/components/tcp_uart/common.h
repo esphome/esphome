@@ -4,6 +4,7 @@
 
 #include <arpa/inet.h>
 #include <cstdint>
+#include <memory>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -43,6 +44,14 @@ inline void connect_loopback(uint16_t port, int *fd) {
   ASSERT_GE(*fd, 0);
   struct sockaddr_in addr = loopback(port);
   ASSERT_EQ(::connect(*fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
+}
+
+// Hands link one end of a local socket pair, as an accept would, and stores the peer's end.
+inline void adopt_socket_pair(socket::TcpClientLinkBase &link, int *peer_fd) {
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  *peer_fd = fds[1];
+  link.adopt(std::make_unique<socket::Socket>(fds[0]));
 }
 
 inline void send_bytes(int fd, const void *data, size_t len) {

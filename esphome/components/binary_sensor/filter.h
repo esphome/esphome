@@ -6,6 +6,7 @@
 #include <array>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -13,7 +14,7 @@ namespace esphome::binary_sensor {
 
 class BinarySensor;
 
-class Filter {
+class Filter : public ChainNode<Filter, BinarySensor> {
  public:
   virtual optional<bool> new_value(bool value) = 0;
 
@@ -27,8 +28,6 @@ class Filter {
   /// Forget the last value and drop any pending scheduled output; called when the sensor's state is invalidated.
   virtual void reset();
 
-  Filter *next_{nullptr};
-  BinarySensor *parent_{nullptr};
   Deduplicator<bool> dedup_;
 };
 
