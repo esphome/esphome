@@ -72,7 +72,7 @@ CONF_HAIER_ID = "haier_id"
 
 AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = AirflowVerticalDirection.options(
-    "HEALTH_UP", "MAX_UP", "UP", "CENTER", "DOWN", "HEALTH_DOWN"
+    "HEALTH_UP", "MAX_UP", "UP", "CENTER", "DOWN", "MAX_DOWN", "HEALTH_DOWN"
 )
 
 AirflowHorizontalDirection = hon_protocol_ns.enum("HorizontalSwingMode", True)
@@ -93,7 +93,7 @@ SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
 }
 
 SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
-    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "SLEEP")
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "ECO", "SLEEP")
 }
 
 HonControlMethod = haier_ns.enum("HonControlMethod", True)
@@ -217,7 +217,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.int_range(min=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE),
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=["BOOST", "SLEEP"],  # No AWAY by default
+                        default=["BOOST", "ECO", "SLEEP"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS, upper=True)
                     ),
