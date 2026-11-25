@@ -9,7 +9,7 @@ One file per component, named after it:
 - [`ble_midi.md`](ble_midi.md): BLE MIDI client against a fake ESP32 instrument, every packet shape and the send actions
 - [`captive_portal.md`](captive_portal.md): fallback AP and /wifisave hammer
 - [`cse7766.md`](cse7766.md): Sonoff S31 and Athom plug parser checks over the API
-- [`espnow.md`](espnow.md): ESP8266 broadcast receive
+- [`espnow.md`](espnow.md): ESP8266 broadcast receive, packet_interface compression over UDP and ESP-NOW
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources, LibreTiny http_request, update and OTA on the RTL8720C
 - [`ld2420.md`](ld2420.md): hub setup and sensor states with a simulated module on a UART0 loopback (energy and simple mode)

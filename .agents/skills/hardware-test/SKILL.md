@@ -207,8 +207,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `entity_transport/trcheck.py` (remote entity values against the sender's)
 - `esp8266_edges/` (GPIO edge logger and 8N1 decoder, `jsn_sr04t` probe and counters, I2C bus sniffer and decoder, SDA
   unstick, VL53L1X register logger)
-- `esp8266_flash_prefs/` (Wi-Fi scan versus flash erase repro, interrupt load during the flash sync, reset and
-  restore driver, API hold, crash, heap and pulse rate summaries)
+- `esp8266_flash_prefs/` (Wi-Fi scan versus flash erase repro, interrupt load during the flash sync, reset and restore
+  driver, API hold, crash, heap and pulse rate summaries)
 - `esp8266_lock_load/` (DS18B20 search and one-pin IR DUTs with a busy-wait control, UDP and HTTP load, runner)
 - `espnow_link/` and `tcp_link/` (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
 - `ezo_fake_bus/` (fake EZO I2C bus and step config, runner)
@@ -258,14 +258,16 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `lognorm.py` (strips colours, timestamps and source line numbers from logs before a diff)
 - `lt_platform.py` (newest LibreTiny platform for the flash wrappers)
 - `lvgl_snapshot/` (LVGL snapshot and chart series dump header, package, PNG rebuilder)
+- `lzss_link/` (packet_interface compression config generator, checked JSON, hex and binary streams with wire checks and
+  codec timing, runner and summary)
 - `manual_ip/` (station and AP manual IP configs, DNS probe and runners)
 - `mcp23017/` (IOCON and INT test component, three interrupt wiring variants, runner)
 - `mcp251xfd/` (CAN FD loopback stream, queue, TX object, forced mode, chip reset and CS counter harness, package with
   loopback, CLASSIC window and bus-off configs, runner)
 - `mdns/` (unicast mDNS dump, hammer and latency)
 - `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards, AT commands for the UART
-  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow, OTA
-  flow, AT line filter, USB AT port client)
+  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow,
+  OTA flow, AT line filter, USB AT port client)
 - `mqtt/` (`ha_discovery/`, `disable/`, `retained_burst/` and `reconnect/` runners; broker config with TLS,
   client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner,
   flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards,
