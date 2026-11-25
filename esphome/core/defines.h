@@ -740,6 +740,8 @@
 #define USE_MICRO_WAKE_WORD
 #define USE_MICRO_WAKE_WORD_INTERNAL_RAM
 #define USE_MICRO_WAKE_WORD_VAD
+#define USE_TFLITE_MICRO_HELPER
+#define USE_TFLITE_MODEL_DEBUG
 #define USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
@@ -1021,7 +1023,3 @@
 #ifndef LV_GRADIENT_MAX_STOPS
 #define LV_GRADIENT_MAX_STOPS 7
 #endif
-
-// The TFLite Micro components compile under this guard; code generation emits
-// it too, but static analysis and IDE builds read this file.
-#define USE_TFLITE_MICRO_HELPER
