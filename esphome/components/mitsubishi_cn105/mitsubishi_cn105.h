@@ -11,8 +11,12 @@ namespace esphome::mitsubishi_cn105 {
 
 uint32_t get_loop_time_ms();
 
-// Checks the two fixed bytes after the packet type
-bool frame_header_valid(const uint8_t *frame);
+// PREAMBLE, packet type, HEADER_BYTE_1, HEADER_BYTE_2, payload length, payload, checksum
+static constexpr size_t MAX_FRAME_SIZE = 32;
+static constexpr size_t HEADER_LEN = 5;
+static constexpr uint8_t PREAMBLE = 0xFC;
+static constexpr uint8_t HEADER_BYTE_1 = 0x01;
+static constexpr uint8_t HEADER_BYTE_2 = 0x30;
 
 class MitsubishiCN105 {
  public:
@@ -201,10 +205,14 @@ class MitsubishiCN105 {
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
   PropertyContext property_context_;
-  // 0xFC, packet type, 0x01 0x30, payload length, payload, checksum
-  LengthFrameReader<
-      32, FrameFormat<FrameHeader<0xFC>,
-                      CheckedLength<PayloadLengthU8<LengthField{.offset = 4, .trailer = 1}>, 5, frame_header_valid>>>
+  // The type byte sits between PREAMBLE and the fixed header bytes, so FrameHeader cannot check them
+  static bool frame_header_valid(const uint8_t *frame) {
+    return frame[2] == HEADER_BYTE_1 && frame[3] == HEADER_BYTE_2;
+  }
+  LengthFrameReader<MAX_FRAME_SIZE,
+                    FrameFormat<FrameHeader<PREAMBLE>,
+                                CheckedLength<PayloadLengthU8<LengthField{.offset = HEADER_LEN - 1, .trailer = 1}>,
+                                              HEADER_LEN, frame_header_valid>>>
       reader_;
   uint8_t current_status_msg_type_{0};
 

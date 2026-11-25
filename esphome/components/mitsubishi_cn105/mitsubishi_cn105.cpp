@@ -13,10 +13,6 @@ ESPHOME_LOG_TAG(TAG, "mitsubishi_cn105.driver");
 static constexpr uint32_t RESPONSE_TIMEOUT_MS = 2000;
 
 static constexpr size_t REQUEST_PAYLOAD_LEN = 0x10;
-static constexpr size_t HEADER_LEN = 5;
-static constexpr uint8_t PREAMBLE = 0xFC;
-static constexpr uint8_t HEADER_BYTE_1 = 0x01;
-static constexpr uint8_t HEADER_BYTE_2 = 0x30;
 
 static constexpr uint8_t PACKET_TYPE_CONNECT_REQUEST = 0x5A;
 static constexpr uint8_t PACKET_TYPE_CONNECT_RESPONSE = 0x7A;
@@ -40,7 +36,7 @@ static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
 }
 
 static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
-  ESP_LOGVV_HEX(TAG, data, len, 32, "%s (%zu): %s", prefix, len);
+  ESP_LOGVV_HEX(TAG, data, len, MAX_FRAME_SIZE, "%s (%zu): %s", prefix, len);
 }
 
 template<std::size_t PayloadSize>
@@ -554,7 +550,5 @@ PROGMEM_STRING_TABLE(StateStrings, "Not connected", "Connecting", "Connected", "
                      "ApplyingSettings", "SettingsApplied", "ReadTimeout", "Unknown");
 
 const LogString *MitsubishiCN105::state_to_string(State state) { return StateStrings::get_log_str(state); }
-
-bool frame_header_valid(const uint8_t *frame) { return frame[2] == HEADER_BYTE_1 && frame[3] == HEADER_BYTE_2; }
 
 }  // namespace esphome::mitsubishi_cn105
