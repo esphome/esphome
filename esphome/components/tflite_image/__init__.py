@@ -137,7 +137,7 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
     return values
 
 
-def build_pipeline(config: ConfigType, model_path: Path):
+def build_pipeline(config: ConfigType, model_path: Path) -> cg.MockObj:
     """Create the frame pipeline a kind that consumes images reuses."""
     values = resolve_image_config(config, model_path)
     pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
@@ -160,7 +160,7 @@ def build_pipeline(config: ConfigType, model_path: Path):
     return pipeline
 
 
-async def configure(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var: cg.MockObj, config: ConfigType, model_path: Path) -> None:
     """Create the image pipeline and the classification decoder for one model."""
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
     decoder = cg.new_Pvariable(

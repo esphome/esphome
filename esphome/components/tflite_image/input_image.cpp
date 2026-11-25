@@ -51,8 +51,13 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
   }
   const int frame_width = this->frame_width_ > 0 ? this->frame_width_ : this->width_;
   const int frame_height = this->frame_height_ > 0 ? this->frame_height_ : this->height_;
-  const size_t frame_pixels = static_cast<size_t>(frame_width) * frame_height;
-  if (size < frame_pixels * 3) {
+  if (frame_width <= 0 || frame_height <= 0) {
+    ESP_LOGE(TAG, "Unusable frame size %dx%d", frame_width, frame_height);
+    return false;
+  }
+  // The frame size comes from the decoded image, so check the multiplication before trusting it.
+  const size_t frame_pixels = static_cast<size_t>(frame_width) * static_cast<size_t>(frame_height);
+  if (frame_pixels > SIZE_MAX / 3 || size < frame_pixels * 3) {
     ESP_LOGE(TAG, "Frame is %zu bytes, shorter than the %zu an %dx%d RGB888 frame needs", size, frame_pixels * 3,
              frame_width, frame_height);
     return false;
