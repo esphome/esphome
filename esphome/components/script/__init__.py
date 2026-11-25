@@ -250,24 +250,11 @@ async def to_code(config):
 
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
-    planned = [
-        (*script, await automation.plan_automation(script[2], script[3]))
-        for script in scripts
-    ]
-    # Scripts of one mode and parameters share the mode code only if they all take the same
-    # path; one that needs an Automation keeps the others on it too
-    needs_automation = {
-        (conf[CONF_MODE], str(template))
-        for _, template, _, conf, _, plan in planned
-        if not plan.direct
-    }
-    for late, template, _, conf, queued, plan in planned:
+
+    def define(late, template, conf, queued, plan, direct: bool) -> None:
         # The class or its constructor names the function, so it is declared in the script's place
         fn = automation.automation_or_run_function(
-            plan,
-            late.var,
-            late.global_slot.add,
-            direct=(conf[CONF_MODE], str(template)) not in needs_automation,
+            plan, late.var, late.global_slot.add, direct=direct
         )
         script_class = wait_class = late.id.type
         ctor_args = []
@@ -286,10 +273,27 @@ async def to_code(config):
         for create_wait in waits[late.id.id]:
             create_wait(wait_class)
         waits[late.id.id] = wait_class
+
+    # Scripts of one mode and parameters share the mode code only if they all take the same
+    # path, so one that needs an Automation keeps the others on it too. It is created at once,
+    # as is every on_stop, so later scripts can reach a hand-named one; the scripts that can
+    # run a function wait until every group is known.
+    needs_automation = set()
+    pending = []
+    for late, template, func_args, conf, queued in scripts:
+        plan = await automation.plan_automation(func_args, conf)
+        group = (conf[CONF_MODE], str(template))
+        if plan.direct:
+            pending.append((late, template, conf, queued, plan, group))
+        else:
+            needs_automation.add(group)
+            define(late, template, conf, queued, plan, direct=False)
         if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
             await automation.build_automation(
                 late.var.get_stop_trigger(), [], stop_conf
             )
+    for late, template, conf, queued, plan, group in pending:
+        define(late, template, conf, queued, plan, direct=group not in needs_automation)
 
 
 @automation.register_action(

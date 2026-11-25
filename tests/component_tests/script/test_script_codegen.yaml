@@ -41,7 +41,9 @@ script:
   - id: inline_restart
     mode: restart
     on_stop:
-      - logger.log: "RESTART stopped"
+      automation_id: restart_stop_auto
+      then:
+        - logger.log: "RESTART stopped"
     then:
       - logger.log: "RESTART run"
       - script.execute: inline_restart
@@ -154,3 +156,10 @@ script:
       unused: bool
     then:
       - script.wait: mixed_inline
+
+  # Uses Automations named by hand in earlier scripts
+  - id: reaches_named
+    then:
+      - lambda: |-
+          id(manual_automation_id)->stop();
+          id(restart_stop_auto)->stop();

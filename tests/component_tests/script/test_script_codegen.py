@@ -221,10 +221,13 @@ def test_script_needing_automation_keeps_its_group_on_it(generate_main) -> None:
     )
 
 
-def test_other_groups_still_run_functions(generate_main) -> None:
-    """A group without a script that needs an Automation keeps the shared function class."""
+def test_later_script_reaches_hand_named_automations(generate_main) -> None:
+    """An Automation named by hand, including an on_stop one, is created before later scripts
+    are built, so a lambda in a later script can use it."""
     main_cpp = generate_main(CONFIG)
-    queued = _mode_class("QueueingMode")
-    assert constructed(main_cpp, "inline_queued") == (
-        f"script::FunctionPointerScript<{queued}>(esphome__inline_queued__fn)"
+    body = _script_body(main_cpp, "reaches_named")
+    assert "manual_automation_id->stop();" in body
+    assert "restart_stop_auto->stop();" in body
+    assert _automation(main_cpp, r"inline_restart->get_stop_trigger\(\)") == (
+        "restart_stop_auto"
     )

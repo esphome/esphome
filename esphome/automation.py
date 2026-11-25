@@ -2205,15 +2205,11 @@ def _direct_function(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
-    id_: ID | None = None,
-    stoppable: bool = False,
-    add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj | None:
-    """The function that runs ``plan`` if it is direct, named after ``id_`` (default: its
-    first action); see ``_run_function``."""
+    """The function that runs ``plan`` if it is direct, named after its first action."""
     if not _is_direct(plan, config):
         return None
-    return _run_function(id_ or plan[0][0].id_, plan[0], args, stoppable, add_global_)
+    return _run_function(plan[0][0].id_, plan[0], args, stoppable=False)
 
 
 def _call_target(

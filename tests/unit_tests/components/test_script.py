@@ -219,8 +219,9 @@ async def test_script_needing_an_automation_keeps_its_group_on_it() -> None:
     assert [
         (str(c.args[1]), c.kwargs["direct"]) for c in build_or_run.call_args_list
     ] == [
-        ("inline_queued", False),
+        # Built at once, then the scripts that waited for their group
         ("delay_queued", False),
+        ("inline_queued", False),
         ("inline_queued_float", True),
         ("inline_single", True),
     ]
