@@ -16,8 +16,6 @@ static constexpr uint32_t FOLLOWUP_DELAY_MS = 1500;
 // At 9600 baud bytes within a frame arrive about 1 ms apart.
 static constexpr uint32_t RX_TIMEOUT_MS = 100;
 
-// Ten header bytes plus CRC8 and checksum.
-static constexpr size_t FRAME_OVERHEAD = 12;
 static constexpr size_t MAX_TX_PAYLOAD = 24;
 
 static constexpr float MIN_TARGET_TEMP = 16.0f;
@@ -106,17 +104,8 @@ void PortaSplitClimate::setup() {
 }
 
 void PortaSplitClimate::loop() {
-  const uint32_t now = App.get_loop_component_start_time();
-  uint8_t buf[32];
-  size_t n;
-  while ((n = std::min((size_t) this->available(), sizeof(buf))) != 0 && this->read_array(buf, n)) {
-    for (size_t i = 0; i < n; i++)
-      this->rx_feed_(buf[i]);
-    this->rx_last_byte_ = now;
-  }
-  // The line went quiet mid-frame; drop it so its bytes cannot swallow the next one.
-  if (this->rx_len_ != 0 && now - this->rx_last_byte_ > RX_TIMEOUT_MS)
-    this->rx_len_ = 0;
+  auto handle = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  this->read_frames(this->reader_, handle, App.get_loop_component_start_time(), this->rx_last_byte_, RX_TIMEOUT_MS);
 }
 
 void PortaSplitClimate::dump_config() {
@@ -256,30 +245,12 @@ void PortaSplitClimate::send_module_frame_(uint8_t type, uint8_t counter, uint8_
   this->write_array(f, sizeof(f));
 }
 
-void PortaSplitClimate::rx_feed_(uint8_t b) {
-  if (this->rx_len_ == 0 && b != 0xAA)
-    return;
-  this->rx_[this->rx_len_++] = b;
-  if (this->rx_len_ < 3)
-    return;
-  const size_t total = (size_t) this->rx_[1] + 1;
-  // Every frame carries the appliance type 0xAC; anything else is a false start.
-  if (this->rx_len_ == 3 && (total < FRAME_OVERHEAD || total > MAX_FRAME || this->rx_[2] != 0xAC)) {
-    this->rx_len_ = 0;
-    return;
-  }
-  if (this->rx_len_ < total)
-    return;
-  this->rx_len_ = 0;
-  if (checksum(this->rx_.data(), total - 1) != this->rx_[total - 1]) {
+bool PortaSplitClimate::handle_frame_(const uint8_t *f, size_t len) {
+  if (checksum(f, len - 1) != f[len - 1]) {
     ESP_LOGW(TAG, "RX checksum mismatch, dropping frame");
-    return;
+    return false;
   }
-  ESP_LOGV_HEX(TAG, this->rx_.data(), total, MAX_FRAME, "RX: %s");
-  this->handle_frame_(this->rx_.data(), total);
-}
-
-void PortaSplitClimate::handle_frame_(const uint8_t *f, size_t len) {
+  ESP_LOGV_HEX(TAG, f, len, MAX_FRAME, "RX: %s");
   if (f[9] == 0x63) {
     this->send_module_frame_(0x63, 0, 0x00);
   } else if (f[9] == 0x05 && f[10] == 0xB5) {
@@ -288,6 +259,7 @@ void PortaSplitClimate::handle_frame_(const uint8_t *f, size_t len) {
   } else if (f[10] == 0xC0) {
     this->handle_c0_(f, len);
   }
+  return true;
 }
 
 void PortaSplitClimate::handle_c0_(const uint8_t *f, size_t len) {

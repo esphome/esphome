@@ -9,14 +9,27 @@
 // Frame:  AA | LEN | AC | SYNC | 00 00 00 00 | PROTO | TYPE | PAYLOAD | CRC8 | CS
 
 #include "esphome/core/component.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
-
-#include <array>
 
 namespace esphome::midea_portasplit {
 
 static constexpr uint8_t FAN_AUTO = 102;
+
+static constexpr size_t MAX_FRAME = 128;
+// Ten header bytes plus CRC8 and checksum.
+static constexpr size_t FRAME_OVERHEAD = 12;
+
+// LEN counts every byte after the 0xAA start marker
+struct PortaSplitLength {
+  static constexpr size_t KNOWN_AT = 2;
+  static constexpr size_t get(const uint8_t *buf) { return size_t(buf[1]) + 1; }
+};
+// Every frame carries the appliance type 0xAC; anything else is a false start.
+inline bool is_ac_frame(const uint8_t *buf) { return buf[2] == 0xAC; }
+using PortaSplitFrame =
+    FrameFormat<FrameHeader<0xAA>, CheckedLength<PortaSplitLength, 3, is_ac_frame>, FrameMinLength<FRAME_OVERHEAD>>;
 
 class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, public Component {
  public:
@@ -28,8 +41,6 @@ class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, publ
   void control(const climate::ClimateCall &call) override;
 
  protected:
-  static constexpr size_t MAX_FRAME = 128;
-
   // The payload may live in PROGMEM.
   void send_frame_(uint8_t proto, uint8_t type, const uint8_t *payload, size_t len);
   void send_set_command_();
@@ -37,10 +48,10 @@ class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, publ
   void send_module_frame_(uint8_t type, uint8_t counter, uint8_t wifi_flags);
   void send_capability_queries_();
 
-  void rx_feed_(uint8_t b);
-  void handle_frame_(const uint8_t *f, size_t len);
+  bool handle_frame_(const uint8_t *f, size_t len);
   void handle_c0_(const uint8_t *f, size_t len);
 
+  LengthFrameReader<MAX_FRAME, PortaSplitFrame> reader_;
   uint32_t rx_last_byte_{0};
   // Last known device state, mirrored from C0 so a set command does not clobber it.
   uint8_t st_target_half_{48};  // Target temperature in half degrees
@@ -56,8 +67,6 @@ class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, publ
 
   uint8_t msg_id_{1};
   uint8_t net_counter_{0};
-  uint8_t rx_len_{0};
-  std::array<uint8_t, MAX_FRAME> rx_{};
 };
 
 }  // namespace esphome::midea_portasplit
