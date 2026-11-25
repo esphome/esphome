@@ -24,8 +24,8 @@ class DYPSensorTest : public ::testing::Test {
     this->sut_.set_uart_parent(&this->uart_);
     this->sut_.set_mode(DYPMode::DYP_MODE_AUTO);
     this->sut_.set_publish_mode(DYPPublishMode::DYP_PUBLISH_MODE_IMMEDIATE);
-    this->sut_.set_blind_zone(0.28f);
-    this->sut_.set_max_range(7.5f);
+    this->sut_.set_blind_zone_mm(280);
+    this->sut_.set_max_range_mm(7500);
     this->sut_.add_on_state_callback([this](float state) { this->published_.push_back(state); });
   }
 

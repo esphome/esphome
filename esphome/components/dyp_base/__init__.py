@@ -13,8 +13,6 @@ from esphome.const import (
     CONF_TRIGGER_PIN,
     DEVICE_CLASS_DISTANCE,
     ICON_ARROW_EXPAND_VERTICAL,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER,
 )
 from esphome.types import ConfigType
 
@@ -91,16 +89,9 @@ def _model_schema(model: DYPModel) -> cv.Schema:
     }
     if model.mode is None:
         extra[cv.Optional(CONF_MODE, default="AUTO")] = cv.enum(MODES, upper=True)
+    if model.mode != "AUTO":
         extra[cv.Optional(CONF_TRIGGER_PIN)] = pins.gpio_output_pin_schema
-        extra[cv.Optional(CONF_PUBLISH_MODE, default="INTERVAL")] = cv.enum(
-            PUBLISH_MODES, upper=True
-        )
-        if model.supports_rx_mode_select:
-            extra[cv.Optional(CONF_FILTER_MODE)] = cv.enum(FILTER_MODES, upper=True)
-            extra[cv.Optional(CONF_FILTER_MODE_PIN)] = pins.gpio_output_pin_schema
-    elif model.mode == "CONTROLLED":
-        extra[cv.Optional(CONF_TRIGGER_PIN)] = pins.gpio_output_pin_schema
-    elif model.mode == "AUTO":
+    if model.mode != "CONTROLLED":
         extra[cv.Optional(CONF_PUBLISH_MODE, default="INTERVAL")] = cv.enum(
             PUBLISH_MODES, upper=True
         )
@@ -111,10 +102,9 @@ def _model_schema(model: DYPModel) -> cv.Schema:
     base_schema = (
         sensor.sensor_schema(
             DYPSensor,
-            unit_of_measurement=UNIT_METER,
+            kind=sensor.LENGTH_M,
             icon=ICON_ARROW_EXPAND_VERTICAL,
             accuracy_decimals=3,
-            state_class=STATE_CLASS_MEASUREMENT,
             device_class=DEVICE_CLASS_DISTANCE,
         )
         .extend(extra)
@@ -163,8 +153,8 @@ async def to_code_base(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
 
     cg.add(var.set_mode(config[CONF_MODE]))
-    cg.add(var.set_blind_zone(config[CONF_BLIND_ZONE]))
-    cg.add(var.set_max_range(config[CONF_MAX_RANGE]))
+    cg.add(var.set_blind_zone_mm(round(config[CONF_BLIND_ZONE] * 1000)))
+    cg.add(var.set_max_range_mm(round(config[CONF_MAX_RANGE] * 1000)))
     cg.add_optional(var.set_publish_mode, config.get(CONF_PUBLISH_MODE))
     cg.add_optional(var.set_filter_mode, config.get(CONF_FILTER_MODE))
     await cg.add_pin(var.set_trigger_pin, config.get(CONF_TRIGGER_PIN))

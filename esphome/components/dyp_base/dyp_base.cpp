@@ -10,14 +10,6 @@ ESPHOME_LOG_TAG(TAG, "dyp_base.sensor");
 
 static constexpr uint32_t FRAME_TIMEOUT_MS = 50;
 
-void DYPSensor::set_mode(DYPMode mode) { this->mode_ = mode; }
-void DYPSensor::set_trigger_pin(GPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
-void DYPSensor::set_blind_zone(float blind_zone_m) { this->blind_zone_mm_ = blind_zone_m * 1000; }
-void DYPSensor::set_max_range(float max_range_m) { this->max_range_mm_ = max_range_m * 1000; }
-void DYPSensor::set_filter_mode(DYPFilterMode filter_mode) { this->filter_mode_ = filter_mode; }
-void DYPSensor::set_filter_mode_pin(GPIOPin *filter_mode_pin) { this->filter_mode_pin_ = filter_mode_pin; }
-void DYPSensor::set_publish_mode(DYPPublishMode publish_mode) { this->publish_mode_ = publish_mode; }
-
 void DYPSensor::setup() {
   if (this->trigger_pin_ != nullptr) {
     this->trigger_pin_->setup();
@@ -31,13 +23,16 @@ void DYPSensor::setup() {
 }
 
 void DYPSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "DYP Ultrasonic Distance Sensor:");
-  LOG_SENSOR("  ", "Distance", this);
-  ESP_LOGCONFIG(TAG, "  Mode: %s",
-                this->mode_ == DYPMode::DYP_MODE_CONTROLLED ? LOG_STR_LITERAL("CONTROLLED") : LOG_STR_LITERAL("AUTO"));
-  ESP_LOGCONFIG(TAG, "  Publish Mode: %s",
+  LOG_SENSOR("", "DYP Ultrasonic Distance Sensor", this);
+  ESP_LOGCONFIG(TAG,
+                "  Mode: %s\n"
+                "  Publish Mode: %s\n"
+                "  Blind Zone: %.2fm\n"
+                "  Max Range: %.2fm",
+                this->mode_ == DYPMode::DYP_MODE_CONTROLLED ? LOG_STR_LITERAL("CONTROLLED") : LOG_STR_LITERAL("AUTO"),
                 this->publish_mode_ == DYPPublishMode::DYP_PUBLISH_MODE_INTERVAL ? LOG_STR_LITERAL("INTERVAL")
-                                                                                 : LOG_STR_LITERAL("IMMEDIATE"));
+                                                                                 : LOG_STR_LITERAL("IMMEDIATE"),
+                this->blind_zone_mm_ / 1000.0f, this->max_range_mm_ / 1000.0f);
   if (this->mode_ == DYPMode::DYP_MODE_CONTROLLED) {
     if (this->trigger_pin_ != nullptr) {
       LOG_PIN("  Trigger Pin: ", this->trigger_pin_);
@@ -50,10 +45,6 @@ void DYPSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Filter Mode: %s",
                   this->filter_mode_ == DYPFilterMode::DYP_FILTER_MODE_PROCESSED ? LOG_STR_LITERAL("PROCESSED")
                                                                                  : LOG_STR_LITERAL("REALTIME"));
-  }
-  ESP_LOGCONFIG(TAG, "  Blind Zone: %.2fm", this->blind_zone_mm_ / 1000.0f);
-  if (this->max_range_mm_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Max Range: %.2fm", this->max_range_mm_ / 1000.0f);
   }
 }
 
@@ -102,7 +93,7 @@ void DYPSensor::process_frame_(const uint8_t *frame) {
   if (this->blind_zone_mm_ > 0 && distance_mm <= this->blind_zone_mm_) {
     ESP_LOGV(TAG, "Distance is within the blind zone (<= %.2fm). Reporting NAN.", this->blind_zone_mm_ / 1000.0f);
     distance_m = NAN;
-  } else if (this->max_range_mm_ > 0 && distance_mm > this->max_range_mm_) {
+  } else if (distance_mm > this->max_range_mm_) {
     ESP_LOGV(TAG, "Distance exceeds the max range (> %.2fm). Reporting NAN.", this->max_range_mm_ / 1000.0f);
     distance_m = NAN;
   } else {
