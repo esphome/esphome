@@ -9,14 +9,14 @@ namespace esphome::gnss {
 
 /// The latest solution of a receiver. Unset values are NAN (0 for satellites and utc).
 struct GNSSData {
-  double latitude{NAN};   // degrees
-  double longitude{NAN};  // degrees
-  float altitude{NAN};    // m above mean sea level
-  float speed{NAN};       // km/h
-  float course{NAN};      // degrees from true north
-  float hdop{NAN};
+  double latitude{NAN};    // degrees
+  double longitude{NAN};   // degrees
+  uint64_t utc_millis{0};  // millis_64() when utc was received
   time_t utc{0};           // UTC of the solution
-  uint32_t utc_millis{0};  // millis() when utc was received
+  float altitude{NAN};     // m above mean sea level
+  float speed{NAN};        // km/h
+  float course{NAN};       // degrees from true north
+  float hdop{NAN};
   uint8_t satellites{0};
 };
 

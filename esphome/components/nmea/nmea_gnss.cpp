@@ -55,7 +55,7 @@ void NMEAGNSS::loop() {
       t.second = gps.time.second();
       t.recalc_timestamp_utc(false);
       d.utc = t.timestamp;
-      d.utc_millis = millis();
+      d.utc_millis = millis_64();
     }
     this->publish_fix_();
   }
