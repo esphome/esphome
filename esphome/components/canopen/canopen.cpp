@@ -1,25 +1,28 @@
 #include "canopen.h"
 
+#include <array>
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen");
 
+// indexed by the state's position in NMT_STATES; the last entry for other values
+PROGMEM_STRING_TABLE(NMTStateStrings, "bootup", "stopped", "operational", "pre-operational", "unknown");
+
 const LogString *nmt_state_to_string(NMTState state) {
-  switch (state) {
-    case NMTState::NMT_STATE_BOOTUP:
-      return LOG_STR("bootup");
-    case NMTState::NMT_STATE_STOPPED:
-      return LOG_STR("stopped");
-    case NMTState::NMT_STATE_OPERATIONAL:
-      return LOG_STR("operational");
-    case NMTState::NMT_STATE_PRE_OPERATIONAL:
-      return LOG_STR("pre-operational");
-    default:
-      return LOG_STR("unknown");
+  // the CiA 301 values are sparse (0, 4, 5, 127)
+  static constexpr std::array<NMTState, NMTStateStrings::LAST_INDEX> NMT_STATES{
+      NMTState::NMT_STATE_BOOTUP, NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_OPERATIONAL,
+      NMTState::NMT_STATE_PRE_OPERATIONAL};
+  for (size_t i = 0; i < NMT_STATES.size(); i++) {
+    if (NMT_STATES[i] == state)
+      return NMTStateStrings::get_log_str(i);
   }
+  return NMTStateStrings::get_log_str(NMTStateStrings::LAST_INDEX);
 }
 
 // No CO_CANopenInit(): it needs a node id and starts NMT, heartbeat, EMCY and the SDO server.
