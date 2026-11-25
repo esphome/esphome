@@ -151,28 +151,24 @@ class LightState : public EntityBase, public Component {
 
   /** Add a listener for remote values changes.
    * Listener is notified when the light's remote values change (state, brightness, color, etc.)
-   * Lazily allocates the listener vector on first registration.
+   * Lazily allocates the callback list it shares with add_remote_values_callback() on first registration.
    */
   void add_remote_values_listener(LightRemoteValuesListener *listener);
 
   /** Add a listener for target state reached.
    * Listener is notified when the light finishes a transition and reaches its target state.
-   * Lazily allocates the listener vector on first registration.
+   * Lazily allocates the callback list it shares with add_target_state_reached_callback() on first registration.
    */
   void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
 
-#ifdef USE_LIGHT_REMOTE_VALUES_CALLBACK
   /// Called on every publish_state(), in one list with the remote values listeners.
   template<typename F> void add_remote_values_callback(F &&callback) {
     this->remote_values_callback_.add(std::forward<F>(callback));
   }
-#endif
-#ifdef USE_LIGHT_TARGET_STATE_REACHED_CALLBACK
   /// Called each time the light reaches its target, in one list with the target state reached listeners.
   template<typename F> void add_target_state_reached_callback(F &&callback) {
     this->target_state_reached_callback_.add(std::forward<F>(callback));
   }
-#endif
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length) {
@@ -409,26 +405,18 @@ class LightState : public EntityBase, public Component {
    * starting with the beginning of the transition.
    *
    * Lazily allocated - only created when a listener is actually registered.
-   * With on_turn_on or on_state automations the listeners share their callback list instead.
+   * Holds the listeners and the on_turn_on and on_state callbacks in registration order.
    */
-#ifndef USE_LIGHT_REMOTE_VALUES_CALLBACK
-  std::unique_ptr<std::vector<LightRemoteValuesListener *>> remote_values_listeners_;
-#else
   LazyCallbackManager<void()> remote_values_callback_;
-#endif
 
   /** Listeners for target state reached.
    * Notified when the state of current_values and remote_values are equal
    * (when the transition is finished).
    *
    * Lazily allocated - only created when a listener is actually registered.
-   * With on_turn_off automations the listeners share their callback list instead.
+   * Holds the listeners and the on_turn_off callbacks in registration order.
    */
-#ifndef USE_LIGHT_TARGET_STATE_REACHED_CALLBACK
-  std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
-#else
   LazyCallbackManager<void()> target_state_reached_callback_;
-#endif
 
   /// Callback that resolves the boot-time state — called once during setup, then cleared.
   /// Values live in flash as function body; no per-instance data storage beyond this pointer.

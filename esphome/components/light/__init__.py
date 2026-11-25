@@ -58,7 +58,6 @@ from esphome.cpp_generator import (
     Expression,
     MockObj,
     MockObjClass,
-    UnaryOpExpression,
     VariableDeclarationExpression,
 )
 import esphome.final_validate as fv
@@ -642,7 +641,7 @@ def _register_callbacks(
             light_id,
             cg.void,
             [],
-            [cg.statement(MockObj(callback)()) for callback in callbacks],
+            [cg.statement(MockObj(cb)()) for cb in callbacks],
             suffix=suffix,
         )
     cg.add(getattr(light_var, method)(callback))
@@ -651,9 +650,9 @@ def _register_callbacks(
 async def _light_triggers_to_code(
     light_var: MockObj, light_id: ID, config: ConfigType
 ) -> None:
-    """Build on_turn_on, on_state and on_turn_off as callbacks on the light's listener lists.
+    """Build on_turn_on, on_state and on_turn_off as callbacks on the light's two callback lists.
 
-    Each on_turn_on keeps the state it last saw in a global of its own, as its Trigger object did.
+    Each on_turn_on keeps the state it last saw in a static of its own.
     """
     light = auto.parent_ref(light_var)
     remote_values: list[MockObj] = []
@@ -668,8 +667,6 @@ async def _light_triggers_to_code(
         await auto.build_trigger_callback([], conf, [])
         for conf in config.get(CONF_ON_STATE, [])
     ]
-    if remote_values:
-        cg.add_define("USE_LIGHT_REMOTE_VALUES_CALLBACK")
     _register_callbacks(
         light_var,
         light_id,
@@ -678,13 +675,16 @@ async def _light_triggers_to_code(
         remote_values,
     )
 
-    is_off = UnaryOpExpression("!", light.current_values.is_on())
     target_state_reached = [
-        await auto.build_trigger_callback([], conf, [], when=str(is_off))
+        await auto.build_trigger_callback(
+            [],
+            conf,
+            [],
+            when="!{parent}->current_values.is_on()",
+            parent=light_var,
+        )
         for conf in config.get(CONF_ON_TURN_OFF, [])
     ]
-    if target_state_reached:
-        cg.add_define("USE_LIGHT_TARGET_STATE_REACHED_CALLBACK")
     _register_callbacks(
         light_var,
         light_id,

@@ -14,9 +14,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_LIGHT_POWER_ESTIMATION")
         # write_on_setup's flag and its write in setup()
         cg.add_define("USE_LIGHT_WRITE_ON_SETUP")
-        # The callbacks on_turn_on, on_turn_off and on_state attach to
-        cg.add_define("USE_LIGHT_REMOTE_VALUES_CALLBACK")
-        cg.add_define("USE_LIGHT_TARGET_STATE_REACHED_CALLBACK")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["json"]
