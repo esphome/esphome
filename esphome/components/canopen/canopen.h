@@ -66,24 +66,27 @@ class CANopenComponent : public Component {
   void cancel_sdo(void *context);
 
   // Raw frames the SDO client doesn't use (e.g. other devices' PDOs). The callback gets every standard-ID data frame
-  // with (can_id ^ id) & mask == 0, after CANopenNode has seen it. Can be called before or after setup(). Listeners
-  // can't be removed; add them at setup or boot, as each one grows a vector on the heap.
+  // with (can_id ^ id) & mask == 0, after CANopenNode has seen it. Can be called before or after setup(), but not from
+  // a frame callback. Listeners can't be removed; add them at setup or boot, as each one grows a vector on the heap.
   void add_frame_listener(uint32_t can_id, uint32_t mask, FrameCallback callback, void *context);
-  // Sends a standard-ID data frame now. Returns false for a CAN ID above 0x7FF, more than 8 bytes, or if the canbus
+  // Sends a standard-ID data frame now. Returns false for an extended CAN ID, more than 8 bytes, or if the canbus
   // platform refuses it (e.g. TX buffers full); it isn't queued or retried, unlike CANopenNode's own frames.
   bool send_frame(uint32_t can_id, const uint8_t *data, size_t len);
   // every heartbeat / EMCY frame on the bus, from any node
+#ifdef USE_CANOPEN_HEARTBEAT
   template<typename F> void add_on_heartbeat_callback(F &&callback) {
     this->heartbeat_callback_.add(std::forward<F>(callback));
   }
+#endif
+#ifdef USE_CANOPEN_EMCY
   template<typename F> void add_on_emcy_callback(F &&callback) { this->emcy_callback_.add(std::forward<F>(callback)); }
+#endif
 
  protected:
   void on_frame_(const canbus::CanFrame &frame);
   // frame listeners and heartbeat / EMCY callbacks for a received frame, after CANopenNode
   void dispatch_frame_(const CO_CANrxMsg_t &msg);
-  void init_frame_listeners_();
-  void check_frame_listener_(uint32_t can_id, uint32_t mask);
+  void check_frame_listener_(uint16_t can_id, uint16_t mask);
   bool idle_() const;
   void fail_setup_(const LogString *reason);
 
@@ -138,20 +141,23 @@ class CANopenComponent : public Component {
   uint16_t response_timeout_ms_{500};
   uint8_t sdo_cli_highest_sub_{3};
   uint8_t sdo_cli_node_{0};
-  uint8_t sdo_abort_node_{0};  // node of the last cancelled transfer, for its log
   bool sdo_busy_{false};
   bool sdo_abort_pending_{false};   // the abort of a cancelled transfer waits to be sent
   bool sdo_cancel_pending_{false};  // cancel_sdo() hit the active transfer: process_sdo_() aborts it
 
   struct FrameListener {
-    uint32_t can_id;
-    uint32_t mask;
+    uint16_t can_id;
+    uint16_t mask;
     FrameCallback callback;
     void *context;
   };
   std::vector<FrameListener> frame_listeners_;
+#ifdef USE_CANOPEN_HEARTBEAT
   LazyCallbackManager<void(uint8_t, NMTState)> heartbeat_callback_;
+#endif
+#ifdef USE_CANOPEN_EMCY
   LazyCallbackManager<void(uint8_t, const Emergency &)> emcy_callback_;
+#endif
 };
 
 }  // namespace esphome::canopen

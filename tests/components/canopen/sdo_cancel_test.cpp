@@ -7,23 +7,14 @@
 namespace esphome::canopen::testing {
 
 // Parameter: true = a value write is cancelled, false = a value read.
-class SdoCancellation : public ::testing::TestWithParam<bool> {
+class SdoCancellation : public SdoTest, public ::testing::WithParamInterface<bool> {
  protected:
-  FakeCanbus bus_;
-  TestHub hub_{&this->bus_};
   int callbacks_{0};
+  int other_callbacks_{0};
 
-  void SetUp() override {
-    this->hub_.set_response_timeout(200);
-    this->hub_.setup();
-    ASSERT_FALSE(this->hub_.is_failed());
-  }
+  SdoCancellation() { this->response_timeout_ms_ = 200; }
 
   static void on_result(void *context, const SDOReply & /*reply*/) { (*static_cast<int *>(context))++; }
-
-  static void advance_clock(uint32_t ms) {
-    LoopBlockingGuard clock{nullptr, nullptr, App.get_loop_component_start_time() + ms};
-  }
 
   void queue_request_() {
     if (GetParam()) {
@@ -33,54 +24,58 @@ class SdoCancellation : public ::testing::TestWithParam<bool> {
     }
   }
 
-  const FakeCanbus::Frame *last_(uint32_t can_id) const {
-    const FakeCanbus::Frame *found = nullptr;
-    for (const auto &f : this->bus_.sent) {
-      if (f.can_id == can_id)
-        found = &f;
-    }
-    return found;
+  // a read from another context, to node 0x21 or another one
+  void queue_other_(uint8_t node) {
+    ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(node, 0x6041, 0, on_result, &this->other_callbacks_));
+  }
+
+  // the request can't be sent (TX buffers full) and is cancelled
+  void cancel_blocked_request_() {
+    this->bus_.busy = true;
+    this->queue_request_();
+    this->hub_.loop();
+    this->hub_.cancel_sdo(&this->callbacks_);
+  }
+
+  // cancel_sdo() from inside the next transmission, as a driver's log handler would
+  void cancel_on_next_send_() {
+    this->bus_.on_send = [this](uint32_t can_id) {
+      this->bus_.on_send = nullptr;
+      this->hub_.cancel_sdo(&this->callbacks_);
+    };
   }
 };
 
 TEST_P(SdoCancellation, UnsentRequestIsReplacedWithAbort) {
-  this->bus_.busy = true;
-  this->queue_request_();
-  this->hub_.loop();
+  this->cancel_blocked_request_();
   ASSERT_EQ(this->bus_.count(0x621), 0u);
 
-  this->hub_.cancel_sdo(&this->callbacks_);
   this->bus_.busy = false;
   this->hub_.loop();
   this->hub_.loop();
 
   ASSERT_EQ(this->bus_.count(0x621), 1u);
   const uint8_t index_low = GetParam() ? 0x40 : 0x41;
-  EXPECT_EQ(this->last_(0x621)->data, (std::vector<uint8_t>{0x80, index_low, 0x60, 0, 0, 0, 0, 0x08}));
+  EXPECT_EQ(this->bus_.sent.back().data, (std::vector<uint8_t>{0x80, index_low, 0x60, 0, 0, 0, 0, 0x08}));
   EXPECT_EQ(this->callbacks_, 0);
 }
 
 TEST_P(SdoCancellation, PendingAbortHoldsTheNextRequest) {
-  this->bus_.busy = true;
-  this->queue_request_();
-  this->hub_.loop();
-  this->hub_.cancel_sdo(&this->callbacks_);
-
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x22, 0x6041, 0, on_result, &other_callbacks));
+  this->cancel_blocked_request_();
+  this->queue_other_(0x22);
   this->hub_.loop();  // the abort is still blocked: its buffer isn't reused for node 0x22
   this->bus_.busy = false;
   this->hub_.loop();
   this->hub_.loop();
+  ASSERT_EQ(this->bus_.count(0x621), 1u);
+  EXPECT_EQ(this->bus_.sent.back().data[0], 0x80);
   EXPECT_EQ(this->bus_.count(0x622), 0u);  // the guard after the abort holds every node
-  advance_clock(60);
+  advance_(60);
   this->hub_.loop();
 
-  ASSERT_EQ(this->bus_.count(0x621), 1u);
-  EXPECT_EQ(this->last_(0x621)->data[0], 0x80);
   EXPECT_EQ(this->bus_.count(0x622), 1u);
   this->hub_.frame(0x5A2, {0x4B, 0x41, 0x60, 0, 0x27, 0, 0, 0});
-  EXPECT_EQ(other_callbacks, 1);
+  EXPECT_EQ(this->other_callbacks_, 1);
   EXPECT_EQ(this->callbacks_, 0);
 }
 
@@ -88,9 +83,8 @@ TEST_P(SdoCancellation, CancellingQueuedContextKeepsActiveRequest) {
   this->queue_request_();
   this->hub_.loop();
   ASSERT_EQ(this->bus_.count(0x621), 1u);
-  int queued_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x22, 0x6041, 0, on_result, &queued_callbacks));
-  this->hub_.cancel_sdo(&queued_callbacks);
+  this->queue_other_(0x22);
+  this->hub_.cancel_sdo(&this->other_callbacks_);
 
   if (GetParam()) {
     this->hub_.frame(0x5A1, {0x60, 0x40, 0x60, 0, 0, 0, 0, 0});
@@ -99,120 +93,75 @@ TEST_P(SdoCancellation, CancellingQueuedContextKeepsActiveRequest) {
   }
   this->hub_.loop();
   EXPECT_EQ(this->callbacks_, 1);
-  EXPECT_EQ(queued_callbacks, 0);
+  EXPECT_EQ(this->other_callbacks_, 0);
   EXPECT_EQ(this->bus_.count(0x621), 1u);
   EXPECT_EQ(this->bus_.count(0x622), 0u);
 }
 
 TEST_P(SdoCancellation, AbortGuardStartsAfterTheAbortLeft) {
-  this->bus_.busy = true;
-  this->queue_request_();
-  this->hub_.loop();
-  this->hub_.cancel_sdo(&this->callbacks_);
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_result, &other_callbacks));
-  advance_clock(80);
+  this->cancel_blocked_request_();
+  this->queue_other_(0x21);
+  advance_(80);
   this->bus_.busy = false;
   this->hub_.loop();  // the abort replaces the unsent request and goes out
   ASSERT_EQ(this->bus_.count(0x621), 1u);
   EXPECT_EQ(this->bus_.sent.back().data[0], 0x80);
   // the guard starts, whole, in the pass after the abort left: neither the 80 ms blocked nor the pass count
-  advance_clock(10);
+  advance_(10);
   this->hub_.loop();
-  advance_clock(40);
+  advance_(40);
   this->hub_.loop();
   EXPECT_EQ(this->bus_.count(0x621), 1u);
-  advance_clock(20);
+  advance_(20);
   this->hub_.loop();
   EXPECT_EQ(this->bus_.count(0x621), 2u);
 }
 
 TEST_P(SdoCancellation, AbortGuardRunsWithAnEmptyQueue) {
-  this->bus_.busy = true;
-  this->queue_request_();
-  this->hub_.loop();
-  this->hub_.cancel_sdo(&this->callbacks_);
-  advance_clock(80);
+  this->cancel_blocked_request_();
+  advance_(80);
   this->bus_.busy = false;
   this->hub_.loop();
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_result, &other_callbacks));
+  this->queue_other_(0x21);
   this->hub_.loop();
   EXPECT_EQ(this->bus_.count(0x621), 1u);
-  advance_clock(80);
+  advance_(80);
   this->hub_.loop();
   EXPECT_EQ(this->bus_.count(0x621), 2u);
 }
 
+// no guard after an abort that was never sent: even a request to the same node goes out right away
 TEST_P(SdoCancellation, AbortRefusedForTheResponseTimeoutIsDropped) {
-  this->bus_.busy = true;
-  this->queue_request_();
-  this->hub_.loop();
-  this->hub_.cancel_sdo(&this->callbacks_);
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x22, 0x6041, 0, on_result, &other_callbacks));
+  this->cancel_blocked_request_();
+  this->queue_other_(0x21);
   this->hub_.loop();  // the abort waits for the bus
-  advance_clock(150);
+  advance_(150);
   this->hub_.loop();
-  advance_clock(60);  // past the response timeout
+  advance_(60);  // past the response timeout
   this->hub_.loop();
   this->bus_.busy = false;
   this->hub_.loop();
   this->hub_.loop();
   // the abort never goes out, the next request does
-  EXPECT_EQ(this->bus_.count(0x621), 0u);
-  EXPECT_EQ(this->bus_.count(0x622), 1u);
-  EXPECT_EQ(this->callbacks_, 0);
-}
-
-TEST_P(SdoCancellation, DroppedAbortDoesNotHoldTheSameNode) {
-  this->bus_.busy = true;
-  this->queue_request_();
-  this->hub_.loop();
-  this->hub_.cancel_sdo(&this->callbacks_);
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_result, &other_callbacks));
-  this->hub_.loop();  // the abort waits for the bus
-  advance_clock(210);
-  this->hub_.loop();
-  this->bus_.busy = false;
-  this->hub_.loop();
-  this->hub_.loop();
-  // no guard after an abort that was never sent: the request to the same node goes out right away
   ASSERT_EQ(this->bus_.count(0x621), 1u);
   EXPECT_EQ(this->bus_.sent.back().data[0], 0x40);
-}
-
-TEST_P(SdoCancellation, AbortGuardHoldsEveryNode) {
-  this->queue_request_();
-  this->hub_.loop();
-  this->hub_.cancel_sdo(&this->callbacks_);
-  EXPECT_EQ(this->bus_.count(0x621), 1u);  // the abort goes out in the next pass
-  this->hub_.loop();
-  ASSERT_EQ(this->bus_.count(0x621), 2u);
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x22, 0x6041, 0, on_result, &other_callbacks));
-  this->hub_.loop();
-  EXPECT_EQ(this->bus_.count(0x622), 0u);
-  advance_clock(60);
-  this->hub_.loop();
-  EXPECT_EQ(this->bus_.count(0x622), 1u);
+  EXPECT_EQ(this->callbacks_, 0);
 }
 
 TEST_P(SdoCancellation, AbortGuardCountsFromTheAbort) {
   this->queue_request_();
   this->hub_.loop();
-  advance_clock(80);  // waiting for the answer, no loop in between
+  advance_(80);  // waiting for the answer, no loop in between
   this->hub_.cancel_sdo(&this->callbacks_);
+  EXPECT_EQ(this->bus_.count(0x621), 1u);  // the abort goes out in the next pass
   this->hub_.loop();
   ASSERT_EQ(this->bus_.count(0x621), 2u);
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_result, &other_callbacks));
+  this->queue_other_(0x21);
   this->hub_.loop();
-  advance_clock(40);
+  advance_(40);
   this->hub_.loop();
   EXPECT_EQ(this->bus_.count(0x621), 2u);  // the 80 ms before the cancel don't count
-  advance_clock(20);
+  advance_(20);
   this->hub_.loop();
   EXPECT_EQ(this->bus_.count(0x621), 3u);
 }
@@ -221,9 +170,9 @@ TEST_P(SdoCancellation, BlockedAbortTimeoutCountsFromTheCancel) {
   this->bus_.busy = true;
   this->queue_request_();
   this->hub_.loop();
-  advance_clock(150);
+  advance_(150);
   this->hub_.cancel_sdo(&this->callbacks_);
-  advance_clock(60);  // past the response timeout from the request, not from the cancel
+  advance_(60);  // past the response timeout from the request, not from the cancel
   this->hub_.loop();
   this->bus_.busy = false;
   this->hub_.loop();
@@ -231,12 +180,9 @@ TEST_P(SdoCancellation, BlockedAbortTimeoutCountsFromTheCancel) {
   EXPECT_EQ(this->bus_.sent.back().data[0], 0x80);
 }
 
-// cancel_sdo() from inside the request's transmission (a driver's log handler): the abort waits for the next pass
+// the abort waits for the next pass
 TEST_P(SdoCancellation, CancelDuringTheFirstSend) {
-  this->bus_.on_send = [this](uint32_t can_id) {
-    this->bus_.on_send = nullptr;
-    this->hub_.cancel_sdo(&this->callbacks_);
-  };
+  this->cancel_on_next_send_();
   this->queue_request_();
   this->hub_.loop();
   this->hub_.loop();
@@ -252,20 +198,16 @@ TEST_P(SdoCancellation, CancelDuringARetriedSend) {
   this->queue_request_();
   this->hub_.loop();
   this->bus_.busy = false;
-  this->bus_.on_send = [this](uint32_t can_id) {
-    this->bus_.on_send = nullptr;
-    this->hub_.cancel_sdo(&this->callbacks_);
-  };
+  this->cancel_on_next_send_();
   this->hub_.loop();  // the flush sends the queued request, cancelled meanwhile
   this->hub_.loop();
   ASSERT_EQ(this->bus_.count(0x621), 2u);
   EXPECT_EQ(this->bus_.sent.back().data[0], 0x80);
   EXPECT_EQ(this->hub_.tx_count(), 0u);
   // nothing stuck: the next request goes out after the guard
-  int other_callbacks = 0;
-  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x22, 0x6041, 0, on_result, &other_callbacks));
+  this->queue_other_(0x22);
   this->hub_.loop();
-  advance_clock(60);
+  advance_(60);
   this->hub_.loop();
   EXPECT_EQ(this->bus_.count(0x622), 1u);
   EXPECT_EQ(this->hub_.tx_count(), 0u);

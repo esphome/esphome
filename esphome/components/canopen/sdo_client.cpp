@@ -201,12 +201,13 @@ void CANopenComponent::process_sdo_abort_(uint32_t dt_us) {
       this->sdo_abort_pending_ = false;
       this->sdo_abort_guard_us_ = ABORT_GUARD_US;
       return;
-    } else if (this->sdo_abort_guard_us_ <= dt_us) {
+    }
+    if (this->sdo_abort_guard_us_ <= dt_us) {
       // The bus refused it for a whole response timeout: drop it, so it doesn't hold up the queue. The server ends
       // the transfer at its own timeout.
       discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
       this->sdo_abort_pending_ = false;
-      ESP_LOGW(TAG, "node 0x%02x: abort of a cancelled transfer not sent", this->sdo_abort_node_);
+      ESP_LOGW(TAG, "node 0x%02x: abort of a cancelled transfer not sent", cli->nodeIDOfTheSDOServer);
     }
   }
   this->sdo_abort_guard_us_ = this->sdo_abort_guard_us_ > dt_us ? this->sdo_abort_guard_us_ - dt_us : 0;
@@ -221,9 +222,9 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
       this->abort_sdo_();
   }
   if (!this->sdo_busy_) {
-    // A pending abort holds the client's TX buffer. The guard after it holds requests to every node: one guard covers
+    // The guard holds the client's TX buffer while an abort is pending, then requests to every node: one guard covers
     // any number of cancelled transfers.
-    if (this->sdo_queue_.empty() || this->sdo_abort_pending_ || this->sdo_abort_guard_us_ > 0)
+    if (this->sdo_queue_.empty() || this->sdo_abort_guard_us_ > 0)
       return;
     this->sdo_active_ = this->sdo_queue_.front();
     this->sdo_queue_.pop();
@@ -334,7 +335,6 @@ void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
   // the slot is free now, so the callback may queue the next request
   if (r.callback != nullptr)
     r.callback(r.context, reply);
-  // after the callback: a log handler may cancel the request's context and free it
   if (reply.result != SDOResult::SDO_RESULT_SUCCESS) {
     ESP_LOGW(TAG, "node 0x%02x, 0x%04x:%u: %s (abort 0x%08" PRIx32 ")", r.node_id, r.index, r.sub,
              LOG_STR_ARG(sdo_result_to_string(reply.result)), abort_code);
@@ -344,11 +344,9 @@ void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
 void CANopenComponent::abort_sdo_() {
   CO_SDOclient_t *cli = this->co_->SDOclient;
   // The request ends before anything that may log (the abort's transmission too): a log handler may queue or cancel
-  // requests.
-  const SDORequest r = this->sdo_active_;
-  this->sdo_active_ = SDORequest{};
+  // requests. sdo_active_ stays as it is until the next request starts.
+  const SDORequest &r = this->sdo_active_;
   this->sdo_busy_ = false;
-  this->sdo_abort_node_ = r.node_id;
   // Discard only this client's unsent frame before replacing it with an abort.
   // The driver and the SDO client run on the same main-loop context.
   discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);

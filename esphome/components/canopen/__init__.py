@@ -107,6 +107,10 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], canbus)
     await cg.register_component(var, config)
     cg.add(var.set_response_timeout(config[CONF_RESPONSE_TIMEOUT]))
+    if CONF_ON_HEARTBEAT in config:
+        cg.add_define("USE_CANOPEN_HEARTBEAT")
+    if CONF_ON_EMCY in config:
+        cg.add_define("USE_CANOPEN_EMCY")
     await automation.build_callback_automations(var, config, CALLBACK_AUTOMATIONS)
 
 

@@ -81,9 +81,10 @@ class SdoTest : public ::testing::Test {
   TestHub hub_{&this->bus_};
   std::vector<SDOReply> replies_;
   std::string data_;  // reply.data, copied during the callback
+  uint16_t response_timeout_ms_{20};
 
   void SetUp() override {
-    this->hub_.set_response_timeout(20);
+    this->hub_.set_response_timeout(this->response_timeout_ms_);
     this->hub_.setup();
     ASSERT_FALSE(this->hub_.is_failed());
   }

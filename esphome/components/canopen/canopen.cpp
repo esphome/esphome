@@ -1,25 +1,25 @@
 #include "canopen.h"
 
+#include <array>
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen");
 
+// indexed by the state's position in NMT_STATES; the last entry for other values
+PROGMEM_STRING_TABLE(NMTStateStrings, "bootup", "stopped", "operational", "pre-operational", "unknown");
+static_assert(NMT_STATES.size() == NMTStateStrings::LAST_INDEX);
+
 const LogString *nmt_state_to_string(NMTState state) {
-  switch (state) {
-    case NMTState::NMT_STATE_BOOTUP:
-      return LOG_STR("bootup");
-    case NMTState::NMT_STATE_STOPPED:
-      return LOG_STR("stopped");
-    case NMTState::NMT_STATE_OPERATIONAL:
-      return LOG_STR("operational");
-    case NMTState::NMT_STATE_PRE_OPERATIONAL:
-      return LOG_STR("pre-operational");
-    default:
-      return LOG_STR("unknown");
+  for (size_t i = 0; i < NMT_STATES.size(); i++) {
+    if (NMT_STATES[i] == state)
+      return NMTStateStrings::get_log_str(i);
   }
+  return NMTStateStrings::get_log_str(NMTStateStrings::LAST_INDEX);
 }
 
 // No CO_CANopenInit(): it needs a node id and starts NMT, heartbeat, EMCY and the SDO server.
@@ -47,7 +47,8 @@ void CANopenComponent::setup() {
     this->fail_setup_(LOG_STR("SDO client init failed"));
     return;
   }
-  this->init_frame_listeners_();
+  for (const FrameListener &l : this->frame_listeners_)
+    this->check_frame_listener_(l.can_id, l.mask);
   CO_CANsetNormalMode(this->co_->CANmodule);
   this->canbus_->add_frame_callback([this](const canbus::CanFrame &frame) { this->on_frame_(frame); });
   ESP_LOGV(TAG, "CANopenNode initialized, SDO client, heap %" PRIu32 " B", heap);
