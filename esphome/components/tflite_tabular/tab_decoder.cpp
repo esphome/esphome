@@ -8,7 +8,7 @@
 
 namespace esphome::tflite_tabular {
 
-static const char *const TAG = "tflite_tabular";
+ESPHOME_LOG_TAG(TAG, "tflite_tabular");
 
 bool TabularDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   if (count != 1) {

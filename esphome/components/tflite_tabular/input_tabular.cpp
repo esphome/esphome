@@ -8,7 +8,7 @@
 
 namespace esphome::tflite_tabular {
 
-static const char *const TAG = "tflite_tabular";
+ESPHOME_LOG_TAG(TAG, "tflite_tabular");
 
 bool TabularInputPipeline::fill_all(TfLiteTensor *const *inputs, size_t count, const uint8_t *src, size_t size) {
   if (count != 1) {
