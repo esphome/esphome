@@ -1,5 +1,7 @@
 #include "canopen.h"
 
+#ifdef USE_CANOPEN_SDO_CLIENT
+
 #include <algorithm>
 #include <cstring>
 
@@ -13,6 +15,7 @@ ESPHOME_LOG_TAG(TAG, "canopen.sdo");
 // after an abort, the next request (to any node) waits this long, so the server has processed the abort
 static constexpr uint32_t ABORT_GUARD_US = 50000;
 
+// indexed by SDOResult; the last entry for other values
 PROGMEM_STRING_TABLE(SDOResultStrings, "success", "abort", "timeout", "size mismatch", "transport error", "rejected",
                      "unknown");
 
@@ -21,20 +24,23 @@ const LogString *sdo_result_to_string(SDOResult result) {
 }
 
 void CANopenComponent::add_sdo_client_od_() {
-  this->sdo_cli_record_ = {{
-      {&this->sdo_cli_highest_sub_, 0, ODA_SDO_R, 1},
-      {&this->sdo_cli_cob_tx_, 1, ODA_SDO_RW | ODA_MB, 4},
-      {&this->sdo_cli_cob_rx_, 2, ODA_SDO_RW | ODA_MB, 4},
-      {&this->sdo_cli_node_, 3, ODA_SDO_RW, 1},
-  }};
-  this->sdo_cli_entry_ = OD_entry_t{0x1280, static_cast<uint8_t>(this->sdo_cli_record_.size()), ODT_REC,
-                                    this->sdo_cli_record_.data(), nullptr};
+  this->od_.add_record(0x1280, {{0, ODA_SDO_R, &this->sdo_cli_highest_sub_, 1},
+                                {1, ODA_SDO_RW, &this->sdo_cli_cob_tx_, 4},
+                                {2, ODA_SDO_RW, &this->sdo_cli_cob_rx_, 4},
+                                {3, ODA_SDO_RW, &this->sdo_cli_node_, 1}});
 }
 
+void CANopenComponent::config_sdo_client_(CO_config_t &cfg) {
+  cfg.CNT_SDO_CLI = 1;
+  cfg.ENTRY_H1280 = this->od_.find(0x1280);
+}
+
+// Client-only hub; a node's client is set up by CO_CANopenInit(). Without our own node id there are no local
+// transfers, so the client needs no OD.
 bool CANopenComponent::init_sdo_client_() {
   uint32_t err_info = 0;
   CO_ReturnError_t err =
-      CO_SDOclient_init(this->co_->SDOclient, nullptr, &this->sdo_cli_entry_, 0 /* no own node */, this->co_->CANmodule,
+      CO_SDOclient_init(this->co_->SDOclient, nullptr, this->od_.find(0x1280), NO_NODE_ID, this->co_->CANmodule,
                         this->co_->RX_IDX_SDO_CLI, this->co_->CANmodule, this->co_->TX_IDX_SDO_CLI, &err_info);
   if (err != CO_ERROR_NO) {
     ESP_LOGE(TAG, "CO_SDOclient_init failed: %d (OD 0x%04" PRIx32 ")", err, err_info);
@@ -298,7 +304,7 @@ bool CANopenComponent::drain_upload_(uint32_t dt_us, CO_SDO_return_t &ret, CO_SD
       }
       return true;
     }
-    if (ret != CO_SDO_RT_uploadDataBufferFull)
+    if (ret != CO_SDO_RT_uploadDataBufferFull && ret != CO_SDO_RT_waitingLocalTransfer)
       break;
     ret = CO_SDOclientUpload(cli, 0, false, &abort, nullptr, nullptr, nullptr);
   }
@@ -365,3 +371,5 @@ void CANopenComponent::abort_sdo_() {
 }
 
 }  // namespace esphome::canopen
+
+#endif  // USE_CANOPEN_SDO_CLIENT

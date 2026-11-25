@@ -1,5 +1,5 @@
 esphome:
-  name: canopen-two-buses
+  name: canopen-client-per-bus
 
 esp32:
   board: esp32dev
@@ -18,8 +18,15 @@ canbus:
     tx_pin: GPIO16
     rx_pin: GPIO17
 
+# nodes and one client-only hub on a canbus, another client-only hub on the other canbus
 canopen:
-  - id: hub_a
+  - id: node_a
     canbus_id: can_bus
-  - id: hub_b
+    node_id: 0x10
+  - id: client_a
+    canbus_id: can_bus
+  - id: node_b
+    canbus_id: can_bus
+    node_id: 0x11
+  - id: client_b
     canbus_id: can_bus_2
