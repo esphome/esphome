@@ -19,6 +19,17 @@ void UartSplit::setup() {
 }
 
 void UartSplit::loop() {
+  // A debugger fires inside read_array(), and what it writes comes back here. Reading again from there would hand the
+  // bytes on in the wrong order and leave the outer pass a failed read.
+  if (this->in_loop_) {
+    return;
+  }
+  this->in_loop_ = true;
+  this->pass_();
+  this->in_loop_ = false;
+}
+
+void UartSplit::pass_() {
   size_t waiting = this->parent_->available();
   if (waiting == 0) {
     this->high_freq_.stop();

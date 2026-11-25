@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <functional>
+#include <utility>
 
 #include "esphome/components/uart_split/uart_split.h"
 
@@ -32,6 +33,12 @@ class FakeUart : public uart::UARTComponent {
     }
     std::memcpy(data, this->rx_ + this->rx_pos_, len);
     this->rx_pos_ += len;
+    if (this->on_read_) {
+      // Once: a debugger fires after the read, and what it writes must not start another one.
+      std::function<void()> on_read = std::move(this->on_read_);
+      this->on_read_ = nullptr;
+      on_read();
+    }
     return true;
   }
   size_t available() override { return this->rx_len_ - this->rx_pos_; }
@@ -52,6 +59,8 @@ class FakeUart : public uart::UARTComponent {
 
   // Runs inside write_array(), like bytes that arrive while a full TX FIFO takes the write.
   std::function<void()> on_write_;
+  // Runs once, after a successful read_array(), like a UARTDebugger.
+  std::function<void()> on_read_;
   uint8_t tx_[32]{};
   size_t tx_len_{0};
 
@@ -187,6 +196,19 @@ TEST_F(UartSplitCopy, BytesReceivedWhileWritingComeAfterTheWrite) {
   for (uint8_t expected : {0x11, 0xA1, 0xA2, 0xE1, 0xE2}) {
     EXPECT_EQ(this->read_one(&this->tap_), expected);
   }
+}
+
+TEST_F(UartSplitCopy, WriteFromADebuggerDoesNotReorderTheBytes) {
+  const uint8_t sent = 0xAA;
+  this->pins_.rx_fill(100);
+  this->pins_.on_read_ = [this, &sent]() { this->bus_.write_array(&sent, 1); };
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->bus_.available(), 100u);
+  for (uint8_t i = 0; i < 100; i++) {
+    EXPECT_EQ(this->read_one(&this->bus_), i);
+  }
+  EXPECT_EQ(this->tap_.available(), 101u);
 }
 
 TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {

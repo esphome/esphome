@@ -78,10 +78,12 @@ class UartSplit final : public Component {
   void mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len);
 
  protected:
+  void pass_();
   void push_(size_t index, const uint8_t *data, size_t len);
 
   uart::UARTComponent *parent_;
   HighFrequencyLoopRequester high_freq_;
+  bool in_loop_{false};
   StaticVector<UartSplitOutput *, UART_SPLIT_OUTPUT_COUNT> outputs_;
 };
 
