@@ -20,7 +20,7 @@ class Bench {
 
   void edge(uint32_t at) {
     this->run_until(at);
-    this->feed(at);
+    this->feed_(at);
     if (this->tick_ == 0)
       this->timer_at_ = at + 2;
   }
@@ -36,7 +36,7 @@ class Bench {
       this->gate_on.push_back(now);
       const uint32_t noise = now + this->gate_noise_;
       if (this->gate_noise_ != 0 && static_cast<int32_t>(at - noise) >= 0) {
-        this->feed(noise);
+        this->feed_(noise);
         if (this->tick_ == 0)
           this->timer_at_ = noise + 2;
       }
@@ -47,7 +47,9 @@ class Bench {
   std::vector<uint32_t> gate_on;
 
  protected:
-  void feed(uint32_t at) { this->store_.zero_cross_edge(at, this->store_.gate_noise_at(at) ? &this->store_ : nullptr); }
+  void feed_(uint32_t at) {
+    this->store_.zero_cross_edge(at, this->store_.gate_noise_at(at) ? &this->store_ : nullptr);
+  }
 
   AcDimmerDataStore &store_;
   uint32_t timer_at_;
