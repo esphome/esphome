@@ -1,3 +1,4 @@
+import difflib
 import logging
 
 from esphome import automation, pins
@@ -71,9 +72,11 @@ FLIP_FLAGS = {CONF_HORIZONTAL_FLIP: 0, CONF_VERTICAL_FLIP: 2}
 
 
 def validate_sensor(value: str) -> str:
-    """Accepts a built-in sensor, or the name of one whose driver comes from another IDF component."""
+    """A built-in sensor, or one whose driver comes from another IDF component."""
     value = cv.string_strict(value).strip().upper()
     if value not in SENSOR_FORMATS:
+        if close := difflib.get_close_matches(value, SENSOR_FORMATS, n=1, cutoff=0.8):
+            raise cv.Invalid(f"Unknown sensor '{value}', did you mean '{close[0]}'?")
         _LOGGER.warning(
             "Sensor '%s' is not built into esp_cam_sensor. Its driver must come from another "
             "IDF component (for example under esp32: framework: components:). Built-in "
@@ -238,27 +241,15 @@ def _add_idf_config(config: ConfigType) -> None:
             add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
 
     for option, value in {
-        # The MIPI-CSI capture path is the only one used. DVP defaults to on, so turn it off; SPI
-        # is already off unless an SPI sensor selects it, so it needs no entry here.
         "CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE": True,
-        "CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE": False,
-        # The ISP debayers RAW sensors. Its pipeline controller is what runs the IPA algorithms
-        # (auto exposure, auto white balance, denoise) and is off by default.
+        "CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE": False,  # on by default
+        # Debayers RAW sensors; the controller runs auto exposure and white balance
         "CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE": True,
         "CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER": True,
-        # Defaults to y, which saves one frame of memory but in exchange makes the driver re-use the
-        # most recent application buffer whenever its free queue runs empty, writing the next frame
-        # over the buffer being encoded. Its own spare buffer is worth the memory.
+        # Without its spare buffer the driver writes the next frame over the one being encoded
         "CONFIG_ESP_VIDEO_DISABLE_MIPI_CSI_DRIVER_BACKUP_BUFFER": False,
-        # The video devices are reached as /dev/videoN, so open(), ioctl() and mmap() all go
-        # through VFS. Select support is deliberately not requested: the capture task blocks in
-        # VIDIOC_DQBUF and esp_video registers no select handlers, so ESPHome is free to leave
-        # CONFIG_VFS_SUPPORT_SELECT off and save the code it would otherwise pull in.
-        "CONFIG_VFS_SUPPORT_IO": True,
-        # With a mipi_dsi display in the same config, VIDIOC_STREAMON fails.
-        # mipi_dsi sets CONFIG_LCD_DSI_ISR_CACHE_SAFE, which selects DW_GDMA_ISR_IRAM_SAFE.
-        # The DW-GDMA driver then requires its callback context in internal RAM, but the CSI driver allocates
-        # its controller with MALLOC_CAP_DEFAULT unless CONFIG_CAM_CTLR_MIPI_CSI_ISR_CACHE_SAFE is set
+        "CONFIG_VFS_SUPPORT_IO": True,  # /dev/videoN
+        # With mipi_dsi (ISR cache safe GDMA) the CSI controller must be in internal RAM
         "CONFIG_CAM_CTLR_MIPI_CSI_ISR_CACHE_SAFE": True,
     }.items():
         add_idf_sdkconfig_option(option, value)

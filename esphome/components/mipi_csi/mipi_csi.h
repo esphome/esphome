@@ -6,7 +6,6 @@
 
 #include <atomic>
 #include <memory>
-#include <vector>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -31,10 +30,7 @@ struct CameraImageData {
   size_t length;
 };
 
-/// A single JPEG encoded frame.
-///
-/// The data is owned by the camera's encoder, so an image stays valid only until the camera reuses
-/// the encoder's output buffer. The camera waits for every shared_ptr to be released before it does.
+/// A JPEG frame in the encoder's buffer; the camera reuses it once every shared_ptr is released.
 class MipiCsiImage : public camera::CameraImage {
  public:
   void set_frame(uint8_t *data, size_t length, uint8_t requesters) {
@@ -69,12 +65,7 @@ class MipiCsiImageReader : public camera::CameraImageReader {
   size_t offset_{0};
 };
 
-/// Camera for MIPI-CSI sensors on the ESP32-P4.
-///
-/// Frames are captured through the V4L2 interface of Espressif's `esp_video` component and encoded
-/// to JPEG by the chip's JPEG peripheral. Sensors with a RAW Bayer output are routed through the
-/// ISP, where `esp_ipa` runs auto exposure and auto white balance. `esp_video` wires that up on its
-/// own, so there is nothing to configure here beyond enabling it at build time.
+/// MIPI-CSI camera on the ESP32-P4: V4L2 capture through esp_video, JPEG by the hardware encoder.
 class MipiCsiCamera final : public camera::Camera {
  public:
   /// @param fourcc V4L2 pixel format captured from the video device, which the encoder takes as
@@ -110,7 +101,13 @@ class MipiCsiCamera final : public camera::Camera {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::LATE; }
 
-  void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
+  // Called at setup by the consumers; a pointer array grown by one, without std::vector's code
+  void add_listener(camera::CameraListener *listener) override {
+    uint16_t capacity;
+    this->listeners_ = static_cast<camera::CameraListener **>(
+        callback_manager_grow(this->listeners_, this->listener_count_, capacity, sizeof(camera::CameraListener *)));
+    this->listeners_[this->listener_count_++] = listener;
+  }
 #ifdef USE_MIPI_CSI_IMAGE_CALLBACK
   /// on_image: the frame is valid only during the call
   template<typename F> void add_on_image_callback(F &&callback) {
@@ -177,7 +174,7 @@ class MipiCsiCamera final : public camera::Camera {
   QueueHandle_t result_queue_{nullptr};
   std::shared_ptr<MipiCsiImage> reusable_image_;
   std::shared_ptr<MipiCsiImage> current_image_;
-  std::vector<camera::CameraListener *> listeners_;
+  camera::CameraListener **listeners_{nullptr};
   // Compiled only when the automation is configured, so never empty
 #ifdef USE_MIPI_CSI_IMAGE_CALLBACK
   CallbackManager<void(CameraImageData)> image_callback_;
@@ -193,6 +190,7 @@ class MipiCsiCamera final : public camera::Camera {
   uint8_t frame_buffer_count_;
   uint8_t framerate_;
   uint8_t flip_flags_{0};
+  uint8_t listener_count_{0};
   int8_t xclk_pin_{-1};
   /// Requesters recorded when the frame currently being captured was asked for.
   uint8_t pending_requesters_{0};

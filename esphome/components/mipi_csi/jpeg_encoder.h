@@ -8,11 +8,7 @@
 
 namespace esphome::mipi_csi {
 
-/// Wrapper around the ESP32-P4 hardware JPEG encoder.
-///
-/// The encoder owns a single output buffer sized for the configured frame geometry, so only one
-/// encoded frame can be in flight at a time. The caller must therefore not start a new encode while
-/// a previously returned buffer is still being read.
+/// ESP32-P4 hardware JPEG encoder with one output buffer: one encoded frame at a time.
 class JpegEncoder {
  public:
   /// @param input_format Pixel layout of the frames that will be passed to encode().

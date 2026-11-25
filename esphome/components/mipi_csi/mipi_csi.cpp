@@ -108,8 +108,7 @@ bool MipiCsiCamera::init_video_() {
   esp_video_init_config_t video_config{};
   video_config.csi = &csi_config;
 
-  // The ISP is always initialized as well: esp_video routes RAW sensors through it and starts the
-  // IPA pipeline itself, and simply bypasses it for sensors that already output RGB or YUV.
+  // esp_video routes RAW sensors through the ISP and bypasses it for RGB/YUV ones
   err = esp_video_init_with_flags(&video_config, ESP_VIDEO_INIT_FLAGS_MIPI_CSI | ESP_VIDEO_INIT_FLAGS_ISP);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Camera sensor initialization failed: %s", esp_err_to_name(err));
@@ -455,7 +454,8 @@ void MipiCsiCamera::loop() {
       this->reusable_image_->set_frame(this->encoder_.get_output_buffer(), length, this->pending_requesters_);
       this->current_image_ = this->reusable_image_;
       this->pending_requesters_ = 0;
-      for (auto *listener : this->listeners_) {
+      for (uint8_t i = 0; i < this->listener_count_; i++) {
+        auto *listener = this->listeners_[i];
         listener->on_camera_image(this->current_image_);
       }
 #ifdef USE_MIPI_CSI_IMAGE_CALLBACK
@@ -495,7 +495,8 @@ void MipiCsiCamera::request_image(camera::CameraRequester requester) {
 
 void MipiCsiCamera::start_stream(camera::CameraRequester requester) {
   this->defer([this]() {
-    for (auto *listener : this->listeners_) {
+    for (uint8_t i = 0; i < this->listener_count_; i++) {
+      auto *listener = this->listeners_[i];
       listener->on_stream_start();
     }
 #ifdef USE_MIPI_CSI_STREAM_CALLBACK
@@ -508,7 +509,8 @@ void MipiCsiCamera::start_stream(camera::CameraRequester requester) {
 
 void MipiCsiCamera::stop_stream(camera::CameraRequester requester) {
   this->defer([this]() {
-    for (auto *listener : this->listeners_) {
+    for (uint8_t i = 0; i < this->listener_count_; i++) {
+      auto *listener = this->listeners_[i];
       listener->on_stream_stop();
     }
 #ifdef USE_MIPI_CSI_STREAM_CALLBACK

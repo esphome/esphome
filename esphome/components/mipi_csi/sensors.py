@@ -1,11 +1,4 @@
-"""The MIPI-CSI sensors that espressif/esp_cam_sensor supports.
-
-Each sensor maps to the formats its driver can be built with, named by the suffix of their
-Kconfig option (`CONFIG_CAMERA_<SENSOR>_MIPI_<FORMAT>`). A sensor can only produce the
-resolutions whose register tables were built into the firmware, and most of them are off by
-default, so the formats matching the configured `resolution` (or all of them without one) are
-enabled. The driver for the selected sensor is the only one built.
-"""
+"""MIPI-CSI sensors of espressif/esp_cam_sensor and their formats (`CONFIG_CAMERA_<SENSOR>_MIPI_<FORMAT>`)."""
 
 import re
 
