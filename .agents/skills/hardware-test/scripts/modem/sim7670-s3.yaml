@@ -1,0 +1,19 @@
+# Waveshare ESP32-S3-SIM7670G-4G: console on the CH343 (UART0), modem on GPIO17/GPIO18.
+substitutions:
+  name: sim7670-s3
+  rx: GPIO17
+  tx: GPIO18
+  model: SIM7670
+
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32-s3-devkitc-1
+
+logger:
+  hardware_uart: UART0
+
+packages:
+  common: !include fallback-common.yaml
+  traffic: !include traffic.yaml

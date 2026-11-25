@@ -560,30 +560,21 @@ class Logger final : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
- public:
-  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
-    parent->add_log_callback(this,
-                             [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
-                               auto *trigger = static_cast<LoggerMessageTrigger *>(self);
-                               if (level <= trigger->level_) {
+/// Log callback of an on_message automation: calls FN(level, tag, message) for lines at LEVEL or more severe.
+template<uint8_t LEVEL, auto FN>
+void on_message_callback(void * /*instance*/, uint8_t level, const char *tag, const char *message,
+                         size_t /*message_len*/) {
+  if (level > LEVEL)
+    return;
 #ifdef USE_ESP8266
-                                 // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
-                                 // the trigger so an automation that suspends (delay) still sees a valid tag.
-                                 buf_append_str_p(trigger->ram_tag_, sizeof(trigger->ram_tag_), 0, tag);
-                                 tag = trigger->ram_tag_;
+  // User lambdas may strcmp the tag, which may be in PROGMEM. Each automation has its own copy so one
+  // that suspends (delay) still sees a valid tag.
+  static char ram_tag[MAX_TAG_LENGTH + 1];
+  buf_append_str_p(ram_tag, sizeof(ram_tag), 0, tag);
+  tag = ram_tag;
 #endif
-                                 trigger->trigger(level, tag, message);
-                               }
-                             });
-  }
-
- protected:
-  uint8_t level_;
-#ifdef USE_ESP8266
-  char ram_tag_[MAX_TAG_LENGTH + 1]{};
-#endif
-};
+  FN(level, tag, message);
+}
 
 #ifdef USE_CRASH_HANDLER
 /// Whether a crash record from before this boot is waiting to be reported

@@ -6,10 +6,11 @@
 
 namespace esphome::number {
 
-class ValueRangeTrigger final : public Trigger<float>, public Component {
+/// on_value_range: runs fire() when the state enters the range; the in-range state is saved.
+class ValueRangeBase : public FiringComponent<float> {
  public:
   /// range is generated: it returns the bounds for the state x.
-  ValueRangeTrigger(Number *parent, ValueRange (*range)(float x)) : parent_(parent), range_(range) {}
+  ValueRangeBase(Number *parent, ValueRange (*range)(float x)) : parent_(parent), range_(range) {}
 
   void setup() override;
   float get_setup_priority() const override;

@@ -14,7 +14,7 @@ void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
   }
 }
 
-static bool send_frame(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
+static bool transmit_buffer(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
   return static_cast<CANopenComponent *>(mod->CANptr)->transmit(buf->ident, buf->data, buf->DLC);
 }
 
@@ -40,6 +40,7 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
       continue;
     rx->CANrx_callback(rx->object, &msg);
   }
+  this->dispatch_frame_(msg);
   // CANopenNode restarts its response timer on a reply, so loop() charges time from here.
   if (CO_FLAG_READ(this->co_->SDOclient->CANrxNew)) {
     this->process_sdo_(0);
@@ -54,7 +55,7 @@ bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len
 }  // namespace esphome::canopen
 
 using esphome::canopen::discard_pending_tx;
-using esphome::canopen::send_frame;
+using esphome::canopen::transmit_buffer;
 
 extern "C" {
 
@@ -120,7 +121,7 @@ CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer) {
       CANmodule->CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
     return CO_ERROR_TX_OVERFLOW;
   }
-  if (CANmodule->CANtxCount == 0 && send_frame(CANmodule, buffer)) {
+  if (CANmodule->CANtxCount == 0 && transmit_buffer(CANmodule, buffer)) {
     CANmodule->firstCANtxMessage = false;
     return CO_ERROR_NO;
   }
@@ -146,7 +147,7 @@ void CO_CANmodule_process(CO_CANmodule_t *CANmodule) {
     CO_CANtx_t *tx = &CANmodule->txArray[i];
     if (!tx->bufferFull)
       continue;
-    if (!send_frame(CANmodule, tx))
+    if (!transmit_buffer(CANmodule, tx))
       break;
     tx->bufferFull = false;
     CANmodule->CANtxCount--;

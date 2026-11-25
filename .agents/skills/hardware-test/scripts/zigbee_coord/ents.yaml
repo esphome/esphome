@@ -1,0 +1,39 @@
+# Entity flow entities (with sw.yaml): number, two sensors, two binary sensors, Zigbee time.
+number:
+  - platform: template
+    name: "Num"
+    id: num
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      - logger.log:
+          format: "HWT NUM set %.0f"
+          args: [x]
+sensor:
+  - platform: template
+    name: "Fixed 17"
+    lambda: return 20.0f + (millis() / 20000) % 5;
+    update_interval: 10s
+  - platform: template
+    name: "Auto A"
+    lambda: return 40.0f + (millis() / 20000) % 5;
+    update_interval: 10s
+  - platform: template
+    name: "Internal"
+    internal: true
+    lambda: return 1.0f;
+binary_sensor:
+  - platform: template
+    name: "Bin 42"
+    lambda: return true;
+    trigger_on_initial_state: true
+    on_state:
+      - logger.log: {format: "HWT Bin42 %d", args: [x]}
+  - platform: template
+    name: "Auto B"
+    lambda: return (millis() / 20000) % 2 == 1;
+time:
+  - platform: zigbee
+    id: ztime
