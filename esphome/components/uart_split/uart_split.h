@@ -79,6 +79,7 @@ class UartSplit final : public Component {
   void push_(size_t index, const uint8_t *data, size_t len);
 
   uart::UARTComponent *parent_;
+  HighFrequencyLoopRequester high_freq_;
   StaticVector<UartSplitOutput *, UART_SPLIT_OUTPUT_COUNT> outputs_;
 };
 

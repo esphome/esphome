@@ -68,6 +68,16 @@ class UartSplitCopy : public ::testing::Test {
     this->split_.add_output(&this->quiet_);
   }
 
+  void TearDown() override {
+    // The loop requester is shared by all tests; read everything so the split stops requesting.
+    for (int i = 0; i < 5; i++) {
+      for (UartSplitOutput *output : {&this->bus_, &this->tap_, &this->quiet_}) {
+        drain(output);
+      }
+      this->split_.loop();
+    }
+  }
+
   uint8_t read_one(uart::UARTComponent *uart) {
     uint8_t byte = 0;
     EXPECT_TRUE(uart->read_byte(&byte));
@@ -257,6 +267,26 @@ TEST_F(UartSplitCopy, ReadsAtMostOneOutputBufferPerPass) {
   this->split_.loop();
   EXPECT_EQ(this->pins_.available(), 300u - RX_BUFFER_SIZE);
   EXPECT_EQ(this->bus_.available(), RX_BUFFER_SIZE);
+}
+
+TEST_F(UartSplitCopy, MoreWaitingThanOnePassMovesRunsTheLoopWithoutWaiting) {
+  // 230400 baud brings 23040 bytes a second; 256 bytes per 16 ms pass would not keep up.
+  this->pins_.rx_fill(300);
+  this->split_.loop();
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
+  drain(&this->bus_);
+  this->split_.loop();
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+  EXPECT_EQ(this->pins_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, StalledWriterDoesNotKeepTheLoopRunning) {
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  this->pins_.rx_fill(10);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 10u);
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
 }
 
 TEST_F(UartSplitCopy, DroppedWriteDoesNotHideADroppedReceive) {

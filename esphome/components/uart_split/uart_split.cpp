@@ -21,6 +21,7 @@ void UartSplit::setup() {
 void UartSplit::loop() {
   size_t waiting = this->parent_->available();
   if (waiting == 0) {
+    this->high_freq_.stop();
     return;
   }
   // A full writer leaves new bytes in the parent's buffer until it is half full; then the writer drops.
@@ -39,16 +40,19 @@ void UartSplit::loop() {
     take = room;
   }
   uint8_t buf[READ_CHUNK];
-  while (take > 0) {
-    size_t len = std::min(take, READ_CHUNK);
+  size_t taken = 0;
+  while (taken < take) {
+    size_t len = std::min(take - taken, READ_CHUNK);
     if (!this->parent_->read_array(buf, len)) {
-      return;
+      break;
     }
     for (size_t i = 0; i < this->outputs_.size(); i++) {
       this->push_(i, buf, len);
     }
-    take -= len;
+    taken += len;
   }
+  // A pass moves at most RX_BUFFER_SIZE bytes. While more wait and this pass moved some, do not wait for the next tick.
+  this->high_freq_.set(taken > 0 && waiting > taken);
 }
 
 void UartSplit::mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len) {
