@@ -184,10 +184,12 @@ TEST_F(CurrentBasedCoverTest, StateCallbackSeesLearnedDurationAndCanStartTravel)
   this->setup_cover_(cover, true);
   this->travel_to_(cover, COVER_CLOSED, 1000);
   uint32_t seen_open_duration = 0;
-  cover.add_on_state_callback([&cover, &seen_open_duration]() {
+  cover.add_on_state_callback([this, &cover, &seen_open_duration]() {
     if (seen_open_duration != 0 || cover.position != COVER_OPEN || cover.current_operation != COVER_OPERATION_IDLE)
       return;
     seen_open_duration = cover.get_open_duration();
+    // Motor current first, so the zero sensing delay cannot stop the new travel in the same loop()
+    this->close_current_.publish_state(1.0f);
     cover.make_call().set_position(COVER_CLOSED).perform();
   });
   cover.make_call().set_position(COVER_OPEN).perform();
