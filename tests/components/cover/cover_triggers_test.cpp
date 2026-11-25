@@ -47,6 +47,17 @@ class RepublishAction final : public Action<> {
   TestCover *cover_;
 };
 
+// Publishes a new operation at the same position, as cover.template.publish in an on_opened action might.
+class PublishOperationAction final : public Action<> {
+ public:
+  PublishOperationAction(TestCover *cover, CoverOperation operation) : cover_(cover), operation_(operation) {}
+  void play() override { this->cover_->publish(this->cover_->position, this->operation_); }
+
+ protected:
+  TestCover *cover_;
+  CoverOperation operation_;
+};
+
 struct Fired {
   int opened{0};
   int closed{0};
@@ -251,6 +262,20 @@ TEST(CoverTriggerOrderTest, PublishFromTriggerRunsPendingTriggersFirst) {
   cover.add_on_state_callback([&log]() { log.push_back('x'); });
   cover.publish(COVER_OPEN, COVER_OPERATION_IDLE);
   EXPECT_EQ(log, "oixx");
+}
+
+// Each trigger reads the live operation, so on_idle never sees the IDLE that an on_opened action replaced.
+TEST(CoverNestedPublishTest, OperationPublishedFromTriggerReplacesOuterOperation) {
+  TestCover cover;
+  Fired fired;
+  attach<is_opened>(
+      &cover, new PublishOperationAction(&cover, COVER_OPERATION_CLOSING));  // NOLINT(cppcoreguidelines-owning-memory)
+  count<is_in<COVER_OPERATION_CLOSING>>(&cover, &fired.closing);
+  count<is_in<COVER_OPERATION_IDLE>>(&cover, &fired.idle);
+  cover.publish(COVER_OPEN, COVER_OPERATION_IDLE);
+  EXPECT_EQ(fired.closing, 1);
+  EXPECT_EQ(fired.idle, 0);
+  EXPECT_EQ(cover.current_operation, COVER_OPERATION_CLOSING);
 }
 
 }  // namespace esphome::cover::testing
