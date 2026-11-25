@@ -61,7 +61,7 @@ def udp_burst(rounds: int, pkts: int) -> None:
     u.settimeout(2)
     payload = b"\x55" * 1400
     got = []
-    enobufs = timeouts = 0
+    enobufs = 0
     u.sendto(b"Q", (host, 5003))  # reset the device counter
     with contextlib.suppress(TimeoutError):
         u.recvfrom(16)
@@ -80,15 +80,13 @@ def udp_burst(rounds: int, pkts: int) -> None:
         u.sendto(b"Q", (host, 5003))
         try:
             d, _ = u.recvfrom(16)
-            got.append(struct.unpack("<I", d[:4])[0])
-        except TimeoutError:
-            timeouts += 1
+        except TimeoutError:  # the next count would span several bursts
+            sys.exit("udpburst: count query timed out, run discarded")
+        got.append(struct.unpack("<I", d[:4])[0])
         time.sleep(0.3)
-    if not got:
-        sys.exit(f"udpburst: all {rounds} count queries timed out")
     print(
         f"RESULT udpburst rounds={rounds} pkts={pkts} median={statistics.median(got)} "
-        f"min={min(got)} max={max(got)} enobufs={enobufs} timeouts={timeouts}"
+        f"min={min(got)} max={max(got)} enobufs={enobufs}"
     )
 
 
