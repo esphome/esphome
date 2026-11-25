@@ -37,7 +37,7 @@ bool BinarySensor::set_new_state(const optional<bool> &new_state) {
 #ifdef USE_BINARY_SENSOR_FILTER
   // An unknown state drops each filter's pending output and last value, so the next value is not dropped as a repeat
   if (!new_state.has_value()) {
-    for (Filter *filter = this->filter_list_; filter != nullptr; filter = filter->next_)
+    for (Filter *filter = this->filter_list_; filter != nullptr; filter = filter->link_.next())
       filter->reset();
   }
 #endif
@@ -54,14 +54,11 @@ bool BinarySensor::set_new_state(const optional<bool> &new_state) {
 
 #ifdef USE_BINARY_SENSOR_FILTER
 void BinarySensor::add_filter(Filter *filter) {
-  filter->parent_ = this;
+  filter->link_.set_owner(this);
   if (this->filter_list_ == nullptr) {
     this->filter_list_ = filter;
   } else {
-    Filter *last_filter = this->filter_list_;
-    while (last_filter->next_ != nullptr)
-      last_filter = last_filter->next_;
-    last_filter->next_ = filter;
+    this->filter_list_->chain_last_()->link_.set_next(filter);
   }
 }
 void BinarySensor::add_filters(std::initializer_list<Filter *> filters) {

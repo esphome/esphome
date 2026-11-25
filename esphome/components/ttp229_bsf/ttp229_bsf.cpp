@@ -7,8 +7,7 @@ ESPHOME_LOG_TAG(TAG, "ttp229_bsf");
 
 void TTP229BSFComponent::setup() {
   this->sdo_pin_->setup();
-  this->scl_pin_->setup();
-  this->scl_pin_->digital_write(true);
+  setup_output_pin(this->scl_pin_, true);
   delay(2);
 }
 void TTP229BSFComponent::dump_config() {

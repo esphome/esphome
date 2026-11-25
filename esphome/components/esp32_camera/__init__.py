@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.const import CONF_WINDOW
+from esphome.components.const import CONF_PIXEL_FORMAT, CONF_WINDOW
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.psram import DOMAIN as psram_domain
 from esphome.config_helpers import filter_source_files_from_defines
@@ -146,7 +146,6 @@ CONF_EXTERNAL_CLOCK = "external_clock"
 CONF_I2C_PINS = "i2c_pins"
 CONF_POWER_DOWN_PIN = "power_down_pin"
 # image
-CONF_PIXEL_FORMAT = "pixel_format"
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
@@ -412,8 +411,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
-        if key in config:
-            cg.add(getattr(var, setter)(config[key]))
+        cg.add_optional(getattr(var, setter), config.get(key))
 
     extclk = config[CONF_EXTERNAL_CLOCK]
     cg.add(var.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))

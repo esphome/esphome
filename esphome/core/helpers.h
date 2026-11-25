@@ -515,10 +515,40 @@ template<typename T, size_t N> class StaticRingBuffer {
     }
   }
 
+  /// Push up to `len` values without overwriting. Returns how many fit.
+  size_t push(const T *data, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk push copies with memcpy");
+    len = std::min<size_t>(len, this->free_space());
+    const size_t first = std::min<size_t>(len, N - this->tail_);
+    std::memcpy(this->data_ + this->tail_, data, first * sizeof(T));
+    if (len > first)
+      std::memcpy(this->data_, data + first, (len - first) * sizeof(T));
+    // Below 2 * N, so one subtraction wraps it; % N is a library call without a hardware divider
+    const size_t tail = this->tail_ + len;
+    this->tail_ = tail >= N ? tail - N : tail;
+    this->count_ += len;
+    return len;
+  }
+
+  /// Move up to `len` of the oldest values into `out`. Returns how many were copied.
+  size_t pop(T *out, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk pop copies with memcpy");
+    len = std::min<size_t>(len, this->count_);
+    const size_t first = std::min<size_t>(len, N - this->head_);
+    std::memcpy(out, this->data_ + this->head_, first * sizeof(T));
+    if (len > first)
+      std::memcpy(out + first, this->data_, (len - first) * sizeof(T));
+    const size_t head = this->head_ + len;
+    this->head_ = head >= N ? head - N : head;
+    this->count_ -= len;
+    return len;
+  }
+
   T &front() { return this->data_[this->head_]; }
   const T &front() const { return this->data_[this->head_]; }
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
+  index_type free_space() const { return N - this->count_; }
 
   /// Clear all elements (reset to empty)
   void clear() {
@@ -1341,8 +1371,12 @@ inline bool str_equals_case_insensitive(const std::string &a, const char *b) { r
 inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
+// Remove before 2027.6.0
+ESPDEPRECATED("Use std::string::starts_with() instead. Removed in 2027.6.0", "2026.12.0")
 bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
+// Remove before 2027.6.0
+ESPDEPRECATED("Use std::string::ends_with() instead. Removed in 2027.6.0", "2026.12.0")
 bool str_endswith(const std::string &str, const std::string &end);
 
 /// Case-insensitive check if string ends with suffix (no heap allocation).
@@ -1518,17 +1552,7 @@ inline char *ESPHOME_ALWAYS_INLINE progmem_copy_str(char *dst, const char *end, 
 /// @param str PROGMEM-resident string to append (must not be null)
 /// @return New position after appending; returns `size` if `pos >= size`, otherwise
 ///         returns at most `size - 1` because one byte is reserved for the null terminator
-inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
-  if (pos >= size) {
-    return size;
-  }
-  size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strnlen_P(str, remaining);
-  memcpy_P(buf + pos, str, len);
-  pos += len;
-  buf[pos] = '\0';
-  return pos;
-}
+size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str);
 /// Safely append a string to buffer, returning new position (capped at size).
 /// More efficient than buf_append_printf for plain string literals.
 /// On ESP8266 the literal is wrapped with PSTR() so it stays in flash.
@@ -1882,6 +1906,14 @@ inline char *format_hex_pretty_to(char (&buffer)[N], const std::vector<uint8_t> 
 template<size_t N, size_t M>
 inline char *format_hex_pretty_to(char (&buffer)[N], const std::array<uint8_t, M> &data, char separator = ':') {
   return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
+/// Format an unsigned integer in uppercase hex without separators, starting with the most significant byte.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_pretty_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_hex_pretty_to(buffer, N, reinterpret_cast<const uint8_t *>(&val), sizeof(T), 0);
 }
 
 /// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
@@ -2494,10 +2526,12 @@ class CpuFrequencyBoost {
  */
 class HighFrequencyLoopRequester {
  public:
+  /// Run the loop continuously while \p active is true. Repeating the current value does nothing.
+  void set(bool active);
   /// Start running the loop continuously.
-  void start();
+  void start() { this->set(true); }
   /// Stop running the loop continuously.
-  void stop();
+  void stop() { this->set(false); }
 
   /// Check whether the loop is running continuously.
   static bool is_high_frequency() { return num_requests > 0; }

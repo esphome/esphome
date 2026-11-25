@@ -50,7 +50,7 @@ SumCombinationComponent = combination_ns.class_(
 )
 
 CONF_COEFFICIENT = "coefficient"
-CONF_COEFFECIENT = "coeffecient"  # Deprecated, remove before 2026.12.0
+CONF_COEFFECIENT = "coeffecient"  # Removed in 2026.12.0
 CONF_ERROR = "error"
 CONF_KALMAN = "kalman"
 CONF_LINEAR = "linear"
@@ -71,19 +71,16 @@ KALMAN_SOURCE_SCHEMA = cv.Schema(
 )
 
 
-LINEAR_SOURCE_SCHEMA = cv.All(
-    cv.rename_key(
-        CONF_COEFFECIENT,
-        CONF_COEFFICIENT,
-        removed_in="2026.12.0",
-        component="combination",
-    ),
-    cv.Schema(
-        {
-            cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-            cv.Required(CONF_COEFFICIENT): cv.templatable(cv.float_),
-        }
-    ),
+LINEAR_SOURCE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
+        cv.Required(CONF_COEFFICIENT): cv.templatable(cv.float_),
+        # Removed in 2026.12.0 - kept to provide helpful error message
+        cv.Optional(CONF_COEFFECIENT): cv.invalid(
+            "The misspelled 'coeffecient' option was removed in ESPHome 2026.12.0, "
+            "use 'coefficient' instead."
+        ),
+    }
 )
 
 SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(

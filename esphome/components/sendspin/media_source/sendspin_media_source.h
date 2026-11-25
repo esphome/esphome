@@ -10,6 +10,8 @@
 
 #include <sendspin/player_role.h>
 
+#include <span>
+
 namespace esphome::sendspin_ {
 
 /// @brief Thin adapter media source for Sendspin.
@@ -39,9 +41,10 @@ class SendspinMediaSource final : public SendspinChild,
  protected:
   // --- Sendspin PlayerRoleListener overrides ---
 
-  /// @brief Writes decoded PCM audio to ESPHome's media source output pipeline.
+  /// @brief Writes decoded PCM audio, in the format it carries, to ESPHome's media source output pipeline.
   /// Called from the sync task's background thread.
-  size_t on_audio_write(uint8_t *data, size_t length, uint32_t timeout_ms) override;
+  size_t on_audio_output(std::span<const uint8_t> pcm, const sendspin::AudioFormat &format,
+                         uint32_t timeout_ms) override;
 
   /// @brief Called when a new audio stream starts (main loop thread).
   void on_stream_start() override;
