@@ -18,6 +18,9 @@ namespace {
 /// The decoder writes into a 16-byte aligned block.
 constexpr size_t JPEG_BUFFER_ALIGNMENT = 16;
 
+/// esp_new_jpeg rotates only frames whose width and height are multiples of this many pixels.
+constexpr unsigned JPEG_ROTATION_BLOCK = 8;
+
 /// Maps the configured rotation to the library's enum once, at construction.
 jpeg_rotate_t rotation_to_jpeg(int degrees) {
   switch (degrees) {
@@ -129,9 +132,10 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
   // esp_new_jpeg rotates only when both dimensions are multiples of 8. Report
   // that here instead of letting the decode fail with a generic error after the
   // output buffer has been allocated.
-  if (this->rotation_degrees_ != 0 && (header.width % 8U != 0 || header.height % 8U != 0)) {
-    ESP_LOGE(TAG, "Cannot rotate a %ux%u JPEG: both dimensions must be multiples of 8",
-             static_cast<unsigned>(header.width), static_cast<unsigned>(header.height));
+  if (this->rotation_degrees_ != 0 &&
+      (header.width % JPEG_ROTATION_BLOCK != 0 || header.height % JPEG_ROTATION_BLOCK != 0)) {
+    ESP_LOGE(TAG, "Cannot rotate a %ux%u JPEG: both dimensions must be multiples of %u",
+             static_cast<unsigned>(header.width), static_cast<unsigned>(header.height), JPEG_ROTATION_BLOCK);
     return camera::DECODER_ERROR_UNSUPPORTED;
   }
 
