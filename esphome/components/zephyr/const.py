@@ -13,7 +13,6 @@ KEY_KCONFIG: Final = "kconfig"
 KEY_PRJ_CONF: Final = "prj_conf"
 KEY_ZEPHYR = "zephyr"
 KEY_SYSBUILD: Final = "sysbuild"
-KEY_VARIANT: Final = "variant"
 KEY_FRAMEWORK_TYPE: Final = "framework_type"
 KEY_FAMILY: Final = "family"
 

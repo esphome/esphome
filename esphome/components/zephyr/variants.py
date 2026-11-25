@@ -17,6 +17,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
+    KEY_VARIANT,
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
@@ -26,7 +27,6 @@ from .const import (
     KEY_BOOTLOADER,
     KEY_FAMILY,
     KEY_FRAMEWORK_TYPE,
-    KEY_VARIANT,
     KEY_ZEPHYR,
     VERSION_RECOMMENDED,
 )

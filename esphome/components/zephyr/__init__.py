@@ -5,7 +5,7 @@ from typing import Literal, NamedTuple, NotRequired, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD, KEY_CORE, KEY_TARGET_FRAMEWORK
+from esphome.const import CONF_BOARD, KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_VARIANT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
@@ -22,7 +22,6 @@ from .const import (
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
-    KEY_VARIANT,
     KEY_ZEPHYR,
     zephyr_ns,
 )
