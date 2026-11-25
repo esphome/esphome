@@ -106,7 +106,7 @@ def test_compile_and_get_binary_cxx_build_flags(
     CORE.reset()
     seen: dict[str, set[str]] = {}
 
-    def fake_compile(args, config) -> int:
+    def fake_compile(args: object, config: object) -> int:
         seen["cxx"] = set(CORE.cxx_build_flags)
         seen["all"] = set(CORE.build_flags)
         return 0
