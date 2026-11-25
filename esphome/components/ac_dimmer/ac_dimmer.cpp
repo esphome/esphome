@@ -171,13 +171,15 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   }
   const uint32_t a = this->disable_time_us;
   const uint32_t b = this->enable_time_us;
+  const uint32_t lo = std::min(a, b);
+  const uint32_t hi = std::max(a, b);
   // The three must also agree: the first edges after power up can drift, which moves two of them
-  if (std::max(std::max(a, b), cycle) - std::min(std::min(a, b), cycle) > cycle / 128) {
+  if (std::max(hi, cycle) - std::min(lo, cycle) > cycle / 128) {
     this->disable_time_us = b;
     this->enable_time_us = cycle;
     return;
   }
-  this->period = std::max(std::min(a, b), std::min(std::max(a, b), cycle)) / 2;
+  this->period = std::max(lo, std::min(hi, cycle)) / 2;
   // Locked: the half cycle the edge before this one started counts as running
   this->zc_at = now - this->period;
   this->taken_err = NO_EDGE_ERR;
