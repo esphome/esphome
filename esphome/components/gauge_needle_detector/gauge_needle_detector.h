@@ -206,9 +206,6 @@ class NeedleDetector final {
 
  protected:
   static constexpr size_t MAX_DETECTORS = 4;
-  /// Dials whose problems are reported once each. A consumer must not use more dials than this, or the
-  /// problems of the extra ones are never logged.
-  static constexpr size_t MAX_REPORTED_DIALS = 8;
 
 #ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
   Preprocessor preprocessor_;
@@ -220,17 +217,17 @@ class NeedleDetector final {
   /// Largest crop accepted by detect(); 0 until reserve() succeeds.
   int reserved_width_{0};
   int reserved_height_{0};
-  /// One bit per problem a dial can report, so a later, different one still logs.
+  /// One bit per kind of problem; each kind is logged once, for the first dial that hits it.
   static constexpr uint8_t REPORT_OVERSIZE = 1 << 0;
   static constexpr uint8_t REPORT_EMPTY_WINDOW = 1 << 1;
   static constexpr uint8_t REPORT_MISSING_DETECTOR = 1 << 2;
-  /// Dials that already reported, with the kinds each one reported. The id is a
-  /// configuration literal, so its address identifies the dial.
-  std::array<const char *, MAX_REPORTED_DIALS> reported_dials_{};
-  std::array<uint8_t, MAX_REPORTED_DIALS> reported_kinds_{};
-  size_t reported_count_{0};
-  /// True the first time `dial` reports this kind of problem.
-  bool first_report_(const char *dial, uint8_t kind);
+  uint8_t reported_{0};
+  /// True the first time this kind of problem is seen.
+  bool first_report_(uint8_t kind) {
+    const bool first = (this->reported_ & kind) == 0;
+    this->reported_ |= kind;
+    return first;
+  }
 
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
   IntensityScanDetector intensity_scan_;
