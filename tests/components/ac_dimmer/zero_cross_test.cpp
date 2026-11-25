@@ -112,8 +112,8 @@ INSTANTIATE_TEST_SUITE_P(
         PhaseLockCase{"AlternatingJitterWhileLockingAt60Hz", 1000, 8333, 200, 250, 0, 0, 0, 80, true},
         // Noise half way through every half cycle (the triac firing) is outside the window
         PhaseLockCase{"NoiseOutsideWindow", 1000, 10000, 200, 0, 5000, 0, 0, 2},
-        // Noise 1 ms before every crossing is inside the window: the edge closest to the
-        // prediction is kept, so the noise does not drag the timing
+        // Noise 1 ms before every crossing (the triac firing) is outside the window, which reaches less far early
+        // than late, so it does not drag the timing
         PhaseLockCase{"NoiseJustBeforeCrossing", 1000, 10000, 200, 0, -1000, 0, 0, 2},
         PhaseLockCase{"MissedCrossing", 1000, 10000, 50, 0, 0, 20, 1, 2},
         PhaseLockCase{"SevenMissedCrossings", 1000, 10000, 50, 0, 0, 20, 7, 2}),
@@ -134,7 +134,7 @@ struct EdgeOffsetCase {
 class EdgeOffsetTest : public ::testing::TestWithParam<EdgeOffsetCase> {};
 
 // Edges served late for a while (WiFi on the ESP8266) only confirm the crossings, the timing moved by early detector
-// pulses comes back, and gate noise closer to the prediction than late real edges does not drag the timing: the
+// pulses comes back, and gate noise just before the crossing is ignored while the real edges come late: the
 // prediction ends on the crossings, and a pulse near the end of the half cycle never fires in the next one
 TEST_P(EdgeOffsetTest, KeepsLockAndPhase) {
   const auto &c = GetParam();
@@ -282,7 +282,8 @@ TEST(AcDimmerTimerTest, AlternatingDetectorLocksCentred) {
   }
 }
 
-// Noise from the gate does not keep the lock once the real crossings stop
+// Noise from the gate does not keep the lock once the real crossings stop, also with the gate this close to the
+// crossing (230 µs before it), where an edge right after it confirms the crossing
 TEST(AcDimmerTimerTest, GateNoiseDoesNotHoldTheLock) {
   AcDimmerDataStore store{};
   store.value = 1500;
@@ -293,6 +294,33 @@ TEST(AcDimmerTimerTest, GateNoiseDoesNotHoldTheLock) {
   ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
   bench.run_until(crossing + 20 * 10000);
   EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_NONE);
+}
+
+// At 2 % the gate fires 200 µs before the predicted crossing. With the prediction about that late, the real edge
+// comes right after the gate goes on, where gate noise is expected: it still confirms the crossing, so the lock is
+// kept while the prediction drifts back onto the crossings
+TEST(AcDimmerTimerTest, CrossingRightAfterLowGateKeepsTheLock) {
+  struct Shift {
+    int32_t late;
+    int32_t period;
+  };
+  for (const Shift shift : {Shift{180, -3}, Shift{180, -2}, Shift{200, -4}}) {
+    AcDimmerDataStore store{};
+    store.value = 1311;  // 2 %, no minimum power
+    Bench bench(store, 1000, 5);
+    uint32_t crossing = 1000;
+    for (int i = 0; i < 200; i++, crossing += 10000) {
+      bench.edge(crossing);
+      if (i == 20) {
+        store.zc_at += shift.late;
+        store.period += shift.period;
+      }
+      if (i > LOCK_EDGE)
+        ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << shift.late << " " << shift.period << " crossing " << i;
+    }
+    for (uint32_t at : bench.gate_on)
+      EXPECT_FALSE(in_next_half_cycle(at, 1000, 10000)) << shift.late << " " << shift.period << " pulse at " << at;
+  }
 }
 
 // ESP32-C3: the timer runs every 50 µs and the detector alternates 250 µs early and late. The gate fires in the

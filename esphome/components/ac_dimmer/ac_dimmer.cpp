@@ -3,7 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
-#include <climits>
 #include <cmath>
 #include <numbers>
 
@@ -37,8 +36,6 @@ static constexpr uint32_t MIN_HALF_CYCLE_US = 6000;
 static constexpr uint32_t MAX_HALF_CYCLE_US = 25000;
 /// Half cycles in a row without an edge near the predicted crossing before the lock is dropped
 static constexpr uint8_t MAX_MISSES = 8;
-/// taken_err when no correction is waiting (outside any window)
-static constexpr int16_t NO_EDGE_ERR = INT16_MIN;
 /// The zero-cross interrupt can be served this late on the ESP8266
 static constexpr int32_t MAX_EDGE_LATENCY_US = 1500;
 /// A late timer still needs this long after a pulse to switch the gate off before the crossing
@@ -87,9 +84,6 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
 uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step(uint32_t now) {
   auto since = static_cast<int32_t>(now - this->zc_at);
   if (since >= this->period) {
-    // The window of the crossing at zc_at closed long ago: its best edge is final
-    if (this->taken_err != NO_EDGE_ERR && !this->edge_next)
-      this->apply_edge_err();
     // The predicted crossing: the next half cycle starts here, whether or not its edge has been seen
     this->zc_at += this->period;
     since = static_cast<int32_t>(now - this->zc_at);
@@ -185,77 +179,58 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   // Locked: the half cycle the edge before this one started counts as running. Its start is taken halfway between
   // what this edge and the one before it say, so a detector that alternates early and late starts centred.
   this->zc_at = now - (gap + this->period) / 2;
-  this->taken_err = NO_EDGE_ERR;
   this->misses = 0;
   this->edge_now = true;
   this->edge_next = true;
   this->early_steps = 0;
-  this->late_last = false;
-  this->late_before = false;
+  this->gate_edges = 0;
   this->phase = ZERO_CROSS_PHASE_LOCKED;
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
-  // Noise from the gate going on is not a crossing; with the trailing method the gate goes on at the crossing
-  if (this->gate_fired && this->method != DIM_METHOD_TRAILING &&
-      now - this->zc_at - this->enable_time_us < GATE_NOISE_US)
-    return;
   // The edge belongs to the crossing at zc_at (served after the timer started it) or the one at zc_at + period
   const bool next = static_cast<int32_t>(now - this->zc_at) > this->period / 2;
-  int32_t err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
+  const int32_t err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
   // Late edges get a wider window: the interrupt can be served late
-  if (err > std::max<int32_t>(this->period / 6, MAX_EDGE_LATENCY_US) || err < -this->period / 8)
+  if (err > std::max<int32_t>(this->period / 6, MAX_EDGE_LATENCY_US) || err < -this->period / 12)
     return;
-  if (next ? this->edge_next : this->edge_now) {
-    // Another edge for the same crossing, such as noise from the triac firing just before it: the one closest to
-    // the prediction wins. An edge well before it loses to any later one: noise from the gate, which fires relative
-    // to the prediction, would otherwise drag the prediction along with it.
-    const int32_t taken = this->taken_err;
-    if (taken != NO_EDGE_ERR && (taken < -this->period / 32 || std::abs(err) < std::abs(taken)))
-      this->taken_err = err;
+  // The first edge of a crossing is taken, later ones are ignored
+  if (next ? this->edge_next : this->edge_now)
     return;
-  }
-  if (this->taken_err != NO_EDGE_ERR) {
-    // An edge for a later crossing: the earlier crossing's best edge is final
-    this->apply_edge_err();
-    err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
-  }
-  this->taken_err = err;
-  if (next) {
-    this->edge_next = true;
+  // Noise from the gate going on is not a crossing; with the trailing method the gate goes on at the crossing
+  if (this->gate_fired && this->method != DIM_METHOD_TRAILING &&
+      now - this->zc_at - this->enable_time_us < GATE_NOISE_US) {
+    // A gate this close to the crossing can hide the crossing itself: the edge confirms it without moving the timing,
+    // so noise alone keeps the lock only for a few more half cycles
+    if (this->period - this->enable_time_us > this->period / 32 || this->gate_edges == 7)
+      return;
+    this->gate_edges++;
   } else {
-    this->edge_now = true;
-  }
-}
-
-void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
-  // Mains timing is steady, so follow slowly, by at most `close` per edge. A late edge may only have been served late:
-  // beyond `close` it counts only to undo early steps, or as a lone late edge of a detector whose edges alternate
-  // early and late around the crossing.
-  const int32_t close = this->period / 32;
-  const int32_t err = this->taken_err;
-  const bool late = err > close;
-  int32_t move = 0;
-  if (!late) {
-    move = std::max(err, -close);
-    if (err < -close) {
+    this->gate_edges = 0;
+    // Mains timing is steady, so follow slowly, by at most `close` per edge. An edge late beyond `close` may only have
+    // been served late: it only undoes an earlier step made by an edge far early.
+    const int32_t close = this->period / 24;
+    int32_t move = std::max(err, -close);
+    if (err > close) {
+      move = 0;
+      if (this->early_steps != 0) {
+        this->early_steps--;
+        move = close;
+      }
+    } else if (err < -close) {
       if (this->early_steps != 7)
         this->early_steps++;
     } else if (err >= 0) {
       this->early_steps = 0;
     }
-  } else if (this->early_steps != 0) {
-    // Early detector pulses moved the timing: the edges after them undo it
-    this->early_steps--;
-    move = close;
-  } else if (this->late_before && !this->late_last) {
-    move = close;
+    this->zc_at += move / 4;
+    this->period += move / 16;
   }
-  this->zc_at += move / 4;
-  this->period += move / 16;
-  this->late_before = this->late_last;
-  this->late_last = late;
-  this->taken_err = NO_EDGE_ERR;
+  if (next) {
+    this->edge_next = true;
+  } else {
+    this->edge_now = true;
+  }
 }
 
 /// GPIO interrupt routine, called when ZC pin triggers

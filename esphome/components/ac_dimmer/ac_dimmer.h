@@ -31,8 +31,6 @@ struct AcDimmerDataStore {
   uint16_t value;
   /// Minimum power in 0.1 % steps
   uint16_t min_power;
-  /// Timing error of the best edge of the latest crossing with an edge, not applied yet; NO_EDGE_ERR for none
-  int16_t taken_err;
   /// Zero-cross pin number, used to share the pin across dimmers
   uint8_t zero_cross_pin_number;
   /// ZeroCrossPhase
@@ -49,10 +47,8 @@ struct AcDimmerDataStore {
   bool init_cycle;
   /// Edges followed by only `close` while far early, each undone by a late edge (capped)
   uint8_t early_steps : 3;
-  /// The edge of the last crossing with one was late beyond `close`
-  uint8_t late_last : 1;
-  /// The same for the crossing with an edge before it
-  uint8_t late_before : 1;
+  /// Crossings in a row confirmed only by an edge right after a gate close to the crossing (capped)
+  uint8_t gate_edges : 3;
   /// Dimmer method; set before setup(), so it can share the byte with the interrupt's flags
   DimMethod method : 2;
 
@@ -64,10 +60,8 @@ struct AcDimmerDataStore {
   void zero_cross_edge(uint32_t now);
   /// Edge while not locked: locks once three full cycles in a row agree
   void acquire_edge(uint32_t now);
-  /// Edge while locked: an edge near the predicted crossing nudges the timing, others are ignored
+  /// Edge while locked: the first edge near the predicted crossing nudges the timing, others are ignored
   void track_edge(uint32_t now);
-  /// Moves the timing by the waiting edge error
-  void apply_edge_err();
   /// Sets up the gate events of the half cycle that starts at zc_at
   void start_half_cycle();
 
