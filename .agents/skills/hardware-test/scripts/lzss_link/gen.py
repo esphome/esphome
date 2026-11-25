@@ -45,7 +45,7 @@ else:
     y.append(f"logger:\n  baud_rate: 115200\n  level: {level}\n")
 if verbose:
     y.append(
-        "  logs:\n    wifi: DEBUG\n    scheduler: DEBUG\n    component: DEBUG\n    udp: DEBUG\n    lztest: INFO\n"
+        "  logs:\n    wifi: DEBUG\n    scheduler: DEBUG\n    component: DEBUG\n    udp: DEBUG\n    lztest: DEBUG\n"
     )
 y.append("safe_mode:\n  disabled: true\n")
 if V == "e":

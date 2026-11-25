@@ -1,7 +1,7 @@
 """Summarise runV-s3.log and runV-hz.log of the compression test.
 
 usage: ana.py V
-Per message type and direction: messages missing from GAP lines, sent and refused counts, received ok, bad, gap and
+Per message type and direction: messages missing from GAP lines, sender restarts (a GAP back to a lower seq), sent and refused counts, received ok, bad, gap and
 dup, input and wire sizes, compressed share and ratio, raw packets of the wrong size, encode and decode times; then
 link resets, session drops, crashes, boots and packet_interface warnings per board.
 """
@@ -34,8 +34,9 @@ COUNTS = {
 def parse(f: Path) -> dict:
     """One pass over a log: last STAT per type, last STATG, RX sizes, GAP misses and the COUNTS matches."""
     st, g = {}, None
-    rx, miss, cnt = (
+    rx, miss, restarts, cnt = (
         collections.defaultdict(list),
+        collections.Counter(),
         collections.Counter(),
         collections.Counter(),
     )
@@ -53,9 +54,13 @@ def parse(f: Path) -> dict:
             if m := RX_RE.search(ln):
                 rx[m.group(1)].append((int(m.group(2)), int(m.group(3)), m.group(4)))
             if m := GAP_RE.search(ln):
-                miss[m.group(1)] += (int(m.group(3)) - int(m.group(2)) - 1) % 65536
+                old, new = int(m.group(2)), int(m.group(3))
+                if new < old and old - new < 32768:
+                    restarts[m.group(1)] += 1
+                else:
+                    miss[m.group(1)] += (new - old - 1) % 65536
             cnt.update(k for k, r in COUNTS.items() if r.search(ln))
-    return {"st": st, "g": g, "rx": rx, "miss": miss, "cnt": cnt}
+    return {"st": st, "g": g, "rx": rx, "miss": miss, "restarts": restarts, "cnt": cnt}
 
 
 L = {b: HERE / f"run{R}-{b}.log" for b in ("s3", "hz")}
@@ -63,7 +68,7 @@ P = {b: parse(L[b]) for b in L}
 for snd, rcv in (("s3", "hz"), ("hz", "s3")):
     print(f"--- {snd} -> {rcv}")
     tx, rx = P[snd]["st"], P[rcv]["st"]
-    rxl, miss = P[rcv]["rx"], P[rcv]["miss"]
+    rxl, miss, rst = P[rcv]["rx"], P[rcv]["miss"], P[rcv]["restarts"]
     for t in "SWDHBX":
         a, b = tx.get(t, {}), rx.get(t, {})
         if not a and not b:
@@ -74,7 +79,7 @@ for snd, rcv in (("s3", "hz"), ("hz", "s3")):
         comp = sum(1 for x in rl if x[2] == "comp")
         ratio = (sum(outs) / sum(ins)) if ins else 0
         print(
-            f"{t}: missing={miss.get(t, 0)} tx={a.get('tx')} ref={a.get('ref')} | rx ok={b.get('ok')}"
+            f"{t}: missing={miss.get(t, 0)} restarts={rst.get(t, 0)} tx={a.get('tx')} ref={a.get('ref')} | rx ok={b.get('ok')}"
             f" bad={b.get('bad')} gap={b.get('gap')} dup={b.get('dup')}"
             f" | in {min(ins, default=0)}-{max(ins, default=0)} wire {min(outs, default=0)}-{max(outs, default=0)}"
             f" comp={comp}/{len(rl)} ratio={ratio:.2f} rawbad={b.get('w_rawbad')}"

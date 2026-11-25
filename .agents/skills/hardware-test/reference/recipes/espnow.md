@@ -65,4 +65,5 @@ https://github.com/esphome/esphome/pull/22471#issuecomment-7119878173):
   dictionary bits, and times encode and decode with the layer's own codec (`LzssCompression` is final, so its
   protected `lower_`, `check_` and `codec_` are read through an explicit template instantiation).
 - `run.sh V SECS` (env `TREE`, `PORT_HZ`, `PORT_S3`) flashes both and captures both from a reset; `ana.py V` prints per
-  type counts, messages missing from GAP lines, wire sizes and ratios, encode and decode times, resets and crashes.
+  type counts, messages missing from GAP lines (a GAP back to a lower seq counts as a sender restart, not as missing),
+  wire sizes and ratios, encode and decode times, resets and crashes.
