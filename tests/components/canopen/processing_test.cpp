@@ -19,7 +19,7 @@ TEST(CanopenProcessing, NodeRetriesQueuedFramesOnlyFromLoop) {
   ASSERT_TRUE(hub.write_sdo<uint8_t>(0x21, 0x6060, 0, 1));
   hub.loop();
   bus.busy = false;
-  hub.frame(0x701, {0x05});
+  hub.frame(0x000, {0x01, 0x10});  // NMT start for this node: taken, so the node processes it
   EXPECT_EQ(bus.count(0x621), 0u);
   hub.loop();
   EXPECT_EQ(bus.count(0x621), 1u);

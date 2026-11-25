@@ -88,16 +88,19 @@ def enable_sdo_client() -> None:
     """Compile the SDO client (read_sdo(), write_sdo(), ...): for actions and components that use it."""
     if not _enable_once("sdo_client"):
         return
-    for hub in _hub_configs():
+    hubs = _hub_configs()
+    for hub in hubs:
         if hub.get(CONF_SDO_CLIENT) is False:
             raise EsphomeError(
                 f"canopen {hub[CONF_ID]} has sdo_client: false, but the SDO client is used (canopen.sdo_read / "
                 "canopen.sdo_write actions or a component); remove sdo_client: false"
             )
     cg.add_define("USE_CANOPEN_SDO_CLIENT")
-    # enable | segmented | local (requests to our own node id use our OD), with the fifo. No block transfer: it's
-    # optional in CiA 301, a server without it aborts the request, and the client doesn't fall back to segmented.
-    cg.add_build_flag("-DCO_CONFIG_SDO_CLI=0x0B")
+    # enable | segmented, with the fifo, and local (requests to our own node id use our OD) only when a hub has a
+    # node id; the unit test build has no hubs and tests nodes. No block transfer: it's optional in CiA 301, a server
+    # without it aborts the request, and the client doesn't fall back to segmented.
+    local = not hubs or any(CONF_NODE_ID in hub for hub in hubs)
+    cg.add_build_flag(f"-DCO_CONFIG_SDO_CLI={'0x0B' if local else '0x03'}")
     cg.add_build_flag("-DCO_CONFIG_FIFO=0x01")
     # one segment: drained before the next one is requested (sdo_client.cpp)
     cg.add_build_flag("-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7")

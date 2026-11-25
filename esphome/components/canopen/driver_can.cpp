@@ -56,7 +56,8 @@ bool CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len
   bool taken = false;
   msg.ident = ident;
   msg.DLC = len;
-  memcpy(msg.data, data, len);
+  if (len != 0)  // an empty frame (SYNC) may come with a null data pointer
+    memcpy(msg.data, data, len);
   for (uint16_t i = 0; i < mod->rxSize; i++) {
     CO_CANrx_t *rx = &mod->rxArray[i];
     if (rx->CANrx_callback == nullptr || ((msg.ident ^ rx->ident) & rx->mask) != 0)
