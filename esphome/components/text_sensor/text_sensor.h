@@ -89,10 +89,6 @@ class TextSensor : public EntityBase {
   void internal_send_state_to_frontend(const char *state, size_t len);
 
  protected:
-#ifdef USE_TEXT_SENSOR_FILTER
-  /// Stores the raw state and calls the raw state callbacks
-  void set_raw_state_(const char *state, size_t len);
-#endif
   /// Notify frontend that state has changed (assumes this->state is already set)
   void notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER

@@ -1051,7 +1051,8 @@ void LD2450Component::set_xy_unfiltered_(bool unfiltered) {
     if (raw.empty())
       continue;
     if (unfiltered) {
-      s->publish_state_unfiltered(raw.data(), raw.size());
+      if (raw != s->state)
+        s->publish_state_unfiltered(raw.data(), raw.size());
     } else {
       s->reapply_filters();
     }
