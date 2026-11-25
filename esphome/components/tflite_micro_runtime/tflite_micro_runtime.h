@@ -124,7 +124,7 @@ class TFLiteMicroHelper : public Component {
   /// Unload the model and free the arena; true when unloaded on return. Refused
   /// while a result waits for its callback, which reads the output tensors.
   bool unload_model(bool reset_config = false);
-  bool is_model_loaded() const { return this->state_.load() == LoadState::LOAD_STATE_READY; }
+  bool is_model_loaded() const { return this->state_.load(std::memory_order_acquire) == LoadState::LOAD_STATE_READY; }
 
   /// Run the model on whatever is in input_tensor(). Prefer InferenceSession.
   TfLiteStatus invoke();
