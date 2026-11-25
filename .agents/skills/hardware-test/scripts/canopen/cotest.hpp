@@ -224,7 +224,12 @@ inline void phase_queue_mixed(CANopenComponent *h) {
 
 inline void nmt(esphome::canbus::Canbus *bus, uint8_t cmd) {
   uint8_t d[2] = {cmd, NODE};
-  bus->send_data(0x000, false, false, d, 2);
+  auto err = bus->send_data(0x000, false, false, d, 2);
+  if (err != esphome::canbus::ERROR_OK) {
+    n_fail++;
+    ESP_LOGE(TAG, "FAIL NMT 0x%02x to node 0x%02x not sent, error %d", cmd, NODE, (int) err);
+    return;
+  }
   ESP_LOGI(TAG, "NMT 0x%02x to node 0x%02x sent", cmd, NODE);
 }
 

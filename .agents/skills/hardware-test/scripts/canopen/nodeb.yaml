@@ -58,7 +58,9 @@ interval:
     then:
       - lambda: |-
           size_t n = 0; char s[49] = {};
-          id(node_b).read_od(0x2010, 0, s, 48, &n);
+          auto r = id(node_b).read_od(0x2010, 0, s, 48, &n);
+          if (r != esphome::canopen::OdResult::OD_RESULT_OK)
+            snprintf(s, sizeof(s), "read_od error %d", (int) r);
           auto st = id(can_bus).get_status();
           ESP_LOGI("nodeb", "OD u8 0x%02x u16 0x%04x u32 0x%08x str(%u) '%s' | tec %u rec %u bus_off %d",
                    id(v_u8), id(v_u16), (unsigned) id(v_u32), (unsigned) n, s, st.tx_error_counter,

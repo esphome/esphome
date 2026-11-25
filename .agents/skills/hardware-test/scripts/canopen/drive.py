@@ -2,7 +2,8 @@
 
 Usage: python drive.py PORT_A PORT_B OUTPREFIX SECONDS (at least 150 for nodea.yaml)
 Writes OUTPREFIX-a.txt, OUTPREFIX-b.txt and OUTPREFIX-events.txt through serial_capture.write_line(). On a USB-UART
-devkit RTS drives EN, so RTS on with DTR off holds the board in reset.
+devkit RTS drives EN, so RTS on with DTR off holds the board in reset. Exits 1 when B was not held or a port failed;
+the test results are the SUMMARY lines in OUTPREFIX-a.txt.
 """
 
 import argparse
@@ -27,6 +28,7 @@ def main() -> None:
     args = parser.parse_args()
     end = time.time() + args.seconds
     offline = threading.Event()
+    failed: list[str] = []
     with (
         pathlib.Path(args.out + "-a.txt").open("wb") as fa,
         pathlib.Path(args.out + "-b.txt").open("wb") as fb,
@@ -39,12 +41,16 @@ def main() -> None:
 
         def reader(s, f, phase_seen: threading.Event | None) -> None:
             buf = b""
-            while time.time() < end:
-                *lines, buf = (buf + s.read(4096)).split(b"\n")
-                for raw in lines:
-                    serial_capture.write_line(f, b"", raw.rstrip(b"\r"), True)
-                    if phase_seen is not None and b"PHASE offline" in raw:
-                        phase_seen.set()
+            try:
+                while time.time() < end:
+                    *lines, buf = (buf + s.read(4096)).split(b"\n")
+                    for raw in lines:
+                        serial_capture.write_line(f, b"", raw.rstrip(b"\r"), True)
+                        if phase_seen is not None and b"PHASE offline" in raw:
+                            phase_seen.set()
+            except OSError as e:  # serial.SerialException included
+                failed.append(s.port)
+                event(f"reader on {s.port} failed: {e}")
 
         event("reset B")
         sb = serial_capture.open_port(PORT_ARGS, args.port_b)
@@ -70,8 +76,10 @@ def main() -> None:
             event("release B")
         for t in threads:
             t.join()
+        sa.close()
+        sb.close()
         event("done")
-    sys.exit(0 if held else 1)
+    sys.exit(0 if held and not failed else 1)
 
 
 if __name__ == "__main__":
