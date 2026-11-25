@@ -42,15 +42,13 @@ class TextSensor : public EntityBase {
   void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
   void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
-#ifdef USE_TEXT_SENSOR_FILTER_RESET
   /// Publish past the filters, as both the raw and the filtered state, and reset the filters so what they saw before
-  /// cannot hold back or change later values. Needs text_sensor.request_filter_reset().
+  /// cannot hold back or change later values.
   void publish_state_unfiltered(const char *state, size_t len);
   void publish_state_unfiltered(const char *state) { this->publish_state_unfiltered(state, strlen(state)); }
   /// Run the raw state through the filters again, without calling the raw state callbacks; after
   /// publish_state_unfiltered(), this gives the filtered form of a value that will not be sent again.
   void reapply_filters();
-#endif
 #ifdef USE_ESP8266
   /// Publish a flash string, such as a PROGMEM_STRING_TABLE get_progmem_str(); at most 255 characters, the Home
   /// Assistant state limit, are kept.
