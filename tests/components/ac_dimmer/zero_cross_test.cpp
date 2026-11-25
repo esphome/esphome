@@ -238,6 +238,16 @@ static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
   return store;
 }
 
+// The last locking edge served late does not put the prediction late
+TEST(AcDimmerTimerTest, LateLockingEdgeDoesNotShiftThePrediction) {
+  AcDimmerDataStore store{};
+  for (uint32_t at : {1000U, 11000U, 21000U, 31000U, 41600U})
+    store.zero_cross_edge(at);
+  ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
+  EXPECT_EQ(store.period, 10000);
+  EXPECT_EQ(store.zc_at, 31000U);
+}
+
 TEST(AcDimmerTimerTest, NothingBeforeTheLock) {
   AcDimmerDataStore store{};
   store.value = 32768;
