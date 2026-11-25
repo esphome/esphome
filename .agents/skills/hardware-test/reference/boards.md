@@ -52,6 +52,13 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   UART1 TX level through its own receiver: set `UCLBE` in `USC0(1)` and read `USS(1)` bit 15 (RXD); `USIR(1)` bit 7
   is BRK_DET. With `UCTXI` set the loopback sees the inverted (pad) level. Software serial pins are GPIO function, so
   the input register is the pad (recipes/uart_tx_break.md).
+- With `logger: baud_rate: 0` a `uart` bus on `tx_pin: GPIO1` is read straight by the USB adapter, and a bus with
+  `rx_pin: GPIO3` receives what the host writes; no jumper needed. The same works with the logger on UART0 plus a
+  GPIO1/GPIO3 bus (#23175, #23174). Free heap after boot is identical on every reset of one image.
+- UART0 TX sometimes sends 64 bytes of `0xFF` in place of the start of a line around a Wi-Fi join or association
+  attempt, on every build (about one line per boot). Do not count it against a change.
+- `-Wl,--wrap=uart_write` on the Arduino build linked `__wrap_uart_write` to a literal pool address (Exception 9 at
+  the symbol). To time logger writes, put a timing `Stream` shim into `Logger::hw_serial_` instead.
 
 ## ESP32 classic devkit
 
@@ -141,6 +148,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `interval:` to be sure which build runs.
 - ESP32-S3: GPIO43/44 cannot be used to cross-wire two UARTs: the UART0 IOMUX TX is lost when another UART takes the
   pad as RX. TX17/RX16 and TX16/RX17 work. A task woken by `vTaskDelay` runs about 0.5 ms after the tick, on dev too.
+- ESP32-C3 heap A/B: one 132 B block is allocated before an `on_boot` priority 800 sample on some boots and not
+  others, on every build; compare `heap_caps_get_info` block counts matched, or the delta looks off by 132 B.
 
 ## ESP32-C2 (ESP8684, 26 MHz crystal)
 
@@ -198,6 +207,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - A Pico 2 W whose Wi-Fi scan finds no networks for a whole session, on every build including one that joined
   before, needs a power cycle; reflashing does not help. Tests that only need the clock can run offline (set the
   time as in the fake DST note under Harness tricks).
+- Pico 2 W: `App.safe_reboot()` does not keep watchdog scratch 0/1, so a boot counter kept there stays at 1; do not
+  rely on it to stop a self-reboot loop.
 
 ## BW15 kit (RTL8720CF, LibreTiny rtl87xx)
 
@@ -369,6 +380,16 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - RTL8710B GPIO interrupts fire on one edge only, and LibreTiny maps CHANGE to rising. The Arduino `digitalRead` called
   from an ISR switches the pin back to GPIO and frees its interrupt (esphome#22400, #22403).
 - The FreeRTOS tick is 1/1024 s, so `millis()` on the tick ran 2.4 % fast (esphome#22404).
+- AmebaZ OTA images (LibreTiny 1.14.0) can be 4 bytes short of the RAM section their header declares (load address
+  0x10005000), on every build, so the last word of `.ram_image2.data` boots as 0xFFFFFFFF. In one BW12 build that
+  word was `lt_arduino_pin_info_list[PA23].data`, so pinMode and digitalWrite on PA23 (UART0 TX) did nothing. Check
+  with `arm-none-eabi-nm -S` (`__data_end__`) and `scripts/libretiny_edges/ambz_imgcheck.py` (#22986).
+- AmebaZ GPIO registers at 0x40001000: DR +0x00, DDR +0x04, EXT_PORT +0x50, bit = PA pin number; EXT_PORT reads 0
+  for a pad routed to the UART. UART0 LSR at 0x40040014 (THRE bit 5, TEMT bit 6); LibreTiny `flush()` there waits
+  for TEMT.
+- ESPHome OTA switches to UDP on a lossy link and can then stall for minutes (API refused until it gives up). Stay
+  on TCP as the `-tcp` modes in `recipes/ota.md` do (`espota2._loss_reason` returns None); the same helps an LN882H
+  on a bad link.
 
 ## BW16 kit (RTL8720DN, AmebaD)
 
@@ -400,6 +421,16 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Over a poor link (about 60 ms ping and 5 % loss) an ESPHome OTA takes anywhere from 50 to 445 s and a web `/update`
   of a UF2 can abort early while ESPHome OTA still works. Treat such a board's results as crash or no crash only, and
   settle questions about rates, heap after streams or OTA aborts on a BK7238 (same LibreTiny AsyncTCP).
+- Raw register reads that work from a component (the SDK register headers do not compile in C++): GPIOB 0x4000C400
+  (DDR +0x18, IDR +0x1C, ODR +0x20), UART1 0x40003000 (ISR +0x1C: TC bit 6, TXE bit 7, BUSY bit 16), pin routing
+  `func_ien` at 0x4000001C (GPIOA pin n is bit n, GPIOB pin n is bit n+10) (#22986).
+- The GPIO input register only follows a pad while it is a GPIO: a pad routed to a UART reads 0 at idle and while
+  sending. Use the routing bit and the UART status register instead.
+- LibreTiny `Serial.flush()` on LN882H waits for the software queue only: the UART still has about two bytes to send
+  (TC set 2.06 ms later at 9600), and `end()` resets the UART.
+- A `uart:` on UART0 next to `logger: hardware_uart: UART0` boot-loops the board into safe mode, on dev too: the
+  UART's `begin()` calls `end()`, `serial_deinit()` clears the SDK handle, then `serial_init(NULL)`. Recover by OTA
+  in safe mode (port 8820 answers, 6053 is closed).
 
 ## nRF52840
 

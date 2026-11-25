@@ -34,6 +34,7 @@ async def connect(
     timeout: float = 10,
     port: int = 6053,
     on_stop: Callable[[bool], Awaitable[None]] | None = None,
+    client_info: str = "aioesphomeapi",
 ) -> APIClient:
     """Connect and log in, retrying once a second; exits after TRIES failures with the last error.
 
@@ -43,7 +44,11 @@ async def connect(
     last: BaseException | None = None
     for _ in range(tries):
         c = APIClient(
-            host, port, None, noise_psk=None if key in (None, "", "-") else key
+            host,
+            port,
+            None,
+            noise_psk=None if key in (None, "", "-") else key,
+            client_info=client_info,
         )
         live = [False]
 

@@ -1,0 +1,80 @@
+# Scripted vl53l1x timeline on an ESP8266 NodeMCU (esphome#23108): SDA GPIO4, SCL GPIO5, XSHUT GPIO12.
+# 0 to 150 s steady; 150 to 270 s flip the range status threshold registers (0x0064) every 2.3 s between the
+# "valid" and "strict" values so the sensor alternates valid ranges and NaN; 280 s pull XSHUT low for 3 s and run
+# setup() again; 300/360/480 s change the update interval (100 ms, 1 s, 500 ms). Each published range logs
+# "R <ms> <m>", each speed "S <ms> <m/s>", each phase "P <ms> <text>"; check with timeline_ana.py.
+# For the base build drop the `speed:` block. A VL53L4CX ranges with this component once its model ID check
+# (0xEACC, the L4CX reads 0xEBAA) is relaxed in an external_components copy.
+esphome:
+  name: vl53timeline
+esp8266:
+  board: nodemcuv2
+logger:
+  level: DEBUG
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+  scan: false
+  frequency: 400kHz
+globals:
+  - id: sec
+    type: uint32_t
+    initial_value: "0"
+  - id: rl_low
+    type: bool
+    initial_value: "true"
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          uint32_t s = ++id(sec);
+          if (s == 270) {
+            static constexpr uint8_t VALID[4] = {0x01, 0x68, 0x00, 0x20};
+            id(tof)->write_register16(0x0064, VALID, 4);
+            id(rl_low) = true;
+            ESP_LOGI("T", "P %u RL restore 0.25", App.get_loop_component_start_time());
+          } else if (s == 280) {
+            ESP_LOGI("T", "P %u XSHUT low", App.get_loop_component_start_time());
+            id(tof)->update();
+            digitalWrite(12, LOW);
+          } else if (s == 283) {
+            digitalWrite(12, HIGH);
+            delay(2);
+            ESP_LOGI("T", "P %u XSHUT high, setup again", App.get_loop_component_start_time());
+            id(tof)->setup();
+          } else if (s == 300 || s == 360 || s == 480) {
+            uint32_t iv = s == 300 ? 100 : (s == 360 ? 1000 : 500);
+            id(tof)->stop_poller();
+            id(tof)->set_update_interval(iv);
+            id(tof)->start_poller();
+            ESP_LOGI("T", "P %u interval %u", App.get_loop_component_start_time(), iv);
+          }
+          if (s % 60 == 0)
+            ESP_LOGI("T", "H %u sec %u heap %u", App.get_loop_component_start_time(), s, ESP.getFreeHeap());
+  - interval: 2300ms
+    then:
+      - lambda: |-
+          uint32_t s = id(sec);
+          if (s < 150 || s >= 270)
+            return;
+          id(rl_low) = !id(rl_low);
+          static constexpr uint8_t VALID[4] = {0x01, 0x68, 0x00, 0x20}, STRICT[4] = {0x00, 0x01, 0xFF, 0xFF};
+          id(tof)->write_register16(0x0064, id(rl_low) ? VALID : STRICT, 4);
+          uint8_t rb[4] = {0};
+          id(tof)->read_register16(0x0064, rb, 4);
+          ESP_LOGI("T", "P %u TH %s rb %02X%02X %02X%02X", App.get_loop_component_start_time(), id(rl_low) ? "valid" : "strict", rb[0], rb[1], rb[2], rb[3]);
+sensor:
+  - platform: vl53l1x
+    id: tof
+    name: tof
+    distance_mode: long
+    enable_pin: GPIO12
+    update_interval: 500ms
+    signal_rate_limit: 0.25
+    on_raw_value:
+      - lambda: 'ESP_LOGI("T", "R %u %.4f", App.get_loop_component_start_time(), x);'
+    speed:
+      id: spd
+      name: speed
+      on_value:
+        - lambda: 'ESP_LOGI("T", "S %u %.6f", App.get_loop_component_start_time(), x);'
