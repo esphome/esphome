@@ -1,0 +1,34 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+esphome:
+  name: e1002-partial-test
+  friendly_name: E1002 Partial Test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+display:
+  - platform: epaper_spi
+    id: epaper_e1002
+    spi_id: spi_bus
+    model: Seeed-reTerminal-E1002
+    update_interval: never
+    auto_clear_enabled: false
+    lambda: |-
+      it.fill(Color::WHITE);
+      it.rectangle(0, 0, 300, 90, Color::BLACK);
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          id(epaper_e1002).partial_update(0, 0, 300, 90);
+
+logger:
