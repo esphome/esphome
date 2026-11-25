@@ -873,9 +873,7 @@ void HonClimate::publish_alarm_entities_() {
 #endif
 #ifdef USE_BINARY_SENSOR
   // Not update_sub_binary_sensor_(): it compares against the filtered state, which breaks with an invert filter
-  auto *alarm_active = this->sub_binary_sensors_[(size_t) SubBinarySensorType::ALARM_ACTIVE];
-  if (alarm_active != nullptr)
-    alarm_active->publish_state(this->active_alarm_count_ > 0);
+  PUBLISH_STATE(this->sub_binary_sensors_[(size_t) SubBinarySensorType::ALARM_ACTIVE], this->active_alarm_count_ > 0);
 #endif
 }
 
