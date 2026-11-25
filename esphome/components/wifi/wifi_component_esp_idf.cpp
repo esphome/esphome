@@ -339,6 +339,36 @@ void WiFiComponent::wifi_lazy_init_() {
 #ifdef USE_WIFI_REMOTE
   // Credentials stay in RAM; the co-processor may not have initialised its NVS yet
   cfg.nvs_enable = false;
+  // The host's WIFI_INIT_CONFIG_DEFAULT() sizes its own radio; the co-processor uses the WIFI_RMT_* values
+  cfg.static_rx_buf_num = CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM;
+  cfg.dynamic_rx_buf_num = CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM;
+  cfg.tx_buf_type = CONFIG_WIFI_RMT_TX_BUFFER_TYPE;
+#ifdef CONFIG_WIFI_RMT_STATIC_TX_BUFFER_NUM
+  cfg.static_tx_buf_num = CONFIG_WIFI_RMT_STATIC_TX_BUFFER_NUM;
+#else
+  cfg.static_tx_buf_num = 0;
+#endif
+#ifdef CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM
+  cfg.dynamic_tx_buf_num = CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM;
+#else
+  cfg.dynamic_tx_buf_num = 0;
+#endif
+#ifdef CONFIG_WIFI_RMT_CACHE_TX_BUFFER_NUM
+  cfg.cache_tx_buf_num = CONFIG_WIFI_RMT_CACHE_TX_BUFFER_NUM;
+#else
+  cfg.cache_tx_buf_num = 0;
+#endif
+#ifdef CONFIG_WIFI_RMT_AMPDU_RX_ENABLED
+  cfg.ampdu_rx_enable = 1;
+  cfg.rx_ba_win = CONFIG_WIFI_RMT_RX_BA_WIN;
+#else
+  cfg.ampdu_rx_enable = 0;
+#endif
+#ifdef CONFIG_WIFI_RMT_AMPDU_TX_ENABLED
+  cfg.ampdu_tx_enable = 1;
+#else
+  cfg.ampdu_tx_enable = 0;
+#endif
 #endif
   esp_err_t err = esp_wifi_init(&cfg);
   if (err != ERR_OK) {

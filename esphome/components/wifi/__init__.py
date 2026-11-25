@@ -66,6 +66,7 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    CONF_VARIANT,
     PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
@@ -555,11 +556,21 @@ def final_validate(config):
             raise cv.Invalid(
                 "eap cannot be combined with use_coprocessor", path=[CONF_NETWORKS]
             )
-        # ESP-NOW would stay on the host radio, which Wi-Fi no longer initialises
-        if "espnow" in full_config:
+        # ESP-NOW and ESPectre's CSI capture would stay on the host radio, which Wi-Fi no longer initialises
+        for component in ("espnow", "espectre"):
+            if component in full_config:
+                raise cv.Invalid(
+                    f"{component} cannot be combined with use_coprocessor",
+                    path=[CONF_USE_COPROCESSOR],
+                )
+        # band_mode is set on the co-processor; only an ESP32-C5 one has 5 GHz
+        if (
+            CONF_BAND_MODE in config
+            and full_config["esp32_hosted"].get(CONF_VARIANT) != const.VARIANT_ESP32C5
+        ):
             raise cv.Invalid(
-                "espnow cannot be combined with use_coprocessor",
-                path=[CONF_USE_COPROCESSOR],
+                "band_mode with use_coprocessor needs an ESP32-C5 co-processor",
+                path=[CONF_BAND_MODE],
             )
     if "esp32_hosted" in full_config and any(
         CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
@@ -1108,8 +1119,8 @@ async def to_code(config):
         # Always allocate WiFi buffers in PSRAM if available
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
-        if get_esp32_variant() in NO_WIFI_VARIANTS:
-            # Without a radio the CONFIG_ESP_WIFI_* options are ignored; the co-processor uses its own
+        if get_esp32_variant() in NO_WIFI_VARIANTS or config.get(CONF_USE_COPROCESSOR):
+            # Wi-Fi runs on the co-processor, which ignores CONFIG_ESP_WIFI_* and uses its own
             _coprocessor_high_performance_wifi(psram_guaranteed)
         elif psram_guaranteed:
             _LOGGER.info(

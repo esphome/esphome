@@ -50,6 +50,13 @@ def test_use_coprocessor_valid(validate: Callable[..., None]) -> None:
     validate({"networks": [_NETWORK]})
 
 
+def test_use_coprocessor_band_mode_c5(validate: Callable[..., None]) -> None:
+    validate(
+        {"networks": [_NETWORK], "band_mode": "5GHZ"},
+        full_config={"esp32_hosted": {"variant": VARIANT_ESP32C5}},
+    )
+
+
 @pytest.mark.parametrize(
     ("wifi", "variant", "full_config", "match"),
     [
@@ -72,6 +79,18 @@ def test_use_coprocessor_valid(validate: Callable[..., None]) -> None:
             VARIANT_ESP32C5,
             {**_HOSTED, "espnow": {}},
             "espnow cannot be combined",
+        ),
+        (
+            {"networks": [_NETWORK]},
+            VARIANT_ESP32C5,
+            {**_HOSTED, "espectre": {}},
+            "espectre cannot be combined",
+        ),
+        (
+            {"networks": [_NETWORK], "band_mode": "5GHZ"},
+            VARIANT_ESP32C5,
+            {"esp32_hosted": {"variant": "ESP32C6"}},
+            "needs an ESP32-C5 co-processor",
         ),
     ],
 )
