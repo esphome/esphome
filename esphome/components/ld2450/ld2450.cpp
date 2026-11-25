@@ -1013,37 +1013,57 @@ void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
   if (s == nullptr || (!changed && s->has_state()))
     return;
   const Target &pos = this->target_info_[target];
+  // Longest is "-32767,-32767"
+  char text[16];
+  size_t len;
   if (pos.x == 0 && pos.y == 0) {
+#ifdef USE_LD2450_XY_UNFILTERED
+    if (this->xy_unfiltered_) {
+      len = buf_append_str_p(text, sizeof(text), 0,
+                             reinterpret_cast<const char *>(DirectionStrings::get_progmem_str(DIRECTION_NA)));
+      s->publish_state_unfiltered(text, len);
+      return;
+    }
+#endif
     s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA));
     return;
   }
-  // Longest is "-32767,-32767"
-  char text[16];
-  const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
+  len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
+#ifdef USE_LD2450_XY_UNFILTERED
+  if (this->xy_unfiltered_) {
+    s->publish_state_unfiltered(text, len);
+    return;
+  }
+#endif
   s->publish_state(text, len);
 }
 #endif
 
 #ifdef USE_LD2450_XY_UNFILTERED
 void LD2450Component::start_xy_unfiltered() {
-  // Deferred: on_raw_value may press this mid-publish, which still uses the filters
+  // Deferred: on_raw_value may press this mid-publish
   this->defer([this]() {
-    this->bypass_xy_filters_(true);
+    if (!this->xy_unfiltered_)
+      this->set_xy_unfiltered_(true);
     this->set_timeout(XY_UNFILTERED_TIMEOUT_ID, XY_UNFILTERED_DURATION_MS,
-                      [this]() { this->bypass_xy_filters_(false); });
+                      [this]() { this->set_xy_unfiltered_(false); });
   });
 }
 
-void LD2450Component::bypass_xy_filters_(bool bypass) {
-  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
-    text_sensor::TextSensor *s = this->target_xy_text_sensors_[i];
+void LD2450Component::set_xy_unfiltered_(bool unfiltered) {
+  this->xy_unfiltered_ = unfiltered;
+  // A still target sends no new position: show a value the filters held, or put the current one through them again
+  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
     if (s == nullptr)
       continue;
-    if (!bypass) {
-      s->attach_filters(this->xy_filters_[i]);
-      this->xy_filters_[i] = nullptr;
-    } else if (this->xy_filters_[i] == nullptr) {
-      this->xy_filters_[i] = s->detach_filters();
+    const std::string &raw = s->get_raw_state();
+    if (raw.empty())
+      continue;
+    if (unfiltered) {
+      if (raw != s->state)
+        s->publish_state_unfiltered(raw.data(), raw.size());
+    } else {
+      s->reapply_filters();
     }
   }
 }
