@@ -2328,7 +2328,8 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
 
  private:
   /// Left to GCC to inline: one call site inlines it, several share it out of line.
-  static void call_all(CallbackManager<void(Ts...)> *cbs, const Ts &...args) {
+  /// By value: a reference makes every caller spill scalar arguments to the stack.
+  static void call_all(CallbackManager<void(Ts...)> *cbs, Ts... args) {
     auto *it = cbs->data_;
     auto *end = it + cbs->size_;
     do {
