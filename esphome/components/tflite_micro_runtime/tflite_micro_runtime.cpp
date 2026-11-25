@@ -44,6 +44,33 @@ InputType tensor_type_to_input_type(TfLiteType type) {
 
 }  // namespace
 
+TFLiteMicroHelper::LockGuard::LockGuard(TFLiteMicroHelper *helper) : helper_(helper) {
+  if (this->helper_ == nullptr)
+    return;
+  const TaskHandle_t current = xTaskGetCurrentTaskHandle();
+  if (this->helper_->lock_owner_.load(std::memory_order_relaxed) == current) {
+    // A log emitted under the lock can run logger.on_message automations that call
+    // back into the helper; blocking here would deadlock the main task.
+    if (!this->helper_->reentry_reported_.exchange(true, std::memory_order_relaxed))
+      ESP_LOGE(TAG, "A log callback re-entered the runtime; rejecting the nested call");
+    return;
+  }
+  this->helper_->mutex_.lock();
+  this->helper_->lock_owner_.store(current, std::memory_order_relaxed);
+  this->locked_ = true;
+}
+
+void TFLiteMicroHelper::LockGuard::unlock() {
+  if (!this->locked_)
+    return;
+  this->helper_->reentry_reported_.store(false, std::memory_order_relaxed);
+  this->helper_->lock_owner_.store(nullptr, std::memory_order_relaxed);
+  this->helper_->mutex_.unlock();
+  this->locked_ = false;
+}
+
+TFLiteMicroHelper::LockGuard::~LockGuard() { this->unlock(); }
+
 void TFLiteMicroHelper::setup() {
   if (this->defer_load_) {
     // A streaming consumer owns the model and its resource variables.
@@ -295,7 +322,8 @@ bool TFLiteMicroHelper::load_model() {
   stats.success = true;
   stats.total_load_time_ms = millis() - stats.load_start_ms;
   this->last_load_stats_ = stats;
-  this->state_.store(LoadState::LOAD_STATE_READY, std::memory_order_relaxed);
+  // Release: a lock-free is_model_loaded() that sees READY also sees the loaded interpreter.
+  this->state_.store(LoadState::LOAD_STATE_READY, std::memory_order_release);
   ESP_LOGD(TAG, "Model loaded successfully");
   if (this->debug_) {
     ESP_LOGI(TAG, "Load stats: parse=%" PRIu32 " ms, arena_alloc=%" PRIu32 " ms, total=%" PRIu32 " ms",
@@ -318,7 +346,7 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   }
   // Clear READY first, so a lock-free is_model_loaded() stops reporting the model
   // before its interpreter and arena are released.
-  this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_relaxed);
+  this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_release);
   ESP_LOGD(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
   // The arena is owned here; load_model() hands it to the loader, which never frees it.

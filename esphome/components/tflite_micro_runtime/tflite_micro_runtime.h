@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/main_task.h"
 #include "esphome/core/string_ref.h"
 
 #include <atomic>
@@ -116,7 +117,7 @@ class TFLiteMicroHelper : public Component {
   bool load_model();
   /// Unload the model and free the arena; true when unloaded on return.
   bool unload_model(bool reset_config = false);
-  bool is_model_loaded() const { return this->state_.load() == LoadState::LOAD_STATE_READY; }
+  bool is_model_loaded() const { return this->state_.load(std::memory_order_acquire) == LoadState::LOAD_STATE_READY; }
 
   /// Run the model on whatever is in input_tensor().
   TfLiteStatus invoke();
@@ -164,18 +165,20 @@ class TFLiteMicroHelper : public Component {
 #endif
 
  private:
-  /// Serializes load, unload, inference and set_model(), so an unload from another
-  /// task cannot free the arena while it is in use.
+  /// Lock the lifecycle mutex, or report a same-task re-entry instead of blocking.
   class LockGuard {
    public:
-    explicit LockGuard(TFLiteMicroHelper *helper) : helper_(helper) { helper_->mutex_.lock(); }
-    ~LockGuard() { helper_->mutex_.unlock(); }
+    explicit LockGuard(TFLiteMicroHelper *helper);
+    ~LockGuard();
     LockGuard(const LockGuard &) = delete;
     LockGuard &operator=(const LockGuard &) = delete;
-    bool locked() const { return true; }
+    bool locked() const { return this->locked_; }
+    /// Release the lock early.
+    void unlock();
 
    private:
     TFLiteMicroHelper *helper_;
+    bool locked_{false};
   };
 
   int get_input_width_locked_() const;
@@ -216,6 +219,9 @@ class TFLiteMicroHelper : public Component {
 
   /// Serializes load, unload, inference and set_model(), so an unload from another
   /// task cannot free the arena while it is in use.
+  /// Task holding mutex_, so a log emitted under the lock cannot deadlock the device.
+  std::atomic<TaskHandle_t> lock_owner_{nullptr};
+  std::atomic<bool> reentry_reported_{false};
   esphome::Mutex mutex_;
 
   TfLiteStatus invoke_locked_();
