@@ -3,7 +3,6 @@
 #include <array>
 #include <cstring>
 #include <utility>
-#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"  // CO_CONFIG_* for clang-tidy, before CANopenNode
@@ -67,8 +66,8 @@ class CANopenComponent : public Component {
 
   // Raw frames the SDO client doesn't use (e.g. other devices' PDOs). The callback gets every standard-ID data frame
   // with (can_id ^ id) & mask == 0, after CANopenNode has seen it. Can be called before or after setup(), but not from
-  // a frame callback. Listeners can't be removed; add them at setup or boot, as each one grows a vector on the heap.
-  void add_frame_listener(uint32_t can_id, uint32_t mask, FrameCallback callback, void *context);
+  // a frame callback. Listeners can't be removed; the listener must outlive the component (make it static).
+  void add_frame_listener(FrameListener &listener);
   // Sends a standard-ID data frame now. Returns false for an extended CAN ID, more than 8 bytes, or if the canbus
   // platform refuses it (e.g. TX buffers full); it isn't queued or retried, unlike CANopenNode's own frames.
   bool send_frame(uint32_t can_id, const uint8_t *data, size_t len);
@@ -145,18 +144,13 @@ class CANopenComponent : public Component {
   bool sdo_abort_pending_{false};   // the abort of a cancelled transfer waits to be sent
   bool sdo_cancel_pending_{false};  // cancel_sdo() hit the active transfer: process_sdo_() aborts it
 
-  struct FrameListener {
-    uint16_t can_id;
-    uint16_t mask;
-    FrameCallback callback;
-    void *context;
-  };
-  std::vector<FrameListener> frame_listeners_;
+  FrameListener *frame_listeners_{nullptr};
+  // Compiled only when on_heartbeat / on_emcy are configured, so never empty: no lazy allocation needed
 #ifdef USE_CANOPEN_HEARTBEAT
-  LazyCallbackManager<void(uint8_t, NMTState)> heartbeat_callback_;
+  CallbackManager<void(uint8_t, NMTState)> heartbeat_callback_;
 #endif
 #ifdef USE_CANOPEN_EMCY
-  LazyCallbackManager<void(uint8_t, const Emergency &)> emcy_callback_;
+  CallbackManager<void(uint8_t, const Emergency &)> emcy_callback_;
 #endif
 };
 

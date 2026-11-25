@@ -7,17 +7,18 @@ namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen");
 
-void CANopenComponent::add_frame_listener(uint32_t can_id, uint32_t mask, FrameCallback callback, void *context) {
-  if ((can_id & mask) > canbus::CAN_STANDARD_ID_MAX) {
-    ESP_LOGW(TAG, "frame listener 0x%" PRIx32 "/0x%" PRIx32 " matches no 11-bit CAN ID, not added", can_id, mask);
+void CANopenComponent::add_frame_listener(FrameListener &listener) {
+  if ((listener.can_id & listener.mask) > canbus::CAN_STANDARD_ID_MAX) {
+    ESP_LOGW(TAG, "frame listener 0x%x/0x%x matches no 11-bit CAN ID, not added", listener.can_id, listener.mask);
     return;
   }
   // the bits above 0x7FF are 0 in both the frame's id and can_id & mask, so they can go
-  const auto id = static_cast<uint16_t>(can_id & canbus::CAN_STANDARD_ID_MAX);
-  const auto id_mask = static_cast<uint16_t>(mask & canbus::CAN_STANDARD_ID_MAX);
-  this->frame_listeners_.push_back(FrameListener{id, id_mask, callback, context});
+  listener.can_id &= canbus::CAN_STANDARD_ID_MAX;
+  listener.mask &= canbus::CAN_STANDARD_ID_MAX;
+  listener.next = this->frame_listeners_;
+  this->frame_listeners_ = &listener;
   if (this->co_ != nullptr)
-    this->check_frame_listener_(id, id_mask);
+    this->check_frame_listener_(listener.can_id, listener.mask);
 }
 
 // A listener on an ID CANopenNode receives itself (NMT, heartbeats it consumes, ...) is almost always a mistake.
@@ -44,9 +45,9 @@ void CANopenComponent::dispatch_frame_(const CO_CANrxMsg_t &msg) {
   if (msg.ident & 0x800)
     return;  // RTR
   // a callback must not add listeners
-  for (const FrameListener &l : this->frame_listeners_) {
-    if (((msg.ident ^ l.can_id) & l.mask) == 0)
-      l.callback(l.context, msg.ident, msg.data, msg.DLC);
+  for (const FrameListener *l = this->frame_listeners_; l != nullptr; l = l->next) {
+    if (((msg.ident ^ l->can_id) & l->mask) == 0)
+      l->callback(l->context, msg.ident, msg.data, msg.DLC);
   }
   uint8_t node;
 #ifdef USE_CANOPEN_HEARTBEAT

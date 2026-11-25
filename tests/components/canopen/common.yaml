@@ -68,6 +68,7 @@ script:
 esphome:
   on_boot:
     - lambda: |-
-        id(canopen_hub).add_frame_listener(0x180, 0x780, +[](void *, uint32_t can_id, const uint8_t *data, uint8_t len) {
+        static canopen::FrameListener tpdo1{0x180, 0x780, +[](void *, uint32_t can_id, const uint8_t *data, uint8_t len) {
           ESP_LOGD("canopen_test", "TPDO1 0x%03x, %u bytes", (unsigned) can_id, len);
-        }, nullptr);
+        }, nullptr};
+        id(canopen_hub).add_frame_listener(tpdo1);

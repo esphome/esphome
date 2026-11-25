@@ -102,11 +102,19 @@ class FramesTest : public ::testing::Test {
   static void on_frame(void *context, uint32_t can_id, const uint8_t *data, uint8_t len) {
     static_cast<FramesTest *>(context)->received_.push_back({can_id, {data, data + len}});
   }
+  // listeners live as long as the hub
+  void listen_(uint16_t can_id, uint16_t mask) {
+    FrameListener &l = this->listeners_[this->listener_count_++];
+    l = FrameListener{can_id, mask, on_frame, this};
+    this->hub_.add_frame_listener(l);
+  }
+  FrameListener listeners_[4]{};
+  size_t listener_count_{0};
 };
 
 TEST_F(FramesTest, ListenerGetsMatchingFrames) {
   // before setup(): kept for it
-  this->hub_.add_frame_listener(0x180, 0x780, on_frame, this);
+  this->listen_(0x180, 0x780);
   this->hub_.setup();
   ASSERT_FALSE(this->hub_.is_failed());
   this->hub_.frame(0x18A, {1, 2, 3});
@@ -121,7 +129,7 @@ TEST_F(FramesTest, ListenerGetsMatchingFrames) {
 
 TEST_F(FramesTest, ListenerSkipsRemoteAndExtendedFrames) {
   this->hub_.setup();
-  this->hub_.add_frame_listener(0x18A, 0x7FF, on_frame, this);
+  this->listen_(0x18A, 0x7FF);
   canbus::CanFrame rtr = make_frame(0x18A, {});
   rtr.remote_transmission_request = true;
   this->hub_.frame(rtr);
@@ -155,7 +163,7 @@ TEST_F(FramesTest, HeartbeatAndEmcyCallbacks) {
 
 TEST_F(FramesTest, ListenerSeesSdoRepliesToo) {
   this->hub_.setup();
-  this->hub_.add_frame_listener(0x5A1, 0x7FF, on_frame, this);
+  this->listen_(0x5A1, 0x7FF);
   std::vector<SDOReply> replies;
   ASSERT_TRUE(this->hub_.read_sdo<uint8_t>(
       0x21, 0x1001, 0,
@@ -187,12 +195,12 @@ TEST_F(FramesTest, SendFrame) {
 
 TEST_F(FramesTest, ListenerMatchingNoStandardIdIsNotAdded) {
   this->hub_.setup();
-  this->hub_.add_frame_listener(0x1000, 0x1000, on_frame, this);
+  this->listen_(0x1000, 0x1000);
   this->hub_.frame(0x000, {1});
   this->hub_.frame(0x18A, {1});
   EXPECT_TRUE(this->received_.empty());
   // high mask bits with can_id 0 there match every standard ID
-  this->hub_.add_frame_listener(0x0, 0x1000, on_frame, this);
+  this->listen_(0x0, 0x1000);
   this->hub_.frame(0x18A, {1});
   EXPECT_EQ(this->received_.size(), 1u);
 }

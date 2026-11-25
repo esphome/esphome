@@ -80,6 +80,15 @@ const LogString *nmt_state_to_string(NMTState state);
 // raw CAN frame listener (see CANopenComponent::add_frame_listener()); data is valid only during the call
 using FrameCallback = void (*)(void *context, uint32_t can_id, const uint8_t *data, uint8_t len);
 
+// A raw frame listener, owned by the caller and kept for the device's lifetime (e.g. a static)
+struct FrameListener {
+  uint16_t can_id;
+  uint16_t mask;
+  FrameCallback callback;
+  void *context;
+  FrameListener *next{nullptr};  // set by add_frame_listener()
+};
+
 // EMCY frame (CiA 301): error code, error register (0x1001), manufacturer-specific bytes
 struct Emergency {
   uint16_t error_code;

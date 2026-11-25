@@ -47,8 +47,8 @@ void CANopenComponent::setup() {
     this->fail_setup_(LOG_STR("SDO client init failed"));
     return;
   }
-  for (const FrameListener &l : this->frame_listeners_)
-    this->check_frame_listener_(l.can_id, l.mask);
+  for (const FrameListener *l = this->frame_listeners_; l != nullptr; l = l->next)
+    this->check_frame_listener_(l->can_id, l->mask);
   CO_CANsetNormalMode(this->co_->CANmodule);
   this->canbus_->add_frame_callback([this](const canbus::CanFrame &frame) { this->on_frame_(frame); });
   ESP_LOGV(TAG, "CANopenNode initialized, SDO client, heap %" PRIu32 " B", heap);
