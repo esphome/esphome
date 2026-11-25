@@ -18,24 +18,30 @@ void Filter::input(std::string value) {
     this->output(value);
 }
 void Filter::output(std::string &value) {
-  if (this->next_ == nullptr) {
+  if (this->link_.is_owner()) {
+    // Read before logging: a log callback could append a filter and replace this link
+    TextSensor *sensor = this->link_.owner();
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
-    this->parent_->internal_send_state_to_frontend(value);
+    sensor->internal_send_state_to_frontend(value);
   } else {
-    ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), this->next_);
-    this->next_->input(std::move(value));
+    Filter *next = this->link_.next();
+    ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), next);
+    next->input(std::move(value));
   }
 }
 #ifdef USE_TEXT_SENSOR_FILTER_RESET
 void Filter::reset_chain() {
-  for (Filter *filter = this; filter != nullptr; filter = filter->next_)
-    filter->initialize(filter->parent_, filter->next_);
+  TextSensor *parent = this->chain_owner_();
+  for (Filter *filter = this; filter != nullptr;) {
+    Filter *next = filter->link_.next();
+    filter->initialize(parent, next);
+    filter = next;
+  }
 }
 #endif
 void Filter::initialize(TextSensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
-  this->parent_ = parent;
-  this->next_ = next;
+  this->link_.set(next, parent);
 }
 
 bool apply_lambda_filter_result(std::string &value, optional<std::string> &&result) {
@@ -133,10 +139,10 @@ void TimeoutFilterBase::loop() {
 }
 
 void TimeoutFilterBase::send_(const char *text, size_t len) {
-  if (this->next_ == nullptr) {
-    this->parent_->internal_send_state_to_frontend(text, len);
+  if (this->link_.is_owner()) {
+    this->link_.owner()->internal_send_state_to_frontend(text, len);
   } else {
-    this->next_->input(std::string(text, len));
+    this->link_.next()->input(std::string(text, len));
   }
 }
 

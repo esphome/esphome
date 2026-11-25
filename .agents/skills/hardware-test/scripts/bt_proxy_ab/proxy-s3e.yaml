@@ -1,0 +1,14 @@
+# Waveshare ESP32-S3-ETH proxy, W5500 Ethernet first and Wi-Fi second (the board's usual setup)
+substitutions: {name: bpab-s3e}
+packages: {s3w: !include proxy-s3w.yaml}
+network:
+  priority: [ethernet, wifi]
+ethernet:
+  type: W5500
+  clk_pin: GPIO13
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  cs_pin: GPIO14
+  interrupt_pin: GPIO10
+  reset_pin: GPIO9
+  clock_speed: 20MHz

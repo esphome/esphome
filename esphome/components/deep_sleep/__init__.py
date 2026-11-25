@@ -17,7 +17,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     get_esp32_variant,
 )
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_enable_poweroff
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -460,8 +460,7 @@ async def to_code(config: ConfigType) -> None:
         # Devices are suspended when CPU is entering a low power state
         # https://github.com/nrfconnect/sdk-zephyr/blob/v3.7.99-ncs2-2/doc/services/pm/device.rst#system-managed-device-power-management
         zephyr_add_prj_conf("PM_DEVICE", True)
-        if "zigbee" not in CORE.loaded_integrations:
-            zephyr_add_prj_conf("POWEROFF", True)
+        zephyr_enable_poweroff()
 
     cg.add_define("USE_DEEP_SLEEP")
 

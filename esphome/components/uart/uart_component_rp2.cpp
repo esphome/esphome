@@ -162,6 +162,20 @@ void RP2UartComponent::setup() {
   }
 }
 
+#ifdef USE_UART_TX_BREAK
+bool RP2UartComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr || this->serial_ == nullptr)
+    return false;
+  // the pad override works for the hardware UART and for SerialPIO alike
+  const bool inverted = this->tx_pin_->is_inverted();
+  uint32_t value = inverted ? GPIO_OVERRIDE_INVERT : GPIO_OVERRIDE_NORMAL;
+  if (enable)
+    value = inverted ? GPIO_OVERRIDE_HIGH : GPIO_OVERRIDE_LOW;
+  gpio_set_outover(this->tx_pin_->get_pin(), value);
+  return true;
+}
+#endif
+
 void RP2UartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
   LOG_PIN("  TX Pin: ", tx_pin_);
