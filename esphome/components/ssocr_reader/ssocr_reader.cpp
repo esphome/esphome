@@ -80,7 +80,7 @@ void SSOCRReader::process_frame_(const std::shared_ptr<camera::CameraImage> &ima
     return;
   }
 
-  if (!this->crop_frame_(decoded->get_data_buffer(), spec)) {
+  if (!this->crop_frame_(*decoded, spec)) {
     ESP_LOGE(TAG, "Could not crop %dx%d at %d,%d from the %dx%d frame", this->crop_w_, this->crop_h_, this->crop_x_,
              this->crop_y_, spec.width, spec.height);
     return;
@@ -99,7 +99,7 @@ void SSOCRReader::process_frame_(const std::shared_ptr<camera::CameraImage> &ima
   PUBLISH_STATE(this->confidence_sensor_, result.confidence * 100.0f);
 }
 
-bool SSOCRReader::crop_frame_(const uint8_t *src, const camera::CameraImageSpec &spec) {
+bool SSOCRReader::crop_frame_(camera::Buffer &decoded, const camera::CameraImageSpec &spec) {
   if (this->crop_x_ + this->crop_w_ > spec.width || this->crop_y_ + this->crop_h_ > spec.height)
     return false;
 
@@ -109,6 +109,10 @@ bool SSOCRReader::crop_frame_(const uint8_t *src, const camera::CameraImageSpec 
 
   const size_t source_bpp = source_is_gray ? 1 : camera_decoder::RGB888_BYTES_PER_PIXEL;
   const size_t source_stride = source_bpp * spec.width;
+  // The width and height come from the decoder; make sure the buffer really holds that many pixels.
+  if (spec.height > decoded.get_data_length() / source_stride)
+    return false;
+  const uint8_t *src = decoded.get_data_buffer();
   const uint8_t *source_row =
       src + static_cast<size_t>(this->crop_y_) * source_stride + static_cast<size_t>(this->crop_x_) * source_bpp;
   for (int y = 0; y < this->crop_h_; y++) {

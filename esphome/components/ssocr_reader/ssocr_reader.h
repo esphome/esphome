@@ -4,6 +4,7 @@
 
 #ifdef USE_SSOCR_READER
 
+#include "esphome/components/camera/buffer.h"
 #include "esphome/components/camera/camera.h"
 #include "esphome/components/camera/decoder.h"
 #include "esphome/components/seven_segment_ocr/seven_segment_ocr.h"
@@ -51,7 +52,7 @@ class SSOCRReader final : public PollingComponent, public camera::CameraListener
 
   void process_frame_(const std::shared_ptr<camera::CameraImage> &image);
   /// Copies the configured rectangle out of a decoded frame as one byte per pixel.
-  bool crop_frame_(const uint8_t *src, const camera::CameraImageSpec &spec);
+  bool crop_frame_(camera::Buffer &decoded, const camera::CameraImageSpec &spec);
 
   camera::Camera *camera_{nullptr};
   camera::Decoder *decoder_{nullptr};
