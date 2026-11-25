@@ -4,6 +4,7 @@ Each flow names the pull requests it was used on, so their result tables show wh
 
 One file per component, named after it:
 
+- [`ac_dimmer.md`](ac_dimmer.md): ESP8266 zero cross and gate timing loop harness with noise injection
 - [`api.md`](api.md): noise handshake and OTA encryption on the ESP8266, outgoing connection wake timing on deep sleep and after a Wi-Fi drop, user defined action listing and execution with a raw plaintext client, store_yaml recovery over Noise or plaintext, rapid connect/disconnect stress (`connstress.py`)
 - [`ble_midi.md`](ble_midi.md): BLE MIDI client against a fake ESP32 instrument, every packet shape and the send actions
 - [`captive_portal.md`](captive_portal.md): fallback AP and /wifisave hammer

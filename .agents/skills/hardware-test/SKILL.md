@@ -159,6 +159,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 
 Per-topic scripts, each described in the matching `reference/recipes/<component>.md`:
 
+- `ac_dimmer/` (ESP8266 zero cross and gate timing loop harness with noise injection, per window and per phase
+  summaries, runner with a web_server load)
 - `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext,
   `overflow/` API overflow buffer counters with a sensor config generator)
 - `api_outgoing/` (wake cycle and Wi-Fi drop timing readers)
