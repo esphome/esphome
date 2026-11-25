@@ -1,3 +1,4 @@
+
 import esphome.codegen as cg
 from esphome.components import number, sensor
 import esphome.config_validation as cv
@@ -20,6 +21,7 @@ from . import (
 
 DEPENDENCIES = ["dmx"]
 CONF_CHANNEL_ID = "channel_id"
+
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
@@ -44,6 +46,31 @@ def _final_validate(config):
     if hub_config.get(CONF_MODE, MODE_RX) != MODE_RX:
         raise cv.Invalid("dmx sensor requires hub mode 'rx', not 'tx'")
 
+    if CONF_CHANNEL_ID in config:
+        number_config = fv.get_declaring_config(config[CONF_CHANNEL_ID])
+
+        min_value = number_config.get("min_value")
+        max_value = number_config.get("max_value")
+        step = number_config.get("step")
+
+        if min_value != 1:
+            raise cv.Invalid(
+                "channel_id Number must have min_value: 1",
+                [CONF_CHANNEL_ID],
+            )
+
+        if max_value != 512:
+            raise cv.Invalid(
+                "channel_id Number must have max_value: 512",
+                [CONF_CHANNEL_ID],
+            )
+
+        if step != 1:
+            raise cv.Invalid(
+                "channel_id Number must have step: 1",
+                [CONF_CHANNEL_ID],
+            )
+
     return config
 
 
@@ -53,6 +80,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_DMX_ID])
+
     if CONF_CHANNEL in config:
         cg.add(register_channel_sensor(parent, config[CONF_CHANNEL], var))
     else:
