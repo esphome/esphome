@@ -67,7 +67,7 @@ def validate_model_io(model_path: Path) -> None:
         )
 
 
-async def configure(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var: cg.MockObj, config: ConfigType, model_path: Path) -> None:
     """Create the frame pipeline and the mask decoder for one model."""
     validate_model_io(model_path)
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
