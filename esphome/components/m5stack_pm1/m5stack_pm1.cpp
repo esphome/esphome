@@ -40,7 +40,6 @@ void M5StackPM1Component::setup() {
   delay(500);  // NOLINT
   // The controller starts in the 100 kHz mode; SPD selects the 400 kHz mode.
   const uint8_t speed = this->fast_mode_ ? M5STACK_PM1_I2C_CFG_SPD : 0;
-  const uint8_t wake[2] = {this->wake_enable_, this->wake_rising_};
   if (!this->setup_check(retry_while_starting([this, speed]() { return this->write_byte(REG_I2C_CFG, speed); }),
                          LOG_STR("Unable to configure I2C speed")) ||
       !this->setup_check(this->read_device_info_(), LOG_STR("Unable to read device information")) ||
@@ -49,9 +48,15 @@ void M5StackPM1Component::setup() {
           LOG_STR("Unable to read initial state")) ||
       !this->setup_check(this->update_register(REG_PWR_CFG, M5STACK_PM1_POWER_CONFIG_LED, M5STACK_PM1_POWER_CONFIG_LED),
                          LOG_STR("Unable to enable status LED")) ||
-      !this->setup_check(this->write_bytes(REG_GPIO_WAKE_EN, wake, sizeof(wake)),
-                         LOG_STR("Unable to write GPIO wake configuration"))) {
+      !this->setup_check(this->write_byte(REG_GPIO_WAKE_EN, 0), LOG_STR("Unable to clear GPIO wake configuration"))) {
     return;
+  }
+  if (this->wake_enable_ != 0) {
+    // Once every component has set up its pins: the edge first, then the enable
+    this->defer([this]() {
+      this->status_comm_result(this->write_byte(REG_GPIO_WAKE_CFG, this->wake_rising_) &&
+                               this->write_byte(REG_GPIO_WAKE_EN, this->wake_enable_));
+    });
   }
 
   if (this->interrupt_pin_ != nullptr) {

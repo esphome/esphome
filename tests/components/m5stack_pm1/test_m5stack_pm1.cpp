@@ -91,9 +91,14 @@ TEST_F(M5StackPM1Test, SetupWritesTheWakeConfiguration) {
   this->load_device_info_();
   this->component_.set_wake_config(0x05, 0x01);
 
+  this->bus_.regs[REG_GPIO_WAKE_EN] = 0x18;  // from the last boot
+
   this->component_.setup();
 
   EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 0x00);  // off until the pins are set up
+  App.scheduler.process_to_add();
+  App.scheduler.call(millis());
   EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_EN], 0x05);
   EXPECT_EQ(this->bus_.regs[REG_GPIO_WAKE_CFG], 0x01);
 }
