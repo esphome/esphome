@@ -89,7 +89,7 @@ def validate_model_io(model_path: Path, position_output: bool = False) -> None:
         )
 
 
-async def configure(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var: cg.MockObj, config: ConfigType, model_path: Path) -> None:
     """Create the token pipeline and the output decoder for one model."""
     validate_model_io(model_path, config[CONF_POSITION_OUTPUT])
     pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
