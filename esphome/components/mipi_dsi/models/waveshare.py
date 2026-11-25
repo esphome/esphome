@@ -1,3 +1,5 @@
+from esphome.components.mipi import SLPOUT, delay
+
 from . import DsiDriverChip
 
 # fmt: off
@@ -125,6 +127,9 @@ DsiDriverChip(
     lane_bit_rate="480Mbps",
     color_order="RGB",
     reset_pin=27,
+    # Waveshare waits 120 ms after SLPOUT before DISPON; the framework's own SLPOUT allows only 20 ms,
+    # so SLPOUT and the delay are in the init sequence and the framework must not append another
+    no_slpout=True,
     initsequence=[
         (0xE0, 0x00),  # select user page
         (0xE1, 0x93), (0xE2, 0x65), (0xE3, 0xF8),
@@ -159,6 +164,7 @@ DsiDriverChip(
         (0x83, 0xD6),
         (0xE0, 0x00),  # select user page
         (0xE6, 0x02), (0xE7, 0x02),
+        (SLPOUT,), delay(120),
     ],
 )
 
