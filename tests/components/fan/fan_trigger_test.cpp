@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
 #include <cstdio>
+#include <initializer_list>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "esphome/components/fan/automation.h"
@@ -64,6 +66,10 @@ static void start_oscillating() {
   record_turn_on();
   the_fan->make_call().set_oscillating(true).perform();
 }
+static void record_speed_then_set_3(int x) {
+  record_speed(x);
+  the_fan->make_call().set_speed(3).perform();
+}
 // The on_preset_set automation of tests/components/fan/common.yaml
 static void turn_on_for_preset(StringRef x) {
   record_preset(x);
@@ -79,12 +85,15 @@ class FanTriggerTest : public ::testing::Test {
 
   // Attach in the order codegen does: on_turn_on, on_turn_off, on_direction_set, on_oscillating_set,
   // on_speed_set, on_preset_set, each key's automations in config order.
-  template<void (*F)()> void on_turn_on_() { this->attach_<FanTurnOnTrigger>(F); }
-  template<void (*F)()> void on_turn_off_() { this->attach_<FanTurnOffTrigger>(F); }
-  template<void (*F)(FanDirection)> void on_direction_set_() { this->attach_<FanDirectionSetTrigger>(F); }
-  template<void (*F)(bool)> void on_oscillating_set_() { this->attach_<FanOscillatingSetTrigger>(F); }
-  template<void (*F)(int)> void on_speed_set_() { this->attach_<FanSpeedSetTrigger>(F); }
-  template<void (*F)(StringRef)> void on_preset_set_() { this->attach_<FanPresetSetTrigger>(F); }
+  // Each F is one action of the automation, in order.
+  template<void (*...F)()> void on_turn_on_() { this->attach_<FanTurnOnTrigger>({F...}); }
+  template<void (*...F)()> void on_turn_off_() { this->attach_<FanTurnOffTrigger>({F...}); }
+  template<void (*...F)(FanDirection)> void on_direction_set_() {
+    this->attach_<FanDirectionSetTrigger, FanDirection>({F...});
+  }
+  template<void (*...F)(bool)> void on_oscillating_set_() { this->attach_<FanOscillatingSetTrigger, bool>({F...}); }
+  template<void (*...F)(int)> void on_speed_set_() { this->attach_<FanSpeedSetTrigger, int>({F...}); }
+  template<void (*...F)(StringRef)> void on_preset_set_() { this->attach_<FanPresetSetTrigger, StringRef>({F...}); }
 
   void on_every_change_() {
     this->on_turn_on_<record_turn_on>();
@@ -98,12 +107,16 @@ class FanTriggerTest : public ::testing::Test {
   TriggerFan fan_;
 
  private:
-  template<typename T, typename... Ts> void attach_(void (*f)(Ts...)) {
+  template<typename T, typename... Ts>
+  void attach_(std::type_identity_t<std::initializer_list<void (*)(Ts...)>> actions) {
     auto trigger = std::make_shared<T>(&this->fan_);
     auto automation = std::make_shared<Automation<Ts...>>(trigger.get());
-    auto action = std::make_shared<StatelessLambdaAction<Ts...>>(f);
-    automation->add_action(action.get());
-    this->objects_.insert(this->objects_.end(), {trigger, automation, action});
+    this->objects_.insert(this->objects_.end(), {trigger, automation});
+    for (auto *f : actions) {
+      auto action = std::make_shared<StatelessLambdaAction<Ts...>>(f);
+      automation->add_action(action.get());
+      this->objects_.push_back(action);
+    }
   }
 
   std::vector<std::shared_ptr<void>> objects_;
@@ -216,6 +229,13 @@ TEST_F(FanTriggerTest, ActionInFirstOfSeveralAutomationsStillFiresTheOthers) {
   this->fan_.turn_on().set_speed(1).perform();
   this->fan_.publish_state();
   EXPECT_EQ(fired, (Events{"turn_on", "turn_on again", "speed 3", "speed again 3"}));
+}
+
+// x is the value the trigger fired with, also after an earlier action changed the fan
+TEST_F(FanTriggerTest, ActionChangingTheSpeedKeepsXForTheNextAction) {
+  this->on_speed_set_<record_speed_then_set_3, record_speed_again>();
+  this->fan_.make_call().set_speed(1).perform();
+  EXPECT_EQ(fired, (Events{"speed 1", "speed 3", "speed again 3", "speed again 1"}));
 }
 
 TEST_F(FanTriggerTest, PresetActionThatTurnsOnSettlesAfterClearingThePreset) {
