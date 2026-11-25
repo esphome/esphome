@@ -11,8 +11,10 @@ static constexpr uint8_t UBX_SYNC_1 = 0xB5;
 static constexpr uint8_t UBX_SYNC_2 = 0x62;
 // sync (2), class, id, length (2) and checksum (2)
 static constexpr size_t UBX_FRAME_OVERHEAD = 8;
-// MON-VER with its extensions is the longest message read
+// Payload bytes kept per frame: every NAV message read fits, and MON-VER keeps its first extensions
 static constexpr uint16_t UBX_MAX_PAYLOAD = 256;
+// A longer length is taken as a false sync; the longest messages (NAV-SAT, MON-VER) stay well under it
+static constexpr uint16_t UBX_MAX_FRAME_PAYLOAD = 2048;
 
 static constexpr uint8_t UBX_CLASS_NAV = 0x01;
 static constexpr uint8_t UBX_CLASS_ACK = 0x05;
@@ -41,18 +43,21 @@ static constexpr uint16_t UBX_PROTVER_NAV_PVT = 1400;
 size_t build_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t len, uint8_t *out);
 
 /// Collects frames from a byte stream, skipping anything between them (NMEA before it is switched off).
+/// Frames longer than UBX_MAX_PAYLOAD are checked in full and keep their first UBX_MAX_PAYLOAD bytes.
 class FrameParser {
  public:
   /// True when `byte` completes a frame with a valid checksum.
   bool feed(uint8_t byte);
   uint8_t msg_class() const { return this->header_[0]; }
   uint8_t msg_id() const { return this->header_[1]; }
+  /// Payload bytes kept, at most UBX_MAX_PAYLOAD; the frame itself may be longer.
   uint16_t length() const { return this->length_; }
   const uint8_t *payload() const { return this->payload_; }
 
  protected:
   uint8_t payload_[UBX_MAX_PAYLOAD];
   uint8_t header_[4];  // class, id, length
+  uint16_t frame_length_{0};
   uint16_t length_{0};
   uint16_t pos_{0};
   uint8_t ck_a_{0};

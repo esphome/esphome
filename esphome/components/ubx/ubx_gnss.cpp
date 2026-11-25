@@ -20,6 +20,7 @@ static constexpr uint32_t EPOCH_TIMEOUT_MS = 5000;
 // Configuration steps, then one CFG-MSG step per message
 enum : uint8_t {
   STEP_MON_VER,
+  STEP_PRT_POLL,
   STEP_PRT,
   STEP_RATE,
   STEP_NAV5,
@@ -45,6 +46,11 @@ void UBXGNSS::clear_data_() {
 }
 
 void UBXGNSS::start_setup_() {
+  // Used if the receiver does not answer the port poll: UART1, 8N1 at the current baud rate
+  memset(this->port_, 0, sizeof(this->port_));
+  this->port_[0] = 1;
+  put_le32(this->port_ + 4, 0x000008D0);
+  put_le32(this->port_ + 8, this->parent_->get_baud_rate());
   this->step_ = STEP_MON_VER;
   this->retries_ = 0;
   this->send_step_();
@@ -70,16 +76,17 @@ void UBXGNSS::send_step_() {
     case STEP_MON_VER:
       this->send_(UBX_CLASS_MON, UBX_MON_VER, nullptr, 0);
       break;
-    case STEP_PRT: {
-      // UART1, 8N1 at the current baud rate, UBX and NMEA in, UBX out
-      payload[0] = 1;
-      put_le32(payload + 4, 0x000008D0);
-      put_le32(payload + 8, this->parent_->get_baud_rate());
-      put_le16(payload + 12, 0x0003);
-      put_le16(payload + 14, 0x0001);
-      this->send_(UBX_CLASS_CFG, UBX_CFG_PRT, payload, 20);
+    case STEP_PRT_POLL:
+      // Without a payload the receiver answers with the settings of the port it heard this on
+      this->send_(UBX_CLASS_CFG, UBX_CFG_PRT, nullptr, 0);
       break;
-    }
+    case STEP_PRT:
+      // That port with its framing and baud rate unchanged: UBX added to the input, UBX only out
+      memcpy(payload, this->port_, sizeof(this->port_));
+      put_le16(payload + 12, encode_value_le<uint16_t>(this->port_ + 12) | 0x0001);
+      put_le16(payload + 14, 0x0001);
+      this->send_(UBX_CLASS_CFG, UBX_CFG_PRT, payload, sizeof(this->port_));
+      break;
     case STEP_RATE:
       // one navigation solution per measurement, aligned to GPS time
       put_le16(payload, this->measurement_rate_ms_);
@@ -119,6 +126,8 @@ void UBXGNSS::send_step_() {
 
 void UBXGNSS::step_done_() {
   this->cancel_timeout(STEP_TIMEOUT_ID);
+  // A MON-VER answer may arrive while a restart after the last attempt is pending
+  this->cancel_timeout(RESTART_ID);
   this->retries_ = 0;
   this->step_++;
   this->send_step_();
@@ -147,18 +156,22 @@ void UBXGNSS::handle_frame_() {
   const uint16_t len = this->parser_.length();
 
   if (cls == UBX_CLASS_NAV) {
-    if (!decode_nav(id, p, len, millis_64(), this->data_, this->fix_) || id != UBX_NAV_TIMEUTC)
+    // Every NAV message starts with the time of week of its epoch; a new one starts collecting afresh
+    if (len < 4)
       return;
-    if (!this->fix_) {
-      const uint8_t satellites = this->data_.satellites;
-      const float hdop = this->data_.hdop;
-      this->clear_data_();
-      this->data_.satellites = satellites;
-      this->data_.hdop = hdop;
+    const uint32_t itow = encode_value_le<uint32_t>(p);
+    if (itow != this->epoch_itow_) {
+      this->epoch_ = gnss::GNSSData{};
+      this->fix_ = false;
+      this->epoch_itow_ = itow;
     }
-    this->last_epoch_ms_ = App.get_loop_component_start_time();
-    this->status_clear_warning();
-    this->publish_fix_();
+    if (decode_nav(id, p, len, millis_64(), this->epoch_, this->fix_) && id == UBX_NAV_TIMEUTC)
+      this->commit_epoch_();
+    return;
+  }
+  if (this->step_ == STEP_PRT_POLL && cls == UBX_CLASS_CFG && id == UBX_CFG_PRT && len >= sizeof(this->port_)) {
+    memcpy(this->port_, p, sizeof(this->port_));
+    this->step_done_();
     return;
   }
   if (this->step_ == STEP_MON_VER && cls == UBX_CLASS_MON && id == UBX_MON_VER) {
@@ -175,7 +188,8 @@ void UBXGNSS::handle_frame_() {
   // ACK and NAK name the class and id of the configuration message they answer
   if (cls == UBX_CLASS_ACK && len >= 2 && p[0] == UBX_CLASS_CFG && this->step_ != STEP_DONE &&
       this->step_ != STEP_MON_VER) {
-    static constexpr uint8_t STEP_IDS[] = {0, UBX_CFG_PRT, UBX_CFG_RATE, UBX_CFG_NAV5};
+    // The port poll completes on its answer, not on its ACK
+    static constexpr uint8_t STEP_IDS[] = {0, 0xFF, UBX_CFG_PRT, UBX_CFG_RATE, UBX_CFG_NAV5};
     const uint8_t expected = this->step_ < STEP_MESSAGES ? STEP_IDS[this->step_] : UBX_CFG_MSG;
     if (p[1] != expected)
       return;
@@ -184,6 +198,23 @@ void UBXGNSS::handle_frame_() {
     }
     this->step_done_();
   }
+}
+
+void UBXGNSS::commit_epoch_() {
+  auto &e = this->epoch_;
+  if (!this->fix_) {
+    e.latitude = e.longitude = NAN;
+    e.altitude = e.speed = e.course = e.horizontal_accuracy = e.vertical_accuracy = NAN;
+  }
+  // The last valid UTC stays; the time source ignores it once it is stale
+  if (e.utc == 0) {
+    e.utc = this->data_.utc;
+    e.utc_millis = this->data_.utc_millis;
+  }
+  this->data_ = e;
+  this->last_epoch_ms_ = App.get_loop_component_start_time();
+  this->status_clear_warning();
+  this->publish_fix_();
 }
 
 void UBXGNSS::loop() {

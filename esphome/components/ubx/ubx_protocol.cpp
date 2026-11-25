@@ -1,6 +1,7 @@
 #include "ubx_protocol.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
@@ -62,19 +63,23 @@ bool FrameParser::feed(uint8_t byte) {
     case STATE_LENGTH_2:
       this->header_[3] = byte;
       checksum(&byte, 1, this->ck_a_, this->ck_b_);
-      this->length_ = encode_value_le<uint16_t>(this->header_ + 2);
+      this->frame_length_ = encode_value_le<uint16_t>(this->header_ + 2);
+      this->length_ = std::min(this->frame_length_, UBX_MAX_PAYLOAD);
       this->pos_ = 0;
-      // A longer frame is no message this platform reads, or a false sync in other data
-      if (this->length_ > UBX_MAX_PAYLOAD) {
+      // Longer than any UBX message: a false sync in other data
+      if (this->frame_length_ > UBX_MAX_FRAME_PAYLOAD) {
         this->state_ = STATE_SYNC_1;
       } else {
-        this->state_ = this->length_ == 0 ? STATE_CK_A : STATE_PAYLOAD;
+        this->state_ = this->frame_length_ == 0 ? STATE_CK_A : STATE_PAYLOAD;
       }
       return false;
     case STATE_PAYLOAD:
-      this->payload_[this->pos_++] = byte;
+      // A longer frame keeps its start; the rest only goes into the checksum
+      if (this->pos_ < this->length_)
+        this->payload_[this->pos_] = byte;
+      this->pos_++;
       checksum(&byte, 1, this->ck_a_, this->ck_b_);
-      if (this->pos_ == this->length_)
+      if (this->pos_ == this->frame_length_)
         this->state_ = STATE_CK_A;
       return false;
     case STATE_CK_A:
@@ -93,7 +98,8 @@ uint16_t parse_protocol_version(const uint8_t *payload, uint16_t len) {
     const char *ext = reinterpret_cast<const char *>(payload + off);
     if (strncmp(ext, KEY, sizeof(KEY) - 1) != 0)
       continue;
-    char buf[24];
+    // the rest of the extension after the key and its separator
+    char buf[30 - sizeof(KEY) + 1];
     memcpy(buf, ext + sizeof(KEY), sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
     char *end;

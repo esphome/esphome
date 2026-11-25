@@ -22,6 +22,7 @@ class UBXGNSS final : public gnss::GNSSComponent, public uart::UARTDevice {
  protected:
   void start_setup_();
   void clear_data_();
+  void commit_epoch_();
   void send_step_();
   void step_done_();
   void step_timeout_();
@@ -30,6 +31,11 @@ class UBXGNSS final : public gnss::GNSSComponent, public uart::UARTDevice {
   const uint8_t *messages_(uint8_t &count) const;
 
   FrameParser parser_;
+  // The NAV messages of the current epoch, copied to data_ once NAV-TIMEUTC completes it
+  gnss::GNSSData epoch_{};
+  uint32_t epoch_itow_{0};
+  // CFG-PRT settings of the receiver's port
+  uint8_t port_[20]{};
   // From MON-VER; empty until the receiver answers
   char sw_version_[31]{};
   char hw_version_[11]{};

@@ -66,6 +66,34 @@ TEST(UBXMonVer, ProtocolVersion) {
   EXPECT_EQ(parse_protocol_version(m8.data(), m8.size()), 1800);
 }
 
+TEST(UBXMonVer, LongReplyKeepsItsStart) {
+  // eight extensions: 280 bytes, more than the parser keeps
+  auto p = mon_ver("ROM SPG 5.10 (7b202e)",
+                   {"FWVER=SPG 5.10", "PROTVER=34.10", "MOD=MAX-M10S", "GPS;GLO;GAL;BDS", "SBAS;QZSS", "A", "B", "C"});
+  ASSERT_GT(p.size(), UBX_MAX_PAYLOAD);
+  FrameParser parser;
+  EXPECT_EQ(feed_all(parser, frame(UBX_CLASS_MON, UBX_MON_VER, p)), 1);
+  EXPECT_EQ(parser.length(), UBX_MAX_PAYLOAD);
+  EXPECT_EQ(parse_protocol_version(parser.payload(), parser.length()), 3410);
+}
+
+TEST(UBXMonVer, ProtocolVersionAsTheLastExtension) {
+  // exactly as long as the reply, so reading past the extension would leave the buffer
+  auto p = mon_ver("ROM CORE 3.01 (107888)", {"PROTVER=18.00"});
+  std::vector<uint8_t> exact(p.begin(), p.end());
+  EXPECT_EQ(parse_protocol_version(exact.data(), exact.size()), 1800);
+}
+
+TEST(UBXFrame, FalseSyncWithAHugeLengthIsDropped) {
+  // B5 62, class, id and a length no UBX message has, then a real frame
+  std::vector<uint8_t> bytes{UBX_SYNC_1, UBX_SYNC_2, 0x01, 0x07, 0xFF, 0xFF};
+  auto f = frame(UBX_CLASS_ACK, UBX_ACK_ACK, {UBX_CLASS_CFG, UBX_CFG_MSG});
+  bytes.insert(bytes.end(), f.begin(), f.end());
+  FrameParser parser;
+  EXPECT_EQ(feed_all(parser, bytes), 1);
+  EXPECT_EQ(parser.msg_class(), UBX_CLASS_ACK);
+}
+
 TEST(UBXNav, PvtWithA3dFix) {
   std::vector<uint8_t> p(92, 0);
   p[20] = 3;     // 3D fix
