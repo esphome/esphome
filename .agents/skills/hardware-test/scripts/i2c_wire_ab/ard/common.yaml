@@ -1,0 +1,47 @@
+esphome:
+  name: ${name}
+  includes:
+    - ../../../templates/i2c_fake/alloc_count.hpp
+    - ../wiredecode.hpp
+    - swp.hpp
+  platformio_options:
+    build_flags:
+      - ${wrapflag}
+      - ${defs}
+  on_boot:
+    - priority: -100
+      then:
+        - delay: ${start_delay}
+        - lambda: |-
+            swp::bus = id(bus_hw);
+            swp::install();
+            id(started) = true;
+
+logger:
+  level: DEBUG
+  hardware_uart: ${loguart}
+
+globals:
+  - id: started
+    type: bool
+    initial_value: "false"
+  - id: wedged
+    type: bool
+    initial_value: "false"
+
+i2c:
+  id: bus_hw
+  sda: ${sda}
+  scl: ${scl}
+  frequency: ${freq}
+  scan: true
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          if (!id(started)) return;
+          if (!swp::step(id(dev)) && !id(wedged) && ${do_wedge}) {
+            id(wedged) = true;
+            swp::wedge(id(dev));
+          }

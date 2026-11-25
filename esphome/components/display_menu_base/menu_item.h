@@ -34,7 +34,7 @@ const LogString *menu_item_type_to_string(MenuItemType type);
 
 class MenuItem;
 class MenuItemMenu;
-using value_getter_t = std::function<std::string(const MenuItem *)>;
+using value_getter_t = std::string (*)(const MenuItem *);
 
 class MenuItem {
  public:
@@ -89,11 +89,11 @@ class MenuItemEditable : public MenuItem {
   explicit MenuItemEditable(MenuItemType t) : MenuItem(t) {}
   void set_immediate_edit(bool val) { this->immediate_edit_ = val; }
   bool get_immediate_edit() const override { return this->immediate_edit_; }
-  void set_value_lambda(value_getter_t &&getter) { this->value_getter_ = getter; }
+  void set_value_lambda(value_getter_t getter) { this->value_getter_ = getter; }
 
  protected:
+  value_getter_t value_getter_{nullptr};
   bool immediate_edit_{false};
-  optional<value_getter_t> value_getter_{};
 };
 
 #ifdef USE_SELECT
@@ -172,7 +172,7 @@ class MenuItemCustom final : public MenuItemEditable {
   template<typename F> void add_on_next_callback(F &&cb) { this->on_next_callbacks_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_prev_callback(F &&cb) { this->on_prev_callbacks_.add(std::forward<F>(cb)); }
 
-  bool has_value() const override { return this->value_getter_.has_value(); }
+  bool has_value() const override { return this->value_getter_ != nullptr; }
   std::string get_value_text() const override;
 
   bool select_next() override;
