@@ -125,5 +125,7 @@ if vr:
     print(
         f"range mean {statistics.mean(vr):.4f} sd {statistics.pstdev(vr) * 1000:.1f} mm min {min(vr)} max {max(vr)}"
     )
-if bad or not nvalid or not ns:
-    sys.exit(f"FAIL: problems {len(bad)}, valid ranges {nvalid}, speeds {ns}")
+if bad or not nvalid or not ns or other["crash"]:
+    sys.exit(
+        f"FAIL: problems {len(bad)}, valid ranges {nvalid}, speeds {ns}, crashes {other['crash']}"
+    )
