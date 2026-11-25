@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome::ubx {
@@ -251,6 +252,12 @@ void UBXGNSS::dump_config() {
                   "  Protocol: %u.%02u",
                   this->sw_version_, this->hw_version_, this->protocol_version_ / 100, this->protocol_version_ % 100);
   }
+  // 0 is I2C (DDC), 1 and 2 UART1 and UART2, 3 USB, 4 SPI
+  // The fallback has no input protocols set; a polled port always has one
+  ESP_LOGCONFIG(TAG, "  Receiver port: %u at %" PRIu32 " baud%s", this->port_[0],
+                encode_value_le<uint32_t>(this->port_ + 8),
+                encode_value_le<uint16_t>(this->port_ + 12) == 0 ? LOG_STR_LITERAL(" (assumed, no answer to the poll)")
+                                                                 : LOG_STR_LITERAL(""));
   ESP_LOGCONFIG(TAG,
                 "  Messages: %s\n"
                 "  Measurement rate: %u ms",
