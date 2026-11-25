@@ -13,10 +13,10 @@ namespace {
 
 // Segment order: A top, B top right, C bottom right, D bottom, E bottom left, F top left, G middle.
 // Only the vertical probe position is fixed; the horizontal one is read from the stroke columns.
-const uint8_t PROBE_Y[7] PROGMEM = {38, 77, 179, 217, 179, 77, 128};
+constexpr uint8_t PROBE_Y[7] PROGMEM = {38, 77, 179, 217, 179, 77, 128};
 
 // Segment mask of each digit; bit i is set when segment i is lit.
-const uint8_t DIGIT_MASKS[10] PROGMEM = {63, 6, 91, 79, 102, 109, 125, 7, 127, 111};
+constexpr uint8_t DIGIT_MASKS[10] PROGMEM = {63, 6, 91, 79, 102, 109, 125, 7, 127, 111};
 
 /// Fraction of the 3x3 window centred on (x, y) that is lit.
 float probe_ratio(const uint8_t *image, int width, int height, int stride, int x, int y) {

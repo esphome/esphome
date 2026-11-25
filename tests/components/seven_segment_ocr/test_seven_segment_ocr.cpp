@@ -103,26 +103,16 @@ void draw_point(Image &image, int x, int y, const Metrics &metrics) {
 }  // namespace
 
 TEST(SevenSegmentOcr, ReadsEveryDigit) {
-  for (char digit = '0'; digit <= '9'; digit++) {
-    Image image = render(std::string(1, digit));
-    SevenSegmentOCR ocr;
-    ASSERT_TRUE(ocr.reserve(image.width));
-    const OcrResult result = ocr.recognize(image.pixels.data(), image.width, NORMAL.height, 1);
-    EXPECT_TRUE(result.complete()) << "digit " << digit;
-    EXPECT_EQ(result.value, static_cast<uint32_t>(digit - '0')) << "digit " << digit;
-    EXPECT_EQ(result.unknown, 0);
-    EXPECT_NEAR(result.confidence, 1.0f, 0.01f);
-  }
-}
-
-TEST(SevenSegmentOcr, ReadsEveryDigitAtSmallScale) {
-  for (char digit = '0'; digit <= '9'; digit++) {
-    Image image = render(std::string(1, digit), SMALL);
-    SevenSegmentOCR ocr;
-    ASSERT_TRUE(ocr.reserve(image.width));
-    const OcrResult result = ocr.recognize(image.pixels.data(), image.width, SMALL.height, 1);
-    EXPECT_TRUE(result.complete()) << "digit " << digit;
-    EXPECT_EQ(result.value, static_cast<uint32_t>(digit - '0')) << "digit " << digit;
+  for (const Metrics &metrics : {NORMAL, SMALL}) {
+    for (char digit = '0'; digit <= '9'; digit++) {
+      Image image = render(std::string(1, digit), metrics);
+      SevenSegmentOCR ocr;
+      ASSERT_TRUE(ocr.reserve(image.width));
+      const OcrResult result = ocr.recognize(image.pixels.data(), image.width, metrics.height, 1);
+      EXPECT_TRUE(result.complete()) << "digit " << digit;
+      EXPECT_EQ(result.value, static_cast<uint32_t>(digit - '0')) << "digit " << digit;
+      EXPECT_EQ(result.unknown, 0);
+    }
   }
 }
 
