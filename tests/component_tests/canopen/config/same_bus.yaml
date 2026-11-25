@@ -1,0 +1,19 @@
+esphome:
+  name: canopen-same-bus
+
+esp32:
+  board: esp32dev
+
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+
+canopen:
+  - id: hub_a
+    canbus_id: can_bus
+  - id: hub_b
+    canbus_id: can_bus

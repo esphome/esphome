@@ -14,7 +14,7 @@
 
 namespace esphome::uart {
 
-enum UARTParityOptions {
+enum UARTParityOptions : uint8_t {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
@@ -32,7 +32,7 @@ enum UARTFlowControl : uint8_t {
 };
 
 #ifdef USE_UART_DEBUGGER
-enum UARTDirection {
+enum UARTDirection : uint8_t {
   UART_DIRECTION_RX,
   UART_DIRECTION_TX,
   UART_DIRECTION_BOTH,

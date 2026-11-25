@@ -298,6 +298,8 @@ RESERVED_IDS = [
     "xor",
     "xor_eq",
     "App",
+    "app_lists",
+    "AppList",
     "pinMode",
     "delay",
     "delayMicroseconds",

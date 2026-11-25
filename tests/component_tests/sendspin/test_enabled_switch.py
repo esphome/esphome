@@ -43,7 +43,7 @@ def test_switch_answers_the_hub(
 
     assert "->set_enabled(true);" not in main_cpp
     assert f"sendspin_enabled->set_restore_mode(switch_::{restore_mode});" in main_cpp
-    assert "App.register_switch(sendspin_enabled," in main_cpp
+    assert "esphome::Application::configure_switch(sendspin_enabled," in main_cpp
 
 
 def test_switch_sets_the_hub_then_publishes(

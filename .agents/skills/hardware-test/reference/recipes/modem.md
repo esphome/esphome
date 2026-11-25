@@ -92,3 +92,55 @@ replies, to check what the module does with no component in the way.
 - `AT+COPS=2` does not survive the component's CFUN cycle, so "not searching" cannot be forced on the SIM7670G.
 - `modem.disable` after CMUX: `CFUN=0` times out on the SIM7670G ("Radio off failed"); `CFUN=4` works.
 - Never send `AT+CPIN=` with arguments as a test command on a live SIM; `AT+CPBR=999` gives a safe `+CME ERROR`.
+
+## SIM restart and CFUN=4 fallback (#23166, #23163)
+
+Boards: the SIM7080G Atom Lite with no SIM and the SIM7670G Waveshare board with a live SIM. Build both from
+`scripts/modem/` (`sim7080-atom.yaml`, `sim7670-s3.yaml`, package `fallback-common.yaml`: Wi-Fi, plaintext API, empty
+APN, enable, disable, restart and AT query buttons). `flow.sh NAME TREE PORT full` flashes, waits for PPP, runs the
+traffic button, two warm reboots out of PPP and a disable/enable; `otaflow.sh` is the same disable/enable over OTA
+and the API for a board whose serial port is not usable.
+
+- SIM7080G with no SIM: raw `AT+CPIN?` answers plain `ERROR` (CMEE off); through the component it is
+  `+CME ERROR: SIM failure` at CFUN=4 and `+CME ERROR: SIM not inserted` at CFUN=1, so a no-SIM unit reproduces the
+  SIM7070 "SIM failure at CFUN=4" text of [#23007](https://github.com/esphome/esphome/issues/23007), but cannot show
+  the SIM then becoming READY.
+- `AT+CFUN=1,1` on the SIM7080G: silent 26 to 27 s every time; the component logs one `Modem not responding ... it may
+  be busy or restarting` and syncs on the next pass.
+- SIM7670G with a live SIM: at CFUN=4 `AT+CPIN?` gives `SIM busy`, then `READY` within 1 s; SIM READY to PPP takes 4 to
+  5 s.
+- A warm reboot during PPP on the SIM7670G reconnects every time with the stuck CMUX recovery: 18 s when the first
+  probe pass recovers it, about 90 s when it takes four passes (roughly every other reboot, on every build).
+- `modem.disable` on the SIM7670G after PPP logs `Radio off, but the SIM could not be powered down` (CFUN=0 fails),
+  then DISABLED; enabling again connects in 7 to 8 s.
+- PPP traffic check (`traffic.yaml`): set the PPP netif (`PPP_DEF`) as the default from a lambda, send one
+  `http_request.get` (an address literal in `traffic_url` skips DNS), and restore `WIFI_STA_DEF` in `on_response` and
+  `on_error`, because the action is asynchronous. Compare with the same GET over Wi-Fi. A SIM can attach and get an
+  address while no traffic comes back (see the no-traffic note above); that is the carrier side. The GET is skipped
+  (`traffic skipped: PPP not default`) when PPP is not up, and `flow.sh` exits 1 without a 2xx reply over PPP, so a
+  carrier with no traffic fails the run too.
+- The two PRs conflicted on neighbouring lines; merged locally they worked together. Test such pairs merged too.
+
+## APN refused at CFUN=0, CFUN=1 fallback (#23238)
+
+- Seeing the AT exchange: `esp32: framework: log_level: DEBUG` (set in `fallback-common.yaml`) makes esp_modem log
+  `generic_command command <cmd>` and `Response:` with the reply on the following serial lines, raw, without the
+  `[..]` prefix. `atlines.sh CAPTURE` keeps those and drops the Wi-Fi driver noise. The API log stream drops some reply
+  lines, so read them from serial. On a disable/enable the logger can print the esp_modem line for the next command a
+  few lines early (dev too); boot sequences come out in order.
+- To make a modem refuse the APN at CFUN=0, patch `set_pdp_context` in the tree under test to use `context_id = 99`.
+  The SIM7670G answers `+CME ERROR: operation not supported`, the SIM7080G `ERROR`. Both accept CFUN=1 right after
+  CFUN=0 (no retry needed), unlike the SIM7600 in the PR report. The SIM7670G powers its SIM at CFUN=4 even after a
+  refused APN, so dev does not get stuck there, and the SIM7600 "SIM failure after CFUN=4" cannot be reproduced with
+  these modules. The SIM7080G accepts `AT+CGDCONT=1,...` at CFUN=0 (it takes the CFUN=4 path).
+- Once, after a warm reboot during PPP, the SIM7670G stayed silent in CMUX for 16 min (the probe never recovered it).
+  `AT+CRESET` on the module's own USB AT port (`usbat.py PORT 3 AT+CRESET`) restarted it; that port disappears and
+  comes back about 20 s later.
+- A USB serial adapter that answers `termios.error: (22, 'Invalid argument')` on every open needs a replug; until then
+  flash by OTA and read the log over the API (`otaflow.sh`, `mdrive.py`).
+- `flow.sh NAME TREE PORT reboot` (flash plus one warm reboot) is enough for a retest of a head that only renames a
+  constant. Such a head can be proved code identical by diffing `objdump -d` of `modem_component.cpp.obj`: only the
+  `__LINE__` values of the log calls change. After a reboot out of PPP the probe can take about 75 s to pull the
+  SIM7670G out of CMUX.
+- Results: https://github.com/esphome/esphome/pull/23238#issuecomment-7135983010 and
+  https://github.com/esphome/esphome/pull/23238#issuecomment-7136791265

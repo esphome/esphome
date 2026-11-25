@@ -37,7 +37,7 @@ workflows:
         - 'astral-sh/setup-uv@v10.4.0'
         - 'awalsh128/cache-apt-pkgs-action@v1.6.3'
         - 'codecov/codecov-action@v7.1.1'
-        - 'codspeedhq/action@v5.6.3'
+        - 'codspeedhq/action@v5.8.0'
         - 'j178/prek-action@v3.1.1'
         - 'pre-commit-ci/lite-action@v1.2.0'
     '.github/workflows/close-pr-from-fork-default-branch.yml':
@@ -188,9 +188,9 @@ dependencies:
         repo_id: 200299178
         uses:
             - 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd'
-    'codspeedhq/action@v5.6.3':
-        ref: 'v5.6.3'
-        commit: 'sha1-af75f77f17a054769abefaa42fe8dc2975469b5f'
+    'codspeedhq/action@v5.8.0':
+        ref: 'v5.8.0'
+        commit: 'sha1-b1f28b5eccf7cb5bfe6a2a89cb3053eb67f1150c'
         owner_id: 116658140
         repo_id: 561699778
         uses:
