@@ -16,8 +16,7 @@ void CAP1188Component::setup() {
   }
 
   // reset pin configured so reset before finishing setup
-  this->reset_pin_->setup();
-  this->reset_pin_->digital_write(false);
+  setup_output_pin(this->reset_pin_, false);
   // delay after reset pin write
   this->set_timeout(100, [this]() {
     this->reset_pin_->digital_write(true);

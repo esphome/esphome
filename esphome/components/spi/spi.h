@@ -196,8 +196,7 @@ class SPIDelegate {
       : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
     if (this->cs_pin_ == nullptr)
       this->cs_pin_ = NullPin::NULL_PIN;
-    this->cs_pin_->setup();
-    this->cs_pin_->digital_write(true);
+    setup_output_pin(this->cs_pin_, true);
   }
 
   virtual ~SPIDelegate() {};

@@ -878,6 +878,29 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 )
 
 
+async def request_tag_log_level(tag: str, level: str) -> None:
+    """Quiet a noisy library tag; call from to_code.
+
+    Skipped when `logger: logs:` sets the tag or the logger's level already drops it; never louder than
+    `initial_level`. ESP-IDF library tags need ESP-IDF Log V2 (6.1+, not ESP32-C2/S2); otherwise they log as
+    `esp-idf`.
+    """
+    if (
+        (config := CORE.config.get(DOMAIN)) is None
+        or tag in config[CONF_LOGS]
+        or LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+        <= LOG_LEVEL_SEVERITY.index(level)
+    ):
+        return
+    # Kept as a tag level, so it still holds when the level is raised at run time
+    level = min(
+        level, config.get(CONF_INITIAL_LEVEL, level), key=LOG_LEVEL_SEVERITY.index
+    )
+    cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
+    log = await cg.get_variable(config[CONF_ID])
+    cg.add(log.set_log_level(tag, LOG_LEVELS[level]))
+
+
 def request_logger_level_listeners() -> None:
     """Request that logger level listeners be compiled in.
 

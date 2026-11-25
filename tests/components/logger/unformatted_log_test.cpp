@@ -26,7 +26,8 @@ TEST(UnformattedLogTest, BodyMatchesFormattedBodyAtEverySize) {
   const char *texts[] = {"", "short", "ends with newlines\n\n", "\n", "a\nb", long_text.c_str()};
   constexpr uint16_t max_size = 48;
   for (uint16_t size = 1; size <= max_size; size++) {
-    for (uint16_t start = 0; start <= size; start++) {
+    // The header always leaves room for the terminator, so the body starts inside the buffer
+    for (uint16_t start = 0; start < size; start++) {
       for (const char *text : texts) {
         SCOPED_TRACE(::testing::Message() << "size " << size << " start " << start << " text '" << text << "'");
         char formatted[max_size], unformatted[max_size], flash[max_size];
@@ -46,7 +47,7 @@ TEST(UnformattedLogTest, BodyMatchesFormattedBodyAtEverySize) {
         ASSERT_EQ(a.pos, b.pos);
         ASSERT_EQ(a.pos, c.pos);
         // Up to and including the null terminator; vsnprintf() may leave bytes after it that nothing reads
-        const size_t used = (a.pos < size) ? a.pos + 1 : size;
+        const size_t used = a.pos + 1;
         ASSERT_EQ(memcmp(formatted, unformatted, used), 0);
         ASSERT_EQ(memcmp(formatted, flash, used), 0);
       }
@@ -59,23 +60,40 @@ struct PlainLine {
   std::string message;
 };
 
-static void capture_plain(void *instance, uint8_t level, const char *tag, const char *message, size_t len) {
-  static_cast<std::vector<PlainLine> *>(instance)->push_back({level, std::string(message, len)});
-}
-
 class UnformattedLoggerTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->previous_ = global_logger;
     this->logger_.pre_setup();
     this->logger_.set_log_level(ESPHOME_LOG_LEVEL_DEBUG);
-    this->logger_.add_log_callback(&this->lines_, capture_plain);
+    this->logger_.add_log_callback(this, capture);
   }
   void TearDown() override { global_logger = this->previous_; }
+
+  static void capture(void *instance, uint8_t level, const char *tag, const char *message, size_t len) {
+    auto *test = static_cast<UnformattedLoggerTest *>(instance);
+    test->lines_.push_back({level, std::string(message, len)});
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+    // As an on_message automation that restarts the device does
+    if (test->power_down_from_listener_) {
+      test->power_down_from_listener_ = false;
+      test->logger_.on_powerdown();
+    }
+#endif
+  }
+
+#ifdef USE_HOST
+  void log_from_worker(const char *text) {
+    this->logger_.create_pthread_key();
+    std::thread worker([text]() { esp_log_str_(ESPHOME_LOG_LEVEL_INFO, PLAIN_TAG, 7, text); });
+    worker.join();
+  }
+#endif
 
   Logger *previous_{nullptr};
   Logger logger_{0};
   std::vector<PlainLine> lines_;
+  bool power_down_from_listener_{false};
 };
 
 TEST_F(UnformattedLoggerTest, LineWithoutArgumentsMatchesFormattedLine) {
@@ -123,18 +141,25 @@ TEST_F(UnformattedLoggerTest, LevelIsStillFiltered) {
   EXPECT_EQ(this->lines_[0].level, ESPHOME_LOG_LEVEL_WARN);
 }
 
-#ifdef USE_HOST
+#if defined(USE_HOST) && defined(USE_ESPHOME_TASK_LOG_BUFFER)
 TEST_F(UnformattedLoggerTest, WorkerThreadLineGoesThroughTaskBuffer) {
-  this->logger_.create_pthread_key();
-  std::thread worker([]() { esp_log_str_(ESPHOME_LOG_LEVEL_INFO, PLAIN_TAG, 7, "from a worker"); });
-  worker.join();
-  EXPECT_TRUE(this->lines_.empty());
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  this->logger_.loop();
-  ASSERT_EQ(this->lines_.size(), 1u);
-  EXPECT_NE(this->lines_[0].message.find("from a worker"), std::string::npos) << this->lines_[0].message;
-#endif
+  // loop() prints it, and on_powerdown() once a restart has stopped the loop
+  for (auto drain : {&Logger::loop, &Logger::on_powerdown}) {
+    this->lines_.clear();
+    this->log_from_worker("from a worker");
+    EXPECT_TRUE(this->lines_.empty());
+    (this->logger_.*drain)();
+    ASSERT_EQ(this->lines_.size(), 1u);
+    EXPECT_NE(this->lines_[0].message.find("from a worker"), std::string::npos) << this->lines_[0].message;
+  }
 }
-#endif  // USE_HOST
+
+TEST_F(UnformattedLoggerTest, PowerdownFromAListenerDoesNotDeliverTheLineAgain) {
+  this->power_down_from_listener_ = true;
+  this->log_from_worker("restart now");
+  this->logger_.loop();
+  EXPECT_EQ(this->lines_.size(), 1u);
+}
+#endif  // USE_HOST && USE_ESPHOME_TASK_LOG_BUFFER
 
 }  // namespace esphome::logger::testing
