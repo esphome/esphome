@@ -14,9 +14,9 @@ namespace esphome::mq_gas_sensors {
 
 /// Regression model, mirrors MQUnifiedsensor's `_regressionMethod`.
 enum class RegressionMethod : uint8_t {
-  REGRESSION_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
-  REGRESSION_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
-  REGRESSION_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b)
+  REGRESSION_METHOD_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
+  REGRESSION_METHOD_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
+  REGRESSION_METHOD_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b)
 };
 
 namespace mqmath {
@@ -71,7 +71,7 @@ inline float ratio_from_rs(float rs, float r0) {
 /// clamps FLT_MAX to its maximum.
 inline float ppm_at_zero(float a, float b, RegressionMethod method) {
   switch (method) {
-    case RegressionMethod::REGRESSION_EXPONENTIAL:
+    case RegressionMethod::REGRESSION_METHOD_EXPONENTIAL:
       if (!(a > 0.0f))
         return NAN;
       if (b > 0.0f)
@@ -79,11 +79,11 @@ inline float ppm_at_zero(float a, float b, RegressionMethod method) {
       if (b < 0.0f)
         return FLT_MAX;
       return a;
-    case RegressionMethod::REGRESSION_INVERSE:
+    case RegressionMethod::REGRESSION_METHOD_INVERSE:
       if (!(a > 0.0f) || b == 0.0f)
         return NAN;
       return b > 0.0f ? 0.0f : FLT_MAX;
-    case RegressionMethod::REGRESSION_LINEAR:
+    case RegressionMethod::REGRESSION_METHOD_LINEAR:
       if (a == 0.0f)
         return NAN;
       return a > 0.0f ? 0.0f : FLT_MAX;
@@ -104,12 +104,12 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
     return ppm_at_zero(a, b, method);
 
   double log_ppm;
-  if (method == RegressionMethod::REGRESSION_EXPONENTIAL) {
+  if (method == RegressionMethod::REGRESSION_METHOD_EXPONENTIAL) {
     log_ppm = std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
-  } else if (method == RegressionMethod::REGRESSION_INVERSE) {
+  } else if (method == RegressionMethod::REGRESSION_METHOD_INVERSE) {
     // PPM = (ratio / a)^(1/b).
     log_ppm = (std::log10(static_cast<double>(ratio)) - std::log10(static_cast<double>(a))) / static_cast<double>(b);
-  } else if (method == RegressionMethod::REGRESSION_LINEAR) {
+  } else if (method == RegressionMethod::REGRESSION_METHOD_LINEAR) {
     log_ppm = (std::log10(static_cast<double>(ratio)) - static_cast<double>(b)) / static_cast<double>(a);
   } else {
     // An unknown method has no formula; evaluating it as one of the known ones

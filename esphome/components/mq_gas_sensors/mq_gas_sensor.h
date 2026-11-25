@@ -73,7 +73,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   float min_ppm_{0.0f};
   float max_ppm_{10000.0f};
 
-  RegressionMethod regression_method_{RegressionMethod::REGRESSION_EXPONENTIAL};
+  RegressionMethod regression_method_{RegressionMethod::REGRESSION_METHOD_EXPONENTIAL};
   uint8_t samples_{2};
   /// Usable conversions of the last sampling window.
   uint8_t sample_count_{0};

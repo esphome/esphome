@@ -31,5 +31,5 @@ CONF_RATIO_IN_CLEAN_AIR = "ratio_in_clean_air"
 CONF_SAMPLE_COUNT = "sample_count"
 
 REGRESSION_METHODS = RegressionMethod.options(
-    "exponential", "linear", "inverse", prefix="REGRESSION_"
+    "exponential", "linear", "inverse", prefix="REGRESSION_METHOD_"
 )

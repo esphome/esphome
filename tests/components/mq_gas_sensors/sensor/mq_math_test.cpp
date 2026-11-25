@@ -28,51 +28,53 @@ TEST(MqMath, RatioIsRsOverR0) {
 
 TEST(MqMath, MidRangeReadingsFollowTheCurve) {
   // 976.97 * 1^-0.688 = 976.97 ppm.
-  EXPECT_NEAR(976.97f, ppm_from_ratio(H2_A, H2_B, 1.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.01f);
+  EXPECT_NEAR(976.97f, ppm_from_ratio(H2_A, H2_B, 1.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL), 0.01f);
   // 976.97 * 70^-0.688 = 52.5 ppm, the clean-air anchor of the MQ-8 H2 curve.
-  EXPECT_NEAR(52.5f, ppm_from_ratio(H2_A, H2_B, 70.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.1f);
+  EXPECT_NEAR(52.5f, ppm_from_ratio(H2_A, H2_B, 70.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL), 0.1f);
   // Linear: log10(ppm) = (log10(1) - 0.4491) / -0.47712 = 0.9413 -> 8.73 ppm.
-  EXPECT_NEAR(8.73f, ppm_from_ratio(NH3_A, NH3_B, 1.0f, RegressionMethod::REGRESSION_LINEAR), 0.01f);
+  EXPECT_NEAR(8.73f, ppm_from_ratio(NH3_A, NH3_B, 1.0f, RegressionMethod::REGRESSION_METHOD_LINEAR), 0.01f);
 }
 
 TEST(MqMath, SaturatedSensorReportsTheTopOfTheRange) {
   // A ratio of 0 is RS at 0 (V_AO at VCC), the output of a saturated sensor:
   // the model reports the top of the range there, so it is clamped to max_ppm
   // instead of reading as clean air.
-  EXPECT_EQ(FLT_MAX, ppm_from_ratio(H2_A, H2_B, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
-  EXPECT_FLOAT_EQ(H2_MAX_PPM, clamp_ppm(ppm_from_ratio(H2_A, H2_B, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL),
-                                        0.0f, H2_MAX_PPM));
+  EXPECT_EQ(FLT_MAX, ppm_from_ratio(H2_A, H2_B, 0.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL));
+  EXPECT_FLOAT_EQ(
+      H2_MAX_PPM,
+      clamp_ppm(ppm_from_ratio(H2_A, H2_B, 0.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL), 0.0f, H2_MAX_PPM));
 }
 
 TEST(MqMath, ZeroRatioFollowsTheCurveDirection) {
   // A curve that falls as the ratio falls reaches 0 ppm at a ratio of 0: that is
   // the bottom of the range, not the saturated top the datasheet curve reports.
-  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
-  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_INVERSE));
+  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL));
+  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_METHOD_INVERSE));
   // A coefficient pair the curve cannot evaluate stays unknown instead of picking
   // one end.
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL)));
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 0.0f, 0.0f, RegressionMethod::REGRESSION_INVERSE)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 0.0f, 0.0f, RegressionMethod::REGRESSION_METHOD_INVERSE)));
   // A negative ratio is not a sensor resistance: unknown, never a concentration.
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 2.0f, -0.5f, RegressionMethod::REGRESSION_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 2.0f, -0.5f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL)));
   // The MQ-131 ozone curve gives 0.12 ppm in clean air (ratio 15), far below the
   // 1 ppm top of its 10 - 1000 ppb range.
-  EXPECT_NEAR(0.115f, ppm_from_ratio(0.41195f, -0.4708f, 15.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.001f);
+  EXPECT_NEAR(0.115f, ppm_from_ratio(0.41195f, -0.4708f, 15.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL),
+              0.001f);
 }
 
 TEST(MqMath, UnusableInputReadsUnknown) {
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(H2_A, H2_B, NAN, RegressionMethod::REGRESSION_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(H2_A, H2_B, NAN, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL)));
   EXPECT_TRUE(std::isnan(clamp_ppm(NAN, 0.0f, H2_MAX_PPM)));
   // Coefficients the method cannot evaluate (log10 of a negative a) read
   // unknown, not a saturated max_ppm.
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(-H2_A, H2_B, 1.0f, RegressionMethod::REGRESSION_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(-H2_A, H2_B, 1.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL)));
   EXPECT_TRUE(std::isnan(
-      clamp_ppm(ppm_from_ratio(-H2_A, H2_B, 1.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.0f, H2_MAX_PPM)));
+      clamp_ppm(ppm_from_ratio(-H2_A, H2_B, 1.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL), 0.0f, H2_MAX_PPM)));
   // No coefficients the method can use: a curve with a = 0 has no solution, so
   // it reads unknown rather than 0 ppm (clean air) or a clamped range value.
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, H2_B, 1.0f, RegressionMethod::REGRESSION_EXPONENTIAL)));
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, H2_B, 1.0f, RegressionMethod::REGRESSION_LINEAR)));
-  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, H2_B, 1.0f, RegressionMethod::REGRESSION_INVERSE)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, H2_B, 1.0f, RegressionMethod::REGRESSION_METHOD_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, H2_B, 1.0f, RegressionMethod::REGRESSION_METHOD_LINEAR)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, H2_B, 1.0f, RegressionMethod::REGRESSION_METHOD_INVERSE)));
 }
 
 TEST(MqMath, UnknownRegressionMethodReadsUnknown) {

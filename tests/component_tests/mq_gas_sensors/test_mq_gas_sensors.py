@@ -34,7 +34,7 @@ def test_built_in_curve_reaches_the_sensor(
     assert "mq8_boot->set_a(976.97f);" in main_cpp
     assert "mq8_boot->set_b(-0.688f);" in main_cpp
     assert (
-        "mq8_boot->set_regression_method(mq_gas_sensors::RegressionMethod::REGRESSION_EXPONENTIAL);"
+        "mq8_boot->set_regression_method(mq_gas_sensors::RegressionMethod::REGRESSION_METHOD_EXPONENTIAL);"
         in main_cpp
     )
     assert "mq8_boot->set_ratio_in_clean_air(70.0f);" in main_cpp
