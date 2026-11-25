@@ -2323,8 +2323,15 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
     }
     this->callbacks_->add_(cb);
   }
-  /// Allocated only by add_(), and nothing removes callbacks, so cbs is never empty.
-  static void __attribute__((noinline)) call_all_(CallbackManager<void(Ts...)> *cbs, Ts... args) { cbs->call(args...); }
+  /// Left to GCC to inline: one call site inlines it, several share it out of line.
+  /// cbs is allocated only by add_() and nothing removes callbacks, so it is never empty.
+  static void call_all_(CallbackManager<void(Ts...)> *cbs, Ts... args) {
+    auto *it = cbs->data_;
+    auto *end = it + cbs->size_;
+    do {
+      it->call(args...);
+    } while (++it != end);
+  }
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
