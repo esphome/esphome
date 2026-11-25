@@ -343,14 +343,14 @@ async def _emit_callback_manager_pool() -> None:
     add_define(CALLBACK_MANAGER_POOL_SIZE, len(state.managers))
 
 
-def reserve_callback_manager(parent: MockObj, method: str) -> None:
+def reserve_callback_manager(parent: Expression, method: str) -> None:
     """Reserve a static CallbackManager for the lazy manager ``parent.method()`` adds to.
 
     Call it where codegen registers a callback, or creates what registers one in C++. Methods
     not declared with ``lazy_callback_methods`` for the parent's class, and calls after the
     pool size was emitted, are ignored: that manager then comes from the heap as before.
     """
-    if not isinstance(id_ := parent.base, ID) or id_.type is None:
+    if not isinstance(id_ := getattr(parent, "base", None), ID) or id_.type is None:
         return
     if not any(
         method in methods and id_.type.inherits_from(cls)
