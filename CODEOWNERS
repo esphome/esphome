@@ -421,6 +421,7 @@ esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
 esphome/components/media_source/* @kahrendt
 esphome/components/micro_wake_word/* @jesserockz @kahrendt
+esphome/components/microchip_atsha204a/* @inventor7777
 esphome/components/micronova/* @edenhaus @jorre05
 esphome/components/microphone/* @jesserockz @kahrendt
 esphome/components/microphone_http_stream/* @mbrudka

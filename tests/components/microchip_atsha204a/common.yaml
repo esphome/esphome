@@ -1,0 +1,44 @@
+microchip_atsha204a:
+  - id: atsha204a_rmt
+    type: swi_rmt
+    uart_id: uart_rx_bus
+    update_interval: 10s
+
+binary_sensor:
+  - platform: microchip_atsha204a
+    atsha204a_id: atsha204a_rmt
+    name: ATSHA204A Present
+
+script:
+  - id: atsha204a_test_commands
+    then:
+      - microchip_atsha204a.command:
+          id: atsha204a_rmt
+          opcode: nonce
+          param1: 0x03
+          data: [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+            0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+            0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
+          ]
+          end: idle
+          on_result:
+            - if:
+                condition:
+                  lambda: return status == 0 && session != 0;
+                then:
+                  - microchip_atsha204a.command:
+                      id: atsha204a_rmt
+                      opcode: dev_rev
+                      session: !lambda return session;
+                      data: !lambda return std::vector<uint8_t>{};
+                      on_result:
+                        - delay: 1ms
+                        - lambda: |-
+                            if (status == 0 && data.size() == 4)
+                              ESP_LOGD("test", "Device revision: %02X", data[0]);
+                else:
+                  - microchip_atsha204a.end_session:
+                      id: atsha204a_rmt
+                      session: !lambda return session;
