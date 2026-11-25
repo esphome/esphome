@@ -88,15 +88,30 @@ void UpdateLock::release() {
 
 void UpdateLock::force_release() { update_lock_clear(); }
 
-#ifdef USE_OTA_STATE_LISTENER
-OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-OTAGlobalCallback *get_global_ota_callback() {
-  if (global_ota_callback == nullptr) {
-    global_ota_callback = new OTAGlobalCallback();  // NOLINT(cppcoreguidelines-owning-memory)
-  }
-  return global_ota_callback;
+bool UpdateLock::any_held() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  return update_locked.load() != 0;
+#else
+  // Same guard as update_lock_test_and_set()
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#else
+  InterruptLock guard;
+#endif
+  return update_locked;
+#endif
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+#ifdef OTA_STATE_CALLBACK_COUNT
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+StaticCallbackManager<OTA_STATE_CALLBACK_COUNT, void(OTAState, float, uint8_t, OTAComponent *)>
+    OTAComponent::state_callbacks;
+#endif
+
+static OTAGlobalCallback global_ota_callback;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+OTAGlobalCallback *get_global_ota_callback() { return &global_ota_callback; }
 
 void OTAComponent::notify_state_deferred_(OTAState state, float progress, uint8_t error) {
   // Pack state, error, and progress into a single uint32_t so the lambda
@@ -112,6 +127,9 @@ void OTAComponent::notify_state_deferred_(OTAState state, float progress, uint8_
 }
 
 void OTAComponent::notify_state_(OTAState state, float progress, uint8_t error) {
+#ifdef OTA_STATE_CALLBACK_COUNT
+  state_callbacks.call(state, progress, error, this);
+#endif
   for (auto *listener : this->state_listeners_) {
     listener->on_ota_state(state, progress, error);
   }

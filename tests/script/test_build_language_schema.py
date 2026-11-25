@@ -357,6 +357,21 @@ def test_uart_clock_source_preserves_variant_metadata(
     assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
 
 
+def test_uart_debug_lists_its_options(language_schema_dir: Path) -> None:
+    """A bare-allowed `debug:` still resolves to the debug schema, not an untyped key."""
+    uart_schema = json.loads((language_schema_dir / "uart.json").read_text())
+    debug = uart_schema["uart"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"][
+        "debug"
+    ]
+    # The dumper files a shared schema under the first component that uses it
+    (ref,) = debug["schema"]["extends"]
+    component, name = ref.split(".", 1)
+    shared = json.loads((language_schema_dir / f"{component}.json").read_text())
+    config_vars = shared[component]["schemas"][name]["schema"]["config_vars"]
+
+    assert {"direction", "after", "sequence"} <= set(config_vars)
+
+
 def test_automation_with_one_extra_key_keeps_it(language_schema_dir: Path) -> None:
     """A trigger whose only extra key is not trigger_id still lists that key."""
     modbus_schema = json.loads((language_schema_dir / "modbus_client.json").read_text())
@@ -453,6 +468,16 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
 
     _count(lvgl_schema)
     assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+
+
+def test_convert_emits_time_period_enum() -> None:
+    """cv.time_period_enum is dumped as an enum of time periods with their unit."""
+    validator = cv.time_period_enum({100: "A", 200: "B"}, unit="us")
+    config_var: dict = {}
+    _bls.convert(validator, config_var, "/test")
+
+    assert config_var["type"] == "enum"
+    assert config_var["values"] == {"100us": None, "200us": None}
 
 
 def test_convert_typed_schema_with_an_empty_type(
@@ -742,3 +767,29 @@ def test_shrink_enum_collapse_reports_dropped_siblings(
     assert "dropped ['base.B'] beside sibling extends at mod.schemas.CONFIG_SCHEMA" in (
         capsys.readouterr().out
     )
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("lvgl.update", ("lvgl", "update")),
+        ("unknown.do", ("unknown", "do")),
+        ("sensor.template.publish", ("template.sensor", "publish")),
+        ("lvgl.table.update", ("lvgl", "table.update")),
+        ("lvgl.table.cell.update", ("lvgl", "table.cell.update")),
+        ("lvgl.chart.series.append", ("lvgl", "chart.series.append")),
+        ("unknown.thing.do", None),
+    ],
+)
+def test_split_registry_name(name: str, expected: tuple[str, str] | None) -> None:
+    assert _bls.split_registry_name(name, {"sensor"}, {"lvgl", "sensor"}) == expected
+
+
+def test_lvgl_actions_with_long_names_keep_their_own_schemas(
+    lvgl_schema: dict,
+) -> None:
+    """A four-part action name used to overwrite the schema of the action before it."""
+    actions = lvgl_schema["lvgl"]["action"]
+    table_cell = actions["table.cell.update"]["schema"]["config_vars"]
+    assert {"row", "column", "text"} <= set(table_cell)
+    assert "row" not in actions["table.update"]["schema"]["config_vars"]

@@ -59,6 +59,9 @@ using web_server_base::write_stream_head;
 #ifndef HTTPD_422
 #define HTTPD_422 "422 Unprocessable Entity"
 #endif
+#ifndef HTTPD_503
+#define HTTPD_503 "503 Service Unavailable"
+#endif
 
 ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
@@ -566,6 +569,9 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       break;
     case 422:
       status = HTTPD_422;
+      break;
+    case 503:
+      status = HTTPD_503;
       break;
     default:
       status = HTTPD_500;

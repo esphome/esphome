@@ -49,6 +49,7 @@ CONF_ANSWER_TIMEOUT = "answer_timeout"
 CONF_CONTROL_METHOD = "control_method"
 CONF_CONTROL_PACKET_SIZE = "control_packet_size"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
+CONF_HVAC_ACTION = "hvac_action"
 CONF_ON_ALARM_START = "on_alarm_start"
 CONF_ON_ALARM_END = "on_alarm_end"
 CONF_ON_STATUS_MESSAGE = "on_status_message"
@@ -69,10 +70,11 @@ HonClimate = haier_ns.class_("HonClimate", HaierClimateBase)
 Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 
 CONF_HAIER_ID = "haier_id"
+ICON_ALARM = "mdi:alarm-light"
 
 AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = AirflowVerticalDirection.options(
-    "HEALTH_UP", "MAX_UP", "UP", "CENTER", "DOWN", "HEALTH_DOWN"
+    "HEALTH_UP", "MAX_UP", "UP", "CENTER", "DOWN", "MAX_DOWN", "HEALTH_DOWN"
 )
 
 AirflowHorizontalDirection = hon_protocol_ns.enum("HorizontalSwingMode", True)
@@ -93,7 +95,7 @@ SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
 }
 
 SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
-    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "SLEEP")
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "ECO", "SLEEP")
 }
 
 HonControlMethod = haier_ns.enum("HonControlMethod", True)
@@ -215,9 +217,10 @@ CONFIG_SCHEMA = cv.All(
                         CONF_STATUS_MESSAGE_HEADER_SIZE,
                         default=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE,
                     ): cv.int_range(min=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE),
+                    cv.Optional(CONF_HVAC_ACTION, default=False): cv.boolean,
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
-                        default=["BOOST", "SLEEP"],  # No AWAY by default
+                        default=["BOOST", "ECO", "SLEEP"],  # No AWAY by default
                     ): cv.ensure_list(
                         cv.enum(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS, upper=True)
                     ),
@@ -366,33 +369,34 @@ async def to_code(config):
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
+    if config.get(CONF_HVAC_ACTION):
+        cg.add(var.set_hvac_action(True))
     cg.add_optional(var.set_beeper_state, config.get(CONF_BEEPER))
     cg.add_optional(var.set_display_state, config.get(CONF_DISPLAY))
     cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
-    if CONF_SUPPORTED_SWING_MODES in config:
-        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
+    cg.add_optional(
+        var.set_supported_swing_modes, config.get(CONF_SUPPORTED_SWING_MODES)
+    )
     cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
     cg.add_optional(var.set_answer_timeout, config.get(CONF_ANSWER_TIMEOUT))
-    if CONF_ALTERNATIVE_SWING_CONTROL in config:
-        cg.add(
-            var.set_alternative_swing_control(config[CONF_ALTERNATIVE_SWING_CONTROL])
-        )
-    if CONF_CONTROL_PACKET_SIZE in config:
+    cg.add_optional(
+        var.set_alternative_swing_control, config.get(CONF_ALTERNATIVE_SWING_CONTROL)
+    )
+    if (control_packet_size := config.get(CONF_CONTROL_PACKET_SIZE)) is not None:
         cg.add(
             var.set_extra_control_packet_bytes_size(
-                config[CONF_CONTROL_PACKET_SIZE] - PROTOCOL_CONTROL_PACKET_SIZE
+                control_packet_size - PROTOCOL_CONTROL_PACKET_SIZE
             )
         )
-    if CONF_SENSORS_PACKET_SIZE in config:
+    if (sensors_packet_size := config.get(CONF_SENSORS_PACKET_SIZE)) is not None:
         cg.add(
             var.set_extra_sensors_packet_bytes_size(
-                config[CONF_SENSORS_PACKET_SIZE] - PROTOCOL_MIN_SENSORS_PACKET_SIZE
+                sensors_packet_size - PROTOCOL_MIN_SENSORS_PACKET_SIZE
             )
         )
-    if CONF_STATUS_MESSAGE_HEADER_SIZE in config:
-        cg.add(
-            var.set_status_message_header_size(config[CONF_STATUS_MESSAGE_HEADER_SIZE])
-        )
+    cg.add_optional(
+        var.set_status_message_header_size, config.get(CONF_STATUS_MESSAGE_HEADER_SIZE)
+    )
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.31")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.32")

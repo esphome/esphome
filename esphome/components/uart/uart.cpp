@@ -40,8 +40,6 @@ void UARTDevice::discard_available() {
   }
 }
 
-const LogString *parity_to_str(UARTParityOptions parity) {
-  return UARTParityStrings::get_log_str(static_cast<uint8_t>(parity), UARTParityStrings::LAST_INDEX);
-}
+const LogString *parity_to_str(UARTParityOptions parity) { return UARTParityStrings::get_log_str(parity); }
 
 }  // namespace esphome::uart

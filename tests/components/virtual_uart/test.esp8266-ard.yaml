@@ -1,0 +1,19 @@
+# No debug: here, so this build leaves the UART debugger out
+virtual_uart:
+  - id: loop_a
+    baud_rate: 9600
+    rx_buffer_size: 32
+    on_tx:
+      - virtual_uart.inject_rx:
+          id: loop_a
+          data: [0x06]
+
+interval:
+  - interval: 10s
+    then:
+      - virtual_uart.inject_rx:
+          id: loop_a
+          data: "hello"
+      - uart.write:
+          id: loop_a
+          data: [0x01, 0x02]

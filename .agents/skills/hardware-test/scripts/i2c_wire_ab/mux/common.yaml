@@ -1,0 +1,51 @@
+# Package: the muxdev.hpp case sweep through tca9548a channels 2 (0x3C) and 5 (0x48). The board file sets `hook`, the
+# on_boot lambda that wires mx::root and mx::ch2 (and on ESP8266 the MuxShim), and `xflags`: `-DMX_WRITE_PREFIXED`
+# for trees whose I2CBus has write_prefixed (#22780), `-DMX_LOAD_ONLY -DMX_GAP_US=2000` to skip the sweep and add
+# three load rounds with a 2 ms gap per write.
+esphome:
+  name: ${name}
+  includes:
+    - pdmux.hpp
+    - muxdev.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=malloc
+      - ${xflags}
+  on_boot:
+    - priority: 950
+      then:
+        - lambda: ${hook}
+    - priority: -100
+      then:
+        - delay: 5s
+        - lambda: id(started) = true;
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+
+globals:
+  - id: started
+    type: bool
+    initial_value: "false"
+
+i2c:
+  id: bus_hw
+  sda: ${sda}
+  scl: ${scl}
+  frequency: 20kHz
+  scan: false
+
+ads1115:
+  - address: 0x3C
+    id: oled
+    i2c_id: mux_ch2
+  - address: 0x48
+    id: ads
+    i2c_id: mux_ch5
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          if (id(started)) mx::step(id(oled), id(ads));

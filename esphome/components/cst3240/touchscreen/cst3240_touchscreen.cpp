@@ -88,10 +88,8 @@ void CST3240Touchscreen::update_touches() {
 }
 
 void CST3240Touchscreen::clear_report_() {
-  // Built on the stack: write_register16() heap allocates a frame this long
-  uint8_t frame[2 + CST3240_REPORT_SIZE]{};
-  put_be16(frame, cstxxx::REG_TOUCH_DATA);
-  if (this->write(frame, sizeof(frame)) != i2c::ERROR_OK) {
+  const uint8_t zeros[CST3240_REPORT_SIZE]{};
+  if (this->write_register16(cstxxx::REG_TOUCH_DATA, zeros, sizeof(zeros)) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to clear the report");
   }
 }
