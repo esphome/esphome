@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "esphome/core/helpers.h"
 
 namespace esphome::core::testing {
@@ -87,6 +89,29 @@ TEST(CallbackCreateBoxed, FreeDestroysCaptureExactlyOnce) {
   // The Callback itself owns nothing, so going out of scope frees nothing more
   EXPECT_EQ(destroyed, 1);
   EXPECT_EQ(calls, 2);
+}
+
+TEST(LazyCallbackManager, CallWithoutCallbacksDoesNothing) {
+  LazyCallbackManager<void(int)> manager;
+  EXPECT_TRUE(manager.empty());
+  EXPECT_EQ(manager.size(), 0u);
+  manager.call(1);
+  manager(2);
+  EXPECT_TRUE(manager.empty());
+}
+
+TEST(LazyCallbackManager, CallRunsEveryCallbackInOrder) {
+  LazyCallbackManager<void(int)> manager;
+  std::vector<int> seen;
+  manager.add([&seen](int x) { seen.push_back(x); });
+  manager.call(1);
+  EXPECT_EQ(seen, (std::vector<int>{1}));
+  manager.add([&seen](int x) { seen.push_back(x * 10); });
+  EXPECT_FALSE(manager.empty());
+  EXPECT_EQ(manager.size(), 2u);
+  manager.call(2);
+  manager(3);
+  EXPECT_EQ(seen, (std::vector<int>{1, 2, 20, 3, 30}));
 }
 
 }  // namespace esphome::core::testing

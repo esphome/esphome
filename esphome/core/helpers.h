@@ -2300,10 +2300,10 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
-  void call(Ts... args) {
-    if (this->callbacks_) {
-      this->callbacks_->call(args...);
-    }
+  /// The null check is inline so an empty list costs no call; the loop stays out of line.
+  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+    if (this->callbacks_ != nullptr)
+      call_all_(this->callbacks_, args...);
   }
 
   /// Return the number of registered callbacks.
@@ -2323,6 +2323,8 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
     }
     this->callbacks_->add_(cb);
   }
+  /// Allocated only by add_(), and nothing removes callbacks, so cbs is never empty.
+  static void __attribute__((noinline)) call_all_(CallbackManager<void(Ts...)> *cbs, Ts... args) { cbs->call(args...); }
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
