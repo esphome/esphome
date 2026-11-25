@@ -24,7 +24,7 @@ namespace esphome {
 template<typename... X> class InlineCallbackManager;
 template<typename... Ts> class InlineCallbackManager<void(Ts...)> : public CallbackManager<void(Ts...)> {
  public:
-  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) { CallbackManager<void(Ts...)>::call(args...); }
+  void call(Ts... args) { CallbackManager<void(Ts...)>::call(args...); }
   void operator()(Ts... args) { this->call(args...); }
   bool empty() const { return this->size_ == 0; }
 };
