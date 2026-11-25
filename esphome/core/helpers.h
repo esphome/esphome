@@ -2327,10 +2327,19 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 
  private:
+  template<typename T> struct FitsInRegisters : std::bool_constant<(sizeof(T) <= 2 * sizeof(void *))> {};
+  /// Small trivially copyable arguments by value: a reference makes every caller spill them to the stack.
+  /// Anything else borrows call()'s own copy so it is not copied once more, and references pass through.
+  /// D defers the check to the first call, when Ts may be complete; the class itself accepts incomplete Ts.
+  template<typename T, typename D> struct Arg {
+    using type = std::conditional_t<
+        std::conjunction_v<std::negation<std::is_reference<T>>, std::is_trivially_copyable<T>, FitsInRegisters<T>>, T,
+        T &>;
+  };
+
   /// Left to GCC to inline: one call site inlines it, several share it out of line.
-  /// By value: a reference makes every caller spill scalar arguments to the stack. A non-trivial by-value
-  /// argument is copied once more here; in-tree signatures pass only scalars, enums and small structs by value.
-  static void call_all(CallbackManager<void(Ts...)> *cbs, Ts... args) {
+  template<typename D = void>
+  static void call_all(CallbackManager<void(Ts...)> *cbs, typename Arg<Ts, D>::type... args) {
     auto *it = cbs->data_;
     auto *end = it + cbs->size_;
     do {

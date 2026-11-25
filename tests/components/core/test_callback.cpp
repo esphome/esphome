@@ -114,4 +114,50 @@ TEST(LazyCallbackManager, CallRunsEveryCallbackInOrder) {
   EXPECT_EQ(seen, (std::vector<int>{1, 2, 20, 3, 30}));
 }
 
+// Not trivially copyable, so LazyCallbackManager borrows it instead of copying it into call_all().
+// The callbacks take a mutable reference so clang-tidy does not flag the by-value Callback parameters.
+struct CopyCounter {
+  static int copies;
+  CopyCounter() = default;
+  CopyCounter(const CopyCounter & /*other*/) { ++copies; }
+  CopyCounter(CopyCounter &&) noexcept = default;
+};
+int CopyCounter::copies = 0;
+
+TEST(LazyCallbackManager, NonTrivialArgumentIsNotCopiedMoreThanCallbackManager) {
+  CopyCounter arg;
+  CallbackManager<void(CopyCounter)> plain;
+  plain.add([](CopyCounter & /*c*/) {});
+  CopyCounter::copies = 0;
+  plain.call(arg);
+  const int plain_copies = CopyCounter::copies;
+
+  LazyCallbackManager<void(CopyCounter)> lazy;
+  lazy.add([](CopyCounter & /*c*/) {});
+  CopyCounter::copies = 0;
+  lazy.call(arg);
+  // The one extra copy is the by-value parameter of call(), as before call_all() existed.
+  EXPECT_EQ(CopyCounter::copies, plain_copies + 1);
+}
+
+// The argument type may still be incomplete where the manager is declared; it is only checked by call().
+struct SelfEvent {
+  LazyCallbackManager<void(SelfEvent)> callbacks;
+};
+struct LateEvent;
+struct LateEventSource {
+  LazyCallbackManager<void(LateEvent)> callbacks;
+};
+struct LateEvent {
+  int value;
+};
+
+TEST(LazyCallbackManager, ArgumentTypeMayBeIncompleteAtDeclaration) {
+  LateEventSource source;
+  int seen = 0;
+  source.callbacks.add([&seen](LateEvent e) { seen = e.value; });
+  source.callbacks.call(LateEvent{7});
+  EXPECT_EQ(seen, 7);
+}
+
 }  // namespace esphome::core::testing
