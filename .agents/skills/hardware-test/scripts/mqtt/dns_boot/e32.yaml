@@ -1,0 +1,11 @@
+# ESP32 devkit (ESP-IDF). Pick the broker on the command line: -s broker <hostname, IP or name.invalid>.
+substitutions:
+  broker_port: "18843"
+esphome:
+  name: ${name}
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+packages:
+  common: !include common.yaml

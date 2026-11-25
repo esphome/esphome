@@ -1,0 +1,23 @@
+esphome:
+  name: ${name}
+  includes: [probe.hpp]
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=malloc
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+i2c:
+  id: bus
+  sda: GPIO4
+  scl: GPIO5
+  scan: true
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          bmiprobe::regs(id(bus), 0x68, "scan");
+          bmiprobe::regs(id(bus), 0x69, "scan");
+substitutions:
+  name: bmiscan

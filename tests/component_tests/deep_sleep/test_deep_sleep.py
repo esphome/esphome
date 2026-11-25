@@ -21,8 +21,13 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
 )
 from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
+from esphome.core import CORE
 
+from ..helpers import callback_function, constructed, function_body
 from ..types import SetCoreConfigCallable
+
+# Bit pattern of 700.0f, the on_wake setup priority
+PRIORITY_700_BITS = "0x442F0000"
 
 
 def test_deep_sleep_setup(generate_main):
@@ -57,41 +62,52 @@ def test_deep_sleep_run_duration_simple(generate_main):
     assert "deepsleep->set_run_duration(10000);" in main_cpp
 
 
-def test_deep_sleep_on_wake_trigger(generate_main):
+def test_deep_sleep_on_wake_callback(generate_main) -> None:
+    """A component-level on_wake builds a WakeCallback on a function taking the wakeup cause."""
+    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
+
+    var = "deep_sleep_wakecallback_id"
+    function = callback_function(main_cpp, var)
+    assert (
+        constructed(main_cpp, var)
+        == f"deep_sleep::WakeCallback<{function}, {PRIORITY_700_BITS}>()"
+    )
+    assert (
+        f"static void {function}(const std::remove_cvref_t<deep_sleep::WakeupCause> & cause)"
+        in main_cpp
+    )
+    assert "cause %d" in function_body(main_cpp, function)
+
+
+def test_deep_sleep_ext1_on_wake_callbacks(generate_main) -> None:
     """
-    When deep sleep is configured with a component-level on_wake automation,
-    a WakeTrigger component should be registered with the wakeup cause as
-    the automation argument.
+    Each esp32_ext1_wakeup pin with an on_wake automation gets its own
+    Ext1WakeCallback with the pin number, and all pins (including the legacy
+    bare-pin shorthand) contribute to the ext1 wakeup mask.
     """
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
 
-    assert "deep_sleep::WakeTrigger();" in main_cpp
-    assert "Automation<deep_sleep::WakeupCause>" in main_cpp
-
-
-def test_deep_sleep_ext1_on_wake_triggers(generate_main):
-    """
-    Each esp32_ext1_wakeup pin with an on_wake automation should get its own
-    Ext1WakeTrigger with the pin number, and all pins (including the legacy
-    bare-pin shorthand) should contribute to the ext1 wakeup mask.
-    """
-    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
-
-    assert "deep_sleep::Ext1WakeTrigger(2);" in main_cpp
-    assert "deep_sleep::Ext1WakeTrigger(4);" in main_cpp
-    # GPIO13 has no on_wake, so no trigger is created for it
-    assert "deep_sleep::Ext1WakeTrigger(13)" not in main_cpp
+    for var, pin, text in (
+        ("deep_sleep_ext1wakecallback_id", 2, "left"),
+        ("deep_sleep_ext1wakecallback_id_2", 4, "right"),
+    ):
+        function = callback_function(main_cpp, var)
+        assert (
+            constructed(main_cpp, var)
+            == f"deep_sleep::Ext1WakeCallback<{function}, {PRIORITY_700_BITS}, {pin}>()"
+        )
+        assert text in function_body(main_cpp, function)
+    # GPIO13 has no on_wake, so no callback is created for it
+    assert len(re.findall(r"new\(\w+\) deep_sleep::Ext1WakeCallback<", main_cpp)) == 2
     # mask covers GPIO2, GPIO4 and GPIO13
     assert ".mask = 8212," in main_cpp
 
 
-def test_deep_sleep_no_on_wake_no_triggers(generate_main):
-    """
-    Without any on_wake automations, no wake trigger code should be generated.
-    """
+def test_deep_sleep_no_on_wake_no_callbacks(generate_main) -> None:
+    """Without any on_wake automations, no wake callback code is generated."""
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep1.yaml")
 
-    assert "WakeTrigger" not in main_cpp
+    assert "WakeCallback" not in main_cpp
 
 
 def test_deep_sleep_run_duration_dictionary(generate_main):
@@ -243,59 +259,73 @@ def test_deep_sleep_enter_without_duration(
     main_cpp = generate_main(ENTER_YAML)
 
     assert (
-        "new(deep_sleep_enterdeepsleepaction_id) "
-        "deep_sleep::EnterDeepSleepAction<>(deepsleep);\n"
-        "new(automation_id) Automation<>(sleep_now);"
+        "static void esphome__applyaction_id__fn() {\n"
+        "  ::deepsleep->begin_sleep(true);\n"
+        "}\n"
     ) in main_cpp
+    assert "new(applyaction_id) ApplyAction<esphome__applyaction_id__fn>();" in main_cpp
+    assert "EnterDeepSleepAction" not in main_cpp
 
 
 def test_deep_sleep_enter_constant_duration(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """A constant sleep_duration is set in milliseconds."""
+    """A constant sleep_duration is set in milliseconds before the sleep begins."""
     main_cpp = generate_main(ENTER_YAML)
 
     assert (
-        "deep_sleep_enterdeepsleepaction_id_2->set_sleep_duration([]() -> uint32_t {\n"
-        "    return 3600000;\n"
-        "});"
+        "static void esphome__applyaction_id_2__fn() {\n"
+        "  ::deepsleep->set_sleep_duration(3600000);\n"
+        "  ::deepsleep->begin_sleep(true);\n"
+        "}\n"
     ) in main_cpp
 
 
 def test_deep_sleep_enter_lambda_duration(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """A lambda sleep_duration is computed from the script parameters."""
+    """A lambda sleep_duration is computed from the script parameters before the sleep begins."""
     main_cpp = generate_main(ENTER_YAML)
 
     assert re.search(
-        r"new\(deep_sleep_enterdeepsleepaction_id_3\) "
-        r"deep_sleep::EnterDeepSleepAction<uint32_t>\(deepsleep\);\n"
-        r"deep_sleep_enterdeepsleepaction_id_3->set_sleep_duration\("
-        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?"
-        r"    return seconds \* 1000;\n",
+        r"static void esphome__applyaction_id_3__fn\("
+        r"const std::remove_cvref_t<uint32_t> & seconds\) \{\n"
+        r"  ::deepsleep->set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
+        r"(?:    #line [^\n]*\n)?"
+        r"    return seconds \* 1000;\n"
+        r"(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?"
+        r"  \}\(seconds\)\);\n"
+        r"  ::deepsleep->begin_sleep\(true\);\n"
+        r"\}\n",
         main_cpp,
     )
 
 
 @pytest.mark.parametrize(
-    ("action_id", "body"),
+    ("fn_id", "body"),
     [
-        ("deep_sleep_enterdeepsleepaction_id_4", "seconds *= 1000; return seconds;"),
-        ("deep_sleep_enterdeepsleepaction_id_5", "return seconds *= 1000;"),
+        ("applyaction_id_4", "seconds *= 1000; return seconds;"),
+        ("applyaction_id_5", "return seconds *= 1000;"),
     ],
 )
 def test_deep_sleep_enter_lambda_takes_args_by_value(
-    generate_main: Callable[[str | Path], str], action_id: str, body: str
+    generate_main: Callable[[str | Path], str], fn_id: str, body: str
 ) -> None:
-    """The sleep_duration lambda gets the script parameters by value, so it may modify them."""
+    """The sleep_duration lambda gets the script parameters by value, so it may modify them.
+
+    It is called rather than reduced, so even a single return modifies only its own copy.
+    """
     main_cpp = generate_main(ENTER_YAML)
 
     assert re.search(
-        action_id + r"->set_sleep_duration\("
-        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?    "
+        r"static void esphome__"
+        + fn_id
+        + r"__fn\(const std::remove_cvref_t<uint32_t> & seconds\) \{\n"
+        r"  ::deepsleep->set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
+        r"(?:    #line [^\n]*\n)?    "
         + re.escape(body)
-        + "\n",
+        + r"\n(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?  \}\(seconds\)\);\n"
+        r"  ::deepsleep->begin_sleep\(true\);\n\}\n",
         main_cpp,
     )
 
@@ -307,9 +337,32 @@ def test_deep_sleep_enter_until(
     main_cpp = generate_main(ENTER_YAML)
 
     assert (
-        "deep_sleep_enterdeepsleepaction_id_6->set_until(6, 30, 0);\n"
-        "deep_sleep_enterdeepsleepaction_id_6->set_time(sntp_time);"
+        "static void esphome__applyaction_id_6__fn() {\n"
+        "  ::deepsleep->set_sleep_until(::sntp_time, 6, 30, 0);\n"
+        "  ::deepsleep->begin_sleep(true);\n"
+        "}\n"
     ) in main_cpp
+
+
+def test_deep_sleep_enter_merges_with_adjacent_actions(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """deep_sleep.enter shares one generated function with the actions around it."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    start = main_cpp.index(
+        "static void esphome__applyaction_id_7__fn(const int & esphome__running) {"
+    )
+    body = main_cpp[start : main_cpp.index("\n}\n", start)]
+    assert (
+        body.index("::deepsleep->allow_deep_sleep();")
+        < body.index("::deepsleep->begin_sleep(true);")
+        < body.index("::deepsleep->prevent_deep_sleep();")
+    )
+    assert (
+        "new(applyaction_id_7) ApplyRunAction<esphome__applyaction_id_7__fn>();"
+        in main_cpp
+    )
 
 
 @pytest.mark.parametrize(
@@ -368,3 +421,17 @@ def test_deep_sleep_ext1_wakeup_rejected_on_variant_without_ext1(
     }
     with pytest.raises(cv.Invalid, match="Wakeup from ext1"):
         deep_sleep.CONFIG_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "count"),
+    [("test_deep_sleep_bk72xx_timer.yaml", 0), ("test_deep_sleep_bk72xx_pins.yaml", 2)],
+)
+def test_bk72xx_wakeup_pin_count(
+    generate_main: Callable[[str | Path], str], config_file: str, count: int
+) -> None:
+    """The BK72xx wake-up pin list is sized to the configured pins."""
+    main_cpp = generate_main(f"tests/component_tests/deep_sleep/{config_file}")
+    defines = {define.name: define.value for define in CORE.defines}
+    assert str(defines["DEEP_SLEEP_WAKEUP_PIN_COUNT"]) == str(count)
+    assert main_cpp.count("deepsleep->add_wakeup_pin(") == count

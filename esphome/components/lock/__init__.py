@@ -29,8 +29,6 @@ Lock = lock_ns.class_("Lock", cg.EntityBase)
 LockPtr = Lock.operator("ptr")
 LockCall = lock_ns.class_("LockCall")
 
-LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
-
 LockState = lock_ns.enum("LockState")
 
 LOCK_STATES = LockState.options(
