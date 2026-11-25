@@ -48,8 +48,9 @@ class ModbusServerTwoClients : public ::testing::Test {
     this->socket_.setup();
     this->link_.set_server(true);
     this->loops(1);
-    this->a_ = this->connect_client();
+    // The pool starts its search for a holder at its second slot, so the client that connects second is served first.
     this->b_ = this->connect_client();
+    this->a_ = this->connect_client();
     ASSERT_EQ(this->socket_.open_connections(), 2);
   }
   void TearDown() override {
