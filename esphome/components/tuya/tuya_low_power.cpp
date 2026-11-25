@@ -297,7 +297,10 @@ void TuyaUART::process_low_power_queue_() {
   auto next = std::find_if(this->command_queue_.begin(), this->command_queue_.end(), [this, now](const TuyaCommand &c) {
     if (!this->lp_session_.has_product())
       return c.cmd == TuyaCommandType::PRODUCT_QUERY;
-    return !is_low_power_write(c) || (this->lp_session_.ready() && this->lp_session_.quiet(now));
+    // With a wake line, writes wait until reports the MCU sent on its own are over; without one, a write must go
+    // out while the MCU is still awake from them.
+    return !is_low_power_write(c) ||
+           (this->lp_session_.ready() && (this->mcu_wake_pin_ == nullptr || this->lp_session_.quiet(now)));
   });
   if (next == this->command_queue_.end())
     return;
