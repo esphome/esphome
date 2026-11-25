@@ -246,10 +246,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::LINK_STATE_WAITING};
-  bool bytes_since_frame_{false};
+  bool bytes_since_frame_{false};  // any bytes since the last valid frame
 #ifdef USE_LD2450_XY_UNFILTERED
-  bool xy_unfiltered_{false};   // the xy text sensors publish past their filters
-#endif                          // any bytes since the last valid frame
+  bool xy_unfiltered_{false};  // the xy text sensors publish past their filters
+#endif
   uint16_t invalid_frames_{0};  // since the last valid frame, saturating
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
