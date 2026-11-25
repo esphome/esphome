@@ -78,20 +78,47 @@ TEST_P(PhaseLockTest, FollowsCrossings) {
 
 INSTANTIATE_TEST_SUITE_P(
     AcDimmer, PhaseLockTest,
-    ::testing::Values(PhaseLockCase{"Clean50Hz", 1000, 10000, 50, 0, 0, 0, 0, 2},
-                      PhaseLockCase{"Clean60Hz", 1000, 8333, 50, 0, 0, 0, 0, 2},
-                      // micros() wraps around, and one crossing is exactly at 0
-                      PhaseLockCase{"CrossingAtZeroMicros", 0U - 30000U, 10000, 50, 0, 0, 0, 0, 2},
-                      PhaseLockCase{"AlternatingJitter", 1000, 10000, 200, 250, 0, 0, 0, 200},
-                      PhaseLockCase{"AlternatingJitterWhileLocking", 1000, 10000, 200, 250, 0, 0, 0, 200, true},
-                      // Noise half way through every half cycle (the triac firing) is outside the window
-                      PhaseLockCase{"NoiseOutsideWindow", 1000, 10000, 200, 0, 5000, 0, 0, 2},
-                      // Noise 1 ms before every crossing is inside the window: the edge closest to the
-                      // prediction is kept, so the noise does not drag the timing
-                      PhaseLockCase{"NoiseJustBeforeCrossing", 1000, 10000, 200, 0, -1000, 0, 0, 2},
-                      PhaseLockCase{"MissedCrossing", 1000, 10000, 50, 0, 0, 20, 1, 2},
-                      PhaseLockCase{"SevenMissedCrossings", 1000, 10000, 50, 0, 0, 20, 7, 2}),
+    ::testing::Values(
+        PhaseLockCase{"Clean50Hz", 1000, 10000, 50, 0, 0, 0, 0, 2},
+        PhaseLockCase{"Clean60Hz", 1000, 8333, 50, 0, 0, 0, 0, 2},
+        // micros() wraps around, and one crossing is exactly at 0
+        PhaseLockCase{"CrossingAtZeroMicros", 0U - 30000U, 10000, 50, 0, 0, 0, 0, 2},
+        PhaseLockCase{"AlternatingJitter", 1000, 10000, 200, 250, 0, 0, 0, 200},
+        // Locked on an early edge, the prediction stays at the early end of the jitter: late edges only confirm
+        PhaseLockCase{"AlternatingJitterWhileLocking", 1000, 10000, 200, 250, 0, 0, 0, 250, true},
+        // Noise half way through every half cycle (the triac firing) is outside the window
+        PhaseLockCase{"NoiseOutsideWindow", 1000, 10000, 200, 0, 5000, 0, 0, 2},
+        // Noise 1 ms before every crossing is inside the window: the edge closest to the
+        // prediction is kept, so the noise does not drag the timing
+        PhaseLockCase{"NoiseJustBeforeCrossing", 1000, 10000, 200, 0, -1000, 0, 0, 2},
+        PhaseLockCase{"MissedCrossing", 1000, 10000, 50, 0, 0, 20, 1, 2},
+        PhaseLockCase{"SevenMissedCrossings", 1000, 10000, 50, 0, 0, 20, 7, 2}),
     [](const ::testing::TestParamInfo<PhaseLockCase> &info) { return info.param.name; });
+
+class LateServiceTest : public ::testing::TestWithParam<int32_t> {};
+
+// The zero-cross interrupt served late for a while (WiFi on the ESP8266): the edges still confirm the crossings,
+// and the prediction does not follow them towards the next crossing
+TEST_P(LateServiceTest, KeepsLockAndPhase) {
+  AcDimmerDataStore store{};
+  store.value = 32768;
+  Bench bench(store, 1000);
+  uint32_t crossing = 1000;
+  for (int i = 0; i < 300; i++, crossing += 10000) {
+    const bool late = i >= 50 && i < 250;
+    bench.edge(crossing + (late ? GetParam() : 0));
+    if (i == 249) {
+      bench.run_until(crossing + 5000);
+      EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
+      EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - crossing)), 10);
+    }
+  }
+  bench.run_until(crossing - 10000 + 5000);
+  EXPECT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED);
+  EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - (crossing - 10000))), 10);
+}
+
+INSTANTIATE_TEST_SUITE_P(AcDimmer, LateServiceTest, ::testing::Values(500, 1000, 1500));
 
 /// Locks a dimmer on crossings at 1, 11 and 21 ms; the caller runs the timer at 21 ms to start that half cycle
 static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
@@ -180,8 +207,8 @@ struct LateEnableCase {
 
 class LateEnableTest : public ::testing::TestWithParam<LateEnableCase> {};
 
-// A timer delayed by masked sections must not switch the gate on so close to the end of the half cycle that the
-// triac stays on into the next one
+// A timer delayed by masked sections must not start a pulse that lasts past the crossing: the triac would stay
+// on into the next half cycle
 TEST_P(LateEnableTest, SkipsEnableNearTheEnd) {
   const auto &c = GetParam();
   auto store = locked_store(DIM_METHOD_LEADING_PULSE, 2621);
@@ -193,9 +220,9 @@ TEST_P(LateEnableTest, SkipsEnableNearTheEnd) {
 
 INSTANTIATE_TEST_SUITE_P(AcDimmer, LateEnableTest,
                          ::testing::Values(LateEnableCase{"OnTime", 9600, 9650, 50},
-                                           LateEnableCase{"LateOutsideGuard", 9700, 9750, 50},
+                                           LateEnableCase{"LatePulseEndsBeforeCrossing", 9900, 9950, 50},
                                            // not switched on; the pending switch-off runs at once
-                                           LateEnableCase{"LateInsideGuard", 9850, 0, 150}),
+                                           LateEnableCase{"LatePulseWouldPassCrossing", 9960, 0, 40}),
                          [](const ::testing::TestParamInfo<LateEnableCase> &info) { return info.param.name; });
 
 }  // namespace esphome::ac_dimmer::testing

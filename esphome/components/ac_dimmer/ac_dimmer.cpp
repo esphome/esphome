@@ -30,10 +30,6 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// See also: https://github.com/esphome/issues/issues/1632
 static constexpr uint32_t GATE_ENABLE_TIME = 50;
 
-/// A late timer does not switch the gate on this close to the end of the half cycle: the triac would stay on
-/// into the next one
-static constexpr int32_t LATE_ENABLE_GUARD_US = 200;
-
 /// While acquiring, edges sooner than this after the last one taken are noise or the second edge of the same
 /// zero-cross pulse. A half cycle is 10 ms at 50 Hz and 8.33 ms at 60 Hz.
 static constexpr uint32_t MIN_HALF_CYCLE_US = 6000;
@@ -67,6 +63,10 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
     return 0;
   }
 
+#ifdef USE_ESP32
+  // The zero-cross interrupt runs at a higher level and updates the same timing
+  InterruptLock lock;
+#endif
   auto since = static_cast<int32_t>(now - this->zc_at);
   if (since >= this->period) {
     // The window of the crossing at zc_at closed long ago: its best edge is final
@@ -88,15 +88,18 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
     this->start_half_cycle();
   }
   const int32_t period = this->period;
-  // Before zc_at: an edge moved it after `now` was read (ESP32). Still past the end: the timer ran very late.
-  if (since < 0 || since >= period)
+  // Before zc_at: a correction moved it ahead. Still past the end: the timer ran very late.
+  if (since < 0)
+    return -since;
+  if (since >= period)
     return 1;
 
   uint32_t next = period - since;
   if (this->value != 65535 && this->value != 0) {
     if (this->enable_time_us != 0 && since >= this->enable_time_us) {
       this->enable_time_us = 0;
-      if (since + LATE_ENABLE_GUARD_US < period) {
+      // A late timer does not start a pulse that would last past the crossing: the triac would stay on
+      if (since + static_cast<int32_t>(GATE_ENABLE_TIME) < period) {
         this->gate_pin.digital_write(true);
         // Prevent too short pulses
         this->disable_time_us = std::max<int32_t>(this->disable_time_us, since + GATE_ENABLE_TIME);
@@ -157,8 +160,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
   // The edge belongs to the crossing at zc_at (served after the timer started it) or the one at zc_at + period
   const bool next = static_cast<int32_t>(now - this->zc_at) > this->period / 2;
   int32_t err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
-  const int32_t window = this->period / 8;
-  if (err > window || err < -window)
+  // Late edges get a wider window: the interrupt can be served up to 1.5 ms late on the ESP8266
+  if (err > this->period / 6 || err < -this->period / 8)
     return;
   if (next ? this->edge_next : this->edge_now) {
     // Another edge for the same crossing, such as noise from the triac firing just before it: the one closest to
@@ -183,14 +186,27 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
-  // Mains timing is steady and single edges jitter: follow the edges slowly
-  this->zc_at += this->taken_err / 4;
-  this->period += this->taken_err / 16;
+  // Mains timing is steady and single edges jitter: follow the edges slowly. An edge served late only confirms the
+  // crossing: following it would move the gate pulses towards the next crossing.
+  if (this->taken_err <= this->period / 32) {
+    this->zc_at += this->taken_err / 4;
+    this->period += this->taken_err / 16;
+  }
   this->taken_err = NO_EDGE_ERR;
 }
 
 /// GPIO interrupt routine, called when ZC pin triggers
-void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() { this->zero_cross_edge(micros()); }
+void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
+  this->zero_cross_edge(micros());
+#if !defined(USE_ESP8266) && !defined(USE_ESP32)
+  // No dimmer timer on this platform: only fully on and fully off work, switched at the crossing
+  if (this->value == 65535) {
+    this->gate_pin.digital_write(true);
+  } else if (this->value == 0) {
+    this->gate_pin.digital_write(false);
+  }
+#endif
+}
 
 void IRAM_ATTR HOT AcDimmerDataStore::start_half_cycle() {
   const uint32_t period = this->period;
@@ -252,17 +268,22 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
 // ESP8266: a one-shot maskable interrupt on CCOMPARE0 (timer0), only at the gate events. Not timer1: the waveform
 // generator runs it as an NMI at 1-10 kHz, too much load with WiFi. Masked sections can delay a gate event slightly.
 // The cycle counter runs twice as fast during a CpuFrequencyBoost; the timer then fires early and re-arms.
-static void IRAM_ATTR esp8266_timer_in(uint32_t us) {
-  const uint32_t cycles = us * (arch_get_cpu_freq_hz() / 1000000);
-  uint32_t target;
-  do {
-    target = arch_get_cpu_cycle_count() + cycles;
+/// Arms the timer `us` after the cycle count `from`
+static void IRAM_ATTR esp8266_timer_at(uint32_t from, uint32_t us) {
+  uint32_t target = from + us * (arch_get_cpu_freq_hz() / 1000000);
+  timer0_write(target);
+  // Already passed (a long handler, or an NMI between reading the counter and writing the compare): fire soon
+  while (static_cast<int32_t>(target - arch_get_cpu_cycle_count()) <= 0) {
+    target = arch_get_cpu_cycle_count() + 2 * (arch_get_cpu_freq_hz() / 1000000);
     timer0_write(target);
-    // An NMI between reading the counter and writing the compare can leave the target in the past
-  } while (static_cast<int32_t>(target - arch_get_cpu_cycle_count()) <= 0);
+  }
 }
 
+static void IRAM_ATTR esp8266_timer_in(uint32_t us) { esp8266_timer_at(arch_get_cpu_cycle_count(), us); }
+
 static void IRAM_ATTR HOT esp8266_timer_isr() {
+  // The returned delays count from here, not from after the handler
+  const uint32_t start = arch_get_cpu_cycle_count();
   const uint32_t now = micros();
   uint32_t next = IDLE_TIMER_INTERVAL_US;
   for (auto *dimmer : all_dimmers) {
@@ -272,7 +293,7 @@ static void IRAM_ATTR HOT esp8266_timer_isr() {
     if (res != 0 && res < next)
       next = res;
   }
-  esp8266_timer_in(next);
+  esp8266_timer_at(start, next);
 }
 #endif
 
