@@ -572,8 +572,20 @@ def mark_receive_only(uart_id: ID) -> None:
 
 
 def _is_receive_only(uart_id: ID) -> bool:
+    """Return True if uart_id or any UART it passes the bytes of drops what is written."""
+    data = _get_data()
+    sources = {str(uart): source for uart, source in data.settings_sources}
     # By name: a generated id is named only after the schemas ran.
-    return any(str(uart) == str(uart_id) for uart in _get_data().receive_only)
+    receive_only = {str(uart) for uart in data.receive_only}
+    seen = set()
+    # A repeated name ends the walk on a loop.
+    while (name := str(uart_id)) not in seen:
+        if name in receive_only:
+            return True
+        seen.add(name)
+        if (uart_id := sources.get(name)) is None:
+            return False
+    return False
 
 
 def _settings_source(uart_id: ID) -> ID | None:
