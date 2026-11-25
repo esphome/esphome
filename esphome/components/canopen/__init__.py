@@ -6,7 +6,6 @@ from esphome.components import esp32
 from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_COMMAND,
     CONF_ID,
     CONF_INDEX,
     CONF_ON_ERROR,
@@ -42,15 +41,6 @@ SDOResult = ns.enum("SDOResult", is_class=True)
 
 CANopenNode = ns.class_("CANopenNode")
 Emergency = ns.struct("Emergency")
-NMTCommand = ns.enum("NMTCommand", is_class=True)
-NMT_COMMANDS = NMTCommand.options(
-    "START",
-    "STOP",
-    "PRE_OPERATIONAL",
-    "RESET_NODE",
-    "RESET_COMMUNICATION",
-    prefix="NMT_COMMAND_",
-)
 
 # response_timeout holds uint16 ms
 UINT16_MS = cv.All(
@@ -68,15 +58,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_RESPONSE_TIMEOUT, "500ms"): UINT16_MS,
     }
 ).extend(cv.COMPONENT_SCHEMA)
-
-
-SDO_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_NODE_ID): cv.int_range(min=1, max=127),
-        cv.Required(CONF_INDEX): cv.hex_uint16_t,
-        cv.Optional(CONF_SUBINDEX, default=0): cv.hex_uint8_t,
-    }
-)
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
@@ -263,20 +244,3 @@ async def sdo_read_to_code(
         on_ok=CONF_ON_VALUE,
         on_ok_args=[(cg.uint32, "x")],
     )
-
-
-NMT_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(CANopenComponent),
-        cv.Required(CONF_NODE_ID): cv.int_range(min=0, max=127),
-        cv.Required(CONF_COMMAND): cv.enum(NMT_COMMANDS, upper=True),
-    }
-)
-
-automation.register_apply_action(
-    "canopen.nmt",
-    NMT_SCHEMA,
-    automation.ApplyCall(
-        "send_nmt({}, {})", ((CONF_NODE_ID, cg.uint8), (CONF_COMMAND, NMTCommand))
-    ),
-)

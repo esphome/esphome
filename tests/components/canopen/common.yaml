@@ -58,32 +58,3 @@ script:
             if (reply.ok())
               ESP_LOGI("canopen_test", "vendor id 0x%08x", (unsigned) reply.value);
           }, nullptr);
-
-sensor:
-  - platform: canopen
-    canopen_id: canopen_hub
-    name: CANopen position
-    node_id: 32
-    index: 0x6064
-    value_type: INT32
-  - platform: canopen
-    canopen_id: canopen_hub
-    name: CANopen statusword
-    node_id: 33
-    index: 0x6041
-    value_type: UINT16
-  - platform: canopen
-    canopen_id: canopen_hub
-    name: CANopen temperature
-    node_id: 33
-    index: 0x2000
-    subindex: 1
-    value_type: FLOAT32
-
-interval:
-  - interval: 60s
-    then:
-      - canopen.nmt:
-          id: canopen_hub
-          node_id: 32
-          command: START
