@@ -1,5 +1,6 @@
 """Unit tests for script/build_helpers.py."""
 
+from collections.abc import Generator
 from pathlib import Path
 import sys
 
@@ -92,6 +93,14 @@ def test_load_component_yaml_configs_extends_lists(tmp_path: Path) -> None:
     assert merged["uart"] == {"port": "/dev/a"}
 
 
+@pytest.fixture
+def fresh_core() -> Generator[None]:
+    """Reset the global CORE before and after a test that compiles through it."""
+    CORE.reset()
+    yield
+    CORE.reset()
+
+
 @pytest.mark.parametrize(
     ("cxx_build_flags", "expected"),
     [(["-fno-rtti"], {"-fno-rtti"}), (None, set())],
@@ -99,11 +108,11 @@ def test_load_component_yaml_configs_extends_lists(tmp_path: Path) -> None:
 def test_compile_and_get_binary_cxx_build_flags(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    fresh_core: None,
     cxx_build_flags: list[str] | None,
     expected: set[str],
 ) -> None:
     """C++-only flags reach CORE.cxx_build_flags, never the shared build flags."""
-    CORE.reset()
     seen: dict[str, set[str]] = {}
 
     def fake_compile(args: object, config: object) -> int:
