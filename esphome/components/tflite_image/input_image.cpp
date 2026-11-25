@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 #include "esphome/core/log.h"
 
@@ -17,12 +18,13 @@ float unit_value(uint8_t value, bool invert) {
   return invert ? 255.0f - static_cast<float>(value) : static_cast<float>(value);
 }
 
-/// A uint8 tensor stores quantized values, so 0-1 normalized input must be scaled back.
-uint8_t quantized_value(const TfLiteTensor *input, float unit, bool normalize) {
+/// A quantized tensor stores scaled values, so 0-1 normalized input must be scaled back.
+/// The result is clamped to the range of the tensor's integer type.
+int quantized_value(const TfLiteTensor *input, float unit, bool normalize, int min_value, int max_value) {
   const float scaled = normalize ? unit / 255.0f : unit;
   const float scale = input->params.scale != 0.0f ? input->params.scale : 1.0f;
   const int value = static_cast<int>(std::lround(scaled / scale)) + input->params.zero_point;
-  return static_cast<uint8_t>(std::clamp(value, 0, 255));
+  return std::clamp(value, min_value, max_value);
 }
 }  // namespace
 
@@ -38,8 +40,8 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
   const size_t pixels = static_cast<size_t>(this->width_) * this->height_;
   const size_t needed = pixels * this->channels_ * (input->type == kTfLiteFloat32 ? 4 : 1);
   if (static_cast<size_t>(input->bytes) < needed) {
-    ESP_LOGE(TAG, "The input tensor is %d bytes, the configured %dx%dx%d needs %zu", input->bytes, this->width_,
-             this->height_, this->channels_, needed);
+    ESP_LOGE(TAG, "The input tensor is %zu bytes, the configured %dx%dx%d needs %zu", static_cast<size_t>(input->bytes),
+             this->width_, this->height_, this->channels_, needed);
     return false;
   }
   const int frame_width = this->frame_width_ > 0 ? this->frame_width_ : this->width_;
@@ -98,11 +100,35 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
     for (size_t pixel = 0; pixel < pixels; pixel++) {
       const uint8_t *rgb = src + source_pixel(pixel) * 3;
       if (gray) {
-        dst[pixel] = quantized_value(input, unit_value(rgb[1], this->invert_), this->normalize_);
+        dst[pixel] =
+            static_cast<uint8_t>(quantized_value(input, unit_value(rgb[1], this->invert_), this->normalize_, 0, 255));
       } else {
         for (int channel = 0; channel < 3; channel++) {
           const int source = swap ? 2 - channel : channel;
-          dst[pixel * 3 + channel] = quantized_value(input, unit_value(rgb[source], this->invert_), this->normalize_);
+          dst[pixel * 3 + channel] = static_cast<uint8_t>(
+              quantized_value(input, unit_value(rgb[source], this->invert_), this->normalize_, 0, 255));
+        }
+      }
+    }
+    return true;
+  }
+
+  if (input->type == kTfLiteInt8) {
+    int8_t *dst = input->data.int8;
+    if (dst == nullptr) {
+      ESP_LOGE(TAG, "Input tensor has no data");
+      return false;
+    }
+    for (size_t pixel = 0; pixel < pixels; pixel++) {
+      const uint8_t *rgb = src + source_pixel(pixel) * 3;
+      if (gray) {
+        dst[pixel] = static_cast<int8_t>(
+            quantized_value(input, unit_value(rgb[1], this->invert_), this->normalize_, INT8_MIN, INT8_MAX));
+      } else {
+        for (int channel = 0; channel < 3; channel++) {
+          const int source = swap ? 2 - channel : channel;
+          dst[pixel * 3 + channel] = static_cast<int8_t>(
+              quantized_value(input, unit_value(rgb[source], this->invert_), this->normalize_, INT8_MIN, INT8_MAX));
         }
       }
     }

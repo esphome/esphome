@@ -55,7 +55,7 @@ CHANNEL_ORDERS = {
     "BGR": ChannelOrder.CHANNEL_ORDER_BGR,
     "GRAY": ChannelOrder.CHANNEL_ORDER_GRAY,
 }
-INPUT_TYPES = {"uint8", "float32"}
+INPUT_TYPES = {"uint8", "int8", "float32"}
 
 IMAGE_SCHEMA = cv.Schema(
     {
