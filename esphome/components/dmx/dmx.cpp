@@ -188,8 +188,13 @@ void DMXComponent::setup_rdm_() {
         this->rdm_descriptions_.push_back(
             "ESPHome RX sensor: " + channel.sensor_entity->get_name());
       } else {
+        char channel_index[UINT32_MAX_STR_SIZE];
+        uint32_to_str(
+            channel_index,
+            static_cast<uint32_t>(i + 1));
+
         this->rdm_descriptions_.push_back(
-            "ESPHome RX channel " + std::to_string(i + 1));
+            std::string("ESPHome RX channel ") + channel_index);
       }
     }
 
@@ -253,7 +258,9 @@ void DMXComponent::setup_rdm_() {
           static_cast<unsigned>(i + 1),
           static_cast<unsigned>(pid),
           channel.dmx_address,
-          channel.type == RdmChannelType::DYNAMIC ? "dynamic" : "fixed");
+          channel.type == RdmChannelType::DYNAMIC
+              ? LOG_STR_LITERAL("dynamic")
+              : LOG_STR_LITERAL("fixed"));
     }
 
     // Synchronize any Number states that became available during setup.
