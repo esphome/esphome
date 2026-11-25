@@ -60,11 +60,12 @@ def _validate_model_config(model: DYPModel) -> Callable[[ConfigType], ConfigType
         is_auto = config[CONF_MODE] == "AUTO"
         if is_auto and CONF_TRIGGER_PIN in config:
             raise cv.Invalid("`trigger_pin` is not allowed when `mode` is 'AUTO'.")
-        if not is_auto and (
-            CONF_FILTER_MODE in config or CONF_FILTER_MODE_PIN in config
+        if not is_auto and any(
+            key in config
+            for key in (CONF_FILTER_MODE, CONF_FILTER_MODE_PIN, CONF_PUBLISH_MODE)
         ):
             raise cv.Invalid(
-                "'filter_mode' and 'filter_mode_pin' are only allowed when 'mode' is 'AUTO'."
+                "'filter_mode', 'filter_mode_pin' and 'publish_mode' are only allowed when 'mode' is 'AUTO'."
             )
         if CONF_FILTER_MODE in config and CONF_FILTER_MODE_PIN not in config:
             raise cv.Invalid(
@@ -92,9 +93,7 @@ def _model_schema(model: DYPModel) -> cv.Schema:
     if model.mode != "AUTO":
         extra[cv.Optional(CONF_TRIGGER_PIN)] = pins.gpio_output_pin_schema
     if model.mode != "CONTROLLED":
-        extra[cv.Optional(CONF_PUBLISH_MODE, default="INTERVAL")] = cv.enum(
-            PUBLISH_MODES, upper=True
-        )
+        extra[cv.Optional(CONF_PUBLISH_MODE)] = cv.enum(PUBLISH_MODES, upper=True)
         if model.supports_rx_mode_select:
             extra[cv.Optional(CONF_FILTER_MODE)] = cv.enum(FILTER_MODES, upper=True)
             extra[cv.Optional(CONF_FILTER_MODE_PIN)] = pins.gpio_output_pin_schema

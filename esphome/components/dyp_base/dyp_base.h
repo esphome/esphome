@@ -51,6 +51,7 @@ class DYPSensor final : public sensor::Sensor, public PollingComponent, public u
   DYPMode mode_{DYPMode::DYP_MODE_AUTO};
   DYPFilterMode filter_mode_{DYPFilterMode::DYP_FILTER_MODE_PROCESSED};
   DYPPublishMode publish_mode_{DYPPublishMode::DYP_PUBLISH_MODE_INTERVAL};
+  bool awaiting_reply_{false};  // CONTROLLED: a trigger went out and no frame answered it yet
 };
 
 }  // namespace esphome::dyp_base

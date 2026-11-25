@@ -85,11 +85,12 @@ TEST_F(DYPSensorTest, ControlledModeResetsTruncatedFrameOnUpdate) {
   EXPECT_TRUE(this->published_.empty());
 
   // Next update() triggers a new measurement and discards the stale partial frame
-  // even before FRAME_TIMEOUT_MS elapses.
+  // even before FRAME_TIMEOUT_MS elapses; the unanswered trigger publishes NAN first.
   this->sut_.update();
   this->feed_(frame(1500), 20);
-  ASSERT_EQ(this->published_.size(), 1u);
-  EXPECT_FLOAT_EQ(this->published_[0], 1.5f);
+  ASSERT_EQ(this->published_.size(), 2u);
+  EXPECT_TRUE(std::isnan(this->published_[0]));
+  EXPECT_FLOAT_EQ(this->published_[1], 1.5f);
 }
 
 TEST_F(DYPSensorTest, BlindZonePublishesNanInImmediateMode) {
@@ -135,6 +136,29 @@ TEST_F(DYPSensorTest, ControlledModeWritesTriggerByteAndPublishesImmediately) {
   this->feed_(frame(1500));
   ASSERT_EQ(this->published_.size(), 1u);
   EXPECT_FLOAT_EQ(this->published_[0], 1.5f);
+}
+
+TEST_F(DYPSensorTest, ControlledModeWithoutReplyPublishesNanAndWarns) {
+  this->sut_.set_mode(DYPMode::DYP_MODE_CONTROLLED);
+  this->sut_.update();
+  this->feed_(frame(1500));
+  // The next trigger gets no answer
+  this->sut_.update();
+  EXPECT_FALSE(this->sut_.status_has_warning());
+  this->sut_.update();
+  ASSERT_EQ(this->published_.size(), 2u);
+  EXPECT_TRUE(std::isnan(this->published_[1]));
+  EXPECT_TRUE(this->sut_.status_has_warning());
+
+  this->feed_(frame(1500));
+  EXPECT_FALSE(this->sut_.status_has_warning());
+}
+
+TEST_F(DYPSensorTest, ZeroDistanceIsUnknownWithoutBlindZone) {
+  this->sut_.set_blind_zone_mm(0);
+  this->feed_(frame(0));
+  ASSERT_EQ(this->published_.size(), 1u);
+  EXPECT_TRUE(std::isnan(this->published_[0]));
 }
 
 }  // namespace esphome::dyp_base::testing

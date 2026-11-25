@@ -104,7 +104,7 @@ def test_unknown_model_raises_cv_invalid() -> None:
                 CONF_MODE: "CONTROLLED",
                 CONF_FILTER_MODE_PIN: 4,
             },
-            "'filter_mode' and 'filter_mode_pin' are only allowed when 'mode' is 'AUTO'",
+            "'filter_mode', 'filter_mode_pin' and 'publish_mode' are only allowed when 'mode' is 'AUTO'",
         ),
         (
             dyp_a13_sensor.CONFIG_SCHEMA,

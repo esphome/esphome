@@ -50,6 +50,12 @@ void DYPSensor::dump_config() {
 
 void DYPSensor::update() {
   if (this->mode_ == DYPMode::DYP_MODE_CONTROLLED) {
+    if (this->awaiting_reply_) {
+      // The last trigger got no answer: drop the old reading
+      this->status_set_warning(LOG_STR("No response"));
+      this->publish_state(NAN);
+    }
+    this->awaiting_reply_ = true;
     ESP_LOGV(TAG, "Triggering measurement.");
     this->reader_.reset();
     if (this->trigger_pin_ != nullptr) {
@@ -90,7 +96,7 @@ void DYPSensor::process_frame_(const uint8_t *frame) {
   uint16_t distance_mm = encode_uint16(frame[1], frame[2]);
   float distance_m = NAN;
 
-  if (this->blind_zone_mm_ > 0 && distance_mm <= this->blind_zone_mm_) {
+  if (distance_mm <= this->blind_zone_mm_) {
     ESP_LOGV(TAG, "Distance is within the blind zone (<= %.2fm). Reporting NAN.", this->blind_zone_mm_ / 1000.0f);
     distance_m = NAN;
   } else if (distance_mm > this->max_range_mm_) {
@@ -101,6 +107,10 @@ void DYPSensor::process_frame_(const uint8_t *frame) {
     ESP_LOGV(TAG, "Received valid frame. Distance: %u mm (%.3f m)", distance_mm, distance_m);
   }
 
+  if (this->mode_ == DYPMode::DYP_MODE_CONTROLLED) {
+    this->awaiting_reply_ = false;
+    this->status_clear_warning();
+  }
   if (this->mode_ == DYPMode::DYP_MODE_CONTROLLED ||
       this->publish_mode_ == DYPPublishMode::DYP_PUBLISH_MODE_IMMEDIATE) {
     this->publish_state(distance_m);
