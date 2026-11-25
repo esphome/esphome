@@ -1,6 +1,6 @@
 cryptography==50.0.2
 voluptuous==0.16.0
-PyYAML==6.0.3
+PyYAML==6.0.4
 paho-mqtt==2.2.0
 colorama==0.4.6
 tzlocal==5.4.5    # from time

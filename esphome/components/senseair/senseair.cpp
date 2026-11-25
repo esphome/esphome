@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::senseair {
 
 ESPHOME_LOG_TAG(TAG, "senseair");
@@ -13,8 +15,6 @@ static const uint8_t SENSEAIR_COMMAND_GET_PPM_STATUS[] = {0xFE, 0x04, 0x00, 0x00
 static const uint8_t SENSEAIR_COMMAND_CLEAR_ACK_REGISTER[] = {0xFE, 0x06, 0x00, 0x00, 0x00, 0x00, 0x9D, 0xC5};
 static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CAL[] = {0xFE, 0x06, 0x00, 0x01, 0x7C, 0x06, 0x6C, 0xC7};
 static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CAL_RESULT[] = {0xFE, 0x03, 0x00, 0x00, 0x00, 0x01, 0x90, 0x05};
-static const uint8_t SENSEAIR_COMMAND_ABC_ENABLE[] = {0xFE, 0x06, 0x00, 0x1F, 0x00, 0xB4, 0xAC, 0x74};  // 180 hours
-static const uint8_t SENSEAIR_COMMAND_ABC_DISABLE[] = {0xFE, 0x06, 0x00, 0x1F, 0x00, 0x00, 0xAC, 0x03};
 static const uint8_t SENSEAIR_COMMAND_ABC_GET_PERIOD[] = {0xFE, 0x03, 0x00, 0x1F, 0x00, 0x01, 0xA1, 0xC3};
 
 void SenseAirComponent::update() {
@@ -90,20 +90,21 @@ void SenseAirComponent::background_calibration_result() {
 #endif
 }
 
-void SenseAirComponent::abc_enable() {
-  // Response is just an echo but must be read to clear the buffer
-  ESP_LOGD(TAG, "SenseAir Enabling automatic baseline calibration");
-  uint8_t command_length = sizeof(SENSEAIR_COMMAND_ABC_ENABLE) / sizeof(SENSEAIR_COMMAND_ABC_ENABLE[0]);
-  uint8_t response[command_length];
-  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_ENABLE, response, command_length);
-}
+void SenseAirComponent::abc_enable() { this->abc_set_period(180); }
 
-void SenseAirComponent::abc_disable() {
-  // Response is just an echo but must be read to clear the buffer
-  ESP_LOGD(TAG, "SenseAir Disabling automatic baseline calibration");
-  uint8_t command_length = sizeof(SENSEAIR_COMMAND_ABC_DISABLE) / sizeof(SENSEAIR_COMMAND_ABC_DISABLE[0]);
-  uint8_t response[command_length];
-  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_DISABLE, response, command_length);
+void SenseAirComponent::abc_disable() { this->abc_set_period(0); }
+
+void SenseAirComponent::abc_set_period(uint16_t hours) {
+  ESP_LOGD(TAG, "SenseAir Setting ABC period to %u hours", hours);
+  uint8_t command[SENSEAIR_REQUEST_LENGTH] = {0xFE, 0x06, 0x00, 0x1F};
+  put_be16(command + 4, hours);
+  put_le16(command + 6, crc16(command, 6));
+  // Response is an echo of the command
+  uint8_t response[SENSEAIR_REQUEST_LENGTH];
+  if (!this->status_comm_check(this->senseair_write_command_(command, response, SENSEAIR_REQUEST_LENGTH) &&
+                               memcmp(command, response, SENSEAIR_REQUEST_LENGTH) == 0)) {
+    ESP_LOGE(TAG, "Setting ABC period on SenseAir failed!");
+  }
 }
 
 void SenseAirComponent::abc_get_period() {

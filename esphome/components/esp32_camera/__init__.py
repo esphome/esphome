@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.const import CONF_WINDOW
+from esphome.components.const import CONF_PIXEL_FORMAT, CONF_WINDOW
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.psram import DOMAIN as psram_domain
 from esphome.config_helpers import filter_source_files_from_defines
@@ -146,7 +146,6 @@ CONF_EXTERNAL_CLOCK = "external_clock"
 CONF_I2C_PINS = "i2c_pins"
 CONF_POWER_DOWN_PIN = "power_down_pin"
 # image
-CONF_PIXEL_FORMAT = "pixel_format"
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
