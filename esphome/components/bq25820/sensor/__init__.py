@@ -4,17 +4,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_B_CONSTANT
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_REFERENCE_RESISTANCE,
-    CONF_REFERENCE_TEMPERATURE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_REFERENCE_RESISTANCE, CONF_REFERENCE_TEMPERATURE
 from esphome.types import ConfigType
 
 from .. import CONF_BQ25820_ID, BQ25820BaseSchema
@@ -34,18 +24,8 @@ validate_reference_temperature = cv.All(
     cv.temperature, cv.Range(min=-sensor.ZERO_POINT, min_included=False)
 )
 
-_VOLTAGE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_VOLT,
-    accuracy_decimals=2,
-    device_class=DEVICE_CLASS_VOLTAGE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_CURRENT_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_AMPERE,
-    accuracy_decimals=3,
-    device_class=DEVICE_CLASS_CURRENT,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_VOLTAGE_SCHEMA = sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=2)
+_CURRENT_SCHEMA = sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=3)
 
 _SENSOR_KEYS = (CONF_VBAT, CONF_VSYS, CONF_VAC, CONF_IBAT, CONF_IAC, CONF_TEMP_IN_C)
 
@@ -66,10 +46,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IAC): _CURRENT_SCHEMA,
             # The defaults are the 10k B3435 NTC with a 10k resistor the TS thresholds are rated for
             cv.Optional(CONF_TEMP_IN_C): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ).extend(
                 {
                     cv.Optional(

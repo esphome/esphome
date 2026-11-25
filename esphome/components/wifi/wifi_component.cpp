@@ -78,6 +78,15 @@ CompactString::CompactString(const char *str, size_t len) {
   }
 }
 
+#ifdef USE_ESP8266
+CompactString CompactString::from_progmem(ProgmemStr str) {
+  char buf[MAX_LENGTH + 1];
+  ESPHOME_strncpy_P(buf, reinterpret_cast<const char *>(str), MAX_LENGTH);
+  buf[MAX_LENGTH] = '\0';
+  return CompactString(buf, strlen(buf));
+}
+#endif
+
 CompactString::CompactString(const CompactString &other) : CompactString(other.data(), other.size()) {}
 
 CompactString &CompactString::operator=(const CompactString &other) {
@@ -882,6 +891,11 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
+        // Freeze the cooldown while an upload runs over the AP
+        if (this->ota_hold_()) {
+          this->action_started_ = now;
+          break;
+        }
         // Credentials not tried yet: retry whatever the driver reports. The flag outlives an adapter restart,
         // which only lands back here, and start_connecting() clears it once they are tried
         if (this->skip_cooldown_next_cycle_) {
@@ -941,7 +955,8 @@ void WiFiComponent::loop() {
             // else: scan in progress, wait
           } else if (this->post_connect_roaming_ && this->roaming_state_ == RoamingState::IDLE &&
                      this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_() &&
+                     !this->ota_hold_()) {
             this->check_roaming_(now);
           }
         }
@@ -995,8 +1010,9 @@ void WiFiComponent::loop() {
     }
 #endif  // USE_WIFI_AP && !USE_WIFI_AP_PERSISTENT
 #ifdef WIFI_AP_PORTAL_FOLLOWS_STA
+    // The portal's DNS change drops the AP clients, so not during an upload
     if (this->ap_setup_ && !this->is_connected() && now - this->last_connected_ > WIFI_PORTAL_REOPEN_DELAY_MS &&
-        !this->is_provisioning_closed_() && !this->is_ap_portal_active_()) {
+        !this->is_provisioning_closed_() && !this->is_ap_portal_active_() && !this->ota_hold_()) {
       this->start_ap_portal_();
     }
 #endif
@@ -1707,6 +1723,9 @@ void WiFiComponent::check_scanning_finished() {
     }
     return;
   }
+  // Keep the results until the upload ends
+  if (this->ota_hold_())
+    return;
   this->scan_done_ = false;
   // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
   this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
@@ -2388,6 +2407,12 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
+  // Retrying moves the channel and drops an OTA client on the AP. Not start_cooldown_(): DPP hops too
+  if (this->ota_hold_()) {
+    this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+    this->action_started_ = millis();
+    return;
+  }
   // Handle roaming state transitions - preserve attempts counter to prevent ping-pong
   // to unreachable APs after ROAMING_MAX_ATTEMPTS failures
   if (this->roaming_state_ == RoamingState::CONNECTING) {
@@ -2850,8 +2875,9 @@ void WiFiComponent::process_roaming_scan_() {
 
   // Get current connection info
   int8_t current_rssi = this->wifi_rssi();
-  // Guard: must still be connected (RSSI may have become invalid during scan)
-  if (current_rssi == WIFI_RSSI_DISCONNECTED) {
+  // Guard: must still be connected (RSSI may have become invalid during scan), and a scan that ends during an
+  // upload over the AP must not move the channel
+  if (current_rssi == WIFI_RSSI_DISCONNECTED || this->ota_hold_()) {
     this->release_scan_results_();
     return;
   }
