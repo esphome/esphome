@@ -26,6 +26,7 @@ template<typename... Ts> class InlineCallbackManager<void(Ts...)> : public Callb
  public:
   inline void ESPHOME_ALWAYS_INLINE call(Ts... args) { CallbackManager<void(Ts...)>::call(args...); }
   void operator()(Ts... args) { this->call(args...); }
+  bool empty() const { return this->size_ == 0; }
 };
 
 // MQTT registers on every exposed entity, so the list is held inline instead of allocated on first add.
