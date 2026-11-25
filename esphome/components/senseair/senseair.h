@@ -29,6 +29,8 @@ class SenseAirComponent final : public PollingComponent, public uart::UARTDevice
   void abc_get_period();
   void abc_enable();
   void abc_disable();
+  /// Set the automatic baseline correction period in hours; 0 disables it.
+  void abc_set_period(uint16_t hours);
 
  protected:
   bool senseair_write_command_(const uint8_t *command, uint8_t *response, uint8_t response_length);

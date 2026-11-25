@@ -1,0 +1,19 @@
+esphome:
+  name: test
+  area:
+    id: main_area
+    name: Main Area
+  areas:
+    - id: second_area
+      name: Second Area
+  devices:
+    - id: first_device
+      name: First Device
+      area_id: second_area
+      relation: via
+    - id: second_device
+      name: Second Device
+      relation: via
+
+esp8266:
+  board: d1_mini_lite

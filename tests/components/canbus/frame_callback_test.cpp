@@ -36,6 +36,24 @@ TEST(CanbusFrameCallback, PassesEveryFrameAndItsPayload) {
   EXPECT_EQ(received, (Received{{0x100, {0x01, 0x02}}, {0x1ABCDE42, {}}, {0x7FF, {1, 2, 3, 4, 5, 6, 7, 8}}}));
 }
 
+TEST(CanbusFrameCallback, RxCappedUntilAPassDrainsTheQueue) {
+  QueuedCanbus bus;
+  size_t received = 0;
+  bus.add_frame_callback([&](const CanFrame &) { received++; });
+  bus.set_max_frames_per_loop(2);
+  bus.setup();
+  EXPECT_FALSE(bus.rx_capped());
+  for (uint8_t i = 0; i < 3; i++)
+    bus.queue(0x100 + i, false, {i});
+
+  bus.loop();
+  EXPECT_EQ(received, 2u);
+  EXPECT_TRUE(bus.rx_capped());
+  bus.loop();
+  EXPECT_EQ(received, 3u);
+  EXPECT_FALSE(bus.rx_capped());
+}
+
 TEST(CanbusFrameCallback, ReceivingFramesDoesNotAllocate) {
 #ifdef CANBUS_TEST_ASAN
   static std::atomic<size_t> allocations{0};

@@ -365,6 +365,26 @@ def test_upload_hides_smpclient_timeout_errors_on_udp(
     assert not logging.getLogger("smpclient").filters
 
 
+class VirtualClockLoop(asyncio.SelectorEventLoop):
+    """An event loop whose clock moves only when ResetDevice gets a request.
+
+    The reset waits are deadlines on loop.time(), so a slow runner could end a wait
+    before the device's quiet period does; this clock keeps them in step.
+    """
+
+    now = 0.0
+
+    def time(self) -> float:
+        return self.now
+
+
+def _run_reset(monkeypatch: pytest.MonkeyPatch, device: "ResetDevice") -> None:
+    # The probe wait is an asyncio.sleep, which would never end on the frozen clock
+    monkeypatch.setattr(ota_udp, "SMP_UDP_PROBE_TIMEOUT", 0)
+    with asyncio.Runner(loop_factory=VirtualClockLoop) as runner:
+        runner.run(ota_udp._udp_reset(device, "fd00::5", b"hash"))  # pylint: disable=protected-access
+
+
 class ResetDevice:
     """Plays out each ResetWrite: "ok", "lost" (never arrives) or "applied" (reply lost).
 
@@ -392,6 +412,8 @@ class ResetDevice:
         self.late = False
 
     async def request(self, request, timeout_s=None):
+        # Each request takes 10 ms of the virtual clock
+        asyncio.get_running_loop().now += 0.01
         if isinstance(request, ota.ResetWrite):
             self.resets += 1
             outcome = self.outcomes.pop(0)
@@ -468,16 +490,14 @@ def test_udp_reset(
     resets: int,
     result: str,
 ) -> None:
-    monkeypatch.setattr(ota_udp, "SMP_UDP_PROBE_TIMEOUT", 0)
     caplog.set_level(logging.INFO)
     monkeypatch.setattr(ota_udp, "SMP_UDP_REBOOT_WAIT", 0.3)
     monkeypatch.setattr(ota_udp, "SMP_UDP_LOST_RESET_WAIT", 0.05)
-    run = ota_udp._udp_reset(device, "fd00::5", b"hash")  # pylint: disable=protected-access
     if result in ("ok", "warning"):
-        asyncio.run(run)
+        _run_reset(monkeypatch, device)
     else:
         with pytest.raises(EsphomeError, match=result):
-            asyncio.run(run)
+            _run_reset(monkeypatch, device)
     assert device.resets == resets
     warned = any(
         r.levelname == "WARNING" and "check that it runs the new image" in r.message
@@ -491,15 +511,14 @@ def test_udp_reset(
     assert confirmed is (result == "ok")
 
 
-def test_udp_reset_probe_error_reply(monkeypatch) -> None:
+def test_udp_reset_probe_error_reply(monkeypatch: pytest.MonkeyPatch) -> None:
     """An error reply to the probe is a failed read, not a missing image."""
     monkeypatch.setattr(ota_udp, "error", lambda response: False)
     monkeypatch.setattr(ota_udp, "success", lambda response: False)
-    monkeypatch.setattr(ota_udp, "SMP_UDP_PROBE_TIMEOUT", 0)
     monkeypatch.setattr(ota_udp, "SMP_UDP_LOST_RESET_WAIT", 0.05)
     device = ResetDevice(["lost"])
     with pytest.raises(EsphomeError, match="answered with an error"):
-        asyncio.run(ota_udp._udp_reset(device, "fd00::5", b"hash"))  # pylint: disable=protected-access
+        _run_reset(monkeypatch, device)
     assert device.resets == 1
 
 
