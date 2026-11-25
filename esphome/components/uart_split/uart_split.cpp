@@ -56,9 +56,15 @@ void UartSplit::loop() {
 }
 
 void UartSplit::mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len) {
+  bool distributed = false;
   for (size_t i = 0; i < this->outputs_.size(); i++) {
     UartSplitOutput *output = this->outputs_[i];
     if (output != from && output->mirror_tx()) {
+      if (!distributed) {
+        // What the parent received before this write comes first on the output.
+        this->loop();
+        distributed = true;
+      }
       this->push_(i, data, len);
     }
   }

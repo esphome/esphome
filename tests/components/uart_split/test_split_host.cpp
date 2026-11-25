@@ -158,6 +158,17 @@ TEST_F(UartSplitCopy, SentByteIsMirroredOnlyToBoth) {
   EXPECT_EQ(this->quiet_.available(), 0u);
 }
 
+TEST_F(UartSplitCopy, MirroredWriteComesAfterWhatWasReceivedBefore) {
+  const uint8_t received = 0x11;
+  const uint8_t sent = 0x22;
+  this->pins_.rx(&received, 1);
+  this->bus_.write_array(&sent, 1);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x11);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x22);
+  EXPECT_EQ(this->read_one(&this->bus_), 0x11);
+  EXPECT_EQ(this->bus_.available(), 0u);
+}
+
 TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {
   const uint8_t byte = 0x33;
   this->tap_.write_array(&byte, 1);
