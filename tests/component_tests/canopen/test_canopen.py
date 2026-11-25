@@ -74,14 +74,17 @@ def test_response_timeout_fits_uint16(timeout: str, valid: bool) -> None:
             CONFIG_SCHEMA(config)
 
 
-@pytest.mark.parametrize(("interval", "valid"), [("65535ms", True), ("65536ms", False)])
-def test_heartbeat_interval_fits_uint16(interval: str, valid: bool) -> None:
-    """0x1017 stores the producer heartbeat time as uint16 milliseconds."""
+@pytest.mark.parametrize(
+    ("interval", "error"),
+    [("99ms", "at least"), ("100ms", None), ("65535ms", None), ("65536ms", "at most")],
+)
+def test_heartbeat_interval_range(interval: str, error: str | None) -> None:
+    """At least 100 ms (the heartbeat is sent from loop()); 0x1017 holds uint16 milliseconds."""
     config = _config(heartbeat_interval=interval)
-    if valid:
+    if error is None:
         CONFIG_SCHEMA(config)
     else:
-        with pytest.raises(cv.Invalid, match="at most"):
+        with pytest.raises(cv.Invalid, match=error):
             CONFIG_SCHEMA(config)
 
 
