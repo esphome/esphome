@@ -657,7 +657,9 @@ async def _light_triggers_to_code(
     light = auto.parent_ref(light_var)
     remote_values: list[MockObj] = []
     for index, conf in enumerate(config.get(CONF_ON_TURN_ON, [])):
-        last = MockObj(f"esphome__{light_var}__on_turn_on_{index}__last")
+        last_id = cg.unique_global_id(f"{light_var}_on_turn_on_{index}_last", cg.bool_)
+        last = MockObj(last_id)
+        CORE.register_variable(last_id, last)
         cg.add_global(VariableDeclarationExpression(cg.bool_, "", last, static=True))
         when = light_ns.update_turned_on(last, light.remote_values.is_on())
         remote_values.append(
