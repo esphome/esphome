@@ -35,7 +35,7 @@ def AUTO_LOAD(config: list[ConfigType] | ConfigType | None = None) -> list[str]:
     if isinstance(config, dict):
         config = [config]
     for conf in config or []:
-        for path in (PRESETS_DIR / _preset_device_type(conf)).glob("*_en.yaml"):
+        for path in (PRESETS_DIR / _preset_device_type(conf)).glob("*.yaml"):
             with path.open(encoding="utf-8") as f:
                 domains.update((yaml.safe_load(f) or {}).keys())
     return sorted(domains)

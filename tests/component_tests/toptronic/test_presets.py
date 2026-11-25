@@ -133,3 +133,19 @@ def test_shipped_presets_do_not_hard_code_ids() -> None:
                     f"{path.name}: {entry.get('name')!r} sets an id, which a second hub "
                     f"would duplicate"
                 )
+
+
+def test_every_language_provides_the_same_platforms() -> None:
+    """AUTO_LOAD must not depend on which language a hub selects."""
+    for device_dir in sorted(toptronic.PRESETS_DIR.iterdir()):
+        by_kind: dict[str, dict[str, set[str]]] = {}
+        for path in device_dir.glob("*.yaml"):
+            kind, lang = path.stem.rsplit("_", 1)
+            with path.open(encoding="utf-8") as f:
+                by_kind.setdefault(kind, {})[lang] = set(yaml.safe_load(f) or {})
+        for kind, langs in by_kind.items():
+            assert set(langs) == {"de", "en", "fr", "it"}, (device_dir.name, kind)
+            assert len({frozenset(v) for v in langs.values()}) == 1, (
+                device_dir.name,
+                kind,
+            )
