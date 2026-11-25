@@ -21,8 +21,13 @@ struct MessageEvent {
 // What an on_message automation is given each time it fires
 struct Recorder {
   std::vector<MessageEvent> events;
+  bool log_once{false};  // the action logs a line of its own, once
   void record(uint8_t level, const char *tag, const char *message) {
     this->events.push_back({level, std::string(tag), std::string(message)});
+    if (this->log_once) {
+      this->log_once = false;
+      ESP_LOGW(TRIGGER_TAG, "nested");
+    }
   }
 };
 
@@ -97,6 +102,16 @@ TEST_F(LoggerMessageTriggerTest, LinesBelowTheLoggerLevelNeverReachTheTrigger) {
   ESP_LOGW(TRIGGER_TAG, "shown");
   ASSERT_EQ(rec.events.size(), 1u);
   EXPECT_EQ(rec.events[0].level, ESPHOME_LOG_LEVEL_WARN);
+}
+
+TEST_F(LoggerMessageTriggerTest, LineLoggedFromTheActionNeverReachesIt) {
+  Recorder rec;
+  rec.log_once = true;
+  OnMessage<ESPHOME_LOG_LEVEL_WARN> on_message(&this->logger_, &rec);
+  ESP_LOGW(TRIGGER_TAG, "outer");
+  ASSERT_EQ(rec.events.size(), 1u);
+  EXPECT_NE(rec.events[0].message.find("]: outer"), std::string::npos) << rec.events[0].message;
+  EXPECT_FALSE(rec.log_once);
 }
 
 }  // namespace esphome::logger::testing
