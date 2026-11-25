@@ -7,8 +7,8 @@ from esphome.core import CORE
 
 ESP8266_ASYNC_MQTT_CLIENT_LIBRARY = "esphome/AsyncMqttClient-esphome"
 ESP8266_ASYNC_MQTT_CLIENT_VERSION = "2.2.0"
-ESP8266_ESP_ASYNC_TCP_LIBRARY = "esphome/ESPAsyncTCP"
-ESP8266_ESP_ASYNC_TCP_VERSION = "2.1.0"
+ESP8266_ESP_ASYNC_TCP_LIBRARY = "esphome/ESP8266AsyncTCP"
+ESP8266_ESP_ASYNC_TCP_VERSION = "2.1.2"
 
 
 def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
@@ -25,7 +25,7 @@ def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
     assert async_mqtt_client.version == ESP8266_ASYNC_MQTT_CLIENT_VERSION
     assert async_mqtt_client.repository is None
 
-    async_tcp = CORE.platformio_libraries["ESPAsyncTCP"]
+    async_tcp = CORE.platformio_libraries["ESP8266AsyncTCP"]
     assert async_tcp.name == ESP8266_ESP_ASYNC_TCP_LIBRARY
     assert async_tcp.version == ESP8266_ESP_ASYNC_TCP_VERSION
     assert async_tcp.repository is None
