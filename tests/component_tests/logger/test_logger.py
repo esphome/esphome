@@ -404,7 +404,11 @@ def test_request_tag_log_level(config: dict, expected: bool) -> None:
     ):
         asyncio.run(request_tag_log_level("lib", "WARN"))
     if expected:
-        log.set_log_level.assert_called_once_with("lib", "ESPHOME_LOG_LEVEL_WARN")
+        log.set_log_level.assert_called_once()
+        tag, level = log.set_log_level.call_args.args
+        assert tag == "lib"
+        # MockObj's == builds a C++ expression, so compare the text
+        assert str(level) == "ESPHOME_LOG_LEVEL_WARN"
         add.assert_called_once()
         add_define.assert_called_once_with("USE_LOGGER_RUNTIME_TAG_LEVELS")
     else:
