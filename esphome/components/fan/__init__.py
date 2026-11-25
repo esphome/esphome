@@ -60,8 +60,6 @@ RESTORE_MODES = FanRestoreMode.options(
     "RESTORE_INVERTED_DEFAULT_ON",
 )
 
-FanChangeTrigger = fan_ns.enum("FanChangeTrigger", is_class=True)
-
 _FAN_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -184,53 +182,78 @@ def set_preset_modes(var: MockObj, preset_modes: list[str]) -> None:
         cg.add(var.set_supported_preset_modes_static(table, len(preset_modes)))
 
 
-# Each trigger fires when the fan reports a value other than the one it last saw.
+# key, automation args, the fan value it watches, the type and start value of the copy it keeps, and the helper
+# that compares and updates that copy. The start value is the fan's own, which the triggers saw when they were made.
 _CHANGE_TRIGGERS: tuple[
-    tuple[str, str, TemplateArgsType, Callable[[MockObj], list[MockObj]]], ...
+    tuple[str, TemplateArgsType, Callable[[MockObj], MockObj], str, str, str], ...
 ] = (
-    (CONF_ON_TURN_ON, "TURN_ON", [], lambda fan: []),
-    (CONF_ON_TURN_OFF, "TURN_OFF", [], lambda fan: []),
+    (CONF_ON_TURN_ON, [], lambda fan: fan.state, "bool", "false", "update_turned_on"),
+    (CONF_ON_TURN_OFF, [], lambda fan: fan.state, "bool", "false", "update_turned_off"),
     (
         CONF_ON_DIRECTION_SET,
-        "DIRECTION_SET",
         [(FanDirection, "x")],
-        lambda fan: [fan.direction],
+        lambda fan: fan.direction,
+        "fan::FanDirection",
+        "fan::FanDirection::FORWARD",
+        "update_changed",
     ),
     (
         CONF_ON_OSCILLATING_SET,
-        "OSCILLATING_SET",
         [(cg.bool_, "x")],
-        lambda fan: [fan.oscillating],
+        lambda fan: fan.oscillating,
+        "bool",
+        "false",
+        "update_changed",
     ),
-    (CONF_ON_SPEED_SET, "SPEED_SET", [(cg.int_, "x")], lambda fan: [fan.speed]),
+    (
+        CONF_ON_SPEED_SET,
+        [(cg.int_, "x")],
+        lambda fan: fan.speed,
+        "int",
+        "0",
+        "update_changed",
+    ),
     (
         CONF_ON_PRESET_SET,
-        "PRESET_SET",
         [(cg.StringRef, "x")],
-        lambda fan: [fan.get_preset_mode()],
+        lambda fan: fan.get_preset_mode(),
+        "const char *",
+        "nullptr",
+        "update_preset_changed",
     ),
 )
 
 
 async def _build_change_triggers(var: MockObj, config: ConfigType) -> None:
+    """Register one state callback that runs the change triggers; each keeps its last value in a global."""
     fan = automation.parent_ref(var)
-    for conf_key, trigger, args, forward in _CHANGE_TRIGGERS:
-        confs = config.get(conf_key, [])
-        if confs:
-            cg.add_define("USE_FAN_CHANGE_TRIGGERS")
-        if len(confs) > 1:
-            cg.add_define("USE_FAN_CHANGE_TRIGGERS_MULTI")
-        value = getattr(FanChangeTrigger, f"FAN_CHANGE_TRIGGER_{trigger}")
-        for index, conf in enumerate(confs):
-            await automation.build_callback_automation(
-                var,
-                "add_on_state_callback",
-                args,
-                conf,
-                params=[],
-                forward=forward(fan),
-                when=f"{{parent}}->take_change<{value}>({index})",
+    callbacks: list[MockObj] = []
+    for conf_key, args, watched, last_type, start, update in _CHANGE_TRIGGERS:
+        value = watched(fan)
+        for index, conf in enumerate(config.get(conf_key, [])):
+            last = f"{var}__{conf_key}_{index}__last"
+            cg.add_global(cg.RawStatement(f"static {last_type} {last} = {start};"))
+            callbacks.append(
+                await automation.build_trigger_callback(
+                    args,
+                    conf,
+                    params=[],
+                    forward=[value] if args else [],
+                    when=f"fan::{update}({last}, {value})",
+                )
             )
+    if len(callbacks) > 1:
+        callbacks = [
+            cg.shared_static_function(
+                f"esphome__{var}__change_fn",
+                cg.void,
+                [],
+                [f"{callback}();" for callback in callbacks],
+                share=False,
+            )
+        ]
+    for callback in callbacks:
+        cg.add(var.add_on_state_callback(callback))
 
 
 @setup_entity("fan")
