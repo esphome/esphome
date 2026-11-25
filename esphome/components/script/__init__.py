@@ -234,7 +234,13 @@ async def to_code(config):
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
 
-    def define(late, template, conf, plan, direct: bool = True) -> None:
+    def define(
+        late: cg.LatePvariable,
+        template: cg.TemplateArguments,
+        conf: ConfigType,
+        plan: automation.AutomationPlan,
+        direct: bool = True,
+    ) -> None:
         # The class or its constructor names the function, so it is declared in the script's place
         fn = automation.automation_or_run_function(
             plan, late.var, late.global_slot.add, direct=direct
