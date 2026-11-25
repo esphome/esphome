@@ -26,7 +26,9 @@ static constexpr bool ESPHOME_DMX_HAS_RDM = false;
 #else
 using dmx_port_t = int;
 
-struct DmxConfigT {};
+struct DmxConfigT {
+  uint16_t root_device_parameter_count{32};
+};
 using dmx_config_t = DmxConfigT;
 
 struct DmxPacketT {
