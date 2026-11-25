@@ -650,34 +650,23 @@ def _register_callbacks(
 async def _light_triggers_to_code(
     light_var: MockObj, light_id: ID, config: ConfigType
 ) -> None:
-    """Build on_turn_on, on_state and on_turn_off as callbacks on the light's two callback lists.
+    """Build on_turn_on, on_turn_off and on_state as callbacks on the light's two callback lists.
 
-    Each on_turn_on keeps the state it last saw in a static of its own.
+    Built in that order, as the Trigger objects were, so a lambda can name an automation built
+    before it. Each on_turn_on keeps the state it last saw in a static of its own.
     """
     light = auto.parent_ref(light_var)
-    remote_values: list[MockObj] = []
+    on_turn_on: list[MockObj] = []
     for index, conf in enumerate(config.get(CONF_ON_TURN_ON, [])):
         last_id = cg.unique_global_id(f"{light_var}_on_turn_on_{index}_last", cg.bool_)
         last = MockObj(last_id)
         CORE.register_variable(last_id, last)
         cg.add_global(VariableDeclarationExpression(cg.bool_, "", last, static=True))
         when = light_ns.update_turned_on(last, light.remote_values.is_on())
-        remote_values.append(
+        on_turn_on.append(
             await auto.build_trigger_callback([], conf, [], when=str(when))
         )
-    remote_values += [
-        await auto.build_trigger_callback([], conf, [])
-        for conf in config.get(CONF_ON_STATE, [])
-    ]
-    _register_callbacks(
-        light_var,
-        light_id,
-        "add_remote_values_callback",
-        "remote_values",
-        remote_values,
-    )
-
-    target_state_reached = [
+    on_turn_off = [
         await auto.build_trigger_callback(
             [],
             conf,
@@ -687,12 +676,23 @@ async def _light_triggers_to_code(
         )
         for conf in config.get(CONF_ON_TURN_OFF, [])
     ]
+    on_state = [
+        await auto.build_trigger_callback([], conf, [])
+        for conf in config.get(CONF_ON_STATE, [])
+    ]
+    _register_callbacks(
+        light_var,
+        light_id,
+        "add_remote_values_callback",
+        "remote_values",
+        on_turn_on + on_state,
+    )
     _register_callbacks(
         light_var,
         light_id,
         "add_target_state_reached_callback",
         "target_state_reached",
-        target_state_reached,
+        on_turn_off,
     )
 
 

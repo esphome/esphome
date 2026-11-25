@@ -81,3 +81,12 @@ def test_one_registration_per_callback_list(main_cpp: str) -> None:
         "lamp->add_target_state_reached_callback(esphome__lamp__target_state_reached);"
         in main_cpp
     )
+
+
+def test_on_state_can_name_an_on_turn_off_automation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """on_turn_off is built before on_state, as before, so on_state can use its automation's ID."""
+    main_cpp = generate_main(component_config_path("trigger_order.yaml"))
+    assert "off_automation->stop();" in main_cpp
