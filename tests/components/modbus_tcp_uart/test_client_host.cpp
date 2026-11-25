@@ -174,6 +174,35 @@ TEST(ModbusTcpUartClient, FlushTimeoutKeepsTheTransaction) {
   EXPECT_GT(link.available(), 0u);
 }
 
+TEST(ModbusTcpUartClient, FlushReportsTimeoutWhileWrittenBytesAreHeld) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.write_array(RTU, 5);
+  ASSERT_EQ(link.held(), 5u);
+  EXPECT_EQ(link.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT);
+  EXPECT_EQ(pipe.n_, 0u);
+}
+
+TEST(ModbusTcpUartClient, FlushReportsFailedWhileAPartIsHeldOnADownLink) {
+  Pipe pipe;
+  pipe.up_ = false;
+  ClientLink link(&pipe);
+  link.write_array(RTU, 5);
+  ASSERT_EQ(link.held(), 5u);
+  EXPECT_EQ(link.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED);
+}
+
+TEST(ModbusTcpUartClient, FlushReportsTimeoutWhileAFrameWaitsForRoom) {
+  Pipe pipe;
+  pipe.room_ = 0;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  EXPECT_EQ(link.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT);
+  pipe.room_ = 1024;
+  EXPECT_EQ(link.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS);
+  EXPECT_EQ(pipe.n_, MBAP_HEADER_SIZE + sizeof(RTU) - 3);
+}
+
 TEST(ModbusTcpUartClient, BadProtocolIdSkipsOnlyThatFrame) {
   Pipe pipe;
   ClientLink link(&pipe);

@@ -173,8 +173,11 @@ uart::UARTFlushResult ModbusTcpUart::flush() {
   if (this->tx_frame_len_ != 0) {
     this->send_tx_(0);
   }
-  if (this->tx_frame_len_ != 0) {
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  // Written bytes that are not sent yet, a part of a frame or a frame that waits for room, are still queued.
+  // A down link reports FAILED, as tcp_uart does.
+  if (this->tx_len_ != 0) {
+    return this->is_connected() ? uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT
+                                : uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   return this->parent_->flush();
 }
