@@ -36,6 +36,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -741,7 +742,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def _create_internal_adc(config: ConfigType):
+async def _create_internal_adc(config: ConfigType) -> MockObj:
     """Instantiate the hidden, internal ``adc`` sensor used by ``pin:`` configurations.
 
     The entry was validated by :func:`_build_internal_adc`, here the ADC platform's

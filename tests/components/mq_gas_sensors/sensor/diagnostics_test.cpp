@@ -16,7 +16,7 @@ class DiagnosticsTest : public ::testing::Test {
   void SetUp() override {
     this->sensor_.set_a(976.97f);
     this->sensor_.set_b(-0.688f);
-    this->sensor_.set_regression_method(RegressionMethod::REGRESSION_EXPONENTIAL);
+    this->sensor_.set_regression_method(RegressionMethod::REGRESSION_METHOD_EXPONENTIAL);
     this->sensor_.set_r0(10.0f);
     this->sensor_.set_rl(10.0f);
     this->sensor_.set_vcc(5.0f);

@@ -14,15 +14,15 @@ namespace esphome::mq_gas_sensors {
 
 /// Regression model, mirrors MQUnifiedsensor's `_regressionMethod`.
 enum class RegressionMethod : uint8_t {
-  REGRESSION_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
-  REGRESSION_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
-  REGRESSION_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b)
+  REGRESSION_METHOD_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
+  REGRESSION_METHOD_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
+  REGRESSION_METHOD_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b)
 };
 
 /// Ratio convention used to evaluate the regression curve.
 enum class RatioMode : uint8_t {
-  RATIO_RS_R0 = 0,  ///< RS / R0 - what the published datasheet coefficients expect.
-  RATIO_R0_RS = 1,  ///< R0 / RS - MQUnifiedsensor::readSensorR0Rs() convention.
+  RATIO_MODE_RS_R0 = 0,  ///< RS / R0 - what the published datasheet coefficients expect.
+  RATIO_MODE_R0_RS = 1,  ///< R0 / RS - MQUnifiedsensor::readSensorR0Rs() convention.
 };
 
 namespace mqmath {
@@ -97,7 +97,7 @@ inline float ratio_from_rs(float rs, float r0, float correction_factor, RatioMod
   if (!std::isfinite(r0) || r0 <= 0.0f)
     return NAN;
   double ratio;
-  if (mode == RatioMode::RATIO_R0_RS) {
+  if (mode == RatioMode::RATIO_MODE_R0_RS) {
     ratio = static_cast<double>(r0) / static_cast<double>(rs);
   } else {
     ratio = static_cast<double>(rs) / static_cast<double>(r0);
@@ -111,7 +111,7 @@ inline float ratio_from_rs(float rs, float r0, float correction_factor, RatioMod
     // the range the curve covers: it reports as the saturated end instead of
     // `unknown`, which would hide it. R0 / RS moves the other way, so the ratio
     // then sits below the clean-air end of the curve: that stays unknown.
-    return mode == RatioMode::RATIO_R0_RS ? NAN : 0.0f;
+    return mode == RatioMode::RATIO_MODE_R0_RS ? NAN : 0.0f;
   }
   return static_cast<float>(ratio);
 }
@@ -136,7 +136,7 @@ inline float r0_from_clean_air(float rs_air, float ratio_in_clean_air) {
 /// clamps FLT_MAX to its maximum.
 inline float ppm_at_zero(float a, float b, RegressionMethod method) {
   switch (method) {
-    case RegressionMethod::REGRESSION_EXPONENTIAL:
+    case RegressionMethod::REGRESSION_METHOD_EXPONENTIAL:
       if (!(a > 0.0f))
         return NAN;
       if (b > 0.0f)
@@ -144,11 +144,11 @@ inline float ppm_at_zero(float a, float b, RegressionMethod method) {
       if (b < 0.0f)
         return FLT_MAX;
       return a;
-    case RegressionMethod::REGRESSION_INVERSE:
+    case RegressionMethod::REGRESSION_METHOD_INVERSE:
       if (!(a > 0.0f) || b == 0.0f)
         return NAN;
       return b > 0.0f ? 0.0f : FLT_MAX;
-    case RegressionMethod::REGRESSION_LINEAR:
+    case RegressionMethod::REGRESSION_METHOD_LINEAR:
       if (a == 0.0f)
         return NAN;
       return a > 0.0f ? 0.0f : FLT_MAX;
@@ -160,7 +160,7 @@ inline float ppm_at_zero(float a, float b, RegressionMethod method) {
 /// collapsed sensor resistance. Mirrors `ppm_at_zero()`.
 inline float ppm_at_infinity(float a, float b, RegressionMethod method) {
   switch (method) {
-    case RegressionMethod::REGRESSION_EXPONENTIAL:
+    case RegressionMethod::REGRESSION_METHOD_EXPONENTIAL:
       if (!(a > 0.0f))
         return NAN;
       if (b > 0.0f)
@@ -168,11 +168,11 @@ inline float ppm_at_infinity(float a, float b, RegressionMethod method) {
       if (b < 0.0f)
         return 0.0f;
       return a;
-    case RegressionMethod::REGRESSION_INVERSE:
+    case RegressionMethod::REGRESSION_METHOD_INVERSE:
       if (!(a > 0.0f) || b == 0.0f)
         return NAN;
       return b > 0.0f ? FLT_MAX : 0.0f;
-    case RegressionMethod::REGRESSION_LINEAR:
+    case RegressionMethod::REGRESSION_METHOD_LINEAR:
       if (a == 0.0f)
         return NAN;
       return a > 0.0f ? FLT_MAX : 0.0f;
@@ -194,12 +194,12 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
     return ppm_at_zero(a, b, method);
 
   double log_ppm;
-  if (method == RegressionMethod::REGRESSION_EXPONENTIAL) {
+  if (method == RegressionMethod::REGRESSION_METHOD_EXPONENTIAL) {
     log_ppm = std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
-  } else if (method == RegressionMethod::REGRESSION_INVERSE) {
+  } else if (method == RegressionMethod::REGRESSION_METHOD_INVERSE) {
     // PPM = (ratio / a)^(1/b).
     log_ppm = (std::log10(static_cast<double>(ratio)) - std::log10(static_cast<double>(a))) / static_cast<double>(b);
-  } else if (method == RegressionMethod::REGRESSION_LINEAR) {
+  } else if (method == RegressionMethod::REGRESSION_METHOD_LINEAR) {
     log_ppm = (std::log10(static_cast<double>(ratio)) - static_cast<double>(b)) / static_cast<double>(a);
   } else {
     // An unknown method has no formula; evaluating it as one of the known ones
@@ -233,7 +233,7 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
 /// that end: FLT_MAX for "the top of the range", 0 for a curve that falls to zero,
 /// NaN when the coefficients cannot evaluate it.
 inline float rail_ppm(float a, float b, RegressionMethod method, RatioMode mode, float correction_factor) {
-  if (mode == RatioMode::RATIO_R0_RS)
+  if (mode == RatioMode::RATIO_MODE_R0_RS)
     return ppm_at_infinity(a, b, method);
   return ppm_from_ratio(a, b, correction_factor > 0.0f ? correction_factor : 0.0f, method);
 }

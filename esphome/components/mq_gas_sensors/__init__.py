@@ -74,16 +74,16 @@ CONF_VOLTAGE_SENSOR = "voltage_sensor"
 
 # MQUnifiedsensor::setRegressionMethod() values.
 REGRESSION_METHODS = {
-    "exponential": RegressionMethod.REGRESSION_EXPONENTIAL,
-    "linear": RegressionMethod.REGRESSION_LINEAR,
-    "inverse": RegressionMethod.REGRESSION_INVERSE,
+    "exponential": RegressionMethod.REGRESSION_METHOD_EXPONENTIAL,
+    "linear": RegressionMethod.REGRESSION_METHOD_LINEAR,
+    "inverse": RegressionMethod.REGRESSION_METHOD_INVERSE,
 }
 
 # MQUnifiedsensor uses R0/RS (see readSensorR0Rs(), "INVERTED for MQ-131"),
 # while the published datasheet coefficients are fitted against RS/R0.
 RATIO_MODES = {
-    "rs_r0": RatioMode.RATIO_RS_R0,  # datasheet convention (default)
-    "r0_rs": RatioMode.RATIO_R0_RS,  # MQUnifiedsensor readSensorR0Rs() convention
+    "rs_r0": RatioMode.RATIO_MODE_RS_R0,  # datasheet convention (default)
+    "r0_rs": RatioMode.RATIO_MODE_R0_RS,  # MQUnifiedsensor readSensorR0Rs() convention
 }
 
 # Default ADC input limits used by the divider guard when the attenuation of an

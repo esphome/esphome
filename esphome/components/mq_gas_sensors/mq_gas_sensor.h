@@ -64,7 +64,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// `LOG_SEVERITY_DEBUG` only with `logger: level: DEBUG`. The message is
   /// mirrored to `log_sensor:` either way, so the measurement chain stays
   /// readable from Home Assistant.
-  enum LogSeverity : uint8_t {
+  enum class LogSeverity : uint8_t {
     LOG_SEVERITY_DEBUG = 0,
     LOG_SEVERITY_INFO = 1,
     LOG_SEVERITY_WARN = 2,
@@ -186,8 +186,8 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
 #endif
 
-  RegressionMethod regression_method_{RegressionMethod::REGRESSION_EXPONENTIAL};
-  RatioMode ratio_mode_{RatioMode::RATIO_RS_R0};
+  RegressionMethod regression_method_{RegressionMethod::REGRESSION_METHOD_EXPONENTIAL};
+  RatioMode ratio_mode_{RatioMode::RATIO_MODE_RS_R0};
   uint8_t samples_{2};
   /// Usable conversions of the last sampling window, so a partially answered
   /// window is visible instead of a silently shorter average.
