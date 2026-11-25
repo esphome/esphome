@@ -17,5 +17,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             cg.add_define("USE_WIFI")
             cg.add_define("USE_WIFI_AP")
             cg.add_define("WIFI_NETWORK_COUNT", 4)
+            # AP plus OTA: Wi-Fi holds its retries while an upload runs
+            cg.add_define("USE_OTA")
 
     manifest.to_code = to_code_testing
+    # UpdateLock lives in ota_backend.cpp
+    manifest.dependencies = manifest.dependencies + ["ota"]

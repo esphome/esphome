@@ -15,7 +15,7 @@ def test_button_is_setup(generate_main):
     # Then
     assert "static wake_on_lan::WakeOnLanButton *const" in main_cpp
     assert ") wake_on_lan::WakeOnLanButton();" in main_cpp
-    assert "App.register_button" in main_cpp
+    assert "esphome::app_lists::APP_BUTTON_LIST PROGMEM = {" in main_cpp
     assert "App.register_component" in main_cpp
 
 
@@ -29,7 +29,10 @@ def test_button_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
-    assert 'App.register_button(wol_1, ESPHOME_PSTR("wol_test_1"),' in main_cpp
+    assert (
+        'esphome::Application::configure_button(wol_1, ESPHOME_PSTR("wol_test_1"),'
+        in main_cpp
+    )
     assert "wol_2->set_macaddr(18, 52, 86, 120, 144, 171);" in main_cpp
 
 

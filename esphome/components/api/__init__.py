@@ -146,6 +146,7 @@ CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
+CONF_ON_CLIENT_SYNCED = "on_client_synced"
 CONF_OUTGOING_CONNECTION = "outgoing_connection"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
@@ -470,6 +471,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_ON_CLIENT_SYNCED): automation.validate_automation(
+                single=True
+            ),
             # Connection limits to prevent memory exhaustion on resource-constrained devices
             # Each connection uses ~500-1000 bytes of RAM plus system resources
             # Platform defaults based on available RAM and network stack implementation:
@@ -715,21 +719,23 @@ async def to_code(config: ConfigType) -> None:
     if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
         await wizard.to_code(wizard_config)
 
-    if CONF_ON_CLIENT_CONNECTED in config:
-        cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
-        await automation.build_automation(
-            var.get_client_connected_trigger(),
-            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
-            config[CONF_ON_CLIENT_CONNECTED],
-        )
-
-    if CONF_ON_CLIENT_DISCONNECTED in config:
-        cg.add_define("USE_API_CLIENT_DISCONNECTED_TRIGGER")
-        await automation.build_automation(
-            var.get_client_disconnected_trigger(),
-            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
-            config[CONF_ON_CLIENT_DISCONNECTED],
-        )
+    for conf_key in (
+        CONF_ON_CLIENT_CONNECTED,
+        CONF_ON_CLIENT_DISCONNECTED,
+        CONF_ON_CLIENT_SYNCED,
+    ):
+        if (automation_conf := config.get(conf_key)) is not None:
+            # on_client_connected -> USE_API_CLIENT_CONNECTED_TRIGGER
+            cg.add_define(f"USE_API_{conf_key.removeprefix('on_').upper()}_TRIGGER")
+            await automation.build_callback_automation(
+                var,
+                f"set_{conf_key}_callback",
+                automation.owning_args(
+                    [(cg.StringRef, "client_info"), (cg.StringRef, "client_address")],
+                    automation_conf,
+                ),
+                automation_conf,
+            )
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):

@@ -768,6 +768,7 @@ async def setup_light_core_(light_var, config, output_var):
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
+        cg.add_define("USE_LIGHT_EFFECTS")
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
     await _light_triggers_to_code(light_var, config[CONF_ID], config)

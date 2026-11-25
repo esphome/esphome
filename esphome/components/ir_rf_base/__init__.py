@@ -48,8 +48,7 @@ async def attach_transmitter(var: cg.MockObj, config: ConfigType, key: str) -> N
 async def register_ir_rf_entity(
     var: cg.MockObj, config: ConfigType, domain: str
 ) -> None:
-    """Register an infrared or radio_frequency entity; USE_IR_RF covers both kinds."""
-    cg.add_define("USE_IR_RF")
+    """Register an infrared or radio_frequency entity; its USE_IR_RF comes with the App list."""
     await cg.register_component(var, config)
     queue_entity_register(domain, config)
     CORE.register_platform_component(domain, var)
