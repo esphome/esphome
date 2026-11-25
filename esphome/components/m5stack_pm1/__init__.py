@@ -1,3 +1,6 @@
+from collections.abc import Iterator
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import gpio_expander, i2c
@@ -16,8 +19,8 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
@@ -27,16 +30,13 @@ DOMAIN = "m5stack_pm1"
 MULTI_CONF = True
 
 CONF_M5STACK_PM1_ID = "m5stack_pm1_id"
+CONF_FAST_MODE = "fast_mode"
 CONF_INTERRUPT_GPIO = "interrupt_gpio"
 CONF_WAKEUP = "wakeup"
 CONF_WAKEUP_EDGE = "wakeup_edge"
 
-
-def _bus_config(bus_id: ID) -> ConfigType | None:
-    for bus in CORE.config.get(i2c.DOMAIN, []):
-        if bus[CONF_ID].id == bus_id.id:
-            return bus
-    return None
+# GPIOs that share a wake interrupt line and cannot both be wake sources.
+_WAKE_PIN_PAIRS = ((0, 2), (3, 4))
 
 
 m5stack_pm1_ns = cg.esphome_ns.namespace("m5stack_pm1")
@@ -64,6 +64,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(M5StackPM1Component),
+            cv.Optional(CONF_FAST_MODE, default=False): cv.boolean,
             cv.Optional(CONF_INTERRUPT_GPIO): cv.int_range(min=0, max=4),
         }
     )
@@ -74,9 +75,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    bus = _bus_config(config[CONF_I2C_ID])
-    bus_frequency = int(bus[CONF_FREQUENCY]) if bus else 0
-    var = await i2c.new_i2c_component(config, bus_frequency)
+    var = await i2c.new_i2c_component(config, config[CONF_FAST_MODE])
 
     if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
         await cg.add_pin(var.set_interrupt_pin, interrupt_pin)
@@ -104,7 +103,11 @@ def validate_pin_options(config: ConfigType) -> ConfigType:
         if config[CONF_NUMBER] == 1:
             raise cv.Invalid("GPIO1 does not support wakeup", path=[CONF_NUMBER])
         if not config[CONF_MODE][CONF_PULLUP] and not config[CONF_MODE][CONF_PULLDOWN]:
-            config[CONF_MODE][CONF_PULLUP] = True
+            # Keep the idle level opposite the edge that wakes the controller.
+            if config.get(CONF_WAKEUP_EDGE) == "RISING":
+                config[CONF_MODE][CONF_PULLDOWN] = True
+            else:
+                config[CONF_MODE][CONF_PULLUP] = True
     elif CONF_WAKEUP_EDGE in config:
         raise cv.Invalid("wakeup_edge requires wakeup to be enabled")
     return config
@@ -120,6 +123,52 @@ def validate_pin_usage(pin_config: ConfigType, hub_config: ConfigType) -> None:
         raise cv.Invalid(
             f"'{CONF_INTERRUPT}: true' requires '{CONF_INTERRUPT_PIN}' to be configured"
         )
+
+
+def _iter_pin_configs(value: Any) -> Iterator[ConfigType]:
+    """Yield every M5Stack PM1 pin config in a validated configuration."""
+    if isinstance(value, dict):
+        if CONF_M5STACK_PM1_ID in value and CONF_NUMBER in value:
+            yield value
+        for child in value.values():
+            yield from _iter_pin_configs(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _iter_pin_configs(child)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    full_config = fv.full_config.get()
+    if config[CONF_FAST_MODE]:
+        bus_frequency = next(
+            (
+                int(bus[CONF_FREQUENCY])
+                for bus in full_config.get(i2c.DOMAIN, [])
+                if bus[CONF_ID].id == config[CONF_I2C_ID].id
+            ),
+            None,
+        )
+        if bus_frequency != 400000:
+            raise cv.Invalid(
+                f"'{CONF_FAST_MODE}: true' requires the I2C bus to run at 400kHz"
+            )
+
+    hub_id = str(config[CONF_ID])
+    wake_pins = {
+        pin[CONF_NUMBER]
+        for pin in _iter_pin_configs(full_config)
+        if str(pin.get(CONF_M5STACK_PM1_ID)) == hub_id and pin.get(CONF_WAKEUP)
+    }
+    for first, second in _WAKE_PIN_PAIRS:
+        if first in wake_pins and second in wake_pins:
+            raise cv.Invalid(
+                f"GPIO{first} and GPIO{second} share a wake interrupt line "
+                "and cannot both be wake sources"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 M5STACK_PM1_PIN_SCHEMA = cv.All(
