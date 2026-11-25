@@ -42,42 +42,50 @@ def _function_filtering(main_cpp: str, check: str) -> list[str]:
 
 
 def test_each_on_turn_on_has_its_own_flag_and_filter(main_cpp: str) -> None:
+    body = _body(main_cpp, "esphome__lamp__remote_values_callback")
     for index in (0, 1):
         assert main_cpp.count(f"static bool lamp_on_turn_on_{index}_last;") == 1
-        check = (
-            f"light::update_turned_on(lamp_on_turn_on_{index}_last, "
-            "::lamp->remote_values.is_on())"
-        )
-        assert len(_function_filtering(main_cpp, check)) == 1
+        assert f"static bool lamp_on_turn_on_{index}_last;" in body
 
 
 def test_remote_values_callback_runs_the_automations_in_order(main_cpp: str) -> None:
-    turn_on = [
-        _function_filtering(
-            main_cpp,
-            f"light::update_turned_on(lamp_on_turn_on_{index}_last, "
-            "::lamp->remote_values.is_on())",
-        )[0]
-        for index in (0, 1)
+    body = _body(main_cpp, "esphome__lamp__remote_values_callback")
+    filtered = re.findall(
+        r"^  if \(esphome::entered\((\w+), ::lamp->remote_values\.is_on\(\)\)\)\n"
+        r"    (\w+)\(\);$",
+        body,
+        re.MULTILINE,
+    )
+    assert [flag for flag, _ in filtered] == [
+        "lamp_on_turn_on_0_last",
+        "lamp_on_turn_on_1_last",
     ]
-    calls = _calls(_body(main_cpp, "esphome__lamp__remote_values"))
-    # Both on_turn_on in YAML order, then the on_state one, which has no filter
-    assert calls[:2] == turn_on
-    assert len(calls) == 3
-    assert "state" in _body(main_cpp, calls[2])
+    assert "first on" in _body(main_cpp, filtered[0][1])
+    assert "second on" in _body(main_cpp, filtered[1][1])
+    # Then the on_state one, which has no filter
+    unfiltered = re.findall(r"^  (\w+)\(\);$", body, re.MULTILINE)
+    assert len(unfiltered) == 1
+    assert body.rindex(filtered[1][1]) < body.rindex(unfiltered[0])
+    assert "state" in _body(main_cpp, unfiltered[0])
 
 
 def test_each_on_turn_off_tests_the_light_itself(main_cpp: str) -> None:
     turn_off = _function_filtering(main_cpp, "!::lamp->current_values.is_on()")
     assert len(turn_off) == 2
-    assert _calls(_body(main_cpp, "esphome__lamp__target_state_reached")) == turn_off
+    assert (
+        _calls(_body(main_cpp, "esphome__lamp__target_state_reached_callback"))
+        == turn_off
+    )
 
 
 def test_one_registration_per_callback_list(main_cpp: str) -> None:
     assert main_cpp.count("lamp->add_remote_values_callback(") == 1
-    assert "lamp->add_remote_values_callback(esphome__lamp__remote_values);" in main_cpp
+    assert (
+        "lamp->add_remote_values_callback(esphome__lamp__remote_values_callback);"
+        in main_cpp
+    )
     assert main_cpp.count("lamp->add_target_state_reached_callback(") == 1
     assert (
-        "lamp->add_target_state_reached_callback(esphome__lamp__target_state_reached);"
-        in main_cpp
+        "lamp->add_target_state_reached_callback("
+        "esphome__lamp__target_state_reached_callback);" in main_cpp
     )
