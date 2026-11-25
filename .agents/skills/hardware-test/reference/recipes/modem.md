@@ -116,7 +116,9 @@ and the API for a board whose serial port is not usable.
 - PPP traffic check (`traffic.yaml`): set the PPP netif (`PPP_DEF`) as the default from a lambda, send one
   `http_request.get` (an address literal in `traffic_url` skips DNS), and restore `WIFI_STA_DEF` in `on_response` and
   `on_error`, because the action is asynchronous. Compare with the same GET over Wi-Fi. A SIM can attach and get an
-  address while no traffic comes back (see the no-traffic note above); that is the carrier side.
+  address while no traffic comes back (see the no-traffic note above); that is the carrier side. The GET is skipped
+  (`traffic skipped: PPP not default`) when PPP is not up, and `flow.sh` exits 1 without a 2xx reply over PPP, so a
+  carrier with no traffic fails the run too.
 - The two PRs conflicted on neighbouring lines; merged locally they worked together. Test such pairs merged too.
 
 ## APN refused at CFUN=0, CFUN=1 fallback (#23238)
