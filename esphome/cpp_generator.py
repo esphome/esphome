@@ -897,10 +897,11 @@ class LatePvariable:
         CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
 
     def define(self, type_: "MockObjClass", *args: SafeExpType) -> None:
-        """Create the variable as ``type_``, like ``new_Pvariable`` with ``args``."""
+        """Create the variable as ``type_`` with the constructor arguments ``args``."""
         self.id.type = type_
-        rhs = _new_expression(self.id, args)
-        _emit_pvariable(self.id, rhs, self.global_slot.add, self._main_slot.add)
+        _emit_pvariable(
+            self.id, type_.new(*args), self.global_slot.add, self._main_slot.add
+        )
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
@@ -930,21 +931,16 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     with the given arguments.
 
     :param id_: The ID used to declare the variable (also specifies the type).
-    :param args: The values to pass to the constructor, after optional template arguments.
+    :param args: The values to pass to the constructor.
 
     :return: The new variable as a MockObj.
     """
     if args and isinstance(args[0], TemplateArguments):
         id_ = id_.copy()
-    return Pvariable(id_, _new_expression(id_, args))
-
-
-def _new_expression(id_: ID, args: tuple[SafeExpType, ...]) -> "MockObj":
-    """``new`` of ``id_.type``, first templated on ``args[0]`` if that is TemplateArguments."""
-    if args and isinstance(args[0], TemplateArguments):
         id_.type = id_.type.template(args[0])
         args = args[1:]
-    return id_.type.new(*args)
+    rhs = id_.type.new(*args)
+    return Pvariable(id_, rhs)
 
 
 def declare_static_function(
@@ -980,9 +976,9 @@ def static_function(
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
 
-    The declaration goes with the other globals (or to ``add_global_``, e.g. a
-    ``LatePvariable``'s place), so a template argument can name the function at once; the body
-    goes after the user includes, where every id and everything those headers declare is in scope.
+    The declaration goes with the other globals, or to ``add_global_`` (e.g. a ``LatePvariable``'s
+    place), so a template argument can name the function at once; the body goes after the user
+    includes, where every id and everything those headers declare is in scope.
     """
     return declare_static_function(name, return_type, parameters, add_global_)(body)
 
@@ -1001,15 +997,13 @@ def shared_static_function(
     body: list[str | Statement],
     *,
     share: bool = True,
-    add_global_: Callable[[Statement], object] | None = None,
 ) -> RawExpression:
     """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
 
-    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state;
-    only such a function takes ``add_global_``, which places the declaration as for ``static_function``.
+    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
     """
     if not share:
-        return _new_static_function(name, return_type, parameters, body, add_global_)
+        return new_static_function(name, return_type, parameters, body)
     data: SharedStaticFunctions = CORE.data.setdefault(
         "shared_static_function", SharedStaticFunctions()
     )
@@ -1019,19 +1013,20 @@ def shared_static_function(
         "\n".join(map(str, body)),
     )
     if (fn := data.functions.get(key)) is None:
-        fn = data.functions[key] = _new_static_function(
+        fn = data.functions[key] = new_static_function(
             name, return_type, parameters, body
         )
     return fn
 
 
-def _new_static_function(
+def new_static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
     body: list[str | Statement],
     add_global_: Callable[[Statement], object] | None = None,
 ) -> RawExpression:
+    """``static_function`` under a name made unique against every registered id."""
     id_ = unique_global_id(name, None)
     fn = static_function(id_.id, return_type, parameters, body, add_global_)
     CORE.register_variable(id_, fn)

@@ -48,7 +48,6 @@ from esphome.automation import (
     apply_parent,
     apply_statements_action,
     apply_static_function,
-    automation_or_run_function,
     bind_lambda,
     build_action,
     build_action_list,
@@ -3505,15 +3504,18 @@ def _run_trigger() -> MockObj:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-async def test_run_function_for_inline_plan() -> None:
-    """Inline actions only: a stoppable function named after the trigger, no Automation."""
+async def test_plan_run_function() -> None:
+    """Inline actions only: a stoppable function named after the trigger, declared where asked."""
     plan = await plan_automation([], _automation_conf(_action("my.a", "act_a")))
     assert plan.direct
+    declarations: list[cg.Statement] = []
 
-    fn = automation_or_run_function(plan, _run_trigger())
+    fn = plan.run_function(_run_trigger(), declarations.append)
 
     assert str(fn) == "esphome__trig__fn"
-    assert "esphome__trig__fn" in CORE.cpp_global_section
+    assert [str(st) for st in declarations] == [
+        "static void esphome__trig__fn(const int & esphome__running);"
+    ]
     assert "Automation" not in CORE.cpp_main_section
 
 
@@ -3522,19 +3524,21 @@ async def test_run_function_for_inline_plan() -> None:
 @pytest.mark.parametrize(
     ("then", "is_manual", "direct"),
     [
-        ((_action("my.a", "act_a"),), False, False),
-        ((_action("my.a", "act_a"), _delay("act_d")), False, True),
-        ((_action("my.a", "act_a"),), True, True),
+        ((_action("my.a", "act_a"),), False, True),
+        ((_action("my.a", "act_a"), _delay("act_d")), False, False),
+        ((_action("my.a", "act_a"),), True, False),
     ],
-    ids=["declined", "delay", "manual_automation_id"],
+    ids=["inline", "delay", "manual_automation_id"],
 )
-async def test_automation_built_on_trigger(
+async def test_plan_build(
     then: tuple[ConfigType, ...], is_manual: bool, direct: bool
 ) -> None:
-    """``direct=False``, a deferring action or a hand-set automation_id builds the Automation."""
+    """build() puts any plan on the trigger as an Automation; a deferring action or a hand-set
+    automation_id makes a plan need it."""
     plan = await plan_automation([], _automation_conf(*then, is_manual=is_manual))
+    assert plan.direct is direct
 
-    assert automation_or_run_function(plan, _run_trigger(), direct=direct) is None
+    plan.build(_run_trigger())
 
     assert "esphome__trig__fn" not in CORE.cpp_global_section
     assert "Automation<>(trig);" in CORE.cpp_main_section
@@ -3981,18 +3985,6 @@ def test_apply_static_function_share() -> None:
         "esphome__c__fn",
     ]
     assert len(CORE.global_statements_after_includes) == 2
-
-
-def test_apply_static_function_declaration_sink_name_is_unique() -> None:
-    """A placed function does not take the name of a config id such as ``esphome__demo__fn``."""
-    CORE.config = {}
-    cg.new_Pvariable(ID("esphome__demo__fn", is_declaration=True, type=cg.Component))
-    declarations: list[cg.Statement] = []
-    fn = apply_static_function(
-        ID("demo"), cg.void, [], ["return;"], add_global_=declarations.append
-    )
-    assert str(fn) == "esphome__demo__fn_2"
-    assert [str(st) for st in declarations] == ["static void esphome__demo__fn_2();"]
 
 
 @pytest.mark.asyncio
