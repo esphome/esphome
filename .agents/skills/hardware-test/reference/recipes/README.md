@@ -20,7 +20,7 @@ One file per component, named after it:
 - [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe, sdk-nrf 3.4.1 build and USB notes, ItsyBitsy serial DFU and Thread MTD child table
 - [`npm1300.md`](npm1300.md): nPM1300 PMIC on the XIAO nRF54LM20A: probe build, every entity with a register dump and regulator toggles, power-on state and no-battery readings
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
-- [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP, reboot, backbone loss and init retry flows, child supervision checks
+- [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP, reboot, backbone loss and init retry flows, child supervision checks, restart race package, Ethernet-only border router on the ESP32-S31 with a software link drop
 - [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing, SIM7080G behaviour with no SIM and with no data plan through a raw UART passthrough, SIM7670G CMUX recovery and the retest flow for the modem fixes
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep, broker lookup at boot without DNS, broker restart and Wi-Fi drop
@@ -43,9 +43,11 @@ One file per component, named after it:
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks, byte-level JSON output A/B, `/events` close pattern churn with observers, REST and the HTTPS 501 check
-- [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player, FLAC stream changes and announcements without a DAC
+- [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player, FLAC stream changes and announcements without a DAC, FLAC decode benchmark on the device with embedded clips
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks
-- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART, RP2 UART pin choice with an in-chip loopback, LengthFrameReader injection for ld2410 and tuya
+- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART, RP2 UART pin choice with an in-chip loopback, LengthFrameReader injection for ld2410 and tuya, a PMS5003T fed from the host over the logger port and UART RX under power management
+- [`uart_parity.md`](uart_parity.md): 8N1 against 8E1 on the wire with a raw termios reader and an 8E1 receiver model, shelly_dimmer frames
+- [`uart_tx_break.md`](uart_tx_break.md): TX break levels on ESP32-S3 and ESP8266 pads, LibreTiny break bench with a loopback wire, RTL8720C pin mux ownership
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
 - [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip, colour correction and partition A/B on the PIO probe, RMT power management lock under light sleep
 - [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
@@ -55,7 +57,7 @@ One file per component, named after it:
 - [`fake_i2c.md`](fake_i2c.md): fake I2C devices with no chip: in-firmware buses for many drivers, a Pico 2 W BME280/BMP280 target, a DS2482-800 simulator, NACK injection for vl53l0x, a CST816 touch controller with scripted frames
 - [`gpio_hold.md`](gpio_hold.md): GPIO hold through the ISR pin API, pad read back with no wiring, per chip pin notes
 - [`ble_event_inject.md`](ble_event_inject.md): made up GAP and GATTC events fed into the ESP32 BLE handlers from a button
-- [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep, and with an external wave and peripheral power-down on the ESP32-P4
+- [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep, and with an external wave and peripheral power-down on the ESP32-P4, why an S3 on native USB never light sleeps while the host is attached
 - [`manual_ip_and_web_handlers.md`](manual_ip_and_web_handlers.md): station, AP and Ethernet manual IP, web handlers added late and web OTA with web_server, captive_portal or prometheus
 - [`ble_server_security.md`](ble_server_security.md): esp32_ble_server pairing, encrypted and MITM characteristics, subscription before and after pairing, bond reuse per ESP-IDF version
 - [`prometheus.md`](prometheus.md): date, time and datetime metrics in UTC and another time zone
@@ -71,7 +73,7 @@ One file per component, named after it:
 - [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
 - [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
 - [`automation_trace.md`](automation_trace.md): automation codegen A/B, a marker trace of chains, conditions, loops and script modes over the API
-- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy, GATT UUID forms (16 bit, 32-bit base, 128 bit) compared against an ESP32 proxy, third link refusals, cold discovery time and the #22904 coexistence hold with the connection interval logger
+- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy, GATT UUID forms (16 bit, 32-bit base, 128 bit) compared against an ESP32 proxy, third link refusals, cold discovery time and the #22904 coexistence hold with the connection interval logger, ESP-IDF version A/B of a proxy with on-device and API scenarios, notification bursts through the API send gate
 - [`crash_report.md`](crash_report.md): crash buttons, fetching the previous boot's crash report over the API, per-chip abort facts
 - [`https_idf.md`](https_idf.md): web_server_idf HTTPS test component, listener switch, stalled TLS clients, bad key
 - [`mdns.md`](mdns.md): legacy unicast mDNS dump, hammer and latency straight to the device

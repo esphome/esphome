@@ -1,9 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import network, socket
-from esphome.components.const import CONF_ALLOWED_IPS
+from esphome.components.const import CONF_ALLOWED_IPS, CONF_PIXEL_FORMAT
 from esphome.components.esp32_camera import (
     CONF_JPEG_QUALITY,
-    CONF_PIXEL_FORMAT,
     DOMAIN as ESP32_CAMERA_DOMAIN,
     FRAME_SIZES,
 )

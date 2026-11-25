@@ -107,7 +107,7 @@ void ESP8266UartComponent::setup() {
 #endif
   ) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     ESP8266UartComponent::serial0_in_use = true;
   } else if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
@@ -119,7 +119,7 @@ void ESP8266UartComponent::setup() {
 #endif
   ) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
@@ -129,7 +129,7 @@ void ESP8266UartComponent::setup() {
 #ifdef USE_ESP8266_UART_SERIAL1
       if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else
 #endif  // USE_ESP8266_UART_SERIAL1
@@ -140,11 +140,22 @@ void ESP8266UartComponent::setup() {
   }
 }
 
+SerialMode ESP8266UartComponent::serial_mode_() const {
+  if (this->rx_pin_ != nullptr)
+    return SERIAL_FULL;
+#ifdef USE_LOGGER
+  // Shared with the logger, whose console reader (improv_serial) still needs RX
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial())
+    return SERIAL_FULL;
+#endif
+  return SERIAL_TX_ONLY;
+}
+
 void ESP8266UartComponent::load_settings(bool dump_config) {
   ESP_LOGCONFIG(TAG, "Loading UART bus settings");
   if (this->hw_serial_ != nullptr) {
     SerialConfig config = static_cast<SerialConfig>(get_config());
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
 #ifdef USE_ESP8266_UART_SERIAL
     // begin() puts UART0 back on GPIO1/GPIO3, so swap it again like setup() did for GPIO15/GPIO13
@@ -155,11 +166,40 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
     this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
                             this->parity_, this->rx_buffer_size_);
   }
+#ifdef USE_UART_TX_BREAK
+  // begin() and the software serial setup put TX back to idle
+  if (this->tx_break_)
+    this->set_tx_break(true);
+#endif
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
     this->dump_config();
   }
 }
+
+#ifdef USE_UART_TX_BREAK
+bool ESP8266UartComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr)
+    return false;
+  this->tx_break_ = enable;
+  if (this->hw_serial_ == nullptr) {
+    // software serial drives the pin as a GPIO
+    this->tx_pin_->digital_write(!enable);
+    return true;
+  }
+  int uart_nr = UART1;
+#ifdef USE_ESP8266_UART_SERIAL
+  if (this->hw_serial_ == &Serial)
+    uart_nr = UART0;
+#endif
+  if (enable) {
+    USC0(uart_nr) |= BIT(UCBRK);
+  } else {
+    USC0(uart_nr) &= ~BIT(UCBRK);
+  }
+  return true;
+}
+#endif
 
 void ESP8266UartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");

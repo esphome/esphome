@@ -1,8 +1,10 @@
-"""Tests for the multi click trigger codegen."""
+"""Tests for the on_multi_click codegen."""
 
 from collections.abc import Callable
 from pathlib import Path
 import re
+
+from tests.component_tests.helpers import function_body
 
 
 def test_multi_click_timing_tables(generate_main: Callable[[str | Path], str]) -> None:
@@ -17,13 +19,21 @@ def test_multi_click_timing_tables(generate_main: Callable[[str | Path], str]) -
     )
     assert len(tables) == 2
     single, long_press = tables
-    triggers = re.findall(
-        r"binary_sensor::MultiClickTrigger\((\w+), (\w+), (\d+)\);", main_cpp
+    callbacks = re.findall(
+        r"FireCallback<(\w+), binary_sensor::MultiClickBase>\((\w+), (\w+), (\d+)\);",
+        main_cpp,
     )
-    assert triggers == [
-        ("button_a", single, "2"),
-        ("button_a", long_press, "1"),
-        ("button_b", single, "2"),
+    assert [args for _, *args in callbacks] == [
+        ["button_a", single, "2"],
+        ["button_a", long_press, "1"],
+        ["button_b", single, "2"],
     ]
+    # Each callback calls its own function, which runs the actions directly
+    for (function, *_), message in zip(
+        callbacks, ("a single", "a long", "b single"), strict=True
+    ):
+        body = function_body(main_cpp, function)
+        assert f'"{message}"' in body
+        assert "->trigger(" not in body
     assert main_cpp.count("set_invalid_cooldown(") == 1
     assert "set_invalid_cooldown(500);" in main_cpp

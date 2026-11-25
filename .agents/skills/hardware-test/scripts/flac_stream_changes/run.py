@@ -45,6 +45,7 @@ SWITCH = [
 LEAK = FORMATS[:5]
 T0 = time.monotonic()
 state: dict[str, str | None] = {"s": None}
+failed: list[str] = []
 
 
 def log(msg: str) -> None:
@@ -90,6 +91,9 @@ async def main() -> None:
         t = time.monotonic()
         done = await wait_state("IDLE", timeout)
         log(f"END {f} started={ok} idle={done} dur={time.monotonic() - t:.2f}")
+        # 24-bit is rejected on dev (16-bit only)
+        if not (ok and done) and "_24" not in f:
+            failed.append(f)
 
     c.media_player_command(p.key, volume=0.5)
     if PHASE in ("all", "formats"):
@@ -132,3 +136,5 @@ async def main() -> None:
 
 
 asyncio.run(main())
+if failed:
+    sys.exit(f"{len(failed)} plays did not start or did not end: {' '.join(failed)}")
