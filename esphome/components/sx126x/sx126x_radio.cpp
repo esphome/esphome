@@ -36,9 +36,7 @@ const LogString *SX126xRadio::apply_configuration_(const RadioProfile &requested
   }
   this->rst_pin_->digital_write(true);
   delayMicroseconds(RESET_DELAY_HIGH_US);
-  this->rst_pin_->digital_write(false);
-  delayMicroseconds(RESET_DELAY_LOW_US);
-  this->rst_pin_->digital_write(true);
+  pulse_pin(this->rst_pin_, false, RESET_DELAY_LOW_US);
   delayMicroseconds(RESET_DELAY_HIGH_US);
   this->bus().begin();
   AppliedProfile applied;
@@ -193,6 +191,26 @@ bool SX126xRadio::restore_() {
     this->commands_.sleep();
   }
   return this->bus().ok();
+}
+
+bool SX126xRadio::is_receiving() {
+  if (this->state_ == RadioState::RADIO_STATE_HOLDING_RX) {
+    return true;
+  }
+  // A radio that sleeps after sending is not listening, and reading it would wake it
+  if (this->busy_ || this->state_ != RadioState::RADIO_STATE_IDLE || !this->applied_.rx_start) {
+    return false;
+  }
+  // DIO1 signals a received packet that loop() has not read yet
+  if (this->pending_irq_ != 0 || this->dio1_pin_->digital_read()) {
+    return true;
+  }
+  this->busy_ = true;
+  this->bus().begin();
+  const uint16_t status = this->commands_.read_irq();
+  this->busy_ = false;
+  // A failed read counts as receiving, so the link holds the send and warns if the radio stays unreadable
+  return !this->bus().ok() || (status & (IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID)) != 0;
 }
 
 RadioEffects SX126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {

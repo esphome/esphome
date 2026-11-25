@@ -62,6 +62,7 @@ enum class ModemFault : uint8_t {
   MODEM_FAULT_PIN_RECORD,
   MODEM_FAULT_SETUP,
   MODEM_FAULT_NOT_ATTACHED,
+  MODEM_FAULT_REGISTRATION_DENIED,
   MODEM_FAULT_PPP,
   MODEM_FAULT_TEARDOWN,
 };
@@ -151,6 +152,7 @@ class ModemComponent : public Component {
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
+  static constexpr size_t REPLY_SIZE = 256;  // a longer reply keeps its newest bytes, so its final line counts
 #ifdef USE_MODEM_POLL
   static constexpr uint8_t CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
   static constexpr uint8_t CSQ_RSSI_MAX = 31;
@@ -171,6 +173,7 @@ class ModemComponent : public Component {
   ModemState handle_state_disconnecting_();
   /// Pause the task before the next pass, then go to state
   uint32_t next_probe_delay_();
+  bool sim_power_up_cfun1_();
   ModemState retry_(ModemState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemState next_state);
   // What the task left for loop() to do
@@ -200,8 +203,20 @@ class ModemComponent : public Component {
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   esp_modem::command_result at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
+  /// Send an AT command; reply_ gets the whole reply on one line, including any +CME ERROR text
+  esp_modem::command_result at_reply_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
   void publish_status_();
+  /// Send the +++ escape with its guard times; true when the modem answered
+  bool escape_data_mode_();
+  /// Overflow a stuck CMUX receiver with flag bytes; true when the modem answers AT afterwards
+  bool flush_cmux_();
+  void request_resync_();
+  int read_stat_(const char *cmd, const char *prefix);
+  int read_registration_();
+  /// Set the UART rate; current_baud_rate_ follows when the UART takes it
+  esp_err_t set_uart_baud_(int baud);
   void not_responding_(int baud);
+  void sim_not_ready_(const char *reason);
   void dump_connect_params_();
   SimResult prepare_sim_();
 #ifdef USE_MODEM_PIN_CODE
@@ -221,6 +236,9 @@ class ModemComponent : public Component {
   const char *urc_line_{nullptr};  // the line urc_pending_ hands to loop(), inside urc_reader_
 #endif
   std::unique_ptr<esp_modem::DCE> dce_;
+  char reply_[REPLY_SIZE + 1]{};  // task only; the last reply, null-terminated
+  size_t reply_len_{0};
+  bool reply_cut_{false};  // the last reply was longer than reply_ and kept only its end
   std::shared_ptr<esp_modem::DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
   ESPPreferenceObject pref_;
@@ -291,6 +309,9 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
+  uint8_t idle_polls_{0};     // polls in a row that reported "not searching"
+  uint8_t unknown_polls_{0};  // polls in a row with no usable registration state
+  uint8_t sim_polls_{0};      // failed SIM status reads in this attempt
 #ifdef USE_MODEM_POLL
   uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
   uint8_t poll_ber_{CSQ_UNKNOWN};
@@ -298,7 +319,9 @@ class ModemComponent : public Component {
 #endif
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
-  bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first
+  bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
+  bool resync_{false};        // a command timed out, so CONNECTING syncs again first
+  bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif

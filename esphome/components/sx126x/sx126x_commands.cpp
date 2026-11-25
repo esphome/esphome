@@ -246,18 +246,20 @@ void SX126xCommands::calibrate_image(uint32_t frequency) {
   }
 }
 
-// The IRQ mask also routes to DIO1; DIO2 and DIO3 stay unused.
-void SX126xCommands::set_dio_irq_params_(uint16_t irq) {
+// Only the dio1 interrupts are routed to DIO1; DIO2 and DIO3 stay unused.
+void SX126xCommands::set_dio_irq_params_(uint16_t flags, uint16_t dio1) {
   uint8_t buf[8];
-  put_be16(buf, irq);
-  put_be16(buf + 2, irq);
+  put_be16(buf, flags);
+  put_be16(buf + 2, dio1);
   put_be16(buf + 4, IRQ_RADIO_NONE);
   put_be16(buf + 6, IRQ_RADIO_NONE);
   this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
 }
 
 void SX126xCommands::receive() {
-  this->set_dio_irq_params_(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR);
+  // A valid header or sync word is flagged for SX126xRadio::is_receiving(), but not signalled on DIO1
+  const uint16_t irq = IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR;
+  this->set_dio_irq_params_(irq | IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID, irq);
 
   uint8_t buf[3];
 
@@ -273,7 +275,7 @@ void SX126xCommands::receive() {
 }
 
 void SX126xCommands::transmit(uint32_t timeout_ms) {
-  this->set_dio_irq_params_(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT);
+  this->set_dio_irq_params_(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT);
 
   uint8_t buf[3];
 

@@ -161,7 +161,7 @@ bool HdlcReliability::send_supervisory_(uint8_t type) {
 // components run between frames: on a radio, sending blocks, and the peer's frames are received in between. If the
 // lower layer refuses the frame, it is sent again shortly.
 bool HdlcReliability::send_pending_() {
-  if (this->vn_ == this->vs_)
+  if (this->vn_ == this->vs_ || (this->resend_held_ && this->vn_ != this->va_))
     return true;
   uint8_t control = (this->vn_ << 1) | (this->vr_ << 5);
   if (!this->send_frame_(control, this->slot_(this->vn_), this->tx_lengths_[this->slot_index_(this->vn_)])) {
@@ -178,6 +178,15 @@ bool HdlcReliability::send_pending_() {
 }
 
 void HdlcReliability::resend_outstanding_() {
+  this->resend_held_ = false;
+  this->vn_ = this->va_;
+  this->send_pending_();
+}
+
+// Resending the whole queue after every timeout lets two peers whose acknowledgements were lost keep sending long
+// bursts that collide again. The peer answers the oldest frame with its N(R), which also covers frames it already has.
+void HdlcReliability::resend_oldest_() {
+  this->resend_held_ = true;
   this->vn_ = this->va_;
   this->send_pending_();
 }
@@ -213,8 +222,8 @@ void HdlcReliability::on_timeout_() {
     return;
   }
   this->retries_++;
-  ESP_LOGV(TAG, "%s: Timeout, resending %u frames", this->name_, this->outstanding_());
-  this->resend_outstanding_();
+  ESP_LOGV(TAG, "%s: Timeout, resending frame %u, %u unacknowledged", this->name_, this->va_, this->outstanding_());
+  this->resend_oldest_();
   this->start_timer_();
 }
 
@@ -228,6 +237,7 @@ void HdlcReliability::start_reset_() {
   this->vr_ = 0;
   this->retries_ = 0;
   this->rej_sent_ = false;
+  this->resend_held_ = false;
   this->ack_sent_();
   this->cancel_timeout(RETRANSMIT_TIMER_ID);
   this->request_loop_();
@@ -262,6 +272,11 @@ void HdlcReliability::process_ack_(uint8_t nr) {
   this->head_ = (this->head_ + acked) % this->max_queue_length_;
   this->va_ = nr;
   this->retries_ = 0;
+  if (this->resend_held_) {
+    this->resend_held_ = false;
+    if (this->vn_ != this->vs_)
+      this->request_loop_();
+  }
   if (this->outstanding_() == 0) {
     this->cancel_timeout(RETRANSMIT_TIMER_ID);
   } else {

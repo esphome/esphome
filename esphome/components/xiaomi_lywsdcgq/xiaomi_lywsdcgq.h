@@ -1,18 +1,17 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 namespace esphome::xiaomi_lywsdcgq {
 
-class XiaomiLYWSDCGQ final : public Component, public xiaomi_ble::XiaomiDevice {
+class XiaomiLYWSDCGQ final : public xiaomi_ble::XiaomiDevice {
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
   SUB_SENSOR(battery_level)
 
  public:
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;

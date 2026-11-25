@@ -126,6 +126,8 @@ class SX127x final : public Component,
   bool cancel_transmit_async(SX127xTransmitListener *listener);
   bool is_transmitting() const { return this->state_ == RadioState::RADIO_STATE_TRANSMITTING; }
   void register_listener(SX127xListener *listener) { this->listeners_.push_back(listener); }
+  // True while a packet is being received, or has been received and not yet read; sending would lose it.
+  bool is_receiving();
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
@@ -164,7 +166,8 @@ class SX127x final : public Component,
   // True once the send has ended, with its outcome in result
   bool poll_transmit_(uint32_t now, SX127xError &result);
   SX127xError finish_transmit_(SX127xError result);
-  void write_fifo_(const uint8_t *data, size_t len);
+  void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
+  void write_register16_(uint8_t msb_reg, uint16_t value);
   void read_fifo_(std::vector<uint8_t> &packet);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
