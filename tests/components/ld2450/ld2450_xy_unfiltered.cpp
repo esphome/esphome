@@ -10,7 +10,7 @@ namespace {
 class MarkFilter : public text_sensor::Filter {
  public:
   bool new_value(std::string &value) override {
-    value += "!";
+    value += '!';
     return true;
   }
 };
