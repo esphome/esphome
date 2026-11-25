@@ -571,8 +571,8 @@ def mark_receive_only(uart_id: ID) -> None:
     _get_data().receive_only.append(uart_id)
 
 
-def _is_receive_only(uart_id: ID) -> bool:
-    """Return True if uart_id or any UART it passes the bytes of drops what is written."""
+def _receive_only_uart(uart_id: ID) -> str | None:
+    """Return the name of the receive-only UART that a write to uart_id ends in, or None."""
     data = _get_data()
     sources = {str(uart): source for uart, source in data.settings_sources}
     # By name: a generated id is named only after the schemas ran.
@@ -581,11 +581,11 @@ def _is_receive_only(uart_id: ID) -> bool:
     # A repeated name ends the walk on a loop.
     while (name := str(uart_id)) not in seen:
         if name in receive_only:
-            return True
+            return name
         seen.add(name)
         if (uart_id := sources.get(name)) is None:
-            return False
-    return False
+            return None
+    return None
 
 
 def _settings_source(uart_id: ID) -> ID | None:
@@ -674,9 +674,15 @@ def final_validate_device_schema(
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
-        if require_tx and _is_receive_only(uart_id):
+        if require_tx and (receive_only_name := _receive_only_uart(uart_id)):
+            # A chain ends in another UART than the one that is named, so name that one.
+            ends_in = (
+                "it is receive-only"
+                if receive_only_name == str(uart_id)
+                else f"its writes end in the receive-only {receive_only_name}"
+            )
             raise cv.Invalid(
-                f"Component {name} requires the uart referenced by {uart_bus} to transmit, but it is receive-only"
+                f"Component {name} requires the uart referenced by {uart_bus} to transmit, but {ends_in}"
             )
         if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[

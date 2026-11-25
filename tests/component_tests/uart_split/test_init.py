@@ -149,6 +149,10 @@ def test_device_that_transmits_on_a_writer_behind_a_receive_only_output_is_rejec
         "dfplayer requires the uart referenced by uart_id to transmit" in err
         for err in errors
     ), errors
+    # The device is on second_bus; the UART that drops its writes is tap.
+    assert any("its writes end in the receive-only tap" in err for err in errors), (
+        errors
+    )
 
 
 def test_two_writers_are_rejected(tmp_path: Path) -> None:
