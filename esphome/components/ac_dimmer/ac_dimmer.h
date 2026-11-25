@@ -8,50 +8,58 @@ namespace esphome::ac_dimmer {
 
 enum DimMethod : uint8_t { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
 
+/// Zero-cross phase lock states
+enum ZeroCrossPhase : uint8_t {
+  ZERO_CROSS_PHASE_NONE = 0,
+  ZERO_CROSS_PHASE_ONE_EDGE,
+  ZERO_CROSS_PHASE_CONFIRMING,
+  ZERO_CROSS_PHASE_LOCKED,
+};
+
 struct AcDimmerDataStore {
   /// Output pin to write to
   ISRInternalGPIOPin gate_pin;
-  /// Length of a half cycle, measured between zero-cross edges and then following them slowly
-  uint32_t cycle_time_us;
-  /// Time (in micros()) of the last zero crossing; an expected one can be a little ahead (see take_zero_cross_edge)
-  uint32_t crossed_zero_at;
-  /// The zero crossing the gate events below are counted from
-  uint32_t schedule_zero_at;
-  /// Time since last ZC pulse to enable gate pin. 0 means not set.
-  uint32_t enable_time_us;
-  /// Time since last ZC pulse to disable gate pin. 0 means no disable.
-  uint32_t disable_time_us;
-  /// Value of the dimmer - 0 to 65535.
+  /// Start of the current half cycle (micros()); while acquiring, the last edge taken
+  uint32_t zc_at;
+  /// Length of a half cycle in µs; while acquiring, the last gap between taken edges
+  uint16_t period;
+  /// Time after zc_at to switch the gate on, 0 for none
+  uint16_t enable_time_us;
+  /// Time after zc_at to switch the gate off, 0 for none
+  uint16_t disable_time_us;
+  /// Value of the dimmer, 0 to 65535
   uint16_t value;
-  /// Minimum power for activation
+  /// Minimum power in 0.1 % steps
   uint16_t min_power;
-  /// Zero-cross pin number - used to share ZC pin across multiple dimmers
+  /// Timing error of the best edge of the latest crossing with an edge, not applied yet; NO_EDGE_ERR for none
+  int16_t taken_err;
+  /// Zero-cross pin number, used to share the pin across dimmers
   uint8_t zero_cross_pin_number;
-  /// Zero-cross edges in a row that did not fit the measured timing; too many and it is measured again
-  uint8_t doubtful_edges{0};
-  /// Edges that confirmed a new measurement of the half cycle; gate events start when it is confirmed
-  uint8_t confirmed_edges{0};
-  /// The last crossing was taken from an edge that came before its expected time
-  bool crossing_early{false};
-  /// Set to send the first half ac cycle complete
+  /// ZeroCrossPhase
+  uint8_t phase : 2;
+  /// Half cycles in a row without an edge in their window
+  uint8_t misses : 4;
+  /// An edge was taken for the crossing at zc_at
+  uint8_t edge_now : 1;
+  /// An edge was taken for the crossing at zc_at + period
+  uint8_t edge_next : 1;
+  /// Set to send the first half cycle complete
   bool init_cycle;
   /// Dimmer method
   DimMethod method;
 
+  /// Timer work at `now`: starts half cycles and drives the gate; returns µs until the next event
   uint32_t timer_intr(uint32_t now);
-
-  /// Handles a zero-cross edge at `now`; returns true if it starts a new half cycle
-  bool take_zero_cross_edge(uint32_t now);
-  /// True once a measured half cycle has been confirmed by the edges after it
-  bool timing_locked() const;
-  /// Starts measuring the half cycle again, from an edge at `now`
-  void restart_timing(uint32_t now);
-  /// Zero-cross edge at `now`: tracks the timing and starts the half cycle, now or at the expected crossing
+  /// Zero-cross edge at `now`: acquires the lock or corrects the timing
   void zero_cross_edge(uint32_t now);
-  /// Sets up the gate events of the half cycle that starts at crossed_zero_at
+  /// Edge while not locked: locks once two gaps in a row agree
+  void acquire_edge(uint32_t now);
+  /// Edge while locked: an edge near the predicted crossing nudges the timing, others are ignored
+  void track_edge(uint32_t now);
+  /// Moves the timing by the waiting edge error
+  void apply_edge_err();
+  /// Sets up the gate events of the half cycle that starts at zc_at
   void start_half_cycle();
-  /// Drops pending gate events and switches a partly-on output off
-  void cancel_schedule();
 
   void gpio_intr();
   static void s_gpio_intr(AcDimmerDataStore *store);
