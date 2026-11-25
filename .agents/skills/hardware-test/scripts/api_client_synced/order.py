@@ -26,3 +26,5 @@ print(
     f"synced before disconnect request answered: {ok}, synced after: {late}, "
     f"disconnect requests answered: {discs}"
 )
+if not discs or not ok + late:
+    sys.exit(f"no hwtest-disc-* disconnect or SYNCED lines in {sys.argv[1]}")

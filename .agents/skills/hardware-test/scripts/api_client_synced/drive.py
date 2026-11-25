@@ -162,7 +162,11 @@ async def reboots(run, delays: str) -> None:
 
 
 async def main() -> None:
-    n = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 1
+    n = (
+        int(sys.argv[3])
+        if len(sys.argv) > 3 and MODE in ("disc", "discsweep", "multi")
+        else 1
+    )
     if MODE == "logs":
         await logs_client()
     elif MODE == "states":
@@ -198,6 +202,8 @@ async def main() -> None:
     elif MODE == "hareboot":
         tok = Path(sys.argv[3]).read_text(encoding="utf-8").strip()
         await reboots(functools.partial(hareboot, tok, sys.argv[4]), sys.argv[5])
+    else:
+        sys.exit(f"unknown mode {MODE}")
 
 
 asyncio.run(main())

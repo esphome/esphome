@@ -11,7 +11,10 @@ with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as f:
     for line in f:
         if not line.startswith("data: {"):
             continue
-        d = json.loads(line[6:])
+        try:
+            d = json.loads(line[6:])
+        except json.JSONDecodeError:  # curl's --max-time can cut the last event
+            continue
         if "domain" not in d or d["id"] in seen:
             continue
         seen.add(d["id"])

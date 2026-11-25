@@ -112,10 +112,13 @@ async def main() -> None:
             )
             print(f"DRIVE switch Relay(main) -> {want}: {'OK' if ok else 'NO STATE'}")
         cli.button_command(btn.key)
-        ok = await wait_for(relay2, lambda s: s.state != r2_before)
-        print(
-            f"DRIVE button Press Me -> sub device Relay toggled from {r2_before}: {'OK' if ok else 'NO STATE'}"
-        )
+        if r2_before is None:
+            print("DRIVE button Press Me: NO BASELINE (sub device Relay had no state)")
+        else:
+            ok = await wait_for(relay2, lambda s: s.state == (not r2_before))
+            print(
+                f"DRIVE button Press Me -> sub device Relay toggled from {r2_before}: {'OK' if ok else 'NO STATE'}"
+            )
         for want in (True, False):
             cli.light_command(lamp.key, state=want, brightness=0.5 if want else None)
             ok = await wait_for(
