@@ -58,6 +58,7 @@ from esphome.automation import (
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
+    build_value_range_automation,
     call_user_lambda,
     choose_action_to_code,
     has_non_synchronous_actions,
@@ -66,7 +67,6 @@ from esphome.automation import (
     maybe_simple_id,
     new_automation,
     new_lambda_pvariable,
-    new_value_range_trigger,
     owning_args,
     parent_ref,
     progmem_bytes,
@@ -3587,6 +3587,44 @@ async def test_component_automation_args_delay_triggers_automation() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize(
+    ("bounds", "expected"),
+    [
+        ({"above": 10.0}, "return ValueRange{10.0f, NAN};"),
+        ({"below": 90.0}, "return ValueRange{NAN, 90.0f};"),
+        ({"above": 10.0, "below": 90.0}, "return ValueRange{10.0f, 90.0f};"),
+        (
+            {"below": Lambda("return x * 2.0f;")},
+            "return ValueRange{NAN, [](float x) -> float {\n    return x * 2.0f;\n  }(x)};",
+        ),
+    ],
+)
+async def test_build_value_range_automation(bounds: ConfigType, expected: str) -> None:
+    """FireCallback over the base takes the parent and the bounds function, named after the trigger id.
+
+    Unset bounds are NaN and a lambda bound naming x gets its own copy; the actions run from a
+    function named after the automation id, so the two names do not clash.
+    """
+    conf = {**_component_conf(_action("my.a", "act_a")), **bounds}
+
+    var = await build_value_range_automation(
+        conf, cg.esphome_ns.class_("RangeBase"), cg.RawExpression("parent")
+    )
+
+    assert str(var) == "trig"
+    assert (
+        "new(trig) FireCallback<esphome__auto__fn, RangeBase>(parent, esphome__trig__fn);"
+        in CORE.cpp_main_section
+    )
+    text = CORE.cpp_global_section
+    # A const x is a backstop: each bound naming x already gets its own copy
+    assert "static ValueRange esphome__trig__fn(const float x)" in text
+    assert expected in text
+    assert "static void esphome__auto__fn(const std::remove_cvref_t<float> & x)" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
 async def test_trigger_callback_unchanged_params_returns_action_function() -> None:
     """Arguments passed through unchanged register the action function, with no wrapper."""
     conf = _automation_conf(_action("my.a", "act_a"))
@@ -3918,44 +3956,6 @@ async def test_apply_parent_names_the_id_from_global_scope() -> None:
     cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.Component))
 
     assert await apply_parent({"out": ID("comp", type=cg.Component)}, "out") == "::comp"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("config", "expected"),
-    [
-        ({"above": 10.0}, "return ValueRange{10.0f, NAN};"),
-        ({"below": 90.0}, "return ValueRange{NAN, 90.0f};"),
-        ({"above": 10.0, "below": 90.0}, "return ValueRange{10.0f, 90.0f};"),
-        (
-            {"below": Lambda("return x * 2.0f;")},
-            "return ValueRange{NAN, [](float x) -> float {\n    return x * 2.0f;\n  }(x)};",
-        ),
-    ],
-)
-async def test_new_value_range_trigger(
-    mock_cg: MockCodegen, config: dict, expected: str
-) -> None:
-    """Unset bounds are NaN, a lambda bound naming x gets its own copy, and the trigger comes first."""
-    trigger_id = ID("range_trigger", is_declaration=True)
-    assert await new_value_range_trigger(trigger_id, PARENT_OBJ, config) is NEW_OBJ
-    new_id, parent, function = mock_cg.new_pvariable.call_args.args
-    assert (new_id, parent, str(function)) == (
-        trigger_id,
-        PARENT_OBJ,
-        "esphome__range_trigger__fn",
-    )
-    # Declared before the bounds are rendered, so a bound lambda can use the trigger's own id
-    assert [c[0] for c in mock_cg.calls.mock_calls] == [
-        "new_pvariable",
-        "add_global",
-        "add_global_after_includes",
-    ]
-    # A const x is a backstop: each bound naming x already gets its own copy
-    assert str(mock_cg.add_global.call_args.args[0]) == (
-        "static ValueRange esphome__range_trigger__fn(const float x);"
-    )
-    assert expected in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio
