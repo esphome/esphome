@@ -251,6 +251,9 @@ void APIConnection::destroy_active_iterator_() {
       this->iterator_storage_.initial_state.~InitialStateIterator();
       break;
     case ActiveIterator::NONE:
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+    case ActiveIterator::CLIENT_SYNCED_PENDING:
+#endif
       break;
   }
   this->active_iterator_ = ActiveIterator::NONE;
@@ -415,10 +418,25 @@ void APIConnection::process_active_iterator_() {
     } else {
       this->process_iterator_batch_(this->iterator_storage_.list_entities);
     }
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  } else if (this->active_iterator_ == ActiveIterator::CLIENT_SYNCED_PENDING) {
+    // Fired after the sync and the batch drain, so subscriptions are active and queued states go first.
+    // Skipped once a disconnect or shutdown has started (next_close is set before remove).
+    if (this->deferred_batch_.empty() && !this->flags_.remove && !this->flags_.next_close &&
+        !this->parent_->is_shutting_down()) {
+      this->active_iterator_ = ActiveIterator::NONE;
+      char peername[socket::SOCKADDR_STR_LEN];
+      this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),
+                                                       StringRef(this->helper_->get_peername_to(peername)));
+    }
+#endif
   } else {  // INITIAL_STATE
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
       this->finalize_iterator_sync_();
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+      this->active_iterator_ = ActiveIterator::CLIENT_SYNCED_PENDING;
+#endif
     } else {
       this->process_iterator_batch_(this->iterator_storage_.initial_state);
     }
@@ -1936,8 +1954,8 @@ void APIConnection::complete_authentication_() {
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   {
     char peername[socket::SOCKADDR_STR_LEN];
-    this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
-                                                           std::string(this->helper_->get_peername_to(peername)));
+    this->parent_->get_client_connected_callback().call(StringRef(this->helper_->get_client_name()),
+                                                        StringRef(this->helper_->get_peername_to(peername)));
   }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
