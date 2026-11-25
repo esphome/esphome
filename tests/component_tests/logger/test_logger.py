@@ -1,8 +1,10 @@
 """Tests for the logger component."""
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 import re
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,6 +12,7 @@ from esphome.components.logger import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     _validate_libretiny_uart_pins,
+    request_tag_log_level,
     validate_task_log_buffer_alignment,
 )
 from esphome.config_validation import Invalid
@@ -355,3 +358,32 @@ def test_default_global_and_boot_log_levels(
     config = CONFIG_SCHEMA({})
     assert config["level"] == "DEBUG"
     assert config["boot_log_level"] == "WARN"
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        pytest.param({"logger": {"id": "log", "logs": {}}}, True, id="not_set_by_user"),
+        pytest.param(
+            {"logger": {"id": "log", "logs": {"lib": "DEBUG"}}}, False, id="set_by_user"
+        ),
+        pytest.param({}, False, id="no_logger"),
+    ],
+)
+def test_request_tag_log_level(config: dict, expected: bool) -> None:
+    """A requested tag level is set unless the user sets that tag, or there is no logger."""
+    CORE.config = config
+    log = MagicMock()
+    with (
+        patch("esphome.components.logger.cg.get_variable", AsyncMock(return_value=log)),
+        patch("esphome.components.logger.cg.add") as add,
+        patch("esphome.components.logger.cg.add_define") as add_define,
+    ):
+        asyncio.run(request_tag_log_level("lib", "WARN"))
+    if expected:
+        log.set_log_level.assert_called_once_with("lib", "ESPHOME_LOG_LEVEL_WARN")
+        add.assert_called_once()
+        add_define.assert_called_once_with("USE_LOGGER_RUNTIME_TAG_LEVELS")
+    else:
+        add.assert_not_called()
+        add_define.assert_not_called()

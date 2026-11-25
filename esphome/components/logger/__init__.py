@@ -878,6 +878,18 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 )
 
 
+async def request_tag_log_level(tag: str, level: str) -> None:
+    """Set the log level of `tag` unless `logger: logs:` sets it; call from to_code.
+
+    For libraries that log too much and cannot be filtered at build time, such as prebuilt ESP-IDF libraries.
+    """
+    if (config := CORE.config.get(DOMAIN)) is None or tag in config[CONF_LOGS]:
+        return
+    cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
+    log = await cg.get_variable(config[CONF_ID])
+    cg.add(log.set_log_level(tag, LOG_LEVELS[level]))
+
+
 def request_logger_level_listeners() -> None:
     """Request that logger level listeners be compiled in.
 
