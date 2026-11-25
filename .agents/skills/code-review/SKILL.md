@@ -124,7 +124,7 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | hand-rolled CRC, checksum or bit loop | `crc8`, `crc16`, `xor_bytes`, `sum16_bytes`, `encode_uint16`, ... (`esphome/core/helpers.h`) |
 | integer split into buffer bytes by hand (`buf[0] = v >> 8; buf[1] = v;`) | `put_be16`/`24`/`32`, `put_le16`, `put_le32` (`esphome/core/helpers.h`) |
 | bare `mark_failed()`, or `ESP_LOGE` then `mark_failed()` | `this->mark_failed(LOG_STR("reason"))` or `LOG_STR(ESP_LOG_MSG_COMM_FAIL)` |
-| button/switch/number/select C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect` with `apply=` |
+| button/switch/number/select/text C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect`, `ApplyText` with `apply=` |
 | action or condition class that only forwards to the parent | `register_apply_action` / `register_apply_condition` |
 | enum-to-string `switch` returning literals | `PROGMEM_STRING_TABLE` with `get_log_str` / `get_progmem_str` |
 | `if (x := config.get(CONF_X)) is not None: cg.add(var.set_x(x))` | `cg.add_optional(var.set_x, config.get(CONF_X))`, when the setter takes the value unchanged |
