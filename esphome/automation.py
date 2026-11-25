@@ -2509,8 +2509,9 @@ class GroupedAutomation:
     """An on_* key for ``build_grouped_callback_automations``.
 
     ``watched`` gets the parent as ``parent_ref`` names it and returns the value ``filter`` reads, of
-    ``last_type``; with ``args`` the automation also receives that value. ``when`` is a further filter
-    that keeps nothing and may name ``{parent}``; it is tested after ``filter``, which always runs.
+    ``last_type``; with ``args`` the automation receives ``forwarded`` of the parent, or that value.
+    ``when`` is a further filter that keeps nothing and may name ``{parent}``; it is tested after
+    ``filter``, which always runs.
     """
 
     conf_key: str
@@ -2519,6 +2520,7 @@ class GroupedAutomation:
     last_type: SafeExpType = field(default_factory=lambda: cg.bool_)
     args: TemplateArgsType = field(default_factory=list)
     when: str | ApplyCall | None = None
+    forwarded: Callable[[MockObj], Expression] | None = None
 
     def __post_init__(self) -> None:
         if self.filter is not None and self.watched is None:
@@ -2542,12 +2544,13 @@ async def build_grouped_callback_automations(
     body: list[Statement] = []
     for entry in entries:
         value = None if entry.watched is None else entry.watched(ref)
+        handed = value if entry.forwarded is None else entry.forwarded(ref)
         for index, conf in enumerate(config.get(entry.conf_key, [])):
             target = await build_trigger_callback(
                 entry.args,
                 conf,
                 [],
-                forward=[value] if entry.args else None,
+                forward=[handed] if entry.args else None,
                 when=entry.when,
                 parent=parent,
             )
