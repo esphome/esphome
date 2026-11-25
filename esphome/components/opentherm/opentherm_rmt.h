@@ -31,17 +31,18 @@ class OpenThermRMT : public OpenThermBase, public remote_base::RemoteRMTChannel 
   /// Symbols the receive capture writes into, one uint32_t word each, sized from rmt_symbols at code generation.
   void set_buffer(std::span<uint32_t> buffer) { this->buffer_ = buffer; }
 
+  bool initialize() override;
+  void listen() override;
+  void loop() override;
+
   static bool IRAM_ATTR HOT rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *edata,
                                         void *user_ctx);
   static bool IRAM_ATTR HOT tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *edata,
                                         void *user_ctx);
 
  private:
-  bool initialize_impl_() override;
-  void listen_impl_() override;
-  void send_impl_() override;
-  void stop_impl_() override;
-  void loop_impl_() override;
+  void write_frame() override;
+  void abort() override;
 
   bool init_rx_();
   bool init_tx_();

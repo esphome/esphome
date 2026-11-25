@@ -34,7 +34,7 @@ bool IRAM_ATTR HOT OpenThermRMT::tx_done_isr(rmt_channel_handle_t channel, const
   return task_woken != pdFALSE;
 }
 
-bool OpenThermRMT::initialize_impl_() { return this->init_rx_() && this->init_tx_(); }
+bool OpenThermRMT::initialize() { return OpenThermBase::initialize() && this->init_rx_() && this->init_tx_(); }
 
 bool OpenThermRMT::init_rx_() {
   rmt_rx_channel_config_t channel;
@@ -161,14 +161,14 @@ void OpenThermRMT::write_idle_() {
   }
 }
 
-void OpenThermRMT::listen_impl_() {
+void OpenThermRMT::listen() {
   if (this->rx_armed_) {
     return;  // Already waiting for the answer.
   }
   this->arm_rx_();
 }
 
-void OpenThermRMT::send_impl_() {
+void OpenThermRMT::write_frame() {
   this->build_frame_();
 
   // Nothing is waiting for an answer while we talk, so the receiver is released. It would otherwise record this
@@ -188,7 +188,7 @@ void OpenThermRMT::send_impl_() {
   }
 }
 
-void OpenThermRMT::stop_impl_() {
+void OpenThermRMT::abort() {
   this->disarm_rx_();
   // A request still on the line is abandoned, and the line is put back to its idle level.
   if (rmt_tx_wait_all_done(this->tx_, 0) == ESP_ERR_TIMEOUT) {
@@ -198,7 +198,7 @@ void OpenThermRMT::stop_impl_() {
   }
 }
 
-void OpenThermRMT::loop_impl_() {
+void OpenThermRMT::loop() {
   if (this->rx_done_) {
     this->rx_done_ = false;
     this->decode_rx_();
@@ -209,9 +209,9 @@ void OpenThermRMT::build_frame_() {
   // One symbol per bit: the left half then the right half, each half a half bit long.
   for (uint8_t bit = 0; bit < FRAME_BITS; bit++) {
     this->tx_symbols_[bit].duration0 = this->from_microseconds_(HALF_BIT_US);
-    this->tx_symbols_[bit].level0 = half_bit_level_(this->data_, bit, 0);
+    this->tx_symbols_[bit].level0 = half_bit_level(this->data_, bit, 0);
     this->tx_symbols_[bit].duration1 = this->from_microseconds_(HALF_BIT_US);
-    this->tx_symbols_[bit].level1 = half_bit_level_(this->data_, bit, 1);
+    this->tx_symbols_[bit].level1 = half_bit_level(this->data_, bit, 1);
   }
 }
 
@@ -284,7 +284,7 @@ void OpenThermRMT::decode_rx_() {
 
   uint32_t data = 0;
   uint8_t position = 0;
-  const ProtocolErrorType error = decode_edges_(this->edge_us_, this->edge_level_, &count, &data, &position);
+  const ProtocolErrorType error = decode_edges(this->edge_us_, this->edge_level_, &count, &data, &position);
 
   this->bit_pos_ = position;
   if (error == ProtocolErrorType::NO_ERROR) {

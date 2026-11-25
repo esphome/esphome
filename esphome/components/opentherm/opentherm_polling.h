@@ -23,6 +23,9 @@ class OpenThermPolling : public OpenThermBase {
   OpenThermPolling(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout = 800)
       : OpenThermBase(in_pin, out_pin, device_timeout) {}
 
+  bool initialize() override;
+  void listen() override;
+
   void report_and_reset_timer_error() override;
 
   /// Blocks while the transport stays in its current stage, or until the timeout expires. Only usable here: sampling
@@ -41,11 +44,8 @@ class OpenThermPolling : public OpenThermBase {
 #endif
 
  private:
-  bool initialize_impl_() override;
-  void listen_impl_() override;
-  void send_impl_() override;
-  void stop_impl_() override;
-  void loop_impl_() override {}
+  void write_frame() override;
+  void abort() override;
 
   void read_();  // data detected, start reading
   void bit_read_(uint8_t value);

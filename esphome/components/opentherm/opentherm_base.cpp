@@ -27,7 +27,7 @@ bool OpenThermBase::initialize() {
   this->out_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->out_pin_->setup();
   this->out_pin_->digital_write(true);
-  return this->initialize_impl_();
+  return true;
 }
 
 bool IRAM_ATTR OpenThermBase::transmitted() {
@@ -45,19 +45,19 @@ void OpenThermBase::send(OpenthermData &data) {
   this->data_ = (this->data_ << 12) | data.id;
   this->data_ = (this->data_ << 8) | data.valueHB;
   this->data_ = (this->data_ << 8) | data.valueLB;
-  if (!check_parity_(this->data_)) {
+  if (!check_parity(this->data_)) {
     this->data_ = this->data_ | 0x80000000;
   }
 
   this->clock_ = 1;     // clock starts at HIGH
   this->bit_pos_ = 33;  // count down (33 == start bit, 32-1 data, 0 == stop bit)
   this->mode_ = OperationMode::WRITE;
-  this->send_impl_();
+  this->write_frame();
 }
 
 void OpenThermBase::stop() {
   this->mode_ = OperationMode::IDLE;
-  this->stop_impl_();
+  this->abort();
 }
 
 bool OpenThermBase::get_message(OpenthermData &data) {
@@ -85,7 +85,7 @@ bool OpenThermBase::get_protocol_error(OpenThermError &error) {
   return true;
 }
 
-bool IRAM_ATTR OpenThermBase::check_parity_(uint32_t val) {
+bool IRAM_ATTR OpenThermBase::check_parity(uint32_t val) {
   val ^= val >> 16;
   val ^= val >> 8;
   val ^= val >> 4;
@@ -94,27 +94,27 @@ bool IRAM_ATTR OpenThermBase::check_parity_(uint32_t val) {
   return (~val) & 1;
 }
 
-bool IRAM_ATTR OpenThermBase::half_bit_level_(uint32_t data, uint8_t bit, uint8_t half) {
+bool IRAM_ATTR OpenThermBase::half_bit_level(uint32_t data, uint8_t bit, uint8_t half) {
   // The start and stop bits are 1; the data bits follow the start bit, most significant first.
   const bool value = (bit == 0 || bit == FRAME_BITS - 1) ? true : read_bit(data, FRAME_BITS - 2 - bit);
   return half == 0 ? !value : value;
 }
 
-ProtocolErrorType IRAM_ATTR OpenThermBase::check_frame_(uint32_t data, bool start_bit, bool stop_bit) {
+ProtocolErrorType IRAM_ATTR OpenThermBase::check_frame(uint32_t data, bool start_bit, bool stop_bit) {
   if (!start_bit) {
     return ProtocolErrorType::INVALID_START_BIT;
   }
   if (!stop_bit) {
     return ProtocolErrorType::INVALID_STOP_BIT;
   }
-  if (!check_parity_(data)) {
+  if (!check_parity(data)) {
     return ProtocolErrorType::PARITY_ERROR;
   }
   return ProtocolErrorType::NO_ERROR;
 }
 
-ProtocolErrorType OpenThermBase::decode_edges_(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
-                                               uint8_t *bit_pos) {
+ProtocolErrorType OpenThermBase::decode_edges(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
+                                              uint8_t *bit_pos) {
   // A pulse shorter than GLITCH_MAX_US is noise. Both of its edges go: the pair leaves the line where it already
   // was, so removing it keeps the level alternation intact.
   size_t filtered = 0;
@@ -167,7 +167,7 @@ ProtocolErrorType OpenThermBase::decode_edges_(uint32_t *edges_us, uint8_t *leve
     scan++;
   }
 
-  const ProtocolErrorType error = check_frame_(value, start_bit, stop_bit);
+  const ProtocolErrorType error = check_frame(value, start_bit, stop_bit);
   if (error == ProtocolErrorType::NO_ERROR) {
     *data = value;
   }

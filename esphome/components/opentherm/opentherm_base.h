@@ -218,7 +218,7 @@ class OpenThermBase {
   virtual ~OpenThermBase() = default;
 
   /// Configures the pins and brings up the transport.
-  bool initialize();
+  virtual bool initialize();
 
   /// Sends a request. The transport moves the conversation to listening when the last bit has left the line; call
   /// listen() from then on, until an answer or an error arrives.
@@ -231,13 +231,13 @@ class OpenThermBase {
 
   /// Arms the receiver for the answer. The state machine calls it from the listening state; whether that is a
   /// repeat is the transport's business, since it knows whether it is already armed.
-  void listen() { this->listen_impl_(); }
+  virtual void listen() {}
 
   /// Aborts whatever is in progress and drives the line to its idle level.
   void stop();
 
   /// Services the transport. Call it from the component loop; a timer-based transport needs nothing.
-  void loop() { this->loop_impl_(); }
+  virtual void loop() {}
 
   /**
    * @return true when a valid data packet has been received and can be retrieved with get_message()
@@ -292,13 +292,10 @@ class OpenThermBase {
   const char *message_id_to_str(MessageId id);
 
  protected:
-  virtual bool initialize_impl_() = 0;
-  virtual void listen_impl_() = 0;
-  virtual void send_impl_() = 0;
-  virtual void stop_impl_() = 0;
-  virtual void loop_impl_() = 0;
+  virtual void write_frame() = 0;
+  virtual void abort() = 0;
 
-  static bool check_parity_(uint32_t val);
+  static bool check_parity(uint32_t val);
 
   // Both edges of a pulse shorter than this are noise; the shortest real half bit is 500 us.
   static constexpr uint32_t GLITCH_MAX_US = 50;
@@ -307,14 +304,14 @@ class OpenThermBase {
 
   /// Level of one half of a bit. Bit 0 is the start bit and bit 33 the stop bit; half 0 is the left half, which
   /// carries the inverse of the value.
-  static bool half_bit_level_(uint32_t data, uint8_t bit, uint8_t half);
+  static bool half_bit_level(uint32_t data, uint8_t bit, uint8_t half);
 
   /// Reads a frame from its edges: drops noise, then takes 34 bits and validates the frame.
-  static ProtocolErrorType decode_edges_(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
-                                         uint8_t *bit_pos);
+  static ProtocolErrorType decode_edges(uint32_t *edges_us, uint8_t *levels, size_t *count, uint32_t *data,
+                                        uint8_t *bit_pos);
 
   /// What a complete frame has to satisfy: it opens and closes with a 1 and carries even parity.
-  static ProtocolErrorType check_frame_(uint32_t data, bool start_bit, bool stop_bit);
+  static ProtocolErrorType check_frame(uint32_t data, bool start_bit, bool stop_bit);
 
   InternalGPIOPin *in_pin_;
   InternalGPIOPin *out_pin_;

@@ -15,7 +15,10 @@ ESPHOME_LOG_TAG(TAG, "opentherm");
 OpenThermPolling *OpenThermPolling::instance = nullptr;
 #endif
 
-bool OpenThermPolling::initialize_impl_() {
+bool OpenThermPolling::initialize() {
+  if (!OpenThermBase::initialize()) {
+    return false;
+  }
 #ifdef ESP8266
   OpenThermPolling::instance = this;
   return true;
@@ -24,7 +27,7 @@ bool OpenThermPolling::initialize_impl_() {
 #endif
 }
 
-void OpenThermPolling::listen_impl_() {
+void OpenThermPolling::listen() {
   if (this->listening_) {
     return;  // Already sampling for the answer.
   }
@@ -33,13 +36,13 @@ void OpenThermPolling::listen_impl_() {
   this->start_read_timer_();
 }
 
-void OpenThermPolling::send_impl_() {
+void OpenThermPolling::write_frame() {
   this->listening_ = false;
   this->stop_timer_();
   this->start_write_timer_();
 }
 
-void OpenThermPolling::stop_impl_() {
+void OpenThermPolling::abort() {
   this->listening_ = false;
   this->stop_timer_();
   this->out_pin_->digital_write(true);
@@ -97,7 +100,7 @@ bool IRAM_ATTR OpenThermPolling::timer_isr(OpenThermPolling *arg) {
         // transition in the middle of the bit OR no transition between two bit, both are valid data points
         if (arg->bit_pos_ == BitPositions::STOP_BIT) {
           // expecting stop bit
-          auto stop_bit_error = arg->check_frame_(arg->data_, true, last != 0);
+          auto stop_bit_error = esphome::opentherm::OpenThermPolling::check_frame(arg->data_, true, last != 0);
           if (stop_bit_error == ProtocolErrorType::NO_ERROR) {
             arg->mode_ = OperationMode::RECEIVED;
             arg->stop_timer_();
@@ -154,7 +157,7 @@ void IRAM_ATTR OpenThermPolling::bit_read_(uint8_t value) {
 }
 
 void IRAM_ATTR OpenThermPolling::write_half_bit_(uint8_t bit, uint8_t half) {
-  this->isr_out_pin_.digital_write(half_bit_level_(this->data_, bit, half));
+  this->isr_out_pin_.digital_write(half_bit_level(this->data_, bit, half));
 }
 
 #ifdef USE_ESP32
