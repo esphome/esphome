@@ -37,7 +37,15 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_generator import (
+    BinOpExpression,
+    CallExpression,
+    Expression,
+    MockObj,
+    TemplateArgsType,
+    UnaryOpExpression,
+    VariableDeclarationExpression,
+)
 from esphome.types import ConfigType
 
 DOMAIN = "fan"
@@ -182,44 +190,53 @@ def set_preset_modes(var: MockObj, preset_modes: list[str]) -> None:
         cg.add(var.set_supported_preset_modes_static(table, len(preset_modes)))
 
 
-# key, automation args, the fan value it watches, the type and start value of the copy it keeps, and the helper
-# that compares and updates that copy. The start value is the fan's own, which the triggers saw when they were made.
+def _changed(last: MockObj, value: MockObj) -> Expression:
+    return fan_ns.update_changed(last, value)
+
+
+def _turned_on(last: MockObj, value: MockObj) -> Expression:
+    return BinOpExpression(_changed(last, value), "&&", value)
+
+
+def _turned_off(last: MockObj, value: MockObj) -> Expression:
+    return BinOpExpression(_changed(last, value), "&&", UnaryOpExpression("!", value))
+
+
+# key, automation args, watched fan value, type of the last value kept, filter that also updates it.
+# The last values start at zero, as the fan's own values do.
 _CHANGE_TRIGGERS: tuple[
-    tuple[str, TemplateArgsType, Callable[[MockObj], MockObj], str, str, str], ...
+    tuple[
+        str,
+        TemplateArgsType,
+        Callable[[MockObj], MockObj],
+        MockObj,
+        Callable[[MockObj, MockObj], Expression],
+    ],
+    ...,
 ] = (
-    (CONF_ON_TURN_ON, [], lambda fan: fan.state, "bool", "false", "update_turned_on"),
-    (CONF_ON_TURN_OFF, [], lambda fan: fan.state, "bool", "false", "update_turned_off"),
+    (CONF_ON_TURN_ON, [], lambda fan: fan.state, cg.bool_, _turned_on),
+    (CONF_ON_TURN_OFF, [], lambda fan: fan.state, cg.bool_, _turned_off),
     (
         CONF_ON_DIRECTION_SET,
         [(FanDirection, "x")],
         lambda fan: fan.direction,
-        "fan::FanDirection",
-        "fan::FanDirection::FORWARD",
-        "update_changed",
+        FanDirection,
+        _changed,
     ),
     (
         CONF_ON_OSCILLATING_SET,
         [(cg.bool_, "x")],
         lambda fan: fan.oscillating,
-        "bool",
-        "false",
-        "update_changed",
+        cg.bool_,
+        _changed,
     ),
-    (
-        CONF_ON_SPEED_SET,
-        [(cg.int_, "x")],
-        lambda fan: fan.speed,
-        "int",
-        "0",
-        "update_changed",
-    ),
+    (CONF_ON_SPEED_SET, [(cg.int_, "x")], lambda fan: fan.speed, cg.int_, _changed),
     (
         CONF_ON_PRESET_SET,
         [(cg.StringRef, "x")],
         lambda fan: fan.get_preset_mode(),
-        "const char *",
-        "nullptr",
-        "update_preset_changed",
+        cg.const_char_ptr,
+        fan_ns.update_preset_changed,
     ),
 )
 
@@ -228,18 +245,20 @@ async def _build_change_triggers(var: MockObj, config: ConfigType) -> None:
     """Register one state callback that runs the change triggers; each keeps its last value in a global."""
     fan = automation.parent_ref(var)
     callbacks: list[MockObj] = []
-    for conf_key, args, watched, last_type, start, update in _CHANGE_TRIGGERS:
+    for conf_key, args, watched, last_type, check in _CHANGE_TRIGGERS:
         value = watched(fan)
         for index, conf in enumerate(config.get(conf_key, [])):
-            last = f"{var}__{conf_key}_{index}__last"
-            cg.add_global(cg.RawStatement(f"static {last_type} {last} = {start};"))
+            last = cg.MockObj(f"esphome__{var}__{conf_key}_{index}__last")
+            cg.add_global(
+                VariableDeclarationExpression(last_type, "", last, static=True)
+            )
             callbacks.append(
                 await automation.build_trigger_callback(
                     args,
                     conf,
                     params=[],
                     forward=[value] if args else [],
-                    when=f"fan::{update}({last}, {value})",
+                    when=str(check(last, value)),
                 )
             )
     if len(callbacks) > 1:
@@ -248,7 +267,7 @@ async def _build_change_triggers(var: MockObj, config: ConfigType) -> None:
                 f"esphome__{var}__change_fn",
                 cg.void,
                 [],
-                [f"{callback}();" for callback in callbacks],
+                [cg.statement(CallExpression(callback)) for callback in callbacks],
                 share=False,
             )
         ]

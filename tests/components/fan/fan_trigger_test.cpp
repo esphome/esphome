@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "esphome/components/fan/automation.h"
@@ -77,38 +78,13 @@ class FanTriggerTest : public ::testing::Test {
 
   // Attach in the order codegen does: on_turn_on, on_turn_off, on_direction_set, on_oscillating_set,
   // on_speed_set, on_preset_set, each key's automations in config order.
-  template<void (*F)()> void on_turn_on_() {
-    this->fan_.add_on_state_callback([last = this->last_(this->bools_)]() {
-      if (update_turned_on(*last, the_fan->state))
-        F();
-    });
-  }
-  template<void (*F)()> void on_turn_off_() {
-    this->fan_.add_on_state_callback([last = this->last_(this->bools_)]() {
-      if (update_turned_off(*last, the_fan->state))
-        F();
-    });
-  }
-  template<void (*F)(FanDirection)> void on_direction_set_() {
-    this->fan_.add_on_state_callback([last = this->last_(this->directions_)]() {
-      if (update_changed(*last, the_fan->direction))
-        F(the_fan->direction);
-    });
-  }
-  template<void (*F)(bool)> void on_oscillating_set_() {
-    this->fan_.add_on_state_callback([last = this->last_(this->bools_)]() {
-      if (update_changed(*last, the_fan->oscillating))
-        F(the_fan->oscillating);
-    });
-  }
-  template<void (*F)(int)> void on_speed_set_() {
-    this->fan_.add_on_state_callback([last = this->last_(this->ints_)]() {
-      if (update_changed(*last, the_fan->speed))
-        F(the_fan->speed);
-    });
-  }
+  template<void (*F)()> void on_turn_on_() { this->on_edge_<true, F>(); }
+  template<void (*F)()> void on_turn_off_() { this->on_edge_<false, F>(); }
+  template<void (*F)(FanDirection)> void on_direction_set_() { this->on_set_<&Fan::direction, F>(); }
+  template<void (*F)(bool)> void on_oscillating_set_() { this->on_set_<&Fan::oscillating, F>(); }
+  template<void (*F)(int)> void on_speed_set_() { this->on_set_<&Fan::speed, F>(); }
   template<void (*F)(StringRef)> void on_preset_set_() {
-    this->fan_.add_on_state_callback([last = this->last_(this->presets_)]() {
+    this->fan_.add_on_state_callback([last = this->last_<const char *>()]() {
       if (update_preset_changed(*last, the_fan->get_preset_mode()))
         F(the_fan->get_preset_mode());
     });
@@ -126,15 +102,23 @@ class FanTriggerTest : public ::testing::Test {
   TriggerFan fan_;
 
  private:
-  // Codegen keeps each automation's last value in a static that starts at the fan's own start value
-  template<typename T> T *last_(std::vector<std::unique_ptr<T>> &lasts) {
-    return lasts.emplace_back(std::make_unique<T>()).get();
+  // As the generated code: each automation keeps its last value, starting at zero
+  template<bool ON, void (*F)()> void on_edge_() {
+    this->fan_.add_on_state_callback([last = this->last_<bool>()]() {
+      if (update_changed(*last, the_fan->state) && the_fan->state == ON)
+        F();
+    });
   }
+  template<auto Member, auto F> void on_set_() {
+    using T = std::remove_reference_t<decltype(the_fan->*Member)>;
+    this->fan_.add_on_state_callback([last = this->last_<T>()]() {
+      if (update_changed(*last, the_fan->*Member))
+        F(the_fan->*Member);
+    });
+  }
+  template<typename T> T *last_() { return static_cast<T *>(this->lasts_.emplace_back(std::make_shared<T>()).get()); }
 
-  std::vector<std::unique_ptr<bool>> bools_;
-  std::vector<std::unique_ptr<FanDirection>> directions_;
-  std::vector<std::unique_ptr<int>> ints_;
-  std::vector<std::unique_ptr<const char *>> presets_;
+  std::vector<std::shared_ptr<void>> lasts_;
 };
 
 using Events = std::vector<std::string>;
