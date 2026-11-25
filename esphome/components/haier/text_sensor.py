@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_FILTERS, ENTITY_CATEGORY_DIAGNOSTIC, ENTITY_CATEGORY_NONE
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ENTITY_CATEGORY_NONE
 
 from .climate import CONF_HAIER_ID, ICON_ALARM, HonClimate
 
@@ -49,7 +49,7 @@ async def to_code(config):
 
     for type_ in TEXT_SENSOR_TYPES:
         if conf := config.get(type_):
-            if type_ == CONF_ACTIVE_ALARMS_TEXT and conf.get(CONF_FILTERS):
+            if type_ == CONF_ACTIVE_ALARMS_TEXT:
                 # Cleared past its filters on a protocol reset
                 text_sensor.request_filter_reset()
             sens = await text_sensor.new_text_sensor(conf)

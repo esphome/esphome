@@ -1636,13 +1636,13 @@ void HonClimate::process_protocol_reset() {
   auto *alarm_active = this->sub_binary_sensors_[(size_t) SubBinarySensorType::ALARM_ACTIVE];
   if (alarm_active != nullptr)
     alarm_active->invalidate_state();
-#endif  // USE_BINARY_SENSOR
-#ifdef USE_TEXT_SENSOR
+#endif                               // USE_BINARY_SENSOR
+#ifdef USE_TEXT_SENSOR_FILTER_RESET  // requested when active_alarms_text is configured
   auto *active_alarms_text = this->sub_text_sensors_[(size_t) SubTextSensorType::ACTIVE_ALARMS_TEXT];
   // Past the filters, so a throttle cannot keep the old alarms shown
   if (active_alarms_text != nullptr && active_alarms_text->has_state())
     active_alarms_text->publish_state_unfiltered("");
-#endif  // USE_TEXT_SENSOR
+#endif
   this->got_valid_outdoor_temp_ = false;
   this->hvac_hardware_info_.reset();
   this->last_status_message_.reset(nullptr);
