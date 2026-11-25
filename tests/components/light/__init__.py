@@ -14,6 +14,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_LIGHT_POWER_ESTIMATION")
         # write_on_setup's flag and its write in setup()
         cg.add_define("USE_LIGHT_WRITE_ON_SETUP")
+        # The tests attach effects with add_effects()
+        cg.add_define("USE_LIGHT_EFFECTS")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["json"]

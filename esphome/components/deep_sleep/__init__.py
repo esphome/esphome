@@ -279,12 +279,12 @@ EXT1_WAKEUP_MODES = esp_sleep_ext1_wakeup_mode_t.options(
 WakeupCauseToRunDuration = deep_sleep_ns.struct("WakeupCauseToRunDuration")
 
 WakeupCause = deep_sleep_ns.enum("WakeupCause")
-WakeTrigger = deep_sleep_ns.class_(
-    "WakeTrigger", automation.Trigger.template(WakeupCause), cg.Component
-)
-Ext1WakeTrigger = deep_sleep_ns.class_(
-    "Ext1WakeTrigger", automation.Trigger.template(), cg.Component
-)
+WakeCallback = deep_sleep_ns.class_("WakeCallback", cg.Component)
+Ext1WakeCallback = deep_sleep_ns.class_("Ext1WakeCallback", cg.Component)
+
+# Between restoring globals (HARDWARE, 800) and on_boot at its default (600), so on_wake
+# can update state that on_boot then uses
+ON_WAKE_SETUP_PRIORITY = 700.0
 
 CONF_ON_WAKE = "on_wake"
 CONF_WAKEUP_PIN_MODE = "wakeup_pin_mode"
@@ -315,7 +315,7 @@ EXT1_WAKEUP_PIN_SCHEMA = cv.Schema(
             pins.internal_gpio_input_pin_schema, validate_pin_number_esp32
         ),
         cv.Optional(CONF_ON_WAKE): automation.validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Ext1WakeTrigger)}
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Ext1WakeCallback)}
         ),
     }
 )
@@ -366,7 +366,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_WAKE): cv.All(
                 cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
                 automation.validate_automation(
-                    {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(WakeTrigger)}
+                    {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(WakeCallback)}
                 ),
             ),
             cv.Optional(CONF_TOUCH_WAKEUP): cv.All(
@@ -440,9 +440,12 @@ async def to_code(config: ConfigType) -> None:
             number = pin_conf[CONF_PIN][CONF_NUMBER]
             mask |= 1 << number
             for wake_conf in pin_conf.get(CONF_ON_WAKE, []):
-                trigger = cg.new_Pvariable(wake_conf[CONF_TRIGGER_ID], number)
-                await cg.register_component(trigger, wake_conf)
-                await automation.build_automation(trigger, [], wake_conf)
+                await automation.build_component_automation(
+                    wake_conf,
+                    Ext1WakeCallback,
+                    ON_WAKE_SETUP_PRIORITY,
+                    template_args=[number],
+                )
                 cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
         struct = cg.StructInitializer(
             Ext1Wakeup, ("mask", mask), ("wakeup_mode", ext1_conf[CONF_MODE])
@@ -450,9 +453,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_ext1_wakeup(struct))
 
     for wake_conf in config.get(CONF_ON_WAKE, []):
-        trigger = cg.new_Pvariable(wake_conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, wake_conf)
-        await automation.build_automation(trigger, [(WakeupCause, "cause")], wake_conf)
+        await automation.build_component_automation(
+            wake_conf,
+            WakeCallback,
+            ON_WAKE_SETUP_PRIORITY,
+            args=[(WakeupCause, "cause")],
+        )
         cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
 
     cg.add_optional(var.set_touch_wakeup, config.get(CONF_TOUCH_WAKEUP))

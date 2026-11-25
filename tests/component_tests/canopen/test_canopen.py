@@ -18,6 +18,10 @@ def test_codegen(
     main_cpp = generate_main(component_config_path("canopen.yaml"))
     assert "canopen::CANopenComponent(can_bus)" in main_cpp
     assert "canopen_hub->set_response_timeout(200);" in main_cpp
+    assert "canopen_hub->add_on_heartbeat_callback(" in main_cpp
+    assert "canopen_hub->add_on_emcy_callback(" in main_cpp
+    defines = {define.name for define in CORE.defines}
+    assert {"USE_CANOPEN_HEARTBEAT", "USE_CANOPEN_EMCY"} <= defines
     assert "-DCO_CONFIG_SDO_CLI=0x03" in CORE.build_flags
     assert "-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7" in CORE.build_flags
     assert "-DCO_CONFIG_FIFO=0x01" in CORE.build_flags

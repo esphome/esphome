@@ -6,10 +6,11 @@
 
 namespace esphome::sensor {
 
-class ValueRangeTrigger final : public Trigger<float>, public Component {
+/// on_value_range: runs fire() when the state enters the range; the in-range state is saved.
+class ValueRangeBase : public FiringComponent<float> {
  public:
   /// range is generated: it returns the bounds for the state x.
-  ValueRangeTrigger(Sensor *parent, ValueRange (*range)(float x)) : parent_(parent), range_(range) {}
+  ValueRangeBase(Sensor *parent, ValueRange (*range)(float x)) : parent_(parent), range_(range) {}
 
   void setup() override {
     this->rtc_ = this->parent_->make_entity_preference<bool>();
@@ -29,7 +30,7 @@ class ValueRangeTrigger final : public Trigger<float>, public Component {
 
     bool in_range = this->range_(state).contains(state, this->previous_in_range_);
     if (in_range != this->previous_in_range_ && in_range) {
-      this->trigger(state);
+      this->fire(state);
     }
 
     this->previous_in_range_ = in_range;
