@@ -27,3 +27,9 @@ modbus:
 modbus_server:
   - id: answer_server
     modbus_id: answer_hub
+
+# Takes the name the generated array of served units would take.
+sensor:
+  - platform: template
+    id: answer_units
+    lambda: return 1;
