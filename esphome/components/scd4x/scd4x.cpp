@@ -246,7 +246,7 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_hpa) {
     this->update_ambient_pressure_compensation_(new_ambient_pressure);
     this->ambient_pressure_ = new_ambient_pressure;
   } else {
-    ESP_LOGD(TAG, "Ambient pressure compensation skipped; no change required");
+    ESP_LOGV(TAG, "Ambient pressure compensation skipped; no change required");
   }
 }
 
