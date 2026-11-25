@@ -28,18 +28,15 @@ bool TabularDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return tflite_output_processor::read_tensor_value(tensor, 0, &this->value_);
   }
   this->regression_ = false;
-  float best = -INFINITY;
-  for (int index = 0; index < classes; index++) {
-    float value;
-    if (!tflite_output_processor::read_tensor_value(tensor, index, &value))
-      return false;
-    if (value > best) {
-      best = value;
-      this->class_id_ = index;
-    }
-  }
-  this->confidence_ = best;
-  this->value_ = static_cast<float>(this->class_id_);
+  // The same confidence rule as the image kind: the model's own probability when its output is one,
+  // the softmax of the winner when it holds logits.
+  const tflite_output_processor::ProcessedOutput result = tflite_output_processor::process_output(
+      tensor, tflite_output_processor::OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT, 1.0f, false);
+  if (!result.valid)
+    return false;
+  this->class_id_ = static_cast<int>(result.value);
+  this->confidence_ = result.confidence;
+  this->value_ = result.value;
   return true;
 }
 
