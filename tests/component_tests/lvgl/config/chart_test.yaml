@@ -146,6 +146,11 @@ lvgl:
               id: scatter_series
               index: 0
               point: {x: 1, y: 2}
+          - lvgl.chart.series.set:
+              id: scatter_series
+              points:
+                - {x: 3, y: 4}
+                - {x: 5, y: 6}
           - lvgl.chart.series.clear: line_series_2
           - lvgl.chart.series.update:
               id: line_series_2

@@ -832,3 +832,21 @@ def test_series_action_repeated_by_a_yaml_anchor_is_reported_at_each_copy(
         [*action, 1, APPEND, "point"],
         [*action, 2, APPEND, "point"],
     ]
+
+
+def test_series_set_with_points_replaces_all_points(
+    generate_main, component_config_path
+) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    clear = "lv_chart_set_all_values(::scatter_chart, ::scatter_series, LV_CHART_POINT_NONE);"
+    after_clear = main_cpp[main_cpp.index(clear) :]
+    match = re.search(
+        r"lv_chart_set_series_values2\(::scatter_chart, ::scatter_series, "
+        r"(\w+)_chart_x_values, \1_chart_y_values, 2\);",
+        after_clear,
+    )
+    assert match
+    name = match.group(1)
+    assert f"static const int32_t {name}_chart_x_values[] = {{3, 5}};" in main_cpp
+    assert f"static const int32_t {name}_chart_y_values[] = {{4, 6}};" in main_cpp
