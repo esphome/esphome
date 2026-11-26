@@ -59,19 +59,18 @@ static bool is_known_type(uint16_t type) {
          type == RESULT_PARAMETERS || type == RESULT_HEIGHT_THRESHOLD || type == RESULT_SENSITIVITY;
 }
 
-// An unknown type or a bad header checksum gives no length, so the header is dropped at once
-size_t TinyFrameLength::get(const uint8_t *buf) {
-  const uint16_t type = encode_uint16(buf[5], buf[6]);
-  const uint16_t data_len = encode_uint16(buf[3], buf[4]);
+// An unknown type or a bad header checksum fails, so the header is dropped at once
+bool header_valid(const uint8_t *frame) {
+  const uint16_t type = encode_uint16(frame[5], frame[6]);
   // A parameter reply is read for 12 data bytes
-  if (!is_known_type(type) || (type == RESULT_PARAMETERS && data_len < 12))
-    return 0;
-  if (!validate_checksum(buf, LEN_TO_HEAD_CKSUM - 1, buf[LEN_TO_HEAD_CKSUM - 1])) {
-    ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buf[LEN_TO_HEAD_CKSUM - 1]);
-    ESP_LOGV_HEX(TAG, buf, LEN_TO_HEAD_CKSUM, MR60FDA2_MAX_LOG_BYTES, "CURRENT_FRAME: %s");
-    return 0;
+  if (!is_known_type(type) || (type == RESULT_PARAMETERS && encode_uint16(frame[3], frame[4]) < 12))
+    return false;
+  if (!validate_checksum(frame, LEN_TO_HEAD_CKSUM - 1, frame[LEN_TO_HEAD_CKSUM - 1])) {
+    ESP_LOGD(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", frame[LEN_TO_HEAD_CKSUM - 1]);
+    ESP_LOGV_HEX(TAG, frame, LEN_TO_HEAD_CKSUM, MR60FDA2_MAX_LOG_BYTES, "CURRENT_FRAME: %s");
+    return false;
   }
-  return data_len + LEN_TO_DATA_FRAME;
+  return true;
 }
 
 static bool frame_valid(const uint8_t *frame, size_t len) {

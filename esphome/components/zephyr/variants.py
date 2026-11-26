@@ -22,14 +22,7 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 from . import zephyr_data, zephyr_set_core_data
-from .const import (
-    KEY_BOOTLOADER,
-    KEY_FAMILY,
-    KEY_FRAMEWORK_TYPE,
-    KEY_VARIANT,
-    KEY_ZEPHYR,
-    VERSION_RECOMMENDED,
-)
+from .const import KEY_BOOTLOADER, KEY_VARIANT_RESOLVED, KEY_ZEPHYR, VERSION_RECOMMENDED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,11 +143,6 @@ def set_variant_core_data(
 ) -> None:
     """Fill CORE.data for a variant's config_schema; ``bootloader`` is "" for none."""
     zephyr_set_core_data({**config, KEY_BOOTLOADER: bootloader})
-    variant = resolved.variant
-    zephyr_data()[KEY_VARIANT] = variant.name
-    zephyr_data()[KEY_FAMILY] = (
-        variant.family_module.FAMILY if variant.family_module else None
-    )
-    zephyr_data()[KEY_FRAMEWORK_TYPE] = resolved.manifest.framework_type
+    zephyr_data()[KEY_VARIANT_RESOLVED] = resolved
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = resolved.version
