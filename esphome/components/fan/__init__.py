@@ -37,7 +37,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import Expression, MockObj, StaticCastExpression
+from esphome.cpp_generator import Expression, MockObj
 from esphome.types import SafeExpType
 
 DOMAIN = "fan"
@@ -182,20 +182,11 @@ def set_preset_modes(var: MockObj, preset_modes: list[str]) -> None:
         cg.add(var.set_supported_preset_modes_static(table, len(preset_modes)))
 
 
-def _copy(type_: SafeExpType, value: Callable[[MockObj], Expression]):
-    """Forward a copy, as the actions take x by reference and may change the fan."""
-    return lambda fan: StaticCastExpression(type_, value(fan))
-
-
 def _set_automation(
     conf_key: str, type_: SafeExpType, value: Callable[[MockObj], Expression]
 ) -> automation.GroupedAutomation:
     return automation.GroupedAutomation(
-        conf_key,
-        value,
-        automation.CHANGE_TRIGGER.changed,
-        args=[(type_, "x")],
-        forwarded=_copy(type_, value),
+        conf_key, value, automation.CHANGE_TRIGGER.changed, args=[(type_, "x")]
     )
 
 
@@ -212,12 +203,11 @@ _CHANGE_AUTOMATIONS = (
     _set_automation(CONF_ON_SPEED_SET, cg.int_, lambda fan: fan.speed),
     automation.GroupedAutomation(
         CONF_ON_PRESET_SET,
+        lambda fan: fan.get_preset_mode(),
         # Compared as text through a 4-byte pointer copy; the automation gets the StringRef
-        lambda fan: fan.get_preset_mode().c_str(),
-        automation.CHANGE_TRIGGER.changed,
+        lambda last, preset: automation.CHANGE_TRIGGER.changed(last, preset.c_str()),
         last_type=cg.const_char_ptr,
         args=[(cg.StringRef, "x")],
-        forwarded=_copy(cg.StringRef, lambda fan: fan.get_preset_mode()),
     ),
 )
 

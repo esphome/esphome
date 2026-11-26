@@ -39,6 +39,7 @@ from esphome.cpp_generator import (
     MockObj,
     MockObjClass,
     Statement,
+    StaticCastExpression,
     TemplateArgsType,
     VariableDeclarationExpression,
     call_lambda,
@@ -2317,31 +2318,6 @@ async def build_trigger_callback(
     return await _trigger_callback(plan, args, config, params, forward, call, parent)
 
 
-async def _when_check(
-    call: ApplyCall | None,
-    config: ConfigType,
-    params: TemplateArgsType,
-    parent: MockObj | None,
-) -> str | None:
-    """The ``when`` filter rendered for ``config``, or None when it is skipped."""
-    if call is None:
-        return None
-    members = call.members
-    values = _apply_values(config, members)
-    if not _apply_call_active(members, values):
-        return None
-    return await _render_call(
-        "trigger filter",
-        call.target,
-        members,
-        values,
-        config,
-        None if parent is None else str(parent_ref(parent)),
-        params,
-        compare=True,
-    )
-
-
 async def _trigger_callback(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
@@ -2353,8 +2329,21 @@ async def _trigger_callback(
 ) -> MockObj:
     target = _call_target(plan, args, config)
     statements: list[str] = []
-    if (check := await _when_check(call, config, params, parent)) is not None:
-        statements.append(f"if (!({check}))\n  return;")
+    if call is not None:
+        members = call.members
+        values = _apply_values(config, members)
+        if _apply_call_active(members, values):
+            check = await _render_call(
+                "trigger filter",
+                call.target,
+                members,
+                values,
+                config,
+                None if parent is None else str(parent_ref(parent)),
+                params,
+                compare=True,
+            )
+            statements.append(f"if (!({check}))\n  return;")
     if forward is None:
         if _is_direct(plan, config) and not statements and _same_types(params, args):
             return target
@@ -2512,18 +2501,14 @@ class GroupedAutomation:
     # Type of the copy; default the first arg's type, else bool
     last_type: SafeExpType | None = None
     args: TemplateArgsType = field(default_factory=list)
-    # Tested after ``filter``, keeps nothing; may name ``{parent}``
+    # Tested in the automation after ``filter``, keeps nothing; may name ``{parent}``
     when: str | ApplyCall | None = None
-    # Handed to the automation instead of the watched value
-    forwarded: Callable[[MockObj], Expression] | None = None
     # Registers the entry on another list than the builder's
     callback_method: str | None = None
 
     def __post_init__(self) -> None:
-        if self.filter is not None and self.watched is None:
-            raise ValueError(f"{self.conf_key}: a filter needs a watched value")
-        if self.args and self.watched is None and self.forwarded is None:
-            raise ValueError(f"{self.conf_key}: args need a watched or forwarded value")
+        if (self.filter is not None or self.args) and self.watched is None:
+            raise ValueError(f"{self.conf_key}: a filter or args need a watched value")
 
 
 async def build_grouped_callback_automations(
@@ -2534,7 +2519,7 @@ async def build_grouped_callback_automations(
 ) -> None:
     """Register the automations of ``entries`` as one callback per list, run in entry order.
 
-    Each filtered automation keeps its last value in a static of its own; a lone unconditional one is registered as is.
+    Each filtered automation keeps its last value in a static of its own; a lone unfiltered one is registered as is.
     """
     ref = parent_ref(parent)
     # Per list: its copies, and each automation with the condition it runs on
@@ -2544,17 +2529,19 @@ async def build_grouped_callback_automations(
             entry.callback_method or callback_method, ([], [])
         )
         value = None if entry.watched is None else entry.watched(ref)
-        handed = value if entry.forwarded is None else entry.forwarded(ref)
+        # A copy, as the automations take x by reference and their actions may change the parent
+        forward = (
+            [StaticCastExpression(entry.args[0][0], value)] if entry.args else None
+        )
         if entry.last_type is not None:
             last_type = cg.safe_exp(entry.last_type)
         else:
             last_type = cg.safe_exp(entry.args[0][0] if entry.args else cg.bool_)
-        when = _when_call(entry.when, parent)
         for index, conf in enumerate(config.get(entry.conf_key, [])):
             target = await build_trigger_callback(
-                entry.args, conf, [], forward=[handed] if entry.args else None
+                entry.args, conf, [], forward=forward, when=entry.when, parent=parent
             )
-            condition = await _when_check(when, conf, [], parent)
+            condition = None
             if entry.filter is not None:
                 # Unique against config ids and globals, so it cannot hide one the filter names
                 last_id = cg.unique_global_id(
@@ -2567,10 +2554,7 @@ async def build_grouped_callback_automations(
                         VariableDeclarationExpression(last_type, "", last, static=True)
                     )
                 )
-                test = entry.filter(last, value)
-                condition = (
-                    str(test) if condition is None else f"{test} && ({condition})"
-                )
+                condition = str(entry.filter(last, value))
             calls.append((condition, target))
     for method, (statics, calls) in groups.items():
         if not calls:

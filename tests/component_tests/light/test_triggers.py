@@ -61,15 +61,14 @@ def test_remote_values_callback_runs_the_automations_in_order(main_cpp: str) -> 
 
 
 def test_each_on_turn_off_tests_the_light_itself(main_cpp: str) -> None:
-    body = _body(main_cpp, "esphome__lamp__target_state_reached_callback")
-    turn_off = re.findall(
-        r"^  if \(!::lamp->current_values\.is_on\(\)\)\n    (\w+)\(\);$",
-        body,
-        re.MULTILINE,
-    )
-    assert turn_off == _calls(body)
-    assert "first off" in _body(main_cpp, turn_off[0])
-    assert "second off" in _body(main_cpp, turn_off[1])
+    turn_off = _calls(_body(main_cpp, "esphome__lamp__target_state_reached_callback"))
+    assert len(turn_off) == 2
+    for function, text in zip(turn_off, ("first off", "second off"), strict=True):
+        body = _body(main_cpp, function)
+        assert body.startswith(
+            "  if (!(!::lamp->current_values.is_on()))\n    return;\n"
+        )
+        assert text in _body(main_cpp, _calls(body)[0])
 
 
 def test_one_registration_per_callback_list(main_cpp: str) -> None:
