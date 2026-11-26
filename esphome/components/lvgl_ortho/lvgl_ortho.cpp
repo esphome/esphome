@@ -191,7 +191,7 @@ void LvglOrtho::setup() {
              this->panel_fbs_);
     ESP_LOGI(TAG, "...LVGL's copies between them %s",
              this->sync_on_ ? LOG_STR_LITERAL("made only where the next frame does not draw, "
-                              "by the PPA")
+                                              "by the PPA")
                             : LOG_STR_LITERAL("left to LVGL (could not be taken)"));
   } else {
     ESP_LOGI(TAG, "Rendering into a dedicated buffer, copied to the display");
@@ -207,26 +207,32 @@ void LvglOrtho::dump_config() {
   // Where every widget is drawn before it is turned: internal RAM keeps the
   // drawing off the bus the frame buffer and the scan-out share.
   ESP_LOGCONFIG(TAG, "  Drawing tile: %u KiB in %s", (unsigned) (LV_DRAW_ORTHO_TILE_BYTES / 1024),
-                lv_draw_ortho_get_stats()->tile_internal ? LOG_STR_LITERAL("internal RAM") : LOG_STR_LITERAL("PSRAM (internal RAM was full)"));
+                lv_draw_ortho_get_stats()->tile_internal ? LOG_STR_LITERAL("internal RAM")
+                                                         : LOG_STR_LITERAL("PSRAM (internal RAM was full)"));
   if (this->ppa_on_) {
     ESP_LOGCONFIG(TAG, "  Turns: the PPA, %s",
                   lv_draw_ortho_get_stats()->tiles_in_turn >= 2
                       ? LOG_STR_LITERAL("the CPU drawing one tile while it turns the other")
                       : LOG_STR_LITERAL("the CPU waiting for each (no internal RAM for a second tile)"));
   } else {
-    ESP_LOGCONFIG(TAG, "  Turns: the CPU%s", this->ppa_ ? LOG_STR_LITERAL(" (no PPA client)") : LOG_STR_LITERAL(" (ppa: false)"));
+    ESP_LOGCONFIG(TAG, "  Turns: the CPU%s",
+                  this->ppa_ ? LOG_STR_LITERAL(" (no PPA client)") : LOG_STR_LITERAL(" (ppa: false)"));
   }
   if (this->image_cache_ > 0) {
     ESP_LOGCONFIG(TAG, "  Pictures: turned once, up to %u KiB of PSRAM, then copied%s",
-                  (unsigned) (this->image_cache_ / 1024), this->ppa_on_ ? LOG_STR_LITERAL(" by the PPA") : LOG_STR_LITERAL(""));
+                  (unsigned) (this->image_cache_ / 1024),
+                  this->ppa_on_ ? LOG_STR_LITERAL(" by the PPA") : LOG_STR_LITERAL(""));
   } else {
     ESP_LOGCONFIG(TAG, "  Pictures: turned every time they are drawn (image_cache: 0)");
   }
   if (this->cores_on_) {
     ESP_LOGCONFIG(TAG, "  Drawing: two cores, every other tile on the second%s",
-                  lv_draw_ortho_get_stats()->tiles_in_turn == 4 ? LOG_STR_LITERAL(", a pair drawn while the last is turned") : LOG_STR_LITERAL(""));
+                  lv_draw_ortho_get_stats()->tiles_in_turn == 4
+                      ? LOG_STR_LITERAL(", a pair drawn while the last is turned")
+                      : LOG_STR_LITERAL(""));
   } else {
-    ESP_LOGCONFIG(TAG, "  Drawing: one core%s", this->cores_ > 1 ? LOG_STR_LITERAL(" (cores: 2 refused, see above)") : LOG_STR_LITERAL(""));
+    ESP_LOGCONFIG(TAG, "  Drawing: one core%s",
+                  this->cores_ > 1 ? LOG_STR_LITERAL(" (cores: 2 refused, see above)") : LOG_STR_LITERAL(""));
   }
 }
 
