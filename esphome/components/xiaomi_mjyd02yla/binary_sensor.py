@@ -8,16 +8,12 @@ from esphome.const import (
     CONF_ILLUMINANCE,
     CONF_LIGHT,
     CONF_MAC_ADDRESS,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_TIMELAPSE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
     UNIT_MINUTE,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -27,7 +23,6 @@ xiaomi_mjyd02yla_ns = cg.esphome_ns.namespace("xiaomi_mjyd02yla")
 XiaomiMJYD02YLA = xiaomi_mjyd02yla_ns.class_(
     "XiaomiMJYD02YLA",
     binary_sensor.BinarySensor,
-    cg.Component,
     xiaomi_ble.XiaomiEncryptedDevice,
 )
 
@@ -47,31 +42,22 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE
             ),
             cv.Optional(CONF_LIGHT): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_LIGHT
             ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)

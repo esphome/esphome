@@ -6,6 +6,7 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cstdio>
@@ -755,38 +756,10 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   this->client_connected_trigger_.trigger();
 }
 
-static const LogString *voice_assistant_state_to_string(State state) {
-  switch (state) {
-    case State::IDLE:
-      return LOG_STR("IDLE");
-    case State::START_MICROPHONE:
-      return LOG_STR("START_MICROPHONE");
-    case State::STARTING_MICROPHONE:
-      return LOG_STR("STARTING_MICROPHONE");
-    case State::WAIT_FOR_VAD:
-      return LOG_STR("WAIT_FOR_VAD");
-    case State::WAITING_FOR_VAD:
-      return LOG_STR("WAITING_FOR_VAD");
-    case State::START_PIPELINE:
-      return LOG_STR("START_PIPELINE");
-    case State::STARTING_PIPELINE:
-      return LOG_STR("STARTING_PIPELINE");
-    case State::STREAMING_MICROPHONE:
-      return LOG_STR("STREAMING_MICROPHONE");
-    case State::STOP_MICROPHONE:
-      return LOG_STR("STOP_MICROPHONE");
-    case State::STOPPING_MICROPHONE:
-      return LOG_STR("STOPPING_MICROPHONE");
-    case State::AWAITING_RESPONSE:
-      return LOG_STR("AWAITING_RESPONSE");
-    case State::STREAMING_RESPONSE:
-      return LOG_STR("STREAMING_RESPONSE");
-    case State::RESPONSE_FINISHED:
-      return LOG_STR("RESPONSE_FINISHED");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-};
+// Indexed by State
+PROGMEM_STRING_TABLE(StateStrings, "IDLE", "START_MICROPHONE", "STARTING_MICROPHONE", "WAIT_FOR_VAD", "WAITING_FOR_VAD",
+                     "START_PIPELINE", "STARTING_PIPELINE", "STREAMING_MICROPHONE", "STOP_MICROPHONE",
+                     "STOPPING_MICROPHONE", "AWAITING_RESPONSE", "STREAMING_RESPONSE", "RESPONSE_FINISHED", "UNKNOWN");
 
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
 static bool is_microphone_streaming_state(State state) {
@@ -798,8 +771,8 @@ static bool is_microphone_streaming_state(State state) {
 void VoiceAssistant::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(voice_assistant_state_to_string(old_state)),
-           LOG_STR_ARG(voice_assistant_state_to_string(state)));
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(StateStrings::get_log_str(old_state)),
+           LOG_STR_ARG(StateStrings::get_log_str(state)));
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   if (this->wake_word_audio_buffering_ && is_microphone_streaming_state(old_state) &&
       !is_microphone_streaming_state(state)) {
@@ -835,14 +808,14 @@ void VoiceAssistant::end_session_() {
 void VoiceAssistant::set_state_(State state, State desired_state) {
   this->set_state_(state);
   this->desired_state_ = desired_state;
-  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
+  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(StateStrings::get_log_str(desired_state)));
 }
 
 void VoiceAssistant::set_state_after_mic_stop_(State state) {
   if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
     // loop() moves to the desired state once the microphone has stopped
     this->desired_state_ = state;
-    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(state)));
+    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(StateStrings::get_log_str(state)));
   } else if (state != this->state_) {
     this->set_state_(state, state);
   }
@@ -999,6 +972,12 @@ void VoiceAssistant::cancel_response_() {
         .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
         .set_announcement(true)
         .perform();
+    if (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
+      // Playback never started, so no media player state change will finish the response.
+      // Finish it now instead of waiting for the playback start timeout.
+      ESP_LOGD(TAG, "Response stopped before playback started");
+      this->media_player_response_state_ = MediaPlayerResponseState::FINISHED;
+    }
   }
   if (this->started_streaming_tts_) {
     // Haven't reached the TTS_END stage, so send the stop signal to HA.

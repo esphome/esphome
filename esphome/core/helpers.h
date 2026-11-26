@@ -515,10 +515,40 @@ template<typename T, size_t N> class StaticRingBuffer {
     }
   }
 
+  /// Push up to `len` values without overwriting. Returns how many fit.
+  size_t push(const T *data, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk push copies with memcpy");
+    len = std::min<size_t>(len, this->free_space());
+    const size_t first = std::min<size_t>(len, N - this->tail_);
+    std::memcpy(this->data_ + this->tail_, data, first * sizeof(T));
+    if (len > first)
+      std::memcpy(this->data_, data + first, (len - first) * sizeof(T));
+    // Below 2 * N, so one subtraction wraps it; % N is a library call without a hardware divider
+    const size_t tail = this->tail_ + len;
+    this->tail_ = tail >= N ? tail - N : tail;
+    this->count_ += len;
+    return len;
+  }
+
+  /// Move up to `len` of the oldest values into `out`. Returns how many were copied.
+  size_t pop(T *out, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk pop copies with memcpy");
+    len = std::min<size_t>(len, this->count_);
+    const size_t first = std::min<size_t>(len, N - this->head_);
+    std::memcpy(out, this->data_ + this->head_, first * sizeof(T));
+    if (len > first)
+      std::memcpy(out + first, this->data_, (len - first) * sizeof(T));
+    const size_t head = this->head_ + len;
+    this->head_ = head >= N ? head - N : head;
+    this->count_ -= len;
+    return len;
+  }
+
   T &front() { return this->data_[this->head_]; }
   const T &front() const { return this->data_[this->head_]; }
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
+  index_type free_space() const { return N - this->count_; }
 
   /// Clear all elements (reset to empty)
   void clear() {
@@ -1155,6 +1185,16 @@ bool random_bytes(uint8_t *data, size_t len);
 /// @name Bit manipulation
 ///@{
 
+/// The high 4 bits of a byte, e.g. high_nibble(0xA5) == 0xA.
+constexpr uint8_t high_nibble(uint8_t byte) { return byte >> 4; }
+/// The low 4 bits of a byte, e.g. low_nibble(0xA5) == 0x5.
+constexpr uint8_t low_nibble(uint8_t byte) { return byte & 0x0F; }
+
+/// Encode a 12-bit value from its high 8 and low 4 bits, e.g. encode_uint12(0x12, 0x3) == 0x123.
+/// Bits above the low 4 of \p low_bits are ignored.
+constexpr uint16_t encode_uint12(uint8_t high_bits, uint8_t low_bits) {
+  return (static_cast<uint16_t>(high_bits) << 4) | low_nibble(low_bits);
+}
 /// Encode a 16-bit value given the most and least significant byte.
 constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
   return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
@@ -1257,7 +1297,7 @@ constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
 }
 
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
-constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return high_nibble(bcd) * 10 + low_nibble(bcd); }
 /// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
 constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
 
@@ -1331,8 +1371,12 @@ inline bool str_equals_case_insensitive(const std::string &a, const char *b) { r
 inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
+// Remove before 2027.6.0
+ESPDEPRECATED("Use std::string::starts_with() instead. Removed in 2027.6.0", "2026.12.0")
 bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
+// Remove before 2027.6.0
+ESPDEPRECATED("Use std::string::ends_with() instead. Removed in 2027.6.0", "2026.12.0")
 bool str_endswith(const std::string &str, const std::string &end);
 
 /// Case-insensitive check if string ends with suffix (no heap allocation).
@@ -1462,6 +1506,42 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 }
 #endif
 
+/// Copy a PROGMEM string to `dst`, stopping at its null terminator or at `end`, and return the new end of `dst`.
+/// No terminator is written. Flash only allows aligned 32-bit loads on ESP8266, so `src` is read a whole word at a
+/// time, including the bytes after its null in the last word; `src` must be readable up to the end of that word.
+inline char *ESPHOME_ALWAYS_INLINE progmem_copy_str(char *dst, const char *end, const char *src) {
+  const uint32_t offset = reinterpret_cast<uintptr_t>(src) & 3;
+  const uint32_t *word = reinterpret_cast<const uint32_t *>(src - offset);
+  uint32_t bytes = *word++;
+  // Enters the loop at the first byte of src; after that each word runs its four steps without another dispatch, and
+  // one step per byte keeps each a single extract
+  switch (offset) {
+    for (;;) {
+      bytes = *word++;
+      [[fallthrough]];
+      case 0:
+        if (dst >= end || static_cast<char>(bytes) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes);
+        [[fallthrough]];
+      case 1:
+        if (dst >= end || static_cast<char>(bytes >> 8) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 8);
+        [[fallthrough]];
+      case 2:
+        if (dst >= end || static_cast<char>(bytes >> 16) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 16);
+        [[fallthrough]];
+      default:
+        if (dst >= end || static_cast<char>(bytes >> 24) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 24);
+    }
+  }
+}
+
 #ifdef USE_ESP8266
 /// Safely append a PROGMEM string to buffer, returning new position (capped at size).
 /// ESP8266 internal implementation — prefer the `buf_append_str` macro which wraps
@@ -1472,17 +1552,7 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 /// @param str PROGMEM-resident string to append (must not be null)
 /// @return New position after appending; returns `size` if `pos >= size`, otherwise
 ///         returns at most `size - 1` because one byte is reserved for the null terminator
-inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
-  if (pos >= size) {
-    return size;
-  }
-  size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strnlen_P(str, remaining);
-  memcpy_P(buf + pos, str, len);
-  pos += len;
-  buf[pos] = '\0';
-  return pos;
-}
+size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str);
 /// Safely append a string to buffer, returning new position (capped at size).
 /// More efficient than buf_append_printf for plain string literals.
 /// On ESP8266 the literal is wrapped with PSTR() so it stays in flash.
@@ -1508,6 +1578,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
   pos += len;
   buf[pos] = '\0';
   return pos;
+}
+/// Append a string that is in PROGMEM on ESP8266; on other platforms flash is readable like RAM.
+inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, const char *str) {
+  return buf_append_str(buf, size, pos, str);
 }
 #endif
 
@@ -1834,6 +1908,14 @@ inline char *format_hex_pretty_to(char (&buffer)[N], const std::array<uint8_t, M
   return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
 }
 
+/// Format an unsigned integer in uppercase hex without separators, starting with the most significant byte.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_pretty_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_hex_pretty_to(buffer, N, reinterpret_cast<const uint8_t *>(&val), sizeof(T), 0);
+}
+
 /// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
 constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
 
@@ -2009,7 +2091,7 @@ constexpr float celsius_to(float value, TemperatureUnit unit) {
 template<typename... X> struct Callback;
 
 template<typename... Ts> struct Callback<void(Ts...)> {
-  // The inline storage path stores callable bytes in ctx_ via memcpy.
+  // The inline storage path stores callable bytes in ctx_ via memcpy and reads them back through a union.
   // sizeof equality with uintptr_t ensures void* can round-trip arbitrary bit patterns,
   // which combined with flat address spaces on all ESPHome targets means no trap representations.
   static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
@@ -2034,17 +2116,19 @@ template<typename... Ts> struct Callback<void(Ts...)> {
     using DecayF = std::decay_t<F>;
     if constexpr (fits_inline<F>()) {
       // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
-      // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
-      // creates objects of implicit-lifetime types (trivially copyable qualifies).
       Callback cb;  // fn and ctx are zero-initialized by default
       // Decay callable to a local variable first. When F is a function reference
       // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
       DecayF decayed = std::forward<F>(callable);
       __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
       cb.fn_ = [](void *c, Ts... args) {
-        alignas(DecayF) char buf[sizeof(DecayF)];
-        __builtin_memcpy(buf, &c, sizeof(DecayF));
-        (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
+        // Union read (defined by GCC and Clang) instead of a byte buffer: a local array costs a stack
+        // slot and, with -fstack-protector-strong, a canary. std::bit_cast rejects smaller captures.
+        union {
+          void *ptr;
+          DecayF fn;
+        } stored{c};
+        stored.fn(args...);
       };
       return cb;
     } else {
@@ -2218,17 +2302,17 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
-  void call(Ts... args) {
-    if (this->callbacks_) {
-      this->callbacks_->call(args...);
-    }
+  /// The null check is always inline so an empty list costs no call.
+  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+    if (this->callbacks_ != nullptr)
+      call_all(this->callbacks_, args...);
   }
 
   /// Return the number of registered callbacks.
   size_t size() const { return this->callbacks_ ? this->callbacks_->size() : 0; }
 
   /// Check if any callbacks are registered.
-  bool empty() const { return !this->callbacks_ || this->callbacks_->size() == 0; }
+  bool empty() const { return this->callbacks_ == nullptr; }
 
   /// Call all callbacks in this manager.
   void operator()(Ts... args) { this->call(args...); }
@@ -2241,7 +2325,30 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
     }
     this->callbacks_->add_(cb);
   }
+  /// Allocated only by add_(), and nothing removes callbacks, so an allocated list is never empty.
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
+
+ private:
+  template<typename T> struct FitsInRegisters : std::bool_constant<(sizeof(T) <= 2 * sizeof(void *))> {};
+  /// Small trivially copyable arguments by value: a reference makes every caller spill them to the stack.
+  /// Anything else borrows call()'s own copy so it is not copied once more, and references pass through.
+  /// D defers the check to the first call, when Ts may be complete; the class itself accepts incomplete Ts.
+  template<typename T, typename D> struct Arg {
+    using type = std::conditional_t<
+        std::conjunction_v<std::negation<std::is_reference<T>>, std::is_trivially_copyable<T>, FitsInRegisters<T>>, T,
+        T &>;
+  };
+
+  /// Left to GCC to inline: one call site inlines it, several share it out of line.
+  template<typename D = void>
+  static void call_all(CallbackManager<void(Ts...)> *cbs, typename Arg<Ts, D>::type... args) {
+    auto *it = cbs->data_;
+    auto *end = it + cbs->size_;
+    do {
+      // Each listener copies from a const source, as CallbackManager::call() does; references pass through.
+      it->call(static_cast<std::conditional_t<std::is_reference_v<Ts>, Ts, const Ts &>>(args)...);
+    } while (++it != end);
+  }
 };
 
 /// Helper class to deduplicate items in a series of values.
@@ -2398,6 +2505,11 @@ class LwIPLock {
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
+#ifdef USE_ESP32
+ private:
+  // Only the instance that took the core lock releases it; unused without CONFIG_LWIP_TCPIP_CORE_LOCKING
+  [[maybe_unused]] bool locked_{false};
+#endif
 #else
   // No lwIP core locking — inline no-ops (empty bodies instead of = default
   // to prevent clang-tidy unused-variable warnings at call sites)
@@ -2439,10 +2551,12 @@ class CpuFrequencyBoost {
  */
 class HighFrequencyLoopRequester {
  public:
+  /// Run the loop continuously while \p active is true. Repeating the current value does nothing.
+  void set(bool active);
   /// Start running the loop continuously.
-  void start();
+  void start() { this->set(true); }
   /// Stop running the loop continuously.
-  void stop();
+  void stop() { this->set(false); }
 
   /// Check whether the loop is running continuously.
   static bool is_high_frequency() { return num_requests > 0; }

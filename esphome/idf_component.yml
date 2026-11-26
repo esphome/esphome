@@ -1,6 +1,8 @@
 dependencies:
   bblanchon/arduinojson:
     version: "7.4.3"
+  esphome/canopennode:
+    version: 4.1.0-esphome.2
   esphome/dlms_parser:
     version: 2.2.2
   esphome/esp-audio-libs:
@@ -10,7 +12,7 @@ dependencies:
   esphome/micro-decoder:
     version: 0.4.0
   esphome/micro-flac:
-    version: 0.3.0
+    version: 0.3.2
   esphome/micro-mp3:
     version: 0.4.0
   esphome/micro-opus:
@@ -46,7 +48,7 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   francescopace/espectre:
-    version: "3.2.0"
+    version: "3.2.2"
     rules:
       - if: "target in [esp32, esp32s2, esp32s3, esp32c3, esp32c5, esp32c6]"
   zorxx/multipart-parser:
@@ -80,7 +82,7 @@ dependencies:
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/w5500:
-    version: "2.0.1"
+    version: "1.0.1"
     rules:
       - if: "idf_version >=6.0.0"
   espressif/dm9051:
@@ -107,7 +109,7 @@ dependencies:
     rules:
       - if: "idf_version >=6.0.0"
   espressif/usb:
-    version: "1.4.1"
+    version: "1.6.1"
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32s31, esp32p4, esp32h4]"
   # Keep in sync with esphome/components/usb_audio/__init__.py
@@ -119,7 +121,7 @@ dependencies:
     version: 3.4.91
   # sendspin is ESP-IDF only (it needs noise-c as an ESP-IDF component, see below)
   sendspin/sendspin-cpp:
-    version: 0.9.3
+    version: 0.10.0
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
   lvgl/lvgl:
@@ -129,14 +131,16 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
-  # noise (api, ota). Arduino below IDF 6.0 bundles espressif/libsodium, which
-  # clashes with esphome/libsodium, so those builds use the PlatformIO libraries.
+  # noise (api, ota)
   esphome/noise-c:
     version: 0.1.31
-    rules:
-      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
   # Declared alongside noise-c so the library converter skips wireguard's copy
   esphome/libsodium:
     version: 1.10021.12
-    rules:
-      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
+# arduino-esp32 declares espressif/libsodium, which cannot share a build with
+# esphome/libsodium
+overrides:
+  - espressif/libsodium:
+      with:
+        esphome/libsodium:
+          version: 1.10021.12

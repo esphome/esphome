@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
@@ -186,6 +187,61 @@ def get_libretiny_board(core_obj: EsphomeCore | None = None) -> str:
 def get_board_pins() -> dict[str, int]:
     """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
     return lookup_board_pins(get_libretiny_board())
+
+
+@dataclass(frozen=True)
+class HardwareUart:
+    """A hardware UART of the configured board and the pin numbers it can use."""
+
+    port: int
+    tx_pins: tuple[int, ...]
+    rx_pins: tuple[int, ...]
+    # The board lists pin choices instead of a default pin for this direction
+    tx_pin_choices: bool
+    rx_pin_choices: bool
+
+    @property
+    def pin_choices(self) -> bool:
+        """True when the pins must be passed when the UART starts."""
+        return self.tx_pin_choices or self.rx_pin_choices
+
+
+def get_hardware_uarts() -> list[HardwareUart]:
+    """Hardware UARTs of the configured board; empty for a board without pin data."""
+    board_pins = get_board_pins()
+    uarts = []
+    for port in range(3):
+        pins: dict[str, list[int]] = {"TX": [], "RX": []}
+        choices: dict[str, bool] = {"TX": False, "RX": False}
+        for role, role_pins in pins.items():
+            name = f"SERIAL{port}_{role}"
+            for key, pin in board_pins.items():
+                if key == name:
+                    role_pins.append(pin)
+                elif key.startswith(f"{name}_"):
+                    role_pins.append(pin)
+                    choices[role] = True
+        if pins["TX"] or pins["RX"]:
+            uarts.append(
+                HardwareUart(
+                    port,
+                    tuple(pins["TX"]),
+                    tuple(pins["RX"]),
+                    choices["TX"],
+                    choices["RX"],
+                )
+            )
+    return uarts
+
+
+def has_software_serial() -> bool:
+    """True when the family's Arduino core has SoftwareSerial (LT_ARD_HAS_SOFTSERIAL)."""
+    return get_libretiny_family() == FAMILY_RTL8710B
+
+
+def can_choose_uart_pins() -> bool:
+    """True when SerialClass::begin() takes the pins, which LibreTiny added in 1.12.0."""
+    return CORE.framework_version >= cv.Version(1, 12, 0)
 
 
 def only_on_family(*, supported=None, unsupported=None):
@@ -397,6 +453,7 @@ def _configure_lwip(config: dict) -> None:
     MEMP_NUM_NETCONN          0       10     38       4*****   =sum     =sum
     MEMP_NUM_NETBUF           0       2      16       2*****   8        4
     MEMP_NUM_TCPIP_MSG_INPKT  4       8      16       8*****   12       8
+    TCP_MSL (ms)              60000†  60000  250      60000    60000    250
 
     * ESP8266/ESP32/LN882H use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
       ESP8266/ESP32 also use MEMP_MEM_MALLOC=1 (MEMP pools from heap, not static).
@@ -404,6 +461,8 @@ def _configure_lwip(config: dict) -> None:
     *** BK LT overlay: MAX_SOCKETS_UDP+2+1 = 25.
     **** RTL/LN LT overlay overrides to flat 7.
     ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
+    † ESP8266's lwIP also caps TIME_WAIT at 5 PCBs; LibreTiny's stock lwIP has no
+      cap once MEMP_MEM_MALLOC=1.
     "dynamic" = auto-calculated from component socket registrations via
     socket.get_socket_counts() with minimums of 8 TCP / 6 UDP.
     """
@@ -480,6 +539,10 @@ def _configure_lwip(config: dict) -> None:
     #   both ship with MEMP_MEM_MALLOC=1.
     lwip_opts.append("MEM_LIBC_MALLOC=1")
     lwip_opts.append("MEMP_MEM_MALLOC=1")
+    # With MEMP_MEM_MALLOC=1, MEMP_NUM_TCP_PCB no longer limits PCBs, so every
+    # connection the device closes keeps its ~176 B PCB on the heap for TIME_WAIT
+    # (2 * TCP_MSL, 120 s by default). BK's lwIP port already uses 250.
+    lwip_opts.append("TCP_MSL=250")
 
     # BK72XX-specific: PBUF_POOL_SIZE override
     # BK SDK "reduced plan" sets this to only 3 — too few for multiple
@@ -580,8 +643,7 @@ async def component_to_code(config):
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
     # LibreTiny before 1.14.0 breaks under SCons 4.11 without this script; see the script
-    version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if (version.major, version.minor, version.patch) < (1, 14, 0):
+    if CORE.framework_version < cv.Version(1, 14, 0):
         cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).

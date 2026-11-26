@@ -14,6 +14,7 @@ deep_sleep:
     - pin:
         number: P10
         inverted: true
+        mode: INPUT_PULLUP
       wakeup_pin_mode: INVERT_WAKEUP
 
 <<: !include common.yaml

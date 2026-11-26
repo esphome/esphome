@@ -1,0 +1,9 @@
+substitutions:
+  name: usj-heap-s3
+packages:
+  common: !include usj-heap-common.yaml
+esp32:
+  variant: esp32s3
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf

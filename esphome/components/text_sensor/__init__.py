@@ -364,15 +364,6 @@ follow_text_sensor = FollowEntity(
 )
 
 
-def request_filter_reset() -> None:
-    """Compile ``TextSensor::detach_filters()``/``attach_filters()`` and ``Filter::reset_chain()``.
-
-    Call from the to_code of a component that uses them.
-    """
-    cg.add_define("USE_TEXT_SENSOR_FILTER")
-    cg.add_define("USE_TEXT_SENSOR_FILTER_RESET")
-
-
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(text_sensor_ns.using)

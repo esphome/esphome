@@ -1,0 +1,67 @@
+substitutions:
+  name: canopen-b
+packages:
+  c3: !include c3-can.yaml
+esphome:
+  name: ${name}
+  includes:
+    - slow_object.hpp
+  on_boot:
+    # before the canopen hub's setup() (HARDWARE - 1): the OD is built there
+    priority: 900
+    then:
+      - lambda: |-
+          using namespace esphome::canopen;
+          auto &od = id(node_b).get_od();
+          od.add_var(0x2000, OD_READ_WRITE, &id(v_u8), 1);
+          od.add_var(0x2001, OD_READ_WRITE, &id(v_u16), 2);
+          od.add_var(0x2002, OD_READ_WRITE, &id(v_u32), 4);
+          static char str_buf[48] = "hello canopen world";
+          od.add_var(0x2010, OD_READ_WRITE | ODA_STR, str_buf, sizeof(str_buf));
+          static uint8_t long_buf[64];
+          for (int i = 0; i < 64; i++) long_buf[i] = i;
+          od.add_var(0x2020, OD_READ, long_buf, sizeof(long_buf));
+          static uint32_t slow_w = 0x44444444, slow_r = 0x55555555;
+          static SlowObject sw, sr;
+          sw.slow_write = true;
+          sr.slow_read = true;
+          od.add_var(0x2003, OD_READ_WRITE, &slow_w, 4);
+          od.add_var(0x2004, OD_READ_WRITE, &slow_r, 4);
+          od.set_object(0x2003, &sw);
+          od.set_object(0x2004, &sr);
+          ESP_LOGI("nodeb", "OD objects added");
+logger:
+  logs:
+    canbus: INFO
+globals:
+  - id: v_u8
+    type: uint8_t
+    initial_value: "0x11"
+  - id: v_u16
+    type: uint16_t
+    initial_value: "0x2222"
+  - id: v_u32
+    type: uint32_t
+    initial_value: "0x33333333"
+canopen:
+  - id: node_b
+    canbus_id: can_bus
+    node_id: 0x20
+    heartbeat_interval: 1s
+    device_name: canopen test node b
+    on_nmt_state_change:
+      - logger.log:
+          format: "NMT state %s"
+          args: ["LOG_STR_ARG(esphome::canopen::nmt_state_to_string(state))"]
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          size_t n = 0; char s[49] = {};
+          auto r = id(node_b).read_od(0x2010, 0, s, 48, &n);
+          if (r != esphome::canopen::OdResult::OD_RESULT_OK)
+            snprintf(s, sizeof(s), "read_od error %d", (int) r);
+          auto st = id(can_bus).get_status();
+          ESP_LOGI("nodeb", "OD u8 0x%02x u16 0x%04x u32 0x%08x str(%u) '%s' | tec %u rec %u bus_off %d",
+                   id(v_u8), id(v_u16), (unsigned) id(v_u32), (unsigned) n, s, st.tx_error_counter,
+                   st.rx_error_counter, st.bus_off);

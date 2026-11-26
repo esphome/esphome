@@ -9,6 +9,7 @@ from esphome import config_validation as cv
 from esphome.components import packet_interface
 from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE
 from esphome.components.packet_interface.layers import (
+    COMPRESSION,
     CONF_ADDRESSING,
     CONF_FRAGMENTATION,
     CONF_RELIABILITY,
@@ -23,9 +24,14 @@ from esphome.components.packet_interface.layers.basic_session import CONF_KEEP_A
 from esphome.components.packet_interface.layers.hdlc_reliability import (
     CONF_MAX_QUEUE_LENGTH,
 )
+from esphome.components.packet_interface.layers.lzss_compression import (
+    CONF_DICTIONARY,
+    DEFAULT_DICTIONARY,
+    dictionary_check,
+)
 from esphome.components.uart import packet_interface as uart_packet_interface
 from esphome.components.udp import packet_interface as udp_packet_interface
-from esphome.const import CONF_ENCRYPTION
+from esphome.const import CONF_COMPRESSION, CONF_ENCRYPTION
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
 
@@ -62,7 +68,8 @@ def test_reliability_defaults(setup_core) -> None:
     config = uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: None})
     reliability = config[CONF_RELIABILITY]
     assert reliability["type"] == "hdlc"
-    assert reliability["timeout"].total_milliseconds == 200
+    # Left out, so that the link can choose one; otherwise the layer uses 200 ms
+    assert "timeout" not in reliability
     assert reliability[CONF_MAX_QUEUE_LENGTH] == 4
     assert reliability["max_retries"] == 5
 
@@ -92,6 +99,9 @@ def test_ack_delay_shorter_than_timeout(setup_core) -> None:
         uart_packet_interface.CONFIG_SCHEMA(
             {CONF_RELIABILITY: {"timeout": "500ms", "ack_delay": "500ms"}}
         )
+    # Without a timeout, the link's default of 200 ms applies
+    with pytest.raises(cv.Invalid, match="shorter than 'timeout', which is 200ms"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: {"ack_delay": "250ms"}})
 
 
 def test_layer_types_registered() -> None:
@@ -100,6 +110,7 @@ def test_layer_types_registered() -> None:
         CONF_ENCRYPTION: {"xxtea"},
         CONF_RELIABILITY: {"hdlc"},
         CONF_FRAGMENTATION: {"basic"},
+        CONF_COMPRESSION: {"lzss"},
         CONF_SESSION: {"basic"},
     }
 
@@ -334,6 +345,7 @@ def test_fragments_checked_in_peers(setup_core, link: dict, match: str) -> None:
         ({CONF_RELIABILITY: None, CONF_SESSION: None}, []),
         ({CONF_SESSION: {"binary_sensor": {"name": "Link"}}}, ["binary_sensor"]),
         ({CONF_ENCRYPTION: "secret"}, ["xxtea"]),
+        ({"compression": None}, ["lzss"]),
         (
             {
                 CONF_ADDRESSING: {
@@ -355,7 +367,7 @@ def test_auto_load_follows_layers(
 
 def test_auto_load_without_config() -> None:
     """Tooling that lists dependencies gets everything a layer could load."""
-    assert packet_interface.AUTO_LOAD() == ["binary_sensor", "xxtea"]
+    assert packet_interface.AUTO_LOAD() == ["binary_sensor", "lzss", "xxtea"]
 
 
 def test_xxtea_key_stretched() -> None:
@@ -412,6 +424,66 @@ def test_application_needs_peer_id_with_peers(setup_core) -> None:
         assert validator({"packet_interface": ID("a")})
     finally:
         fv.full_config.reset(token)
+
+
+def test_compression_defaults(setup_core) -> None:
+    """An empty compression key uses LZSS with the built in JSON dictionary."""
+    compression = uart_packet_interface.CONFIG_SCHEMA({CONF_COMPRESSION: None})[
+        CONF_COMPRESSION
+    ]
+    assert compression["type"] == "lzss"
+    assert compression[CONF_DICTIONARY] == DEFAULT_DICTIONARY
+    assert CONF_MAX_PACKET_SIZE not in compression
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_COMPRESSION: {CONF_DICTIONARY: "x" * 513}}
+        )
+    # The limit is on the bytes stored, not the characters
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_COMPRESSION: {CONF_DICTIONARY: "\u00e9" * 257}}
+        )
+
+
+@pytest.mark.parametrize(
+    ("compression", "lower", "size"),
+    [
+        ({}, 508, 507),
+        ({CONF_MAX_PACKET_SIZE: 2000}, 508, 2000),
+        ({}, 1, 0),
+    ],
+)
+def test_compression_packet_size(
+    compression: dict, lower: int, size: int, setup_core
+) -> None:
+    """The layer takes what the layer below takes less the header, or its own max_packet_size."""
+    config = uart_packet_interface.CONFIG_SCHEMA({CONF_COMPRESSION: compression})[
+        CONF_COMPRESSION
+    ]
+    assert COMPRESSION.get_type(config).packet_size(config, lower) == size
+
+
+def test_compression_max_needs_room_below(setup_core) -> None:
+    """A packet that does not compress is sent as it is, so it must fit the layer below after the header."""
+    compression = {CONF_COMPRESSION: {CONF_MAX_PACKET_SIZE: 64}}
+    with pytest.raises(cv.Invalid, match="at least 16 bytes"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_MAX_PACKET_SIZE: 16, **compression})
+    assert uart_packet_interface.CONFIG_SCHEMA(
+        {CONF_MAX_PACKET_SIZE: 17, **compression}
+    )
+
+
+def test_compression_above_fragmentation(setup_core) -> None:
+    """Compression sits above fragmentation and encryption, so whole packets are compressed before either."""
+    order = [kind.key for kind in STACK_ORDER]
+    assert order.index(CONF_COMPRESSION) > order.index(CONF_FRAGMENTATION)
+    assert order.index(CONF_COMPRESSION) > order.index(CONF_ENCRYPTION)
+    assert order[-1] == CONF_SESSION
+
+
+def test_dictionary_check_differs() -> None:
+    assert dictionary_check(b"") != dictionary_check(DEFAULT_DICTIONARY.encode())
+    assert 0 <= dictionary_check(b"abc") <= 0x7F
 
 
 def test_peers_with_rolling_code_need_own_keys(setup_core) -> None:
@@ -485,3 +557,18 @@ def test_session_packet_size(setup_core) -> None:
     session_type.check_lower(session, 5, None)
     with pytest.raises(cv.Invalid, match="keep-alive"):
         session_type.check_lower(session, 4, None)
+
+
+def test_shared_chains_avoid_config_ids(setup_core) -> None:
+    """The shared chains are named apart from an id the config already uses."""
+    from esphome.components import lzss
+
+    CORE.config = {
+        "packet_interface": [
+            {"id": ID("lzss_chains", is_declaration=True)},
+            {"id": ID("lzss_chains_ptr", is_declaration=True)},
+        ]
+    }
+    chains = lzss.shared_chains()
+    assert str(chains) not in ("lzss_chains", "lzss_chains_ptr")
+    assert lzss.shared_chains() is chains
