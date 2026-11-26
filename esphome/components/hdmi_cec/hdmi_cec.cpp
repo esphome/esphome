@@ -138,7 +138,7 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
   // never answered (so an instance on the unregistered address 0xF answers nothing, though it may
   // still send), and an unregistered initiator cannot be answered directly
   if (!this->monitor_mode_ && !frame->is_broadcast() && frame->destination_addr() == this->address_ &&
-      frame->initiator_addr() != Frame::BROADCAST_ADDRESS && !this->is_claimed(frame->opcode())) {
+      frame->initiator_addr() != Frame::BROADCAST_ADDRESS && !is_claimed(frame->opcode())) {
     this->reply_builtin_(frame);
   }
 }
@@ -180,6 +180,8 @@ void HDMICEC::reply_builtin_(const Frame *frame) {
       return;
     }
 #endif
+    default:
+      break;
   }
 #ifdef USE_HDMI_CEC_FEATURE_ABORT
   // Nothing here or in an automation answers it: tell the initiator, as the bus expects. <Abort> is a

@@ -60,9 +60,8 @@ payload = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(max=MAX_PAYLOAD_LENGT
 payload_prefix = cv.All(payload, cv.Length(min=1))
 
 
-def _osd_name(value: object) -> str:
+def _printable_ascii(value: str) -> str:
     # The name goes on the bus as plain ASCII, one byte per character
-    value = cv.All(cv.string_strict, cv.Length(min=1, max=MAX_OSD_NAME_LENGTH))(value)
     if not all(0x20 <= ord(char) <= 0x7E for char in value):
         raise cv.Invalid("osd_name may only contain printable ASCII characters")
     return value
@@ -102,7 +101,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PHYSICAL_ADDRESS): cv.All(
                 cv.hex_uint16_t, cv.Range(max=0xFFFE)
             ),
-            cv.Optional(CONF_OSD_NAME): _osd_name,
+            cv.Optional(CONF_OSD_NAME): cv.All(
+                cv.string_strict,
+                cv.Length(min=1, max=MAX_OSD_NAME_LENGTH),
+                _printable_ascii,
+            ),
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_PROMISCUOUS_MODE, default=False): cv.boolean,
             cv.Optional(CONF_MONITOR_MODE, default=False): cv.boolean,
