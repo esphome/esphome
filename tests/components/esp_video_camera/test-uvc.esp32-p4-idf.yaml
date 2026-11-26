@@ -3,7 +3,6 @@
 esp_video_camera:
   name: Test USB Camera
   device: uvc
-  jpeg_quality: 80
   max_framerate: 10
 
 # Frames land in PSRAM; the component refuses to validate without it.
