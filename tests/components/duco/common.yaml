@@ -32,6 +32,11 @@ text_sensor:
       - name: Node 2 Type
         address: 2
 
+switch:
+  - platform: duco
+    allow_system_configuration:
+      name: Allow System Configuration
+
 select:
   - platform: duco
     name: Mode
@@ -80,3 +85,9 @@ number:
       - name: Comfort Temperature Zone 2
         address: 0x14
         update_interval: 10s
+    co2_setpoint:
+      - name: CO2 Setpoint
+        address: 3
+    rh_setpoint:
+      - name: RH Setpoint
+        address: 2

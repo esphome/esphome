@@ -29,6 +29,8 @@ esphome:
       - component.update: comfort_temperature
       - component.update: comfort_temperature_zone_1
       - component.update: comfort_temperature_zone_2
+      - component.update: co2_setpoint
+      - component.update: rh_setpoint
 
 host:
 api:
@@ -138,6 +140,12 @@ uart_mock:
                   reply(0x32, {4, 0, 3, 1, 4, 0, 0, 4, 1, 4, 0, 0, 6, 1, 4, 0, 0, 16, 1, 4, 0});
                 else
                   reply(0x32, {});
+              } else if (function == 0x18 && d[0] == 0x00) {
+                const uint16_t value = d[2] == 0x03 ? 800 : 70;
+                reply(0x1a, {0, uint8_t(value & 0xff), uint8_t(value >> 8)});
+              } else if (function == 0x18 && d[0] == 0x01) {
+                ESP_LOGI("sim", "Setpoint write node %u item %u value %u", d[1], d[2],
+                         (unsigned(d[3]) << 8) | d[4]);
               } else if (function == 0x24 && d[0] == 0x00) {
                 int16_t value = 0;
                 if (d[2] == 0x0a && d[1] >= 0x12 && d[1] <= 0x14) {
@@ -191,6 +199,11 @@ select:
     name: Mode
     update_interval: 1s
 
+switch:
+  - platform: duco
+    allow_system_configuration:
+      name: Allow System Configuration
+
 number:
   - platform: duco
     id: comfort_temperature
@@ -205,6 +218,16 @@ number:
       - id: comfort_temperature_zone_2
         name: Comfort Temperature Zone 2
         address: 0x14
+        update_interval: never
+    co2_setpoint:
+      - id: co2_setpoint
+        name: CO2 Setpoint
+        address: 3
+        update_interval: never
+    rh_setpoint:
+      - id: rh_setpoint
+        name: RH Setpoint
+        address: 2
         update_interval: never
 
 text_sensor:

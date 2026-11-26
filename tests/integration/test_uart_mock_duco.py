@@ -15,6 +15,7 @@ from aioesphomeapi import (
     NumberInfo,
     SelectInfo,
     SensorInfo,
+    SwitchInfo,
     TextSensorInfo,
 )
 import pytest
@@ -47,6 +48,7 @@ async def test_uart_mock_duco(
     """All entities read the box; mode and comfort temperature changes are written."""
     waiter = LineWaiter()
     states: dict[int, EntityState] = {}
+    updates: list[EntityState] = []
 
     async def wait_for(condition, what: str) -> None:
         try:
@@ -73,6 +75,11 @@ async def test_uart_mock_duco(
         comfort_zone_2 = require_entity(
             entities, "comfort_temperature_zone_2", NumberInfo
         )
+        co2_setpoint = require_entity(entities, "co2_setpoint", NumberInfo)
+        rh_setpoint = require_entity(entities, "rh_setpoint", NumberInfo)
+        configuration = require_entity(
+            entities, "allow_system_configuration", SwitchInfo
+        )
         serial = require_entity(entities, "serial_number", TextSensorInfo, exact=True)
         node_serial = require_entity(entities, "serial_number_node_2", TextSensorInfo)
         invalid_serial = require_entity(
@@ -87,7 +94,11 @@ async def test_uart_mock_duco(
         uptime = require_entity(entities, "uptime", TextSensorInfo)
         node_type = require_entity(entities, "node_type", TextSensorInfo)
 
-        client.subscribe_states(lambda state: states.__setitem__(state.key, state))
+        def on_state(state: EntityState) -> None:
+            states[state.key] = state
+            updates.append(state)
+
+        client.subscribe_states(on_state)
 
         def state_of(entity):
             state = states.get(entity.key)
@@ -106,6 +117,10 @@ async def test_uart_mock_duco(
         await wait_for(
             lambda: state_of(comfort_zone_2) == pytest.approx(21.2), "zone 2 comfort"
         )
+        await wait_for(
+            lambda: state_of(co2_setpoint) == pytest.approx(800), "CO2 setpoint"
+        )
+        await wait_for(lambda: state_of(rh_setpoint) == pytest.approx(70), "RH setpoint")
         await wait_for(lambda: state_of(serial) == "SN1234", "serial number")
         await wait_for(lambda: state_of(node_serial) == "SN2234", "node serial number")
         await wait_for(lambda: state_of(version) == "1.2.3.4", "version")
@@ -130,6 +145,44 @@ async def test_uart_mock_duco(
         assert state_of(invalid_serial) is None
         assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")
+
+        count = len(updates)
+        client.number_command(co2_setpoint.key, 900)
+        await waiter.wait_count("Setpoint change rejected", 1)
+        await wait_for(
+            lambda: any(
+                state.key == co2_setpoint.key and state.state == 800
+                for state in updates[count:]
+            ),
+            "CO2 setpoint restored in GUI",
+        )
+        assert state_of(co2_setpoint) == pytest.approx(800)
+        count = len(updates)
+        client.number_command(rh_setpoint.key, 75)
+        await waiter.wait_count("Setpoint change rejected", 2)
+        await wait_for(
+            lambda: any(
+                state.key == rh_setpoint.key and state.state == 70
+                for state in updates[count:]
+            ),
+            "RH setpoint restored in GUI",
+        )
+        assert state_of(rh_setpoint) == pytest.approx(70)
+
+        client.switch_command(configuration.key, True)
+        await wait_for(
+            lambda: states.get(configuration.key) is not None
+            and states[configuration.key].state,
+            "configuration unlocked",
+        )
+        client.number_command(co2_setpoint.key, 900)
+        await waiter.wait_for("Setpoint write node 3 item 3 value 900")
+        await wait_for(
+            lambda: state_of(co2_setpoint) == pytest.approx(900), "new CO2 setpoint"
+        )
+        client.number_command(rh_setpoint.key, 75)
+        await waiter.wait_for("Setpoint write node 2 item 4 value 75")
+        await wait_for(lambda: state_of(rh_setpoint) == pytest.approx(75), "new RH setpoint")
 
         client.select_command(mode.key, "CNT2")
         await waiter.wait_for("Mode set to 09")
