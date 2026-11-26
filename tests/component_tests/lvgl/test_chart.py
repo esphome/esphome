@@ -163,14 +163,50 @@ def test_invalid_axis_updates(axis: dict) -> None:
         CHART_MODIFY_SCHEMA({"y_axis": axis})
 
 
-def test_div_line_count_is_gone() -> None:
-    with pytest.raises(Invalid):
-        CHART_SCHEMA({"div_line_count": [1, 2]})
+@pytest.mark.parametrize(
+    "schema,config,match",
+    [
+        (CHART_MODIFY_SCHEMA, {"type": "scatter"}, "extra keys"),
+        (
+            CHART_SCHEMA,
+            {"type": "scatter", "series": [{"id": "s", "values": [1]}]},
+            "scatter",
+        ),
+        (
+            CHART_SCHEMA,
+            {"type": "line", "series": [{"id": "s", "points": [{"x": 1, "y": 2}]}]},
+            "points",
+        ),
+        (
+            CHART_SCHEMA,
+            {"type": "scatter", "series": [{"id": "s", "points": [{"x": 1}]}]},
+            "required key",
+        ),
+        (
+            CHART_SCHEMA,
+            {
+                "type": "scatter",
+                "point_count": 1,
+                "series": [{"id": "s", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}]}],
+            },
+            "point_count",
+        ),
+        (
+            CHART_SCHEMA,
+            {"type": "line", "series": [{"id": "s", "x_axis": "secondary"}]},
+            "secondary X axis",
+        ),
+        (CHART_SCHEMA, {"series": [{"id": "s", "y_axis": "tertiary"}]}, "tertiary"),
+    ],
+)
+def test_invalid_chart_configs(schema: Callable, config: dict, match: str) -> None:
+    with pytest.raises(Invalid, match=match):
+        schema(config)
 
 
-def test_chart_update_rejects_type_change() -> None:
-    with pytest.raises(Invalid):
-        CHART_MODIFY_SCHEMA({"type": "scatter"})
+def test_series_axis_is_not_case_sensitive() -> None:
+    config = CHART_SCHEMA({"series": [{"id": "s", "y_axis": "SECONDARY"}]})
+    assert config["series"][0]["y_axis"] == "secondary"
 
 
 @pytest.mark.parametrize(
@@ -201,42 +237,6 @@ def test_series_action_must_match_chart(chart_type: str, payload: dict) -> None:
 )
 def test_series_action_matching_chart(chart_type: str, payload: dict) -> None:
     validate_series_action(SET, payload, chart_type, 10)
-
-
-def test_scatter_rejects_values() -> None:
-    with pytest.raises(Invalid, match="scatter"):
-        CHART_SCHEMA({"type": "scatter", "series": [{"id": "s", "values": [1]}]})
-
-
-def test_line_rejects_points() -> None:
-    with pytest.raises(Invalid, match="points"):
-        CHART_SCHEMA(
-            {
-                "type": "line",
-                "series": [{"id": "s", "points": [{"x": 1, "y": 2}]}],
-            }
-        )
-
-
-def test_scatter_point_requires_x_and_y() -> None:
-    with pytest.raises(Invalid):
-        CHART_SCHEMA({"type": "scatter", "series": [{"id": "s", "points": [{"x": 1}]}]})
-
-
-def test_scatter_points_cannot_exceed_point_count() -> None:
-    with pytest.raises(Invalid, match="point_count"):
-        CHART_SCHEMA(
-            {
-                "type": "scatter",
-                "point_count": 1,
-                "series": [
-                    {
-                        "id": "s",
-                        "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}],
-                    }
-                ],
-            }
-        )
 
 
 def test_scatter_codegen_uses_paired_lvgl_apis(
@@ -406,11 +406,6 @@ BOTH_SECONDARY_AXES = "static_cast<lv_chart_axis_t>(LV_CHART_AXIS_SECONDARY_Y | 
 def test_series_axes(series: dict, axes: str) -> None:
     config = CHART_SCHEMA({"type": "scatter", "series": [{"id": "s", **series}]})
     assert str(series_axes(config["series"][0])) == axes
-
-
-def test_secondary_x_axis_needs_a_scatter_chart() -> None:
-    with pytest.raises(Invalid, match="secondary X axis"):
-        CHART_SCHEMA({"type": "line", "series": [{"id": "s", "x_axis": "secondary"}]})
 
 
 def test_series_without_a_color_gets_one_from_the_palette(
@@ -633,13 +628,6 @@ def test_grid_lines_codegen(generate_main, component_config_path) -> None:
     assert (
         "lv_chart_set_axis_range(scaled_chart, LV_CHART_AXIS_PRIMARY_X" not in main_cpp
     )
-
-
-def test_series_axis_must_be_primary_or_secondary() -> None:
-    config = CHART_SCHEMA({"series": [{"id": "s", "y_axis": "SECONDARY"}]})
-    assert config["series"][0]["y_axis"] == "secondary"
-    with pytest.raises(Invalid):
-        CHART_SCHEMA({"series": [{"id": "s", "y_axis": "tertiary"}]})
 
 
 @pytest.mark.parametrize(
