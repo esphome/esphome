@@ -239,6 +239,7 @@ class CANopenComponent : public Component {
   LazyCallbackManager<void(NMTState)> nmt_state_callback_;
   uint32_t cob_emcy_{0x80};                // 0x1014, CANopenNode adds the node id
   uint32_t last_us_{0};                    // the node's clock (CO_process())
+  uint32_t reset_ms_{0};                   // when an NMT reset node came, see reset_pending_
   uint32_t dev_type_{0};                   // 0x1000
   const char *device_name_{nullptr};       // 0x1008
   const char *hardware_version_{nullptr};  // 0x1009, only if set
@@ -253,6 +254,8 @@ class CANopenComponent : public Component {
   uint8_t sdo_srv_highest_sub_{2};   // 0x1200
   NMTState nmt_state_{NMTState::NMT_STATE_UNKNOWN};
   bool start_operational_{true};
+  // NMT reset node: reboot once the queued frames are sent
+  bool reset_pending_{false};
 #endif  // USE_CANOPEN_NODE
 
   // --- Node monitoring (node_monitor.cpp) ---

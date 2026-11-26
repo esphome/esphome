@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdio>
 #include <thread>
 #include <vector>
 
@@ -215,6 +216,52 @@ TEST(CanopenNmtMaster, SecondCommandForUsBeforeProcessing) {
   EXPECT_TRUE(hub.send_nmt(0x10, NMTCommand::NMT_COMMAND_START));  // applied: free again
   hub.loop();
   EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+}
+
+// A reset_node to all nodes reboots us (safe_reboot() exits on the host) only once its frame is sent, or after 100 ms.
+// Each case runs in a death test's child: a reboot too early would end the test binary.
+TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
+  FakeCanbus bus;
+  TestHub hub(&bus);
+  hub.setup();
+  ASSERT_FALSE(hub.is_failed());
+  hub.loop();
+  bus.busy = true;
+  ASSERT_TRUE(hub.send_nmt(0, NMTCommand::NMT_COMMAND_RESET_NODE));  // queued
+  auto wait = [&hub]() {
+    hub.loop();
+    advance_loop_clock(50);
+    hub.loop();
+  };
+  // still waiting for the frame
+  EXPECT_EXIT(
+      {
+        wait();
+        exit(bus.count(0x000) == 0 ? 3 : 4);
+      },
+      ::testing::ExitedWithCode(3), "");
+  // rebooted right after the frame is sent
+  bus.on_send = [](uint32_t can_id) {
+    if (can_id == 0x000)
+      fprintf(stderr, "NMT frame sent\n");
+  };
+  EXPECT_EXIT(
+      {
+        wait();
+        bus.busy = false;
+        hub.loop();
+        exit(4);
+      },
+      ::testing::ExitedWithCode(0), "NMT frame sent");
+  // a frame that can't be sent doesn't hold the reset forever
+  EXPECT_EXIT(
+      {
+        wait();
+        advance_loop_clock(50);
+        hub.loop();
+        exit(4);
+      },
+      ::testing::ExitedWithCode(0), "");
 }
 
 // A hub without node id has no NMT object.
