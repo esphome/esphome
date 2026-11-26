@@ -54,6 +54,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   void deliver_reports_();
   void begin_finishing_();
   void stop_();
+  uint32_t clear_ring_();
+  void queue_report_(int64_t finish_us);
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
   /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
   void pad_with_silence_();
@@ -62,9 +64,12 @@ class USBAudioSpeaker : public speaker::Speaker,
   /// Adds stored bytes to the ring count; adding never races a take.
   void count_(uint32_t length, bool padding);
   bool settle_stale_count_();
+  /// A write is in flight, or the driver raised a transfer event within the time its transfers take.
+  bool stream_busy_() const;
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
-  bool transfers_in_flight_() const;
+  /// Less time than the transfers in flight take has passed since since_us.
+  bool within_in_flight_(const std::atomic<uint32_t> &since_us) const;
   bool has_buffered_data_() const;
   uint32_t next_transfer_bytes_(uint32_t &accum) const;
   uint32_t audio_tail_bytes_();
