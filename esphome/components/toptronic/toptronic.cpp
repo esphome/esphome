@@ -364,8 +364,6 @@ void TopTronic::setup() {
 #ifdef USE_OTA_STATE_LISTENER
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
-  ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->device_id_, this->sensors_.size(),
-           this->inputs_.size());
 }
 
 #ifdef USE_OTA_STATE_LISTENER
