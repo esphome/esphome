@@ -830,4 +830,42 @@ TEST(PanasonicClimate, SendsAndReceivesTheRegularFanSpeeds) {
   }
 }
 
+TEST(PanasonicClimate, SendsAndReceivesEveryMode) {
+  struct ModeCase {
+    climate::ClimateMode mode;
+    Mode raw;
+  };
+  static constexpr ModeCase CASES[] = {
+      {climate::CLIMATE_MODE_HEAT_COOL, Mode::AUTO}, {climate::CLIMATE_MODE_DRY, Mode::DRY},
+      {climate::CLIMATE_MODE_COOL, Mode::COOL},      {climate::CLIMATE_MODE_HEAT, Mode::HEAT},
+      {climate::CLIMATE_MODE_FAN_ONLY, Mode::FAN},
+  };
+  for (const auto &c : CASES) {
+    SCOPED_TRACE(static_cast<int>(c.mode));
+    Fixture f;
+    f.command([&c](auto &call) {
+      call.set_mode(c.mode);
+      call.set_target_temperature(20.0f);
+      call.set_fan_mode(climate::CLIMATE_FAN_AUTO);
+    });
+    const Frame sent = f.last_state();
+    ASSERT_EQ(sent.size(), STATE_LENGTH);
+    FrameParams out;
+    ASSERT_TRUE(decode_frame(sent.data(), out));
+    EXPECT_TRUE(out.power);
+    EXPECT_EQ(out.mode, c.raw);
+
+    FrameParams in;
+    in.model = Model::PKE;
+    in.power = true;
+    in.mode = c.raw;
+    in.temperature = 20;
+    uint8_t state[STATE_LENGTH];
+    encode_frame(in, state);
+    Fixture g;
+    ASSERT_TRUE(g.receive(state));
+    EXPECT_EQ(g.climate.mode, c.mode);
+  }
+}
+
 }  // namespace esphome::panasonic_ir::testing

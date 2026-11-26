@@ -151,6 +151,11 @@ TEST(IslandaireTests, ReceivesStateFrames) {
   EXPECT_FLOAT_EQ(f.sut.target_temperature, 68.0f);
   EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_LOW);
 
+  // Powered on, cool is read from the mode table (off frames carry cool too, but skip it)
+  EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_COOL, 70, FAN_HIGH))));
+  EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_FLOAT_EQ(f.sut.target_temperature, 70.0f);
+
   // The timer flag in the fan byte and the alternate low code are both read as low
   EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_FAN_ONLY, 80, 0x01 | 0x40))));
   EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_FAN_ONLY);
