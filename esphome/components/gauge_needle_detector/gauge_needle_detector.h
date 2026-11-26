@@ -19,6 +19,12 @@ namespace esphome::gauge_needle_detector {
 inline constexpr float degrees_to_radians(float degrees) { return degrees * std::numbers::pi_v<float> / 180.0f; }
 inline constexpr float radians_to_degrees(float radians) { return radians * 180.0f / std::numbers::pi_v<float>; }
 
+#if !defined(USE_GAUGE_NEEDLE_PREPROCESSOR) && \
+    (defined(USE_GAUGE_NEEDLE_RADIAL_PROFILE) || defined(USE_GAUGE_NEEDLE_HOUGH_TRANSFORM) || \
+     defined(USE_GAUGE_NEEDLE_TEMPLATE_MATCH))
+#error "The filtered gauge needle detectors need USE_GAUGE_NEEDLE_PREPROCESSOR"
+#endif
+
 /// Whether the needle is darker or brighter than the dial face.
 enum NeedleType : uint8_t {
   NEEDLE_TYPE_DARK = 0,   ///< Needle darker than the dial face.
