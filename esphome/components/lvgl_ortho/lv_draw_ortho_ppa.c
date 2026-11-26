@@ -518,6 +518,10 @@ static bool queue_rows(const lv_draw_ortho_pic_t *src, const lv_area_t *block, c
     ++g_queued;
     note(0, g_queued, from, src->w, from_h, op.in.block_offset_x, op.in.block_offset_y, p->w, p->h, dst->buf, dst->w,
          dst->h, op.out.block_offset_x, op.out.block_offset_y, rot, px * 8, 1.0f, 1.0f);
+    // Ticket zero is reserved by the renderer for synchronous work.
+    // Complete the wrapping transaction before returning or lending a buffer.
+    if (g_queued == 0)
+      wait(g_queued);
   }
   return true;
 }
@@ -853,6 +857,10 @@ static uint32_t turn(const lv_draw_ortho_pic_t *src, const lv_area_t *block, con
     ++g_queued;
     note(0, g_queued, src->buf, src->w, src->h, op.in.block_offset_x, op.in.block_offset_y, p->w, p->h, dst->buf,
          dst->w, dst->h, op.out.block_offset_x, op.out.block_offset_y, rot, px * 8, 1.0f, 1.0f);
+    // Ticket zero is reserved by the renderer for synchronous work.
+    // Complete the wrapping transaction before returning or lending a buffer.
+    if (g_queued == 0)
+      wait(g_queued);
   }
   return g_queued;
 }
@@ -1031,6 +1039,10 @@ esp_err_t lv_draw_ortho_ppa_srm(const ppa_srm_oper_config_t *in) {
     note(1, g_queued, op.in.buffer, op.in.pic_w, op.in.pic_h, op.in.block_offset_x, op.in.block_offset_y, op.in.block_w,
          op.in.block_h, op.out.buffer, op.out.pic_w, op.out.pic_h, op.out.block_offset_x, op.out.block_offset_y, rot,
          bits, op.scale_x, op.scale_y);
+    // Ticket zero is reserved by the renderer for synchronous work.
+    // Complete the wrapping transaction before returning or lending a buffer.
+    if (g_queued == 0)
+      wait(g_queued);
   }
   return wait(g_queued) ? ESP_OK : ESP_ERR_TIMEOUT;
 }
