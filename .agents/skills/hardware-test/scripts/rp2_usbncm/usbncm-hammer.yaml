@@ -1,0 +1,13 @@
+# Patched recorder build that detaches and attaches USB every 12 s, so the host enumerates it again and again and
+# alt 0 events pile up fast. The host needs about 17 s to self-assign a link-local address, so ping fails at this rate.
+esphome:
+  includes:
+    - hammer.hpp
+packages:
+  patched: !include usbncm-patched.yaml
+interval:
+  - interval: 12s
+    then:
+      - lambda: |-
+          ESP_LOGW("hammer", "HAMMER re-enumerate at %u ms", (unsigned) millis());
+          hammer_reenumerate();

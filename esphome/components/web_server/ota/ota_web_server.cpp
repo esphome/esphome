@@ -212,11 +212,12 @@ void WebServerOTAComponent::handleRequest(AsyncWebServerRequest *request) {
   static const char UPDATE_SUCCESS[] PROGMEM = "Update Successful!";
   static const char UPDATE_FAILED[] PROGMEM = "Update Failed!";
   static const char UPDATE_BUSY[] PROGMEM = "Update Failed! Another update is in progress, retry later.";
-  static const char TEXT_PLAIN[] PROGMEM = "text/plain";
   static const char CONNECTION_STR[] PROGMEM = "Connection";
   static const char CLOSE_STR[] PROGMEM = "close";
   const char *msg = refused ? UPDATE_BUSY : (this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED);
-  response = request->beginResponse_P(200, TEXT_PLAIN, msg);
+  // A flash content type must take the String overload; the const char * one reads it with strlen()
+  response =
+      request->beginResponse(200, ESPHOME_F("text/plain"), reinterpret_cast<const uint8_t *>(msg), strlen_P(msg));
   response->addHeader(CONNECTION_STR, CLOSE_STR);
 #else
   const char *msg = refused              ? "Update Failed! Another update is in progress, retry later."

@@ -142,8 +142,8 @@ async def test_uart_mock_ld2450(
         )
 
         # Verify the truncated frame was dropped with a warning
-        assert any("Invalid header/footer" in line for line in waiter.lines), (
-            "Expected 'Invalid header/footer' warning in logs"
+        assert any("Invalid footer" in line for line in waiter.lines), (
+            "Expected 'Invalid footer' warning in logs"
         )
 
         # Verify LD2450 sent setup commands (TX logging)
