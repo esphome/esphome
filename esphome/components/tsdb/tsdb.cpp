@@ -992,8 +992,9 @@ bool TsdbComponent::consume_sync_result_() {
   if (result == SyncState::SYNC_STATE_IDLE || result == SyncState::SYNC_STATE_RUNNING)
     return false;
   this->sync_state_.store(static_cast<uint8_t>(SyncState::SYNC_STATE_IDLE), std::memory_order_relaxed);
-  if (result != SyncState::SYNC_STATE_OK)
+  if (result != SyncState::SYNC_STATE_OK) {
     ESP_LOGE(TAG, "%s: sync failed", this->file_.c_str());
+  }
   this->finish_sync_(result);
   return true;
 }

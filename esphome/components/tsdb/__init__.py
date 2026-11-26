@@ -82,7 +82,6 @@ LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 FILE_NAME_MAX_BYTES = 64
 MOUNT_POINT_MAX_BYTES = 32
 
-CONF_SENSOR_DOMAIN = "sensor"
 CONF_MOUNT_POINT = "mount_point"
 CONF_PARTITION = "partition"
 CONF_PARTITION_SIZE = "partition_size"
@@ -409,7 +408,7 @@ def _uses_aggregates() -> bool:
     """Whether a tsdb sensor platform asks for an average, minimum or maximum."""
     return any(
         key in column
-        for entry in CORE.config.get(CONF_SENSOR_DOMAIN, [])
+        for entry in CORE.config.get(CONF_SENSOR, [])
         if entry.get(CONF_PLATFORM) == DOMAIN
         for column in entry.get(CONF_COLUMNS, [])
         for key in ("average", "min", "max")
