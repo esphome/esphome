@@ -70,6 +70,31 @@ TEST_F(NodeMonitorTest, EventsFromHeartbeats) {
   EXPECT_EQ(this->hub_.get_node_state(0x22), NMTState::NMT_STATE_UNKNOWN);
 }
 
+// Frames before the hub's first loop(): a heartbeat and a boot-up aren't lost to the first processing (which takes the
+// node to operational).
+TEST_F(NodeMonitorTest, HeartbeatBeforeTheFirstLoop) {
+  this->hub_.monitor_node(0x21, 1000);
+  this->hub_.add_on_node_event_callback(
+      [this](uint8_t node_id, NodeEvent event, NMTState state) { this->events_.push_back({node_id, event, state}); });
+  this->hub_.setup();
+  ASSERT_FALSE(this->hub_.is_failed());
+  this->hub_.frame(0x721, {0x05});
+  ASSERT_FALSE(this->events_.empty());
+  EXPECT_EQ(this->events_.front(), (Event{0x21, NodeEvent::NODE_EVENT_ONLINE, NMTState::NMT_STATE_OPERATIONAL}));
+  EXPECT_TRUE(this->hub_.is_node_online(0x21));
+}
+
+TEST_F(NodeMonitorTest, BootupBeforeTheFirstLoop) {
+  this->hub_.monitor_node(0x21, 1000);
+  this->hub_.add_on_node_event_callback(
+      [this](uint8_t node_id, NodeEvent event, NMTState state) { this->events_.push_back({node_id, event, state}); });
+  this->hub_.setup();
+  ASSERT_FALSE(this->hub_.is_failed());
+  this->hub_.frame(0x721, {0x00});
+  ASSERT_FALSE(this->events_.empty());
+  EXPECT_EQ(this->events_.front().event, NodeEvent::NODE_EVENT_RESET);
+}
+
 // The node is processed on the real clock (micros()), so the test waits out a short timeout.
 TEST_F(NodeMonitorTest, TimeoutReportsOffline) {
   this->start_(30);
@@ -89,7 +114,8 @@ TEST_F(NodeMonitorTest, TimeoutReportsOffline) {
   EXPECT_EQ(this->events_.front().event, NodeEvent::NODE_EVENT_ONLINE);
 }
 
-// 0x1016 holds each node once, with the shortest timeout it was registered with; nodes added after setup are ignored.
+// 0x1016 holds each node once, with the shortest timeout it was registered with; invalid entries and nodes added after
+// setup are ignored. Read only: CANopenNode's consumer isn't built to take writes.
 TEST(CanopenNodeMonitor, ConsumerEntries) {
   FakeCanbus bus;
   TestHub hub(&bus);
@@ -97,6 +123,10 @@ TEST(CanopenNodeMonitor, ConsumerEntries) {
   hub.monitor_node(0x22, 500);
   hub.monitor_node(0x21, 1500);
   hub.monitor_node(0x21, 2000);
+  hub.monitor_node(0, 1000);     // no such node
+  hub.monitor_node(128, 1000);   // no such node
+  hub.monitor_node(0x10, 1000);  // our own id
+  hub.monitor_node(0x24, 0);     // no timeout
   hub.setup();
   ASSERT_FALSE(hub.is_failed());
   hub.monitor_node(0x23, 1000);  // after setup: logged, ignored
@@ -110,6 +140,9 @@ TEST(CanopenNodeMonitor, ConsumerEntries) {
   EXPECT_EQ(value, (0x21u << 16) | 1500);
   ASSERT_EQ(OD_get_u32(entry, 2, &value, true), ODR_OK);
   EXPECT_EQ(value, (0x22u << 16) | 500);
+  OD_IO_t io{};
+  ASSERT_EQ(OD_getSub(entry, 1, &io, false), ODR_OK);
+  EXPECT_EQ(io.stream.attribute & ODA_SDO_W, 0);
 }
 #endif  // USE_CANOPEN_NODE_MONITOR
 
@@ -145,6 +178,43 @@ TEST(CanopenNmtMaster, Commands) {
   const size_t sent = bus.sent.size();
   EXPECT_FALSE(hub.send_nmt(128, NMTCommand::NMT_COMMAND_START));
   EXPECT_EQ(bus.sent.size(), sent);
+}
+
+// A command while the previous one waits in the TX buffer is refused and doesn't replace it.
+TEST(CanopenNmtMaster, CommandWhileTheFrameWaits) {
+  FakeCanbus bus;
+  TestHub hub(&bus);
+  hub.setup();
+  ASSERT_FALSE(hub.is_failed());
+  hub.loop();
+  bus.sent.clear();
+  bus.busy = true;
+  ASSERT_TRUE(hub.send_nmt(0x21, NMTCommand::NMT_COMMAND_START));  // queued
+  EXPECT_FALSE(hub.send_nmt(0, NMTCommand::NMT_COMMAND_RESET_NODE));
+  bus.busy = false;
+  hub.loop();
+  ASSERT_EQ(bus.count(0x000), 1u);
+  EXPECT_EQ(bus.find(0x000)->data, (std::vector<uint8_t>{0x01, 0x21}));
+  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+}
+
+// CANopenNode keeps one command for us until the next processing: a second one for us (or all nodes) is refused.
+TEST(CanopenNmtMaster, SecondCommandForUsBeforeProcessing) {
+  FakeCanbus bus;
+  TestHub hub(&bus);
+  hub.setup();
+  ASSERT_FALSE(hub.is_failed());
+  hub.loop();
+  bus.sent.clear();
+  ASSERT_TRUE(hub.send_nmt(0, NMTCommand::NMT_COMMAND_STOP));
+  EXPECT_FALSE(hub.send_nmt(0x10, NMTCommand::NMT_COMMAND_START));
+  EXPECT_TRUE(hub.send_nmt(0x21, NMTCommand::NMT_COMMAND_START));  // another node: no command for us
+  EXPECT_EQ(bus.count(0x000), 2u);
+  hub.loop();
+  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  EXPECT_TRUE(hub.send_nmt(0x10, NMTCommand::NMT_COMMAND_START));  // applied: free again
+  hub.loop();
+  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
 }
 
 // A hub without node id has no NMT object.

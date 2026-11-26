@@ -180,7 +180,7 @@ void CANopenComponent::loop() {
     this->disable_loop();
     return;
   }
-  // frames from other local nodes first, as the canbus loop delivered the bus's before this one
+  // frames other local nodes sent since the canbus loop delivered the bus's (on_frame_() delivers the older ones first)
   this->deliver_local_();
 #ifdef USE_CANOPEN_SDO_CLIENT
   // SDO client first: an unsent frame ends at its deadline, before the flush could send it. Time runs only here,

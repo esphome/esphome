@@ -112,7 +112,8 @@ class CANopenComponent : public Component {
   }
 #ifdef USE_CANOPEN_NODE_MONITOR
   // Heartbeat monitoring of another node (CANopenNode heartbeat consumer, OD 0x1016; canopen.enable_node_monitor() in
-  // codegen). Before setup() only (called from codegen). Registering a node again keeps the shortest timeout.
+  // codegen). Before setup() only (called from codegen). Registering a node again keeps the shortest timeout. Node id
+  // 0, above 127, our own, or a timeout of 0 is logged and ignored.
   void monitor_node(uint8_t node_id, uint16_t timeout_ms);
   // state of a monitored node from its last heartbeat; UNKNOWN / false for nodes that aren't monitored
   NMTState get_node_state(uint8_t node_id);
@@ -183,7 +184,9 @@ class CANopenComponent : public Component {
 
 #ifdef USE_CANOPEN_NMT_MASTER
   // --- NMT master (nmt_master.cpp) ---
-  // NMT command to node_id (0 = all nodes; for our own id or 0 it also applies to us)
+  // NMT command to node_id (0 = all nodes; for our own id or 0 it also applies to us, in the next processing). False
+  // (logged) without node id, for an id above 127, or while the previous command still waits to be sent, or, for us or
+  // all nodes, to be applied to us.
   bool send_nmt(uint8_t node_id, NMTCommand command);
 #endif
 

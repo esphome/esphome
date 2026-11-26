@@ -22,6 +22,12 @@ void CANopenComponent::monitor_node(uint8_t node_id, uint16_t timeout_ms) {
     ESP_LOGE(TAG, "monitor_node(0x%02x) after setup, ignored", node_id);
     return;
   }
+  // a timeout of 0 or node id 0 would leave the 0x1016 entry unused
+  if (node_id == 0 || node_id > 127 || node_id == this->node_id_ || timeout_ms == 0) {
+    ESP_LOGE(TAG, "monitor_node(0x%02x, %u ms): needs another node's id (1-127) and a timeout, ignored", node_id,
+             (unsigned) timeout_ms);
+    return;
+  }
   // CANopenNode rejects a node id that is in 0x1016 twice
   for (uint32_t &c : this->hb_cons_) {
     if ((c >> 16) == node_id) {
@@ -54,7 +60,8 @@ void CANopenComponent::add_node_monitor_od_() {
   uint8_t n_cons = this->hb_cons_.size();
   if (n_cons) {
     this->hb_cons_count_ = n_cons;
-    this->od_.add_array(0x1016, ODA_SDO_RW, &this->hb_cons_count_, this->hb_cons_.data(), sizeof(uint32_t), n_cons);
+    // read only: without CO_CONFIG_FLAG_OD_DYNAMIC a write wouldn't reach the consumer
+    this->od_.add_array(0x1016, ODA_SDO_R, &this->hb_cons_count_, this->hb_cons_.data(), sizeof(uint32_t), n_cons);
   }
 }
 
@@ -66,8 +73,14 @@ void CANopenComponent::config_node_monitor_(CO_config_t &cfg) {
 }
 
 void CANopenComponent::init_node_monitor_() {
+  CO_HBconsumer_t *hb = this->co_->HBcons;
+  if (hb == nullptr)
+    return;  // no monitored nodes
+  // The first CO_process() takes the node from initialising to (pre-)operational, which the consumer handles as a state
+  // change: it would drop a heartbeat received before (from the bus, or a local node's boot-up queued before our
+  // first loop()). The entries are as that pass would leave them (state unknown, no frame), so it can start monitoring.
+  hb->NMTisPreOrOperationalPrev = true;
   for (uint8_t i = 0, n = this->hb_cons_.size(); i < n; i++) {
-    CO_HBconsumer_t *hb = this->co_->HBcons;
     CO_HBconsumer_initCallbackHeartbeatStarted(hb, i, this, on_hb_started);
     CO_HBconsumer_initCallbackNmtChanged(hb, i, this, on_hb_nmt_changed);
     CO_HBconsumer_initCallbackTimeout(hb, i, this, on_hb_timeout);

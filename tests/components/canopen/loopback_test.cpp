@@ -219,6 +219,21 @@ TEST_F(LocalPair, BackToBackFramesToOneObjectAreKept) {
   b.loop();
   EXPECT_EQ(states, (std::vector<NMTState>{NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_OPERATIONAL}));
 }
+
+// A frame from the bus comes after the frames other local nodes sent before it, which wait in the queue.
+TEST_F(LocalPair, LocalFramesBeforeALaterBusFrame) {
+  start();
+  a.loop();
+  b.loop();
+  ASSERT_EQ(b.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+  std::vector<NMTState> states;
+  b.add_on_nmt_state_callback([&states](NMTState state) { states.push_back(state); });
+  ASSERT_TRUE(a.send_nmt(0x11, NMTCommand::NMT_COMMAND_STOP));  // queued for b's loop()
+  b.frame(0x000, {0x01, 0x11});                                 // then another node starts b
+  b.loop();
+  EXPECT_EQ(states, (std::vector<NMTState>{NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_OPERATIONAL}));
+  EXPECT_EQ(b.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+}
 #endif
 
 // A frame a node sends while it handles another reaches the third node after that one, as on a bus.
