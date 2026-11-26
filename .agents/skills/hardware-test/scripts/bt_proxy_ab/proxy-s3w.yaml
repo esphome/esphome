@@ -1,0 +1,13 @@
+# Waveshare ESP32-S3-ETH proxy, Wi-Fi only
+substitutions: {name: bpab-s3w}
+packages: {common: !include proxy-common.yaml}
+esp32:
+  variant: ESP32S3
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework: {type: esp-idf, log_level: WARN}
+psram: {mode: octal, speed: 80MHz}
+logger: {hardware_uart: USB_SERIAL_JTAG}
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password

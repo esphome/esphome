@@ -1,0 +1,10 @@
+# Give each build its own name, or build them from separate worktrees, so the size and listing A/B lines up.
+substitutions:
+  name: app-lists-d1
+esp8266:
+  board: d1_mini
+logger:
+  level: DEBUG
+packages:
+  net: !include net.yaml
+  entities: !include entities.yaml

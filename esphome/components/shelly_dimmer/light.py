@@ -211,7 +211,12 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "shelly_dimmer", baud_rate=115200, require_rx=True, require_tx=True
+    "shelly_dimmer",
+    baud_rate=115200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    stop_bits=1,
 )
 
 

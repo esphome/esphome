@@ -15,7 +15,7 @@ def test_text_is_setup(generate_main):
     # Then
     assert "static template_::TemplateText *const" in main_cpp
     assert ") template_::TemplateText();" in main_cpp
-    assert "App.register_text" in main_cpp
+    assert "esphome::app_lists::APP_TEXT_LIST PROGMEM = {" in main_cpp
 
 
 def test_text_sets_mandatory_fields(generate_main):
@@ -28,7 +28,10 @@ def test_text_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert 'App.register_text(it_1, ESPHOME_PSTR("test 1 text"),' in main_cpp
+    assert (
+        'esphome::Application::configure_text(it_1, ESPHOME_PSTR("test 1 text"),'
+        in main_cpp
+    )
 
 
 def test_text_config_value_internal_set(generate_main):

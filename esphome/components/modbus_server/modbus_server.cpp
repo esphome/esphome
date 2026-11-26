@@ -10,12 +10,81 @@ ESPHOME_LOG_TAG(TAG, "modbus_server");
 
 // The widest Modbus value type (QWORD) spans four registers.
 static constexpr uint8_t MAX_REGISTERS_PER_VALUE = 4;
-// number_to_payload() encodes the 64-bit value returned by read_lambda() into 16-bit registers, so the
+// number_to_payload() encodes the 64-bit value returned by read() into 16-bit registers, so the
 // widest possible value spans exactly sizeof(int64_t) / sizeof(uint16_t) registers. Tie the bound to that
 // source so a future wider value type -- which would require widening the encoded value itself -- can't
 // silently overflow the value_words buffer below (StaticVector::push_back drops words past capacity).
 static_assert(MAX_REGISTERS_PER_VALUE == sizeof(int64_t) / sizeof(uint16_t),
               "MAX_REGISTERS_PER_VALUE must match the register span of the widest encodable value");
+
+// Calls f with a value of the C++ type that holds value_type, as registers_to_value() decodes it.
+template<typename F> static auto visit_cpp_type(SensorValueType value_type, F &&f) {
+  switch (value_type) {
+    case SensorValueType::S_WORD:
+    case SensorValueType::S_WORD_S:
+      return f(RegisterValueType<SensorValueType::S_WORD>{});
+    case SensorValueType::U_DWORD:
+    case SensorValueType::U_DWORD_R:
+      return f(RegisterValueType<SensorValueType::U_DWORD>{});
+    case SensorValueType::S_DWORD:
+    case SensorValueType::S_DWORD_R:
+      return f(RegisterValueType<SensorValueType::S_DWORD>{});
+    case SensorValueType::U_QWORD:
+    case SensorValueType::U_QWORD_R:
+      return f(RegisterValueType<SensorValueType::U_QWORD>{});
+    case SensorValueType::S_QWORD:
+    case SensorValueType::S_QWORD_R:
+      return f(RegisterValueType<SensorValueType::S_QWORD>{});
+    case SensorValueType::FP32:
+    case SensorValueType::FP32_R:
+      return f(RegisterValueType<SensorValueType::FP32>{});
+    default:  // U_WORD and U_WORD_S
+      return f(RegisterValueType<SensorValueType::U_WORD>{});
+  }
+}
+
+optional<int64_t> ServerRegister::read() const {
+  return visit_cpp_type(this->value_type, [this](auto tag) {
+    using T = decltype(tag);
+    const optional<T> value = reinterpret_cast<ReadFn<T>>(this->read_fn_)(this->address);
+    optional<int64_t> raw;
+    if (value.has_value()) {
+      if constexpr (std::is_same_v<T, float>) {
+        raw = bit_cast<uint32_t>(*value);
+      } else {
+        raw = static_cast<int64_t>(*value);
+      }
+    }
+    return raw;
+  });
+}
+
+bool ServerRegister::write(int64_t number) const {
+  return visit_cpp_type(this->value_type, [this, number](auto tag) {
+    using T = decltype(tag);
+    T value;
+    if constexpr (std::is_same_v<T, float>) {
+      value = bit_cast<float>(static_cast<uint32_t>(number));
+    } else {
+      value = static_cast<T>(number);
+    }
+    return reinterpret_cast<WriteFn<T>>(this->write_fn_)(this->address, value);
+  });
+}
+
+const char *ServerRegister::format_value(int64_t value, char *buf, size_t buf_size) const {
+  visit_cpp_type(this->value_type, [&](auto tag) {
+    using T = decltype(tag);
+    if constexpr (std::is_same_v<T, float>) {
+      buf_append_printf(buf, buf_size, 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+    } else if constexpr (std::is_signed_v<T>) {
+      buf_append_printf(buf, buf_size, 0, "%" PRId64, value);
+    } else {
+      buf_append_printf(buf, buf_size, 0, "%" PRIu64, static_cast<uint64_t>(value));
+    }
+  });
+  return buf;
+}
 
 ServerRegister *ModbusServer::find_containing_register_(uint32_t address) const {
   for (auto *server_register : this->server_registers_) {
@@ -59,7 +128,7 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
       return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
-    if (!server_register->read_lambda) {
+    if (!server_register->is_readable()) {
       // Registered but not readable (write-only); don't mask it with the courtesy default.
       ESP_LOGW(TAG, "Register at 0x%04X is not readable. Sending exception response.", server_register->address);
       return ExceptionCode::ILLEGAL_DATA_ADDRESS;
@@ -81,7 +150,7 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
       return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
-    const optional<int64_t> read_value = server_register->read_lambda();
+    const optional<int64_t> read_value = server_register->read();
     if (!read_value.has_value()) {
       ESP_LOGW(TAG, "Register read at 0x%04X declined to produce a value. Sending exception response.",
                server_register->address);
@@ -151,7 +220,7 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
   // the write keeps a single source of truth for the decode bound, independent of how register_count was set.
   ExceptionCode precheck = ExceptionCode::ILLEGAL_DATA_ADDRESS;  // unmatched or unwritable register
   if (!for_each_register([&precheck, &registers](ServerRegister *server_register, uint16_t register_offset) -> bool {
-        if (server_register->write_lambda == nullptr) {
+        if (!server_register->is_writable()) {
           return false;  // unwritable -> ILLEGAL_DATA_ADDRESS
         }
         if (!registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
@@ -174,7 +243,7 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         int64_t number = registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
                                              server_register->value_type)
                              .value_or(0);
-        return server_register->write_lambda(number);
+        return server_register->write(number);
       })) {
     ESP_LOGW(TAG, "A register write callback failed mid-sequence; earlier writes were already applied.");
     return ExceptionCode::SERVICE_DEVICE_FAILURE;
