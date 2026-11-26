@@ -57,9 +57,15 @@ void NMEAGNSS::handle_message_() {
     t.hour = gps.time.hour();
     t.minute = gps.time.minute();
     t.second = gps.time.second();
-    t.recalc_timestamp_utc(false);
-    d.utc = t.timestamp;
-    d.utc_millis = millis_64();
+    // TinyGPS++ commits the last date and time again for an RMC with empty fields, so only a new
+    // UTC counts as received
+    if (t.fields_in_range(false, false)) {
+      t.recalc_timestamp_utc(false);
+      if (t.timestamp != d.utc) {
+        d.utc = t.timestamp;
+        d.utc_millis = millis_64();
+      }
+    }
   }
   this->publish_fix_();
 }
