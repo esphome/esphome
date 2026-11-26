@@ -1,0 +1,51 @@
+# Number flow (#23051): a float number with device class, a restored number with a range and a sensor (with sw.yaml).
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - logger.log:
+            format: "HWT boot done Num=%.1f NumR=%.1f"
+            args: [id(num).state, id(numr).state]
+number:
+  - platform: template
+    name: "Num"
+    id: num
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 0.5
+    initial_value: 37
+    unit_of_measurement: "°C"
+    device_class: temperature
+    report: force
+    on_value:
+      - logger.log: {format: "HWT NUM set %.1f", args: [x]}
+  - platform: template
+    name: "NumR"
+    id: numr
+    optimistic: true
+    min_value: -10
+    max_value: 50
+    step: 1
+    initial_value: 5
+    restore_value: true
+    unit_of_measurement: "%"
+    on_value:
+      - logger.log: {format: "HWT NUMR set %.1f", args: [x]}
+sensor:
+  - platform: template
+    name: "Temp"
+    id: temp
+    lambda: return 21.5f;
+    update_interval: 10s
+time:
+  - platform: zigbee
+    id: ztime
+    on_time_sync:
+      - logger.log: "HWT time synced"
+interval:
+  - interval: 15s
+    then:
+      - logger.log:
+          format: "HWT state Num=%.1f NumR=%.1f Sw=%d"
+          args: [id(num).state, id(numr).state, id(sw).state]

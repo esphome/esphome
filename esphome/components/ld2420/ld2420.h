@@ -6,6 +6,13 @@
 #include "esphome/core/helpers.h"
 #include <array>
 #include <span>
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor_with_dedup.h"
+#endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -23,6 +30,7 @@ namespace esphome::ld2420 {
 
 namespace testing {
 class LD2420OperatingModeTest;
+class LD2420PublishTest;
 }  // namespace testing
 
 static constexpr uint8_t CALIBRATE_SAMPLES = 64;
@@ -35,13 +43,6 @@ enum OpMode : uint8_t {
   OP_NORMAL_MODE = 1,
   OP_CALIBRATE_MODE = 2,
   OP_SIMPLE_MODE = 3,
-};
-
-class LD2420Listener {
- public:
-  virtual void on_presence(bool presence) {};
-  virtual void on_distance(uint16_t distance) {};
-  virtual void on_fw_version(const char *fw) {};
 };
 
 class LD2420Component final : public Component, public uart::UARTDevice {
@@ -66,6 +67,15 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
   void loop() override;
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(presence)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR_WITH_DEDUP(distance, uint16_t)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(fw_version)
+#endif
 #ifdef USE_SELECT
   SUB_SELECT(operating_mode)
 #endif
@@ -99,9 +109,6 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   SUB_BUTTON(revert_config)
   SUB_BUTTON(restart_module)
   SUB_BUTTON(factory_reset)
-#endif
-#ifdef LD2420_LISTENER_COUNT
-  void register_listener(LD2420Listener *listener) { this->listeners_.push_back(listener); }
 #endif
 
   void send_module_restart();
@@ -160,6 +167,7 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void set_presence_(bool presence) { this->presence_ = presence; };
   uint16_t get_distance_() { return this->distance_; };
   void set_distance_(uint16_t distance) { this->distance_ = distance; };
+  void publish_states_();
   void handle_simple_mode_(const uint8_t *inbuf, int len);
   void handle_energy_mode_(uint8_t *buffer, int len);
   void handle_ack_data_(uint8_t *buffer, int len);
@@ -183,12 +191,10 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   bool presence_{false};
   bool calibration_{false};
   CmdReplyT cmd_reply_;
-#ifdef LD2420_LISTENER_COUNT
-  StaticVector<LD2420Listener *, LD2420_LISTENER_COUNT> listeners_;
-#endif
 
   // clang-tidy compiles the host tests without USE_HOST, so the friend is unconditional
   friend class testing::LD2420OperatingModeTest;
+  friend class testing::LD2420PublishTest;
 };
 
 }  // namespace esphome::ld2420

@@ -1,0 +1,32 @@
+# Two USB modems with different drivers; the proxy uses whichever one is connected
+wifi:
+  ssid: MySSID
+  password: password1
+  power_save_mode: none
+
+api:
+
+usb_host:
+
+usb_uart:
+  - type: CDC_ACM
+    vid: 0x303A
+    pid: 0x4001
+    manufacturer: Nabu Casa
+    product: ZWA-2
+    claim_comm_interface: false
+    channels:
+      - id: zwave_cdc_channel
+        baud_rate: 115200
+  - type: CH34X
+    vid: 0x1A86
+    pid: 0x55D4
+    channels:
+      - id: zwave_ch34x_channel
+        baud_rate: 115200
+
+zwave_proxy:
+  id: zw_proxy
+  uart_id:
+    - zwave_cdc_channel
+    - zwave_ch34x_channel

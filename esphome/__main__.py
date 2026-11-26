@@ -2393,6 +2393,12 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
+def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome.cli.rotate_key import command_rotate_key as run
+
+    return run(args, config)
+
+
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome.cli.rename import command_rename as run
 
@@ -2420,6 +2426,7 @@ POST_CONFIG_ACTIONS = {
     "clean-mqtt": command_clean_mqtt,
     "idedata": command_idedata,
     "rename": command_rename,
+    "rotate-key": command_rotate_key,
     "discover": command_discover,
     "analyze-memory": command_analyze_memory,
     "bundle": command_bundle,
@@ -2862,6 +2869,37 @@ def parse_args(argv):
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
 
+    parser_rotate_key = subparsers.add_parser(
+        "rotate-key",
+        help=(
+            "Change the OTA encryption key over the air: write a new key to the "
+            "yaml, build with it, upload with the current key, confirm."
+        ),
+        parents=[mqtt_options],
+    )
+    parser_rotate_key.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
+    )
+    parser_rotate_key.add_argument(
+        "--device",
+        action="append",
+        help=ARGUMENT_HELP_DEVICE,
+    )
+    parser_rotate_key.add_argument(
+        "--prompt-new-key",
+        action="store_true",
+        help=(
+            "Ask for the new key instead of generating one; read without echo, "
+            "or as one line from stdin when that is not a terminal."
+        ),
+    )
+    parser_rotate_key.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Do not ask for confirmation when the api encryption key changes too.",
+    )
+
     parser_analyze_memory = subparsers.add_parser(
         "analyze-memory",
         help="Analyze memory usage by component.",
@@ -3100,6 +3138,12 @@ def run_esphome(argv):
     # and rewrite conf_path to the extracted YAML config. The suffix check
     # stays inline so the ordinary run never imports esphome.bundle.
     if conf_path.name.lower().endswith(BUNDLE_EXTENSION):
+        if args.command == "rotate-key":
+            # The edits would land in the extracted copy, which the next run replaces
+            _LOGGER.error(
+                "rotate-key edits the yaml; run it on the source configuration"
+            )
+            return 1
         from esphome.bundle import prepare_bundle_for_compile
 
         _LOGGER.info("Extracting config bundle %s...", conf_path)
@@ -3148,8 +3192,10 @@ def run_esphome(argv):
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,
-            # Snapshot only needed by `esphome config --no-defaults`.
-            snapshot_user_config=getattr(args, "no_defaults", False),
+            # `esphome config --no-defaults` prints it; rotate-key edits the
+            # source lines it keeps
+            snapshot_user_config=getattr(args, "no_defaults", False)
+            or args.command == "rotate-key",
         )
         if config is None:
             return 2

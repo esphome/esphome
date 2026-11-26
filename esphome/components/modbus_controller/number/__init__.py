@@ -42,9 +42,7 @@ DEPENDENCIES = ["modbus_controller"]
 CODEOWNERS = ["@martgras"]
 
 
-ModbusNumber = modbus_controller_ns.class_(
-    "ModbusNumber", cg.Component, number.Number, SensorItem
-)
+ModbusNumber = modbus_controller_ns.class_("ModbusNumber", number.Number, SensorItem)
 
 
 def validate_min_max(config: ConfigType) -> ConfigType:
@@ -107,7 +105,6 @@ async def to_code(config: ConfigType) -> None:
         RANGE_REUSE[config[CONF_REUSE_PREVIOUS_RANGE]],
     )
 
-    await cg.register_component(var, config)
     await number.register_number(
         var,
         config,

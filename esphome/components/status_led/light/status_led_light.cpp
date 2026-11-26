@@ -51,12 +51,7 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
   }
 }
 
-void StatusLEDLightOutput::setup() {
-  if (this->pin_ != nullptr) {
-    this->pin_->setup();
-    this->pin_->digital_write(false);
-  }
-}
+void StatusLEDLightOutput::setup() { setup_output_pin(this->pin_, false); }
 
 void StatusLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Status Led Light:");

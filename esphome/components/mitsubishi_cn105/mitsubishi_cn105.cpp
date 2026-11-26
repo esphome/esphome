@@ -537,9 +537,7 @@ PROGMEM_STRING_TABLE(StateStrings, "Not connected", "Connecting", "Connected", "
                      "DeferredStatusRequest", "ScheduleNextStatusUpdate", "WaitingForScheduledStatusUpdate",
                      "ApplyingSettings", "SettingsApplied", "ReadTimeout", "Unknown");
 
-const LogString *MitsubishiCN105::state_to_string(State state) {
-  return StateStrings::get_log_str(static_cast<uint8_t>(state), StateStrings::LAST_INDEX);
-}
+const LogString *MitsubishiCN105::state_to_string(State state) { return StateStrings::get_log_str(state); }
 
 template<typename Callback>
 bool MitsubishiCN105::FrameParser::read_and_parse(uart::UARTDevice &device, Callback &&callback) {

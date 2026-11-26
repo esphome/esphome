@@ -1,0 +1,29 @@
+# BW15 kit (RTL8720CF) with a wire from PA03 (UART1 TX) to PA02 (RX); UART0 TX inverted checks the refusal.
+# -s baud 115200 for the second speed.
+substitutions:
+  baud: "9600"
+esphome:
+  name: brk-bw15
+rtl87xx:
+  board: bw15
+logger:
+  level: DEBUG
+external_components:
+  - source: {type: local, path: ext}
+    components: [brkbench]
+uart:
+  - id: u1
+    tx_pin: {number: PA03, allow_other_uses: true}
+    rx_pin: {number: PA02, allow_other_uses: true}
+    baud_rate: ${baud}
+  - id: u0inv
+    tx_pin: {number: PA14, inverted: true}
+    rx_pin: PA13
+    baud_rate: ${baud}
+brkbench:
+  uart_id: u1
+  inv_uart: u0inv
+  tx_gpio: {number: PA03, allow_other_uses: true}
+  probe_gpio: {number: PA02, allow_other_uses: true}
+  probe_is_rx: true
+  rx_num: 2  # PA02, used by fix: true

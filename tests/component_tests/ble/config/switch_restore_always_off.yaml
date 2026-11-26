@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+esp32_ble:
+
+switch:
+  - platform: ble
+    type: enabled
+    id: ble_switch
+    name: Bluetooth
+    restore_mode: ALWAYS_OFF

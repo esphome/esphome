@@ -40,8 +40,7 @@ void MipiDsi::setup() {
 
   if (!this->enable_pins_.empty()) {
     for (auto *pin : this->enable_pins_) {
-      pin->setup();
-      pin->digital_write(true);
+      setup_output_pin(pin, true);
     }
     delay(10);
   }

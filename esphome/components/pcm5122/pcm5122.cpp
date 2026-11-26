@@ -11,10 +11,7 @@ ESPHOME_LOG_TAG(TAG, "pcm5122");
 
 void PCM5122::setup() {
   // Hold XSMT low (soft mute asserted) until init completes
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(false);
-  }
+  setup_output_pin(this->enable_pin_, false);
 
   // Select page 0 and verify chip presence via I2C ACK
   if (!this->select_page_(0)) {

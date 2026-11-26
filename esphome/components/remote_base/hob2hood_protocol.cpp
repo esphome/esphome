@@ -76,8 +76,7 @@ void Hob2HoodProtocol::dump(const Hob2HoodData &data) {
   uint8_t index = 0;
   while (index < COMMANDS.size() && COMMANDS[index] != data.command)
     index++;
-  ESP_LOGI(TAG, "Received Hob2Hood: %s",
-           LOG_STR_ARG(Hob2HoodCommandNames::get_log_str(index, Hob2HoodCommandNames::LAST_INDEX)));
+  ESP_LOGI(TAG, "Received Hob2Hood: %s", LOG_STR_ARG(Hob2HoodCommandNames::get_log_str(index)));
 }
 
 }  // namespace esphome::remote_base

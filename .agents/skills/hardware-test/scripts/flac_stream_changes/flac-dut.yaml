@@ -1,0 +1,118 @@
+# Waveshare ESP32-S3-ETH: speaker media player (resampler, mixer, i2s_audio on spare pins with no DAC attached) on
+# Ethernet, with frame counters on both resampler speakers and a 1 s heap probe line for an.py and plat.py.
+substitutions:
+  name: flacdut
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+ethernet:
+  type: W5500
+  clk_pin: GPIO13
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  cs_pin: GPIO14
+  interrupt_pin: GPIO10
+  reset_pin: GPIO9
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+audio:
+  codecs:
+    flac:
+    mp3:
+    wav:
+
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: GPIO17
+    i2s_bclk_pin: GPIO16
+
+speaker:
+  - platform: i2s_audio
+    id: i2s_speaker
+    i2s_audio_id: i2s_out
+    i2s_dout_pin: GPIO43
+    dac_type: external
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: stereo
+    buffer_duration: 100ms
+  - platform: mixer
+    id: mixing_speaker
+    output_speaker: i2s_speaker
+    num_channels: 2
+    source_speakers:
+      - id: announcement_mixing_input
+        timeout: never
+      - id: media_mixing_input
+        timeout: never
+  - platform: resampler
+    id: announcement_resampling_speaker
+    output_speaker: announcement_mixing_input
+  - platform: resampler
+    id: media_resampling_speaker
+    output_speaker: media_mixing_input
+
+media_player:
+  - platform: speaker
+    id: speaker_media_player
+    name: Media Player
+    announcement_pipeline:
+      speaker: announcement_resampling_speaker
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+    media_pipeline:
+      speaker: media_resampling_speaker
+      format: FLAC
+      num_channels: 2
+      sample_rate: 48000
+    on_announcement:
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 20
+          duration: 0.0s
+
+esphome:
+  name: ${name}
+  includes:
+    - ../speaker_tts_pause/frames.h
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            id(announcement_resampling_speaker).add_audio_output_callback(
+                [](uint32_t frames, int64_t) { hwt_frames::ann.fetch_add(frames); });
+            id(media_resampling_speaker).add_audio_output_callback(
+                [](uint32_t frames, int64_t) { hwt_frames::med.fetch_add(frames); });
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          ESP_LOGI("probe", "med %u ann %u int_free %u int_largest %u int_min %u ps_free %u ps_largest %u",
+                   (unsigned) hwt_frames::med.load(), (unsigned) hwt_frames::ann.load(),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));

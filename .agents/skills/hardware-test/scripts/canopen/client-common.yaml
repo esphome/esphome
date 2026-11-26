@@ -1,0 +1,23 @@
+# Node A (SDO client) on an ESP32-C3 with an SN65HVD230; included by nodea.yaml and nodea-late.yaml.
+packages:
+  c3: !include c3-can.yaml
+  a2: !include actions2.yaml
+esphome:
+  includes:
+    - cotest.hpp
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: suite
+logger:
+  logs:
+    canbus: INFO
+runtime_stats:
+  log_interval: 30s
+canopen:
+  id: hub
+  response_timeout: 300ms
+interval:
+  - interval: 10s
+    then:
+      - lambda: cot::log_stat(id(can_bus));
