@@ -41,14 +41,20 @@ struct E131SourceInfo {
   uint8_t options;
 };
 
-// The source whose data a universe shows.
+// The source whose data a universe shows, and the best priority among the sources it currently keeps out (the
+// runner-up), so that a handoff goes to the best remaining source rather than to whichever packet arrives first.
 struct E131Source {
   uint8_t cid[E131_CID_SIZE];
   uint32_t last_packet_ms;
+  uint32_t runner_up_ms;
   uint8_t priority;
   uint8_t sequence;
+  uint8_t runner_up_priority;
   bool active;
+  bool has_runner_up;
 };
+
+enum class E131Decision : uint8_t { IGNORE, APPLY, TAKE_OVER };
 #endif
 
 struct UniverseConsumer {
@@ -78,9 +84,9 @@ class E131Component final : public esphome::Component {
   bool process_(int universe, const E131Packet &packet);
 #ifdef USE_E131_ARBITRATION
   void source_info_(const uint8_t *data, E131SourceInfo &info);
-  bool arbitrate_(int universe, const E131SourceInfo &info);
+  E131Decision arbitrate_(int universe, const E131SourceInfo &info);
   void log_source_taking_over_(int universe, const E131SourceInfo &info);
-  void log_source_leaving_(int universe, const E131Source &source, const char *reason);
+  void log_source_leaving_(int universe, const uint8_t *cid, const char *reason);
 #endif
   void join_igmp_groups_();
   void join_universe_(uint16_t universe);
