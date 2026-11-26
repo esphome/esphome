@@ -167,6 +167,20 @@ TEST(IslandaireTests, ReceivesStateFrames) {
   EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_HIGH);
 }
 
+TEST(IslandaireTests, AutoAndUnassignedFanBytesReadAsAutoNotThePreviousSpeed) {
+  struct Case {
+    uint8_t fan_byte;
+  };
+  static constexpr Case CASES[] = {{FAN_AUTO}, {0x40}, {0x03}, {0x08}, {0x43}};
+  for (const auto &c : CASES) {
+    SCOPED_TRACE(static_cast<int>(c.fan_byte));
+    Fixture f;
+    f.sut.fan_mode = climate::CLIMATE_FAN_HIGH;
+    EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_HEAT, 68, c.fan_byte))));
+    EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_AUTO);
+  }
+}
+
 TEST(IslandaireTests, IgnoresTemperaturesOutsideTheRangeButKeepsTheRest) {
   Fixture f;
   EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_HEAT, 95, FAN_AUTO))));
