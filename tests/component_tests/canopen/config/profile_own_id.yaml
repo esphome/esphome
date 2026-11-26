@@ -1,0 +1,31 @@
+esphome:
+  name: canopen-profile-test
+
+esp32:
+  board: esp32dev
+
+external_components:
+  - source:
+      type: local
+      path: ../external_components
+
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+
+canopen:
+  - id: canopen_node
+    canbus_id: can_bus
+    node_id: 0x10
+    heartbeat_clients:
+      - node_id: 0x21
+        timeout: 3s
+
+fake_canopen_profile:
+  - id: drive
+    node_id: 0x10
+    heartbeat_timeout: 1500ms

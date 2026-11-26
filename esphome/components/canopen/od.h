@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "esphome/core/defines.h"  // before CANopenNode: clang-tidy gets the CO_CONFIG_* values from it
@@ -11,6 +12,8 @@
 #define OD_DEFINITION
 // Use the library search path: quoted includes match our canopen.h on Windows.
 #include <CANopen.h>
+
+#include "od_handler.h"
 
 namespace esphome::canopen {
 
@@ -50,13 +53,31 @@ class ObjectDictionary {
   OD_entry_t *find(uint16_t index) { return OD_find(&this->od_, index); }
   OD_t *od() { return &this->od_; }
 
+  // --- Handlers (od_handler.h, od_handler.cpp) ---
+  // Calls handler->od_read() / od_write() (an OdObject subclass) for every access to an entry added before.
+  template<typename T> void set_object(uint16_t index, T *handler) {
+    static_assert(std::is_base_of_v<OdObject, T>, "OD handlers derive from canopen::OdObject");
+    this->set_extension_(index, OD_extension_t{handler, &read_trampoline<T>, &write_trampoline<T>, {}});
+  }
+  // Writes a value through the entry's handler, as an SDO download does. Needs write access. After finalize().
+  OdResult write(uint16_t index, uint8_t sub, const void *data, size_t len);
+  // Reads a value through the entry's handler, as an SDO upload does, into data (max_len bytes); *len is the number of
+  // bytes read. Needs read access. DATA_LONG if the value doesn't fit. A handler may have side effects (e.g. consume
+  // what it returns), also when the value doesn't fit. After finalize().
+  OdResult read(uint16_t index, uint8_t sub, void *data, size_t max_len, size_t *len);
+  // Size in bytes of an entry's value, without running its handler; 0 if it has no fixed size (a domain) or doesn't
+  // exist, and before finalize().
+  size_t value_size(uint16_t index, uint8_t sub);
+
  protected:
-  // an entry until finalize(): its object by position in the vars / arrays / records collected so far
+  // an entry until finalize(): its object and extension by position in the vars / arrays / records / extensions
+  // collected so far
   struct PendingEntry {
     uint16_t index;
     uint8_t sub_count;
     uint8_t type;
     uint16_t object;
+    uint16_t extension;  // position + 1, 0 = none
   };
   // what add_*() collects until finalize()
   struct Pending {
@@ -64,15 +85,34 @@ class ObjectDictionary {
     std::vector<OD_obj_var_t> vars;
     std::vector<OD_obj_array_t> arrays;
     std::vector<OD_obj_record_t> records;  // the subs of all records, each record's in a row
+    std::vector<OD_extension_t> extensions;
   };
 
   // nullptr once finalized: CANopenNode then holds pointers into the arrays below
   Pending *pending_(uint16_t index);
 
+  // --- Handlers (od_handler.cpp) ---
+  void set_extension_(uint16_t index, const OD_extension_t &extension);
+  template<typename T>
+  static ODR_t read_trampoline(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *count_read) {
+    size_t done = 0;
+    auto ret = static_cast<T *>(stream->object)->od_read(OdStream(stream), buf, count, &done);
+    *count_read = done;
+    return static_cast<ODR_t>(ret);
+  }
+  template<typename T>
+  static ODR_t write_trampoline(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *count_written) {
+    size_t done = 0;
+    auto ret = static_cast<T *>(stream->object)->od_write(OdStream(stream), buf, count, &done);
+    *count_written = done;
+    return static_cast<ODR_t>(ret);
+  }
+
   std::unique_ptr<Pending> pending_storage_;
   FixedVector<OD_obj_var_t> vars_;
   FixedVector<OD_obj_array_t> arrays_;
   FixedVector<OD_obj_record_t> records_;
+  FixedVector<OD_extension_t> extensions_;
   FixedVector<OD_entry_t> entries_;
   OD_t od_{0, nullptr};
 };

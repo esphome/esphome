@@ -34,6 +34,8 @@ DEPENDENCIES = ["canbus"]
 DOMAIN = "canopen"
 MULTI_CONF = True
 
+# for components that refer to a canopen node (cv.use_id(CANopenComponent))
+CONF_CANOPEN_ID = "canopen_id"
 CONF_NODE_ID = "node_id"
 CONF_HEARTBEAT_INTERVAL = "heartbeat_interval"
 CONF_HEARTBEAT_CLIENTS = "heartbeat_clients"
@@ -57,6 +59,8 @@ CANOPENNODE_VERSION = "4.1.0-esphome.2"
 
 ns = cg.esphome_ns.namespace("canopen")
 CANopenComponent = ns.class_("CANopenComponent", cg.Component)
+# base class of components that drive another node (canopen_node.h)
+CANopenNode = ns.class_("CANopenNode")
 NMTState = ns.enum("NMTState", is_class=True)
 NodeEvent = ns.enum("NodeEvent", is_class=True)
 Emergency = ns.struct("Emergency")
@@ -132,8 +136,9 @@ _register_hb_client = cg.slot_list(
 
 
 def enable_node_monitor() -> None:
-    """Compile node monitoring (CANopenNode's heartbeat consumer) for heartbeat_clients, which registers each node
-    through _register_hb_client so the storage is sized. Without it the consumer isn't built."""
+    """Compile node monitoring (CANopenNode's heartbeat consumer) for heartbeat_clients and
+    register_node(heartbeat_timeout=...), which register each node through _register_hb_client so the storage is
+    sized. Without it the consumer isn't built."""
     if not _enable_once("node_monitor"):
         return
     cg.add_define("USE_CANOPEN_NODE_MONITOR")
@@ -141,8 +146,8 @@ def enable_node_monitor() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _final_build_flags() -> None:
-    # after every hub's codegen: CANopenNode's port header enables the heartbeat consumer, which links in its code
-    # even without monitored nodes
+    # after every component's codegen, so that register_node() calls count too: CANopenNode's port header enables the
+    # heartbeat consumer, which links in its code even without monitored nodes
     if "node_monitor" not in _get_data().enabled:
         cg.add_build_flag("-DCO_CONFIG_HB_CONS=0")
     # each hub has its own consumer, so another hub's heartbeat_clients don't help
@@ -161,6 +166,69 @@ def enable_nmt_master() -> None:
     cg.add_define("USE_CANOPEN_NMT_MASTER")
     # callback change | master
     cg.add_build_flag("-DCO_CONFIG_NMT=0x03")
+
+
+# for components that drive another node (subclasses of CANopenNode), see register_node()
+CANOPEN_NODE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CANOPEN_ID): cv.use_id(CANopenComponent),
+        cv.Required(CONF_NODE_ID): cv.All(cv.int_, cv.Range(min=1, max=127)),
+    }
+)
+
+
+def require_node_id(hub_id: ID, what: str) -> ConfigType:
+    """Final validation helper for things that need a CANopen node (OD, NMT, ...): the hub hub_id must have a
+    node_id. Returns the hub's config."""
+    full_config = fv.full_config.get()
+    path = full_config.get_path_for_id(hub_id)[:-1]
+    hub = full_config.get_config_for_path(path)
+    if CONF_NODE_ID not in hub:
+        raise cv.Invalid(
+            f"{what} needs a CANopen node: canopen {hub_id} has no node_id (SDO client only)"
+        )
+    return hub
+
+
+def final_validate_canopen_node(config: ConfigType) -> ConfigType:
+    """FINAL_VALIDATE_SCHEMA helper for CANOPEN_NODE_SCHEMA: the hub must be a node, and the node can't be the hub's own
+    node id."""
+    hub = require_node_id(config[CONF_CANOPEN_ID], "a canopen profile component")
+    if hub[CONF_NODE_ID] == config[CONF_NODE_ID]:
+        raise cv.Invalid(
+            f"node_id {config[CONF_NODE_ID]} is the own id of canopen {config[CONF_CANOPEN_ID]}",
+            path=[CONF_NODE_ID],
+        )
+    return config
+
+
+async def register_node(
+    var: MockObj,
+    config: ConfigType,
+    sdo: bool = False,
+    nmt: bool = False,
+    heartbeat_timeout: cv.TimePeriod | None = None,
+) -> MockObj:
+    """Codegen for a CANopenNode subclass built from CANOPEN_NODE_SCHEMA.
+
+    Compiles the parts of the hub the component uses (SDO client, NMT master) and, with a heartbeat_timeout
+    (TimePeriod, validated with UINT16_MS), monitors the node: its events reach the on_node_* hooks. The hub merges it with
+    heartbeat_clients, keeping the shortest timeout. The node's EMCY frames reach on_node_emcy().
+    """
+    cg.add_define("USE_CANOPEN_EMCY")
+    if sdo:
+        enable_sdo_client()
+    if nmt:
+        enable_nmt_master()
+    if heartbeat_timeout is not None:
+        enable_node_monitor()
+        hub = await cg.get_variable(config[CONF_CANOPEN_ID])
+        cg.add(
+            _register_hb_client(
+                hub, config[CONF_NODE_ID], heartbeat_timeout.total_milliseconds
+            )
+        )
+    return var
 
 
 CALLBACK_AUTOMATIONS = (

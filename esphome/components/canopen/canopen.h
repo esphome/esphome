@@ -22,24 +22,27 @@ inline NMTState to_nmt_state(CO_NMT_internalState_t state) { return static_cast<
 
 // Other components configure the node in two phases:
 // - Build time (Python codegen): the hub parts they use, enable_sdo_client(), enable_nmt_master(); these set defines
-//   and CANopenNode build flags, so they can't be switched on at runtime. Node monitoring comes from heartbeat_clients
-//   only (enable_node_monitor() and monitor_node() through cg.slot_list()).
-// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: identity and device
-//   information. Two places run early enough: setters called from codegen (they run in
-//   main(), before App.setup()), or the setup() of a component whose setup priority is above the hub's
-//   (setup_priority::HARDWARE - 1, after the CAN bus), e.g. HARDWARE - 0.5. Object dictionary entries and monitored
-//   nodes added later are logged as errors and ignored.
+//   and CANopenNode build flags, so they can't be switched on at runtime.
+// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: OD entries and handlers
+//   (get_od()), identity and device information. Two places run early enough: setters called from codegen (they run
+//   in main(), before App.setup()), or the setup() of a component whose setup priority is above the hub's
+//   (setup_priority::HARDWARE - 1, after the CAN bus), e.g. HARDWARE - 0.5. OD entries and handlers added later are
+//   logged as errors and ignored.
+// - Node monitoring comes from heartbeat_clients and register_node(heartbeat_timeout=...) only (enable_node_monitor()
+//   and monitor_node() through cg.slot_list(), which sizes the consumer storage).
 // The rest is runtime API, e.g. from loop() or automations: add_frame_listener() and the callbacks (any time),
-// send_frame(), SDO client and NMT master requests (made before the hub's setup(), they wait for it). The hub's setup()
-// runs before most components' setup() (e.g. sensors, DATA) and the default on_boot automations.
+// send_frame(), SDO client and NMT master requests (made before the hub's setup(), they wait for it); write_od() and
+// read_od() need the OD, so they fail before the hub's setup(), which runs before most components' setup() (e.g.
+// sensors, DATA) and the default on_boot automations.
 //
 // Client-only mode: without a node id (NO_NODE_ID) the hub is no CANopen node, only an SDO client on the bus (plus
 // raw frames). CANopenNode's node part (NMT, heartbeat, EMCY, SDO server) isn't initialised, so it isn't linked either.
 //
 // The implementation is split by feature: canopen.cpp (setup, processing, NMT), driver_can.cpp (CANopenNode's CAN
 // driver, frame reception and transmission), device_info.cpp (identity, device information, SDO server), od.cpp
-// (the object dictionary), node_monitor.cpp (heartbeat consumer), frames.cpp (raw frames, heartbeat / EMCY callbacks),
-// sdo_client.cpp and nmt_master.cpp.
+// (the object dictionary), od_handler.cpp (OD access through handlers), node_monitor.cpp (heartbeat consumer),
+// frames.cpp (raw frames, heartbeat / EMCY callbacks), sdo_client.cpp and nmt_master.cpp. canopen_node.h is the base
+// class of components that drive another node.
 class CANopenComponent : public Component {
  public:
   // CiA 301 node ids are 1..127; 0 is reserved (NMT broadcast), so it can't clash with a real node. It's also
@@ -107,9 +110,21 @@ class CANopenComponent : public Component {
 #endif
 
   // --- Object dictionary (od.cpp) ---
-  // Object dictionary for other components: entries are added before setup() only (see above), since CANopenNode
-  // can't add entries after its init. The storage must outlive the component.
+  // Object dictionary for other components: entries and handlers (OdObject) are added before setup() only (see
+  // above), since CANopenNode can't add entries after its init. The storage must outlive the component.
   ObjectDictionary &get_od() { return this->od_; }
+
+  // --- OD access through the handlers (od_handler.cpp) ---
+  // Writes a value to our own OD through its handler, as an SDO download does (e.g. for commands received in other
+  // frames). Synchronous; needs write access.
+  OdResult write_od(uint16_t index, uint8_t sub, const void *data, size_t len) {
+    return this->od_.write(index, sub, data, len);
+  }
+  // Reads a value from our own OD through its handler, as an SDO upload does; *len is the number of bytes read. A
+  // handler may have side effects. Synchronous; needs read access. DATA_LONG if the value doesn't fit in max_len.
+  OdResult read_od(uint16_t index, uint8_t sub, void *data, size_t max_len, size_t *len) {
+    return this->od_.read(index, sub, data, max_len, len);
+  }
 
   // --- Node monitoring (node_monitor.cpp) ---
   // events of all monitored nodes: (node_id, event, state)
@@ -126,7 +141,7 @@ class CANopenComponent : public Component {
   NMTState get_node_state(uint8_t node_id);
   bool is_node_online(uint8_t node_id);
 #else
-  // no monitored nodes: without heartbeat_clients the heartbeat consumer isn't built
+  // no monitored nodes (heartbeat_clients, register_node(heartbeat_timeout=...)): the heartbeat consumer isn't built
   NMTState get_node_state(uint8_t /*node_id*/) { return NMTState::NMT_STATE_UNKNOWN; }
   bool is_node_online(uint8_t /*node_id*/) { return false; }
 #endif
