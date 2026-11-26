@@ -156,14 +156,9 @@ inline int32_t chart_stacked_point_value(float value, float multiplier) {
 }
 
 /// The storage slot of the point `index` places from the left of the chart.
-/// In SHIFT mode the chart is drawn from the series start point; an index out of range is returned unchanged,
-/// so LVGL ignores it.
-inline uint32_t chart_point_slot(lv_obj_t *chart, lv_chart_series_t *series, uint32_t index) {
-  const uint32_t count = lv_chart_get_point_count(chart);
-  if (index >= count || lv_chart_get_update_mode(chart) != LV_CHART_UPDATE_MODE_SHIFT)
-    return index;
-  return (lv_chart_get_x_start_point(chart, series) + index) % count;
-}
+/// In SHIFT mode the chart is drawn from the series start point. An index out of range, which only a lambda can
+/// give, is logged and returned unchanged, so LVGL ignores it.
+uint32_t chart_point_slot(lv_obj_t *chart, lv_chart_series_t *series, uint32_t index);
 
 /// The Y value LVGL stores for a scatter point. LVGL only checks Y for a gap, so a NaN in X stores a gap in Y too.
 inline int32_t chart_point_y_value(float x, float y, float y_multiplier) {
