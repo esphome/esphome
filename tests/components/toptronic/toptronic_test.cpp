@@ -776,4 +776,14 @@ TEST_F(TopTronicTest, RemoteFrameDoesNotFeedReassembly) {
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);
 }
 
+// A response captured from a HomeVent unit: a three frame message whose text value reads "Constant".
+// Real wire bytes, so the CRC parameters are checked against what a device sends.
+TEST_F(TopTronicTest, CapturedBusFrameCompletes) {
+  this->set_now_(1000);
+  EXPECT_TRUE(this->hub_.feed(0x1F5047FF, {0x19, 0x5C, 0x42, 0x32, 0x00, 0x01, 0xF9, 0x43}).empty());
+  EXPECT_TRUE(this->hub_.feed(0x1E1047FF, {0x5C, 0x6F, 0x6E, 0x73, 0x74, 0x61, 0x6E, 0x74}).empty());
+  const std::vector<uint8_t> expected{0x42, 0x32, 0x00, 0x01, 0xF9, 'C', 'o', 'n', 's', 't', 'a', 'n', 't'};
+  EXPECT_EQ(this->hub_.feed(0x1D9047FF, {0x5C, 0x7B, 0xD2}), expected);
+}
+
 }  // namespace esphome::toptronic::testing
