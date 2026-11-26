@@ -268,7 +268,8 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option(
             "CONFIG_MDNS_PREDEF_NETIF_ETH", INTERFACE_ETHERNET in interfaces
         )
-        add_idf_sdkconfig_option("CONFIG_MDNS_MAX_INTERFACES", max(1, len(interfaces)))
+        # mdns 1.15.0 reads a second slot in mdns_priv_pcb_check_for_duplicates(), so keep two
+        add_idf_sdkconfig_option("CONFIG_MDNS_MAX_INTERFACES", max(2, len(interfaces)))
 
     cg.add_define("USE_MDNS")
 

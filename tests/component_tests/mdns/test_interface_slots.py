@@ -11,10 +11,11 @@ from tests.component_tests.network import sdkconfig_option
 @pytest.mark.parametrize(
     ("config_file", "sta", "ap", "eth", "slots"),
     [
-        ("wifi_only.yaml", True, False, False, 1),
+        ("wifi_only.yaml", True, False, False, 2),
         ("wifi_ap.yaml", True, True, False, 2),
-        ("ethernet_only.yaml", False, False, True, 1),
+        ("ethernet_only.yaml", False, False, True, 2),
         ("wifi_ethernet.yaml", True, False, True, 2),
+        ("wifi_ap_ethernet.yaml", True, True, True, 3),
     ],
 )
 def test_mdns_interface_slots(
