@@ -10,10 +10,7 @@ from esphome.const import (
     CONF_SPEED,
     CONF_X,
     CONF_Y,
-    DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
-    UNIT_DEGREES,
-    UNIT_MILLIMETER,
 )
 from esphome.types import ConfigType
 
@@ -67,16 +64,14 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         cv.Optional(f"target_{n + 1}"): cv.Schema(
             {
                 cv.Optional(CONF_X): sensor.sensor_schema(
-                    device_class=DEVICE_CLASS_DISTANCE,
+                    kind=sensor.DISTANCE_MM,
                     filters=sensor.TIMEOUT_THROTTLE_FILTERS,
                     icon=ICON_ALPHA_X_BOX_OUTLINE,
-                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
                 cv.Optional(CONF_Y): sensor.sensor_schema(
-                    device_class=DEVICE_CLASS_DISTANCE,
+                    kind=sensor.DISTANCE_MM,
                     filters=sensor.TIMEOUT_THROTTLE_FILTERS,
                     icon=ICON_ALPHA_Y_BOX_OUTLINE,
-                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
                 cv.Optional(CONF_SPEED): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_SPEED,
@@ -85,22 +80,20 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                     unit_of_measurement=UNIT_MILLIMETER_PER_SECOND,
                 ),
                 cv.Optional(CONF_ANGLE): sensor.sensor_schema(
+                    kind=sensor.ANGLE,
                     filters=sensor.TIMEOUT_THROTTLE_FILTERS,
                     icon=ICON_FORMAT_TEXT_ROTATION_ANGLE_UP,
-                    unit_of_measurement=UNIT_DEGREES,
                     accuracy_decimals=1,
                 ),
                 cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
-                    device_class=DEVICE_CLASS_DISTANCE,
+                    kind=sensor.DISTANCE_MM,
                     filters=sensor.TIMEOUT_THROTTLE_FILTERS,
                     icon=ICON_MAP_MARKER_DISTANCE,
-                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
                 cv.Optional(CONF_RESOLUTION): sensor.sensor_schema(
-                    device_class=DEVICE_CLASS_DISTANCE,
+                    kind=sensor.DISTANCE_MM,
                     filters=sensor.TIMEOUT_THROTTLE_FILTERS,
                     icon=ICON_RELATION_ZERO_OR_ONE_TO_ZERO_OR_ONE,
-                    unit_of_measurement=UNIT_MILLIMETER,
                 ),
             }
         )

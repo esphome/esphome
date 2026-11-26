@@ -1,0 +1,86 @@
+# Shared package for the SIM restart and CFUN fallback flows (#23163, #23166, #23238): Wi-Fi plus the plaintext API
+# for the drivers, the modem with an empty APN (the network picks one), state buttons and AT query buttons.
+# The board files set the rx, tx and model substitutions and the board. log_level DEBUG makes esp_modem print each AT
+# command and its reply.
+esp32:
+  framework:
+    type: esp-idf
+    log_level: DEBUG
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+modem:
+  id: atmodem
+  rx_pin: ${rx}
+  tx_pin: ${tx}
+  baud_rate: 115200
+  model: ${model}
+  apn: ""
+  reboot_timeout: 0s
+  on_connect:
+    logger.log: "modem connected"
+  on_disconnect:
+    logger.log: "modem disconnected"
+  on_sync:
+    logger.log: "modem synced"
+
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 30s
+  - platform: debug
+    free:
+      name: Heap Free
+    loop_time:
+      name: Loop Time
+
+debug:
+  update_interval: 10s
+
+binary_sensor:
+  - platform: template
+    name: Modem Connected
+    lambda: return id(atmodem).is_connected();
+
+button:
+  - platform: template
+    name: Modem Enable
+    on_press:
+      - modem.enable
+  - platform: template
+    name: Modem Disable
+    on_press:
+      - modem.disable
+  - platform: template
+    name: AT CFUN
+    on_press:
+      - modem.send_at: "AT+CFUN?"
+  - platform: template
+    name: AT CPIN
+    on_press:
+      - modem.send_at: "AT+CPIN?"
+  - platform: template
+    name: AT CEREG
+    on_press:
+      - modem.send_at: "AT+CEREG?"
+  - platform: restart
+    name: Restart
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          ESP_LOGI("alive", "uptime %u s enabled=%d connected=%d", (unsigned) (millis() / 1000),
+                   id(atmodem).is_enabled(), id(atmodem).is_connected());

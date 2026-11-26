@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+bp5758d:
+  id: hub
+  clock_pin: GPIO4
+  data_pin: GPIO5
+
+output:
+  - platform: bp5758d
+    id: out_red
+    channel: 1
+    current: 15
+  - platform: bp5758d
+    id: out_green
+    channel: 2
+    current: 15
+  - platform: bp5758d
+    id: out_white
+    channel: 5

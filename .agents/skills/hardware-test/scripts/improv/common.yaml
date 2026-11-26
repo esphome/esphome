@@ -1,0 +1,18 @@
+# Package for Improv tests: Wi-Fi with no network saved, web_server and improv_serial with a next_url, and an ALIVE
+# line every 5 s. Substitution: name. Drop web_server on a LibreTiny board with no ap: (it boot-loops, see
+# reference/recipes/improv.md).
+esphome:
+  name: ${name}
+
+wifi:
+  power_save_mode: none
+
+web_server:
+
+improv_serial:
+  next_url: https://example.com/?device_name={{device_name}}&ip_address={{ip_address}}
+
+interval:
+  - interval: 5s
+    then:
+      - logger.log: "ALIVE"

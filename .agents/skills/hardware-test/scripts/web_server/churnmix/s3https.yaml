@@ -1,0 +1,11 @@
+# s3.yaml with web_server on the HTTPS server (bench component, see recipes/web_server.md).
+substitutions:
+  name: wsevs
+external_components:
+  - source:
+      type: local
+      path: ext/components
+    components: [https_test]
+https_test:
+packages:
+  s3: !include s3.yaml
