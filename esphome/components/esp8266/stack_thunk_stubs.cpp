@@ -2,9 +2,10 @@
  * Linker wrap stub for the Arduino core's BearSSL stack-overflow handler.
  *
  * stack_thunk_fatal_smashing() prints "FATAL ERROR: BSSL stack smashing detected" and then calls
- * __stack_chk_fail(). StackThunk is linked into every ESP8266 build, and on ESP8266 .rodata lives in
- * DRAM, so the message costs 44 bytes of RAM whether or not anything uses BearSSL. The postmortem
- * that __stack_chk_fail() prints already reports the stack smash.
+ * __stack_chk_fail(). Any build that links BearSSL (http_request HTTPS, the nextion upload, MQTT TLS)
+ * links StackThunk, and on ESP8266 .rodata lives in DRAM, so the message costs 44 bytes of RAM. The
+ * postmortem that __stack_chk_fail() prints already reports the stack smash. Builds without BearSSL
+ * never reference the handler, so the wrap costs them nothing.
  */
 
 #if defined(USE_ESP8266)
