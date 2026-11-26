@@ -12,7 +12,6 @@ namespace esphome::microchip_atsha204a {
 
 ESPHOME_LOG_TAG(TAG, "microchip_atsha204a");
 
-// Microchip ATSHA204A datasheet DS40002025A.
 // https://ww1.microchip.com/downloads/en/devicedoc/atsha204a-data-sheet-40002025a.pdf
 static constexpr uint32_t WAKE_DELAY_US = 3000;
 static constexpr uint32_t WATCHDOG_MIN_MS = 700;
@@ -142,12 +141,13 @@ bool ATSHA204A::send_frame_(Opcode opcode, uint8_t param1, uint16_t param2, cons
 
 void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::span<const uint8_t> data, EndMode end_mode,
                         uint32_t session, bool expect_response, ResultCallback callback) {
-  if (!callback)
+  if (!callback) {
     callback = [](int status, const CommandResponse &, uint32_t) {
       if (status != 0 && status != UNCONFIRMED) {
         ESP_LOGW(TAG, "Command failed (status %d)", status);
       }
     };
+  }
   const uint32_t execution = execution_ms(opcode);
   if (execution == 0 || data.size() > MAX_COMMAND - 7 ||
       (!expect_response && (opcode != Opcode::OPCODE_PAUSE || end_mode != EndMode::END_MODE_SLEEP))) {
