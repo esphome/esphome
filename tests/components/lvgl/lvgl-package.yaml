@@ -508,6 +508,9 @@ lvgl:
                 - logger.log:
                     format: "Roller changed = %d: %s"
                     args: [x, text.c_str()]
+                - lvgl.slider.update:
+                    id: slider_id
+                    value: !lambda return ++x;
             on_update:
               then:
                 - logger.log:

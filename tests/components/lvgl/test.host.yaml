@@ -54,6 +54,12 @@ lvgl:
 
   - id: lvgl_1
     displays: sdl1
+    encoders:
+      group: host_encoder_group
+      enter_button: host_enter_button
+      sensor:
+        left_button: host_left_button
+        right_button: host_right_button
     on_idle:
       timeout: 8s
       then:
@@ -84,6 +90,14 @@ lvgl:
           id: host_hue_picker
           width: 200
           sliders: hue
+
+binary_sensor:
+  - platform: template
+    id: host_enter_button
+  - platform: template
+    id: host_left_button
+  - platform: template
+    id: host_right_button
 
 font:
   - file: "gfonts://Roboto"

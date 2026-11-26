@@ -46,15 +46,14 @@ uart_mock:
     - delay: 200ms
       inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
-    # Phase 3 (t=400ms): a report header with partial data and no footer
-    - delay: 100ms
+    # Phase 3 (t=550ms): a report header with partial data and no footer
+    - delay: 250ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x04, 0x13, 0x00, 0x01, 0x02]
 
-    # Phase 4 (t=600ms): overflow the 32-byte frame buffer. Phases 2 and 3 left 16 bytes
-    # in it; 48 more make 64, so the parser fills the buffer twice. The 33rd byte logs
-    # "Max frame length exceeded" and restarts the buffer, the 64th leaves it full, and the
-    # first byte of the next frame restarts it again, so phase 5 parses from a clean buffer.
-    - delay: 200ms
+    # Phase 4 (t=600ms): 48 bytes that cannot start a header. The first 10 complete the
+    # 19-byte frame phase 3 started; its footer does not match, so it is dropped, the rest
+    # are skipped, and phase 5 parses from a clean buffer.
+    - delay: 50ms
       inject_rx:
         [
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,

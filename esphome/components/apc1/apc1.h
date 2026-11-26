@@ -1,11 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
-
-#include <array>
 
 namespace esphome::apc1 {
 
@@ -79,17 +78,21 @@ class APC1Component final : public uart::UARTDevice, public Component {
   void initialize_device_();
   /// Restarts the no-data watchdog so a mode change gets the same grace period as a cold boot
   void arm_watchdog_();
-  void parse_frame_(uint16_t total_len);
-  void parse_measurement_frame_();
-  void parse_device_info_frame_();
+  /// Returns false for a frame that fails the checksum
+  bool parse_frame_(const uint8_t *frame, uint8_t total_len);
+  void parse_measurement_frame_(const uint8_t *frame);
+  void parse_device_info_frame_(const uint8_t *frame);
 
   GPIOPin *set_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   uint32_t last_transmission_{0};
   uint32_t last_valid_frame_{0};
   uint32_t last_init_attempt_{0};
-  std::array<uint8_t, APC1_FRAME_SIZE_MEASUREMENT> rx_buffer_{};
-  uint8_t rx_index_{0};
+  // 42 4D, payload length (2, BE), payload ending in its checksum (2)
+  LengthFrameReader<APC1_FRAME_SIZE_MEASUREMENT,
+                    FrameFormat<FrameHeader<APC1_HEADER_1, APC1_HEADER_2>, PayloadLengthU16BE<LengthField{.offset = 2}>,
+                                FrameMinLength<APC1_FRAME_HEADER_SIZE + 2>>>
+      reader_;
   uint8_t last_error_code_{0xFF};
   bool active_mode_{true};
   bool idle_{false};

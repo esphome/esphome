@@ -21,6 +21,7 @@ from esphome.components import (
     select,
     sensor,
     switch,
+    text,
     text_sensor,
 )
 from esphome.config import Config
@@ -1357,8 +1358,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     """The cheap class handles must stay string-equal to the integrations'
     own declarations, or use_id/declare_id resolution silently drifts."""
     from esphome.components import mqtt, web_server
-    from esphome.components.zigbee import zigbee_zephyr
-    from esphome.components.zigbee.const import ZigbeeComponent
 
     mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
     assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
@@ -1368,15 +1367,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert str(entity_helpers._WebServer) == str(web_server.WebServer)
     assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
-
-    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    for (
-        _conf_key,
-        class_name,
-        _cluster_options,
-    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
-        owning = getattr(zigbee_zephyr, class_name)
-        assert str(owning) == f"zigbee::{class_name}"
 
 
 @cache
@@ -1428,6 +1418,14 @@ def test_datetime_time_handle_matches_time_component() -> None:
     from esphome.components import datetime, time
 
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
+
+
+def test_zigbee_endpoint_needs_only_zigbee() -> None:
+    """nRF52 builds load zigbee without esp32."""
+    with patch.object(CORE, "loaded_integrations", {"zigbee"}):
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17}) == {
+            "endpoint": 17
+        }
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:
@@ -2046,6 +2044,12 @@ async def test_sub_entities_apply_without_parent_shares_equal_functions(
             "entity->publish_state(index);",
         ),
         (
+            text.sub_texts,
+            text.ApplyText,
+            "text::Text * entity, const std::string & value",
+            "entity->publish_state(value);",
+        ),
+        (
             output.sub_binary_outputs,
             output.ApplyBinaryOutput,
             "output::BinaryOutput * entity, uint16_t index, bool state",
@@ -2070,6 +2074,39 @@ def test_domain_apply_entities(
     assert apply_entity.cls is cls
     assert ", ".join(f"{type_} {arg}" for type_, arg in apply_entity.params) == params
     assert apply_entity.publish == publish
+
+
+@pytest.mark.asyncio
+async def test_sub_texts_apply_through_new_text(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """sub_texts forwards the generated function through new_text to ApplyText."""
+    registered: list[tuple[str, dict[str, Any]]] = []
+
+    async def fake_register_text(
+        var: MockObj, config: ConfigType, **kwargs: Any
+    ) -> None:
+        registered.append((str(var), kwargs))
+
+    monkeypatch.setattr(text, "register_text", fake_register_text)
+    conf = {CONF_ID: ID("pin_txt", is_declaration=True, type=text.ApplyText)}
+    var = await text.sub_texts({"pin": conf}, parent=_HUB)(
+        "pin", None, apply="set_pin(value)", publish="after", max_length=8
+    )
+
+    assert str(var.base.type) == "text::ApplyText<esphome__pin_txt__fn>"
+    assert registered == [
+        (str(var), {"min_length": 0, "max_length": 8, "pattern": None})
+    ]
+    assert apply_functions == [
+        (
+            "esphome__pin_txt__fn",
+            "text::Text * entity, const std::string & value",
+            "::hub->set_pin(value);\nentity->publish_state(value);",
+        )
+    ]
 
 
 @pytest.mark.asyncio

@@ -18,7 +18,7 @@ def test_binary_sensor_is_setup(generate_main):
 
     # Then
     assert "static gpio::GPIOBinarySensor *const" in main_cpp
-    assert "App.register_binary_sensor" in main_cpp
+    assert "esphome::app_lists::APP_BINARY_SENSOR_LIST PROGMEM = {" in main_cpp
 
 
 def test_binary_sensor_sets_mandatory_fields(generate_main):
@@ -33,7 +33,10 @@ def test_binary_sensor_sets_mandatory_fields(generate_main):
     )
 
     # Then
-    assert 'App.register_binary_sensor(bs_1, ESPHOME_PSTR("test bs1"),' in main_cpp
+    assert (
+        'esphome::Application::configure_binary_sensor(bs_1, ESPHOME_PSTR("test bs1"),'
+        in main_cpp
+    )
     assert "bs_1->set_pin(" in main_cpp
 
 

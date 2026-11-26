@@ -8,12 +8,8 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_VERSION,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_MOLECULE_CO2,
-    ICON_RADIATOR,
     ICON_RESTART,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_BILLION,
 )
 from esphome.types import ConfigType
 
@@ -33,13 +29,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ECO2): sensor.sensor_schema(
                 kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
             cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
                 icon=ICON_RESTART
             ),

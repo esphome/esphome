@@ -1,0 +1,15 @@
+# Classic ESP32 relay: joins the DUT's fallback AP and relays TCP to 192.168.4.1 over UART0 at 921600 (run
+# relay_host.py with RELAY_BAUD=921600).
+esphome:
+  name: otarelay-sta
+  platformio_options:
+    build_flags: ["-DRELAY_UART"]
+esp32:
+  board: esp32dev
+wifi:
+  networks:
+    - ssid: otarelay-dut-ap
+      password: !secret ap_password
+  post_connect_roaming: false
+packages:
+  base: !include relay-base.yaml
