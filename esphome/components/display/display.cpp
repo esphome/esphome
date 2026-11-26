@@ -15,7 +15,6 @@ ESPHOME_LOG_TAG(TAG, "display");
 
 void Display::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void Display::clear() { this->fill(COLOR_OFF); }
-void Display::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 
 void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
@@ -715,8 +714,6 @@ void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
   this->vprintf_(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
-
-void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
 
 void Display::set_pages(std::vector<DisplayPage *> pages) {
   if (pages.empty())

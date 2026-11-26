@@ -26,13 +26,16 @@ from esphome.const import (
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
+    CONF_NUMBER,
     CONF_POLLING_INTERVAL,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_VERSION,
     CONF_WIFI,
+    DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_OUTLET,
+    DEVICE_CLASS_VOLTAGE,
 )
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
@@ -51,15 +54,20 @@ from .const import (
     CONF_ROUTER,
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
     KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeNumber,
 )
 from .const_esp32 import (
+    ACCESS,
     ALLOWED_UNITS,
+    ATTR_ACCESS,
     ATTR_TYPE,
     CLUSTER_ID,
     CLUSTER_ROLE,
@@ -82,6 +90,7 @@ from .zigbee_ep_esp32 import (
     BINARY_SENSOR_EP_CONFIGS,
     SENSOR_EP_CONFIGS,
     SWITCH_EP_CONFIGS,
+    add_clusters_to_first_ep,
     add_ep,
     create_ep,
 )
@@ -240,6 +249,50 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                 attr[SCALE] = attr[SCALE][unit]
             if isinstance(attr.get(CONF_LAMBDA), dict):
                 attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
+    elif config[CONF_CLUSTER] == "power_config":
+        if dev_class not in [DEVICE_CLASS_BATTERY, DEVICE_CLASS_VOLTAGE]:
+            raise cv.Invalid(
+                "'cluster: power_config' only supports 'battery' or 'voltage' device_class."
+            )
+        allowed_units = ["%"] if dev_class == DEVICE_CLASS_BATTERY else ["V", "mV"]
+        if unit is not None and unit not in allowed_units:
+            raise cv.Invalid(
+                f"'cluster: power_config' with device class '{dev_class}' requires "
+                f"unit_of_measurement to be one of {', '.join(allowed_units)}.",
+                path=[CONF_UNIT_OF_MEASUREMENT],
+            )
+        cl = {CONF_ID: "POWER_CONFIG", ROLE: "SERVER"}
+        if dev_class == DEVICE_CLASS_BATTERY:
+            cl[CONF_ATTRIBUTES] = [
+                {
+                    CONF_ATTRIBUTE_ID: 0x0021,
+                    CONF_TYPE: "UINT8",
+                    CONNECT: True,
+                    SCALE: 2,  # in 0.5%
+                }
+            ]
+        elif dev_class == DEVICE_CLASS_VOLTAGE:
+            cl[CONF_ATTRIBUTES] = [
+                {
+                    CONF_ATTRIBUTE_ID: 0x0020,
+                    CONF_TYPE: "UINT8",
+                    CONNECT: True,
+                    SCALE: 0.01 if unit == "mV" else 10,  # in 100mV
+                    ACCESS: ATTR_ACCESS["READ"] | ATTR_ACCESS["REPORT"],  # 5
+                }
+            ]
+        if config.get(CONF_ENDPOINT):
+            ep = {CONF_CLUSTERS: [cl]}
+            _LOGGER.warning(
+                "The power configuration cluster is expected only on the first "
+                "endpoint. Adding it on another or multiple endpoints could break"
+                " detection in ZHA or Z2M. Remove the endpoint number to make sure"
+                " it is always on the first endpoint."
+            )
+        else:
+            setup_attributes(config, [cl])
+            add_clusters_to_first_ep([cl], merge_attributes=True)
+            return config
     else:
         ep = copy.deepcopy(ANALOG_INPUT_EP)
         apptype = ANALOG_APPTYPE.get((dev_class, unit))
@@ -270,7 +323,12 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                 },
             )
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    add_ep(
+        ep,
+        config.get(CONF_ENDPOINT),
+        config.get(CONF_USE_DEVICE_TYPE),
+        merge_attributes=config[CONF_CLUSTER] == "power_config",
+    )
     return config
 
 
@@ -297,8 +355,14 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
+    ep_ref: dict[str, Any] = {}
+    config[KEY_ZIGBEE_EP] = ep_ref
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    add_ep(
+        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
+    )
+    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
 
@@ -336,6 +400,16 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_light_esp32(config: ConfigType) -> ConfigType:
+    # Implemented in #22283
+    for key in (CONF_USE_DEVICE_TYPE, CONF_REPORT, CONF_ENDPOINT):
+        if key in config:
+            raise cv.Invalid(
+                f"Zigbee option '{key}' is not supported on lights yet", path=[key]
+            )
+    return config
+
+
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support
@@ -368,6 +442,8 @@ async def attributes_to_code(
                     CLUSTER_ROLE[cl[ROLE]],
                     attr[CONF_ATTRIBUTE_ID],
                     attr.get(CONF_MAX_LENGTH, 0),
+                    ATTR_TYPE[attr[CONF_TYPE]],
+                    attr.get(ACCESS, 0),
                     attr[CONF_VALUE],
                 )
             )
@@ -386,7 +462,7 @@ async def attributes_to_code(
         await cg.register_component(attr_var, attr)
 
         template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
-        cg.add(attr_var.add_attr(template_arg, attr[CONF_VALUE]))
+        cg.add(attr_var.add_attr(template_arg, attr.get(ACCESS, 0), attr[CONF_VALUE]))
         if CONF_REPORT in attr:
             cg.add(attr_var.set_report(attr[CONF_REPORT]))
 
@@ -460,6 +536,26 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
+    zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ZIGBEE_NUMBER],
+        zb,
+        config[KEY_ZIGBEE_EP][CONF_NUMBER],
+        entity,
+    )
+    await cg.register_component(var, {})
+    if (report := config.get(CONF_REPORT, "default")) not in (
+        "default",
+        "coordinator",
+    ):
+        cg.add(var.set_report(report))
+
+
+async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
+    """Placeholder: lights are not exposed over Zigbee yet."""
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(

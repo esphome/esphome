@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_RESTORE_STATE,
     CONF_RGB_ORDER,
+    CONF_SETUP_PRIORITY,
     CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
@@ -48,11 +49,13 @@ from esphome.core import (
 from esphome.core.entity_helpers import (
     RESTORE_STATE_NONE,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import Expression, MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -78,6 +81,7 @@ from .restore_state import (
 from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
+    BufferColorAccessor,
     ChannelColors,
     ColorMode,
     GammaTable,
@@ -100,6 +104,7 @@ IS_PLATFORM_COMPONENT = True
 DOMAIN = "light"
 CONF_GAMMA_TABLE_ID = "gamma_table_id"
 CONF_RESUME_EFFECT = "resume_effect"
+CONF_WRITE_ON_SETUP = "write_on_setup"
 
 CONF_POWER_ESTIMATION = "power_estimation"
 CONF_MA_PER_LED_RED = "ma_per_led_red"
@@ -255,6 +260,24 @@ def channel_colors_struct(value: str) -> cg.MockObj:
     return ChannelColors(
         *(value.index(channel) for channel in "RGBW" if channel in value)
     )
+
+
+def static_led_buffer(
+    output_id: ID,
+    num_leds: int,
+    bytes_per_led: int,
+    extra_bytes: int | Expression = 0,
+    *,
+    psram: bool = False,
+) -> MockObj:
+    """Static block for `BufferColorAccessor::set_buffer`: `buffer_bytes()`, then `extra_bytes`.
+
+    With `psram=True` a build with PSRAM allocates it instead, see `cg.static_buffer`.
+    """
+    size = BufferColorAccessor.static_("buffer_bytes")(num_leds, bytes_per_led)
+    if extra_bytes:
+        size = size + extra_bytes
+    return cg.static_buffer(output_id, cg.uint8, size, psram=psram)
 
 
 def _quote_and_join(keys: list[str]) -> str:
@@ -421,6 +444,8 @@ INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_LIGHT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
@@ -449,11 +474,13 @@ LIGHT_SCHEMA = (
             ),
             cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
             cv.Optional(CONF_RESUME_EFFECT, default=False): cv.boolean,
+            cv.Optional(CONF_WRITE_ON_SETUP, default=False): cv.boolean,
         }
     )
 )
 
 LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
+LIGHT_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_light"))
 
 
 def _validate_initial_state_effect(config: ConfigType) -> ConfigType:
@@ -625,6 +652,9 @@ async def setup_light_core_(light_var, config, output_var):
     if config[CONF_RESUME_EFFECT]:
         cg.add_define("USE_LIGHT_RESUME_EFFECT")
         cg.add(light_var.set_resume_effect(True))
+    if config[CONF_WRITE_ON_SETUP]:
+        cg.add_define("USE_LIGHT_WRITE_ON_SETUP")
+        cg.add(light_var.set_write_on_setup(True))
 
     restore_mode = config.get(CONF_RESTORE_MODE)
     restore_state_config = config.get(CONF_RESTORE_STATE)
@@ -682,6 +712,7 @@ async def setup_light_core_(light_var, config, output_var):
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
+        cg.add_define("USE_LIGHT_EFFECTS")
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
@@ -715,13 +746,23 @@ async def setup_light_core_(light_var, config, output_var):
             cg.add(output_var.set_max_current_ma(max_current_ma))
 
     await entity_helpers.setup_entity_integrations(light_var, config)
+    await lazy_load_setup("zigbee", "setup_light", light_var, config)
+
+
+def _light_component_config(config: ConfigType) -> ConfigType:
+    """An addressable light's output takes setup_priority from the same config, and must be set up first."""
+    is_addressable = config[CONF_ID].type.inherits_from(AddressableLightState)
+    if (priority := config.get(CONF_SETUP_PRIORITY)) is None or not is_addressable:
+        return config
+    # The same gap as the defaults, HARDWARE and HARDWARE - 1
+    return {**config, CONF_SETUP_PRIORITY: priority - 1}
 
 
 async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], output_var)
     queue_entity_register("light", config)
     CORE.register_platform_component("light", light_var)
-    await cg.register_component(light_var, config)
+    await cg.register_component(light_var, _light_component_config(config))
     await setup_light_core_(light_var, config, output_var)
 
 

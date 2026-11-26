@@ -573,17 +573,21 @@ def test_get_esphome_device_ip_answer_without_ip_fails_fast(
 ) -> None:
     """A device answer with no IP fields fails promptly, not at the timeout."""
     client = MagicMock()
+    # A mock stop event records whether the wait loop slept at all
+    stop_event = MagicMock(spec=threading.Event)
+    stop_event.is_set.return_value = False
+    # A regression then fails on the wait assertion, not on pytest.raises
+    stop_event.wait.return_value = False
 
     with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
         _deliver_on_loop_start(
             mock_prepare, client, json.dumps({"name": "test-device"}).encode()
         )
 
-        start = time.monotonic()
         with pytest.raises(EsphomeError, match="Failed to find IP via MQTT"):
-            get_esphome_device_ip(_discovery_config(), timeout=5)
+            get_esphome_device_ip(_discovery_config(), timeout=5, stop_event=stop_event)
 
-    assert time.monotonic() - start < 1
+    stop_event.wait.assert_not_called()
     assert "Device answer did not include an IP address" in caplog.text
 
 
@@ -609,6 +613,11 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
 ) -> None:
     """A broker-initiated disconnect aborts the wait instead of timing out."""
     client = MagicMock()
+    # A mock stop event records whether the wait loop slept at all
+    stop_event = MagicMock(spec=threading.Event)
+    stop_event.is_set.return_value = False
+    # A regression then fails on the wait assertion, not on pytest.raises
+    stop_event.wait.return_value = False
 
     with patch("esphome.mqtt.prepare", return_value=client):
 
@@ -620,11 +629,10 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
 
         client.loop_start.side_effect = drop_connection
 
-        start = time.monotonic()
         with pytest.raises(EsphomeError, match="Failed to find IP via MQTT"):
-            get_esphome_device_ip(_discovery_config(), timeout=5)
+            get_esphome_device_ip(_discovery_config(), timeout=5, stop_event=stop_event)
 
-    assert time.monotonic() - start < 1
+    stop_event.wait.assert_not_called()
     assert "Disconnected from MQTT broker (Not authorized, rc=135)" in caplog.text
 
 

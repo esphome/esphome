@@ -196,8 +196,7 @@ class SPIDelegate {
       : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
     if (this->cs_pin_ == nullptr)
       this->cs_pin_ = NullPin::NULL_PIN;
-    this->cs_pin_->setup();
-    this->cs_pin_->digital_write(true);
+    setup_output_pin(this->cs_pin_, true);
   }
 
   virtual ~SPIDelegate() {};
@@ -288,6 +287,7 @@ class SPIDelegateDummy : public SPIDelegate {
 
   uint8_t transfer(uint8_t data) override { return 0; }
   void end_transaction() override {};
+  bool is_ready() override { return false; }
 
   void begin_transaction() override;
 };

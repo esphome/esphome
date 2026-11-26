@@ -171,7 +171,7 @@ def reject_broadcast_options_for_unicast(
 
 
 # Raw PDU; valid only during the automation.
-PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+PDU_SPAN = cg.byte_span
 
 _request_on_request_slot = cg.slot_counter("MODBUS_ON_REQUEST_COUNT")
 

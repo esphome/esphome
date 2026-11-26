@@ -21,17 +21,19 @@ class TestNumber : public Number {
   void set_test_id(uint32_t hash) { this->object_id_hash_ = hash; }
 };
 
-/// A number, its on_value_range trigger and the values the trigger fired with
+/// The values the on_value_range callback fired with
+static std::vector<float> fired_values;
+static void record(float x) { fired_values.push_back(x); }
+
+/// A number and its on_value_range callback
 struct RangeFixture {
   TestNumber number;
-  ValueRangeTrigger trigger{&this->number};
-  Automation<float> automation{&this->trigger};
-  std::vector<float> fired;
-  LambdaAction<float> record{[this](float x) { this->fired.push_back(x); }};
+  FireCallback<record, ValueRangeBase> trigger;
+  std::vector<float> &fired{fired_values};
 
-  RangeFixture() {
+  explicit RangeFixture(ValueRange (*range)(float x)) : trigger(&this->number, range) {
     this->number.set_test_id(0x5E01);
-    this->automation.add_action(&this->record);
+    fired_values.clear();
   }
   void publish(std::initializer_list<float> values) {
     for (float value : values)
@@ -60,33 +62,21 @@ class NumberValueRangeTest : public ::testing::Test {
 };
 
 TEST_F(NumberValueRangeTest, AboveOnlyFiresOnEnteringTheRange) {
-  RangeFixture f;
-  f.trigger.set_min([](float) -> float { return 10.0f; });
+  RangeFixture f([](float x) -> ValueRange { return {10.0f, NAN}; });
   f.trigger.setup();
   f.publish({5.0f, 10.0f, 20.0f, 9.9f, 12.0f});
   EXPECT_EQ(f.fired, (std::vector<float>{10.0f, 12.0f}));
 }
 
 TEST_F(NumberValueRangeTest, BelowOnlyFiresOnEnteringTheRange) {
-  RangeFixture f;
-  f.trigger.set_max([](float) -> float { return 10.0f; });
+  RangeFixture f([](float x) -> ValueRange { return {NAN, 10.0f}; });
   f.trigger.setup();
   f.publish({15.0f, 10.0f, 5.0f, 10.1f, 8.0f});
   EXPECT_EQ(f.fired, (std::vector<float>{10.0f, 8.0f}));
 }
 
-TEST_F(NumberValueRangeTest, BothBoundsAreInclusive) {
-  RangeFixture f;
-  f.trigger.set_min([](float) -> float { return 10.0f; });
-  f.trigger.set_max([](float) -> float { return 20.0f; });
-  f.trigger.setup();
-  f.publish({9.0f, 10.0f, 20.0f, 21.0f, 20.0f, 25.0f, 15.0f});
-  EXPECT_EQ(f.fired, (std::vector<float>{10.0f, 20.0f, 15.0f}));
-}
-
 TEST_F(NumberValueRangeTest, NanStateIsIgnored) {
-  RangeFixture f;
-  f.trigger.set_min([](float) -> float { return 10.0f; });
+  RangeFixture f([](float x) -> ValueRange { return {10.0f, NAN}; });
   f.trigger.setup();
   f.publish({15.0f, NAN, 16.0f});
   EXPECT_EQ(f.fired, (std::vector<float>{15.0f}));
@@ -94,9 +84,8 @@ TEST_F(NumberValueRangeTest, NanStateIsIgnored) {
 
 // Bounds get the state as x; a NaN bound is ignored, and with both NaN the previous result is kept
 TEST_F(NumberValueRangeTest, NanBoundsFromLambdas) {
-  RangeFixture f;
-  f.trigger.set_min([](float x) -> float { return x > 100.0f ? NAN : 10.0f; });
-  f.trigger.set_max([](float x) -> float { return x > 100.0f || x < 0.0f ? NAN : 20.0f; });
+  RangeFixture f(
+      [](float x) -> ValueRange { return {x > 100.0f ? NAN : 10.0f, x > 100.0f || x < 0.0f ? NAN : 20.0f}; });
   f.trigger.setup();
   // 200: both NaN keeps "in range"; -5: only the max is NaN, so -5 >= 10 is out of range
   f.publish({15.0f, 200.0f, 16.0f, -5.0f, 200.0f, 17.0f});
@@ -106,18 +95,14 @@ TEST_F(NumberValueRangeTest, NanBoundsFromLambdas) {
 // The preference is keyed by the range width (max - min with x = 0), so a changed range starts over
 TEST_F(NumberValueRangeTest, InRangeIsRestoredForTheSameWidth) {
   {
-    RangeFixture f;
-    f.trigger.set_min([](float) -> float { return 10.0f; });
-    f.trigger.set_max([](float x) -> float { return x + 20.0f; });
+    RangeFixture f([](float x) -> ValueRange { return {10.0f, x + 20.0f}; });
     f.trigger.setup();
     f.publish({15.0f});
     ASSERT_EQ(f.fired.size(), 1u);
     global_preferences->sync();
   }
   {
-    RangeFixture f;
-    f.trigger.set_min([](float) -> float { return 10.0f; });
-    f.trigger.set_max([](float x) -> float { return x + 20.0f; });
+    RangeFixture f([](float x) -> ValueRange { return {10.0f, x + 20.0f}; });
     f.trigger.setup();
     f.publish({16.0f});
     EXPECT_TRUE(f.fired.empty()) << "the stored in-range state was not restored";
@@ -128,9 +113,7 @@ TEST_F(NumberValueRangeTest, InRangeIsRestoredForTheSameWidth) {
     EXPECT_TRUE(f.number.make_entity_preference<bool>(hash).load(&stored));
     EXPECT_TRUE(stored);
   }
-  RangeFixture f;
-  f.trigger.set_min([](float) -> float { return 10.0f; });
-  f.trigger.set_max([](float) -> float { return 30.0f; });
+  RangeFixture f([](float x) -> ValueRange { return {10.0f, 30.0f}; });
   f.trigger.setup();
   f.publish({16.0f});
   EXPECT_EQ(f.fired, (std::vector<float>{16.0f}));

@@ -1,7 +1,7 @@
 // Bluedroid (esp32) GATT client backend: the esp32 arm of the
 // ble_device_base::BLEGattConnection alias for the hub BluetoothConnection
 // wrapper. Not a BLEClientBase: the tracker's promote loop owns
-// scan-stop/coex/one-connect-at-a-time, so the contract's connect() only
+// scan-stop/one-connect-at-a-time, so the contract's connect() only
 // parks the address in DISCOVERED; the real esp_ble_gattc_open happens in
 // the tracker-invoked connect() override.
 
@@ -25,7 +25,7 @@ class BluetoothConnection;
 #endif
 
 // One class carries both halves: the tracker's ESPBTClient surface (its
-// promote loop owns scan-stop/coex/one-connect-at-a-time and calls the
+// promote loop owns scan-stop/one-connect-at-a-time and calls the
 // virtual connect()/disconnect()) and the neutral contract ops. The
 // contract's teardown op is named gatt_disconnect() because the tracker's
 // void disconnect() cannot overload with an int-returning twin.
@@ -103,6 +103,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void cancel_pending_open_();
   void set_idle_();
   void set_disconnecting_();
+  void release_coex_priority_();
   esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
@@ -137,10 +138,12 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // esp_ble_gattc_cancel_open() was accepted; CANCEL_OPEN_EVT or OPEN_EVT ends
   // the attempt, so the scheduled teardown can no longer be cancelled.
   bool cancel_open_sent_ : 1 {false};
+  // Holds a coex_ble_priority_acquire() until discovery ends or the link closes.
+  bool coex_held_ : 1 {false};
   // Search issued at OPEN_EVT overlaps the MTU exchange; discover_services()
   // completes from it. Reset by set_idle_().
-  static_assert(static_cast<uint8_t>(SearchState::REPORT_PENDING) < (1 << 4), "search_state_ bitfield too narrow");
-  SearchState search_state_ : 4 {SearchState::NONE};
+  static_assert(static_cast<uint8_t>(SearchState::REPORT_PENDING) < (1 << 3), "search_state_ bitfield too narrow");
+  SearchState search_state_ : 3 {SearchState::NONE};
   // esp_gatt_status_t of the completed search, held until claimed.
   uint8_t search_status_{0};
 };

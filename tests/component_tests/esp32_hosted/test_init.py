@@ -22,8 +22,15 @@ from esphome.components.esp32_hosted import (
     CONFIG_SCHEMA,
     _final_validate,
     _validate_active_high,
+    _warn_esp32c5_update,
 )
-from esphome.const import CONF_CLK_PIN, CONF_RESET_PIN, CONF_VARIANT, PlatformFramework
+from esphome.const import (
+    CONF_CLK_PIN,
+    CONF_PLATFORM,
+    CONF_RESET_PIN,
+    CONF_VARIANT,
+    PlatformFramework,
+)
 from esphome.types import ConfigType
 
 from ..types import SetCoreConfigCallable
@@ -122,3 +129,28 @@ def test_active_high_false_rejected() -> None:
     """esp_hosted drives the reset line with a low pulse only."""
     with pytest.raises(cv.Invalid, match="active_high: false"):
         _validate_active_high({CONF_ACTIVE_HIGH: False})
+
+
+@pytest.mark.parametrize(
+    ("variant", "updates", "warns"),
+    [
+        ("ESP32C5", [{CONF_PLATFORM: "esp32_hosted"}], True),
+        ("ESP32C6", [{CONF_PLATFORM: "esp32_hosted"}], False),
+        ("ESP32C5", [{CONF_PLATFORM: "http_request"}], False),
+        ("ESP32C5", [], False),
+    ],
+)
+def test_esp32c5_update_warning(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    updates: list[ConfigType],
+    warns: bool,
+) -> None:
+    """Only an ESP32-C5 coprocessor with the hosted update platform is warned."""
+    set_core_config(PlatformFramework.ESP32_IDF, full_config={"update": updates})
+
+    with caplog.at_level(logging.WARNING):
+        _warn_esp32c5_update({CONF_VARIANT: variant})
+
+    assert ("partition table offset" in caplog.text) is warns
