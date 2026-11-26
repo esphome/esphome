@@ -2207,6 +2207,10 @@ async def test_grouped_automations_build_in_entry_order_across_lists(
             },
             "on_x: the arg type must be a value type",
         ),
+        (
+            {"watched": lambda parent: parent.name, "args": [(cg.const_char_ptr, "x")]},
+            "on_x: the arg type must be a value type",
+        ),
     ],
 )
 def test_grouped_automation_rejects_a_missing_value(

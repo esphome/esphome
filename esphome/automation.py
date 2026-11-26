@@ -2520,8 +2520,8 @@ class GroupedAutomation:
             )
         if len(self.args) > 1:
             raise ValueError(f"{self.conf_key}: only the watched value can be passed")
-        # The automation gets a copy, so a reference type would alias the parent's value
-        if self.args and "&" in str(cg.safe_exp(self.args[0][0])):
+        # The automation gets a copy, so a reference or pointer type would alias the parent's value
+        if self.args and any(c in str(cg.safe_exp(self.args[0][0])) for c in "&*"):
             raise ValueError(f"{self.conf_key}: the arg type must be a value type")
         # Without args or last_type the copy is a bool, which only suits entered and left
         if (
