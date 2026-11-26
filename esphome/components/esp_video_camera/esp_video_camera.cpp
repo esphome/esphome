@@ -591,7 +591,7 @@ void ESPVideoCamera::loop() {
   }
 }
 
-void ESPVideoCamera::uvc_capture_task_(void *param) {
+void ESPVideoCamera::uvc_capture_task(void *param) {
   auto *camera = static_cast<ESPVideoCamera *>(param);
   if (camera->uvc_capture_start_) {
     if (!camera->start_capture_())
@@ -609,7 +609,7 @@ bool ESPVideoCamera::schedule_uvc_capture_operation_(bool start, bool retry) {
   this->uvc_capture_start_ = start;
   this->uvc_capture_retry_ = retry;
   this->uvc_capture_busy_.store(true, std::memory_order_release);
-  if (xTaskCreatePinnedToCore(uvc_capture_task_, "uvc_capture", 4096, this, 5, nullptr, 0) != pdPASS) {
+  if (xTaskCreatePinnedToCore(uvc_capture_task, "uvc_capture", 4096, this, 5, nullptr, 0) != pdPASS) {
     this->uvc_capture_busy_.store(false, std::memory_order_release);
     ESP_LOGE(TAG, "Failed to create UVC capture task");
     return false;
