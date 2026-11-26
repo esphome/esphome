@@ -858,6 +858,11 @@ ModemState ModemComponent::handle_state_connecting_() {
         ESP_LOGW(TAG, "Modem not synced during network init");
         return ModemState::MODEM_STATE_ENABLING;
       }
+      // A SIM query that keeps timing out sets resync_ every time, so a due restart goes out here, after the sync
+      const uint32_t now = millis();
+      if (this->sim_wait_started_ms_ != 0 && this->sim_restart_due_(now)) {
+        return this->restart_for_sim_(now);
+      }
     }
     // ENABLING powered the SIM up, so the SIM answers: CFUN=4, or CFUN=1 on a modem without it or after the APN was
     // refused at CFUN=0, which leaves the radio on here
@@ -1205,11 +1210,12 @@ ModemState ModemComponent::restart_for_sim_(uint32_t now) {
   this->sim_wait_started_ms_ = now;  // also when run_task_() ends the wait for the restart
   // The restart can cut its own OK short, so only an ERROR means it did not happen
   const bool refused = this->at_reply_("AT+CFUN=1,1") == command_result::FAIL;
-  ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; %s (AT+CFUN=1,1)", waited_s,
-           refused ? LOG_STR_LITERAL("the modem refused a restart") : LOG_STR_LITERAL("restarting the modem"));
   if (refused) {
+    ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; the modem refused a restart (AT+CFUN=1,1): %s", waited_s,
+             this->reply_);
     return this->retry_(ModemState::MODEM_STATE_CONNECTING);
   }
+  ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; restarting the modem (AT+CFUN=1,1)", waited_s);
   this->sim_restart_pending_ = true;
   return ModemState::MODEM_STATE_ENABLING;
 }
