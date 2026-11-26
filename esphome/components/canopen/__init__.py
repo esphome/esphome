@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
+import logging
 from typing import Any
 
 from esphome import automation
@@ -25,6 +26,8 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrk-its"]
 DEPENDENCIES = ["canbus"]
@@ -135,6 +138,12 @@ async def _final_build_flags() -> None:
     # heartbeat consumer, which links in its code even without monitored nodes
     if "node_monitor" not in _get_data().enabled:
         cg.add_build_flag("-DCO_CONFIG_HB_CONS=0")
+        for hub in _hub_configs():
+            if CONF_ON_NODE_EVENT in hub:
+                _LOGGER.warning(
+                    "canopen %s: on_node_event never fires, no node is monitored (heartbeat_clients)",
+                    hub[CONF_ID],
+                )
 
 
 def enable_nmt_master() -> None:

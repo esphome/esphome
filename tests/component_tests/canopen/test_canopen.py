@@ -1,6 +1,7 @@
 """Tests for the canopen component."""
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 import pytest
@@ -150,6 +151,22 @@ def test_node_monitor_only_when_used(
     generate_main(component_config_path(yaml))
     assert ("USE_CANOPEN_NODE_MONITOR" in _defines()) == monitor
     assert ("-DCO_CONFIG_HB_CONS=0" in CORE.build_flags) != monitor
+
+
+@pytest.mark.parametrize(
+    ("yaml", "warned"), [("node_event_unmonitored.yaml", True), ("canopen.yaml", False)]
+)
+def test_node_event_without_monitored_nodes(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+    yaml: str,
+    warned: bool,
+) -> None:
+    """on_node_event with no node monitored (no heartbeat_clients, no component monitoring one) is warned about."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path(yaml))
+    assert ("on_node_event never fires" in caplog.text) == warned
 
 
 def test_local_nodes(
