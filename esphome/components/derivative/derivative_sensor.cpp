@@ -10,7 +10,7 @@ namespace esphome::derivative {
 ESPHOME_LOG_TAG(TAG, "derivative");
 
 void DerivativeSensor::setup() {
-  this->source_sensor_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
+  this->source_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
 }
 
 void DerivativeSensor::dump_config() { LOG_SENSOR("", "Derivative Sensor", this); }
@@ -20,7 +20,7 @@ void DerivativeSensor::process_sensor_value_(float value) {
   // between samples). Drop the baseline so the next valid reading re-establishes it,
   // instead of deriving a bogus rate across the gap.
   if (std::isnan(value)) {
-    this->has_last_ = false;
+    this->last_value_ = NAN;
     return;
   }
 
@@ -29,11 +29,10 @@ void DerivativeSensor::process_sensor_value_(float value) {
   // the same timestamp as its source, giving an accurate dt down to one loop iteration.
   const uint32_t now = App.get_loop_component_start_time();
 
-  if (!this->has_last_) {
+  if (std::isnan(this->last_value_)) {
     // First valid reading (ever, or after a gap): only establish the baseline.
     this->last_value_ = value;
     this->last_update_ = now;
-    this->has_last_ = true;
     return;
   }
 
@@ -49,7 +48,7 @@ void DerivativeSensor::process_sensor_value_(float value) {
     return;
   }
 
-  const float dt = dt_ms * this->get_time_factor_();
+  const float dt = dt_ms * this->time_factor_;
   this->publish_state((value - old_value) / dt);
 }
 

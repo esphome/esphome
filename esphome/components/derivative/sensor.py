@@ -14,13 +14,14 @@ from esphome.types import ConfigType
 derivative_ns = cg.esphome_ns.namespace("derivative")
 DerivativeSensor = derivative_ns.class_("DerivativeSensor", sensor.Sensor, cg.Component)
 
-DerivativeSensorTime = derivative_ns.enum("DerivativeSensorTime")
-DERIVATIVE_TIMES = {
-    "ms": DerivativeSensorTime.DERIVATIVE_SENSOR_TIME_MILLISECOND,
-    "s": DerivativeSensorTime.DERIVATIVE_SENSOR_TIME_SECOND,
-    "min": DerivativeSensorTime.DERIVATIVE_SENSOR_TIME_MINUTE,
-    "h": DerivativeSensorTime.DERIVATIVE_SENSOR_TIME_HOUR,
-    "d": DerivativeSensorTime.DERIVATIVE_SENSOR_TIME_DAY,
+# Milliseconds in each time unit. The delta is measured in milliseconds, so the
+# multiplier handed to the component is its reciprocal.
+DERIVATIVE_TIME_UNITS = {
+    "ms": 1.0,
+    "s": 1000.0,
+    "min": 60000.0,
+    "h": 3600000.0,
+    "d": 86400000.0,
 }
 
 CONF_TIME_UNIT = "time_unit"
@@ -41,8 +42,8 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_TIME_UNIT, default="s"): cv.enum(
-                DERIVATIVE_TIMES, lower=True
+            cv.Optional(CONF_TIME_UNIT, default="s"): cv.one_of(
+                *DERIVATIVE_TIME_UNITS, lower=True
             ),
         }
     )
@@ -72,10 +73,11 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    source = await cg.get_variable(config[CONF_SENSOR])
+    var = cg.new_Pvariable(config[CONF_ID], source)
 
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    await cg.add_variable(var.set_source_sensor, config[CONF_SENSOR])
-    cg.add(var.set_time(config[CONF_TIME_UNIT]))
+    time_factor = 1.0 / DERIVATIVE_TIME_UNITS[config[CONF_TIME_UNIT]]
+    cg.add(var.set_time_factor(time_factor))

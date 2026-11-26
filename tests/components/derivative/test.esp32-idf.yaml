@@ -1,4 +1,5 @@
 substitutions:
   pin: A0
 
-<<: !include common-esp32.yaml
+packages:
+  derivative: !include common-esp32.yaml
