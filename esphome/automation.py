@@ -555,7 +555,7 @@ IN_RANGE_CHECK = ApplyCall(
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
 ValueRange = cg.esphome_ns.struct("ValueRange")
-# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+# The bounds of an on_value_range trigger, rendered by ``build_value_range_automation``.
 _VALUE_RANGE_BOUNDS = ApplyCall(
     "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
 )
@@ -973,17 +973,22 @@ def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -
     return not members or any(value is not None for value in values)
 
 
-async def new_value_range_trigger(
-    trigger_id: ID, parent: MockObj, config: ConfigType
+async def build_value_range_automation(
+    config: ConfigType, base: MockObjClass, parent: MockObj
 ) -> MockObj:
-    """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+    """Build ``FireCallback<fn, base>`` for ``parent`` with a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
 
-    The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
+    The component exists before its bounds are rendered, so a bound may use the component's own id.
     A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
     the const ``x`` is a backstop if bounds are ever inlined again.
     """
-    trigger = cg.new_Pvariable(
-        trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
+    bounds_name = _apply_function_name(config[CONF_TRIGGER_ID])
+    var = await build_component_automation(
+        config,
+        FireCallback,
+        template_args=[base],
+        args=[(cg.float_, "x")],
+        ctor_args=[parent, cg.RawExpression(bounds_name)],
     )
     config = {**IN_RANGE_DEFAULTS, **config}
     members = _VALUE_RANGE_BOUNDS.members
@@ -996,14 +1001,14 @@ async def new_value_range_trigger(
         None,
         [(cg.float_, "x")],
     )
-    # The trigger above already names this function, so it must keep this exact name
+    # The component above already names this function, so it must keep this exact name
     cg.static_function(
-        _apply_function_name(trigger_id),
+        bounds_name,
         ValueRange,
         [(cg.RawExpression("const float"), "x")],
         [f"return {bounds};"],
     )
-    return trigger
+    return var
 
 
 def register_apply_condition(

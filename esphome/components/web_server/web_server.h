@@ -160,7 +160,7 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 
  public:
   DeferredUpdateEventSource(WebServer *ws, const String &url)
-      : AsyncEventSource(url), entities_iterator_(ListEntitiesIterator(ws, this)), web_server_(ws) {}
+      : AsyncEventSource(url), entities_iterator_(ListEntitiesIterator(this)), web_server_(ws) {}
 
   void loop();
 

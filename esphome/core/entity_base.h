@@ -232,8 +232,6 @@ class EntityBase {
  protected:
   friend void ::setup();
   friend void ::original_setup();
-  // Application's register_<entity>(obj, name, hash, fields) overloads call configure_entity_
-  // before push_back, so codegen can emit a single combined call per entity.
   friend class Application;
 
   /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.

@@ -15,3 +15,4 @@ sensor:
     roi_height: 8
     offset: 5
     signal_rate_limit: 2.0
+    roi_center: 167
