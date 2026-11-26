@@ -62,6 +62,9 @@ TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
 
 # Options of a text sensor or select are fixed at code generation, so the C++ side keeps them inline
 _request_option = cg.slot_counter("TOPTRONIC_OPTION_COUNT")
+# Read and write entities of a hub, counted per hub
+register_sensor = cg.slot_list("TOPTRONIC_SENSOR_COUNT", "add_sensor", DOMAIN)
+register_input = cg.slot_list("TOPTRONIC_INPUT_COUNT", "add_input", DOMAIN)
 
 TT_TYPE = toptronic.enum("TypeName", is_class=True)
 _TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
