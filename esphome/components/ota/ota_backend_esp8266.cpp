@@ -11,12 +11,14 @@
 #include <Esp.h>
 #include <esp8266_peri.h>
 
+#include <algorithm>
 #include <cinttypes>
 
 extern "C" {
 #include <c_types.h>
 #include <eboot_command.h>
 #include <flash_hal.h>
+#include <flash_utils.h>
 #include <spi_flash.h>
 #include <user_interface.h>
 }
@@ -30,6 +32,14 @@ static constexpr uint8_t FLASH_MODE_OFFSET = 2;
 static constexpr uint8_t FIRMWARE_MAGIC = 0xE9;
 static constexpr uint8_t GZIP_MAGIC_1 = 0x1F;
 static constexpr uint8_t GZIP_MAGIC_2 = 0x8B;
+
+#ifdef USE_WEBSERVER_OTA
+// Only the web server uploads without an MD5
+static constexpr uint8_t MAX_IMAGE_SEGMENTS = 16;
+static constexpr uint8_t IMAGE_CHECKSUM_SEED = 0xEF;
+// elf2bin's add_crc() writes the image length and CRC here
+static constexpr uint32_t CRC_WORDS_OFFSET = APP_START_OFFSET + 16;
+#endif
 
 // ESP8266 flash memory base address (memory-mapped flash starts here)
 static constexpr uint32_t FLASH_BASE_ADDRESS = 0x40200000;
@@ -340,6 +350,19 @@ bool ESP8266OTABackend::verify_end_() {
     return false;
   }
 
+#ifdef USE_WEBSERVER_OTA
+  // No MD5: the segment tables must end exactly at the bytes received
+  if (!this->md5_set_) {
+    // eboot padded to 4 KB, then the app
+    size_t eboot_end = this->image_end_(0);
+    size_t end = eboot_end != 0 && eboot_end <= APP_START_OFFSET ? this->image_end_(APP_START_OFFSET) : 0;
+    if (end != this->image_size_) {
+      ESP_LOGE(TAG, "Damaged image: %zu bytes received, valid up to %zu", this->image_size_, end);
+      return false;
+    }
+  }
+#endif
+
 #if !FLASH_MAP_SUPPORT
   // Check if new firmware's flash size fits (only when auto-detection is disabled)
   // With FLASH_MAP_SUPPORT (modern cores), flash size is auto-detected from chip
@@ -355,6 +378,54 @@ bool ESP8266OTABackend::verify_end_() {
 
   return true;
 }
+
+#ifdef USE_WEBSERVER_OTA
+// EspClass::getSketchSize()'s walk over the staged image, plus the image checksum
+size_t ESP8266OTABackend::image_end_(size_t offset) {
+  image_header_t header;
+  if (offset + sizeof(header) > this->image_size_ ||
+      spi_flash_read(this->start_address_ + offset, reinterpret_cast<uint32_t *>(&header), sizeof(header)) !=
+          SPI_FLASH_RESULT_OK ||
+      header.magic != FIRMWARE_MAGIC || header.num_segments == 0 || header.num_segments > MAX_IMAGE_SEGMENTS)
+    return 0;
+  auto *buf = reinterpret_cast<uint32_t *>(this->buffer_.get());
+  size_t chunk_max = this->buffer_size_ & ~size_t{3};
+  uint8_t checksum = IMAGE_CHECKSUM_SEED;
+  size_t end = offset + sizeof(header);
+  for (uint8_t i = 0; i < header.num_segments; i++) {
+    section_header_t section;
+    if (end + sizeof(section) > this->image_size_ ||
+        spi_flash_read(this->start_address_ + end, reinterpret_cast<uint32_t *>(&section), sizeof(section)) !=
+            SPI_FLASH_RESULT_OK)
+      return 0;
+    end += sizeof(section);
+    if (section.size > this->image_size_ - end)
+      return 0;
+    for (size_t done = 0; done < section.size;) {
+      size_t chunk = std::min(section.size - done, chunk_max);
+      if (spi_flash_read(this->start_address_ + end + done, buf, (chunk + 3) & ~size_t{3}) != SPI_FLASH_RESULT_OK)
+        return 0;
+      checksum = xor_bytes(this->buffer_.get(), chunk, checksum);
+      done += chunk;
+    }
+    end += section.size;
+  }
+  // Checksum byte, then padding to 16 bytes
+  end = (end + 1 + 15) & ~size_t{15};
+  uint32_t tail;
+  if (end > this->image_size_ ||
+      spi_flash_read(this->start_address_ + end - sizeof(tail), &tail, sizeof(tail)) != SPI_FLASH_RESULT_OK)
+    return 0;
+  uint8_t expected = checksum;
+  uint32_t crc_words[2];
+  // A recorded length that matches means elf2bin wrote these words after taking the checksum
+  if (offset == APP_START_OFFSET &&
+      spi_flash_read(this->start_address_ + CRC_WORDS_OFFSET, crc_words, sizeof(crc_words)) == SPI_FLASH_RESULT_OK &&
+      crc_words[0] == this->image_size_)
+    expected = xor_bytes(reinterpret_cast<uint8_t *>(crc_words), sizeof(crc_words), checksum);
+  return static_cast<uint8_t>(tail >> 24) == expected ? end : 0;
+}
+#endif
 
 uint8_t ESP8266OTABackend::get_flash_chip_mode_() {
   uint32_t data;

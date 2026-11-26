@@ -1,0 +1,83 @@
+# Classic ESP32 self-test: the drive.py scenarios run on the device, for a board whose Wi-Fi cannot carry the API
+# test. Set the three server addresses (-s mac_l AA:BB:CC:DD:EE:FF -s mac_m ... -s mac_eve ...) and the ff01
+# handles of L and M, which drive.py stores in handles.json after a full discovery (the defaults fit a
+# gen_peri.py 26 x 4 --burst L).
+substitutions:
+  name: bpab-e32st
+  handle_l: "55"
+  handle_m: "49"
+  mac_l: "00:00:00:00:00:01"
+  mac_m: "00:00:00:00:00:02"
+  mac_eve: "00:00:00:00:00:03"
+esphome:
+  name: ${name}
+  includes: [../ble_conn_interval/ivlog.hpp, heaplog.hpp, selftest.hpp]
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=esp_ble_gattc_register_callback
+      - -Wl,--wrap=esp_ble_gap_register_callback
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            heaplog::log();
+            selftest::start(id(cl), id(cm), id(ce), id(trk), ${handle_l}, ${handle_m});
+esp32:
+  variant: ESP32
+  board: esp32dev
+  framework:
+    type: esp-idf
+    log_level: WARN
+    sdkconfig_options:
+      CONFIG_BT_GATTC_CACHE_NVS_FLASH: y
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+esp32_ble_tracker:
+  id: trk
+  scan_parameters:
+    active: true
+  on_ble_advertise:
+    - then:
+        - lambda: selftest::on_adv(x);
+ble_client:
+  - {id: cl, mac_address: "${mac_l}", auto_connect: false}
+  - {id: cm, mac_address: "${mac_m}", auto_connect: false}
+  - {id: ce, mac_address: "${mac_eve}", auto_connect: false}
+sensor:
+  - platform: ble_client
+    type: characteristic
+    ble_client_id: cl
+    id: tick
+    name: tick
+    service_uuid: 5ec20000-0000-1000-8000-00805f9b34fb
+    characteristic_uuid: 5ec2ff03-0000-1000-8000-00805f9b34fb
+    notify: true
+    update_interval: never
+    internal: true
+    lambda: |-
+      if (x.size() < 4) {
+        selftest::on_short_tick();
+        return NAN;
+      }
+      uint32_t v = x[0] | (x[1] << 8) | (x[2] << 16) | ((uint32_t) x[3] << 24);
+      selftest::on_tick(v);
+      return (float) v;
+interval:
+  - interval: 30s
+    then:
+      - lambda: heaplog::log();
+  - interval: 50ms
+    then:
+      - lambda: selftest::tick();
+  - interval: 100ms
+    then:
+      - lambda: heaplog::watch();
