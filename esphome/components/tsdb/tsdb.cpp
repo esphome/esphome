@@ -956,28 +956,15 @@ void TsdbComponent::sync_now_() {
   // The engine ignores the error of the header fold, so a sync that "succeeded" can
   // still leave the old header in the file: confirm what reached the disk.
   if (err == ESP_OK && this->folded_header_matches_()) {
-    this->sync_failed_ = false;
-    this->dirty_ = false;
-    ESP_LOGD(TAG, "%s: synced after %" PRIu32 " writes", this->file_.c_str(), this->writes_);
-    if (this->report_flush_) {
-      this->report_flush_ = false;
-      ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
-      this->publish_log_("history flushed");
-    }
+    this->finish_sync_(SyncState::SYNC_STATE_OK);
     return;
   }
-  this->report_flush_ = false;
-  this->write_errors_++;
-  this->sync_failed_ = true;
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
   } else {
     ESP_LOGE(TAG, "%s: sync did not persist the header", this->file_.c_str());
   }
-  this->status_set_warning(LOG_STR("syncing the history failed"));
-  this->publish_errors_();
-  if (!tsdb_is_initialized_h(db))
-    this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
+  this->finish_sync_(tsdb_is_initialized_h(db) ? SyncState::SYNC_STATE_FAILED : SyncState::SYNC_STATE_CLOSED);
 }
 
 void TsdbComponent::sync_task_fn(void *arg) {
@@ -1005,7 +992,14 @@ bool TsdbComponent::consume_sync_result_() {
   if (result == SyncState::SYNC_STATE_IDLE || result == SyncState::SYNC_STATE_RUNNING)
     return false;
   this->sync_state_.store(static_cast<uint8_t>(SyncState::SYNC_STATE_IDLE), std::memory_order_relaxed);
+  if (result != SyncState::SYNC_STATE_OK)
+    ESP_LOGE(TAG, "%s: sync failed", this->file_.c_str());
+  this->finish_sync_(result);
+  return true;
+}
 
+// Applies a sync outcome on the main loop, for both the inline and the task path.
+void TsdbComponent::finish_sync_(SyncState result) {
   if (result == SyncState::SYNC_STATE_OK) {
     this->sync_failed_ = false;
     this->dirty_ = false;
@@ -1015,18 +1009,15 @@ bool TsdbComponent::consume_sync_result_() {
       ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
       this->publish_log_("history flushed");
     }
-    return true;
+    return;
   }
-
   this->report_flush_ = false;
   this->write_errors_++;
   this->sync_failed_ = true;
-  ESP_LOGE(TAG, "%s: sync failed", this->file_.c_str());
   this->status_set_warning(LOG_STR("syncing the history failed"));
   this->publish_errors_();
   if (result == SyncState::SYNC_STATE_CLOSED)
     this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
-  return true;
 }
 
 bool TsdbComponent::wait_for_sync_() {
@@ -1103,8 +1094,10 @@ void TsdbComponent::publish_aggregates_() {
   // Static, like the dump query: the query handle is large and the database lock
   // keeps the two from running at once.
   static tsdb_query_t query = {};
-  if (tsdb_query_init_h(db, &query, start, end, nullptr, 0) != ESP_OK)
+  if (tsdb_query_init_h(db, &query, start, end, nullptr, 0) != ESP_OK) {
+    ESP_LOGW(TAG, "%s: reading the aggregate window failed", this->file_.c_str());
     return;
+  }
   this->values_.resize(this->columns_.size());
   uint32_t timestamp = 0;
   while (tsdb_query_next(&query, &timestamp, this->values_.data()) == ESP_OK) {

@@ -154,6 +154,7 @@ class TsdbComponent final : public PollingComponent {
   void flush_(bool force);
   void sync_now_();
   bool consume_sync_result_();
+  void finish_sync_(SyncState result);
   bool wait_for_sync_();
   bool sync_in_flight_() const {
     return this->sync_state_.load(std::memory_order_acquire) != static_cast<uint8_t>(SyncState::SYNC_STATE_IDLE);
