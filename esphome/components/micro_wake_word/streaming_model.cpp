@@ -207,6 +207,8 @@ size_t StreamingModel::probe_arena_size_() {
 
 void StreamingModel::unload_model() {
   this->interpreter_.reset();
+  this->current_stride_step_ = 0;
+  this->unprocessed_probability_status_ = false;
 #ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
   this->model_copy_.reset();
 #endif
@@ -374,8 +376,10 @@ void WakeWordModel::disable() {
 DetectionEvent WakeWordModel::determine_detected() {
   DetectionEvent detection_event;
   detection_event.wake_word = &this->wake_word_;
+  detection_event.id = &this->id_;
   detection_event.max_probability = 0;
   detection_event.average_probability = 0;
+  detection_event.probability_cutoff = this->probability_cutoff_;
 
   if ((this->ignore_windows_ < 0) || !this->enabled_) {
     detection_event.detected = false;

@@ -9,8 +9,7 @@
 namespace esphome::text {
 
 #define LOG_TEXT(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
@@ -46,6 +45,16 @@ class Text : public EntityBase {
   virtual void control(const std::string &value) = 0;
 
   LazyCallbackManager<void(const std::string &)> state_callback_;
+};
+
+/// Calls the codegen-generated Fn(this, value) on a new value; the hub and any publish are baked into Fn.
+template<auto Fn> class ApplyText final : public Text {
+ public:
+  // Not "= default": placement new would zero-fill .bss that is already zero.
+  ApplyText() {}
+
+ protected:
+  void control(const std::string &value) override { Fn(this, value); }
 };
 
 }  // namespace esphome::text

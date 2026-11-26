@@ -7,10 +7,7 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_WARMUP_TIME,
-    DEVICE_CLASS_CARBON_DIOXIDE,
     ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
 )
 from esphome.types import ConfigType
 
@@ -24,11 +21,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(HC8Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(
                 CONF_WARMUP_TIME, default="75s"
@@ -51,9 +44,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)

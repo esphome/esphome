@@ -7,20 +7,17 @@
 namespace esphome::am2320 {
 
 class AM2320Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-
  protected:
   bool read_data_(uint8_t *data);
   bool read_bytes_(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace esphome::am2320

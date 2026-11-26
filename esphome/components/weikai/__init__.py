@@ -1,3 +1,4 @@
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
@@ -73,6 +74,9 @@ WKBASE_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+_register_channel = cg.slot_list("WEIKAI_CHANNEL_COUNT", "register_channel", DOMAIN)
+
+
 async def register_weikai(var: MockObj, config: ConfigType) -> None:
     """Register an weikai device with the given config."""
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
@@ -82,6 +86,7 @@ async def register_weikai(var: MockObj, config: ConfigType) -> None:
         chan = cg.new_Pvariable(uart_elem[CONF_ID])
         cg.add(chan.set_channel_name(str(uart_elem[CONF_ID])))
         cg.add(chan.set_parent(var))
+        cg.add(_register_channel(var, chan))
         cg.add(chan.set_channel(uart_elem[CONF_CHANNEL]))
         cg.add(chan.set_baud_rate(uart_elem[CONF_BAUD_RATE]))
         cg.add(chan.set_stop_bits(uart_elem[CONF_STOP_BITS]))
@@ -90,10 +95,7 @@ async def register_weikai(var: MockObj, config: ConfigType) -> None:
 
 def validate_pin_mode(value: ConfigType) -> ConfigType:
     """Checks input/output mode inconsistency"""
-    if not (value[CONF_MODE][CONF_INPUT] or value[CONF_MODE][CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_MODE][CONF_INPUT] and value[CONF_MODE][CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
+    pins.gpio_validate_input_xor_output(value[CONF_MODE])
     return value
 
 

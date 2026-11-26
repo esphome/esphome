@@ -1,0 +1,12 @@
+# Benchmark package: flacbench.hpp with the clip directory from the media substitution, and a "Flac Bench" button
+# that runs five rounds.
+esphome:
+  includes: [flacbench.hpp]
+  platformio_options:
+    build_flags:
+      - -DFB_MEDIA=\"${media}\"
+button:
+  - platform: template
+    name: Flac Bench
+    on_press:
+      - lambda: flacbench::start(5);

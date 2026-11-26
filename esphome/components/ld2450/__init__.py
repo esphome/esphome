@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_DATA, CONF_THROTTLE
+from esphome.const import CONF_ON_DATA, CONF_THROTTLE
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
@@ -17,6 +17,7 @@ LD2450Component = ld2450_ns.class_("LD2450Component", cg.Component, uart.UARTDev
 
 
 CONF_LD2450_ID = "ld2450_id"
+CONF_LINK_TIMEOUT = "link_timeout"
 CONF_POLYGON_ZONE_ID = "polygon_zone_id"
 CONF_POLYGON_ZONES = "polygon_zones"
 
@@ -26,6 +27,13 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(LD2450Component),
             cv.Optional(CONF_THROTTLE): cv.invalid(
                 f"{CONF_THROTTLE} has been removed; use per-sensor filters, instead"
+            ),
+            cv.Optional(CONF_LINK_TIMEOUT, default="5s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(seconds=1),
+                    max=cv.TimePeriod(hours=1),
+                ),
             ),
             cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
         }
@@ -63,7 +71,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
+    cg.add(var.set_link_timeout(config[CONF_LINK_TIMEOUT].total_milliseconds))
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

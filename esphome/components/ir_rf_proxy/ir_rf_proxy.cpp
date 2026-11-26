@@ -17,7 +17,7 @@ void IrRfProxy::dump_config() {
                 "IR Proxy '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->get_supports_transmitter()),
+                LOG_STR_ARG(this->get_log_name()), YESNO(this->get_supports_transmitter()),
                 YESNO(this->get_supports_receiver()));
 
   if (this->is_rf()) {
@@ -44,7 +44,7 @@ void RfProxy::dump_config() {
                 "RF Proxy '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->get_supports_transmitter()),
+                LOG_STR_ARG(this->get_log_name()), YESNO(this->get_supports_transmitter()),
                 YESNO(this->get_supports_receiver()));
 
   const auto &traits = this->traits_;

@@ -10,15 +10,26 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C3,
     VARIANT_ESP32C61,
 )
+from esphome.components.libretiny.const import (
+    FAMILY_BK7231N,
+    FAMILY_BK7231T,
+    FAMILY_BK7238,
+    FAMILY_BK7251,
+    FAMILY_RTL8710B,
+    KEY_FAMILY,
+    KEY_LIBRETINY,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_STORAGE,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE
 
@@ -191,3 +202,45 @@ def test_validate_storage_rejects_unknown_value() -> None:
     _set_esp32(VARIANT_ESP32)
     with pytest.raises(cv.Invalid):
         preferences.validate_storage("nvs")
+
+
+def _set_libretiny(platform: str, family: str) -> None:
+    _set_platform(platform)
+    CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: family}
+
+
+@pytest.mark.parametrize("family", [FAMILY_BK7231T, FAMILY_BK7231N, FAMILY_BK7238])
+def test_rtc_allowed_on_tested_beken_families(family: str) -> None:
+    # Emulated with flash plus the reset reason, which was checked on hardware.
+    _set_libretiny(PLATFORM_BK72XX, family)
+    assert _validate({CONF_STORAGE: "rtc"})[CONF_STORAGE] == preferences.STORAGE_RTC
+
+
+@pytest.mark.parametrize(
+    ("platform", "family"),
+    [
+        (PLATFORM_BK72XX, FAMILY_BK7251),
+        (PLATFORM_RTL87XX, FAMILY_RTL8710B),
+    ],
+)
+def test_rtc_rejected_on_other_libretiny_families(platform: str, family: str) -> None:
+    _set_libretiny(platform, family)
+    with pytest.raises(cv.Invalid, match="not supported on this platform"):
+        _validate({CONF_STORAGE: "rtc"})
+
+
+def test_default_storage_bk7231t_is_flash() -> None:
+    _set_libretiny(PLATFORM_BK72XX, FAMILY_BK7231T)
+    assert _validate({})[CONF_STORAGE] == preferences.STORAGE_FLASH
+
+
+def test_request_rtc_storage_bk7231t_emits_define() -> None:
+    _set_libretiny(PLATFORM_BK72XX, FAMILY_BK7231T)
+    preferences.request_rtc_storage()
+    assert "USE_LIBRETINY_RTC_PREFERENCES" in _define_names()
+
+
+def test_request_rtc_storage_other_libretiny_family_is_a_no_op() -> None:
+    _set_libretiny(PLATFORM_BK72XX, FAMILY_BK7251)
+    preferences.request_rtc_storage()
+    assert "USE_LIBRETINY_RTC_PREFERENCES" not in _define_names()

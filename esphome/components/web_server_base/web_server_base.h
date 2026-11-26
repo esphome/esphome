@@ -4,12 +4,17 @@
 #include <vector>
 
 #include "esphome/core/progmem.h"
+#include "origin.h"
 
 #if USE_ESP32
 #include "esphome/core/hal.h"
 #include "esphome/components/web_server_idf/web_server_idf.h"
 #else
+// The library's ESP8266 send_P() calls its own deprecated beginResponse_P()
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <ESPAsyncWebServer.h>
+#pragma GCC diagnostic pop
 #endif
 
 #if USE_ESP32
@@ -60,53 +65,30 @@ struct Credentials {
   bool is_set() const { return basic_auth_hash != nullptr; }
 #endif
 };
+#endif
 
-class AuthMiddlewareHandler : public MiddlewareHandler {
+// Wraps every handler added through WebServerBase::add_handler(): rejects cross-origin browser
+// requests the origin policy does not allow, then checks credentials when auth is configured.
+// It holds only the next handler; the policy lives in global_web_server_base.
+class GuardMiddlewareHandler : public MiddlewareHandler {
  public:
-  AuthMiddlewareHandler(AsyncWebHandler *next, Credentials *credentials)
-      : MiddlewareHandler(next), credentials_(credentials) {}
+  using MiddlewareHandler::MiddlewareHandler;
 
-  bool check_auth(AsyncWebServerRequest *request) {
-    // The scheme is chosen at build time (USE_WEBSERVER_AUTH_DIGEST); the unused path is
-    // compiled out. On ESP32 our own server picks the scheme internally.
-#if USE_ESP32 || defined(USE_WEBSERVER_AUTH_DIGEST)
-    bool success = request->authenticate(credentials_->username, credentials_->password);
-#else
-    bool success = request->authenticate(credentials_->basic_auth_hash);
-#endif
-    if (!success) {
-#if USE_ESP32
-      request->requestAuthentication();
-#elif defined(USE_WEBSERVER_AUTH_DIGEST)
-      request->requestAuthentication(nullptr, true);
-#else
-      request->requestAuthentication(nullptr, false);
-#endif
-    }
-    return success;
-  }
-
-  void handleRequest(AsyncWebServerRequest *request) override {
-    if (!check_auth(request))
-      return;
-    MiddlewareHandler::handleRequest(request);
-  }
+  void handleRequest(AsyncWebServerRequest *request) override;
   void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
-                    size_t len, bool final) override {
-    if (!check_auth(request))
-      return;
-    MiddlewareHandler::handleUpload(request, filename, index, data, len, final);
-  }
-  void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
-    if (!check_auth(request))
-      return;
-    MiddlewareHandler::handleBody(request, data, len, index, total);
-  }
+                    size_t len, bool final) override;
+  void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override;
 
  protected:
-  Credentials *credentials_;
+  // Upload and body chunks arrive before handleRequest(), which sends the 403 for a rejected origin.
+  bool check_chunk_(AsyncWebServerRequest *request, size_t index);
+  bool check_origin_(AsyncWebServerRequest *request);
+  // Always true when auth is not compiled in.
+  bool check_auth_(AsyncWebServerRequest *request);
+
+  // Request whose first chunk passed the checks; see check_chunk_().
+  const AsyncWebServerRequest *passed_{nullptr};
 };
-#endif
 
 }  // namespace internal
 
@@ -127,6 +109,9 @@ class WebServerBase final {
       return;
     }
     this->server_ = new AsyncWebServer(this->port_);
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+    this->server_->set_ssl_credentials(this->ssl_certificate_, this->ssl_private_key_);
+#endif
     // All content is controlled and created by user - so allowing all origins is fine here.
     // NOTE: Currently 1 header. If more are added, update in __init__.py:
     //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
@@ -154,21 +139,47 @@ class WebServerBase final {
   void set_auth_basic_hash(const char *hash) { credentials_.basic_auth_hash = hash; }
 #endif
 #endif
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  /** Set the extra origins browsers may make cross-origin requests from, for every handler added
+   * through add_handler(). Requests without an Origin header and same-origin requests are always
+   * allowed. Each entry must exactly match the browser's Origin header ("scheme://host[:port]");
+   * "*" is not an entry here, codegen turns it into USE_WEBSERVER_ALLOW_ANY_ORIGIN instead.
+   *
+   * @param origins nullptr-terminated table of allowed origins; must outlive the server.
+   */
+  void set_allowed_origins(const char *const *origins) { this->allowed_origins_ = origins; }
+#endif
 
   void add_handler(AsyncWebHandler *handler);
   /**
-   * WARNING: Registers a handler that bypasses the USE_WEBSERVER_AUTH middleware.
+   * WARNING: Registers a handler that bypasses the auth and origin middleware.
    *
    * This should only be used for endpoints that are intentionally unauthenticated
    * (for example, captive portal or very limited-status endpoints). For normal
    * endpoints that should respect web server authentication, use add_handler().
+   * The origin check is skipped too, so a captive portal-only build carries none of it;
+   * the portal's own pages are same-origin and the OS probes send no Origin.
    */
   void add_handler_without_auth(AsyncWebHandler *handler);
 
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  /// PEM certificate and key for HTTPS. Not copied: they must stay valid. Set them, like the port, before init().
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+    if (this->server_ != nullptr)
+      this->server_->set_ssl_credentials(certificate, private_key);  // used at the next init()
+  }
+#endif
+
  protected:
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+#endif
   uint8_t initialized_{0};
   uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
   AsyncWebServer *server_{nullptr};
@@ -176,6 +187,11 @@ class WebServerBase final {
 #ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;
 #endif
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  const char *const *allowed_origins_{nullptr};
+#endif
+
+  friend class internal::GuardMiddlewareHandler;
 };
 
 }  // namespace esphome::web_server_base

@@ -6,3 +6,6 @@ web_server:
     username: admin
     password: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     type: basic
+
+ota:
+  - platform: web_server

@@ -1,0 +1,68 @@
+esphome:
+  name: uart-mock-ld2410-selects
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2410's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Answers the distance resolution query with 0x00, the module's code for 0.75m
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  on_tx:
+    - then:
+        - lambda: |-
+            // The length and command word arrive as one write of their own
+            static const std::vector<uint8_t> RESOLUTION_QUERY = {0x02, 0x00, 0xAB, 0x00};
+            if (data != RESOLUTION_QUERY) {
+              return;
+            }
+            id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{
+                0xFD, 0xFC, 0xFB, 0xFA,  // header
+                0x06, 0x00,              // length 6
+                0xAB, 0x01,              // answer to command 0x00AB
+                0x00, 0x00,              // status: success
+                0x00, 0x00,              // resolution code 0x00 = 0.75m
+                0x04, 0x03, 0x02, 0x01,  // footer
+            });
+
+ld2410:
+  id: ld2410_dev
+  uart_id: mock_uart
+
+select:
+  - platform: ld2410
+    ld2410_id: ld2410_dev
+    distance_resolution:
+      name: "Distance Resolution"
+    baud_rate:
+      name: "Baud Rate"
+
+# Lambdas reach the name taking setters directly, which the API cannot do with an unknown name
+button:
+  - platform: template
+    name: "Bogus Names"
+    on_press:
+      - lambda: |-
+          id(ld2410_dev).set_distance_resolution("bogus");
+          id(ld2410_dev).set_baud_rate("bogus");
+          ESP_LOGI("test", "bogus names done");
+  - platform: template
+    name: "Named Values"
+    on_press:
+      - lambda: |-
+          id(ld2410_dev).set_distance_resolution("0.75m");
+          id(ld2410_dev).set_baud_rate("57600");

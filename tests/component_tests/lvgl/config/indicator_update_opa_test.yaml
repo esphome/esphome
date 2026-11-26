@@ -1,0 +1,58 @@
+esphome:
+  name: test-indicator-update-opa
+  on_boot:
+    - lvgl.indicator.update:
+        id: test_arc
+        opa: 50%
+    - lvgl.indicator.update:
+        id: test_needle
+        value: 5
+        opa: 25%
+    - lvgl.indicator.update:
+        id: test_image
+        opa: 75%
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin: GPIO3
+
+image:
+  - platform: file
+    file: image.png
+    id: meter_image
+    resize: 8x8
+    type: binary
+
+lvgl:
+  widgets:
+    - meter:
+        height: 100px
+        width: 100px
+        scales:
+          - id: test_scale
+            range_from: 0
+            range_to: 10
+            indicators:
+              - arc:
+                  id: test_arc
+                  start_value: 0
+                  end_value: 5
+              - line:
+                  id: test_needle
+              - image:
+                  id: test_image
+                  src: meter_image

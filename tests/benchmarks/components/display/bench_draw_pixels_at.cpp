@@ -47,7 +47,7 @@ static void draw_block(benchmark::State &state, ColorBitness bitness, bool big_e
   BenchDisplay display;
   display.set_rotation(rotation);
   for (auto _ : state) {
-    display.draw_pixels_at(0, 0, kWidth, kHeight, data.get(), COLOR_ORDER_RGB, bitness, big_endian, 0, 0, 0);
+    display.draw_pixels_at(0, 0, kWidth, kHeight, data.get(), bitness, big_endian, 0, 0, 0);
   }
   state.SetItemsProcessed(state.iterations() * kWidth * kHeight);
 }

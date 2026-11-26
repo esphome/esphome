@@ -1,0 +1,35 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  id: i2c_bus
+  sda: 21
+  scl: 22
+
+i2s_audio:
+  - id: i2s_audio_bus
+    i2s_lrclk_pin: 25
+    i2s_bclk_pin: 26
+
+audio_dac:
+  - platform: aic3204
+    id: dac_a
+  - platform: aic3204
+    id: dac_b
+    address: 0x19
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_list
+    dac_type: external
+    i2s_dout_pin: 27
+    audio_dac: [dac_a, dac_b]
+  - platform: mixer
+    output_speaker: speaker_list
+    source_speakers:
+      - id: source_single
+        audio_dac: dac_a
+      - id: source_absent

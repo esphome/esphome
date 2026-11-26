@@ -1,3 +1,6 @@
+packages:
+  tx_break: !include tx_break.yaml
+
 uart:
   - id: uart_id
     tx_pin: PA2

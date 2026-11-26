@@ -35,39 +35,6 @@ const char *p2s(uart::UARTParityOptions parity) {
   }
 }
 
-/// @brief Display a buffer in hexadecimal format (32 hex values / line).
-void print_buffer(const uint8_t *data, size_t length) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31) {
-      ESP_LOGVV(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(TAG, "   %s", hex_buffer);
-  }
-}
-
-static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
-                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
-static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
-                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
-
-// method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) {
-  if (reg == WKREG_GPDAT) {
-    return "GPDAT";
-  } else if (reg == WKREG_GPDIR) {
-    return "GPDIR";
-  } else {
-    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
-  }
-}
-
 enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
 enum CmdType { WRITE_CMD = 0, READ_CMD = 1 };  ///< Read or Write transfer
 
@@ -101,7 +68,7 @@ uint8_t WeikaiRegisterSPI::read_reg() const {
   spi_comp->disable();
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, cmd), cmd,
-            reg_to_str(this->register_, this->comp_->page1()), this->channel_, val);
+            LOG_STR_ARG(reg_to_str(this->register_, this->comp_->page1())), this->channel_, val);
   return val;
 }
 
@@ -116,7 +83,7 @@ void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
             this->channel_, length);
-  print_buffer(data, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 
@@ -128,7 +95,7 @@ void WeikaiRegisterSPI::write_reg(uint8_t value) {
   spi_comp->disable();
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, buf[0]),
-            buf[0], reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
+            buf[0], LOG_STR_ARG(reg_to_str(this->register_, this->comp_->page1())), this->channel_, buf[1]);
 }
 
 void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
@@ -143,7 +110,7 @@ void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
             this->channel_, length);
-  print_buffer(data, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 

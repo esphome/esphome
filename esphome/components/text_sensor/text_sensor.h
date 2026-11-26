@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 #include "esphome/components/text_sensor/filter.h"
 #endif
@@ -41,6 +42,24 @@ class TextSensor : public EntityBase {
   void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
   void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
+  /// Publish past the filters, as both the raw and the filtered state. The filters keep their state, so a value they
+  /// hold or a timeout they armed can still be sent later.
+  void publish_state_unfiltered(const char *state, size_t len);
+  void publish_state_unfiltered(const char *state) { this->publish_state_unfiltered(state, strlen(state)); }
+  /// Run the raw state through the filters again, without calling the raw state callbacks; after
+  /// publish_state_unfiltered(), this gives the filtered form of a value that will not be sent again.
+  /// Inline, so its string copy is only built into the components that call it.
+  void reapply_filters() {
+#ifdef USE_TEXT_SENSOR_FILTER
+    if (this->filter_list_ != nullptr)
+      this->filter_list_->input(this->raw_state_);
+#endif
+  }
+#ifdef USE_ESP8266
+  /// Publish a flash string, such as a PROGMEM_STRING_TABLE get_progmem_str(); at most 255 characters, the Home
+  /// Assistant state limit, are kept.
+  void publish_state(ProgmemStr state);
+#endif
 
 #ifdef USE_TEXT_SENSOR_FILTER
   /// Add a filter to the filter chain. Will be appended to the back.
@@ -77,6 +96,16 @@ class TextSensor : public EntityBase {
   void internal_send_state_to_frontend(const char *state, size_t len);
 
  protected:
+#ifdef USE_TEXT_SENSOR_FILTER
+  /// Stores the raw state and calls the raw state callbacks; inlined so publish_state() stays as small as before
+  inline void ESPHOME_ALWAYS_INLINE set_raw_state_(const char *state, size_t len) {
+    // Only assign if changed to avoid heap allocation
+    if (len != this->raw_state_.size() || memcmp(state, this->raw_state_.data(), len) != 0) {
+      this->raw_state_.assign(state, len);
+    }
+    this->raw_callback_.call(this->raw_state_);
+  }
+#endif
   /// Notify frontend that state has changed (assumes this->state is already set)
   void notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER

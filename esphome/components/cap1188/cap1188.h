@@ -22,8 +22,8 @@ enum {
   CAP1188_MAIN = 0x00,
   CAP1188_MAIN_INT = 0x01,
   CAP1188_LEDPOL = 0x73,
-  CAP1188_INTERUPT_REPEAT = 0x28,
-  CAP1188_SENSITVITY = 0x1f,
+  CAP1188_INTERRUPT_REPEAT = 0x28,
+  CAP1188_SENSITIVITY = 0x1f,
 };
 
 class CAP1188Channel final : public binary_sensor::BinarySensor {
@@ -59,11 +59,6 @@ class CAP1188Component final : public Component, public i2c::I2CDevice {
   uint8_t cap1188_product_id_{0};
   uint8_t cap1188_manufacture_id_{0};
   uint8_t cap1188_revision_{0};
-
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::cap1188

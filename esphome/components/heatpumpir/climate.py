@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir
+from esphome.components.const import CONF_HORIZONTAL_DEFAULT, CONF_VERTICAL_DEFAULT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_TEMPERATURE,
@@ -76,27 +77,15 @@ PROTOCOLS = {
     "r51m": Protocol.PROTOCOL_R51M,
 }
 
-CONF_HORIZONTAL_DEFAULT = "horizontal_default"
 HorizontalDirections = heatpumpir_ns.enum("HorizontalDirections")
-HORIZONTAL_DIRECTIONS = {
-    "auto": HorizontalDirections.HORIZONTAL_DIRECTION_AUTO,
-    "middle": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE,
-    "left": HorizontalDirections.HORIZONTAL_DIRECTION_LEFT,
-    "mleft": HorizontalDirections.HORIZONTAL_DIRECTION_MLEFT,
-    "mright": HorizontalDirections.HORIZONTAL_DIRECTION_MRIGHT,
-    "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
-}
+HORIZONTAL_DIRECTIONS = HorizontalDirections.options(
+    "auto", "middle", "left", "mleft", "mright", "right", prefix="HORIZONTAL_DIRECTION_"
+)
 
-CONF_VERTICAL_DEFAULT = "vertical_default"
 VerticalDirections = heatpumpir_ns.enum("VerticalDirections")
-VERTICAL_DIRECTIONS = {
-    "auto": VerticalDirections.VERTICAL_DIRECTION_AUTO,
-    "up": VerticalDirections.VERTICAL_DIRECTION_UP,
-    "mup": VerticalDirections.VERTICAL_DIRECTION_MUP,
-    "middle": VerticalDirections.VERTICAL_DIRECTION_MIDDLE,
-    "mdown": VerticalDirections.VERTICAL_DIRECTION_MDOWN,
-    "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
-}
+VERTICAL_DIRECTIONS = VerticalDirections.options(
+    "auto", "up", "mup", "middle", "mdown", "down", prefix="VERTICAL_DIRECTION_"
+)
 
 
 def _default_visual(config: ConfigType) -> ConfigType:

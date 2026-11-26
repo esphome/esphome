@@ -1,0 +1,35 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+spi:
+  clk_pin: 18
+  mosi_pin: 23
+
+display:
+  - platform: ili9xxx
+    model: ili9342
+    cs_pin: 22
+    dc_pin: 21
+    invert_colors: false
+
+sendspin:
+
+image:
+  - platform: sendspin
+    id: album_slot
+    format: JPEG
+    type: RGB565
+    byte_order: BIG_ENDIAN
+    resize: 240x240
+    current_image:
+      id: album_art
+    transition_image:
+      id: album_art_transition

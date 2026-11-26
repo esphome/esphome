@@ -228,10 +228,10 @@ std::string choose_name(const char *filename, const char *prefix, const char *ex
   if (!name.empty())
     return name;
 
-  struct timespec now {};
+  struct timespec now{};
   if (clock_gettime(CLOCK_REALTIME, &now) != 0)
     now = {};
-  struct tm tm_buf {};
+  struct tm tm_buf{};
   if (localtime_r(&now.tv_sec, &tm_buf) == nullptr)
     tm_buf = {};
   char stamp[32]{};

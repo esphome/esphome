@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import UNIT_COUNTS
@@ -13,20 +11,16 @@ from esphome.const import (
     CONF_FULL_SPECTRUM_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_INFRARED,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
     UNIT_MILLISECOND,
 )
-from esphome.core import EnumValue
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
@@ -63,31 +57,22 @@ INTEGRATION_TIMES = {
 }
 
 
-def validate_integration_time(value: Any) -> EnumValue:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(INTEGRATION_TIMES, int=True)(value)
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VEML7700Component),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
             cv.Optional(CONF_GAIN, default="1/8X"): cv.enum(GAINS, upper=True),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="100ms"
-            ): validate_integration_time,
+            cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): cv.time_period_enum(
+                INTEGRATION_TIMES
+            ),
             cv.Optional(CONF_LUX_COMPENSATION, default=True): cv.boolean,
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_6,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_6, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),
@@ -103,11 +88,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FULL_SPECTRUM): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_7,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_7, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),
@@ -123,11 +104,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INFRARED): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_5,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_5, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),
@@ -156,9 +133,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_AMBIENT_LIGHT, var.set_ambient_light_sensor)

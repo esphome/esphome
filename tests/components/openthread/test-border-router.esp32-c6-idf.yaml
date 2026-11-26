@@ -1,0 +1,14 @@
+packages:
+  openthread: !include common.yaml
+  dataset: !include border_router_network.yaml
+
+wifi:
+  ssid: "OTBR Test"
+  password: "test-password"
+
+openthread:
+  border_router: {}
+
+button:
+  - platform: factory_reset
+    name: Factory Reset

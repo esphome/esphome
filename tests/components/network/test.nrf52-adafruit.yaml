@@ -1,5 +1,12 @@
 network:
   enable_ipv6: true
+  enable_ipv4: false
 
 openthread:
   tlv: 0E080000000000010000
+
+esphome:
+  on_boot:
+    - lambda: |-
+        char buf[network::IP_ADDRESS_BUFFER_SIZE];
+        ESP_LOGD("network", "Parsed: %s", network::IPAddress("fd00::1").str_to(buf));

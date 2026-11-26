@@ -1,22 +1,18 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_DRDY_PIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILTER,
     CONF_GAIN,
-    CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_MAGNET,
     ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_MICROTESLA,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@functionpointer"]
@@ -49,7 +45,6 @@ RESOLUTION = {
 CONF_X_AXIS = "x_axis"
 CONF_Y_AXIS = "y_axis"
 CONF_Z_AXIS = "z_axis"
-CONF_DRDY_PIN = "drdy_pin"
 CONF_HALLCONF = "hallconf"
 
 
@@ -76,12 +71,7 @@ def _validate(config: ConfigType) -> ConfigType:
 
 
 def mlx90393_axis_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_MICROTESLA,
-        accuracy_decimals=0,
-        icon=ICON_MAGNET,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ).extend(
+    return sensor.sensor_schema(kind=sensor.MAGNETIC_FIELD, accuracy_decimals=0).extend(
         cv.Schema(
             {
                 cv.Optional(CONF_RESOLUTION, default="DIV_4"): cv.enum(
@@ -106,11 +96,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=False): bool,
             cv.Optional(CONF_HALLCONF, default=0xC): cv.one_of(0xC, 0x0),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                icon=ICON_THERMOMETER,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
             ).extend(
                 cv.Schema(
                     {
@@ -129,9 +115,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
@@ -148,8 +132,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_resolution(2, RESOLUTION[config[CONF_Z_AXIS][CONF_RESOLUTION]]))
     if await sensors(CONF_TEMPERATURE, var.set_t_sensor):
         cg.add(var.set_t_oversampling(config[CONF_TEMPERATURE][CONF_OVERSAMPLING]))
-    if CONF_DRDY_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
-        cg.add(var.set_drdy_gpio(pin))
+    await cg.add_pin(var.set_drdy_gpio, config.get(CONF_DRDY_PIN))
 
     cg.add_library("functionpointer/arduino-MLX90393", "1.0.2")
+    if CORE.using_arduino:
+        cg.add_library("Wire", None)

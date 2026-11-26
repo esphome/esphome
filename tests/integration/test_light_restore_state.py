@@ -10,16 +10,14 @@ Tests that:
 
 from __future__ import annotations
 
-import asyncio
 import socket
-from typing import Any
 
 from aioesphomeapi import LightInfo, LightState
 import pytest
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-light-restore-state-test"
@@ -54,38 +52,26 @@ async def test_light_restore_state(
         # A single subscription serves both initial-state capture and later
         # state-change waits -- a second subscribe_states call would restart the
         # device's initial-state iterator and could resolve a wait on replayed data.
-        loop = asyncio.get_running_loop()
-        state_futures: dict[int, asyncio.Future[Any]] = {}
+        sub = await subscribe_after_initial_states(client, entities)
 
-        def on_state(state: Any) -> None:
-            if state.key in state_futures and not state_futures[state.key].done():
-                state_futures[state.key].set_result(state)
-
-        helper = InitialStateHelper(entities)
-        client.subscribe_states(helper.on_state_wrapper(on_state))
-        await helper.wait_for_initial_states()
-
-        keep_initial = helper.initial_states[keep_light.key]
+        keep_initial = sub.initial_states[keep_light.key]
         assert isinstance(keep_initial, LightState)
         assert keep_initial.state is False
 
-        override_initial = helper.initial_states[override_light.key]
+        override_initial = sub.initial_states[override_light.key]
         assert isinstance(override_initial, LightState)
         assert override_initial.state is False
 
         # Set both lights to a known, saved state
-        async def wait_for_state(key: int, timeout: float = 2.0) -> Any:
-            state_futures[key] = loop.create_future()
-            try:
-                return await asyncio.wait_for(state_futures[key], timeout)
-            finally:
-                state_futures.pop(key, None)
-
+        next_keep = sub.waiter.next_state(keep_light.key, LightState, timeout=2.0)
         client.light_command(key=keep_light.key, state=True, brightness=0.64)
-        await wait_for_state(keep_light.key)
+        await next_keep
 
+        next_override = sub.waiter.next_state(
+            override_light.key, LightState, timeout=2.0
+        )
         client.light_command(key=override_light.key, state=True, brightness=0.3)
-        await wait_for_state(override_light.key)
+        await next_override
 
     # --- Second run: same binary, same prefs file ---
     async with (
@@ -96,19 +82,17 @@ async def test_light_restore_state(
         keep_light = require_entity(entities, "test_light_keep", LightInfo)
         override_light = require_entity(entities, "test_light_override", LightInfo)
 
-        helper = InitialStateHelper(entities)
-        client.subscribe_states(helper.on_state_wrapper(lambda s: None))
-        await helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities)
 
         # restore_state: {} -- comes back exactly as saved
-        keep_state = helper.initial_states[keep_light.key]
+        keep_state = sub.initial_states[keep_light.key]
         assert isinstance(keep_state, LightState)
         assert keep_state.state is True
         assert keep_state.brightness == pytest.approx(0.64, abs=0.01)
 
         # restore_state: with overrides -- state inverted, brightness forced to 100%
         # regardless of what was actually saved (0.3)
-        override_state = helper.initial_states[override_light.key]
+        override_state = sub.initial_states[override_light.key]
         assert isinstance(override_state, LightState)
         assert override_state.state is False
         assert override_state.brightness == pytest.approx(1.0, abs=0.01)

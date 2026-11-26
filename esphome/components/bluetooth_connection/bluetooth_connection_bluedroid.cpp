@@ -41,7 +41,11 @@ using esp32_ble_tracker::ConnectionType;
 // ---- tracker surface ----
 
 void BluedroidGattClient::connect() { this->tracker_connect_(); }
-void BluedroidGattClient::disconnect() { this->gatt_disconnect(); }
+void BluedroidGattClient::disconnect() {
+  // OTA calls this and then blocks the loop, so a still-pending open must not keep BLE priority.
+  this->release_coex_priority_();
+  this->gatt_disconnect();
+}
 
 // ---- component ----
 
@@ -62,7 +66,8 @@ void BluedroidGattClient::loop() {
     auto ret = esp_ble_gattc_app_register(this->app_id);
     if (ret) {
       ESP_LOGE(TAG, "gattc app register failed: app_id=%d code=%d", this->app_id, ret);
-      this->mark_failed();
+      this->mark_failed(
+          LOG_STR("Registration failed; if the error was ESP_GATT_NO_RESOURCES, reduce the connection slots"));
     }
     // Do not wait for REG_EVT; connect() rejects until it lands.
     this->set_idle_();
@@ -108,12 +113,7 @@ void BluedroidGattClient::ble_before_disabled_event_handler() {
   this->enable_loop();
 }
 
-void BluedroidGattClient::dump_config() {
-  ESP_LOGCONFIG(TAG, "Bluedroid GATT client %d", this->connection_index_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Registration failed; if the error was ESP_GATT_NO_RESOURCES, reduce the connection slots");
-  }
-}
+void BluedroidGattClient::dump_config() { ESP_LOGCONFIG(TAG, "Bluedroid GATT client %d", this->connection_index_); }
 
 // ---- contract ops ----
 
@@ -131,8 +131,8 @@ int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
   }
   ble_device_base::uint64_to_mac_msb_first(address, this->remote_bda_);
   this->remote_addr_type_ = addr_type;
-  // Hand the request to the tracker's promote loop: it stops the scan, raises
-  // coex, and calls tracker_connect_() - the tracker owns connect timing here.
+  // Hand the request to the tracker's promote loop: it stops the scan and
+  // calls tracker_connect_() - the tracker owns connect timing here.
   this->set_state(ClientState::DISCOVERED);
   return 0;
 }
@@ -158,6 +158,12 @@ void BluedroidGattClient::tracker_connect_() {
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+    if (!this->coex_held_) {
+      this->coex_held_ = true;
+      esp32_ble_tracker::coex_ble_priority_acquire();
+    }
+#endif
     // Fast params for the discovery phase; stepped down at SEARCH_CMPL.
     this->check_and_log_error_("esp_ble_gap_set_prefer_conn_params",
                                esp_ble_gap_set_prefer_conn_params(this->remote_bda_, FAST_MIN_CONN_INTERVAL,
@@ -272,6 +278,7 @@ int BluedroidGattClient::discover_services() {
     case SearchState::REPORT_PENDING:
       return 0;  // One completion is already owed to this claimant.
     case SearchState::NONE:
+    default:
       break;
   }
   int err = this->check_and_log_error_("esp_ble_gattc_search_service",
@@ -367,13 +374,24 @@ bool BluedroidGattClient::check_addr_(const esp_bd_addr_t &addr) const {
 }
 
 void BluedroidGattClient::set_idle_() {
+  this->release_coex_priority_();
   this->set_state(ClientState::IDLE);
   this->conn_id_ = UNSET_CONN_ID;
   this->search_state_ = SearchState::NONE;
   this->search_status_ = 0;
 }
 
+void BluedroidGattClient::release_coex_priority_() {
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+  if (this->coex_held_) {
+    this->coex_held_ = false;
+    esp32_ble_tracker::coex_ble_priority_release();
+  }
+#endif
+}
+
 void BluedroidGattClient::set_disconnecting_() {
+  this->release_coex_priority_();
   this->disconnecting_started_ = millis();
   this->set_state(ClientState::DISCONNECTING);
   // The loop may be disabled while idle; the safety timeout needs it.
@@ -382,7 +400,7 @@ void BluedroidGattClient::set_disconnecting_() {
 
 esp_err_t BluedroidGattClient::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                                    uint16_t timeout, const char *param_type) {
-  esp_ble_conn_update_params_t conn_params = {{0}};
+  esp_ble_conn_update_params_t conn_params = {};
   memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
   conn_params.min_int = min_interval;
   conn_params.max_int = max_interval;
@@ -406,6 +424,7 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 // ---- service streaming ----
 
 int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
+  this->release_coex_priority_();
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   if (status != ESP_GATT_OK) {
@@ -680,7 +699,8 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->gattc_if_ = esp_gattc_if;
       } else {
         ESP_LOGE(TAG, "[%d] gattc app registration failed, status=%d", this->connection_index_, param->reg.status);
-        this->mark_failed();
+        this->mark_failed(
+            LOG_STR("Registration failed; if the error was ESP_GATT_NO_RESOURCES, reduce the connection slots"));
       }
       break;
     }

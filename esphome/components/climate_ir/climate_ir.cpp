@@ -24,7 +24,9 @@ climate::ClimateTraits ClimateIR::traits() {
   return traits;
 }
 
-void ClimateIR::setup() {
+void ClimateIR::setup() { this->setup_(this->restore_state_()); }
+
+void ClimateIR::setup_(optional<climate::ClimateDeviceRestoreState> restore) {
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
@@ -43,7 +45,6 @@ void ClimateIR::setup() {
   }
 
   // restore set points
-  auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->apply(this);
   } else {
@@ -92,6 +93,21 @@ void ClimateIR::dump_config() {
                 YESNO(this->modes_.count(climate::CLIMATE_MODE_HEAT)),
                 YESNO(this->modes_.count(climate::CLIMATE_MODE_COOL)),
                 YESNO(this->modes_.count(climate::CLIMATE_MODE_HEAT_COOL)));
+}
+
+int find_ir_code_index(const IRCode *table, size_t count, uint8_t key, bool match_code) {
+  for (size_t i = 0; i < count; i++) {
+    if (progmem_read_byte(match_code ? &table[i].code : &table[i].value) == key)
+      return static_cast<int>(i);
+  }
+  return -1;
+}
+
+uint8_t lookup_ir_code(const IRCode *table, size_t count, uint8_t key, bool match_code, uint8_t fallback) {
+  const int index = find_ir_code_index(table, count, key, match_code);
+  if (index < 0)
+    return fallback;
+  return progmem_read_byte(match_code ? &table[index].value : &table[index].code);
 }
 
 }  // namespace esphome::climate_ir

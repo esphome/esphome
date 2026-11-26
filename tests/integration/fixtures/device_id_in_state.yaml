@@ -11,12 +11,15 @@ esphome:
     - id: temperature_monitor
       name: Temperature Monitor
       area_id: living_room
+      relation: via
     - id: humidity_monitor
       name: Humidity Monitor
       area_id: bedroom
+      relation: via
     - id: motion_sensor
       name: Motion Sensor
       area_id: living_room
+      relation: via
 
 host:
 api:

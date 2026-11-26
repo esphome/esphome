@@ -29,6 +29,12 @@ struct UsbDeviceInfo;
 }  // namespace esphome::usb_host
 #endif
 
+#ifdef USE_SERIAL_PROXY_HOST_UART
+namespace esphome::uart {
+class HostUartComponent;
+}  // namespace esphome::uart
+#endif
+
 // Forward-declare types needed outside the USE_API guard.
 namespace esphome::api {
 class APIConnection;
@@ -162,10 +168,12 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Get current modem pin states as a bitmask of SerialProxyLineStateFlag values
   uint32_t get_modem_pins() const;
 
-  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values
+  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values.
+  /// A line is driven by its GPIO pin when one is configured, otherwise by the UART if it can.
   uint32_t get_configured_modem_pins() const {
-    return (this->rts_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
-           (this->dtr_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+    const bool uart_lines = this->with_modem_uart_([](auto *) {});
+    return (this->rts_pin_ != nullptr || uart_lines ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+           (this->dtr_pin_ != nullptr || uart_lines ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
   }
 
   /// Flush the serial port (block until all TX data is sent)
@@ -181,6 +189,11 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 #ifdef USE_SERIAL_PROXY_USB_IDENTITY
   /// Attach the USB UART channel behind this port (from code generation)
   void set_usb_channel(usb_uart::USBUartChannel *channel) { this->usb_channel_ = channel; }
+#endif
+
+#ifdef USE_SERIAL_PROXY_HOST_UART
+  /// Attach the host UART behind this port (from code generation)
+  void set_host_uart(uart::HostUartComponent *host_uart) { this->host_uart_ = host_uart; }
 #endif
 
 #ifdef USE_API
@@ -236,6 +249,24 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// client can never share the wire with the subscriber or an active tap.
   bool is_subscriber_(api::APIConnection *api_connection) const { return this->api_connection_ == api_connection; }
 #endif
+
+  /// Call f with the UART behind this port if that UART drives the modem lines itself.
+  /// Returns false when it cannot. Typed pointers, so the calls are direct.
+  template<typename F> bool with_modem_uart_(F &&f) const {
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+    if (this->usb_channel_ != nullptr) {
+      f(this->usb_channel_);
+      return true;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY_HOST_UART
+    if (this->host_uart_ != nullptr) {
+      f(this->host_uart_);
+      return true;
+    }
+#endif
+    return false;
+  }
 
   /// Time the wire needs for the given number of bytes at the current framing
   uint32_t wire_time_ms_(size_t bytes) const;
@@ -317,6 +348,11 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 #ifdef USE_SERIAL_PROXY_USB_IDENTITY
   /// The USB UART channel behind this port; nullptr on non-USB ports
   usb_uart::USBUartChannel *usb_channel_{nullptr};
+#endif
+
+#ifdef USE_SERIAL_PROXY_HOST_UART
+  /// The host UART behind this port; nullptr on other ports
+  uart::HostUartComponent *host_uart_{nullptr};
 #endif
 };
 

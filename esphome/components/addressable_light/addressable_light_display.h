@@ -5,8 +5,6 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/light/addressable_light.h"
 
-#include <vector>
-
 namespace esphome::addressable_light {
 
 class AddressableLightDisplay final : public display::DisplayBuffer {
@@ -15,6 +13,7 @@ class AddressableLightDisplay final : public display::DisplayBuffer {
 
   void set_width(int32_t width) { width_ = width; }
   void set_height(int32_t height) { height_ = height; }
+  void set_buffer(Color *buffer) { this->addressable_light_buffer_ = buffer; }
   void set_light(light::LightState *state) {
     light_state_ = state;
     light_ = static_cast<light::AddressableLight *>(state->get_output());
@@ -39,8 +38,9 @@ class AddressableLightDisplay final : public display::DisplayBuffer {
   }
   bool get_enabled() { return enabled_; }
 
-  void set_pixel_mapper(std::function<int(int, int)> &&pixel_mapper_f) { this->pixel_mapper_f_ = pixel_mapper_f; }
-  void setup() override;
+  /// Code generation passes a lambda with no captures.
+  using pixel_mapper_t = int (*)(int32_t x, int32_t y);
+  void set_pixel_mapper(pixel_mapper_t pixel_mapper_f) { this->pixel_mapper_f_ = pixel_mapper_f; }
   void display();
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
@@ -56,8 +56,8 @@ class AddressableLightDisplay final : public display::DisplayBuffer {
   bool enabled_{true};
   int32_t width_;
   int32_t height_;
-  std::vector<Color> addressable_light_buffer_;
+  Color *addressable_light_buffer_{nullptr};
+  pixel_mapper_t pixel_mapper_f_{nullptr};
   optional<uint32_t> last_effect_index_;
-  optional<std::function<int(int, int)>> pixel_mapper_f_;
 };
 }  // namespace esphome::addressable_light

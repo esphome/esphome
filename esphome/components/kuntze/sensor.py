@@ -3,15 +3,12 @@ from esphome.components import modbus, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_EC,
-    CONF_ID,
     CONF_PH,
     CONF_TEMPERATURE,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_PH,
 )
@@ -41,11 +38,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-                device_class=DEVICE_CLASS_TEMPERATURE,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
             ),
             cv.Optional(CONF_DIS1): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
@@ -97,9 +90,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_PH, var.set_ph_sensor)

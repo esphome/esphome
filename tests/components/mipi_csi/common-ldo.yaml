@@ -1,0 +1,5 @@
+# The camera's supply rail is brought up by an esp_ldo entry here, as a board with a MIPI-DSI
+# display would do, so the camera must not claim the same channel again.
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V

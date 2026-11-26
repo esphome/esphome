@@ -30,7 +30,11 @@ from esphome.helpers import fnv1_hash, fnv1_hash_name, fnv1_hash_object_id
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs, write_host_prefs
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-pref-key-stability"
@@ -91,8 +95,7 @@ async def test_preference_key_stability(
             run_binary_and_wait_for_port(binary_path, "127.0.0.1", port),
             wait_and_connect_api_client(port=port) as client,
         ):
-            device_info = await client.device_info()
-            assert device_info.name == DEVICE_NAME
+            await assert_device_name(client, DEVICE_NAME)
 
             entities, _ = await client.list_entities_services()
             switch_entity = require_entity(
@@ -103,15 +106,11 @@ async def test_preference_key_stability(
             )
             text_entity = require_entity(entities, "test_text", TextInfo, "Test Text")
 
-            initial_state_helper = InitialStateHelper(entities)
-            client.subscribe_states(
-                initial_state_helper.on_state_wrapper(lambda s: None)
-            )
-            await initial_state_helper.wait_for_initial_states()
+            sub = await subscribe_after_initial_states(client, entities)
 
-            switch_state = initial_state_helper.initial_states[switch_entity.key]
-            number_state = initial_state_helper.initial_states[number_entity.key]
-            text_state = initial_state_helper.initial_states[text_entity.key]
+            switch_state = sub.initial_states[switch_entity.key]
+            number_state = sub.initial_states[number_entity.key]
+            text_state = sub.initial_states[text_entity.key]
             assert isinstance(switch_state, SwitchState)
             assert isinstance(number_state, NumberState)
             assert isinstance(text_state, TextState)

@@ -7,34 +7,31 @@ one fixture with a filtered sensor and one with no filters at all.
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 from aioesphomeapi import APIClient, EntityInfo
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-NO_FILTER_PATTERN = re.compile(r"NO_FILTER: state=([\d.]+) raw_state=([\d.]+)")
-WITH_FILTER_PATTERN = re.compile(r"WITH_FILTER: state=([\d.]+) raw_state=([\d.]+)")
+STATE_PATTERN = re.compile(r"state=([\d.]+) raw_state=([\d.]+)")
 
 
 async def _press_and_read(
     client: APIClient,
     entities: list[EntityInfo],
     button_object_id: str,
-    future: asyncio.Future[tuple[float, float]],
+    waiter: LineWaiter,
     label: str,
 ) -> tuple[float, float]:
-    button = next(
-        (e for e in entities if button_object_id in e.object_id.lower()), None
-    )
-    assert button is not None, f"{button_object_id} not found"
+    button = require_entity(entities, button_object_id)
     client.button_command(button.key)
-    try:
-        return await asyncio.wait_for(future, timeout=5.0)
-    except TimeoutError:
-        pytest.fail(f"Timeout waiting for {label} log message")
+    line = await waiter.wait_for(f"{label}: state=", timeout=5.0)
+    match = STATE_PATTERN.search(line)
+    assert match is not None, f"Unexpected {label} line: {line}"
+    return float(match.group(1)), float(match.group(2))
 
 
 @pytest.mark.asyncio
@@ -44,28 +41,16 @@ async def test_sensor_raw_state(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """With filters compiled in, raw state is stored separately from state."""
-    loop = asyncio.get_running_loop()
-    no_filter_future: asyncio.Future[tuple[float, float]] = loop.create_future()
-    with_filter_future: asyncio.Future[tuple[float, float]] = loop.create_future()
-
-    def check_output(line: str) -> None:
-        if not no_filter_future.done() and (match := NO_FILTER_PATTERN.search(line)):
-            no_filter_future.set_result((float(match.group(1)), float(match.group(2))))
-        if not with_filter_future.done() and (
-            match := WITH_FILTER_PATTERN.search(line)
-        ):
-            with_filter_future.set_result(
-                (float(match.group(1)), float(match.group(2)))
-            )
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
 
         state, raw_state = await _press_and_read(
-            client, entities, "test_no_filter_button", no_filter_future, "NO_FILTER"
+            client, entities, "test_no_filter_button", waiter, "NO_FILTER"
         )
         assert state == 21.5
         assert raw_state == 21.5
@@ -74,7 +59,7 @@ async def test_sensor_raw_state(
             client,
             entities,
             "test_with_filter_button",
-            with_filter_future,
+            waiter,
             "WITH_FILTER",
         )
         assert state == 43.0
@@ -88,21 +73,16 @@ async def test_sensor_raw_state_no_filter(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Without filters compiled in, get_raw_state() returns state."""
-    loop = asyncio.get_running_loop()
-    no_filter_future: asyncio.Future[tuple[float, float]] = loop.create_future()
-
-    def check_output(line: str) -> None:
-        if not no_filter_future.done() and (match := NO_FILTER_PATTERN.search(line)):
-            no_filter_future.set_result((float(match.group(1)), float(match.group(2))))
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
 
         state, raw_state = await _press_and_read(
-            client, entities, "test_no_filter_button", no_filter_future, "NO_FILTER"
+            client, entities, "test_no_filter_button", waiter, "NO_FILTER"
         )
         assert state == 21.5
         assert raw_state == 21.5

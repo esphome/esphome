@@ -1,5 +1,11 @@
 <<: !include common.yaml
 
+wifi:
+  ap:
+
+psram:
+  mode: quad
+
 media_player:
   - platform: speaker
     id: speaker_media_player_id

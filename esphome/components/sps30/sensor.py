@@ -15,15 +15,11 @@ from esphome.const import (
     CONF_PMC_2_5,
     CONF_PMC_4_0,
     CONF_PMC_10_0,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
     ICON_CHEMICAL_WEAPON,
     ICON_COUNTER,
     ICON_RULER,
     STATE_CLASS_MEASUREMENT,
     UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_MICROMETER,
 )
 from esphome.types import ConfigType
@@ -45,31 +41,18 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SPS30Component),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM1, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM25, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_4_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                kind=sensor.MASS_CONCENTRATION,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=2,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM10, accuracy_decimals=2
             ),
             cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
@@ -117,9 +100,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
@@ -133,11 +114,11 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_PMC_10_0, var.set_pmc_10_0_sensor)
     await sensors(CONF_PM_SIZE, var.set_pm_size_sensor)
 
-    if CONF_AUTO_CLEANING_INTERVAL in config:
-        cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
+    cg.add_optional(
+        var.set_auto_cleaning_interval, config.get(CONF_AUTO_CLEANING_INTERVAL)
+    )
 
-    if CONF_IDLE_INTERVAL in config:
-        cg.add(var.set_idle_interval(config[CONF_IDLE_INTERVAL]))
+    cg.add_optional(var.set_idle_interval, config.get(CONF_IDLE_INTERVAL))
 
 
 SPS30_ACTION_SCHEMA = maybe_simple_id(

@@ -9,13 +9,6 @@ from esphome.const import (
     CONF_POWER,
     CONF_VOLTAGE,
     CONF_VOLTAGE_GAIN,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -24,10 +17,7 @@ DEPENDENCIES = ["spi"]
 
 cs5460a_ns = cg.esphome_ns.namespace("cs5460a")
 CS5460APGAGain = cs5460a_ns.enum("CS5460APGAGain")
-PGA_GAIN_OPTIONS = {
-    "10X": CS5460APGAGain.CS5460A_PGA_GAIN_10X,
-    "50X": CS5460APGAGain.CS5460A_PGA_GAIN_50X,
-}
+PGA_GAIN_OPTIONS = CS5460APGAGain.options("10X", "50X", prefix="CS5460A_PGA_GAIN_")
 
 CS5460AComponent = cs5460a_ns.class_("CS5460AComponent", spi.SPIDevice, cg.Component)
 
@@ -80,22 +70,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VOLTAGE_HPF, default=True): cv.boolean,
             cv.Optional(CONF_PULSE_ENERGY, default=10.0): validate_energy,
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=0
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=1
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=0
             ),
         }
     )
@@ -106,9 +87,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     cg.add(var.set_samples(config[CONF_SAMPLES]))
     cg.add(var.set_phase_offset(config[CONF_PHASE_OFFSET]))

@@ -11,6 +11,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esphome.ota import (
     AUTO_LOAD,
+    CONFIG_SCHEMA,
     FILTER_SOURCE_FILES,
     _encryption_schema,
     _validate_no_password_with_encryption,
@@ -28,10 +29,12 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_PORT,
     CONF_VERSION,
+    PlatformFramework,
 )
 from esphome.core import CORE, ID
 from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
 import esphome.final_validate as fv
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 def _make_ota_config(port: int = 3232, **kwargs: Any) -> dict[str, Any]:
@@ -545,12 +548,22 @@ def test_web_server_ota_without_encryption_unaffected() -> None:
 
 def test_auto_load_pulls_noise_only_for_encryption() -> None:
     """A plain ota entry must never pull noise-c into the build."""
-    assert AUTO_LOAD({CONF_PORT: 3232}) == ["sha256", "socket"]
+    assert AUTO_LOAD({CONF_PORT: 3232}) == ["socket"]
     assert "noise" in AUTO_LOAD({CONF_ENCRYPTION: {}})
     # Tooling probes must get the maximal set: None from dependency
     # resolution, {} from the components-graph platform probe
     assert "noise" in AUTO_LOAD(None)
     assert "noise" in AUTO_LOAD({})
+
+
+def test_auto_load_pulls_sha256_only_for_password() -> None:
+    """Only password auth hashes with SHA256, so a plain ota entry leaves it out."""
+    assert "sha256" not in AUTO_LOAD({CONF_PORT: 3232})
+    assert "sha256" not in AUTO_LOAD({CONF_ENCRYPTION: {}})
+    assert "sha256" in AUTO_LOAD({CONF_PASSWORD: ""})
+    assert "sha256" in AUTO_LOAD({CONF_PASSWORD: "secret", CONF_ENCRYPTION: {}})
+    assert "sha256" in AUTO_LOAD(None)
+    assert "sha256" in AUTO_LOAD({})
 
 
 def test_static_encryption_key() -> None:
@@ -674,3 +687,21 @@ def test_merged_password_and_encryption_rejected() -> None:
             ota_esphome_final_validate({})
     finally:
         fv.full_config.reset(token)
+
+
+def test_unsupported_platform_rejected(set_core_config: SetCoreConfigCallable) -> None:
+    """Platforms without an OTA backend fail validation instead of code generation."""
+    set_core_config(PlatformFramework.NRF52_ZEPHYR)
+    with pytest.raises(
+        cv.Invalid,
+        match=r"not supported on nrf52; use 'platform: zephyr_mcumgr'",
+    ):
+        CONFIG_SCHEMA({})
+
+
+def test_supported_platform_gets_port_default(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A supported platform keeps its per-platform port default."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    assert CONFIG_SCHEMA({})[CONF_PORT] == 8266

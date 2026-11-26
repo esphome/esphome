@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
@@ -10,11 +9,13 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_ON_VALUE,
     CONF_VALUE,
-    CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
@@ -28,21 +29,21 @@ IS_PLATFORM_COMPONENT = True
 text_ns = cg.esphome_ns.namespace("text")
 Text = text_ns.class_("Text", cg.EntityBase)
 TextPtr = Text.operator("ptr")
+ApplyText = text_ns.class_("ApplyText", Text)
 
 # Conditions
 TextMode = text_ns.enum("TextMode")
 
-TEXT_MODES = {
-    "TEXT": TextMode.TEXT_MODE_TEXT,
-    "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
-}
+TEXT_MODES = TextMode.options("TEXT", "PASSWORD", prefix="TEXT_MODE_")
 
 _TEXT_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTTextComponent")
+            ),
             cv.GenerateID(): cv.declare_id(Text),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
             cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
@@ -98,12 +99,7 @@ async def setup_text_core_(
             var, "add_on_state_callback", [(cg.std_string, "x")], conf
         )
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_text(
@@ -125,16 +121,28 @@ async def register_text(
 
 async def new_text(
     config: ConfigType,
-    *,
+    *args,
     min_length: int | None = 0,
     max_length: int | None = 255,
     pattern: str | None = None,
 ) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_text(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
     )
     return var
+
+
+APPLY_ENTITY = ApplyEntity(
+    ApplyText,
+    ((TextPtr, "entity"), (cg.std_string.operator("const").operator("ref"), "value")),
+    "entity->publish_state(value);",
+)
+
+
+def sub_texts(config: ConfigType, *, parent: MockObj | ID | None = None) -> SubEntities:
+    """Return a SubEntities bound to new_text; ``apply`` statements can use ``entity`` and ``value``."""
+    return SubEntities(new_text, config, parent, APPLY_ENTITY)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

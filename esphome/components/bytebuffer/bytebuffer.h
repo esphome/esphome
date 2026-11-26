@@ -44,7 +44,7 @@ class ByteBuffer {
    * Create a new Bytebuffer with the given capacity
    */
   ByteBuffer(size_t capacity, Endian endianness = LITTLE)
-      : data_(std::vector<uint8_t>(capacity)), endianness_(endianness), limit_(capacity){};
+      : data_(std::vector<uint8_t>(capacity)), endianness_(endianness), limit_(capacity) {};
 
   // templated functions to implement putting and getting data of various types. There are two flavours of all
   // functions - one that uses the position as the offset, and updates the position accordingly, and one that

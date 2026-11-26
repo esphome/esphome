@@ -22,6 +22,7 @@ class BLECharacteristic;
 class BLEDescriptor {
  public:
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
+  BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, esp_gatt_perm_t permissions);
   virtual ~BLEDescriptor();
   void do_create(BLECharacteristic *characteristic);
   ESPBTUUID get_uuid() const { return this->uuid_; }
@@ -51,7 +52,7 @@ class BLEDescriptor {
 
   std::unique_ptr<std::function<void(std::span<const uint8_t>, uint16_t)>> on_write_callback_;
 
-  esp_gatt_perm_t permissions_{};
+  esp_gatt_perm_t permissions_;
 
   enum State : uint8_t {
     FAILED = 0x00,

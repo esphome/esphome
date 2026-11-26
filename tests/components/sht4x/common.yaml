@@ -5,6 +5,8 @@ sensor:
       name: SHT4X Temperature
     humidity:
       name: SHT4X Humidity
+    serial_number:
+      name: SHT4X Serial Number
     address: 0x44
     precision: High
     heater_max_duty: 0.02

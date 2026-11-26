@@ -2,13 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_DURATION,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_HOUR,
-    UNIT_PERCENT,
-)
+from esphome.const import DEVICE_CLASS_DURATION, STATE_CLASS_TOTAL_INCREASING
 from esphome.types import ConfigType
 
 CONF_MAX_LIFETIME = "max_lifetime"
@@ -27,11 +21,7 @@ FilterLifetime = filter_lifetime_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        FilterLifetime,
-        unit_of_measurement=UNIT_PERCENT,
-        accuracy_decimals=2,
-        icon="mdi:air-filter",
-        state_class=STATE_CLASS_MEASUREMENT,
+        FilterLifetime, kind=sensor.PERCENT, accuracy_decimals=2, icon="mdi:air-filter"
     )
     .extend(
         {
@@ -44,11 +34,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CURRENT_SPEED): cv.returning_lambda,
             cv.Optional(CONF_CURRENT_SPEED_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_RUNTIME_HOURS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HOUR,
+                kind=sensor.DURATION_H,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_DURATION,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
-                icon="mdi:timer-outline",
             ),
             cv.Optional(CONF_REMAINING_DAYS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DAY,
@@ -72,15 +60,15 @@ async def to_code(config: ConfigType) -> None:
 
     if (is_on := config.get(CONF_IS_ON)) is not None:
         cg.add(var.set_is_on_lambda(await cg.templatable(is_on, [], bool)))
-    elif (is_on_sensor := config.get(CONF_IS_ON_SENSOR)) is not None:
-        cg.add(var.set_is_on_sensor(await cg.get_variable(is_on_sensor)))
+    await cg.add_variable(var.set_is_on_binary_sensor, config.get(CONF_IS_ON_SENSOR))
 
     if (current_speed := config.get(CONF_CURRENT_SPEED)) is not None:
         cg.add(
             var.set_current_speed_lambda(await cg.templatable(current_speed, [], float))
         )
-    elif (speed_sensor := config.get(CONF_CURRENT_SPEED_SENSOR)) is not None:
-        cg.add(var.set_current_speed_sensor(await cg.get_variable(speed_sensor)))
+    await cg.add_variable(
+        var.set_current_speed_sensor, config.get(CONF_CURRENT_SPEED_SENSOR)
+    )
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_RUNTIME_HOURS, var.set_runtime_hours_sensor)

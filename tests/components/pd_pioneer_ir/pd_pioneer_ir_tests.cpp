@@ -69,12 +69,9 @@ struct Fixture {
   PDPioneerIR climate;
 
   Fixture() {
-    // Every fixture shares one preference key, so clear what an earlier test saved or setup restores it
+    // A second fixture in the same test would otherwise restore what the first saved
     if (global_preferences != nullptr)
       global_preferences->reset();
-    // The test main does not construct App as generated code does
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
     static char name[] = "test_pd_pioneer_ir";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);

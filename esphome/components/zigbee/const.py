@@ -1,7 +1,15 @@
 from enum import IntEnum
 
 import esphome.codegen as cg
-from esphome.const import (
+
+# The entity schema keys and report enum live outside this package so
+# entity base schemas can use them without importing it; re-imported here
+# so zigbee code keeps its existing import paths.
+from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
+    CONF_CLUSTER,
+    CONF_ENDPOINT,
+    CONF_REPORT,
+    CONF_USE_DEVICE_TYPE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
@@ -48,32 +56,32 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.core.entity_helpers import (  # noqa: F401  # pylint: disable=unused-import
+    ZIGBEE_MAX_EP_NUMBER as CONF_MAX_EP_NUMBER,
+    ZIGBEE_REPORT as REPORT,
+)
 
 zigbee_ns = cg.esphome_ns.namespace("zigbee")
 ZigbeeComponent = zigbee_ns.class_("ZigbeeComponent", cg.Component)
 ZigbeeAttribute = zigbee_ns.class_("ZigbeeAttribute", cg.Component)
+ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
+ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
+ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
+ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
 AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
 
-report = zigbee_ns.enum("ZigbeeReportT")
-REPORT = {
-    "coordinator": report.ZIGBEE_REPORT_COORDINATOR,
-    "enable": report.ZIGBEE_REPORT_ENABLE,
-    "force": report.ZIGBEE_REPORT_FORCE,
-    "default": report.ZIGBEE_REPORT_DEFAULT,
-}
-
-CONF_CLUSTER = "cluster"
-CONF_ENDPOINT = "endpoint"
-CONF_MAX_EP_NUMBER = 239
 CONF_ON_JOIN = "on_join"
 CONF_WIPE_ON_BOOT = "wipe_on_boot"
-CONF_REPORT = "report"
 CONF_ROUTER = "router"
 CONF_POWER_SOURCE = "power_source"
 CONF_SLEEPY = "sleepy"
-CONF_USE_DEVICE_TYPE = "use_device_type"
+CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
+CONF_ZIGBEE_ID = "zigbee_id"
+CONF_ZIGBEE_NUMBER = "zigbee_number"
+CONF_ZIGBEE_SENSOR = "zigbee_sensor"
+CONF_ZIGBEE_SWITCH = "zigbee_switch"
 POWER_SOURCE = {
     "UNKNOWN": 0x00,  # ZB_ZCL_BASIC_POWER_SOURCE_UNKNOWN
     "MAINS_SINGLE_PHASE": 0x01,  # ZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE

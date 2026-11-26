@@ -10,9 +10,7 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_PASCAL,
 )
 from esphome.cpp_generator import MockObj
@@ -24,24 +22,25 @@ DOMAIN = "spa06_base"
 spa06_ns = cg.esphome_ns.namespace("spa06_base")
 
 SampleRate = spa06_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "1": SampleRate.SAMPLE_RATE_1,
-    "2": SampleRate.SAMPLE_RATE_2,
-    "4": SampleRate.SAMPLE_RATE_4,
-    "8": SampleRate.SAMPLE_RATE_8,
-    "16": SampleRate.SAMPLE_RATE_16,
-    "32": SampleRate.SAMPLE_RATE_32,
-    "64": SampleRate.SAMPLE_RATE_64,
-    "128": SampleRate.SAMPLE_RATE_128,
-    "25p16": SampleRate.SAMPLE_RATE_25P16,
-    "25p8": SampleRate.SAMPLE_RATE_25P8,
-    "25p4": SampleRate.SAMPLE_RATE_25P4,
-    "25p2": SampleRate.SAMPLE_RATE_25P2,
-    "25": SampleRate.SAMPLE_RATE_25,
-    "50": SampleRate.SAMPLE_RATE_50,
-    "100": SampleRate.SAMPLE_RATE_100,
-    "200": SampleRate.SAMPLE_RATE_200,
-}
+SAMPLE_RATE_OPTIONS = SampleRate.options(
+    "1",
+    "2",
+    "4",
+    "8",
+    "16",
+    "32",
+    "64",
+    "128",
+    "25p16",
+    "25p8",
+    "25p4",
+    "25p2",
+    "25",
+    "50",
+    "100",
+    "200",
+    prefix="SAMPLE_RATE_",
+)
 
 Oversampling = spa06_ns.enum("Oversampling")
 OVERSAMPLING_OPTIONS = {
@@ -145,10 +144,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(SPA06Component),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE
         ).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="NONE"): cv.enum(

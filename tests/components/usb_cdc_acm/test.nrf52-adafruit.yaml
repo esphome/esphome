@@ -1,0 +1,7 @@
+# Interface 0 needs CDC ACM port 0, which the logger uses by default on nRF52
+logger:
+  hardware_uart: UART0
+
+usb_cdc_acm:
+  interfaces:
+    id: usb_cdc_acm1

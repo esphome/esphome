@@ -38,6 +38,19 @@ def test_esp32_adds_define_and_keeps_services_stored(
     assert {DEFINE, "USE_MDNS_STORE_SERVICES"} <= _defines()
 
 
+def test_esp32_border_router_adds_define(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set_config(
+        set_core_config,
+        PlatformFramework.ESP32_IDF,
+        {"mdns": {CONF_DISABLED: False}, "openthread": {"border_router": {}}},
+    )
+
+    assert mdns.request_service_enable_disable() is True
+    assert {DEFINE, "USE_MDNS_STORE_SERVICES"} <= _defines()
+
+
 @pytest.mark.parametrize(
     "platform_framework",
     [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.RP2_ARDUINO],

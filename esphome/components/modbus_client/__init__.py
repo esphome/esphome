@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_ON_RESPONSE,
     CONF_VALUE,
 )
-from esphome.core import ID, Lambda
+from esphome.core import Lambda
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
@@ -69,9 +69,10 @@ PackedBits = modbus.modbus_ns.class_("PackedBits")
 # The exception code passed to on_error handlers.
 ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 
-# Lambda argument types for the reply handlers: the device address the send targeted, and the
-# request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
-_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+# Lambda arguments: the shared handlers and send's on_response get the address of their own request first,
+# then the request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
+_ADDRESS_ARG = (cg.uint8, "address")
+_PDU_SPAN = modbus.PDU_SPAN
 
 # The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit
 # (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.
@@ -135,11 +136,11 @@ _ACTION_BASE_SCHEMA = cv.Schema(
         cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.ModbusClient),
         cv.Required(CONF_ADDRESS): cv.templatable(cv.hex_uint8_t),
         # Optional handlers. on_sent fires when the frame reaches the wire; the reply handlers arrive
-        # later (fire-and-continue), so all run with the request/reply available - not the outer
-        # automation's variables.
+        # later (fire-and-continue), so all run with the address and request/reply available - not the
+        # outer automation's variables.
         cv.Optional(CONF_ON_SENT): _handler_schema(),
         cv.Optional(CONF_ON_ERROR): _handler_schema(),
-        # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `request`,
+        # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `address`/`request`,
         # returns true to have the hub retry the frame) OR a `then:` automation of actions; the automation
         # form may also carry an optional `retry:` returning lambda to run actions AND decide the retry.
         cv.Optional(CONF_ON_NO_RESPONSE): cv.All(
@@ -186,8 +187,7 @@ async def register_client_action(
 
     response_args are the on_response handler's arguments, which differ per action.
     """
-    parent = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[modbus.CONF_MODBUS_ID])
     cg.add(
         var.set_target_address(
             await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
@@ -200,7 +200,7 @@ async def register_client_action(
         )
     if sent_conf := config.get(CONF_ON_SENT):
         await automation.build_automation(
-            var.get_sent_trigger(), [(_PDU_SPAN, "request")], sent_conf
+            var.get_sent_trigger(), [_ADDRESS_ARG, (_PDU_SPAN, "request")], sent_conf
         )
     if response_conf := config.get(CONF_ON_RESPONSE):
         await automation.build_automation(
@@ -218,7 +218,7 @@ async def register_client_action(
     if error_conf := config.get(CONF_ON_ERROR):
         await automation.build_automation(
             var.get_error_trigger(),
-            [(_PDU_SPAN, "request"), (ExceptionCode, "exception_code")],
+            [_ADDRESS_ARG, (_PDU_SPAN, "request"), (ExceptionCode, "exception_code")],
             error_conf,
         )
     if (no_response_conf := config.get(CONF_ON_NO_RESPONSE)) is not None:
@@ -229,18 +229,20 @@ async def register_client_action(
         else:
             await automation.build_automation(
                 var.get_no_response_trigger(),
-                [(_PDU_SPAN, "request")],
+                [_ADDRESS_ARG, (_PDU_SPAN, "request")],
                 no_response_conf,
             )
             retry_conf = no_response_conf.get(CONF_RETRY)
         if retry_conf is not None:
             retry_lambda = await cg.process_lambda(
-                retry_conf, [(_PDU_SPAN, "request")], return_type=cg.bool_
+                retry_conf, [_ADDRESS_ARG, (_PDU_SPAN, "request")], return_type=cg.bool_
             )
             cg.add(var.set_retry(retry_lambda))
     if not_sent_conf := config.get(CONF_ON_NOT_SENT):
         await automation.build_automation(
-            var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
+            var.get_not_sent_trigger(),
+            [_ADDRESS_ARG, (_PDU_SPAN, "request")],
+            not_sent_conf,
         )
     # Wire any command options the action's schema opted into (e.g. continuous on reads). Pass the
     # matching direction so a write action never generates a read option's setter.
@@ -266,7 +268,7 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
         var,
         config,
         args,
-        [(_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
+        [_ADDRESS_ARG, (_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
     )
 
 
@@ -486,9 +488,9 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
         cg.add(var.set_values_template(templ))
     else:
-        # A static list goes to flash, so play() sends straight from there without allocating.
-        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
+        arr = cg.shared_progmem_array(
+            "modbus_client_registers", cg.uint16, cg.ArrayInitializer(*values)
+        )
         cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(
         var, config, args, [], command_direction="write"
@@ -513,8 +515,9 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
         for i, coil in enumerate(values):
             if coil:
                 packed[i // 8] |= 1 << (i % 8)
-        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*packed))
+        arr = cg.shared_progmem_array(
+            "modbus_client_coils", cg.uint8, cg.ArrayInitializer(*packed)
+        )
         cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(
         var, config, args, [], command_direction="write"
@@ -580,8 +583,8 @@ async def read_write_multiple_registers_to_code(config, action_id, template_arg,
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
         cg.add(var.set_values_template(templ))
     else:
-        # A static list goes to flash, so play() sends straight from there without allocating.
-        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
+        arr = cg.shared_progmem_array(
+            "modbus_client_registers", cg.uint16, cg.ArrayInitializer(*values)
+        )
         cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(var, config, args, [(_REGISTER_SPAN, "values")])

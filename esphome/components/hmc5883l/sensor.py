@@ -10,15 +10,10 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
     CONF_HEADING,
-    CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
     CONF_UPDATE_INTERVAL,
-    ICON_MAGNET,
     ICON_SCREEN_ROTATION,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
-    UNIT_MICROTESLA,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -85,16 +80,10 @@ def validate_enum(
 
 
 field_strength_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_MICROTESLA,
-    icon=ICON_MAGNET,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.MAGNETIC_FIELD, accuracy_decimals=1
 )
 heading_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_DEGREES,
-    icon=ICON_SCREEN_ROTATION,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.ANGLE, icon=ICON_SCREEN_ROTATION, accuracy_decimals=1
 )
 
 CONFIG_SCHEMA = (
@@ -129,9 +118,7 @@ def auto_data_rate(config: ConfigType) -> MockObj:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_datarate(auto_data_rate(config)))

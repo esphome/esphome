@@ -32,19 +32,12 @@ class LEDStripTimings:
     spi_frequency: int
 
 
+# The SPI clock divider depends on the chip family and is calculated in led_strip.cpp.
 CHIPSETS = {
-    "WS2812": LEDStripTimings(
-        0b11100000, 0b11111100, 6666666
-    ),  # Clock divider: 9, Bit time: 1350ns
-    "SK6812": LEDStripTimings(
-        0b11000000, 0b11111000, 7500000
-    ),  # Clock divider: 8, Bit time: 1200ns
-    "APA106": LEDStripTimings(
-        0b11000000, 0b11111110, 5454545
-    ),  # Clock divider: 11, Bit time: 1650ns
-    "SM16703": LEDStripTimings(
-        0b11000000, 0b11111110, 7500000
-    ),  # Clock divider: 8, Bit time: 1200ns
+    "WS2812": LEDStripTimings(0b11100000, 0b11111100, 6666666),
+    "SK6812": LEDStripTimings(0b11000000, 0b11111000, 7500000),
+    "APA106": LEDStripTimings(0b11000000, 0b11111110, 5454545),
+    "SM16703": LEDStripTimings(0b11000000, 0b11111110, 7500000),
 }
 
 
@@ -111,8 +104,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN]))
 
-    if CONF_MAX_REFRESH_RATE in config:
-        cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
+    cg.add_optional(var.set_max_refresh_rate, config.get(CONF_MAX_REFRESH_RATE))
 
     chipset = CHIPSETS[config[CONF_CHIPSET]]
     cg.add(
@@ -126,3 +118,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(
         var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
     )
+    num_leds = config[CONF_NUM_LEDS]
+    channel_colors = config[CONF_CHANNEL_COLORS]
+    led_data = light.static_led_buffer(
+        config[CONF_OUTPUT_ID], num_leds, len(channel_colors)
+    )
+    dma_buf = cg.static_buffer(
+        config[CONF_OUTPUT_ID],
+        cg.uint8,
+        beken_spi_led_strip_ns.dma_buffer_bytes(num_leds * len(channel_colors)),
+        align=4,
+    )
+    cg.add(var.set_buffers(led_data, dma_buf))

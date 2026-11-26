@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "esphome/core/defines.h"
@@ -50,15 +53,15 @@ template<size_t STACK_SIZE = 640> class SerializationBuffer {
   ~SerializationBuffer() { delete[] heap_buffer_; }
 
   // Move constructor - works with same template instantiation
-  SerializationBuffer(SerializationBuffer &&other) noexcept : heap_buffer_(other.heap_buffer_), size_(other.size_) {
+  SerializationBuffer(SerializationBuffer &&other) noexcept
+      : heap_buffer_(std::exchange(other.heap_buffer_, nullptr)), size_(other.size_) {
     if (other.buffer_ == other.stack_buffer_) {
       // Stack buffer - must copy content
       std::memcpy(stack_buffer_, other.stack_buffer_, size_ + 1);
       buffer_ = stack_buffer_;
     } else {
-      // Heap buffer - steal ownership
+      // Heap buffer - ownership was taken above
       buffer_ = heap_buffer_;
-      other.heap_buffer_ = nullptr;
     }
     // Leave moved-from object in valid empty state
     other.stack_buffer_[0] = '\0';
@@ -70,14 +73,13 @@ template<size_t STACK_SIZE = 640> class SerializationBuffer {
   SerializationBuffer &operator=(SerializationBuffer &&other) noexcept {
     if (this != &other) {
       delete[] heap_buffer_;
-      heap_buffer_ = other.heap_buffer_;
+      heap_buffer_ = std::exchange(other.heap_buffer_, nullptr);
       size_ = other.size_;
       if (other.buffer_ == other.stack_buffer_) {
         std::memcpy(stack_buffer_, other.stack_buffer_, size_ + 1);
         buffer_ = stack_buffer_;
       } else {
         buffer_ = heap_buffer_;
-        other.heap_buffer_ = nullptr;
       }
       // Leave moved-from object in valid empty state
       other.stack_buffer_[0] = '\0';
@@ -163,9 +165,32 @@ using json_parse_t = std::function<bool(JsonObject)>;
 /// Callback function typedef for building JsonObjects.
 using json_build_t = std::function<void(JsonObject)>;
 
+/// Non-owning reference to a JSON build callable, valid only for the call it is passed to. Lets one
+/// out-of-line body run any callable without a std::function, which allocates for captures over 8 bytes.
+struct JsonBuildRef {
+  void (*fn)(void *ctx, JsonObject root);
+  void *ctx;
+  void operator()(JsonObject root) const { this->fn(this->ctx, root); }
+};
+
+/// A lambda or other callable object that can be called as passed. Anything else (function names and
+/// pointers, a const mutable lambda) goes through the json_build_t overloads.
+template<typename F>
+concept JsonBuildCallable =
+    std::is_class_v<std::remove_cvref_t<F>> && std::is_invocable_v<std::remove_reference_t<F> &, JsonObject>;
+
+/// Wrap `f` without copying it; `f` must outlive the returned reference.
+template<typename F> JsonBuildRef json_build_ref(F &f) {
+  return {[](void *ctx, JsonObject root) { (*static_cast<F *>(ctx))(std::move(root)); },
+          const_cast<void *>(static_cast<const void *>(std::addressof(f)))};
+}
+
 /// Build a JSON string with the provided json build function.
 /// Returns SerializationBuffer for stack-first allocation; implicitly converts to std::string.
-SerializationBuffer<> build_json(const json_build_t &f);
+SerializationBuffer<> build_json(JsonBuildRef f);
+/// Build a JSON string from a JsonBuildCallable; it is not copied, so its captures never allocate.
+template<JsonBuildCallable F> SerializationBuffer<> build_json(F &&f) { return build_json(json_build_ref(f)); }
+inline SerializationBuffer<> build_json(const json_build_t &f) { return build_json(json_build_ref(f)); }
 
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);

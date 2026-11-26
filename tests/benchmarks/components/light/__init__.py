@@ -12,6 +12,10 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code(config):
         await original_to_code(config)
         cg.add_define("USE_LIGHT_GAMMA_LUT")
+        # Lets the flash benchmark set a flash transition length.
+        cg.add_define("USE_LIGHT_FLASH_TRANSITION_LENGTH")
+        # The loop benchmark attaches an effect with add_effects()
+        cg.add_define("USE_LIGHT_EFFECTS")
         # Use the light component's own gamma_table_initializer() so the
         # benchmark stays in sync with any formula changes.
         # Extern-visible (non-static) so the benchmark .cpp can reference it.

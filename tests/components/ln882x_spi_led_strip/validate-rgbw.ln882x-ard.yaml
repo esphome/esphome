@@ -1,0 +1,7 @@
+light:
+  - platform: ln882x_spi_led_strip
+    name: "My Light"
+    pin: PA06
+    num_leds: 30
+    chipset: sk6812
+    channel_colors: GRBW

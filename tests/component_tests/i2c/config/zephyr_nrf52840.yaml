@@ -1,0 +1,9 @@
+esphome:
+  name: i2czephyr
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+
+i2c:
+  sda: P1.09
+  scl: P1.08

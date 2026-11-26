@@ -19,10 +19,10 @@ void ESP32PowerManagement::setup() {
     this->min_freq_mhz_ = this->max_freq_mhz_;
 
   esp_pm_config_t pm_config = {
-    .max_freq_mhz = this->max_freq_mhz_,
-    .min_freq_mhz = this->min_freq_mhz_,
+      .max_freq_mhz = this->max_freq_mhz_,
+      .min_freq_mhz = this->min_freq_mhz_,
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-    .light_sleep_enable = true,
+      .light_sleep_enable = true,
 #endif
   };
   esp_err_t rc = esp_pm_configure(&pm_config);

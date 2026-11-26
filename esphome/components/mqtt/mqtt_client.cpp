@@ -21,6 +21,16 @@
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
 #endif
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+#include "mqtt_subscription_fingerprint.h"
+#ifdef USE_ESP8266
+#include "esphome/core/preferences.h"
+#elif defined(USE_ESP32)
+#include <esp_attr.h>
+#include <soc/soc_caps.h>
+#include "esphome/core/preferences_rtc.h"
+#endif
+#endif
 #ifdef USE_DASHBOARD_IMPORT
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
@@ -32,6 +42,39 @@ ESPHOME_LOG_TAG(TAG, "mqtt");
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
 static constexpr uint8_t MAX_RESENDS_PER_LOOP = 8;
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+static constexpr uint32_t SESSION_FINGERPRINT_HASH = fnv1a_hash("mqtt_session_fingerprint");
+#ifdef USE_ESP8266
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static ESPPreferenceObject s_session_fingerprint_pref;
+#elif defined(USE_ESP32) && SOC_RTC_MEM_SUPPORTED
+#define USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT
+// Own 8 bytes rather than core's RTC preference pool, which would add 248 bytes of RTC RAM (usable memory on
+// variants with RTC fast memory only). The fingerprint and its checksum; power-on garbage fails the checksum.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static RTC_NOINIT_ATTR uint32_t s_session_fingerprint[2];
+#endif
+
+// RTC memory where available; RAM only otherwise, so a reset resubscribes
+static void load_session_fingerprint([[maybe_unused]] uint32_t *fingerprint) {
+#ifdef USE_ESP8266
+  s_session_fingerprint_pref = global_preferences->make_preference<uint32_t>(SESSION_FINGERPRINT_HASH, false);
+  s_session_fingerprint_pref.load(fingerprint);
+#elif defined(USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT)
+  rtc_pref_decode(s_session_fingerprint, SESSION_FINGERPRINT_HASH, 1, reinterpret_cast<uint8_t *>(fingerprint),
+                  sizeof(*fingerprint));
+#endif
+}
+
+static void store_session_fingerprint([[maybe_unused]] const uint32_t *fingerprint) {
+#ifdef USE_ESP8266
+  s_session_fingerprint_pref.save(fingerprint);
+#elif defined(USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT)
+  rtc_pref_encode(s_session_fingerprint, SESSION_FINGERPRINT_HASH, 1, reinterpret_cast<const uint8_t *>(fingerprint),
+                  sizeof(*fingerprint));
+#endif
+}
+#endif
 
 // Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
 PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
@@ -60,6 +103,13 @@ static void format_esphome_topic(char (&topic)[ESPHOME_TOPIC_BUFFER_SIZE], const
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
+        // total comes from the broker; reserving it unchecked can exhaust the heap
+        if (total > MQTT_MAX_PAYLOAD_SIZE) {
+          if (index == 0) {
+            ESP_LOGW(TAG, "Dropped %zu byte message on '%s' (max %d)", total, topic, MQTT_MAX_PAYLOAD_SIZE);
+          }
+          return;
+        }
         if (index == 0) {
           this->payload_buffer_.clear();
           this->payload_buffer_.reserve(total);
@@ -74,12 +124,29 @@ void MQTTClientComponent::setup() {
           this->payload_buffer_.clear();
         }
       });
+  // AsyncMqttClient calls this from its TCP context; loop() logs it and runs the automations
   this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
-    if (this->state_ == MQTT_CLIENT_DISABLED)
-      return;
-    this->state_ = MQTT_CLIENT_DISCONNECTED;
-    this->disconnect_reason_ = reason;
+    // State first, so an automation that loop() runs for this reason is not overwritten
+    if (this->state_ != MQTT_CLIENT_DISABLED)
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+    this->disconnect_reason_ = static_cast<int8_t>(reason);
+    // Run the on_disconnect automations without waiting for the next loop interval
+    App.wake_loop_threadsafe();
   });
+  // Always set, so a callback added after setup() still sees whether the session was kept
+  this->mqtt_backend_.set_on_connect([this](bool session_present) {
+    this->session_present_ = session_present;
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_ESP32)
+    // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
+    this->subacks_.reset();
+#endif
+  });
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+#ifndef USE_ESP32
+  this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) { this->subacks_.add(return_code); });
+#endif
+  load_session_fingerprint(&this->session_fingerprint_);
+#endif
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
     logger::global_logger->add_log_callback(
@@ -98,12 +165,16 @@ void MQTTClientComponent::setup() {
 
   if (this->is_discovery_ip_enabled()) {
     this->subscribe(
-        "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
-        2);
+        static_topic("esphome/discover"),
+        [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
 
-    // Format topic on stack - subscribe() copies it
-    char ping_topic[ESPHOME_TOPIC_BUFFER_SIZE];
-    format_esphome_topic(ping_topic, "ping");
+    static_assert(sizeof("esphome/ping/") + ESPHOME_DEVICE_NAME_MAX_LEN <= MQTT_DEFAULT_TOPIC_MAX_LEN);
+    MQTTTopicSource ping_topic{[](const void *, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
+                                 size_t len = buf_append_printf(buf.data(), buf.size(), 0, "esphome/ping/%s",
+                                                                App.get_name().c_str());
+                                 return StringRef(buf.data(), len);
+                               },
+                               nullptr};
     this->subscribe(
         ping_topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
   }
@@ -213,6 +284,23 @@ void MQTTClientComponent::dump_config() {
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
   // clang-format on
+#ifdef USE_ESP32
+  if (const MQTTTransport transport = this->mqtt_backend_.get_transport();
+      transport != MQTTTransport::MQTT_TRANSPORT_TCP) {
+    ESP_LOGCONFIG(TAG,
+                  "  Transport: %s\n"
+                  "  WebSocket Path: '%s'",
+                  transport == MQTTTransport::MQTT_TRANSPORT_WSS ? LOG_STR_LITERAL("wss") : LOG_STR_LITERAL("ws"),
+                  this->mqtt_backend_.get_ws_path());
+  }
+#endif
+#if defined(USE_MQTT_CERT_BUNDLE)
+  ESP_LOGCONFIG(TAG, "  TLS: certificate bundle");
+#elif defined(USE_MQTT_TLS_INSECURE)
+  ESP_LOGCONFIG(TAG, "  TLS: no verification");
+#elif defined(USE_MQTT_TLS)
+  ESP_LOGCONFIG(TAG, "  TLS: CA certificate");
+#endif
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -222,7 +310,10 @@ void MQTTClientComponent::dump_config() {
                   "  Discovery retain: %s",
                   this->discovery_info_.prefix.c_str(), YESNO(this->discovery_info_.retain));
   }
-  ESP_LOGCONFIG(TAG, "  Topic Prefix: '%s'", this->topic_prefix_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "  Topic Prefix: '%s'\n"
+                "  Max Payload Size: %d",
+                this->topic_prefix_.c_str(), MQTT_MAX_PAYLOAD_SIZE);
   if (!this->log_message_.topic.empty()) {
     ESP_LOGCONFIG(TAG, "  Log Topic: '%s'", this->log_message_.topic.c_str());
   }
@@ -236,12 +327,18 @@ bool MQTTClientComponent::can_proceed() {
 }
 
 void MQTTClientComponent::start_dnslookup_() {
+  this->status_set_warning();
+  // No lookup can start before the network is up: there is no DNS server to ask yet.
+  // Stay disconnected, and loop() calls this again as soon as it is up.
+  this->waiting_for_network_ = !network::is_connected();
+  if (this->waiting_for_network_)
+    return;
+
   for (auto &subscription : this->subscriptions_) {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
 
-  this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
@@ -271,9 +368,12 @@ void MQTTClientComponent::start_dnslookup_() {
     }
     default:
     case ERR_ARG: {
-      // error
+      // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
-      break;
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = static_cast<int8_t>(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+      this->connect_begin_ = millis();
+      return;
     }
   }
 
@@ -288,8 +388,7 @@ void MQTTClientComponent::check_dnslookup_() {
   if (this->dns_resolve_error_) {
     ESP_LOGW(TAG, "Couldn't resolve IP address for '%s'", this->credentials_.address.c_str());
     this->state_ = MQTT_CLIENT_DISCONNECTED;
-    this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
-    this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+    this->disconnect_reason_ = static_cast<int8_t>(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
     return;
   }
 
@@ -340,6 +439,7 @@ void MQTTClientComponent::start_connect_() {
                                  this->last_will_.payload.c_str());
   }
 
+  this->session_present_ = false;
   this->mqtt_backend_.connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
   this->connect_begin_ = millis();
@@ -364,33 +464,59 @@ void MQTTClientComponent::check_connected() {
   // MQTT Client needs some time to be fully set up.
   delay(100);  // NOLINT
 
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  this->subscribes_sent_ = 0;
+  const bool resumed =
+      session_has_subscriptions(this->session_present_, this->session_fingerprint_, this->subscriptions_fingerprint_());
+  this->subacks_settled_ = resumed;
+  if (resumed) {
+    for (auto &subscription : this->subscriptions_)
+      subscription.subscribed = true;
+  } else {
+    // Untrusted until all are acknowledged again, so a reset part way through does not trust a partial session;
+    // topics only an older firmware used stay subscribed in the session
+    this->set_session_fingerprint_(UNTRUSTED_SESSION_FINGERPRINT);
+  }
+#endif
   this->resubscribe_subscriptions_();
 #ifdef USE_MQTT_CRASH_LOG
-  // Best effort: a refused subscription is tried again at the next connection
-  if (this->crash_log_offered_) {
-    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
-    format_esphome_topic(topic, "logs");
-    this->subscribe_(topic, 0);
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Otherwise sent once the SUBACKs are in, so its own SUBACK is never counted
+  if (resumed) {
+    this->subscribe_crash_log_();
   }
+#else
+  this->subscribe_crash_log_();
+#endif
 #endif
   this->send_device_info_();
 
   for (MQTTComponent *component : this->children_)
     component->schedule_resend_state();
+  // The delay above yields, so the link may already be gone
+  if (this->is_connected())
+    this->on_connect_.call(this->session_present_);
 }
 
 void MQTTClientComponent::loop() {
   // Call the backend loop first
   mqtt_backend_.loop();
 
-  if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
-        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
+  if (this->disconnect_reason_ != NO_DISCONNECT) {
+    int8_t raw;
+    {
+      // Read and clear in one step; the backend may report another disconnect from its network task
+      InterruptLock lock;
+      raw = this->disconnect_reason_;
+      this->disconnect_reason_ = NO_DISCONNECT;
+    }
+    const auto reason = static_cast<MQTTClientDisconnectReason>(raw);
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(reason);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
     ESP_LOGW(TAG, "Disconnected: %s", LOG_STR_ARG(reason_s));
-    this->disconnect_reason_.reset();
+    this->on_disconnect_.call(reason);
   }
 
   const uint32_t now = App.get_loop_component_start_time();
@@ -399,7 +525,9 @@ void MQTTClientComponent::loop() {
     case MQTT_CLIENT_DISABLED:
       return;  // Return to avoid a reboot when disabled
     case MQTT_CLIENT_DISCONNECTED:
-      if (now - this->connect_begin_ > 5000) {
+      // Back off 5 s after a failed attempt. Without a network no attempt was made, so the
+      // first one starts as soon as the network is up instead of 5 s after boot.
+      if (this->waiting_for_network_ || now - this->connect_begin_ > 5000) {
         this->start_dnslookup_();
       }
       break;
@@ -415,12 +543,16 @@ void MQTTClientComponent::loop() {
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
       } else {
-        if (!this->birth_message_.topic.empty() && !this->sent_birth_message_) {
+        this->last_connected_ = now;
+        const bool all_subscribed = this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+        if (all_subscribed && !this->subacks_settled_)
+          this->check_subacks_();
+#endif
+        // Online only once every paced SUBSCRIBE is out, so no command for an unsubscribed topic is lost
+        if (all_subscribed && !this->birth_message_.topic.empty() && !this->sent_birth_message_) {
           this->sent_birth_message_ = this->publish(this->birth_message_);
         }
-
-        this->last_connected_ = now;
-        this->resubscribe_subscriptions_();
 
         // Process pending resends for all MQTT components centrally
         // Limit work per loop iteration to avoid triggering task WDT on reconnect
@@ -462,6 +594,12 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   }
   return ret != 0;
 }
+// Out of line so the topic buffer is not part of loop()'s stack frame
+__attribute__((noinline)) bool MQTTClientComponent::subscribe_topic_(const MQTTTopicSource &topic, uint8_t qos) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->subscribe_(topic.build(buf).c_str(), qos);
+}
+
 void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   if (sub->subscribed)
     return;
@@ -469,18 +607,73 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   const uint32_t now = millis();
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
 
-  if (do_resub) {
-    sub->subscribed = this->subscribe_(sub->topic.c_str(), sub->qos);
+  // Paced so the connect burst fits the backend queue
+  if (do_resub && this->mqtt_backend_.can_subscribe()) {
+    sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+    // Only the subscriptions the fingerprint covers are counted
+    if (sub->subscribed)
+      this->subscribes_sent_++;
+#endif
   }
 }
-void MQTTClientComponent::resubscribe_subscriptions_() {
+bool MQTTClientComponent::resubscribe_subscriptions_() {
+  bool all_subscribed = true;
   for (auto &subscription : this->subscriptions_) {
     this->resubscribe_subscription_(&subscription);
+    all_subscribed &= subscription.subscribed;
   }
+  return all_subscribed;
 }
 
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+// Out of line so the topic buffer is not part of loop()'s stack frame
+__attribute__((noinline)) uint32_t MQTTClientComponent::subscriptions_fingerprint_() {
+  // Seeded with the config hash, so a new firmware config sends every subscription once
+  uint32_t fingerprint = App.get_config_hash();
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  for (const auto &subscription : this->subscriptions_)
+    fingerprint = add_subscription_fingerprint(fingerprint, subscription.topic.build(buf).c_str(), subscription.qos);
+  return fingerprint;
+}
+
+void MQTTClientComponent::check_subacks_() {
+#ifdef USE_ESP32
+  const SubackTally tally = this->mqtt_backend_.get_subacks().tally(this->subscribes_sent_);
+#else
+  const SubackTally tally = this->subacks_.tally(this->subscribes_sent_);
+#endif
+  if (tally == SubackTally::SUBACK_TALLY_PENDING)
+    return;
+  this->subacks_settled_ = true;
+  // Trusted only once the broker granted every SUBSCRIBE, so a reset or a lost link before that sends them again,
+  // and a refused one is tried again at the next connect
+  if (tally == SubackTally::SUBACK_TALLY_ALL_GRANTED)
+    this->set_session_fingerprint_(this->subscriptions_fingerprint_());
 #ifdef USE_MQTT_CRASH_LOG
+  this->subscribe_crash_log_();
+#endif
+}
+
+void MQTTClientComponent::set_session_fingerprint_(uint32_t fingerprint) {
+  if (this->session_fingerprint_ == fingerprint)
+    return;
+  this->session_fingerprint_ = fingerprint;
+  store_session_fingerprint(&this->session_fingerprint_);
+}
+#endif
+
+#ifdef USE_MQTT_CRASH_LOG
+void MQTTClientComponent::subscribe_crash_log_() {
+  // Best effort: a refused subscription is tried again at the next connection
+  if (!this->crash_log_offered_)
+    return;
+  char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(topic, "logs");
+  this->subscribe_(topic, 0);
+}
+
 void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, const std::string &payload) {
   // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
   // log for every line it logs
@@ -493,21 +686,62 @@ void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, co
 }
 #endif
 
-void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed,
+static StringRef static_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN>) {
+  return StringRef(static_cast<const char *>(context));
+}
+// Same as static_topic_builder, but a distinct function so its address marks the topics to free
+static StringRef copied_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN>) {
+  return StringRef(static_cast<const char *>(context));
+}
+
+MQTTTopicSource static_topic(const char *topic) { return {static_topic_builder, topic}; }
+
+static_assert(MQTT_DEFAULT_TOPIC_MAX_LEN == 248, "update MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt/__init__.py");
+
+#ifdef USE_ESP8266
+// mqtt/__init__.py picks this source only for topics that fit
+static StringRef progmem_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
+  size_t len = buf_append_str_p(buf.data(), buf.size(), 0, static_cast<const char *>(context));
+  return StringRef(buf.data(), len);
+}
+
+MQTTTopicSource progmem_topic(ProgmemStr topic) {
+  return {progmem_topic_builder, reinterpret_cast<const char *>(topic)};
+}
+#endif
+
+MQTTTopicSource MQTTClientComponent::copy_topic(StringRef topic) {
+  char *copy = new char[topic.size() + 1];  // NOLINT(cppcoreguidelines-owning-memory)
+  memcpy(copy, topic.c_str(), topic.size());
+  copy[topic.size()] = '\0';
+  return {copied_topic_builder, copy};
+}
+
+void MQTTClientComponent::add_subscription_(MQTTTopicSource topic, mqtt_subscription_callback_t callback, bool boxed,
                                             uint8_t qos) {
   auto &subscription = this->subscriptions_.emplace_back(MQTTSubscription{
-      .topic = std::move(topic),
+      .topic = topic,
+      .callback = callback,
+      .resubscribe_timeout = 0,
       .qos = qos,
       .subscribed = false,
       .boxed = boxed,
       .removed = false,
-      .callback = callback,
-      .resubscribe_timeout = 0,
   });
   this->resubscribe_subscription_(&subscription);
 }
 
+// Out of line so the topic buffer is not part of unsubscribe()'s stack frame
+__attribute__((noinline)) static bool topic_equals(const MQTTTopicSource &source, const std::string &topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return source.build(buf) == topic;
+}
+
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Before the broker drops the topic, so a reset in between cannot leave a matching fingerprint
+  this->set_session_fingerprint_(UNTRUSTED_SESSION_FINGERPRINT);
+#endif
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
   if (ret) {
@@ -519,7 +753,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   }
 
   for (auto &subscription : this->subscriptions_) {
-    if (subscription.topic == topic)
+    if (topic_equals(subscription.topic, topic))
       subscription.removed = true;
   }
   // A callback may be running; the outermost dispatch erases them once it returns.
@@ -536,6 +770,8 @@ void MQTTClientComponent::erase_removed_subscriptions_() {
     if (it->removed) {
       if (it->boxed)
         it->callback.free_boxed();
+      if (it->topic.builder == copied_topic_builder)
+        delete[] static_cast<const char *>(it->topic.context);  // NOLINT(cppcoreguidelines-owning-memory)
       it = this->subscriptions_.erase(it);
     } else {
       ++it;
@@ -557,11 +793,6 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
   return this->publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
                        message.retain);
 }
-bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
-                                       bool retain) {
-  return this->publish_json(topic.c_str(), f, qos, retain);
-}
-
 bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
   if (!this->is_connected()) {
@@ -590,7 +821,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
   return ret != 0;
 }
 
-bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+bool MQTTClientComponent::publish_json(const char *topic, json::JsonBuildRef f, uint8_t qos, bool retain) {
   auto message = json::build_json(f);
   return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }
@@ -609,11 +840,19 @@ void MQTTClientComponent::disable() {
     return;
   ESP_LOGD(TAG, "Disabling");
   this->state_ = MQTT_CLIENT_DISABLED;
-  this->on_shutdown();
+  this->mqtt_backend_.disconnect();
+}
+
+// Out of line so the topic buffer is off the stack while the matched callback runs
+__attribute__((noinline)) static bool topic_matches(const char *message, const MQTTTopicSource &topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return topic_match(message, topic.build(buf).c_str());
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // LibreTiny: this runs in the async_tcp task, and a command such as restart would block that task while its
+  // teardown waits for the MQTT and API traffic only that task can send, so commands run on the main loop.
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
   //
   // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
@@ -639,21 +878,22 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
-    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
-    const bool was_dispatching = this->dispatching_;
-    this->dispatching_ = true;
-    const size_t count = this->subscriptions_.size();
-    for (size_t i = 0; i < count; i++) {
-      const auto &subscription = this->subscriptions_[i];
-      if (!subscription.removed && topic_match(topic.c_str(), subscription.topic.c_str()))
-        subscription.callback.call(topic, payload);
+    // Only the outermost dispatch erases what was unsubscribed meanwhile.
+    const bool outermost = !this->dispatching_;
+    {
+      DispatchGuard dispatching(this->dispatching_);
+      const size_t count = this->subscriptions_.size();
+      for (size_t i = 0; i < count; i++) {
+        const auto &subscription = this->subscriptions_[i];
+        if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
+          subscription.callback.call(topic, payload);
+      }
     }
-    this->dispatching_ = was_dispatching;
-    if (!was_dispatching && this->removed_while_dispatching_) {
+    if (outermost && this->removed_while_dispatching_) {
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   });
 #endif
 }
@@ -663,16 +903,7 @@ void MQTTClientComponent::disable_log_message() { this->log_message_.topic = "";
 bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_message_.topic.empty(); }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
-void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
-  if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
-    char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
-    this->topic_prefix_ = str_sanitize_to(buf, App.get_name().c_str());
-  } else {
-    this->topic_prefix_ = topic_prefix;
-  }
-}
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
@@ -705,8 +936,6 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
   this->recalculate_availability_();
 }
 
-void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
-
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
                                              bool discover_ip, bool clean) {
@@ -731,22 +960,17 @@ void MQTTClientComponent::disable_discovery() {
   };
 }
 void MQTTClientComponent::on_shutdown() {
-  if (!this->shutdown_message_.topic.empty()) {
-    yield();
-    this->publish(this->shutdown_message_);
-    yield();
-  }
+  // teardown() disconnects once the broker has confirmed the shutdown message
+  this->shutdown_message_sent_ = !this->shutdown_message_.topic.empty() && this->is_connected() &&
+                                 this->mqtt_backend_.publish_tracked(this->shutdown_message_);
+}
+
+bool MQTTClientComponent::teardown() {
+  // A disconnect drops a message the broker has not confirmed; the core's teardown timeout bounds the wait
+  if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() && !this->mqtt_backend_.publish_acknowledged())
+    return false;
   this->mqtt_backend_.disconnect();
-}
-
-void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
-  this->mqtt_backend_.set_on_connect(std::forward<mqtt_on_connect_callback_t>(callback));
-}
-
-void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
-  auto callback_copy = callback;
-  this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
-  this->on_disconnect_.add(std::move(callback_copy));
+  return true;
 }
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

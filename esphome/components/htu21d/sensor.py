@@ -5,17 +5,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_HEATER,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_LEVEL,
     CONF_MODEL,
     CONF_STATUS,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_EMPTY,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -27,28 +22,18 @@ HTU21DComponent = htu21d_ns.class_(
 )
 HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
 
-MODELS = {
-    "HTU21D": HTU21DSensorModels.HTU21D_SENSOR_MODEL_HTU21D,
-    "SI7021": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SI7021,
-    "SHT21": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SHT21,
-}
+MODELS = HTU21DSensorModels.options(
+    "HTU21D", "SI7021", "SHT21", prefix="HTU21D_SENSOR_MODEL_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HTU21DComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
             cv.Optional(CONF_HEATER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 accuracy_decimals=1,
@@ -63,14 +48,12 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_HUMIDITY, var.set_humidity)
-    await sensors(CONF_HEATER, var.set_heater)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_HEATER, var.set_heater_sensor)
 
     cg.add(var.set_sensor_model(config[CONF_MODEL]))
 

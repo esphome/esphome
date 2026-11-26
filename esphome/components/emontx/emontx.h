@@ -4,10 +4,10 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/json/json_util.h"
 
-#include <array>
 #include <atomic>
 
 #ifdef USE_SENSOR
@@ -19,7 +19,7 @@
 
 namespace esphome::emontx {
 
-/// Maximum line length in bytes (plus one byte reserved for null terminator)
+/// Maximum line length in characters
 static constexpr size_t MAX_LINE_LENGTH = 1024;
 
 enum class LockOnReboot : uint8_t {
@@ -66,8 +66,9 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void set_lock_on_reboot(LockOnReboot lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
 
 #ifdef USE_SENSOR
-  void init_sensors(size_t count) { this->sensors_.init(count); }
-  void register_sensor(const char *tag_name, sensor::Sensor *sensor);
+  /// Route the JSON value under `tag_name` (a string literal) to `sensor`
+  SLOT_LIST_REQUIRES(EMONTX_SENSOR_COUNT)
+  void register_sensor(const char *tag_name, sensor::Sensor *sensor) { this->sensors_.push_back({tag_name, sensor}); }
 #endif
 
  protected:
@@ -87,23 +88,22 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void parse_version_line_(const char *line, size_t len);
 #endif
 
-#ifdef USE_SENSOR
-  FixedVector<std::pair<const char *, sensor::Sensor *>> sensors_{};
-#endif
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
-  uint16_t buffer_pos_{0};
   std::atomic<bool> paused_{false};
   bool was_paused_{false};
   LockOnReboot lock_on_reboot_{LockOnReboot::LOCK_ON_REBOOT_NEVER};
-  bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
 #ifdef USE_EMONTX_VERSION
   bool lock_supported_{false};      // The last version reported is v1.2.0 or later
   bool unlock_sent_{false};         // AUTO has sent 'emonunlock' since boot
   uint8_t version_frames_left_{0};  // Data lines still to wait for a version reply; 0 when none is owed
   uint32_t last_msg_number_{0};
 #endif
-  std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
+  LineReader<MAX_LINE_LENGTH + 1> line_reader_;
+#ifdef USE_SENSOR
+  // Last, so the inline storage does not push the other members past short load offsets
+  [[no_unique_address]] SlotList<std::pair<const char *, sensor::Sensor *>, EMONTX_SENSOR_COUNT> sensors_;
+#endif
 };
 
 }  // namespace esphome::emontx

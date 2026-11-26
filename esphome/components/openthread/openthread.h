@@ -4,7 +4,15 @@
 
 #include "esphome/components/mdns/mdns_component.h"
 #include "esphome/components/network/ip_address.h"
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#else
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+#endif
 #include "esphome/core/component.h"
+#include "esphome/core/gpio.h"
 
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
@@ -25,22 +33,65 @@ enum class TeardownStage : uint8_t {
   TEARDOWN_STAGE_COMPLETED,
 };
 
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+static constexpr const char *const BACKBONE_NAME = "Ethernet";
+inline esp_netif_t *backbone_netif() { return ethernet::global_eth_component->get_esp_netif(); }
+inline bool backbone_connected() { return ethernet::global_eth_component->is_connected(); }
+#else
+static constexpr const char *const BACKBONE_NAME = "Wi-Fi";
+inline esp_netif_t *backbone_netif() { return wifi::global_wifi_component->get_esp_netif_sta(); }
+inline bool backbone_connected() { return wifi::global_wifi_component->is_connected(); }
+#endif
+#endif
+
+#if defined(USE_OPENTHREAD_BORDER_ROUTER) && defined(USE_OPENTHREAD_BACKBONE_ETHERNET)
+class OpenThreadComponent final : public Component, public ethernet::EthernetConnectStateListener {
+#elif defined(USE_OPENTHREAD_BORDER_ROUTER)
+class OpenThreadComponent final : public Component, public wifi::WiFiConnectStateListener {
+#else
 class OpenThreadComponent final : public Component {
+#endif
  public:
   OpenThreadComponent();
+#ifdef USE_OPENTHREAD_RCP_UART
+  OpenThreadComponent(uint32_t rcp_baud_rate, uint8_t rcp_rx_pin, uint8_t rcp_tx_pin, GPIOPin *rcp_reset_pin);
+#endif
   ~OpenThreadComponent();
   void dump_config() override;
   void setup() override;
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  void loop() override;
+  /// Border routing follows the backbone; loop() does the work and sleeps in between
+#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
+  void on_ethernet_connect_state(bool connected) override { this->enable_loop(); }
+#else
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override { this->enable_loop(); }
+#endif
+#endif
   bool teardown() override;
-  float get_setup_priority() const override { return setup_priority::WIFI; }
+  float get_setup_priority() const override {
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+    // After every network interface, whichever order network.priority gives them: the backbone netif has to exist
+    return setup_priority::BEFORE_CONNECTION;
+#else
+    return setup_priority::WIFI;
+#endif
+  }
 
   bool is_connected() const { return this->connected_; }
-  /// Returns true once esp_openthread_start() has completed and the OT lock is usable.
+  /// Returns true once the OpenThread stack is initialized and the OT lock is usable.
   bool is_lock_initialized() const { return this->lock_initialized_; }
+#ifdef USE_ESP32
+  /// True once the OpenThread task has torn the stack down; its lock never comes back
+  bool is_task_exited() const { return this->task_exited_; }
+#endif
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
-  void on_factory_reset(std::function<void()> callback);
+  void on_factory_reset(void (*callback)());
+#ifdef USE_OPENTHREAD_SRP
   void defer_factory_reset_external_callback();
+#endif
 
   /// Returns nullptr when no explicit use_address is configured and the address is
   /// derived at runtime from the device name (see network::get_use_address_to()).
@@ -55,25 +106,74 @@ class OpenThreadComponent final : public Component {
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
   void set_connected(bool connected) { this->connected_ = connected; }
   static void on_state_changed(otChangedFlags flags, void *context);
+#ifdef USE_OPENTHREAD_RCP_UART
+  static void rcp_failure_handler();
+#endif
 
  protected:
-  /** Apply Link Mode settings (incl poll period).
+  /** Apply link mode, poll period, and the derived child timeout / supervision settings.
    * Callers running outside the OpenThread task must hold InstanceLock.
    */
   void apply_linkmode_(otInstance *instance);
+#ifdef USE_ESP32
+  void ot_main_();
+  void mark_task_failed_(const LogString *reason);
+#endif
+#if defined(USE_OPENTHREAD_BORDER_ROUTER) && defined(USE_ESP32)
+  void start_border_router_();
+  void retry_border_router_later_(const LogString *reason);
+#endif
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  bool has_border_router_flag_(uint8_t flag) const { return (this->border_router_flags_.load() & flag) != 0; }
+  /// Sets or clears one flag; returns whether it was set before
+  bool set_border_router_flag_(uint8_t flag, bool on) {
+    const uint8_t old = on ? this->border_router_flags_.fetch_or(flag)
+                           : this->border_router_flags_.fetch_and(static_cast<uint8_t>(~flag));
+    return (old & flag) != 0;
+  }
+#endif
+#ifdef USE_OPENTHREAD_RCP_UART
+  void reset_rcp_(bool recovery_attempt);
+#endif
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
-  std::function<void()> factory_reset_external_callback_;
+#ifdef USE_OPENTHREAD_SRP
+  void (*factory_reset_external_callback_)(){nullptr};
+#endif
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
-  // Only ever written from teardown(), on the main task -- no atomic needed.
-  TeardownStage teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
+  std::atomic<TeardownStage> teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
   std::atomic<bool> connected_{false};
+#ifdef USE_ESP32
+  std::atomic<bool> task_exited_{false};
+#endif
+#if CONFIG_OPENTHREAD_MTD
+  bool timeouts_derived_{false};
+#endif
+#ifdef USE_OPENTHREAD_RCP_UART
+  uint32_t rcp_baud_rate_{0};
+  uint8_t rcp_rx_pin_{0};
+  uint8_t rcp_tx_pin_{0};
+  GPIOPin *rcp_reset_pin_{nullptr};
+  // Both only touched on the OpenThread task, by the failure handler
+  uint8_t rcp_reset_attempts_{0};
+  uint32_t last_rcp_reset_ms_{0};
+  static constexpr uint32_t RCP_RESET_FORGET_MS = 10 * 60 * 1000;
+#endif
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  // border_router_flags_ bits, shared with the OpenThread task
+  static constexpr uint8_t MAINLOOP_RUNNING = 1 << 0;
+  static constexpr uint8_t BORDER_ROUTER_STARTED = 1 << 1;
+  static constexpr uint8_t BORDER_ROUTER_START_REQUESTED = 1 << 2;
+  static constexpr uint8_t MAINLOOP_EXIT_REQUESTED = 1 << 3;
+  std::atomic<uint8_t> border_router_flags_{0};
+  bool backbone_up_{false};  // what the stack was told about the infra interface last
+#endif
 
  private:
   // Stores a pointer to a string literal (static storage duration).
@@ -83,6 +183,7 @@ class OpenThreadComponent final : public Component {
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+#ifdef USE_OPENTHREAD_SRP
 class OpenThreadSrpComponent final : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
@@ -101,6 +202,7 @@ class OpenThreadSrpComponent final : public Component {
   std::vector<std::unique_ptr<uint8_t[]>> memory_pool_;
   void *pool_alloc_(size_t size);
 };
+#endif
 
 // RAII guard for the OpenThread API lock. Modeled on std::unique_lock: the
 // guard may or may not own the lock (try_acquire can fail), so check it with

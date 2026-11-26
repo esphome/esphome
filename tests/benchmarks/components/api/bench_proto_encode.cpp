@@ -123,7 +123,7 @@ static void Encode_HelloResponse(benchmark::State &state) {
   HelloResponse msg;
   msg.api_version_major = 1;
   msg.api_version_minor = 10;
-  msg.server_info = StringRef::from_lit("esphome v2026.3.0");
+  msg.server_info = ProgmemStringRef::from_lit("esphome v2026.3.0");
   msg.name = StringRef::from_lit("living-room-sensor");
   uint32_t size = msg.calculate_size();
   (void) buffer.resize(size);
@@ -204,10 +204,10 @@ static DeviceInfoResponse make_device_info_response() {
   DeviceInfoResponse msg;
   msg.name = StringRef::from_lit("living-room-sensor");
   msg.mac_address = StringRef::from_lit("AA:BB:CC:DD:EE:FF");
-  msg.esphome_version = StringRef::from_lit("2026.3.0");
+  msg.esphome_version = ProgmemStringRef::from_lit("2026.3.0");
   msg.compilation_time = StringRef::from_lit("Mar 16 2026, 12:00:00");
-  msg.model = StringRef::from_lit("esp32-poe-iso");
-  msg.manufacturer = StringRef::from_lit("Olimex");
+  msg.model = ProgmemStringRef::from_lit("esp32-poe-iso");
+  msg.manufacturer = ProgmemStringRef::from_lit("Olimex");
   msg.friendly_name = StringRef::from_lit("Living Room Sensor");
 #ifdef USE_DEVICES
   for (uint32_t i = 0; i < ESPHOME_DEVICE_COUNT && i < 20; i++) {

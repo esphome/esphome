@@ -1,9 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+
+#include <string>
+#include <utility>
 
 #ifdef USE_ESP32
 #include <esp_gattc_api.h>
@@ -29,9 +33,17 @@ class BLETextSensor : public text_sensor::TextSensor, public PollingComponent, p
   void set_descr_uuid32(uint32_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_descr_uuid128(uint8_t *uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
   void set_enable_notify(bool notify) { this->notify_ = notify; }
+#ifdef USE_BLE_TEXT_SENSOR_ON_NOTIFY
+  template<typename F> void add_on_notify_callback(F &&callback) {
+    this->notify_callback_.add(std::forward<F>(callback));
+  }
+#endif
   uint16_t handle;
 
  protected:
+#ifdef USE_BLE_TEXT_SENSOR_ON_NOTIFY
+  LazyCallbackManager<void(const std::string &)> notify_callback_;
+#endif
   bool notify_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;

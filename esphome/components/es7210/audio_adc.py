@@ -3,7 +3,7 @@ from esphome.components import esp32, i2c
 from esphome.components.audio_adc import AudioAdc
 from esphome.components.esp32.const import VARIANT_ESP32, VARIANT_ESP32S2
 import esphome.config_validation as cv
-from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_MIC_GAIN, CONF_SAMPLE_RATE
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_MIC_GAIN, CONF_SAMPLE_RATE
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -66,9 +66,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
     if channel_gains := config.get(CONF_CHANNEL_GAINS):

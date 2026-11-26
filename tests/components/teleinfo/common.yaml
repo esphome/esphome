@@ -16,6 +16,19 @@ button:
           id: test_teleinfo
           update_interval: !lambda return 2500;
 
+script:
+  - id: resume_teleinfo_seconds
+    parameters:
+      seconds: int
+    then:
+      # The interval lambda may modify its by-value argument
+      - component.resume:
+          id: test_teleinfo
+          update_interval: !lambda "seconds *= 1000; return seconds;"
+      - component.resume:
+          id: test_teleinfo
+          update_interval: !lambda "return seconds *= 1000;"
+
 teleinfo:
   id: test_teleinfo
   historical_mode: true
@@ -100,6 +113,14 @@ sensor:
     name: pcoup
     tag_name: PCOUP
     teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: ntarf
+    tag_name: NTARF
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: pejp
+    tag_name: PEJP
+    teleinfo_id: test_teleinfo
   # Explicit override - user-specified unit should not be overwritten
   - platform: teleinfo
     name: hchp_override
@@ -116,4 +137,8 @@ text_sensor:
   - platform: teleinfo
     name: optarif
     tag_name: OPTARIF
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: ltarf
+    tag_name: LTARF
     teleinfo_id: test_teleinfo

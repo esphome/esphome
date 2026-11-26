@@ -10,11 +10,39 @@ esphome:
             - logger.log: "Connected to WiFi!"
           on_error:
             - logger.log: "Failed to connect to WiFi!"
+      - wifi.configure:
+          ssid: MySSID2
+          password: password2
+          save: false
+          timeout: 10s
+      - wifi.configure:
+          ssid: !lambda 'return std::string("MySSID3");'
+          password: !lambda 'return std::string("password3");'
+          save: !lambda return true;
+          timeout: !lambda return 15000;
       - if:
           condition: wifi.ap_active
           then:
             - logger.log: "WiFi AP is active!"
+      - if:
+          condition: wifi.connected
+          then:
+            - logger.log: "WiFi is connected!"
+      - if:
+          condition: wifi.enabled
+          then:
+            - logger.log: "WiFi is enabled!"
       - wifi.roam
+      # Runtime credentials keep resolving to the RAM setters, never the flash one
+      - lambda: |-
+          wifi::WiFiAP sta;
+          std::string ssid = "RuntimeSSID";
+          sta.set_ssid(ssid);
+          char password[16] = "runtime_pass";
+          sta.set_password(password);
+          const char *ssid_ptr = ssid.c_str();
+          sta.set_ssid(ssid_ptr);
+          sta.set_password(StringRef(password));
 
 wifi:
   networks:
@@ -24,6 +52,11 @@ wifi:
     - ssid: MySSID2
       password: password2
       priority: 5
+      manual_ip:
+        static_ip: 192.168.2.100
+        gateway: 192.168.2.1
+        subnet: 255.255.255.0
+        dns1: 192.168.2.1
     - ssid: MySSID3
       password: password3
       priority: 0

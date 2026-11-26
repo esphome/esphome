@@ -42,6 +42,17 @@ esphome:
         target_temperature: !lambda "return 23.0f;"
 
     - climate.template.publish:
+        id: template_climate_fahrenheit
+        current_temperature: 20°C
+        target_temperature: 70
+    - climate.control:
+        id: template_climate_fahrenheit
+        target_temperature: 22°C
+    - water_heater.template.publish:
+        id: template_water_heater_fahrenheit
+        current_temperature: 45°C
+        target_temperature: 120
+    - climate.template.publish:
         id: template_climate_custom_modes
         custom_fan_mode: "turbo"
         custom_preset: "eco_plus"
@@ -76,6 +87,38 @@ esphome:
         date: "2021-01-01"
 
 binary_sensor:
+  - platform: template
+    id: template_sensor_above
+    condition:
+      sensor.in_range:
+        id: template_template_sens
+        above: 10.0
+  - platform: template
+    id: template_sensor_between
+    condition:
+      sensor.in_range:
+        id: template_template_sens
+        above: 10.0
+        below: 30.0
+  - platform: template
+    id: template_number_above
+    condition:
+      number.in_range:
+        id: template_number
+        above: 10.0
+  - platform: template
+    id: template_number_below
+    condition:
+      number.in_range:
+        id: template_number
+        below: 90.0
+  - platform: template
+    id: template_number_between
+    condition:
+      number.in_range:
+        id: template_number
+        above: 10.0
+        below: 90.0
   - platform: template
     id: template_some_binary_sensor
     name: "Garage Door Open"
@@ -288,6 +331,10 @@ button:
             ESP_LOGD("test", "%s", preset);
           for (const char *mode : traits.get_supported_custom_fan_modes())
             ESP_LOGD("test", "%s", mode);
+          if (fan_modes.size() > 1) {
+            const auto *it = std::find(fan_modes.begin(), fan_modes.end(), fan_modes[1]);
+            ESP_LOGD("test", "index %d", (int) (it - fan_modes.begin()));
+          }
           std::vector<const char *> presets{"eco_plus", "max"};
           id(template_climate_custom_modes).set_supported_custom_presets(presets);
           id(template_climate_custom_modes).set_supported_custom_presets({"eco_plus"});
@@ -373,6 +420,10 @@ cover:
           id: template_cover_actions
           position: 0.0
           tilt: 0.0
+    toggle_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
     stop_action:
       - cover.template.publish:
           id: template_cover_actions
@@ -381,6 +432,10 @@ cover:
       - lambda: |-
           id(template_cover_actions).tilt = tilt;
           id(template_cover_actions).publish_state();
+    stop_tilt_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
     on_idle:
       # position only
       - cover.control:
@@ -399,9 +454,25 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop: true
+      # stop tilt
+      - cover.control:
+          id: template_cover_actions
+          stop_tilt: true
+      - cover.control:
+          id: template_cover_actions
+          state: CLOSED
+      - cover.control:
+          id: template_cover_actions
+          stop: !lambda return true;
+      - cover.control:
+          id: template_cover_actions
+          stop_tilt: !lambda return true;
+          position: !lambda return 0.4f;
+          tilt: !lambda return 0.6f;
       - cover.open: template_cover_actions
       - cover.close: template_cover_actions
       - cover.stop: template_cover_actions
+      - cover.stop_tilt: template_cover_actions
       - cover.toggle: template_cover_actions
       # CONF_STATE alias for position
       - cover.control:
@@ -592,6 +663,25 @@ alarm_control_panel:
       - "1234"
 
 climate:
+  # unit_of_measurement keeps the visual temperatures in that unit; a value written in
+  # another unit is converted into it
+  - platform: template
+    id: template_climate_fahrenheit
+    name: "Template Climate Fahrenheit"
+    unit_of_measurement: °F
+    optimistic: true
+    supported_modes:
+      - "OFF"
+      - HEAT
+    initial_state:
+      mode: HEAT
+      target_temperature: 21°C
+    visual:
+      min_temperature: 60
+      max_temperature: 30°C
+      temperature_step:
+        target_temperature: 1°F
+        current_temperature: 0.5°C
   - platform: template
     id: template_climate
     name: "Template Climate"
@@ -684,6 +774,17 @@ climate:
       temperature_step: 0.5
 
 water_heater:
+  - platform: template
+    id: template_water_heater_fahrenheit
+    name: "Template Water Heater Fahrenheit"
+    unit_of_measurement: °F
+    optimistic: true
+    current_temperature: !lambda "return 110.0f;"
+    target_temperature: !lambda "return 120.0f;"
+    visual:
+      min_temperature: 100
+      max_temperature: 60°C
+      target_temperature_step: 1°C
   - platform: template
     id: template_water_heater
     name: "Template Water Heater"

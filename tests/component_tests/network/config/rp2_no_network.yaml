@@ -1,0 +1,5 @@
+esphome:
+  name: platformtest
+
+rp2:
+  board: rpipicow

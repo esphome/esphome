@@ -1,49 +1,33 @@
 #include "ld2460.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
+#include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <numbers>
 
 namespace esphome::ld2460 {
 
 ESPHOME_LOG_TAG(TAG, "ld2460");
 
-static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-// PROGMEM keeps the patterns out of RAM on the ESP8266; they are copied out for each compare
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] PROGMEM = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0x04, 0x03, 0x02, 0x01};
-static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] PROGMEM = {0xF4, 0xF3, 0xF2, 0xF1};
-static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
-
 static constexpr uint8_t CMD_REPORT_DATA = 0x04;
 static constexpr uint8_t CMD_QUERY_INSTALLATION_MODE = 0x0A;
 static constexpr uint8_t ACK_FRAME_LENGTH = 12;
 static constexpr uint8_t MAX_QUERY_ATTEMPTS = 3;
-// Header, command, length (12, little endian), payload 0x01, footer
-static constexpr uint8_t QUERY_INSTALLATION_MODE_FRAME[] PROGMEM = {
-    0xFD, 0xFC, 0xFB, 0xFA, CMD_QUERY_INSTALLATION_MODE, 0x0C, 0x00, 0x01, 0x04, 0x03, 0x02, 0x01,
-};
-
-static bool matches(const uint8_t *bytes, const uint8_t *pattern) {
-  uint8_t copy[HEADER_FOOTER_SIZE];
-  progmem_memcpy(copy, pattern, sizeof(copy));
-  return std::memcmp(bytes, copy, sizeof(copy)) == 0;
-}
-
-// Header (4), command (1), length (2, little endian); the length counts the whole frame
-static constexpr uint8_t FRAME_PREFIX_SIZE = 7;
-static uint16_t frame_length(const uint8_t *frame) { return encode_uint16(frame[6], frame[5]); }
 
 static constexpr float RADIANS_TO_DEGREES = 180.0f / std::numbers::pi_v<float>;
 
 void LD2460Component::setup() { this->send_query_(); }
 
+// Header, command, length (12, little endian), payload 0x01, footer
+static constexpr uint8_t QUERY_INSTALLATION_MODE_FRAME[] PROGMEM = {
+    0xFD, 0xFC, 0xFB, 0xFA, CMD_QUERY_INSTALLATION_MODE, 0x0C, 0x00, 0x01, 0x04, 0x03, 0x02, 0x01,
+};
+
 void LD2460Component::send_query_() {
-  uint8_t frame[sizeof(QUERY_INSTALLATION_MODE_FRAME)];
-  progmem_memcpy(frame, QUERY_INSTALLATION_MODE_FRAME, sizeof(frame));
-  this->write_array(frame, sizeof(frame));
+  this->write_array_progmem(QUERY_INSTALLATION_MODE_FRAME, sizeof(QUERY_INSTALLATION_MODE_FRAME));
 }
 
 void LD2460Component::dump_config() {
@@ -54,42 +38,30 @@ void LD2460Component::dump_config() {
                 : this->installation_mode_ == InstallationMode::INSTALLATION_MODE_TOP ? LOG_STR_LITERAL("top")
                                                                                       : LOG_STR_LITERAL("side"));
 #ifdef USE_SENSOR
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetCount", this->target_count_sensor_);
   for (const auto &t : this->target_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetX", t.x);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetY", t.y);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetDistance", t.distance);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetAngle", t.angle);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetX", t.x);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetY", t.y);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", t.distance);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetAngle", t.angle);
   }
 #endif
 }
 
 void LD2460Component::loop() {
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i]);
-    }
-  }
+  const uint32_t now = App.get_loop_component_start_time();
+  auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  this->read_frames<MAX_FRAME_LENGTH>(this->reader_, handler, now, this->last_rx_);
 }
 
-void LD2460Component::handle_periodic_data_() {
-  const uint8_t *data = this->buffer_data_;
-  if (!this->align_to_header_(DATA_FRAME_HEADER) || data[4] != CMD_REPORT_DATA) {
+bool LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_len) {
+  if (data[4] != CMD_REPORT_DATA) {
     ESP_LOGW(TAG, "Invalid periodic data header");
-    return;
+    return false;
   }
-  const uint8_t packet_len = this->buffer_pos_;
-  if (packet_len < 11 || (packet_len - 11) % 4 != 0) {
+  if ((packet_len - MIN_FRAME_LENGTH) % 4 != 0) {
     ESP_LOGW(TAG, "Periodic packet length %u is not a whole number of targets", packet_len);
-    return;
+    return false;
   }
 
   if (this->query_attempts_ != 0) {
@@ -104,7 +76,7 @@ void LD2460Component::handle_periodic_data_() {
   }
 
 #ifdef USE_SENSOR
-  uint8_t num_targets = std::min<uint8_t>((packet_len - 11) / 4, MAX_TARGETS);
+  uint8_t num_targets = std::min<uint8_t>((packet_len - MIN_FRAME_LENGTH) / 4, MAX_TARGETS);
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     TargetSensors &t = this->target_sensors_[i];
     if (i >= num_targets) {
@@ -117,8 +89,8 @@ void LD2460Component::handle_periodic_data_() {
       continue;
     }
     const uint8_t *p = &data[7 + i * 4];
-    auto raw_x = static_cast<int16_t>(encode_uint16(p[1], p[0]));
-    auto raw_y = static_cast<int16_t>(encode_uint16(p[3], p[2]));
+    auto raw_x = encode_value_le<int16_t>(p);
+    auto raw_y = encode_value_le<int16_t>(&p[2]);
     if (raw_x == t.last_x && raw_y == t.last_y) {
       continue;
     }
@@ -150,69 +122,36 @@ void LD2460Component::handle_periodic_data_() {
 #endif
 
   this->data_callback_.call();
+  return true;
 }
 
-void LD2460Component::readline_(uint8_t readch) {
-  if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
-    ESP_LOGW(TAG, "Max frame length exceeded; ignoring");
-    this->buffer_pos_ = 0;
+// Handles the frame when its footer and structure are in place; returns false otherwise
+bool LD2460Component::handle_frame_(const uint8_t *frame, uint8_t len) {
+  if (!ld24xx::has_footer(frame, len)) {
+    ESP_LOGW(TAG, "Invalid footer");
+    ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Rejected: %s");
+    return false;
   }
-  this->buffer_data_[this->buffer_pos_++] = readch;
-
-  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
-    return;
-  }
-  const uint8_t *tail = &this->buffer_data_[this->buffer_pos_ - HEADER_FOOTER_SIZE];
-  bool is_data = readch == progmem_read_byte(&DATA_FRAME_FOOTER[3]) && matches(tail, DATA_FRAME_FOOTER);
-  if (!is_data && (readch != progmem_read_byte(&CMD_FRAME_FOOTER[3]) || !matches(tail, CMD_FRAME_FOOTER))) {
-    return;
-  }
-
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-  ESP_LOGV(TAG, "Frame: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
-
-  if (is_data) {
-    this->handle_periodic_data_();
-  } else {
-    this->handle_ack_();
-  }
-  this->buffer_pos_ = 0;
+  ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
+  if (frame[0] == DataFrame::FIRST)
+    return this->handle_periodic_data_(frame, len);
+  return this->handle_ack_(frame, len);
 }
 
-// Once a footer is matched, shift the buffer to the first offset holding a header whose length
-// field ends the frame exactly at the footer. Stray bytes, truncated frames and header bytes inside
-// a payload are skipped this way. Returns false when no such offset exists.
-bool LD2460Component::align_to_header_(const uint8_t *header) {
-  for (uint8_t i = 0; i + FRAME_PREFIX_SIZE <= this->buffer_pos_; i++) {
-    const uint8_t *frame = &this->buffer_data_[i];
-    if (matches(frame, header) && frame_length(frame) == this->buffer_pos_ - i) {
-      if (i != 0) {
-        this->buffer_pos_ -= i;
-        std::memmove(this->buffer_data_, frame, this->buffer_pos_);
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
-void LD2460Component::handle_ack_() {
-  const uint8_t *data = this->buffer_data_;
-  if (!this->align_to_header_(CMD_FRAME_HEADER) || this->buffer_pos_ != ACK_FRAME_LENGTH) {
+bool LD2460Component::handle_ack_(const uint8_t *data, uint8_t len) {
+  if (len != ACK_FRAME_LENGTH) {
     ESP_LOGW(TAG, "Dropping malformed command frame");
-    return;
+    return false;
   }
   if (data[4] != CMD_QUERY_INSTALLATION_MODE) {
     ESP_LOGD(TAG, "Ignoring reply to command 0x%02X", data[4]);
-    return;
+    return true;
   }
   const uint8_t mode = data[7];
   if (mode != static_cast<uint8_t>(InstallationMode::INSTALLATION_MODE_SIDE) &&
       mode != static_cast<uint8_t>(InstallationMode::INSTALLATION_MODE_TOP)) {
     ESP_LOGW(TAG, "Unexpected installation mode %u", mode);
-    return;
+    return true;
   }
   this->installation_mode_ = static_cast<InstallationMode>(mode);
   this->query_attempts_ = 0;
@@ -225,6 +164,7 @@ void LD2460Component::handle_ack_() {
     t.last_x = INT16_MIN;
   }
 #endif
+  return true;
 }
 
 }  // namespace esphome::ld2460

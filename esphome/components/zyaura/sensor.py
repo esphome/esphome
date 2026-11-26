@@ -9,16 +9,8 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
-from esphome.cpp_helpers import gpio_pin_expression
 from esphome.types import ConfigType
 
 zyaura_ns = cg.esphome_ns.namespace("zyaura")
@@ -30,24 +22,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_CLOCK_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         cv.Required(CONF_DATA_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         cv.Optional(CONF_CO2): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_MOLECULE_CO2,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
         ),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_HUMIDITY,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(kind=sensor.TEMPERATURE),
+        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
     }
 ).extend(cv.polling_component_schema("60s"))
 
@@ -56,10 +34,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    pin_clock = await gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_pin_clock(pin_clock))
-    pin_data = await gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_pin_data(pin_data))
+    await cg.add_pin(var.set_pin_clock, config[CONF_CLOCK_PIN])
+    await cg.add_pin(var.set_pin_data, config[CONF_DATA_PIN])
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)

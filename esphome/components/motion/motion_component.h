@@ -4,8 +4,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 #include <numbers>  // required for generated lambda code
 
 namespace esphome::motion {
@@ -13,8 +15,13 @@ namespace esphome::motion {
 // ---Data class
 
 struct MotionData {
-  float acceleration[3]{NAN, NAN, NAN};
-  float angular_rate[3]{NAN, NAN, NAN};
+  // Filled in the constructor: initialized arrays are copied from a constant, which is RAM on ESP8266
+  MotionData() {
+    std::fill(std::begin(this->acceleration), std::end(this->acceleration), NAN);
+    std::fill(std::begin(this->angular_rate), std::end(this->angular_rate), NAN);
+  }
+  float acceleration[3];
+  float angular_rate[3];
   // TODO - compass
 };
 
@@ -61,11 +68,15 @@ struct CalibrationPref {
 // Main component class
 class MotionComponent : public PollingComponent {
  public:
+  MotionComponent() {
+    MotionComponent::set_identity(this->matrix_);
+    MotionComponent::set_identity(this->base_matrix_);
+  }
+
   // Lifecycle
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_matrix(const std::array<float, 9> &m) {
     memcpy(this->base_matrix_, m.data(), sizeof(this->base_matrix_));
@@ -83,21 +94,44 @@ class MotionComponent : public PollingComponent {
   /// and persist that base when `save` is set.
   void clear_calibration(bool save = false);
 
-  template<typename F> void add_listener(F &&cb) { this->motion_data_callback_.add(std::forward<F>(cb)); }
+#ifdef USE_MOTION_DATA_PUBLISHER
+  HUB_PUBLISHER(data, const MotionData &)
+#endif
+
+#ifdef USE_MOTION_TAP
+  /// Platforms with a tap block convert this to chip steps and clamp it.
+  virtual void set_tap_threshold(float threshold_g);
+  // Callback args: (axis after axis_map, negative side)
+  template<typename F> void add_on_tap_callback(F &&cb) { this->tap_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_double_tap_callback(F &&cb) { this->double_tap_callback_.add(std::forward<F>(cb)); }
+#endif
 
  protected:
   // platforms must implement this method to update raw data.
   virtual bool update_data(MotionData &data) = 0;
 
+#ifdef USE_MOTION_TAP
+  // chip_axis is the sensor's own axis; it is reported in the axis_map frame
+  void report_tap_(uint8_t chip_axis, bool chip_negative);
+  // Also drops a single tap held by hold_tap_()
+  void report_double_tap_(uint8_t chip_axis, bool chip_negative);
+  // For chips that report the first tap of a double as a single: hold it for tap_hold_ms_
+  void hold_tap_(uint8_t chip_axis, bool chip_negative, uint32_t now);
+  // Reports a held single tap once tap_hold_ms_ has passed with no double tap
+  void release_held_tap_(uint32_t now);
+#endif
+
   // for mapping axes
-  float matrix_[9]{
-      1, 0, 0, 0, 1, 0, 0, 0, 1,
-  };
+  // In code: a braced identity initializer is copied from a RAM constant on ESP8266
+  static void set_identity(float m[9]) {
+    for (uint8_t i = 0; i < 9; i++)
+      m[i] = i % 4 == 0 ? 1.0f : 0.0f;
+  }
+
+  float matrix_[9];
   // build-time base (axis_map / transform_matrix); used to detect config changes
   // and to restore on clear_calibration().
-  float base_matrix_[9]{
-      1, 0, 0, 0, 1, 0, 0, 0, 1,
-  };
+  float base_matrix_[9];
 
   void map_axes_(float output[3], const float input[3]) const {
     output[0] = input[X_AXIS] * this->matrix_[0] + input[Y_AXIS] * this->matrix_[1] + input[Z_AXIS] * this->matrix_[2];
@@ -105,10 +139,21 @@ class MotionComponent : public PollingComponent {
     output[2] = input[X_AXIS] * this->matrix_[6] + input[Y_AXIS] * this->matrix_[7] + input[Z_AXIS] * this->matrix_[8];
   }
 
-  LazyCallbackManager<void(MotionData const &)> motion_data_callback_{};
   uint32_t pref_key_{0};
   uint32_t base_hash_{0};  // hash of base_matrix_, captured in setup()
   ESPPreferenceObject pref_{};
+
+#ifdef USE_MOTION_TAP
+  void resolve_tap_axis_(uint8_t chip_axis, bool chip_negative, uint8_t &axis, bool &negative) const;
+
+  LazyCallbackManager<void(uint8_t, bool)> tap_callback_{};
+  LazyCallbackManager<void(uint8_t, bool)> double_tap_callback_{};
+  uint32_t tap_hold_ms_{0};
+  uint32_t tap_held_since_{0};
+  uint8_t tap_held_axis_{0};
+  bool tap_held_negative_{false};
+  bool tap_held_{false};
+#endif
 };
 
 // --- Actions ---

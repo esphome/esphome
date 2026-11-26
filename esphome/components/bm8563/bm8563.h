@@ -29,9 +29,6 @@ class BM8563 final : public time::RealTimeClock, public i2c::I2CDevice {
   void write_byte_(uint8_t reg, uint8_t value);
   void write_register_(uint8_t reg, const uint8_t *data, size_t len);
   optional<uint8_t> read_register_(uint8_t reg);
-
-  uint8_t bcd2_to_byte_(uint8_t value);
-  uint8_t byte_to_bcd2_(uint8_t value);
 };
 
 }  // namespace esphome::bm8563

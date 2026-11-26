@@ -1,44 +1,35 @@
 #include "emmeti.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/remote_base.h"
 
 namespace esphome::emmeti {
 
 ESPHOME_LOG_TAG(TAG, "emmeti.climate");
 
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, EMMETI_MODE_HEAT_COOL},
+    {climate::CLIMATE_MODE_COOL, EMMETI_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, EMMETI_MODE_DRY},
+    {climate::CLIMATE_MODE_FAN_ONLY, EMMETI_MODE_FAN},
+    {climate::CLIMATE_MODE_HEAT, EMMETI_MODE_HEAT},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, EMMETI_FAN_AUTO},
+    {climate::CLIMATE_FAN_LOW, EMMETI_FAN_1},
+    {climate::CLIMATE_FAN_MEDIUM, EMMETI_FAN_2},
+    {climate::CLIMATE_FAN_HIGH, EMMETI_FAN_3},
+};
+
 // setters
 uint8_t EmmetiClimate::set_temp_() {
   return (uint8_t) roundf(clamp<float>(this->target_temperature, EMMETI_TEMP_MIN, EMMETI_TEMP_MAX) - EMMETI_TEMP_MIN);
 }
 
-uint8_t EmmetiClimate::set_mode_() {
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      return EMMETI_MODE_COOL;
-    case climate::CLIMATE_MODE_DRY:
-      return EMMETI_MODE_DRY;
-    case climate::CLIMATE_MODE_HEAT:
-      return EMMETI_MODE_HEAT;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return EMMETI_MODE_FAN;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    default:
-      return EMMETI_MODE_HEAT_COOL;
-  }
-}
-
-uint8_t EmmetiClimate::set_fan_speed_() {
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_LOW:
-      return EMMETI_FAN_1;
-    case climate::CLIMATE_FAN_MEDIUM:
-      return EMMETI_FAN_2;
-    case climate::CLIMATE_FAN_HIGH:
-      return EMMETI_FAN_3;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      return EMMETI_FAN_AUTO;
-  }
-}
+uint8_t EmmetiClimate::set_mode_() { return to_ir_code(MODES, this->mode, EMMETI_MODE_HEAT_COOL); }
 
 uint8_t EmmetiClimate::set_blades_() {
   if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
@@ -90,37 +81,6 @@ uint8_t EmmetiClimate::gen_checksum_() { return (this->set_temp_() + this->set_m
 // getters
 float EmmetiClimate::get_temp_(uint8_t temp) { return (float) (temp + EMMETI_TEMP_MIN); }
 
-climate::ClimateMode EmmetiClimate::get_mode_(uint8_t mode) {
-  switch (mode) {
-    case EMMETI_MODE_COOL:
-      return climate::CLIMATE_MODE_COOL;
-    case EMMETI_MODE_DRY:
-      return climate::CLIMATE_MODE_DRY;
-    case EMMETI_MODE_HEAT:
-      return climate::CLIMATE_MODE_HEAT;
-    case EMMETI_MODE_HEAT_COOL:
-      return climate::CLIMATE_MODE_HEAT_COOL;
-    case EMMETI_MODE_FAN:
-      return climate::CLIMATE_MODE_FAN_ONLY;
-    default:
-      return climate::CLIMATE_MODE_HEAT_COOL;
-  }
-}
-
-climate::ClimateFanMode EmmetiClimate::get_fan_speed_(uint8_t fan_speed) {
-  switch (fan_speed) {
-    case EMMETI_FAN_1:
-      return climate::CLIMATE_FAN_LOW;
-    case EMMETI_FAN_2:
-      return climate::CLIMATE_FAN_MEDIUM;
-    case EMMETI_FAN_3:
-      return climate::CLIMATE_FAN_HIGH;
-    case EMMETI_FAN_AUTO:
-    default:
-      return climate::CLIMATE_FAN_AUTO;
-  }
-}
-
 climate::ClimateSwingMode EmmetiClimate::get_swing_(uint8_t bitmap) {
   return (bitmap >> 1) & 0x01 ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
 }
@@ -168,7 +128,7 @@ void EmmetiClimate::transmit_state() {
   if (this->mode != climate::CLIMATE_MODE_OFF) {
     this->reverse_add_(this->set_mode_(), 3, data);
     this->add_(1, data);
-    this->reverse_add_(this->set_fan_speed_(), 2, data);
+    this->reverse_add_(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), EMMETI_FAN_AUTO), 2, data);
     this->add_(this->swing_mode != climate::CLIMATE_SWING_OFF, data);
     this->add_(0, data);  // sleep mode
     this->reverse_add_(this->set_temp_(), 4, data);
@@ -205,8 +165,8 @@ void EmmetiClimate::transmit_state() {
 }
 
 bool EmmetiClimate::parse_state_frame_(EmmetiState curr_state) {
-  this->mode = this->get_mode_(curr_state.mode);
-  this->fan_mode = this->get_fan_speed_(curr_state.fan_speed);
+  this->mode = from_ir_code(MODES, curr_state.mode, climate::CLIMATE_MODE_HEAT_COOL);
+  this->fan_mode = from_ir_code(FANS, curr_state.fan_speed, climate::CLIMATE_FAN_AUTO);
   this->target_temperature = this->get_temp_(curr_state.temp);
   this->swing_mode = this->get_swing_(curr_state.bitmap);
   // this->blades_ = curr_state.fan_pos;

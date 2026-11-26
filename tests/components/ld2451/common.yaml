@@ -1,0 +1,20 @@
+ld2451:
+  - id: ld2451_radar
+
+sensor:
+  - platform: ld2451
+    ld2451_id: ld2451_radar
+    target_count:
+      name: Target Count
+    target_1:
+      angle:
+        name: Target-1 Angle
+      distance:
+        name: Target-1 Distance
+      speed:
+        name: Target-1 Speed
+      snr:
+        name: Target-1 SNR
+    target_5:
+      speed:
+        name: Target-5 Speed

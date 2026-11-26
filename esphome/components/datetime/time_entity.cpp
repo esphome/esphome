@@ -26,7 +26,7 @@ void TimeEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGV(TAG, "'%s' >> %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_, this->second_);
+  ESP_LOGV(TAG, "'%s' >> %02d:%02d:%02d", LOG_STR_ARG(this->get_log_name()), this->hour_, this->minute_, this->second_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_TIME) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_time_update(this);
@@ -50,7 +50,7 @@ void TimeCall::validate_() {
 
 void TimeCall::perform() {
   this->validate_();
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   if (this->hour_.has_value()) {
     ESP_LOGV(TAG, " Hour: %d", *this->hour_);
   }
@@ -98,7 +98,7 @@ void TimeEntityRestoreState::apply(TimeEntity *time) {
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
-void OnTimeTrigger::loop() {
+void OnTimeBase::loop() {
   if (!this->parent_->has_state()) {
     return;
   }
@@ -126,7 +126,7 @@ void OnTimeTrigger::loop() {
         break;
 
       if (this->matches_(*this->last_check_)) {
-        this->trigger();
+        this->fire();
         break;
       }
     }
@@ -139,10 +139,10 @@ void OnTimeTrigger::loop() {
   }
 
   if (this->matches_(time))
-    this->trigger();
+    this->fire();
 }
 
-bool OnTimeTrigger::matches_(const ESPTime &time) const {
+bool OnTimeBase::matches_(const ESPTime &time) const {
   return time.is_valid() && time.hour == this->parent_->hour && time.minute == this->parent_->minute &&
          time.second == this->parent_->second;
 }

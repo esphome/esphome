@@ -83,5 +83,4 @@ async def to_code(config: ConfigType) -> None:
     )
 
     for page_id in config.get(CONF_PAGES, []):
-        page = await cg.get_variable(page_id)
-        cg.add(var.add_page(page))
+        await cg.add_variable(var.add_page, page_id)

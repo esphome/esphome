@@ -1,6 +1,6 @@
 from typing import Any
 
-from esphome.loader import ComponentManifest, _replace_component_manifest
+from esphome.loader import ComponentManifest, FileResource, _replace_component_manifest
 from esphome.types import ConfigType
 
 
@@ -29,12 +29,16 @@ class ComponentManifestOverride:
     def __init__(self, wrapped: "ComponentManifest") -> None:
         object.__setattr__(self, "_wrapped", wrapped)
         object.__setattr__(self, "_overrides", {})
+        object.__setattr__(self, "_extra_resources", [])
 
     def __getattr__(self, name: str) -> Any:
         overrides: dict[str, Any] = object.__getattribute__(self, "_overrides")
         if name in overrides:
             return overrides[name]
         wrapped: ComponentManifest = object.__getattribute__(self, "_wrapped")
+        if name == "resources":
+            # Read lazily so FILTER_SOURCE_FILES sees the defines to_code added
+            return wrapped.resources + object.__getattribute__(self, "_extra_resources")
         return getattr(wrapped, name)
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -48,11 +52,18 @@ class ComponentManifestOverride:
         custom stub) ``to_code`` to run during C++ unit test builds.
         """
         overrides: dict[str, Any] = object.__getattribute__(self, "_overrides")
-        overrides.pop("to_code", None)
+        # Keep a custom to_code another override of the same manifest installed
+        if overrides.get("to_code") is None:
+            overrides.pop("to_code", None)
+
+    def add_resources(self, *resources: FileResource) -> None:
+        """Copy extra source files into the build next to the component's own."""
+        object.__getattribute__(self, "_extra_resources").extend(resources)
 
     def restore(self) -> None:
-        """Clear all overrides, reverting to the wrapped manifest's values."""
+        """Clear all overrides and added resources, reverting to the wrapped manifest's values."""
         object.__getattribute__(self, "_overrides").clear()
+        object.__getattribute__(self, "_extra_resources").clear()
 
 
 def set_testing_manifest(domain: str, manifest: ComponentManifestOverride) -> None:
@@ -83,3 +94,19 @@ def add_defines_to_code(manifest: ComponentManifestOverride, *defines: str) -> N
     if hasattr(original_to_code, "priority"):
         to_code.priority = original_to_code.priority
     manifest.to_code = to_code
+
+
+def get_define_value(name: str) -> str | None:
+    """Rendered value of a CORE define, or None when absent.
+
+    Values are codegen expressions (IntLiteral); they are compared rendered.
+    A value-less define (e.g. USE_BK72XX_BLE) is present but renders as the
+    string "None", while an absent define returns the None object — easy to
+    conflate in assertions, so use this helper for valued defines only.
+    """
+    from esphome.core import CORE
+
+    for define in CORE.defines:
+        if define.name == name:
+            return str(define.value)
+    return None

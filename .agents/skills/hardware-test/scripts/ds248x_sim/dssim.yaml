@@ -1,0 +1,21 @@
+# Pico 2 W playing a DS2482-800 at 0x18 (GP4 SDA, GP5 SCL) with four DS18B20s; faults are armed over USB serial.
+esphome:
+  name: dssim
+  build_path: build-dssim
+  includes:
+    - sim.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: sim::begin();
+rp2040:
+  board: rpipico2w
+logger:
+  level: DEBUG
+interval:
+  - interval: 50ms
+    then:
+      - lambda: sim::poll_serial();
+  - interval: 5s
+    then:
+      - lambda: sim::report();

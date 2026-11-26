@@ -42,9 +42,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    cg.add_define("USE_LINE_READER")
+    await uart.new_uart_component(config)
 
 
 automation.register_apply_action(
@@ -104,7 +103,7 @@ def range_segment_list(input: Any) -> list:
             raise cv.Invalid("Minimum distance is 0m")
         if m <= largest_distance:
             raise cv.Invalid(
-                "Distances must be delared from small to large "
+                "Distances must be declared from small to large "
                 "and they cannot contain each other"
             )
         largest_distance = m
