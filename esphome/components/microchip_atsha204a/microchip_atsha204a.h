@@ -130,6 +130,9 @@ class ATSHA204A : public PollingComponent {
   bool awake_{};
   bool has_serial_{};
   bool expect_response_{};
+#ifdef USE_TEXT_SENSOR
+  bool identity_pending_{};
+#endif
   std::array<uint8_t, 9> serial_{};
   std::array<uint8_t, 4> revision_{};
   std::function<void()> poll_callback_;

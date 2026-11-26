@@ -7,6 +7,22 @@ import pytest
 from esphome import config, yaml_util
 from esphome.core import CORE
 
+I2C_CONFIG = """
+esphome:
+  name: atsha204a-test
+esp32:
+  variant: esp32
+i2c:
+  id: main_bus
+  sda: GPIO21
+  scl: GPIO22
+  frequency: {frequency}
+{mux}
+microchip_atsha204a:
+  type: i2c
+  i2c_id: {bus}
+"""
+
 RMT_CONFIG = """
 esphome:
   name: atsha204a-test
@@ -53,6 +69,38 @@ def _validation_errors(yaml: str, tmp_path: Path) -> list[str]:
     CORE.config_path = path
     result = config.validate_config(yaml_util.load_yaml(path), {})
     return [str(err) for err in result.errors]
+
+
+@pytest.mark.parametrize(
+    ("frequency", "valid"),
+    [("1kHz", False), ("10kHz", True), ("100kHz", True), ("400kHz", False)],
+)
+def test_direct_i2c_frequency(frequency: str, valid: bool, tmp_path: Path) -> None:
+    errors = _validation_errors(
+        I2C_CONFIG.format(frequency=frequency, bus="main_bus", mux=""), tmp_path
+    )
+    if valid:
+        assert errors == []
+    else:
+        assert any(
+            "requires a frequency between 10kHz and 100kHz" in err for err in errors
+        ), errors
+
+
+@pytest.mark.parametrize("frequency_override", ["", "      frequency: 50kHz"])
+def test_i2c_requires_direct_bus(frequency_override: str, tmp_path: Path) -> None:
+    mux = f"""\
+tca9548a:
+  i2c_id: main_bus
+  channels:
+    - bus_id: mux_bus
+      channel: 0
+{frequency_override}
+"""
+    errors = _validation_errors(
+        I2C_CONFIG.format(frequency="50kHz", bus="mux_bus", mux=mux), tmp_path
+    )
+    assert any("requires a top-level I²C bus" in err for err in errors), errors
 
 
 @pytest.mark.parametrize(

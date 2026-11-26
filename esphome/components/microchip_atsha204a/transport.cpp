@@ -44,7 +44,11 @@ bool I2CTransport::wake() {
   // The address byte holds SDA low for eight clocks. A sleeping chip is expected to NACK.
   const uint8_t zero = 0;
   const auto status = this->bus_->write(0, &zero, 1);
-  return status == i2c::ERROR_OK || status == i2c::ERROR_NOT_ACKNOWLEDGED;
+  if (status != i2c::ERROR_OK && status != i2c::ERROR_NOT_ACKNOWLEDGED)
+    return false;
+  // SDA must stay high for 2.5 ms. Finish the interval before another bus user can run.
+  delayMicroseconds(2500);
+  return true;
 }
 
 bool I2CTransport::command(const uint8_t *packet, size_t size) {

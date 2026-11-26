@@ -115,7 +115,7 @@ bool ATSHA204A::start_wake_() {
     return false;
   }
   this->wait_start_ = micros();
-  this->wait_us_ = WAKE_DELAY_US;
+  this->wait_us_ = this->transport_->is_single_wire() ? WAKE_DELAY_US : 0;
   this->response_requested_ = false;
   return true;
 }
@@ -251,7 +251,7 @@ void ATSHA204A::loop() {
     case Receive::RECEIVE_IO_ERROR:
     case Receive::RECEIVE_INVALID_LENGTH:
       // The chip can still be transmitting. Allow the full reply window before sending Sleep.
-      if (micros() - this->response_start_ >= RESPONSE_TIMEOUT_MS * 1000)
+      if (!this->transport_->is_single_wire() || micros() - this->response_start_ >= RESPONSE_TIMEOUT_MS * 1000)
         this->handle_response_(nullptr, result == Receive::RECEIVE_IO_ERROR ? IO_ERROR : BAD_LENGTH);
       return;
     case Receive::RECEIVE_COMPLETE:
@@ -309,15 +309,13 @@ void ATSHA204A::handle_response_(const uint8_t *packet, int status) {
         return;
       }
       if (!this->has_serial_) {
-#ifdef USE_TEXT_SENSOR
-        publish_hex(this->serial_number_text_sensor_, serial);
-        publish_hex(this->chip_revision_text_sensor_, this->revision_);
-#endif
         this->serial_ = serial;
         this->has_serial_ = true;
+#ifdef USE_TEXT_SENSOR
+        this->identity_pending_ = true;
+#endif
       }
       if (this->poll_callback_) {
-        this->publish_presence_(true);
         this->state_ = State::STATE_POLL_CALLBACK;
         this->poll_callback_();
       }
@@ -352,21 +350,33 @@ void ATSHA204A::handle_response_(const uint8_t *packet, int status) {
 
 void ATSHA204A::finish_poll_(bool present) {
   const bool slept = !this->awake_ || this->transport_->power_down(false, false);
+  const bool connected = present && slept;
   this->awake_ = false;
   this->block_callback_ = {};
-  if (!present || !slept) {
-    if (this->has_serial_) {
-      this->has_serial_ = false;
+  const bool disconnected = !connected && std::exchange(this->has_serial_, false);
 #ifdef USE_TEXT_SENSOR
+  const bool publish_identity = std::exchange(this->identity_pending_, false);
+#endif
+  // A sensor automation can start a command as soon as it sees the new state.
+  this->set_idle_();
+  if (disconnected) {
+#ifdef USE_TEXT_SENSOR
+    if (!publish_identity) {
       publish_text_sensor(this->serial_number_text_sensor_, {});
       publish_text_sensor(this->chip_revision_text_sensor_, {});
-#endif
-      if (this->disconnect_callback_)
-        this->disconnect_callback_();
     }
+#endif
+    if (this->disconnect_callback_)
+      this->disconnect_callback_();
   }
-  this->set_idle_();
-  this->publish_presence_(present && slept);
+#ifdef USE_TEXT_SENSOR
+  if (connected && publish_identity) {
+    publish_hex(this->serial_number_text_sensor_, this->serial_);
+    if (this->has_serial_)  // An automation may have synchronously failed a new poll.
+      publish_hex(this->chip_revision_text_sensor_, this->revision_);
+  }
+#endif
+  this->publish_presence_(this->has_serial_);
 }
 
 void ATSHA204A::publish_presence_(bool present) {

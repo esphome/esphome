@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -75,10 +76,13 @@ class TestChip : public ATSHA204A {
     this->update();
     this->advance({0x04, 0x11, 0x33, 0x43});
     this->advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
-    std::vector<uint8_t> identity(MAX_RESPONSE);
-    identity[0] = MAX_RESPONSE;
-    put_le16(identity.data() + MAX_RESPONSE - 2, reverse_bits(crc16(identity.data(), MAX_RESPONSE - 2, 0)));
-    this->advance(std::move(identity));
+    this->advance_block();
+  }
+  void advance_block() {
+    std::vector<uint8_t> block(MAX_RESPONSE);
+    block[0] = MAX_RESPONSE;
+    put_le16(block.data() + MAX_RESPONSE - 2, reverse_bits(crc16(block.data(), MAX_RESPONSE - 2, 0)));
+    this->advance(std::move(block));
   }
 
  protected:
@@ -255,6 +259,69 @@ TEST(ATSHA204A, PollBlockSendFailureCompletesRead) {
 
   EXPECT_EQ(callbacks, 1U);
   EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false}));
+}
+
+TEST(ATSHA204A, SensorCallbacksCanStartCommandsAfterChainedPoll) {
+  for (bool on_presence : {false, true}) {
+    TestTransport transport;
+    TestChip chip(transport);
+    text_sensor::TextSensor serial;
+    binary_sensor::BinarySensor presence;
+    presence.set_trigger_on_initial_state(true);
+    chip.set_serial_number_text_sensor(&serial);
+    chip.set_presence_binary_sensor(&presence);
+    chip.set_poll_callback(
+        [&] { chip.read_block(ATSHA204A::Zone::CONFIG, 0, [](const uint8_t *data) { EXPECT_NE(data, nullptr); }); });
+
+    bool command_started = false;
+    int command_result = BUSY;
+    const auto start_command = [&] {
+      command_started = true;
+      chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, EndMode::END_MODE_SLEEP, 0, true,
+                   [&](int status, const CommandResponse &, uint32_t) { command_result = status; });
+    };
+    if (on_presence) {
+      presence.add_on_state_callback([&](bool present) {
+        if (present)
+          start_command();
+      });
+    } else {
+      serial.add_on_state_callback([&](const std::string &) { start_command(); });
+    }
+
+    chip.advance_identity_poll();
+    EXPECT_FALSE(command_started);
+    chip.advance_block();
+    EXPECT_TRUE(command_started);
+    EXPECT_EQ(transport.wakes, 2);
+    chip.advance({0x04, 0x11, 0x33, 0x43});
+    chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
+    EXPECT_EQ(command_result, 0);
+  }
+}
+
+TEST(ATSHA204A, IdentityCallbackDoesNotRepublishPresenceAfterFailedPoll) {
+  TestTransport transport;
+  TestChip chip(transport);
+  text_sensor::TextSensor serial;
+  text_sensor::TextSensor revision;
+  binary_sensor::BinarySensor presence;
+  chip.set_serial_number_text_sensor(&serial);
+  chip.set_chip_revision_text_sensor(&revision);
+  chip.set_presence_binary_sensor(&presence);
+  serial.add_on_state_callback([&](const std::string &value) {
+    if (!value.empty()) {
+      transport.wake_ok = false;
+      chip.update();
+    }
+  });
+
+  chip.advance_identity_poll();
+  EXPECT_EQ(transport.wakes, 2);
+  EXPECT_TRUE(serial.state.empty());
+  EXPECT_TRUE(revision.state.empty());
+  EXPECT_TRUE(presence.has_state());
+  EXPECT_FALSE(presence.state);
 }
 
 TEST(ATSHA204A, CorruptBlockResponseDisconnectsButChipErrorPreservesPresence) {

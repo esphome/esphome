@@ -92,7 +92,9 @@ CONFIG_SCHEMA = cv.typed_schema(
     lower=True,
 )
 
-_VALIDATE_I2C = i2c.final_validate_device_schema(DOMAIN, max_frequency="100kHz")
+_VALIDATE_I2C = i2c.final_validate_device_schema(
+    DOMAIN, min_frequency="10kHz", max_frequency="100kHz"
+)
 _VALIDATE_RMT_UART = uart.final_validate_device_schema(
     DOMAIN,
     baud_rate=SWI_BAUD_RATE,
@@ -173,6 +175,11 @@ def _validate_swi_uart_wiring(config: ConfigType) -> ConfigType:
 def _final_validate(config: ConfigType) -> None:
     transport = config[CONF_TYPE]
     if transport == I2C:
+        if fv.full_config.get().get_path_for_id(config[CONF_I2C_ID])[0] != i2c.DOMAIN:
+            raise cv.Invalid(
+                "ATSHA204A requires a top-level I²C bus to keep SDA high during wake",
+                [CONF_I2C_ID],
+            )
         _VALIDATE_I2C(config)
         return
 
