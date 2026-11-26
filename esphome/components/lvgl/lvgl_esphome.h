@@ -126,14 +126,26 @@ int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
 #endif
 
 #ifdef USE_LVGL_CHART
-/// Scale a chart value to LVGL's integer points, rounded and limited to the int32 range.
+/// The limit of a scaled chart value: the largest float below 2^31, so a cast to int32_t cannot overflow, and a
+/// value never becomes LV_CHART_POINT_NONE (INT32_MAX) or reaches it by adding 1.
+static constexpr float CHART_POINT_LIMIT = 2147483520.0f;
+
+/// Scale a chart value to LVGL's integer points, rounded and limited to +/-CHART_POINT_LIMIT.
 /// NaN gives LV_CHART_POINT_NONE, which leaves a gap.
 inline int32_t chart_point_value(float value, float multiplier) {
   if (std::isnan(value))
     return LV_CHART_POINT_NONE;
-  // The largest float below 2^31, so the cast cannot overflow or give LV_CHART_POINT_NONE (INT32_MAX)
-  static constexpr float POINT_LIMIT = 2147483520.0f;
-  return static_cast<int32_t>(std::clamp(std::round(value * multiplier), -POINT_LIMIT, POINT_LIMIT));
+  return static_cast<int32_t>(std::clamp(std::round(value * multiplier), -CHART_POINT_LIMIT, CHART_POINT_LIMIT));
+}
+
+/// Set an axis range from bounds scaled as chart_point_value(). A NaN bound uses LVGL's default range of 0 to 100,
+/// and an empty range is widened by 1, since LVGL divides by its width when it draws a bar chart.
+inline void chart_set_axis_range(lv_obj_t *chart, lv_chart_axis_t axis, float min, float max, float multiplier) {
+  const int32_t low = chart_point_value(std::isnan(min) ? 0.0f : min, multiplier);
+  int32_t high = chart_point_value(std::isnan(max) ? 100.0f : max, multiplier);
+  if (high == low)
+    high = low + 1;  // cannot overflow: low is at most CHART_POINT_LIMIT
+  lv_chart_set_axis_range(chart, axis, low, high);
 }
 
 /// As chart_point_value(), for a stacked chart. LVGL draws nothing for a value of 0 or less there, and logs a

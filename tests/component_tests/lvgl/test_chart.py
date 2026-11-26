@@ -449,9 +449,8 @@ def test_templated_axis_range_is_guarded(generate_main, component_config_path) -
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
     assert (
-        "lv_chart_set_axis_range(bar_chart, LV_CHART_AXIS_PRIMARY_Y, axis_min_VAR_, "
-        "axis_max_VAR_ == axis_min_VAR_ ? axis_min_VAR_ + 1 : axis_max_VAR_);"
-        in main_cpp
+        "lvgl::chart_set_axis_range(bar_chart, LV_CHART_AXIS_PRIMARY_Y, 0.0f, "
+        "static_cast<float>(100), 1.0f);" in main_cpp
     )
 
 
@@ -461,9 +460,13 @@ def test_refresh_does_not_add_the_series_again(
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
     assert main_cpp.count("x = lv_chart_add_series(bar_chart,") == 1
-    # Set at creation, by the refresh (the templated range only) and by lvgl.chart.update;
-    # the refresh must not undo the update_mode and point_count the update sets
-    assert main_cpp.count("lv_chart_set_axis_range(bar_chart,") == 3
+    # The templated range is set at creation and by the refresh, and the fixed one by
+    # lvgl.chart.update; the refresh must not undo the update_mode and point_count the
+    # update sets
+    assert main_cpp.count("lvgl::chart_set_axis_range(bar_chart,") == 2
+    assert (
+        len(re.findall(r"(?<![\w:])lv_chart_set_axis_range\(bar_chart,", main_cpp)) == 1
+    )
     assert main_cpp.count("lv_chart_set_type(bar_chart,") == 1
     for option in ("update_mode", "point_count"):
         assert main_cpp.count(f"lv_chart_set_{option}(bar_chart,") == 2

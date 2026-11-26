@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <limits>
 #include "esphome/components/lvgl/lvgl_esphome.h"
+// Axis ranges cannot be read back through LVGL's public API
+#include "src/widgets/chart/lv_chart_private.h"
 
 namespace esphome::lvgl::testing {
 
@@ -97,6 +99,35 @@ TEST_F(ChartPointSlotTest, OutOfRangeIndexIsReturnedUnchanged) {
   this->append_(3);
   EXPECT_EQ(chart_point_slot(this->chart_, this->series_, POINT_COUNT), POINT_COUNT);
   EXPECT_EQ(chart_point_slot(this->chart_, this->series_, UINT32_MAX), UINT32_MAX);
+}
+
+class ChartAxisRangeTest : public ChartPointSlotTest {
+ protected:
+  int32_t y_min_() { return reinterpret_cast<lv_chart_t *>(this->chart_)->ymin[0]; }
+  int32_t y_max_() { return reinterpret_cast<lv_chart_t *>(this->chart_)->ymax[0]; }
+};
+
+TEST_F(ChartAxisRangeTest, ScalesTheBounds) {
+  chart_set_axis_range(this->chart_, LV_CHART_AXIS_PRIMARY_Y, -1.5f, 2.5f, 10.0f);
+  EXPECT_EQ(this->y_min_(), -15);
+  EXPECT_EQ(this->y_max_(), 25);
+}
+
+TEST_F(ChartAxisRangeTest, NanBoundsUseTheDefaultRange) {
+  chart_set_axis_range(this->chart_, LV_CHART_AXIS_PRIMARY_Y, NAN, 50.0f, 1.0f);
+  EXPECT_EQ(this->y_min_(), 0);
+  EXPECT_EQ(this->y_max_(), 50);
+  chart_set_axis_range(this->chart_, LV_CHART_AXIS_PRIMARY_Y, NAN, NAN, 10.0f);
+  EXPECT_EQ(this->y_min_(), 0);
+  EXPECT_EQ(this->y_max_(), 1000);
+}
+
+TEST_F(ChartAxisRangeTest, EqualBoundsAreWidenedWithoutOverflow) {
+  chart_set_axis_range(this->chart_, LV_CHART_AXIS_PRIMARY_Y, 5.0f, 5.0f, 1.0f);
+  EXPECT_EQ(this->y_max_() - this->y_min_(), 1);
+  chart_set_axis_range(this->chart_, LV_CHART_AXIS_PRIMARY_Y, 1e12f, 1e12f, 1.0f);
+  EXPECT_EQ(this->y_min_(), POINT_LIMIT);
+  EXPECT_EQ(this->y_max_(), POINT_LIMIT + 1);
 }
 
 class ChartScatterPointTest : public ChartPointSlotTest {

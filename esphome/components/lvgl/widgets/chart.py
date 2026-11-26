@@ -38,7 +38,7 @@ from ..defines import (
     literal,
 )
 from ..lv_validation import lv_bool, lv_color, lv_float, lv_positive_int
-from ..lvcode import LocalVariable, lv, lv_add, lv_assign, lv_expr, lv_global
+from ..lvcode import lv, lv_add, lv_assign, lv_expr, lv_global
 from ..types import LvType, lvgl_ns
 from . import Widget, WidgetType
 
@@ -92,11 +92,12 @@ lv_chart_t = LvType("lv_chart_t")
 lv_chart_series_t = cg.global_ns.struct("lv_chart_series_t")
 chart_point_value = lvgl_ns.chart_point_value
 chart_point_slot = lvgl_ns.chart_point_slot
+chart_set_axis_range = lvgl_ns.chart_set_axis_range
 chart_stacked_point_value = lvgl_ns.chart_stacked_point_value
 chart_set_next_point = lvgl_ns.chart_set_next_point
 chart_set_point = lvgl_ns.chart_set_point
 
-# The largest float below 2**31; matches the limit in chart_point_value(). INT32_MAX
+# The largest float below 2**31; matches CHART_POINT_LIMIT in lvgl_esphome.h. INT32_MAX
 # itself is LV_CHART_POINT_NONE, which marks a gap.
 POINT_LIMIT = 2147483520
 
@@ -626,20 +627,26 @@ async def set_axis_range(
     chart: MockObj, axis_key: str, axis: ConfigType, multiplier: float
 ) -> None:
     axis_id = literal(f"LV_CHART_AXIS_{axis_key}")
-    min_value = await chart_value(axis[CONF_MIN_VALUE], multiplier)
-    max_value = await chart_value(axis[CONF_MAX_VALUE], multiplier)
     if not _is_templated(axis):
-        lv.chart_set_axis_range(chart, axis_id, min_value, max_value)
-        return
-    # The schema only rejects equal fixed values; a zero-width range would make
-    # LVGL divide by zero when it draws a bar chart.
-    with (
-        LocalVariable("axis_min", cg.int32, min_value, modifier="") as low,
-        LocalVariable("axis_max", cg.int32, max_value, modifier="") as high,
-    ):
         lv.chart_set_axis_range(
-            chart, axis_id, low, literal(f"{high} == {low} ? {low} + 1 : {high}")
+            chart,
+            axis_id,
+            await chart_value(axis[CONF_MIN_VALUE], multiplier),
+            await chart_value(axis[CONF_MAX_VALUE], multiplier),
         )
+        return
+    # The schema only rejects equal fixed values. The helper also handles a bound that
+    # is NaN or equal to the other at run time; LVGL divides by the width of the range
+    # when it draws a bar chart.
+    lv_add(
+        chart_set_axis_range(
+            chart,
+            axis_id,
+            await _float_argument(axis[CONF_MIN_VALUE]),
+            await _float_argument(axis[CONF_MAX_VALUE]),
+            multiplier,
+        )
+    )
 
 
 async def series_color(series: ConfigType, index: int) -> Any:
