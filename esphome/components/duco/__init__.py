@@ -5,7 +5,7 @@ from esphome.const import CONF_DISCOVERY, CONF_ID, CONF_TIME, CONF_TIME_ID
 from esphome.core import ID
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@kokx"]
+CODEOWNERS = ["@kokx", "@w1ll14m"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "duco"
 MULTI_CONF = True

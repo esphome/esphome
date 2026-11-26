@@ -1,0 +1,5 @@
+# Light flow (runlight.sh): LED strip, monochromatic and binary lights with local changes after 150 s.
+packages:
+  base: !include c6base.yaml
+  lights: !include lights.yaml
+  local: !include lights-local.yaml

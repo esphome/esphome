@@ -168,11 +168,11 @@ def zephyr_variant_family_name() -> str | None:
 
 def zephyr_framework_type() -> str | None:
     """The active `framework: type:`, e.g. "zephyr"; None as for zephyr_variant_name()."""
-    manifest = zephyr_variant_manifest()
+    manifest = zephyr_manifest()
     return manifest.framework_type if manifest is not None else None
 
 
-def zephyr_variant_manifest() -> "ZephyrManifest | None":
+def zephyr_manifest() -> "ZephyrManifest | None":
     """The manifest the active variant's `framework: type:` selected; None as for
     zephyr_variant_name()."""
     resolved = _variant_resolved()
