@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -12,6 +13,27 @@ ESPHOME_LOG_TAG(TAG, "panasonic_ir.climate");
 
 // How long after sending a frame an identical one is taken for its echo
 static constexpr uint32_t ECHO_WINDOW_MS = 1000;
+
+using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// A mode not listed is sent as power off
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, static_cast<uint8_t>(Mode::AUTO)},
+    {climate::CLIMATE_MODE_DRY, static_cast<uint8_t>(Mode::DRY)},
+    {climate::CLIMATE_MODE_COOL, static_cast<uint8_t>(Mode::COOL)},
+    {climate::CLIMATE_MODE_HEAT, static_cast<uint8_t>(Mode::HEAT)},
+    {climate::CLIMATE_MODE_FAN_ONLY, static_cast<uint8_t>(Mode::FAN)},
+};
+// The minimum and maximum speeds are custom fan modes
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, FAN_SPEED_AUTO},
+    {climate::CLIMATE_FAN_LOW, FAN_SPEED_LOW},
+    {climate::CLIMATE_FAN_MEDIUM, FAN_SPEED_MEDIUM},
+    {climate::CLIMATE_FAN_HIGH, FAN_SPEED_HIGH},
+};
 
 // In the order of the Model enum
 PROGMEM_STRING_TABLE(ModelStrings, "DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PKE");
@@ -96,16 +118,7 @@ uint8_t PanasonicIrClimate::fan_speed_() const {
     if (custom_fan_mode == FAN_MODE_MAXIMUM)
       return FAN_SPEED_MAX;
   }
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
-    case climate::CLIMATE_FAN_LOW:
-      return FAN_SPEED_LOW;
-    case climate::CLIMATE_FAN_MEDIUM:
-      return FAN_SPEED_MEDIUM;
-    case climate::CLIMATE_FAN_HIGH:
-      return FAN_SPEED_HIGH;
-    default:
-      return FAN_SPEED_AUTO;
-  }
+  return to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), FAN_SPEED_AUTO);
 }
 
 void PanasonicIrClimate::transmit_state() {
@@ -122,29 +135,9 @@ void PanasonicIrClimate::transmit_state() {
   FrameParams params;
   params.model = this->model_;
 
-  bool power = true;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      params.mode = Mode::AUTO;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      params.mode = Mode::DRY;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      params.mode = Mode::COOL;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      params.mode = Mode::HEAT;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      params.mode = Mode::FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      power = false;
-      params.mode = this->last_mode_;
-      break;
-  }
+  const auto mode = find_ir_code(MODES, this->mode, false);
+  const bool power = mode.has_value();
+  params.mode = power ? static_cast<Mode>(mode->code) : this->last_mode_;
   if (power)
     this->last_mode_ = params.mode;
 
@@ -222,24 +215,7 @@ void PanasonicIrClimate::apply_received_(const FrameParams &params) {
   if (!power) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    switch (params.mode) {
-      case Mode::DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case Mode::COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case Mode::HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case Mode::FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case Mode::AUTO:
-      default:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-    }
+    this->mode = from_ir_code(MODES, static_cast<uint8_t>(params.mode), climate::CLIMATE_MODE_HEAT_COOL);
   }
 
   // The frost protection frame holds 8 C or 10 C, which is not a set-point of the normal range. Keep the one we had
@@ -249,26 +225,12 @@ void PanasonicIrClimate::apply_received_(const FrameParams &params) {
   if (params.mode != Mode::FAN && !maintenance)
     this->target_temperature = params.temperature;
 
-  switch (params.fan_speed) {
-    case FAN_SPEED_MIN:
-      this->set_custom_fan_mode_(FAN_MODE_MINIMUM);
-      break;
-    case FAN_SPEED_LOW:
-      this->set_fan_mode_(climate::CLIMATE_FAN_LOW);
-      break;
-    case FAN_SPEED_MEDIUM:
-      this->set_fan_mode_(climate::CLIMATE_FAN_MEDIUM);
-      break;
-    case FAN_SPEED_HIGH:
-      this->set_fan_mode_(climate::CLIMATE_FAN_HIGH);
-      break;
-    case FAN_SPEED_MAX:
-      this->set_custom_fan_mode_(FAN_MODE_MAXIMUM);
-      break;
-    case FAN_SPEED_AUTO:
-    default:
-      this->set_fan_mode_(climate::CLIMATE_FAN_AUTO);
-      break;
+  if (params.fan_speed == FAN_SPEED_MIN) {
+    this->set_custom_fan_mode_(FAN_MODE_MINIMUM);
+  } else if (params.fan_speed == FAN_SPEED_MAX) {
+    this->set_custom_fan_mode_(FAN_MODE_MAXIMUM);
+  } else {
+    this->set_fan_mode_(from_ir_code(FANS, params.fan_speed, climate::CLIMATE_FAN_AUTO));
   }
 
   // Any other vane value is not one the remote sends, so it leaves the vane as it was

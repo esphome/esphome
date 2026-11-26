@@ -486,8 +486,8 @@ TEST(LengthFrameReaderTest, LengthBelowTheMinimumIsRejectedAtTheHeader) {
 
 static bool second_byte_not_ff(const uint8_t *buf) { return buf[1] != 0xFF; }
 // A5, a byte that must not be FF, payload length at 2, payload
-using Checked =
-    FrameFormat<FrameHeader<0xA5>, CheckedLength<PayloadLengthU8<LengthField{.offset = 2}>, 3, second_byte_not_ff>>;
+using CheckedPayload = PayloadLengthU8<LengthField{.offset = 2}>;
+using Checked = FrameFormat<FrameHeader<0xA5>, CheckedPayload, CheckFirstBytes<3, second_byte_not_ff>>;
 
 static size_t &warned_len() {
   static size_t len = 0;
@@ -495,17 +495,82 @@ static size_t &warned_len() {
 }
 static void note_too_long(size_t len) { warned_len() = len; }
 
-TEST(LengthFrameReaderTest, WarnIfLongerRejectsAndReports) {
-  LengthFrameReader<
-      8, FrameFormat<FrameHeader<0xA5>, WarnIfLonger<FrameLengthU8<LengthField{.offset = 1}>, 8, note_too_long>>>
-      reader;
+using WholeU8 = FrameLengthU8<LengthField{.offset = 1}>;
+using Warned = FrameFormat<FrameHeader<0xA5>, WholeU8, WarnIfLongerThan<8, note_too_long>>;
+
+TEST(LengthFrameReaderTest, WarnIfLongerThanRejectsAndReports) {
+  warned_len() = 0;
+  LengthFrameReader<8, Warned> reader;
   EXPECT_EQ(feed_all(reader, {0xA5, 0x09, 0xA5, 0x03, 0x42}), (Frames{{0xA5, 0x03, 0x42}}));
   EXPECT_EQ(warned_len(), 9u);
 }
 
-TEST(LengthFrameReaderTest, CheckedLengthRejectsABadHeader) {
+TEST(LengthFrameReaderTest, CheckFirstBytesRejectsABadHeader) {
   LengthFrameReader<16, Checked> reader;
   EXPECT_EQ(feed_all(reader, {0xA5, 0xFF, 0x01, 0xA5, 0x00, 0x01, 0x42}), (Frames{{0xA5, 0x00, 0x01, 0x42}}));
+}
+
+// A5, a byte that must not be FF, payload length at 2, payload; in either option order a failed check never warns
+using CheckedThenWarned = FrameFormat<FrameHeader<0xA5>, CheckedPayload, CheckFirstBytes<3, second_byte_not_ff>,
+                                      WarnIfLongerThan<6, note_too_long>>;
+using WarnedThenChecked = FrameFormat<FrameHeader<0xA5>, CheckedPayload, WarnIfLongerThan<6, note_too_long>,
+                                      CheckFirstBytes<3, second_byte_not_ff>>;
+
+template<class FORMAT> void expect_check_before_warn() {
+  warned_len() = 0;
+  LengthFrameReader<8, FORMAT> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0xFF, 0x09}), Frames{});
+  EXPECT_EQ(warned_len(), 0u);
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x00, 0x09}), Frames{});
+  EXPECT_EQ(warned_len(), 12u);
+}
+
+TEST(LengthFrameReaderTest, FailedCheckNeverWarnsInEitherOrder) {
+  expect_check_before_warn<CheckedThenWarned>();
+  expect_check_before_warn<WarnedThenChecked>();
+}
+
+// 01, payload length at 1, then two other bytes, payload, checksum
+using Gapped = FrameFormat<FrameHeader<0x01>, PayloadLengthU8<LengthField{.offset = 1, .payload_at = 4, .trailer = 1}>>;
+
+TEST(LengthFrameReaderTest, PayloadAtSkipsBytesAfterTheLength) {
+  static_assert(Gapped::Length::KNOWN_AT == 2 && Gapped::SHORTEST == 5);
+  LengthFrameReader<16, Gapped> reader;
+  EXPECT_EQ(feed_all(reader, {0x01, 0x02, 0x7A, 0x7B, 0x10, 0x20, 0xCC}),
+            (Frames{{0x01, 0x02, 0x7A, 0x7B, 0x10, 0x20, 0xCC}}));
+  // A length over N is rejected at the length field, before the gap bytes arrive
+  EXPECT_EQ(feed_all(reader, {0x01, 0xF0, 0x01, 0x00, 0x7A, 0x7B, 0xCC}), (Frames{{0x01, 0x00, 0x7A, 0x7B, 0xCC}}));
+}
+
+static size_t &late_checks() {
+  static size_t count = 0;
+  return count;
+}
+// The check reads byte 3, past the length field: the frame is valid when it is 5A
+static bool fourth_byte_5a(const uint8_t *buf) {
+  late_checks()++;
+  return buf[3] == 0x5A;
+}
+// A5, payload length at 1, then type, 5A and the rest of the payload; the length is known at 2 but checked at 4, as on
+// the mr60 sensors
+using LateChecked =
+    FrameFormat<FrameHeader<0xA5>, PayloadLengthU8<LengthField{.offset = 1}>, CheckFirstBytes<4, fourth_byte_5a>>;
+
+TEST(LengthFrameReaderTest, CheckFirstBytesWaitsPastTheLengthField) {
+  static_assert(LateChecked::Length::KNOWN_AT == 4);
+  late_checks() = 0;
+  LengthFrameReader<16, LateChecked> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01}), Frames{});
+  EXPECT_EQ(late_checks(), 0u);
+  EXPECT_EQ(feed_all(reader, {0x5A, 0x42}), (Frames{{0xA5, 0x03, 0x01, 0x5A, 0x42}}));
+  EXPECT_EQ(late_checks(), 1u);
+}
+
+TEST(LengthFrameReaderTest, LateCheckFailureFindsTheNextFrame) {
+  LengthFrameReader<16, LateChecked> reader;
+  // The first header fails its check at byte 4; the reader finds the frame starting at the next A5
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01, 0x00, 0xA5, 0x03, 0x01, 0x5A, 0x42}),
+            (Frames{{0xA5, 0x03, 0x01, 0x5A, 0x42}}));
 }
 
 }  // namespace esphome::core::testing
