@@ -247,23 +247,89 @@ TEST(CanopenNmtMaster, CommandWhileTheFrameWaits) {
   EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
 }
 
-// CANopenNode keeps one command for us until the next processing: a second one for us (or all nodes) is refused.
-TEST(CanopenNmtMaster, SecondCommandForUsBeforeProcessing) {
+// Commands for us (or all nodes) are applied right away: CANopenNode keeps one until its processing, where a received
+// NMT frame or set_nmt_state() would replace it.
+class NmtForUsTest : public ::testing::Test {
+ protected:
+  FakeCanbus bus_;
+  TestHub hub_{&this->bus_};
+  std::vector<NMTState> states_;
+
+  void SetUp() override {
+    this->hub_.add_on_nmt_state_callback([this](NMTState state) { this->states_.push_back(state); });
+    this->hub_.setup();
+    ASSERT_FALSE(this->hub_.is_failed());
+    this->hub_.loop();
+    ASSERT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+    this->states_.clear();
+    this->bus_.sent.clear();
+  }
+};
+
+TEST_F(NmtForUsTest, AppliedRightAway) {
+  ASSERT_TRUE(this->hub_.send_nmt(0, NMTCommand::NMT_COMMAND_STOP));
+  EXPECT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  ASSERT_TRUE(this->hub_.send_nmt(0x10, NMTCommand::NMT_COMMAND_START));
+  EXPECT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+  EXPECT_EQ(this->bus_.count(0x000), 2u);
+  EXPECT_EQ(this->states_, (std::vector<NMTState>{NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_OPERATIONAL}));
+}
+
+TEST_F(NmtForUsTest, ReceivedCommandDoesntReplaceOurs) {
+  ASSERT_TRUE(this->hub_.send_nmt(0x10, NMTCommand::NMT_COMMAND_STOP));
+  this->hub_.frame(0x000, {0x01, 0x10});  // a master on the bus starts us
+  this->hub_.loop();
+  EXPECT_EQ(this->states_, (std::vector<NMTState>{NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_OPERATIONAL}));
+}
+
+TEST_F(NmtForUsTest, SetNmtStateDoesntReplaceOurs) {
+  ASSERT_TRUE(this->hub_.send_nmt(0, NMTCommand::NMT_COMMAND_STOP));
+  ASSERT_TRUE(this->hub_.set_nmt_state(NMTState::NMT_STATE_PRE_OPERATIONAL));
+  this->hub_.loop();
+  EXPECT_EQ(this->states_, (std::vector<NMTState>{NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_PRE_OPERATIONAL}));
+}
+
+// From an automation the processing runs, a command for us waits for the next processing, and a second one is refused.
+TEST_F(NmtForUsTest, FromInsideTheProcessing) {
+  bool first = false, second = true, set = true;
+  this->hub_.add_on_nmt_state_callback([&](NMTState state) {
+    if (state != NMTState::NMT_STATE_STOPPED)
+      return;
+    first = this->hub_.send_nmt(0x10, NMTCommand::NMT_COMMAND_PRE_OPERATIONAL);
+    second = this->hub_.send_nmt(0, NMTCommand::NMT_COMMAND_START);
+    set = this->hub_.set_nmt_state(NMTState::NMT_STATE_OPERATIONAL);
+  });
+  ASSERT_TRUE(this->hub_.send_nmt(0x10, NMTCommand::NMT_COMMAND_STOP));
+  EXPECT_TRUE(first);
+  EXPECT_FALSE(second);
+  EXPECT_FALSE(set);
+  EXPECT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  this->hub_.loop();
+  EXPECT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_PRE_OPERATIONAL);
+}
+
+// A log handler inside the send (here the canbus driver) calling send_nmt() again is refused: it would overwrite the
+// frame being sent and count CANopenNode's TX buffer twice.
+TEST(CanopenNmtMaster, CommandFromInsideItsOwnSend) {
   FakeCanbus bus;
   TestHub hub(&bus);
   hub.setup();
   ASSERT_FALSE(hub.is_failed());
   hub.loop();
   bus.sent.clear();
-  ASSERT_TRUE(hub.send_nmt(0, NMTCommand::NMT_COMMAND_STOP));
-  EXPECT_FALSE(hub.send_nmt(0x10, NMTCommand::NMT_COMMAND_START));
-  EXPECT_TRUE(hub.send_nmt(0x21, NMTCommand::NMT_COMMAND_START));  // another node: no command for us
-  EXPECT_EQ(bus.count(0x000), 2u);
+  bool nested = true;
+  bus.on_send = [&](uint32_t) {
+    bus.on_send = nullptr;
+    nested = hub.send_nmt(0x22, NMTCommand::NMT_COMMAND_STOP);
+  };
+  bus.busy = true;
+  ASSERT_TRUE(hub.send_nmt(0x21, NMTCommand::NMT_COMMAND_START));  // queued
+  EXPECT_FALSE(nested);
+  bus.busy = false;
   hub.loop();
-  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
-  EXPECT_TRUE(hub.send_nmt(0x10, NMTCommand::NMT_COMMAND_START));  // applied: free again
-  hub.loop();
-  EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+  ASSERT_EQ(bus.count(0x000), 1u);
+  EXPECT_EQ(bus.find(0x000)->data, (std::vector<uint8_t>{0x01, 0x21}));
+  EXPECT_EQ(hub.tx_count(), 0u);
 }
 
 // A reset_node to all nodes reboots us (safe_reboot() exits on the host) only 20 ms after its frame is handed to the

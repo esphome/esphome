@@ -75,7 +75,8 @@ class CANopenComponent : public Component {
 #else
   NMTState get_nmt_state() const { return NMTState::NMT_STATE_UNKNOWN; }
 #endif
-  // Moves our own node to OPERATIONAL, PRE_OPERATIONAL or STOPPED (no NMT master needed)
+  // Moves our own node to OPERATIONAL, PRE_OPERATIONAL or STOPPED (no NMT master needed), right away (called from an
+  // automation the node's processing runs: after it). False while a previous command for us waits to be applied.
   bool set_nmt_state(NMTState state);
 
   // Used by the CANopenNode driver (driver_can.cpp) and send_frame(): sends a standard-ID frame (ident bit 11 =
@@ -184,9 +185,10 @@ class CANopenComponent : public Component {
 
 #ifdef USE_CANOPEN_NMT_MASTER
   // --- NMT master (nmt_master.cpp; with a canopen.nmt action or nmt_master: true) ---
-  // NMT command to node_id (0 = all nodes; for our own id or 0 it also applies to us, in the next processing). False
-  // (logged) without node id, for an id above 127, or while the previous command still waits to be sent, or, for us or
-  // all nodes, to be applied to us.
+  // NMT command to node_id (0 = all nodes; for our own id or 0 it also applies to us, right away, or after the
+  // processing when called from an automation it runs). False (logged) without node id, for an id above 127, while the
+  // previous command still waits to be sent, for us or all nodes while a command for us waits to be applied, or when
+  // called again from inside its own send (a log handler).
   bool send_nmt(uint8_t node_id, NMTCommand command);
 #endif
 
@@ -213,6 +215,13 @@ class CANopenComponent : public Component {
   bool idle_() const;
   // CO_process() and our node's own processing: per received frame and in loop()
   void process_node_();
+#ifdef USE_CANOPEN_NODE
+  // CANopenNode keeps one NMT command for us until CO_process(), where a received NMT frame or another local command
+  // would replace it: our own commands are applied right away (not from inside the processing: there it waits for the
+  // next one)
+  void apply_nmt_command_();
+  bool nmt_command_pending_() const;
+#endif
   // marks the hub failed and ends the requests queued before setup()
   void fail_setup_(const LogString *reason);
   // The features' parts of setup(), called in this order: add_*_od_() add OD entries (before the OD is finalized),
@@ -258,6 +267,10 @@ class CANopenComponent : public Component {
   // NMT reset node: reboot once the queued frames are sent (and RESET_TX_GRACE_MS later)
   bool reset_pending_{false};
   bool reset_flushed_{false};
+  bool processing_{false};  // inside process_node_(), also in the automations it runs
+#ifdef USE_CANOPEN_NMT_MASTER
+  bool nmt_sending_{false};  // inside CO_NMT_sendCommand(): guards send_nmt() against a log handler calling it again
+#endif
 #endif  // USE_CANOPEN_NODE
 
   // --- Node monitoring (node_monitor.cpp) ---

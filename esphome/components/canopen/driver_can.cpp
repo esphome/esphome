@@ -191,9 +191,12 @@ CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer) {
     CANmodule->firstCANtxMessage = false;
     return CO_ERROR_NO;
   }
-  // queued behind the others; CO_CANmodule_process() resends it from loop()
-  buffer->bufferFull = true;
-  CANmodule->CANtxCount++;
+  // queued behind the others; CO_CANmodule_process() resends it from loop(). Counted once: a send re-entered from a log
+  // handler inside transmit_buffer() may have queued this buffer already.
+  if (!buffer->bufferFull) {
+    buffer->bufferFull = true;
+    CANmodule->CANtxCount++;
+  }
   static_cast<esphome::canopen::CANopenComponent *>(CANmodule->CANptr)->enable_loop();
   return CO_ERROR_NO;
 }

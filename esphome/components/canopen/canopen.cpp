@@ -222,6 +222,7 @@ void CANopenComponent::loop() {
 
 void CANopenComponent::process_node_() {
 #ifdef USE_CANOPEN_NODE
+  this->processing_ = true;
   uint32_t now = micros();
   uint32_t dt = now - this->last_us_;
   this->last_us_ = now;
@@ -255,8 +256,23 @@ void CANopenComponent::process_node_() {
     ESP_LOGI(TAG, "NMT state: %s", LOG_STR_ARG(nmt_state_to_string(state)));
     this->nmt_state_callback_.call(state);
   }
+  this->processing_ = false;
 #endif  // USE_CANOPEN_NODE
 }
+
+#ifdef USE_CANOPEN_NODE
+bool CANopenComponent::nmt_command_pending_() const { return this->co_->NMT->internalCommand != CO_NMT_NO_COMMAND; }
+
+void CANopenComponent::apply_nmt_command_() {
+  if (this->processing_)
+    return;  // an automation the processing runs: applied by the next one
+  // as everywhere the node is processed, without flushing (also when called while a received frame is handled)
+  const bool held = this->hold_flush_;
+  this->hold_flush_ = true;
+  this->process_node_();
+  this->hold_flush_ = held;
+}
+#endif
 
 bool CANopenComponent::set_nmt_state(NMTState state) {
 #ifdef USE_CANOPEN_NODE
@@ -276,8 +292,13 @@ bool CANopenComponent::set_nmt_state(NMTState state) {
     default:
       return false;
   }
-  // applied by the next CO_process()
+  if (this->nmt_command_pending_()) {
+    ESP_LOGW(TAG, "NMT state %s rejected: the previous command is still pending",
+             LOG_STR_ARG(nmt_state_to_string(state)));
+    return false;
+  }
   CO_NMT_sendInternalCommand(this->co_->NMT, command);
+  this->apply_nmt_command_();
   return true;
 #else
   return false;
