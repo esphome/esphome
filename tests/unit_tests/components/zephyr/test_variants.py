@@ -10,11 +10,11 @@ import pytest
 
 from esphome.components.zephyr import (
     zephyr_framework_type,
+    zephyr_manifest,
     zephyr_set_core_data,
     zephyr_variant,
     zephyr_variant_family_module,
     zephyr_variant_family_name,
-    zephyr_variant_manifest,
     zephyr_variant_name,
 )
 from esphome.components.zephyr.const import KEY_BOOTLOADER
@@ -153,7 +153,7 @@ def test_set_variant_core_data(
     assert zephyr_variant_name() == "chip1"
     assert zephyr_variant_family_name() == family
     assert zephyr_framework_type() == manifest.framework_type
-    assert zephyr_variant_manifest() is manifest
+    assert zephyr_manifest() is manifest
     assert zephyr_variant() is variant
     assert zephyr_variant_family_module() is variant.family_module
     assert CORE.data["zephyr"][CONF_BOARD] == "chip1_dk"
@@ -166,7 +166,7 @@ _LOOKUPS: tuple[Callable[[], object], ...] = (
     zephyr_variant_name,
     zephyr_variant_family_name,
     zephyr_framework_type,
-    zephyr_variant_manifest,
+    zephyr_manifest,
     zephyr_variant,
     zephyr_variant_family_module,
 )
