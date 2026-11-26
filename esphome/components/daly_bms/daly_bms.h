@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -13,9 +14,9 @@
 #endif
 #include "esphome/components/uart/uart.h"
 
-#include <vector>
-
 namespace esphome::daly_bms {
+
+static constexpr uint8_t DALY_FRAME_SIZE = 13;
 
 class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice {
  public:
@@ -76,13 +77,13 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
   void request_data_(uint8_t data_id);
   // all frames of the response to the last request are in
   bool response_complete_() const;
-  void decode_data_(std::vector<uint8_t> data);
+  /// Returns false for a frame that is not a BMS response or fails the checksum
+  bool handle_frame_(const uint8_t *frame);
 
   uint8_t addr_;
 
-  std::vector<uint8_t> data_;
-  bool receiving_{false};
-  uint8_t data_count_{0};
+  // A5, address, data ID, length 8, 8 data bytes, sum8; every request and response has 8 data bytes
+  LengthFrameReader<DALY_FRAME_SIZE, FrameFormat<FrameHeader<0xA5>, FrameFixedLength<DALY_FRAME_SIZE>>> reader_;
   uint32_t last_transmission_{0};
   bool trigger_next_{false};
   // update() asked for a request cycle; it starts once no cycle is running. The first one runs at boot.

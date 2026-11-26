@@ -4,6 +4,7 @@
 #define ESPECTRE_SDK_TEST_DOUBLE
 
 // SDK test double: hardware behavior belongs to the SDK; these tests exercise the ESPHome adapter.
+#include <cctype>
 #include <cstdarg>
 #include <cstdint>
 #include <cstring>
@@ -143,6 +144,7 @@ class RuntimeFrontendController {
     setup_calls++;
     this->listener = listener;
     this->config_at_setup_ = this->config_;
+    this->active_target_mac_ = this->config_.traffic_generator_target_mac;
     return setup_result;
   }
   void loop() {
@@ -153,9 +155,26 @@ class RuntimeFrontendController {
     recalibration_calls++;
     return true;
   }
-  void shutdown() { shutdown_called = true; }
+  void shutdown() {
+    shutdown_called = true;
+    this->listener = nullptr;
+  }
   bool set_traffic_generator_mode(TrafficGeneratorMode mode) {
     config_.traffic_generator_mode = mode;
+    return true;
+  }
+  bool set_traffic_generator_target_mac(const std::string &target) {
+    this->last_target_mac = target;
+    std::string canonical = target;
+    for (char &c : canonical)
+      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (canonical.empty() || canonical == this->rejected_target_mac)
+      return false;
+    if (this->listener == nullptr || this->config_.traffic_generator_target_mac == this->active_target_mac_)
+      this->config_.traffic_generator_target_mac = canonical;
+    this->active_target_mac_ = canonical;
+    if (this->target_mac_hook)
+      this->target_mac_hook();
     return true;
   }
   bool set_threshold(float threshold) {
@@ -190,11 +209,15 @@ class RuntimeFrontendController {
   inline static RuntimeFrontendController *instance{nullptr};
   RuntimeConfig config_;
   RuntimeConfig config_at_setup_;
+  std::string active_target_mac_;
+  std::string last_target_mac;
+  std::string rejected_target_mac;
   RuntimeSnapshot snapshot_;
   RuntimeDiagnosticsSample diagnostics_sample_;
   bool services_armed_{true};
   IRuntimeListener *listener{nullptr};
   std::function<void()> loop_hook;
+  std::function<void()> target_mac_hook;
   bool setup_result{true};
   bool shutdown_called{false};
   unsigned recalibration_calls{0};
