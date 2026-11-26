@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 
 #include "esphome/components/microchip_atsha204a/microchip_atsha204a.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -29,7 +32,7 @@ class TestTransport : public Transport {
   }
   Receive receive(uint8_t *packet) override {
     if (this->reply.empty())
-      return Receive::RECEIVE_PENDING;
+      return this->empty_receive;
     std::copy(this->reply.begin(), this->reply.end(), packet);
     this->reply.clear();
     return Receive::RECEIVE_COMPLETE;
@@ -47,6 +50,7 @@ class TestTransport : public Transport {
   bool command_ok{true};
   bool power_down_ok{true};
   bool sleep_allows_nack{false};
+  Receive empty_receive{Receive::RECEIVE_PENDING};
   std::function<void()> on_power_down;
   int wakes{0};
   int requests{0};
@@ -66,6 +70,7 @@ class TestChip : public ATSHA204A {
     this->loop();
   }
   void set_awake_age(uint32_t age_ms) { this->woke_at_ = millis() - age_ms; }
+  void expire_response_window() { this->response_start_ -= 30000; }
   void advance_identity_poll() {
     this->update();
     this->advance({0x04, 0x11, 0x33, 0x43});
@@ -153,6 +158,41 @@ TEST(ATSHA204A, RejectsClosingSessionTokenDuringTransportCallback) {
   EXPECT_TRUE(chip.end_session(token));
   EXPECT_EQ(result, SESSION_LOST);
   EXPECT_EQ(transport.commands.size(), 1U);
+}
+
+TEST(ATSHA204A, ExpiresHeldSessionWithoutComponentLoop) {
+  TestTransport transport;
+  TestChip chip(transport);
+  uint32_t token = 0;
+  chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, EndMode::END_MODE_IDLE, 0, true,
+               [&](int, const CommandResponse &, uint32_t session) { token = session; });
+  chip.advance({0x04, 0x11, 0x33, 0x43});
+  chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
+  ASSERT_NE(token, 0U);
+  EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{true}));
+  std::this_thread::sleep_for(std::chrono::milliseconds(501));
+  App.scheduler.call(millis());
+  EXPECT_EQ(transport.wakes, 2);
+  chip.advance({0x04, 0x11, 0x33, 0x43});
+  EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{true, false}));
+  EXPECT_FALSE(chip.end_session(token));
+}
+
+TEST(ATSHA204A, DefersSleepAfterMalformedSingleWireHeader) {
+  TestTransport transport;
+  transport.single_wire = true;
+  TestChip chip(transport);
+  int last_status = BUSY;
+  chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, EndMode::END_MODE_SLEEP, 0, true,
+               [&](int status, const CommandResponse &, uint32_t) { last_status = status; });
+  chip.advance({0x04, 0x11, 0x33, 0x43});
+  transport.empty_receive = Receive::RECEIVE_INVALID_LENGTH;
+  chip.advance();
+  EXPECT_TRUE(transport.low_power_modes.empty());
+  chip.expire_response_window();
+  chip.advance();
+  EXPECT_EQ(last_status, BAD_LENGTH);
+  EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false}));
 }
 
 TEST(ATSHA204A, RejectsBadResponseCrcWithoutRetryingCommand) {

@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <utility>
 
-#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -11,7 +10,6 @@
 namespace esphome::microchip_atsha204a {
 
 ESPHOME_LOG_TAG(TAG, "microchip_atsha204a");
-
 // https://ww1.microchip.com/downloads/en/devicedoc/atsha204a-data-sheet-40002025a.pdf
 static constexpr uint32_t WAKE_DELAY_US = 3000;
 static constexpr uint32_t WATCHDOG_MIN_MS = 700;
@@ -20,6 +18,7 @@ static constexpr uint8_t WAKE_STATUS = 0x11;
 static constexpr uint8_t READ_32_BYTES = 0x80;
 static constexpr uint32_t RESPONSE_TIMEOUT_MS = 30;
 static constexpr uint32_t SESSION_TIMEOUT_MS = 500;
+static constexpr uint32_t SESSION_TIMEOUT_ID = 0;
 
 static uint16_t packet_crc(const uint8_t *data, size_t length) {
   // The chip shifts the CRC toward the MSB while consuming each byte LSB first.
@@ -176,6 +175,8 @@ void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::spa
     if (++this->next_session_ == 0)
       ++this->next_session_;
     this->session_ = this->next_session_;
+  } else {
+    this->cancel_timeout(SESSION_TIMEOUT_ID);
   }
   this->user_opcode_ = opcode;
   this->user_param1_ = param1;
@@ -216,13 +217,8 @@ void ATSHA204A::read_block(Zone zone, uint16_t address, BlockCallback callback) 
 }
 
 void ATSHA204A::loop() {
-  if (this->state_ == State::STATE_IDLE)
+  if (this->state_ == State::STATE_IDLE || this->state_ == State::STATE_HELD)
     return;
-  if (this->state_ == State::STATE_HELD) {
-    if (this->session_expired_(App.get_loop_component_start_time()))
-      this->end_session(this->session_);
-    return;
-  }
   if (micros() - this->wait_start_ < this->wait_us_)
     return;
   if (!this->response_requested_) {
@@ -247,16 +243,16 @@ void ATSHA204A::loop() {
     this->response_start_ = micros();
   }
   uint8_t packet[MAX_RESPONSE];
-  switch (this->transport_->receive(packet)) {
+  switch (const auto result = this->transport_->receive(packet); result) {
     case Receive::RECEIVE_PENDING:
       if (micros() - this->response_start_ >= RESPONSE_TIMEOUT_MS * 1000)
         this->handle_response_(nullptr, TIMEOUT);
       return;
     case Receive::RECEIVE_IO_ERROR:
-      this->handle_response_(nullptr, IO_ERROR);
-      return;
     case Receive::RECEIVE_INVALID_LENGTH:
-      this->handle_response_(nullptr, BAD_LENGTH);
+      // The chip can still be transmitting. Allow the full reply window before sending Sleep.
+      if (micros() - this->response_start_ >= RESPONSE_TIMEOUT_MS * 1000)
+        this->handle_response_(nullptr, result == Receive::RECEIVE_IO_ERROR ? IO_ERROR : BAD_LENGTH);
       return;
     case Receive::RECEIVE_COMPLETE:
       break;
@@ -399,6 +395,10 @@ void ATSHA204A::finish_user_(int status, const uint8_t *data, size_t size) {
   } else {
     this->state_ = State::STATE_HELD;
     this->held_at_ = millis();
+    const uint32_t watchdog_left = WATCHDOG_MIN_MS - std::min(WATCHDOG_MIN_MS, this->held_at_ - this->woke_at_);
+    this->set_timeout(SESSION_TIMEOUT_ID,
+                      this->awake_ ? std::min(SESSION_TIMEOUT_MS, watchdog_left) : SESSION_TIMEOUT_MS,
+                      [this] { this->end_session(this->session_); });
     this->high_frequency_.stop();
   }
   this->user_active_ = false;
@@ -432,14 +432,14 @@ void ATSHA204A::set_idle_() {
 }
 
 bool ATSHA204A::session_expired_(uint32_t now, uint32_t command_budget_ms) const {
-  // The loop timestamp can predate a command completed during the same tick.
-  return static_cast<int32_t>(now - (this->held_at_ + SESSION_TIMEOUT_MS)) >= 0 ||
+  return now - this->held_at_ >= SESSION_TIMEOUT_MS ||
          (this->awake_ && static_cast<int32_t>(now + command_budget_ms - (this->woke_at_ + WATCHDOG_MIN_MS)) >= 0);
 }
 
 bool ATSHA204A::end_session(uint32_t session) {
   if (this->state_ != State::STATE_HELD || session == 0 || session != this->session_)
     return false;
+  this->cancel_timeout(SESSION_TIMEOUT_ID);
   if (!this->awake_) {
     // An idle chip must be woken before Sleep can erase its retained state.
     this->closing_session_ = true;
