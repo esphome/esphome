@@ -14,7 +14,11 @@ from esphome.components.tflite_micro_runtime import (
     final_validate,
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
-from esphome.components.tflite_output_processor import CONF_DECODER_ID
+from esphome.components.tflite_output_processor import (
+    CONF_DECODER_ID,
+    CONF_OUTPUT_PROCESSING,
+    CONF_SCALE_FACTOR,
+)
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -30,9 +34,15 @@ tflite_pose_ns = cg.esphome_ns.namespace("tflite_pose")
 PoseDecoder = tflite_pose_ns.class_("PoseDecoder")
 
 
-POSE_SCHEMA = IMAGE_SCHEMA.extend(
-    {cv.GenerateID(CONF_DECODER_ID): cv.declare_id(PoseDecoder)}
-)
+# The image schema also carries the classification options. This decoder does
+# not read them, so they are removed instead of being accepted and ignored.
+POSE_SCHEMA = cv.Schema(
+    {
+        key: value
+        for key, value in IMAGE_SCHEMA.schema.items()
+        if key not in (CONF_OUTPUT_PROCESSING, CONF_SCALE_FACTOR)
+    }
+).extend({cv.GenerateID(CONF_DECODER_ID): cv.declare_id(PoseDecoder)})
 
 CONFIG_SCHEMA = cv.All(
     PER_MODEL_SCHEMA.extend(POSE_SCHEMA).extend(cv.COMPONENT_SCHEMA),
