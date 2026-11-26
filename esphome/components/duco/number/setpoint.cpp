@@ -31,7 +31,7 @@ void DucoSetpoint::control(float value) {
       nullptr, FUNCTION_NODE_SETTING,
       {0x01, this->address_, this->item_, static_cast<uint8_t>(setpoint >> 8), static_cast<uint8_t>(setpoint)});
   // Update state immediately
-  this->publish_state(value);
+  this->publish_state(setpoint);
 }
 
 }  // namespace esphome::duco
