@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 import importlib
 import pkgutil
 from typing import Any
@@ -6,7 +6,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TIMEOUT
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
@@ -19,16 +19,20 @@ from .layers import (
     CONF_ADDRESSING,
     CONF_DESTINATION,
     CONF_PEERS,
+    CONF_RELIABILITY,
+    CONF_SESSION,
     STACK_ORDER,
     PacketInterface,
     build_stack,
     check_packet_sizes,
     check_session,
     check_single_peer,
+    layer_needing_session,
     packet_interface_ns,
     stack_auto_load,
     stack_schema,
 )
+from .layers.hdlc_reliability import DEFAULT_TIMEOUT, check_ack_delay
 
 CODEOWNERS = ["@clydebarrow"]
 DOMAIN = "packet_interface"
@@ -40,6 +44,9 @@ CONF_PACKET_INTERFACE = "packet_interface"
 for module_info in pkgutil.iter_modules(layers.__path__):
     importlib.import_module(f".layers.{module_info.name}", package=__package__)
 
+# The layer keys that each link class does itself, by class name
+_PROVIDED_LAYERS: dict[str, tuple[str, ...]] = {}
+
 LINK_LAYER_SCHEMAS = {
     cv.Optional(CONF_ADDRESSING): ADDRESSING.schema(),
     **stack_schema(),
@@ -48,6 +55,7 @@ LINK_LAYER_SCHEMAS = {
 __all__ = [
     "CONF_MAX_PACKET_SIZE",
     "CONF_PACKET_INTERFACE",
+    "interface_has_layer",
     "interface_layers",
     "interface_packet_size",
     "PacketInterface",
@@ -64,7 +72,7 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
     Without a config, as tooling that lists dependencies calls it, everything a layer could load.
     """
     if config is None:
-        return ["binary_sensor", "xxtea"]
+        return ["binary_sensor", "lzss", "xxtea"]
     loads: set[str] = set()
     for interface in config:
         loads |= stack_auto_load(interface)
@@ -142,6 +150,14 @@ def interface_packet_size(interface_id: ID) -> int:
     return check_packet_sizes(layers_config, size)
 
 
+def interface_has_layer(interface_id: ID, key: str) -> bool:
+    """During final validation, whether the packet interface with this id has the layer, configured or done by its link."""
+    link, layers_config = _find_interface(interface_id, fv.full_config.get())
+    return key in layers_config or key in _PROVIDED_LAYERS.get(
+        str(link[CONF_ID].type), ()
+    )
+
+
 def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
     """Final validation for an application: a link with peers must be used through one of the peers."""
 
@@ -158,25 +174,73 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
     return validator
 
 
+def _check_provided_session(config: ConfigType) -> ConfigType:
+    """A link's own session does not send packets through the layers, so none can need them from the peer."""
+    if key := layer_needing_session(config):
+        raise cv.Invalid(
+            f"This '{key}' needs packets from the peer, which this link does not send through its layers, "
+            "so it cannot be used on this link",
+            path=[key],
+        )
+    return config
+
+
+def reliability_layers(config: ConfigType) -> Iterator[tuple[list, ConfigType]]:
+    """The reliability layers on a link and in its peers, each with its path in the link's configuration."""
+    if (layer := config.get(CONF_RELIABILITY)) is not None:
+        yield [CONF_RELIABILITY], layer
+    for index, peer in enumerate(config.get(CONF_ADDRESSING, {}).get(CONF_PEERS, [])):
+        if (layer := peer.get(CONF_RELIABILITY)) is not None:
+            yield [CONF_ADDRESSING, CONF_PEERS, index, CONF_RELIABILITY], layer
+
+
+def _check_default_ack_delays(config: ConfigType) -> ConfigType:
+    """A reliability layer without a timeout uses the default one on this link."""
+    for path, layer in reliability_layers(config):
+        if CONF_TIMEOUT not in layer:
+            try:
+                check_ack_delay(layer, DEFAULT_TIMEOUT)
+            except cv.Invalid as err:
+                err.prepend(path)
+                raise
+    return config
+
+
 def packet_interface_schema(
     class_: MockObjClass,
     default_max_packet_size: int,
     max_packet_size_limit: int = 4096,
+    provides: tuple[str, ...] = (),
+    chooses_reliability_timeout: bool = False,
 ) -> cv.Schema:
-    """Schema for a link platform, with the layers that can be stacked on it."""
-    return (
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(class_),
-                cv.Optional(
-                    CONF_MAX_PACKET_SIZE, default=default_max_packet_size
-                ): cv.int_range(16, max_packet_size_limit),
-                **LINK_LAYER_SCHEMAS,
-            }
+    """Schema for a link platform; provides names the layer keys, such as reliability, that the link does itself.
+
+    chooses_reliability_timeout is for a link that works out a reliability timeout of its own, when none is set.
+    """
+    if provides:
+        _PROVIDED_LAYERS[str(class_)] = provides
+    link_layers = {
+        key: (
+            cv.invalid(f"This link provides '{key}' itself, so it cannot be configured")
+            if key in provides
+            else schema
         )
-        .extend(cv.COMPONENT_SCHEMA)
-        .add_extra(_validate_layers)
-    )
+        for key, schema in LINK_LAYER_SCHEMAS.items()
+    }
+    schema = cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+            cv.Optional(
+                CONF_MAX_PACKET_SIZE, default=default_max_packet_size
+            ): cv.int_range(16, max_packet_size_limit),
+            **link_layers,
+        }
+    ).extend(cv.COMPONENT_SCHEMA)
+    if CONF_SESSION in provides:
+        schema = schema.add_extra(_check_provided_session)
+    if not chooses_reliability_timeout:
+        schema = schema.add_extra(_check_default_ack_delays)
+    return schema.add_extra(_validate_layers)
 
 
 async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:

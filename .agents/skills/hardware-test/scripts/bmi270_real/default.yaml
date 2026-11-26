@@ -1,0 +1,4 @@
+substitutions:
+  name: bmid
+packages:
+  common: !include common.yaml

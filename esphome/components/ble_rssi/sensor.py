@@ -7,9 +7,6 @@ from esphome.const import (
     CONF_IBEACON_UUID,
     CONF_MAC_ADDRESS,
     CONF_SERVICE_UUID,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_DECIBEL_MILLIWATT,
 )
 from esphome.types import ConfigType
 
@@ -19,7 +16,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 ble_rssi_ns = cg.esphome_ns.namespace("ble_rssi")
 BLERSSISensor = ble_rssi_ns.class_(
-    "BLERSSISensor", sensor.Sensor, cg.Component, ble_device_base.ESPBTDeviceListener
+    "BLERSSISensor", sensor.Sensor, ble_device_base.ESPBTDeviceListener
 )
 
 
@@ -33,13 +30,7 @@ def _validate(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("ble_rssi"),
-    sensor.sensor_schema(
-        BLERSSISensor,
-        unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(BLERSSISensor, kind=sensor.SIGNAL_STRENGTH)
     .extend(
         {
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
@@ -50,7 +41,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IBEACON_UUID): ble_device_base.bt_uuid,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(ble_device_base.BLE_DEVICE_SCHEMA),
     cv.has_exactly_one_key(
         CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID
@@ -61,7 +51,6 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
     if mac_address := config.get(CONF_MAC_ADDRESS):

@@ -26,6 +26,8 @@ esphome/components/ade7953_base/* @angelnu
 esphome/components/ade7953_i2c/* @angelnu
 esphome/components/ade7953_spi/* @angelnu
 esphome/components/ads1118/* @solomondg1
+esphome/components/ads131m0x/* @Nawo
+esphome/components/ads1xxx/* @bdraco
 esphome/components/ags10/* @mak-42
 esphome/components/aic3204/* @kbx81
 esphome/components/airthings_ble/* @jeromelaban
@@ -86,6 +88,7 @@ esphome/components/bl0906/* @athom-tech @jesserockz @tarontop
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @dan-s-github @tobias-
 esphome/components/bl0942/* @dbuezas @dwmw2
+esphome/components/ble/* @jesserockz
 esphome/components/ble_client/* @buxtronix @clydebarrow
 esphome/components/ble_device_base/* @Bl00d-B0b
 esphome/components/ble_midi/* @bogdanr
@@ -123,6 +126,7 @@ esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @bdraco @DT-art1
 esphome/components/camera_encoder/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
+esphome/components/canopen/* @mrk-its
 esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @esphome/core
 esphome/components/cc1101/* @gabest11 @lygris
@@ -146,9 +150,11 @@ esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
+esphome/components/cst3240/* @tpruvot
 esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
 esphome/components/cst9220/* @clydebarrow
+esphome/components/cstxxx/* @clydebarrow @latonita
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/cw2017/* @exciton
@@ -225,6 +231,7 @@ esphome/components/esp_ldo/* @clydebarrow
 esphome/components/espectre/* @francescopace
 esphome/components/esphome/ota/* @esphome/core
 esphome/components/espnow/* @jesserockz
+esphome/components/espnow/packet_interface/* @clydebarrow
 esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
@@ -379,6 +386,7 @@ esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita
 esphome/components/lvgl/* @clydebarrow
+esphome/components/lzss/* @clydebarrow
 esphome/components/m5stack_4relay/* @KoenBreeman
 esphome/components/m5stack_8angle/* @rnauber
 esphome/components/m5stack_unit_bldc/* @lboue
@@ -415,6 +423,7 @@ esphome/components/media_source/* @kahrendt
 esphome/components/micro_wake_word/* @jesserockz @kahrendt
 esphome/components/micronova/* @edenhaus @jorre05
 esphome/components/microphone/* @jesserockz @kahrendt
+esphome/components/microphone_http_stream/* @mbrudka
 esphome/components/mics_4514/* @jesserockz
 esphome/components/mics_5524/* @nliaudat
 esphome/components/midea/* @dudanov
@@ -466,6 +475,7 @@ esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/noise/* @esphome/core
 esphome/components/npi19/* @bakerkj
+esphome/components/npm1300/* @tomaszduda23
 esphome/components/nrf52/* @tomaszduda23
 esphome/components/ns2009/* @tchilov
 esphome/components/ns2009/touchscreen/* @tchilov
@@ -486,10 +496,12 @@ esphome/components/pca9505/* @ajfriesen @ssieb
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
+esphome/components/pcm1863/* @anabolyc
 esphome/components/pcm5122/* @remcom
 esphome/components/pd_pioneer_ir/* @martinsah
 esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
+esphome/components/pioneer_wt/* @martinsah
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pixoo/* @jesserockz
 esphome/components/pm1006/* @habbie
@@ -648,7 +660,9 @@ esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
 esphome/components/sx126x/* @swoboda1337
+esphome/components/sx126x/packet_interface/* @clydebarrow
 esphome/components/sx127x/* @swoboda1337
+esphome/components/sx127x/packet_interface/* @clydebarrow
 esphome/components/sy6970/* @linkedupbits
 esphome/components/syslog/* @clydebarrow
 esphome/components/systa_bus/* @Mat931
@@ -660,6 +674,8 @@ esphome/components/tca8418/* @zebble
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
+esphome/components/tcp/* @clydebarrow
+esphome/components/tcp/packet_interface/* @clydebarrow
 esphome/components/tcp_uart/* @Bascht74
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax @FredM67
@@ -693,6 +709,7 @@ esphome/components/toshiba/* @kbx81
 esphome/components/touchscreen/* @jesserockz @nielsnl68
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tt21100/* @kroimon
+esphome/components/tuya/* @dwmw2 @ssieb
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/number/* @frankiboy1
@@ -728,7 +745,9 @@ esphome/components/veml6040/* @aalaei
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
+esphome/components/virtual_uart/* @Bascht74
 esphome/components/vl53l1x/* @will-tm
+esphome/components/vl6180x/* @NonaSuomy
 esphome/components/vnc/* @MindFreeze
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
@@ -742,7 +761,7 @@ esphome/components/web_server_idf/* @dentra
 esphome/components/weikai/* @DrCoolZic
 esphome/components/weikai_i2c/* @DrCoolZic
 esphome/components/weikai_spi/* @DrCoolZic
-esphome/components/whirlpool/* @arpena @glmnet
+esphome/components/whirlpool/* @arpena @glmnet @Rodrigoah
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard

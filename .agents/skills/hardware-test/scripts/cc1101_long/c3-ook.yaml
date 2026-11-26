@@ -1,0 +1,16 @@
+# Example OOK board file for an E07-M1101D on an ESP32-C3; change the pins to match your board. rxsym is the
+# remote_receiver rmt_symbols (96 on the C3, 192 on the S3).
+substitutions:
+  name: cc-c3-ook
+  clk: GPIO6
+  mosi: GPIO7
+  miso: GPIO10
+  cs: GPIO3
+  gdo0: GPIO4
+  rxsym: "96"
+packages:
+  c: !include ookcommon.yaml
+esp32:
+  variant: esp32c3
+  framework:
+    type: esp-idf

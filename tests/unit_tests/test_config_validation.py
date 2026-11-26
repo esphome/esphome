@@ -326,6 +326,21 @@ def test_bind_key__rejects_non_hex_pair_length() -> None:
         cv.bind_key("0123456789ABCDEF0123456789ABCDE")
 
 
+@pytest.mark.parametrize(
+    "value",
+    (
+        " A A A A A A A A A A A A A A A A",
+        "0123456789ABCDEF0123456789ABCD-B",
+        "+E123456789ABCDEF0123456789ABCDE",
+    ),
+)
+def test_bind_key__rejects_sign_padded_pairs(value: str) -> None:
+    # int(part, 16) accepts surrounding whitespace and a +/- sign, which would
+    # silently validate a key different from the one the user typed.
+    with pytest.raises(Invalid, match="hex values"):
+        cv.bind_key(value)
+
+
 def test_bind_key__direct_call_with_name_validates_with_that_name() -> None:
     # Passing both a value and a name validates immediately using the custom
     # name for error wording, and still tags the result sensitive.
@@ -1601,6 +1616,12 @@ def test_validate_id_name_reserved() -> None:
         cv.validate_id_name("alarm")
 
 
+@pytest.mark.parametrize("name", ["App", "app_lists", "AppList"])
+def test_validate_id_name_reserved_core_names(name: str) -> None:
+    with pytest.raises(Invalid, match="reserved internally"):
+        cv.validate_id_name(name)
+
+
 def test_validate_id_name_integration_conflict() -> None:
     CORE.loaded_integrations = {"mqtt"}
     with pytest.raises(
@@ -2785,6 +2806,45 @@ def test_enum_valid_with_hyphen() -> None:
     result = cv.enum(mapping, string=True, hyphen="_")("a-b")
     assert result == "a_b"
     assert result.enum_value == 1
+
+
+@pytest.mark.parametrize(
+    ("unit", "value", "expected"),
+    [
+        ("ms", "100ms", 100),
+        ("ms", "0.2s", 200),
+        ("ms", {"milliseconds": 200}, 200),
+        ("us", "1100 us", 1100),
+        ("us", "1.1ms", 1100),
+    ],
+)
+def test_time_period_enum_valid(unit: str, value: object, expected: int) -> None:
+    mapping = {100: "A", 200: "B", 1100: "C"}
+    result = cv.time_period_enum(mapping, unit=unit)(value)
+    reference = cv.enum(mapping, int=True)(expected)
+    assert result == reference
+    assert type(result) is type(reference)
+    assert result.enum_value == reference.enum_value
+
+
+@pytest.mark.parametrize(
+    ("unit", "value", "match"),
+    [
+        ("ms", "150ms", "Unknown value '150ms', valid options are 100ms, 200ms"),
+        ("ms", "1100us", "Maximum precision is milliseconds"),
+        ("ms", "-100ms", "value must be at least"),
+        ("ms", 100, "has no time"),
+        ("us", "100ns", "Maximum precision is microseconds"),
+    ],
+)
+def test_time_period_enum_invalid(unit: str, value: object, match: str) -> None:
+    with pytest.raises(Invalid, match=match):
+        cv.time_period_enum({100: "A", 200: "B"}, unit=unit)(value)
+
+
+def test_time_period_enum_schema_extract() -> None:
+    extracted = cv.time_period_enum({100: "A", 200: "B"})(SCHEMA_EXTRACT)
+    assert list(extracted) == ["100ms", "200ms"]
 
 
 # ---------------------------------------------------------------------------

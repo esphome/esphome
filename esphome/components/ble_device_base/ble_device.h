@@ -319,10 +319,14 @@ class DiscoveredDeviceLog {
 
 class ESPBTDeviceListener {
  public:
-  virtual ~ESPBTDeviceListener() = default;
   /// Called at the end of each scan duration period.
   virtual void on_scan_end() {}
   virtual bool parse_device(const ESPBTDevice &device) = 0;
+  /// Called from the tracker's dump_config(); not dump_config() so Component listeners don't print twice.
+  virtual void dump_child_config() {}
+
+ protected:
+  ~ESPBTDeviceListener() = default;
 };
 
 }  // namespace esphome::ble_device_base

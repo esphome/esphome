@@ -41,8 +41,8 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-# mdns for autodiscovery
-AUTO_LOAD = ["mdns"]
+# mdns for autodiscovery; noise declares the noise-c and libsodium that sendspin-cpp uses
+AUTO_LOAD = ["mdns", "noise"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 DOMAIN = "sendspin"
@@ -135,6 +135,9 @@ IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
 ArtworkRoleConfig = sendspin_library_ns.struct("ArtworkRoleConfig")
+MetadataRoleConfig = sendspin_library_ns.struct("MetadataRoleConfig")
+# MetadataRoleConfig's text fields, in declaration order.
+METADATA_TEXT_FIELDS = ("title", "artist", "album_artist", "album", "artwork_url")
 ImageSlotPreference = sendspin_library_ns.struct("ImageSlotPreference")
 SourceRoleConfig = sendspin_library_ns.struct("SourceRoleConfig")
 
@@ -190,8 +193,11 @@ _CALLBACK_AUTOMATIONS = (
 @dataclass
 class SendspinConfiguration:
     artwork_support: bool = False
+    color_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
+    # The TrackMetadata text fields a text sensor shows; the metadata role drops the others.
+    metadata_text_fields: set[str] = field(default_factory=set)
     player_support: bool = False
     visualizer_support: bool = False
     pairing_code_display_support: bool = False
@@ -216,14 +222,22 @@ def request_artwork_support() -> None:
     _get_data().artwork_support = True
 
 
+def request_color_support() -> None:
+    """Request color role support for Sendspin."""
+    _get_data().color_support = True
+
+
 def request_controller_support() -> None:
     """Request controller role support for Sendspin."""
     _get_data().controller_support = True
 
 
-def request_metadata_support() -> None:
-    """Request metadata role support for Sendspin."""
-    _get_data().metadata_support = True
+def request_metadata_support(text_field: str | None = None) -> None:
+    """Request metadata role support for Sendspin, keeping the named TrackMetadata text field."""
+    data = _get_data()
+    data.metadata_support = True
+    if text_field is not None:
+        data.metadata_text_fields.add(text_field)
 
 
 def request_player_support() -> None:
@@ -232,8 +246,14 @@ def request_player_support() -> None:
 
 
 def request_visualizer_support() -> None:
-    """Request visualizer role support for Sendspin."""
-    _get_data().visualizer_support = True
+    """Request visualizer role support for Sendspin.
+
+    The visualizer role has a single consumer, so only one component may request it.
+    """
+    data = _get_data()
+    if data.visualizer_support:
+        raise cv.Invalid("Only one component can consume the sendspin visualizer role")
+    data.visualizer_support = True
 
 
 def request_pairing_code_display_support() -> None:
@@ -361,8 +381,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
-    # Arduino fails: below ESP-IDF 6.0 arduino-esp32 bundles a second libsodium next to the one
-    # noise-c brings in, and from 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
+    # Arduino fails: where arduino-esp32's own libsodium cannot be replaced it sits next to the one
+    # noise-c brings in, and from ESP-IDF 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
     cv.only_with_framework("esp-idf"),
     _request_high_performance_networking,
 )
@@ -542,7 +562,7 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.9.3")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.10.0")
     # esp_websocket_client links esp_tls even for ws:// connections.
     esp32.request_tls()
 
@@ -553,9 +573,6 @@ async def to_code(config: ConfigType) -> None:
         await cg.add_variable(var.set_mdns, CORE.config[MDNS_DOMAIN][CONF_ID])
 
     data = _get_data()
-
-    # The color role is not yet wired up in ESPHome; disable it in the library for now.
-    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
@@ -587,6 +604,11 @@ async def to_code(config: ConfigType) -> None:
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
 
+    if data.color_support:
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
+
     if data.controller_support:
         cg.add_define("USE_SENDSPIN_CONTROLLER", True)
     else:
@@ -594,6 +616,18 @@ async def to_code(config: ConfigType) -> None:
 
     if data.metadata_support:
         cg.add_define("USE_SENDSPIN_METADATA", True)
+        # Every text field is on by default; a field no text sensor shows costs storage for nothing.
+        cg.add(
+            var.set_metadata_config(
+                cg.StructInitializer(
+                    MetadataRoleConfig,
+                    *(
+                        (text_field, text_field in data.metadata_text_fields)
+                        for text_field in METADATA_TEXT_FIELDS
+                    ),
+                )
+            )
+        )
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_METADATA", False)
 

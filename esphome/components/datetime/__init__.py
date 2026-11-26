@@ -47,21 +47,8 @@ TimeEntity = datetime_ns.class_("TimeEntity", DateTimeBase)
 DateTimeEntity = datetime_ns.class_("DateTimeEntity", DateTimeBase)
 
 
-OnTimeTrigger = datetime_ns.class_(
-    "OnTimeTrigger", automation.Trigger, cg.Component, cg.Parented.template(TimeEntity)
-)
-OnDateTimeTrigger = datetime_ns.class_(
-    "OnDateTimeTrigger",
-    automation.Trigger,
-    cg.Component,
-    cg.Parented.template(DateTimeEntity),
-)
-
-DATETIME_MODES = [
-    "DATE",
-    "TIME",
-    "DATETIME",
-]
+OnTimeBase = datetime_ns.class_("OnTimeBase", automation.FiringComponent)
+OnDateTimeBase = datetime_ns.class_("OnDateTimeBase", automation.FiringComponent)
 
 
 def _validate_time_present(config: ConfigType) -> ConfigType:
@@ -109,7 +96,7 @@ def time_schema(class_: MockObjClass) -> cv.Schema:
             cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
             cv.Optional(CONF_ON_TIME): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeBase),
                 }
             ),
         }
@@ -129,7 +116,7 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
             ),
             cv.Optional(CONF_ON_TIME): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnDateTimeTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnDateTimeBase),
                 }
             ),
         }
@@ -154,10 +141,12 @@ async def setup_datetime_core_(var: MockObj, config: ConfigType) -> None:
     await cg.add_variable(var.set_rtc, config.get(CONF_TIME_ID))
 
     for conf in config.get(CONF_ON_TIME, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await automation.build_automation(trigger, [], conf)
-        await cg.register_component(trigger, conf)
-        await cg.register_parented(trigger, var)
+        await automation.build_component_automation(
+            conf,
+            automation.FireCallback,
+            template_args=[conf[CONF_TRIGGER_ID].type],
+            ctor_args=[var],
+        )
 
 
 async def register_datetime(var: MockObj, config: ConfigType) -> None:
