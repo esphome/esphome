@@ -6,9 +6,9 @@
 #include <random>
 #include <string>
 
-#include "esphome/components/web_server_idf/sse_chunk.h"
+#include "esphome/components/web_server/sse_chunk.h"
 
-namespace esphome::web_server_idf::testing {
+namespace esphome::web_server::testing {
 
 // The chunk as try_send_nodefer lays it out: header, fields, first "data: ", then the pieces
 static std::string build_chunk(const char *message, size_t message_len, const char *event, uint32_t id,
@@ -128,4 +128,4 @@ TEST(SseChunk, MatchesReferenceOnRandomMessages) {
   }
 }
 
-}  // namespace esphome::web_server_idf::testing
+}  // namespace esphome::web_server::testing

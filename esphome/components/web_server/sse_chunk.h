@@ -3,20 +3,21 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "stream_head.h"
+#include "esphome/components/web_server_base/chunk.h"
+#include "esphome/components/web_server_base/stream_head.h"
 
-namespace esphome::web_server_idf {
+namespace esphome::web_server {
 
 // Wire framing of one Server-Sent-Events event inside the chunked /events response:
 //   "%08x\r\n" + fields + "data: " line ["\r\ndata: " line]... "\r\n" + "\r\n" + "\r\n"
 // The chunk header and the final CRLF (the chunk terminator) do not count toward the
 // chunk length; everything between them does.
 
-// HTTP chunk header "%08x\r\n"
-constexpr size_t CHUNK_HDR_LEN = 10;
-// Chunk terminator, also the only piece of a null message (no data line, no blank line)
-constexpr char CHUNK_END[] = "\r\n";
-constexpr size_t CHUNK_END_LEN = sizeof(CHUNK_END) - 1;
+// The chunk terminator is also the only piece of a null message (no data line, no blank line)
+using web_server_base::CHUNK_END;
+using web_server_base::CHUNK_END_LEN;
+using web_server_base::CHUNK_HDR_LEN;
+using web_server_base::write_chunk_header;
 // Between two data lines: the end of one and the prefix of the next
 constexpr char SSE_SEP[] = "\r\ndata: ";
 constexpr size_t SSE_SEP_LEN = sizeof(SSE_SEP) - 1;
@@ -27,7 +28,7 @@ constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
 // Status, Content-Type and headers of the /events response head
 constexpr char SSE_STATUS[] = "200 OK";
 constexpr char SSE_CONTENT_TYPE[] = "text/event-stream";
-constexpr HttpHeader SSE_HEADERS[] = {
+constexpr web_server_base::HttpHeader SSE_HEADERS[] = {
     {"Transfer-Encoding", "chunked"},
     {"Cache-Control", "no-cache"},
     {"Connection", "keep-alive"},
@@ -47,7 +48,4 @@ void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSin
 // "data: " into buf. Returns the prefix length; size - 1 or more means the event name did not fit.
 size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id, uint32_t reconnect, bool with_data);
 
-// Fills the header placeholder at the start of buf once the chunk length is known
-void write_chunk_header(char *buf, size_t chunk_len);
-
-}  // namespace esphome::web_server_idf
+}  // namespace esphome::web_server

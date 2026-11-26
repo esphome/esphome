@@ -5,7 +5,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome::web_server_idf {
+namespace esphome::web_server {
 
 void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSink sink, void *ctx) {
   if (message == nullptr) {
@@ -54,13 +54,4 @@ size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id
   return len;
 }
 
-void write_chunk_header(char *buf, size_t chunk_len) {
-  // Eight lowercase hex digits; the temp keeps the terminator format_hex_to writes out of buf
-  char digits[9];
-  format_hex_to(digits, static_cast<uint32_t>(chunk_len));
-  std::memcpy(buf, digits, 8);
-  buf[8] = '\r';
-  buf[9] = '\n';
-}
-
-}  // namespace esphome::web_server_idf
+}  // namespace esphome::web_server
