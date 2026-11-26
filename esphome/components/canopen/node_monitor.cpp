@@ -22,6 +22,10 @@ void CANopenComponent::monitor_node(uint8_t node_id, uint16_t timeout_ms) {
     ESP_LOGE(TAG, "monitor_node(0x%02x) after setup, ignored", node_id);
     return;
   }
+  if (this->is_client_only()) {
+    ESP_LOGE(TAG, "monitor_node(0x%02x): needs a CANopen node (node_id), ignored", node_id);
+    return;
+  }
   // a timeout of 0 or node id 0 would leave the 0x1016 entry unused
   if (node_id == 0 || node_id > 127 || node_id == this->node_id_ || timeout_ms == 0) {
     ESP_LOGE(TAG, "monitor_node(0x%02x, %u ms): needs another node's id (1-127) and a timeout, ignored", node_id,

@@ -14,12 +14,9 @@ namespace esphome::canopen {
 ESPHOME_LOG_TAG(TAG, "canopen");
 
 #ifdef USE_CANOPEN_NODE
-// an NMT reset node waits at most this long for queued frames (e.g. our own broadcast reset_node) to be sent
-static constexpr uint32_t RESET_FLUSH_TIMEOUT_MS = 100;
-// ... and, once CANopenNode's queue is empty, this long for the CAN controller to put them on the bus: the canbus API
-// only says a frame was accepted, not sent. NMT frames have the highest priority (COB-ID 0), so only the frames
-// already in the controller's queue go first (about 1 ms each at 125 kbit/s).
-static constexpr uint32_t RESET_TX_GRACE_MS = 20;
+// an NMT reset node waits at most the grace time (reset_tx_grace_ms_) plus this long for queued frames (e.g. our own
+// broadcast reset_node) to be sent
+static constexpr uint32_t RESET_FLUSH_EXTRA_MS = 80;
 #endif
 
 // indexed by the state's position in NMT_STATES; the last entry for other values
@@ -245,8 +242,8 @@ void CANopenComponent::process_node_() {
       this->reset_flushed_ = true;
       this->reset_flushed_ms_ = now_ms;
     }
-    if ((this->reset_flushed_ && now_ms - this->reset_flushed_ms_ >= RESET_TX_GRACE_MS) ||
-        now_ms - this->reset_ms_ >= RESET_FLUSH_TIMEOUT_MS)
+    if ((this->reset_flushed_ && now_ms - this->reset_flushed_ms_ >= this->reset_tx_grace_ms_) ||
+        now_ms - this->reset_ms_ >= this->reset_tx_grace_ms_ + RESET_FLUSH_EXTRA_MS)
       App.safe_reboot();
   }
   // CANopenNode's state change callback has no context pointer, so the state is compared here

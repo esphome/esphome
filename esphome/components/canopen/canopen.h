@@ -59,6 +59,10 @@ class CANopenComponent : public Component {
   void set_next_local(CANopenComponent *next) { this->next_local_ = next; }
 #ifdef USE_CANOPEN_NODE
   void set_heartbeat_interval(uint16_t ms) { this->hb_producer_ms_ = ms; }
+  // NMT reset node: once CANopenNode's queue is empty, how long the CAN controller gets to put the frames it holds on
+  // the bus before we reboot (the canbus API only says a frame was accepted, not sent); codegen sets it from the bit
+  // rate below 50 kbit/s
+  void set_reset_tx_grace(uint16_t ms) { this->reset_tx_grace_ms_ = ms; }
   // NMT state after boot: OPERATIONAL (default) or PRE_OPERATIONAL (until an NMT master, or set_nmt_state(), starts
   // the node)
   void set_start_operational(bool operational) { this->start_operational_ = operational; }
@@ -257,6 +261,7 @@ class CANopenComponent : public Component {
   uint32_t last_us_{0};                    // the node's clock (CO_process())
   uint32_t reset_ms_{0};                   // when an NMT reset node came, see reset_pending_
   uint32_t reset_flushed_ms_{0};           // when CANopenNode's TX queue was empty after it
+  uint16_t reset_tx_grace_ms_{20};         // set_reset_tx_grace()
   uint32_t dev_type_{0};                   // 0x1000
   const char *device_name_{nullptr};       // 0x1008
   const char *hardware_version_{nullptr};  // 0x1009, only if set

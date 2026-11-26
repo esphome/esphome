@@ -4,6 +4,7 @@
 // local nodes go through each receiver's queue (queue_local_(), deliver_local_()).
 #include "canopen.h"
 
+#include <array>
 #include <cstring>
 
 #include "esphome/core/application.h"
@@ -99,10 +100,15 @@ bool CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len
 }
 
 bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len) {
-  if (this->canbus_->send_data(ident & 0x7FF, false, ident & 0x800, data, len) != canbus::ERROR_OK)
+  // the caller's buffer may change while send_data() runs (a log handler sending a frame from it): the local nodes get
+  // the bytes the bus got
+  std::array<uint8_t, 8> payload{};
+  if (len != 0)
+    memcpy(payload.data(), data, len);
+  if (this->canbus_->send_data(ident & 0x7FF, false, ident & 0x800, payload.data(), len) != canbus::ERROR_OK)
     return false;
   for (CANopenComponent *node = this->next_local_; node != nullptr && node != this; node = node->next_local_)
-    node->queue_local_(ident, data, len);
+    node->queue_local_(ident, payload.data(), len);
   return true;
 }
 

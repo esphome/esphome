@@ -326,6 +326,22 @@ TEST_F(LocalPair, BusFrameOnAFullQueue) {
   EXPECT_EQ(on_b.frames.back(), std::vector<uint8_t>{51});
 }
 
+// The local nodes get the bytes the bus got, even when the sender's buffer changes during the send (a log handler).
+TEST_F(LocalPair, LocalCopyIsTheSentFrame) {
+  Frames on_b;
+  FrameListener listener_b{0x123, 0x7FF, Frames::on_frame, &on_b};
+  b.add_frame_listener(listener_b);
+  start();
+  uint8_t buf[] = {1};
+  bus.on_send = [&buf](uint32_t) { buf[0] = 9; };
+  ASSERT_TRUE(a.send_frame(0x123, buf, 1));
+  bus.on_send = nullptr;
+  b.loop();
+  ASSERT_EQ(on_b.frames.size(), 1u);
+  EXPECT_EQ(on_b.frames.back(), std::vector<uint8_t>{1});
+  EXPECT_EQ(bus.find(0x123)->data, std::vector<uint8_t>{1});
+}
+
 // The queue holds 16 frames; a frame that finds it full is lost, and the queue goes on afterwards.
 TEST_F(LocalPair, FullQueueLosesFrames) {
   Frames on_b;

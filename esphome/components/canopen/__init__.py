@@ -1,12 +1,19 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
+import math
+import re
 from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
+from esphome.components.canbus import (
+    CONF_BIT_RATE,
+    CONF_CANBUS_ID,
+    DEFAULT_BIT_RATE,
+    CanbusComponent,
+)
 from esphome.components.const import CONF_HARDWARE_VERSION, CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.const import (
@@ -103,6 +110,31 @@ def _hub_configs() -> list[ConfigType]:
     return hubs if isinstance(hubs, list) else []
 
 
+# An NMT reset node reboots once CANopenNode's queue is empty and the CAN controller had time to send what it holds:
+# up to 3 frames in its TX mailboxes plus ours, of at most 135 bits (8 data bytes with stuffing). 20 ms (the C++
+# default) covers that down to 50 kbit/s.
+RESET_TX_FRAMES = 4
+FRAME_BITS = 135
+DEFAULT_RESET_TX_GRACE_MS = 20
+
+
+def _bit_rate(canbus_id: ID) -> int:
+    """The bit rate of the canbus canbus_id, in bit/s."""
+    rate = DEFAULT_BIT_RATE
+    for bus in CORE.config.get("canbus", []):
+        if str(bus[CONF_ID]) == str(canbus_id):
+            rate = bus.get(CONF_BIT_RATE, DEFAULT_BIT_RATE)
+    match = re.fullmatch(r"(\d+)K(\d*)BPS", str(rate).upper())
+    return round(float(f"{match[1]}.{match[2] or 0}") * 1000)
+
+
+def reset_tx_grace_ms(bit_rate: int) -> int:
+    return max(
+        DEFAULT_RESET_TX_GRACE_MS,
+        math.ceil(RESET_TX_FRAMES * FRAME_BITS * 1000 / bit_rate),
+    )
+
+
 def enable_sdo_client() -> None:
     """Compile the SDO client (read_sdo(), write_sdo(), ...): for actions and components that use it."""
     if not _enable_once("sdo_client"):
@@ -151,6 +183,12 @@ def enable_nmt_master() -> None:
     """Compile the NMT master (send_nmt()): for actions and components that use it."""
     if not _enable_once("nmt_master"):
         return
+    # the NMT master is part of the node; the unit test build has no hubs and tests nodes
+    hubs = _hub_configs()
+    if hubs and not any(CONF_NODE_ID in hub for hub in hubs):
+        raise EsphomeError(
+            "the NMT master (send_nmt()) needs a CANopen node: no canopen component has a node_id (SDO clients only)"
+        )
     cg.add_define("USE_CANOPEN_NMT_MASTER")
     # callback change | master
     cg.add_build_flag("-DCO_CONFIG_NMT=0x03")
@@ -385,6 +423,9 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_NMT_MASTER):
         enable_nmt_master()
     cg.add(var.set_heartbeat_interval(config[CONF_HEARTBEAT_INTERVAL]))
+    grace_ms = reset_tx_grace_ms(_bit_rate(config[CONF_CANBUS_ID]))
+    if grace_ms != DEFAULT_RESET_TX_GRACE_MS:
+        cg.add(var.set_reset_tx_grace(grace_ms))
     if config[CONF_NMT_STARTUP] != "operational":
         cg.add(var.set_start_operational(False))
     identity = config[CONF_IDENTITY]

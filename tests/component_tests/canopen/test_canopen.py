@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from esphome.components.canopen import CONFIG_SCHEMA, SDO_WRITE_SCHEMA
+from esphome.components.canopen import (
+    CONFIG_SCHEMA,
+    SDO_WRITE_SCHEMA,
+    _bit_rate,
+    enable_nmt_master,
+    reset_tx_grace_ms,
+)
 from esphome.config import read_config
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
@@ -351,6 +357,66 @@ def test_nmt_master_only_when_used(
     generate_main(component_config_path("node.yaml"))
     assert "USE_CANOPEN_NMT_MASTER" not in _defines()
     assert "-DCO_CONFIG_NMT=0x03" not in CORE.build_flags
+
+
+def test_nmt_master_needs_a_node() -> None:
+    """A component enabling the NMT master in a firmware with SDO clients only gets a build error, not a compile error."""
+    CORE.config = {"canopen": [{"id": "canopen_client", "canbus_id": "can_bus"}]}
+    with pytest.raises(
+        EsphomeError, match="needs a CANopen node: no canopen component has a node_id"
+    ):
+        enable_nmt_master()
+
+
+@pytest.mark.parametrize(
+    ("bit_rate", "grace_ms"),
+    [
+        (1_000_000, 20),
+        (125_000, 20),
+        (50_000, 20),
+        (20_000, 27),
+        (10_000, 54),
+        (1_000, 540),
+    ],
+)
+def test_reset_tx_grace(bit_rate: int, grace_ms: int) -> None:
+    """The reboot after an NMT reset node gives the controller time for 4 frames, at least 20 ms."""
+    assert reset_tx_grace_ms(bit_rate) == grace_ms
+
+
+@pytest.mark.parametrize(
+    ("rate", "bit_rate"),
+    [
+        ("125KBPS", 125_000),
+        ("12K5BPS", 12_500),
+        ("83K3BPS", 83_300),
+        ("1000KBPS", 1_000_000),
+    ],
+)
+def test_bit_rate(rate: str, bit_rate: int) -> None:
+    CORE.config = {
+        "canbus": [
+            {"id": "other", "bit_rate": "1KBPS"},
+            {"id": "can_bus", "bit_rate": rate},
+        ]
+    }
+    assert _bit_rate("can_bus") == bit_rate
+
+
+def test_reset_tx_grace_slow_bus(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    assert "set_reset_tx_grace(27)" in generate_main(
+        component_config_path("node_20kbps.yaml")
+    )
+
+
+def test_reset_tx_grace_default(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    assert "set_reset_tx_grace" not in generate_main(component_config_path("node.yaml"))
 
 
 def test_sdo_client_true(
