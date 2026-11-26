@@ -141,7 +141,8 @@ bool USBAudioSpeaker::settle_stale_count_() {
   if (!this->settle_armed_) {
     return false;
   }
-  if (this->state_ != speaker::STATE_RUNNING || this->ring_bytes_ < this->transfer_bytes_) {
+  // No count precheck: transfer_bytes_ rounds up, so a stale take can sit below it at 44.1 kHz.
+  if (this->state_ != speaker::STATE_RUNNING) {
     this->settle_armed_ = false;
     return false;
   }
