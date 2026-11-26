@@ -2023,9 +2023,9 @@ async def test_grouped_automations_run_in_order_with_their_own_statics(
     assert definition == (
         "static void esphome__light__remote_values_callback() { "
         "static bool light_on_turn_on_0_last; static bool light_on_turn_on_1_last; "
-        "if (esphome::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "if (esphome::internal::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
         "esphome__automation_1__fn(); "
-        "if (esphome::change_trigger::entered(light_on_turn_on_1_last, ::light->remote_values.is_on())) "
+        "if (esphome::internal::change_trigger::entered(light_on_turn_on_1_last, ::light->remote_values.is_on())) "
         "esphome__automation_2__fn(); "
         "esphome__automation_3__fn(); }"
     )
@@ -2073,7 +2073,7 @@ async def test_grouped_automations_filter_then_when(mock_cg: MockCodegen) -> Non
     )
     _, definition = _registered_function(mock_cg)
     assert (
-        "if (esphome::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "if (esphome::internal::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
         "esphome__automation_1__fn();"
     ) in definition
     assert "if (!(::light->is_ready())) return;" in _definition(
@@ -2160,6 +2160,13 @@ async def test_grouped_automations_build_in_entry_order_across_lists(
         (
             {"filter": CHANGE_TRIGGER.changed},
             "on_x: a filter or args need a watched value",
+        ),
+        (
+            {
+                "watched": lambda parent: parent.speed,
+                "args": [(cg.int_, "x"), (cg.int_, "y")],
+            },
+            "on_x: only the watched value can be passed",
         ),
     ],
 )

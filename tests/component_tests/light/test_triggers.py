@@ -42,7 +42,7 @@ def test_each_on_turn_on_has_its_own_flag_and_filter(main_cpp: str) -> None:
 def test_remote_values_callback_runs_the_automations_in_order(main_cpp: str) -> None:
     body = _body(main_cpp, "esphome__lamp__remote_values_callback")
     filtered = re.findall(
-        r"^  if \(esphome::change_trigger::entered\((\w+), ::lamp->remote_values\.is_on\(\)\)\)\n"
+        r"^  if \(esphome::internal::change_trigger::entered\((\w+), ::lamp->remote_values\.is_on\(\)\)\)\n"
         r"    (\w+)\(\);$",
         body,
         re.MULTILINE,

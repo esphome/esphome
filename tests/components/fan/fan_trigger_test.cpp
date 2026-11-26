@@ -7,8 +7,8 @@
 #include <type_traits>
 #include <vector>
 
-#include "esphome/components/fan/automation.h"
 #include "esphome/components/fan/fan.h"
+#include "esphome/core/automation.h"
 
 namespace esphome::fan::testing {
 
@@ -91,7 +91,7 @@ class FanTriggerTest : public ::testing::Test {
   template<void (*...F)(int)> void on_speed_set_() { this->on_set_<&Fan::speed, F...>(); }
   template<void (*...F)(StringRef)> void on_preset_set_() {
     this->fan_.add_on_state_callback([last = this->last_<const char *>()]() {
-      if (change_trigger::changed(*last, the_fan->get_preset_mode().c_str()))
+      if (internal::change_trigger::changed(*last, the_fan->get_preset_mode().c_str()))
         run<StringRef, F...>(static_cast<StringRef>(the_fan->get_preset_mode()));
     });
   }
@@ -112,14 +112,15 @@ class FanTriggerTest : public ::testing::Test {
   // a copy of the value
   template<bool ON, void (*...F)()> void on_edge_() {
     this->fan_.add_on_state_callback([last = this->last_<bool>()]() {
-      if (ON ? change_trigger::entered(*last, the_fan->state) : change_trigger::left(*last, the_fan->state))
+      if (ON ? internal::change_trigger::entered(*last, the_fan->state)
+             : internal::change_trigger::left(*last, the_fan->state))
         (F(), ...);
     });
   }
   template<auto Member, auto... F> void on_set_() {
     using T = std::remove_reference_t<decltype(the_fan->*Member)>;
     this->fan_.add_on_state_callback([last = this->last_<T>()]() {
-      if (change_trigger::changed(*last, the_fan->*Member))
+      if (internal::change_trigger::changed(*last, the_fan->*Member))
         run<T, F...>(static_cast<T>(the_fan->*Member));
     });
   }

@@ -300,7 +300,6 @@ RESERVED_IDS = [
     "App",
     "app_lists",
     "AppList",
-    "change_trigger",
     "pinMode",
     "delay",
     "delayMicroseconds",

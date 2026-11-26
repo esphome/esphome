@@ -831,8 +831,8 @@ static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
 static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
 static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 
-// Codegen use only. Nested so they cannot clash with YAML ids after `using namespace esphome;`.
-namespace change_trigger {
+// Codegen use only. Under internal, so no YAML id has to be reserved for them.
+namespace internal::change_trigger {
 
 /// Codegen use only: whether `now` is true and `last` was not. Stores `now` in `last`, the copy one automation keeps.
 inline bool entered(bool &last, bool now) {
@@ -856,14 +856,14 @@ template<typename T> bool changed(T &last, T now) {
 }
 
 /// Codegen use only: whether the null-terminated text `now` differs from `last`; nullptr counts as "".
-/// Keeps the pointer, so `now` must outlive it.
+/// Keeps the pointer, so the text `now` points to must outlive it and stay unchanged until replaced.
 inline bool changed(const char *&last, const char *now) {
   const bool result = last != now && strcmp(last != nullptr ? last : "", now != nullptr ? now : "") != 0;
   last = now;
   return result;
 }
 
-}  // namespace change_trigger
+}  // namespace internal::change_trigger
 
 /// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
 /// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.

@@ -2485,8 +2485,10 @@ async def build_automation_lists(
 
 
 # Filters for GroupedAutomation: CHANGE_TRIGGER.entered, .left or .changed.
-# Fully qualified and nested, so a YAML id of the same name cannot clash with them.
-CHANGE_TRIGGER = cg.global_ns.namespace("esphome").namespace("change_trigger")
+# Fully qualified, under esphome::internal, so no YAML id can clash with them.
+CHANGE_TRIGGER = (
+    cg.global_ns.namespace("esphome").namespace("internal").namespace("change_trigger")
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2509,6 +2511,8 @@ class GroupedAutomation:
     def __post_init__(self) -> None:
         if (self.filter is not None or self.args) and self.watched is None:
             raise ValueError(f"{self.conf_key}: a filter or args need a watched value")
+        if len(self.args) > 1:
+            raise ValueError(f"{self.conf_key}: only the watched value can be passed")
 
 
 @dataclass(slots=True)

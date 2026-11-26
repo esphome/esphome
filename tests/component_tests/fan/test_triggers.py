@@ -15,44 +15,44 @@ _AUTOMATIONS = (
     (
         "fan_a_on_turn_on_0_last",
         "bool",
-        "esphome::change_trigger::entered(fan_a_on_turn_on_0_last, ::fan_a->state)",
+        "esphome::internal::change_trigger::entered(fan_a_on_turn_on_0_last, ::fan_a->state)",
         None,
     ),
     (
         "fan_a_on_turn_off_0_last",
         "bool",
-        "esphome::change_trigger::left(fan_a_on_turn_off_0_last, ::fan_a->state)",
+        "esphome::internal::change_trigger::left(fan_a_on_turn_off_0_last, ::fan_a->state)",
         None,
     ),
     (
         "fan_a_on_direction_set_0_last",
         "fan::FanDirection",
-        "esphome::change_trigger::changed(fan_a_on_direction_set_0_last, ::fan_a->direction)",
+        "esphome::internal::change_trigger::changed(fan_a_on_direction_set_0_last, ::fan_a->direction)",
         "static_cast<fan::FanDirection>(::fan_a->direction)",
     ),
     (
         "fan_a_on_oscillating_set_0_last",
         "bool",
-        "esphome::change_trigger::changed(fan_a_on_oscillating_set_0_last, ::fan_a->oscillating)",
+        "esphome::internal::change_trigger::changed(fan_a_on_oscillating_set_0_last, ::fan_a->oscillating)",
         "static_cast<bool>(::fan_a->oscillating)",
     ),
     (
         "fan_a_on_speed_set_0_last",
         "int",
-        "esphome::change_trigger::changed(fan_a_on_speed_set_0_last, ::fan_a->speed)",
+        "esphome::internal::change_trigger::changed(fan_a_on_speed_set_0_last, ::fan_a->speed)",
         "static_cast<int>(::fan_a->speed)",
     ),
     (
         "fan_a_on_speed_set_1_last",
         "int",
-        "esphome::change_trigger::changed(fan_a_on_speed_set_1_last, ::fan_a->speed)",
+        "esphome::internal::change_trigger::changed(fan_a_on_speed_set_1_last, ::fan_a->speed)",
         "static_cast<int>(::fan_a->speed)",
     ),
     (
         "fan_a_on_preset_set_0_last",
         "const char *",
         (
-            "esphome::change_trigger::changed(fan_a_on_preset_set_0_last,"
+            "esphome::internal::change_trigger::changed(fan_a_on_preset_set_0_last,"
             " ::fan_a->get_preset_mode().c_str())"
         ),
         "static_cast<StringRef>(::fan_a->get_preset_mode())",

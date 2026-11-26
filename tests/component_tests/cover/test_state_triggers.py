@@ -26,7 +26,7 @@ def test_state_triggers_share_one_callback(
     for key, check in zip(keys, checks, strict=True):
         assert f"static bool door_{key}_0_last;" in body
         assert (
-            f"if (esphome::change_trigger::entered(door_{key}_0_last, ({check})))"
+            f"if (esphome::internal::change_trigger::entered(door_{key}_0_last, ({check})))"
             in body
         )
     positions = [body.index(f"({check})") for check in checks]

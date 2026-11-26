@@ -82,7 +82,7 @@ template<InState T> static void attach(Cover *cover, Action<> *action) {
   auto *ctx = new StateAutomation{cover, {}, false};  // NOLINT(cppcoreguidelines-owning-memory)
   ctx->automation.add_action(action);
   cover->add_on_state_callback([ctx]() {
-    if (change_trigger::entered(ctx->seen, T(*ctx->cover)))
+    if (internal::change_trigger::entered(ctx->seen, T(*ctx->cover)))
       ctx->automation.trigger();
   });
 }
