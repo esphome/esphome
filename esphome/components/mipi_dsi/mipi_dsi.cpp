@@ -22,8 +22,8 @@ static constexpr uint32_t DSI_DMA_READ_PRIORITY = 15;
 #define MIPI_DSI_ISR_ATTR
 #endif
 
-bool MIPI_DSI_ISR_ATTR MipiDsi::notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
-                                                     void *user_ctx) {
+bool MIPI_DSI_ISR_ATTR MipiDsi::notify_refresh_ready(esp_lcd_panel_handle_t panel,
+                                                     esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
   auto *self = static_cast<MipiDsi *>(user_ctx);
   SemaphoreHandle_t sem = self->io_lock_;
   if (!xPortInIsrContext()) {

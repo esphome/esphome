@@ -89,7 +89,8 @@ class MipiDsi final : public display::Display {
 
  protected:
   static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx);
-  static bool notify_frame_complete(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx);
+  static bool notify_frame_complete(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
+                                    void *user_ctx);
   void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                             bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
