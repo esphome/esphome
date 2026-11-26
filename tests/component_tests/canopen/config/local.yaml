@@ -1,0 +1,34 @@
+esphome:
+  name: canopen-local-test
+
+esp32:
+  board: esp32dev
+
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+  - platform: esp32_can
+    id: can_bus_2
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO16
+    rx_pin: GPIO17
+
+canopen:
+  - id: node_a
+    canbus_id: can_bus
+    node_id: 0x10
+  - id: node_b
+    canbus_id: can_bus
+    node_id: 0x11
+  - id: node_c
+    canbus_id: can_bus
+    node_id: 0x12
+  # another bus: the same id is fine, no loopback
+  - id: node_d
+    canbus_id: can_bus_2
+    node_id: 0x10

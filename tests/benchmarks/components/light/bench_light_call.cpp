@@ -182,7 +182,8 @@ static void LightPublish_WithListener(benchmark::State &state) {
   TestLightState light(&output);
   setup_rgbww_light(output, light);
 
-  struct TestListener : public light::LightRemoteValuesListener {
+  // Final, like the in-tree MQTT listener
+  struct TestListener final : public light::LightRemoteValuesListener {
     void on_light_remote_values_update() override { count_++; }
     uint64_t count_{0};
   } listener;

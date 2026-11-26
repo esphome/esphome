@@ -11,6 +11,7 @@ from esphome.components.socket import needs_tcp
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AP,
     CONF_ENABLE_IPV6,
     CONF_ETHERNET,
     CONF_ID,
@@ -354,6 +355,27 @@ def get_network_priority(iface: str) -> float | None:
     return None
 
 
+# Network interfaces a config can bring up; each exists at most once
+INTERFACE_WIFI_STA = "wifi_sta"
+INTERFACE_WIFI_AP = "wifi_ap"
+INTERFACE_ETHERNET = "ethernet"
+
+
+def configured_interfaces() -> frozenset[str]:
+    """Return the network interfaces the config brings up.
+
+    Any ``wifi:`` block brings up the station interface, plus the access point when it has ``ap:``.
+    """
+    interfaces: set[str] = set()
+    if (wifi_config := CORE.config.get(CONF_WIFI)) is not None:
+        interfaces.add(INTERFACE_WIFI_STA)
+        if CONF_AP in wifi_config:
+            interfaces.add(INTERFACE_WIFI_AP)
+    if CONF_ETHERNET in CORE.config:
+        interfaces.add(INTERFACE_ETHERNET)
+    return frozenset(interfaces)
+
+
 def get_priority_interfaces_from_full_config(full_config: ConfigType) -> set[str]:
     """Return the set of interface names declared in ``network: priority:``.
 
@@ -558,7 +580,7 @@ async def to_code(config: ConfigType) -> None:
         psram_guaranteed = psram_is_guaranteed()
         # ESP-IDF ethernet drivers malloc() received frames into internal RAM, so
         # lwip is never sized for PSRAM on an ethernet-only build.
-        ethernet_only = CONF_ETHERNET in CORE.config and CONF_WIFI not in CORE.config
+        ethernet_only = configured_interfaces() == {INTERFACE_ETHERNET}
 
         if psram_guaranteed and not ethernet_only:
             _LOGGER.info(

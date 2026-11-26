@@ -77,3 +77,29 @@ between idle periods.
 - The 20 full plays plus the last play of the switch phase sum to an exact frame count for a given file set, so two
   builds compare exactly.
 - The speaker media player rejects 24-bit audio on dev (16-bit only).
+
+## FLAC decode benchmark on the device (#22990)
+
+`scripts/flac_stream_changes/flacbench.hpp` (an `esphome: includes:` header) decodes four FLAC clips embedded in
+flash with `.incbin` through the same calls as `AudioDecoder::decode_flac_()`: `RAMAllocator` input and output
+buffers, output resized after `HEADER_READY`. It runs in its own task (core 1, priority 5), times only `decode()` and
+logs `RES r<round> <file> ... rtf X fnv H ... used_dram/used_iram/used_ps` (what the decoder took from each heap),
+then `BENCHDONE`. Set the clip directory with `-s media /absolute/path` (the configs pass it as the `FB_MEDIA` build
+flag). The config needs `audio: codecs: flac:`; `buffer_memory: internal|psram` picks the micro-flac Kconfig.
+
+- `bench-esp32.yaml` runs five rounds 3 s after boot on an ESP32 with no network (serial log). `bench-s3.yaml` is
+  `flac-dut.yaml` plus a "Flac Bench" button (`bench-button.yaml`); `flow.sh NAME YAML TREE yes|no` (env `HOST`,
+  `BASEURL`) uploads it over the network, logs over the API with `apilogcap.py`, runs the `run.py` flow when asked
+  and then `PRESSES` bench presses; `NOFLASH=1` and `KEEP=1` append to the capture.
+- Clips: `tools_extract.py HEADER OUT` pulls the public domain orchestral FLACs out of micro-flac's
+  `examples/decode_benchmark/main/test_audio_flac*.h`; cut 3 s with ffmpeg (mono with `-ac 1`) and encode with
+  `flac -5 -b 4096` into `s16`, `m16`, `s24` and `m24.flac`. Reference hashes: decode with
+  `flac -d --force-raw-format --endian=little --sign=signed` and take FNV-1a over the bytes, one `name length hash`
+  line per clip. `sumbench.py HOST_FNV CAPTURE...` checks every run against them; `cmp.py PR BASE` gives the PR
+  against base median and best real-time factor.
+- `plat.py CAPTURE --exact` gives the final play plus 20 plays frame count from the `run.py` flow probes without
+  reading plateaus by hand.
+- Noise: an ESP32-PICO-D4 with no network in the config repeats to 0.05 %; an S3 on Ethernet with PSRAM varies a
+  few percent per run, so pool about 45 runs per build over alternating boots. On micro-flac 0.3.1 an ESP32
+  without PSRAM put 32 KB of decoder buffers in IRAM (16-bit stereo 16.2 times real time); 0.3.2 puts them in DRAM
+  (34.1 times).

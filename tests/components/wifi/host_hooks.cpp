@@ -38,6 +38,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const { return WiFiSTAConnectStatus::IDLE; }
 // Completes at once with the results the test set, as a platform scan-done callback would
 bool WiFiComponent::wifi_scan_start_(bool passive) {
+  host_hooks.scans++;
   this->scan_result_.init(host_hooks.scan_results.size());
   for (const auto &res : host_hooks.scan_results)
     this->scan_result_.push_back(res);

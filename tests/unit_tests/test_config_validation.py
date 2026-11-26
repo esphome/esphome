@@ -1616,6 +1616,12 @@ def test_validate_id_name_reserved() -> None:
         cv.validate_id_name("alarm")
 
 
+@pytest.mark.parametrize("name", ["App", "app_lists", "AppList"])
+def test_validate_id_name_reserved_core_names(name: str) -> None:
+    with pytest.raises(Invalid, match="reserved internally"):
+        cv.validate_id_name(name)
+
+
 def test_validate_id_name_integration_conflict() -> None:
     CORE.loaded_integrations = {"mqtt"}
     with pytest.raises(

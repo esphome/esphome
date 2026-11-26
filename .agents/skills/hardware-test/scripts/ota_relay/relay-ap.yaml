@@ -1,0 +1,18 @@
+# ESP32-S3 test network: an open AP (an open AP makes a drop show at once) plus a USB Serial/JTAG relay to the DUT
+# at its static address. relay_host.py's drop-ms file renames the AP for that many ms.
+esphome:
+  name: otarelay-ap
+  platformio_options:
+    build_flags: ["-DRELAY_AP", "-DRELAY_TARGET='\"192.168.5.50\"'"]
+esp32:
+  board: esp32-s3-devkitc-1
+wifi:
+  ap:
+    ssid: otarelay-main
+    channel: 6
+    manual_ip:
+      static_ip: 192.168.5.1
+      gateway: 192.168.5.1
+      subnet: 255.255.255.0
+packages:
+  base: !include relay-base.yaml

@@ -30,6 +30,12 @@ class AddressableLightState final : public LightState {
 #ifdef USE_LIGHT_POWER_ESTIMATION
   float get_estimated_current_ma() const;
   void loop() override;
+
+ protected:
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  void write_start_up_state() override { this->limit_and_write_(); }
+#endif
+  void limit_and_write_();
 #endif
 };
 
