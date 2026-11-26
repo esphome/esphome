@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
-from esphome.automation import StatelessLambdaAction
+from esphome.automation import ApplyAction
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_TIMEOUT,
 )
 from esphome.core import Lambda
-from esphome.cpp_generator import StaticCastExpression, TemplateArguments, get_variable
+from esphome.cpp_generator import StaticCastExpression
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -40,19 +40,18 @@ from .defines import (
 from .layout import layout_validator
 from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
 from .lvcode import (
-    LVGL_COMP_ARG,
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
     LvConditional,
-    LvglComponent,
-    ReturnStatement,
     add_line_marks,
+    context_action,
     lv,
     lv_add,
     lv_expr,
+    lv_global,
     lv_obj,
-    lvgl_comp,
+    lvgl_parent,
 )
 from .schemas import (
     ALL_STYLES,
@@ -62,16 +61,7 @@ from .schemas import (
     base_update_schema,
     part_schema,
 )
-from .types import (
-    LV_STATE,
-    LvglAction,
-    LvglCondition,
-    ObjUpdateAction,
-    lv_group_t,
-    lv_obj_base_t,
-    lv_obj_t,
-    lv_pseudo_button_t,
-)
+from .types import LV_STATE, lv_group_t, lv_obj_base_t, lv_obj_t, lv_pseudo_button_t
 from .widgets import (
     Widget,
     WidgetType,
@@ -131,7 +121,7 @@ async def action_to_code(
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             await action(widget)
-    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    return await context_action(context, action_id, template_arg, args)
 
 
 async def update_to_code(config, action_id, template_arg, args):
@@ -148,27 +138,11 @@ async def update_to_code(config, action_id, template_arg, args):
     return await action_to_code(widgets, do_update, action_id, template_arg, args)
 
 
-@automation.register_condition(
-    "lvgl.is_paused",
-    LvglCondition,
-    LVGL_SCHEMA,
+automation.register_apply_condition(
+    "lvgl.is_paused", LVGL_SCHEMA, "is_paused()", id_key=CONF_LVGL_ID
 )
-async def lvgl_is_paused(config, condition_id, template_arg, args):
-    lvgl = config[CONF_LVGL_ID]
-    async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
-        lv_add(ReturnStatement(lvgl_comp.is_paused()))
-    var = cg.new_Pvariable(
-        condition_id,
-        TemplateArguments(LvglComponent, *template_arg),
-        await context.get_lambda(),
-    )
-    await cg.register_parented(var, lvgl)
-    return var
-
-
-@automation.register_condition(
+automation.register_apply_condition(
     "lvgl.is_idle",
-    LvglCondition,
     LVGL_SCHEMA.extend(
         {
             cv.Required(CONF_TIMEOUT): cv.templatable(
@@ -176,23 +150,12 @@ async def lvgl_is_paused(config, condition_id, template_arg, args):
             )
         }
     ),
+    automation.ApplyCall(
+        "is_idle({})",
+        ((CONF_TIMEOUT, cg.uint32, lambda _, v: str(v.total_milliseconds)),),
+    ),
+    id_key=CONF_LVGL_ID,
 )
-async def lvgl_is_idle(config, condition_id, template_arg, args):
-    lvgl = config[CONF_LVGL_ID]
-    timeout = await lv_milliseconds.process(config[CONF_TIMEOUT])
-    async with LambdaContext(LVGL_COMP_ARG, return_type=cg.bool_) as context:
-        lv_add(
-            ReturnStatement(
-                lv_expr.disp_get_inactive_time(lvgl_comp.get_disp()) > timeout
-            )
-        )
-    var = cg.new_Pvariable(
-        condition_id,
-        TemplateArguments(LvglComponent, *template_arg),
-        await context.get_lambda(),
-    )
-    await cg.register_parented(var, lvgl)
-    return var
 
 
 def _validate_rotation(value):
@@ -203,7 +166,7 @@ def _validate_rotation(value):
 
 @automation.register_action(
     "lvgl.display.set_rotation",
-    StatelessLambdaAction,
+    ApplyAction,
     cv.maybe_simple_value(
         LVGL_SCHEMA.extend(
             {
@@ -215,16 +178,16 @@ def _validate_rotation(value):
     synchronous=True,
 )
 async def lvgl_set_rotation(config, action_id, template_arg, args):
-    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+    lv_comp = await lvgl_parent(config)
     async with LambdaContext(args, where=action_id) as context:
         rotation = await lv_rotation.process(config[CONF_ROTATION])
         lv_add(lv_comp.set_rotation(rotation))
-    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
     "lvgl.widget.redraw",
-    ObjUpdateAction,
+    ApplyAction,
     cv.Any(
         cv.maybe_simple_value(
             {
@@ -238,7 +201,7 @@ async def lvgl_set_rotation(config, action_id, template_arg, args):
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     if CONF_LVGL_ID in config:
-        lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+        lv_comp = await lvgl_parent(config)
         widgets = [get_screen_active(lv_comp)]
     else:
         widgets = await get_widgets(config)
@@ -263,7 +226,7 @@ def _layer_update_schema() -> cv.Schema:
 
 @automation.register_action(
     "lvgl.update",
-    LvglAction,
+    ApplyAction,
     part_schema(layer_spec.parts)
     .extend(LVGL_SCHEMA)
     .extend(DISP_BG_SCHEMA)
@@ -277,23 +240,20 @@ def _layer_update_schema() -> cv.Schema:
     synchronous=True,
 )
 async def lvgl_update_to_code(config, action_id, template_arg, args):
-    widgets = await get_widgets(config, CONF_LVGL_ID)
-    w = widgets[0]
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+    lv_comp = await lvgl_parent(config)
+    async with LambdaContext(args, where=action_id) as context:
         # Apply the top-level properties (styles and layout) to the active screen...
-        await set_obj_properties(get_screen_active(w.var), config)
+        await set_obj_properties(get_screen_active(lv_comp), config)
         # ...the deprecated flat `disp_*` background properties...
-        await lvgl_update(w.var, config)
+        await lvgl_update(lv_comp, config)
         # ...and the `top_layer`/`bottom_layer` keys (styling and layout updates).
-        await layers_to_code(w.var, config)
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, w.var)
-    return var
+        await layers_to_code(lv_comp, config)
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
     "lvgl.pause",
-    LvglAction,
+    ApplyAction,
     LVGL_SCHEMA.extend(
         {
             cv.Optional(CONF_SHOW_SNOW, default=False): lv_bool,
@@ -302,32 +262,26 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def pause_action_to_code(config, action_id, template_arg, args):
-    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-    async with LambdaContext(LVGL_COMP_ARG) as context:
+    async with LambdaContext(args) as context:
         add_line_marks(where=action_id)
-        lv_add(lvgl_comp.set_paused(True, config[CONF_SHOW_SNOW]))
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, lv_comp)
-    return var
+        lv_add((await lvgl_parent(config)).set_paused(True, config[CONF_SHOW_SNOW]))
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
     "lvgl.resume",
-    LvglAction,
+    ApplyAction,
     LVGL_SCHEMA,
     synchronous=True,
 )
 async def resume_action_to_code(config, action_id, template_arg, args):
-    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
-        lv_add(lvgl_comp.set_paused(False, False))
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, lv_comp)
-    return var
+    async with LambdaContext(args, where=action_id) as context:
+        lv_add((await lvgl_parent(config)).set_paused(False, False))
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
-    "lvgl.widget.disable", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+    "lvgl.widget.disable", ApplyAction, LIST_ACTION_SCHEMA, synchronous=True
 )
 async def obj_disable_to_code(config, action_id, template_arg, args):
     async def do_disable(widget: Widget):
@@ -339,7 +293,7 @@ async def obj_disable_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "lvgl.widget.enable", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+    "lvgl.widget.enable", ApplyAction, LIST_ACTION_SCHEMA, synchronous=True
 )
 async def obj_enable_to_code(config, action_id, template_arg, args):
     async def do_enable(widget: Widget):
@@ -351,7 +305,7 @@ async def obj_enable_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "lvgl.widget.hide", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+    "lvgl.widget.hide", ApplyAction, LIST_ACTION_SCHEMA, synchronous=True
 )
 async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
@@ -362,7 +316,7 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "lvgl.widget.show", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+    "lvgl.widget.show", ApplyAction, LIST_ACTION_SCHEMA, synchronous=True
 )
 async def obj_show_to_code(config, action_id, template_arg, args):
     async def do_show(widget: Widget):
@@ -390,7 +344,7 @@ SET_Z_INDEX_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "lvgl.widget.set_z_index", ObjUpdateAction, SET_Z_INDEX_SCHEMA, synchronous=True
+    "lvgl.widget.set_z_index", ApplyAction, SET_Z_INDEX_SCHEMA, synchronous=True
 )
 async def obj_set_z_index_to_code(config, action_id, template_arg, args):
     position = config[CONF_POSITION]
@@ -424,7 +378,7 @@ def focused_id(value):
 
 @automation.register_action(
     "lvgl.widget.focus",
-    ObjUpdateAction,
+    ApplyAction,
     cv.Any(
         cv.maybe_simple_value(
             LVGL_SCHEMA.extend(
@@ -457,7 +411,7 @@ async def widget_focus(config, action_id, template_arg, args):
             lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
         )
     elif group := config.get(CONF_GROUP):
-        group = await get_variable(group)
+        group = await lv_global(group)
     else:
         group = lv_expr.group_get_default()
 
@@ -469,7 +423,7 @@ async def widget_focus(config, action_id, template_arg, args):
                 lv.group_set_editing(group, True)
         else:
             action = config[CONF_ACTION]
-            lv_comp = await get_variable(config[CONF_LVGL_ID])
+            lv_comp = await lvgl_parent(config)
             if action == "MARK":
                 context.add(lv_comp.set_focus_mark(group))
             else:
@@ -483,12 +437,12 @@ async def widget_focus(config, action_id, template_arg, args):
 
         if config[CONF_FREEZE]:
             lv.group_focus_freeze(group, True)
-        return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
     "lvgl.widget.update",
-    ObjUpdateAction,
+    ApplyAction,
     base_update_schema(lv_obj_base_t, PARTS),
     synchronous=True,
 )
@@ -509,7 +463,7 @@ def validate_refresh_config(config):
 
 @automation.register_action(
     "lvgl.widget.refresh",
-    ObjUpdateAction,
+    ApplyAction,
     cv.All(
         cv.ensure_list(
             cv.maybe_simple_value(

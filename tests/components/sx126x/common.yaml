@@ -1,4 +1,5 @@
 sx126x:
+  id: sx126x_radio
   dio1_pin: ${dio1_pin}
   cs_pin: ${cs_pin}
   busy_pin: ${busy_pin}

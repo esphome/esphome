@@ -1,0 +1,89 @@
+# esp32_ble_server retest (#22457, #22458, #22461): YAML server, Improv over BLE, runtime service control (rt.hpp).
+# -s name NAME. Write to 5e5e00c0: 1 create, 2 stop, 3 start, 4 remove 0x181A, 5 grow (#22877, rt.hpp); bit 7 set
+# runs it inside on_write.
+substitutions:
+  name: bles2
+esphome:
+  name: ${name}
+  includes:
+    - rt.hpp
+esp32:
+  variant: ESP32S3
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # room for the runtime services on top of the static ones
+      CONFIG_BT_GATT_MAX_SR_PROFILES: "16"
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+wifi:
+  power_save_mode: none
+esp32_ble:
+  name: ${name}
+esp32_improv:
+  authorizer: none
+  next_url: https://example.com/?device_name={{device_name}}&ip_address={{ip_address}}
+esp32_ble_server:
+  id: ble_server
+  manufacturer: ESPHome
+  model: Test
+  on_connect:
+    - lambda: ESP_LOGI("T", "SRV on_connect id=%u", id);
+  on_disconnect:
+    - lambda: ESP_LOGI("T", "SRV on_disconnect id=%u", id);
+  services:
+    - uuid: 5e5e0000-0000-1000-8000-00805f9b34fb
+      advertise: false
+      characteristics:
+        - uuid: 5e5e0001-0000-1000-8000-00805f9b34fb
+          read: true
+          value: "hello"
+        - id: notify_char
+          uuid: 5e5e0002-0000-1000-8000-00805f9b34fb
+          read: true
+          notify: true
+          value: [0x00]
+        - uuid: 5e5e0003-0000-1000-8000-00805f9b34fb
+          write: true
+          on_write:
+            - lambda: |-
+                ESP_LOGI("T", "WRITE on_write size=%u id=%u data=%s", (unsigned) x.size(), id,
+                         format_hex(x.data(), x.size()).c_str());
+            - ble_server.characteristic.set_value:
+                id: notify_char
+                value: !lambda return x;
+            - ble_server.characteristic.notify:
+                id: notify_char
+        - uuid: 5e5e0004-0000-1000-8000-00805f9b34fb
+          read: true
+          value: [0x07]
+          descriptors:
+            - uuid: 5e5eff01-0000-1000-8000-00805f9b34fb
+              value: "desc"
+              on_write:
+                - lambda: |-
+                    ESP_LOGI("T", "DESC on_write size=%u id=%u data=%s", (unsigned) x.size(), id,
+                             format_hex(x.data(), x.size()).c_str());
+        - uuid: 5e5e00c0-0000-1000-8000-00805f9b34fb
+          write: true
+          on_write:
+            - lambda: |-
+                // runtime service control, run from the interval below (outside the GATT event dispatch);
+                // with bit 7 set it runs right here inside on_write instead
+                uint8_t cmd = x.empty() ? 0 : x[0];
+                if (cmd & 0x80) rt_run(cmd & 0x7F, true); else id(rt_cmd) = cmd;
+globals:
+  - id: rt_cmd
+    type: uint8_t
+    initial_value: '0'
+interval:
+  - interval: 200ms
+    then:
+      - lambda: |-
+          if (id(rt_cmd) != 0) { uint8_t c = id(rt_cmd); id(rt_cmd) = 0; rt_run(c, false); }
+  - interval: 5s
+    then:
+      - lambda: |-
+          ESP_LOGI("T", "HEAP ${name} free=%u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL));

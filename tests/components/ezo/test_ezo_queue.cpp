@@ -135,7 +135,7 @@ TEST_F(EzoQueueTest, CallbackCanQueueIntoFullQueue) {
 
 TEST_F(EzoQueueTest, CustomCallbackCanSendCustom) {
   bool sent = false;
-  this->ezo_.add_custom_callback([this, &sent](const std::string &) {
+  this->ezo_.add_custom_callback([this, &sent](StringRef) {
     if (!sent) {
       sent = true;
       this->ezo_.send_custom("Find");

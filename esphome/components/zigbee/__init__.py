@@ -44,22 +44,32 @@ from .const import (  # noqa: F401
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
     CONF_WIPE_ON_BOOT,
+    CONF_ZIGBEE_BINARY_SENSOR,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
+    CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
     KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     REPORT,
+    ZigbeeBinarySensor,
     ZigbeeComponent,
+    ZigbeeNumber,
+    ZigbeeSensor,
+    ZigbeeSwitch,
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
-    CONF_MAX_EP_NUMBER_ZEPHYR,
-    CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
+    MAX_EP_NUMBER_ZEPHYR,
 )
+from .endpoints_zephyr import endpoint_ids
 from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
+    validate_light_esp32,
     validate_number_esp32,
     validate_sensor_esp32,
     validate_switch_esp32,
@@ -81,6 +91,7 @@ BINARY_SENSOR_SCHEMA = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
 SENSOR_SCHEMA = entity_helpers.ZIGBEE_SENSOR_SCHEMA
 SWITCH_SCHEMA = entity_helpers.ZIGBEE_SWITCH_SCHEMA
 NUMBER_SCHEMA = entity_helpers.ZIGBEE_NUMBER_SCHEMA
+LIGHT_SCHEMA = entity_helpers.ZIGBEE_LIGHT_SCHEMA
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:
@@ -105,7 +116,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
-            cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
+            cv.Optional(CONF_MODEL, default=lambda: CORE.name): cv.All(
                 cv.string,
                 cv.Length(max=31),
                 _validate_ascii,
@@ -182,8 +193,8 @@ def validate_number_of_ep(config: ConfigType) -> ConfigType:
         _LOGGER.warning(
             "Single endpoint requires ZHA or at leatst Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT use multiple endpoints"
         )
-    if count > CONF_MAX_EP_NUMBER_ZEPHYR and not CORE.testing_mode:
-        raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER_ZEPHYR}")
+    if count > MAX_EP_NUMBER_ZEPHYR and not CORE.testing_mode:
+        raise cv.Invalid(f"Maximum number of end points is {MAX_EP_NUMBER_ZEPHYR}")
 
     return config
 
@@ -251,8 +262,6 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_binary_sensor
     else:
         from .zigbee_esp32 import add_component as add_binary_sensor
@@ -263,8 +272,6 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_sensor
     else:
         from .zigbee_esp32 import add_component as add_sensor
@@ -275,12 +282,20 @@ async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import add_switch
     else:
         from .zigbee_esp32 import add_component as add_switch
     CORE.add_job(add_switch, entity, config)
+
+
+async def setup_light(entity: cg.MockObj, config: ConfigType) -> None:
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return
+    if CORE.using_zephyr:
+        return
+    from .zigbee_esp32 import add_light
+
+    await add_light(entity, config)
 
 
 async def setup_number(
@@ -293,20 +308,20 @@ async def setup_number(
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        if not config.get(CONF_ZIGBEE_ID):
-            return
         from .zigbee_zephyr import zephyr_setup_number
 
         await zephyr_setup_number(entity, config, min_value, max_value, step)
     else:
-        from .zigbee_esp32 import add_component as add_number
+        from .zigbee_esp32 import add_number
 
         CORE.add_job(add_number, entity, config)
 
 
 def consume_endpoint(config: ConfigType) -> ConfigType:
-    if not config.get(CONF_ZIGBEE_ID):
-        return config
+    if CONF_ZIGBEE_ID not in config:
+        config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
+    if (endpoint := config.get(CONF_ENDPOINT)) is not None:
+        endpoint_ids().reserve(endpoint)
     if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
             "Spaces in '%s' requires ZHA or at least Zigbee2MQTT 2.8.0. For older version of Zigbee2MQTT use '%s'",
@@ -324,6 +339,8 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_binary_sensor_esp32(config)
+
+    config[CONF_ZIGBEE_BINARY_SENSOR] = cv.declare_id(ZigbeeBinarySensor)(None)
     return consume_endpoint(config)
 
 
@@ -332,6 +349,8 @@ def validate_sensor(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_sensor_esp32(config)
+
+    config[CONF_ZIGBEE_SENSOR] = cv.declare_id(ZigbeeSensor)(None)
     return consume_endpoint(config)
 
 
@@ -340,7 +359,17 @@ def validate_switch(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_switch_esp32(config)
+
+    config[CONF_ZIGBEE_SWITCH] = cv.declare_id(ZigbeeSwitch)(None)
     return consume_endpoint(config)
+
+
+def validate_light(config: ConfigType) -> ConfigType:
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return config
+    if CORE.is_esp32:
+        return validate_light_esp32(config)
+    return config
 
 
 def validate_number(config: ConfigType) -> ConfigType:
@@ -348,6 +377,8 @@ def validate_number(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_number_esp32(config)
+
+    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
     return consume_endpoint(config)
 
 

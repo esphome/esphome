@@ -6881,6 +6881,19 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
     assert result == 2
 
 
+def test_run_esphome_rotate_key_refuses_a_bundle(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The edits would land in an extracted copy that the next run replaces."""
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"fake-bundle")
+    with patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare:
+        result = run_esphome(["esphome", "rotate-key", str(bundle_path)])
+    mock_prepare.assert_not_called()
+    assert result == 1
+    assert "run it on the source configuration" in caplog.text
+
+
 def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     """Test run_esphome does not extract for regular .yaml files."""
     yaml_file = tmp_path / "device.yaml"
@@ -8297,6 +8310,35 @@ def test_command_rename_is_dispatched_to_the_cli_module() -> None:
     run.assert_called_once_with(args, {})
 
 
+def test_command_rotate_key_is_dispatched_to_the_cli_module() -> None:
+    args = MockArgs()
+    with patch("esphome.cli.rotate_key.command_rotate_key", return_value=7) as run:
+        assert main.command_rotate_key(args, {}) == 7
+    run.assert_called_once_with(args, {})
+
+
+def test_parse_args_rotate_key() -> None:
+    args = parse_args(
+        [
+            "esphome",
+            "rotate-key",
+            "--device",
+            "dev.local",
+            "--prompt-new-key",
+            "-y",
+            "--username",
+            "mqtt-user",
+            "device.yaml",
+        ]
+    )
+    assert args.command == "rotate-key"
+    assert args.device == ["dev.local"]
+    assert args.prompt_new_key is True
+    assert args.yes is True
+    # MQTT device resolution reads these like upload does
+    assert args.username == "mqtt-user"
+
+
 VALID_OTA_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
 # Headers of real ESP32-S3 and ESP8266 app images
 ESP32_IMAGE = bytes.fromhex("e905022f645f3740ee00000009000000")
@@ -8672,3 +8714,124 @@ def test_run_esphome_warns_for_a_password_another_command_ignores(
         run_esphome(["esphome", "version"])
     assert "ESPHOME_OTA_PASSWORD" not in os.environ
     assert "ESPHOME_OTA_PASSWORD is set but the version command" in caplog.text
+
+
+def _stored_yaml_blob(files: dict[str, bytes]) -> bytes:
+    from esphome.components.store_yaml import _pack_envelope
+    from esphome.helpers import zstd_module
+
+    return zstd_module().compress(_pack_envelope(list(files.items())))
+
+
+def test_recover_yaml_writes_the_stored_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The key comes from the environment and nothing reads a YAML file;
+    every redacted secrets file is named."""
+    from esphome.__main__ import run_esphome
+    from esphome.components.store_yaml import SECRETS_SKELETON_HEADER
+
+    monkeypatch.setenv("ESPHOME_API_KEY", VALID_OTA_KEY)
+    out = tmp_path / "out"
+    skeleton = SECRETS_SKELETON_HEADER.encode() + b"wifi_password: ''\n"
+    blob = _stored_yaml_blob(
+        {
+            "dev.yaml": b"esphome:\n",
+            "secrets.yaml": skeleton,
+            "../common/secrets.yaml": skeleton,
+            "store_yaml_uncaptured.yaml": b"x",
+        }
+    )
+    with (
+        patch("esphome.config.read_config") as read_config,
+        patch(
+            "esphome.api_client.async_recover_yaml", new=AsyncMock(return_value=blob)
+        ) as recover,
+    ):
+        assert (
+            run_esphome(
+                ["esphome", "recover-yaml", "--device", "1.2.3.4", "--output", str(out)]
+            )
+            == 0
+        )
+    read_config.assert_not_called()
+    recover.assert_awaited_once_with(["1.2.3.4"], 6053, VALID_OTA_KEY)
+    assert "ESPHOME_API_KEY" not in os.environ
+    assert (out / "dev" / "dev.yaml").read_bytes() == b"esphome:\n"
+    printed = capsys.readouterr().out
+    assert "Recovered 4 files" in printed
+    root = out.resolve()
+    for secrets in (root / "dev" / "secrets.yaml", root / "common" / "secrets.yaml"):
+        assert f"Fill in the values in {secrets} before you install it." in printed
+    assert "store_yaml_uncaptured.yaml lists files that were not stored" in printed
+
+
+def test_recover_yaml_empty_key_connects_without_encryption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A verbatim secrets.yaml (include_secrets: true) needs no filling in."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.delenv("ESPHOME_API_KEY", raising=False)
+    blob = _stored_yaml_blob({"dev.yaml": b"", "secrets.yaml": b"wifi_password: x\n"})
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=""),
+        patch(
+            "esphome.api_client.async_recover_yaml", new=AsyncMock(return_value=blob)
+        ) as recover,
+    ):
+        argv = [
+            "esphome",
+            "recover-yaml",
+            "--device",
+            "dev.local",
+            "--api-port",
+            "6054",
+        ]
+        assert run_esphome([*argv, "--output", str(tmp_path / "out")]) == 0
+    recover.assert_awaited_once_with(["dev.local"], 6054, None)
+    assert "Fill in" not in capsys.readouterr().out
+
+
+def test_recover_yaml_rejects_a_serial_device(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_API_KEY", "")
+    with patch("esphome.api_client.async_recover_yaml") as recover:
+        argv = ["esphome", "recover-yaml", "--device", "/dev/ttyUSB0"]
+        assert run_esphome([*argv, "--output", str(tmp_path / "out")]) == 1
+    recover.assert_not_called()
+    assert "must be an IP address or a hostname" in caplog.text
+
+
+@pytest.mark.parametrize("output", ["", "dev.yaml"])
+def test_recover_yaml_refuses_a_folder_in_use(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, output: str
+) -> None:
+    """A folder with files, or a file, is refused before connecting."""
+    from esphome.__main__ import run_esphome
+
+    (tmp_path / "dev.yaml").write_text("x")
+    with patch("esphome.api_client.async_recover_yaml") as recover:
+        argv = ["esphome", "recover-yaml", "--device", "1.2.3.4"]
+        assert run_esphome([*argv, "--output", str(tmp_path / output)]) == 1
+    recover.assert_not_called()
+    assert "is not an empty folder" in caplog.text
+
+
+def test_run_esphome_warns_for_an_api_key_another_command_ignores(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """ESPHOME_API_KEY is removed and reported for every other command."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_API_KEY", "x")
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"version": Mock()}),
+        caplog.at_level(logging.WARNING),
+    ):
+        run_esphome(["esphome", "version"])
+    assert "ESPHOME_API_KEY" not in os.environ
+    assert "ESPHOME_API_KEY is set but the version command" in caplog.text

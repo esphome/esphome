@@ -1,0 +1,6 @@
+substitutions:
+  data_pin: GPIO13
+  power_pin: GPIO14
+
+packages:
+  brizlabs_led_string: !include common.yaml

@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from pathlib import Path
 import re
-from typing import Any
 
 import pytest
 
@@ -130,8 +129,7 @@ def test_missing_class_declaration_is_reported() -> None:
 def test_extend_keeps_class_name_and_source_files() -> None:
 
     class _Model(EpaperModel):
-        def __init__(self, name: str, **kwargs: Any) -> None:
-            super().__init__(name, "EPaperX", **kwargs)
+        class_name = "EPaperX"
 
     base = _Model("test-extend-base", source_files=("x.cpp",))
     try:
@@ -196,4 +194,17 @@ def test_sources_filtered_for_two_models(
         "epaper_spi_mono.cpp",
         "epaper_spi_ultrachip.cpp",
         "epaper_spi_uc8179.cpp",
+    }
+
+
+def test_sources_filtered_for_uc8151_mono(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("uc8151_gdew029t5_test.yaml"))
+
+    assert _cpp_names(_resource_names()) == {
+        BASE_SOURCE_FILE,
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8151.cpp",
     }

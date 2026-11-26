@@ -45,3 +45,84 @@ without the fix logs `Applying the report that arrived during the transition` an
 ends at 100% on both builds because the last call's target differs from the held report, so it is a regression
 check only, not a reproduction. Separate button presses are too slow (about 1.5 s each) to land inside the fade.
 The mirrors are not API entities, so read their state from the "Log state" button's line. Results: https://github.com/esphome/esphome/pull/21144#issuecomment-6278257695
+
+## Wizard-linked homeassistant entities on every platform (#21908)
+
+`scripts/homeassistant_wizard/`: `ha-all-common.yaml` adds to the buttons of `ha-button-common.yaml` one entity with a
+fixed `entity_id` and one linked to an `api: wizard:` input for each of sensor (plus one with `attribute:`),
+binary_sensor, text_sensor, number, switch, select, text and light (the wizard light is in `ha-wiz-light.yaml`), and
+logs the ESP8266 heap every 5 s (`ramchk`). `hadrive.py HOST` plays Home Assistant over a plaintext API connection: it
+records the state subscriptions the device asks for, sends states (including number and text min, max, step and mode,
+select options and light supported_color_modes), commands every writer, sets each wizard input with
+`WizardInputSetRequest` (key = FNV-1 hash of the input id), changes it to a second ID in another domain, sends an
+invalid one and reconnects. It prints SUB, STATE and ACTION lines that diff cleanly between two builds, and PASS or
+FAIL. `run.sh LABEL` (env `TREE`, `PORT`, `SC`, `PY`; `NO_LIGHT=1` for a build without #21908) flashes a D1 mini, takes
+three idle boots of heap readings and drives one boot. `lightcheck.py HOST` checks again that the wizard light follows
+only its current ID.
+
+- Builds before #21908 cannot compile a wizard-linked homeassistant light (the wizard called `set_entity_id()` on the
+  LightState); `NO_LIGHT=1` leaves `ha-wiz-light.yaml` out.
+- An unset wizard number or select rejects a command in the core (`> max 0`, `has no options`) before the
+  `No entity ID set yet` check; nothing is sent either way.
+- Field 3 of LightStateResponse is brightness, not `missing_state`; SwitchStateResponse has no missing flag.
+- A light publishes only changes, so a report of the state it already has publishes nothing.
+
+## homeassistant switch on a script, host build against a throwaway Home Assistant (#22548)
+
+No board is needed when the change is in validation or platform independent code: an ESPHome `host:` build serves the
+API on 127.0.0.1:6053. `scripts/homeassistant_script_switch/`:
+
+- `ha-configuration.yaml` is the Home Assistant config (port 8129, a 20 s `long_job` script that sets and clears
+  `input_boolean.script_ran`, a `quick_job` toggle script). Onboard it with `scripts/mqtt/ha_discovery/onboard.py DIR`.
+- `hsw.yaml` mirrors both scripts and the flag with homeassistant switches, with template buttons that call
+  `switch.turn_on` and `switch.turn_off`.
+- `haflow.py TOKENFILE` adds the device with the esphome config flow and turns on `allow_service_calls` in the options
+  flow; without it the device's action calls are refused.
+- `drive.py TOKENFILE NAME` presses the buttons through the REST API and prints the script and flag states after each
+  step.
+
+Notes:
+- homeassistant import entities default to `internal: true`, so the mirrors are not Home Assistant entities; read
+  them from the device's `Got state` log lines.
+- Turning a script off stops it mid run (the flag stays on). A script that finishes at once reports on, then off, in
+  the same second.
+
+## Subscription order and dump order (#22725)
+
+- `hadrive.py` also prints `<phase> SUBORDER NNN <line>` in the order the device sent the subscriptions (the SUB lines
+  are sorted). `grep -v SUBORDER drive.txt` diffs the sets, `grep SUBORDER` the order.
+- Dump block order per build: `python3 scripts/lognorm.py boot1.txt | grep -a "^\[C\]\[" |
+  sed -E 's/^\[C\]\[([a-z_.0-9]+)\]: (.{0,40}).*/\1 | \2/' | awk -F' [|] ' '{ if ($1!=p) {print $1 " :: " $2; p=$1} }'`
+  prints one line per component run; diff dump text between builds through `lognorm.py` too, which drops the
+  `:NNN` line numbers.
+- Idle ESP8266 free heap in this config swings by 2 kB between readings; compare the steady reading (the fifth one
+  after boot) per boot, which matched the heap_size change exactly (+168 B for 15 import entities on #22725).
+- The wizard light (`l_wiz`) needs #21908; a stack based before it needs it dropped on both builds (`NO_LIGHT=1`).
+
+## on_client_synced with a throwaway Home Assistant on a real board (#21892)
+
+`scripts/api_client_synced/`: `gen_configs.py VARIANT...` writes the test configs (p, n, s with `on_client_synced`;
+d, ds without it for the dev baseline; s and ds add `deep_sleep:`). Every trigger logs a direct line, a `[=]`
+capturing lambda line and the same capture again from a 1 s `set_timeout`; there is a restart button and an
+`on_shutdown` log. All variants share one `name:` with separate `build_path:`, so one Home Assistant entry follows
+every build.
+
+- `drive.py HOST logs|states|disc N|discsweep N LO,HI,STEP|multi N` plays aioesphomeapi clients; the `states` client
+  records states and the `esphome.client_synced` event in arrival order. `order.py CAPTURE` counts `SYNCED direct`
+  lines for `hwtest-disc-*` clients that come after the device's `<client>: disconnected` line (a late fire). A late
+  fire needed a 20 to 69 ms wait between subscribe and DisconnectRequest (7 of 150); with no wait the sync never
+  finished first.
+- Add the board to Home Assistant with `homeassistant_script_switch/haflow.py TOKENFILE HOST`, and reload the entry
+  (`POST /api/config/config_entries/entry/<id>/reload`) to force a reconnect.
+- Shutdowns: `drive.py HOST selfreboot D,...` (subscribe, then press Restart D ms later) and `drive.py HOST hareboot
+  TOKENFILE ENTRY D,...` (reload the entry, press D ms later). `shut.py CAPTURE` lists the trigger lines per reboot,
+  `args.py CAPTURE ADDR` checks every info and address line and pairs each deferred read with its trigger run.
+- Findings: the shutdown sync only reached the trigger with `deep_sleep:` in the config (send_shutdown_disconnect_
+  skips the iterator teardown there); a `StringRef` kept in a `set_timeout` reads garbage.
+- Home Assistant onboarding tokens expire after 30 min (REST then returns 401): `ha_token.py HADIR` logs in with the
+  saved test login and writes a new one (`HA_URL` env).
+- Home Assistant 2026.12 dev moves `http:` from YAML into a pending store config and, unconfirmed after 5 min, reverts
+  to port 8123 and restarts; on macOS that restart dies in CoreBluetooth. Set `stable.server_port` and `pending: null`
+  in `.storage/http` while Home Assistant is stopped.
+- Never name a script `token.py`: it shadows the stdlib module and breaks every Python started in that directory.
+- Result: https://github.com/esphome/esphome/pull/21892#issuecomment-7114719560

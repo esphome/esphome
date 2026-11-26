@@ -134,6 +134,7 @@ void LN882HBLETracker::dump_config() {
                 this->scan_duration_ / 1000, this->scan_interval_ * BLE_SCAN_UNIT_MS, this->scan_interval_,
                 this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
                 YESNO(this->scan_continuous_));
+  this->dispatcher_.dump_child_configs();
 }
 
 // ---------------------------------------------------------------------------

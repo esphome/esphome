@@ -4,11 +4,11 @@
 
 namespace esphome::teleinfo {
 
-class TeleInfoSensor final : public TeleInfoListener, public sensor::Sensor, public Component {
+class TeleInfoSensor final : public TeleInfoListener, public sensor::Sensor {
  public:
   TeleInfoSensor(const char *tag);
   void publish_val(const std::string &val) override;
-  void dump_config() override;
+  void dump_child_config() override;
 };
 
 }  // namespace esphome::teleinfo

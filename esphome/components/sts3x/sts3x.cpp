@@ -39,10 +39,8 @@ void STS3XComponent::update() {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
     this->write_command(STS3X_COMMAND_SOFT_RESET);
   }
-  if (!this->write_command(STS3X_COMMAND_POLLING_H)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_command(STS3X_COMMAND_POLLING_H)))
     return;
-  }
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[1];
