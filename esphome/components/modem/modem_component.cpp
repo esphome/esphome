@@ -75,9 +75,9 @@ static constexpr uint8_t SIM_WARN_EVERY = 60;
 // it restarts, and an ESP reboot leaves it running. The wait doubles after each restart, up to 32 min.
 static constexpr uint32_t SIM_RESTART_AFTER_MS = 60000;
 static constexpr uint8_t SIM_RESTART_MAX_BACKOFF = 5;  // 60 s << 5 = 32 min
-// A restarted modem stays silent for 20 to 40 s; ENABLING then syncs with it again, so a longer wait is covered by
-// its probe backoff
-static constexpr uint32_t MODEM_RESTART_WAIT_MS = 20000;
+// A restarted modem stays silent for 20 to 40 s, varying per restart; ENABLING's probe backoff covers the rest, and a
+// longer wait only delayed the resync on a SIM7080G
+static constexpr uint32_t MODEM_RESTART_WAIT_MS = 10000;
 // SIM status polls that fail at CFUN=4 before CFUN=1 is tried: some modems (SIM7070) power the SIM down at CFUN=0 and
 // only power it up again at CFUN=1
 static constexpr uint8_t SIM_FULL_POWER_AFTER = 5;
