@@ -39,8 +39,8 @@ enum { PENDING = 32 };
 enum { MAX_PIECES = 8 };
 
 static ppa_client_handle_t g_client;
-static uint32_t g_queued;        /* tickets handed out */
-static uint32_t g_done; /* published by the PPA interrupt, read atomically */
+static uint32_t g_queued; /* tickets handed out */
+static uint32_t g_done;   /* published by the PPA interrupt, read atomically */
 /* Fills run on the PPA's other engine (blend), with a client and a count of
  * their own: the two engines finish in no order relative to each other. */
 static ppa_client_handle_t g_fill_client;
@@ -393,7 +393,7 @@ static uint8_t *g_stage[2];
 static size_t g_stage_bytes;
 static async_memcpy_handle_t g_copier;
 static uint32_t g_copied; /* published by the GDMA interrupt, read atomically */
-static uint32_t g_copies;          /* copies asked for */
+static uint32_t g_copies; /* copies asked for */
 /* The last ticket that reads each band: nothing is copied into a band before
  * it has finished, across pictures too. */
 static uint32_t g_stage_reader[2];
