@@ -6,8 +6,8 @@ from esphome.components.stm32.zephyr_variants import stm32_family, stm32c5
 from esphome.components.zephyr import (
     zephyr_data,
     zephyr_framework_type,
-    zephyr_variant,
-    zephyr_variant_family,
+    zephyr_variant_family_name,
+    zephyr_variant_name,
 )
 from esphome.components.zephyr.const import KEY_BOOTLOADER, KEY_PRJ_CONF
 import esphome.config_validation as cv
@@ -33,8 +33,8 @@ def test_config_schema_defaults_to_the_largest_nucleo() -> None:
     assert config[CONF_BOARD] == "nucleo_c5a3zg"
     assert zephyr_data()[CONF_BOARD] == "nucleo_c5a3zg"
     assert zephyr_data()[KEY_BOOTLOADER] == ""
-    assert zephyr_variant() == "STM32C5"
-    assert zephyr_variant_family() == "stm32"
+    assert zephyr_variant_name() == "STM32C5"
+    assert zephyr_variant_family_name() == "stm32"
     assert zephyr_framework_type() == "zephyr"
     assert CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] == cv.Version(4, 5, 0)
 

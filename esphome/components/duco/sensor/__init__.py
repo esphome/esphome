@@ -26,7 +26,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["duco"]
-CODEOWNERS = ["@kokx"]
+CODEOWNERS = ["@kokx", "@w1ll14m"]
 
 UNIT_DAYS = "d"
 
