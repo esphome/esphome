@@ -34,7 +34,6 @@ from ..defines import (
     LValidator,
     LvConstant,
     get_chart_series,
-    get_updated_widgets,
     literal,
 )
 from ..lv_validation import lv_bool, lv_color, lv_float, lv_positive_int
@@ -289,7 +288,6 @@ CHART_SCHEMA = cv.Schema(
 CHART_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_UPDATE_MODE): CHART_UPDATE_MODE,
-        cv.Optional(CONF_POINT_COUNT): cv.int_range(min=1, max=4096),
         cv.Optional(CONF_X_AXIS): _axis_modify_schema(grid_lines=True),
         cv.Optional(CONF_Y_AXIS): _axis_modify_schema(grid_lines=True),
         cv.Optional(CONF_SECONDARY_X_AXIS): _axis_modify_schema(grid_lines=False),
@@ -386,18 +384,6 @@ def validate_series_action(
         )
 
 
-def _smallest_point_counts(global_config: FinalValidateConfig) -> dict[tuple, int]:
-    """Map each chart path to the smallest point_count that lvgl.chart.update can give it."""
-    smallest: dict[tuple, int] = {}
-    for update in get_updated_widgets().get(chart_spec, ()):
-        if (point_count := update.get(CONF_POINT_COUNT)) is None:
-            continue
-        for id_conf in update[CONF_ID]:
-            path = tuple(global_config.get_path_for_id(id_conf[CONF_ID])[:-1])
-            smallest[path] = min(smallest.get(path, point_count), point_count)
-    return smallest
-
-
 def _action_ids(
     global_config: FinalValidateConfig, actions: tuple[str, ...], id_path: tuple
 ) -> Iterator[tuple[str, list, ID]]:
@@ -434,24 +420,20 @@ def validate_chart_update(update: ConfigType, chart_config: ConfigType) -> None:
 
 def validate_chart_actions(global_config: FinalValidateConfig) -> None:
     """Check each chart action against the chart it changes."""
-    smallest_point_counts = _smallest_point_counts(global_config)
     errors = []
     for action, path, series_id in _action_ids(
         global_config, SERIES_ACTIONS, (CONF_ID,)
     ):
         # A series ID is declared at <chart>/series/<index>/id
-        chart_path = tuple(global_config.get_path_for_id(series_id)[:-3])
-        chart_config = global_config.get_config_for_path(list(chart_path))
-        point_count = min(
-            chart_config[CONF_POINT_COUNT],
-            smallest_point_counts.get(chart_path, chart_config[CONF_POINT_COUNT]),
+        chart_config = global_config.get_config_for_path(
+            global_config.get_path_for_id(series_id)[:-3]
         )
         try:
             validate_series_action(
                 action,
                 global_config.get_config_for_path(path),
                 chart_config[CONF_TYPE],
-                point_count,
+                chart_config[CONF_POINT_COUNT],
             )
         except cv.Invalid as err:
             errors.append(

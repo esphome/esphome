@@ -360,34 +360,6 @@ def test_matching_series_action_is_accepted(
     assert _config_errors(tmp_path, f"              {update}", action=action) == []
 
 
-def test_series_update_is_checked_against_a_smaller_runtime_point_count(
-    tmp_path: Path,
-) -> None:
-    errors = _config_errors(
-        tmp_path,
-        "              id: line_series\n              values: [1, 2]",
-        "          - lvgl.chart.update:\n"
-        "              id: line_chart\n"
-        "              point_count: 1",
-        action=SET,
-    )
-    assert any("can't have more than point_count (1) entries" in e for e in errors)
-
-
-def test_larger_runtime_point_count_keeps_the_configured_limit(
-    tmp_path: Path,
-) -> None:
-    errors = _config_errors(
-        tmp_path,
-        "              id: line_series\n              values: [1, 2, 3]",
-        "          - lvgl.chart.update:\n"
-        "              id: line_chart\n"
-        "              point_count: 5",
-        action=SET,
-    )
-    assert any("can't have more than point_count (2) entries" in e for e in errors)
-
-
 BOTH_SECONDARY_AXES = "static_cast<lv_chart_axis_t>(LV_CHART_AXIS_SECONDARY_Y | LV_CHART_AXIS_SECONDARY_X)"
 
 
@@ -461,15 +433,14 @@ def test_refresh_does_not_add_the_series_again(
 
     assert main_cpp.count("x = lv_chart_add_series(bar_chart,") == 1
     # The templated range is set at creation and by the refresh, and the fixed one by
-    # lvgl.chart.update; the refresh must not undo the update_mode and point_count the
-    # update sets
+    # lvgl.chart.update; the refresh must not undo the update_mode the update sets
     assert main_cpp.count("lvgl::chart_set_axis_range(bar_chart,") == 2
     assert (
         len(re.findall(r"(?<![\w:])lv_chart_set_axis_range\(bar_chart,", main_cpp)) == 1
     )
     assert main_cpp.count("lv_chart_set_type(bar_chart,") == 1
-    for option in ("update_mode", "point_count"):
-        assert main_cpp.count(f"lv_chart_set_{option}(bar_chart,") == 2
+    assert main_cpp.count("lv_chart_set_point_count(bar_chart,") == 1
+    assert main_cpp.count("lv_chart_set_update_mode(bar_chart,") == 2
 
 
 def test_chart_update_sets_its_options(generate_main, component_config_path) -> None:
@@ -479,7 +450,6 @@ def test_chart_update_sets_its_options(generate_main, component_config_path) -> 
         "lv_chart_set_update_mode(bar_chart, LV_CHART_UPDATE_MODE_CIRCULAR);"
         in main_cpp
     )
-    assert "lv_chart_set_point_count(bar_chart, 5);" in main_cpp
     assert (
         "lv_chart_set_axis_range(bar_chart, LV_CHART_AXIS_PRIMARY_Y, -10, 10);"
         in main_cpp
@@ -850,3 +820,9 @@ def test_series_set_with_points_replaces_all_points(
     name = match.group(1)
     assert f"static const int32_t {name}_chart_x_values[] = {{3, 5}};" in main_cpp
     assert f"static const int32_t {name}_chart_y_values[] = {{4, 6}};" in main_cpp
+
+
+def test_chart_update_cannot_change_point_count() -> None:
+    """Changing it would reallocate the data of every series after setup."""
+    with pytest.raises(Invalid, match="extra keys"):
+        CHART_MODIFY_SCHEMA({"point_count": 5})

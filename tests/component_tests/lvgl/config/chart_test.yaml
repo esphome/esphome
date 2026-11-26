@@ -123,7 +123,6 @@ lvgl:
           - lvgl.chart.update:
               id: bar_chart
               update_mode: circular
-              point_count: 5
               y_axis:
                 min_value: -10
                 max_value: 10

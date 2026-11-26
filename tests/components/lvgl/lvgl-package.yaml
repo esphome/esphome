@@ -1838,7 +1838,6 @@ lvgl:
                         - lvgl.chart.update:
                             id: lv_chart_id
                             update_mode: circular
-                            point_count: 5
                             y_axis:
                               grid_lines: 2
                       widgets:
