@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_OPTIONS,
     CONF_PLATFORM,
+    CONF_TYPE,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
@@ -87,6 +88,16 @@ register_input = cg.slot_list("TOPTRONIC_INPUT_COUNT", "add_input", DOMAIN)
 TT_TYPE = toptronic.enum("TypeName", is_class=True)
 _TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
 TT_TYPE_OPTIONS = {name: getattr(TT_TYPE, f"TYPE_NAME_{name}") for name in _TT_TYPES}
+# Bounds of each wire type, used to reject values the encoder would clamp
+TYPE_RANGES = {
+    "U8": (0, 0xFF),
+    "U16": (0, 0xFFFF),
+    "U32": (0, 0xFFFFFFFF),
+    "S8": (-(1 << 7), (1 << 7) - 1),
+    "S16": (-(1 << 15), (1 << 15) - 1),
+    "S32": (-(1 << 31), (1 << 31) - 1),
+    "S64": (-(1 << 63), (1 << 63) - 1),
+}
 
 DEVICE_TYPES = {
     "WEZ": 0,  # heat generator
@@ -161,12 +172,14 @@ def _shared_used_ids() -> set[str]:
 
 
 def _validate_options_values_lengths(config: ConfigType) -> ConfigType:
-    """Reject select/text_sensor configs whose 'options' and 'values' differ in length."""
+    """Reject select/text_sensor configs whose 'options' and 'values' do not pair up one to one."""
     if len(config[CONF_OPTIONS]) != len(config[CONF_VALUES]):
         raise cv.Invalid(
             f"'options' length ({len(config[CONF_OPTIONS])}) must match "
             f"'values' length ({len(config[CONF_VALUES])})"
         )
+    if len(set(config[CONF_VALUES])) != len(config[CONF_VALUES]):
+        raise cv.Invalid("'values' must be unique")
     return config
 
 
@@ -417,16 +430,21 @@ def _datapoint_key(entity: ConfigType) -> tuple[int, int, int]:
 
 def _hub_datapoints(
     hub: str, domains: tuple[str, ...]
-) -> list[tuple[tuple[int, int, int], str, str]]:
-    """Key, domain and description of this hub's preset and hand-written entries."""
+) -> list[tuple[tuple[int, int, int], str, str, ConfigType]]:
+    """Key, domain, description and config of this hub's preset and hand-written entries."""
     entries = [
-        (_datapoint_key(entity), platform_name, f"preset {platform_name}")
+        (_datapoint_key(entity), platform_name, f"preset {platform_name}", entity)
         for platform_name, entity in _get_data().generated_entities.get(hub, [])
         if platform_name in domains
     ]
     for domain in domains:
         entries.extend(
-            (_datapoint_key(entity), domain, f"{domain} '{entity.get(CONF_NAME)}'")
+            (
+                _datapoint_key(entity),
+                domain,
+                f"{domain} '{entity.get(CONF_NAME)}'",
+                entity,
+            )
             for entity in _hub_entities(hub, domain)
         )
     return entries
@@ -449,7 +467,7 @@ def _reject_duplicates(
     config: ConfigType, domains: tuple[str, ...], verb: str, reason: str
 ) -> None:
     seen: dict[tuple[int, int, int], str] = {}
-    for key, _, source in _hub_datapoints(str(config[CONF_ID]), domains):
+    for key, _, source, _ in _hub_datapoints(str(config[CONF_ID]), domains):
         if (first := seen.get(key)) is not None:
             raise cv.Invalid(
                 f"Datapoint {key[2]} of function {key[0]}/{key[1]} is already {verb} "
@@ -463,16 +481,41 @@ def _reject_mismatched_links(config: ConfigType) -> None:
 
     The hub casts the input to the read entity's class when it links them, so a
     number needs a numeric sensor and a select needs a text sensor on its key.
+    The two entities must also agree on the wire type or the option mapping, or
+    the write entity would show or send a different value from the one read.
     """
     hub = str(config[CONF_ID])
-    reads = {key: domain for key, domain, _ in _hub_datapoints(hub, READ_DOMAINS)}
-    for key, domain, source in _hub_datapoints(hub, tuple(LINKED_DOMAINS)):
+    reads = {
+        key: (domain, entity)
+        for key, domain, _, entity in _hub_datapoints(hub, READ_DOMAINS)
+    }
+    for key, domain, source, write in _hub_datapoints(hub, tuple(LINKED_DOMAINS)):
+        if (found := reads.get(key)) is None:
+            continue
+        found_domain, read = found
+        target = f"{source} writes datapoint {key[2]} of function {key[0]}/{key[1]}"
         read_domain = LINKED_DOMAINS[domain]
-        if (found := reads.get(key)) is not None and found != read_domain:
+        if found_domain != read_domain:
             raise cv.Invalid(
-                f"{source} writes datapoint {key[2]} of function {key[0]}/{key[1]}, "
-                f"which is read by a {found}; a {domain} can only take its state from a {read_domain}"
+                f"{target}, which is read by a {found_domain}; "
+                f"a {domain} can only take its state from a {read_domain}"
             )
+        if domain == "number" and write.get(CONF_TYPE) != read.get(CONF_TYPE):
+            raise cv.Invalid(
+                f"{target} as {write.get(CONF_TYPE)}, but the sensor reads it as "
+                f"{read.get(CONF_TYPE)}; the wire types must match"
+            )
+        if domain == "select" and _option_mapping(write) != _option_mapping(read):
+            raise cv.Invalid(
+                f"{target}, but its 'options'/'values' mapping differs from the text sensor's"
+            )
+
+
+def _option_mapping(entity: ConfigType) -> dict[int, str]:
+    """Wire value to label of a select or text sensor; the order of the lists does not matter."""
+    return dict(
+        zip(entity.get(CONF_VALUES, []), entity.get(CONF_OPTIONS, []), strict=True)
+    )
 
 
 async def _generate_entities(hub: cg.MockObj, config: ConfigType) -> None:

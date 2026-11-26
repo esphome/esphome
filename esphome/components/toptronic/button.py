@@ -11,21 +11,11 @@ from . import (
     CONF_TOPTRONIC_ID,
     CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
+    TYPE_RANGES,
     TopTronicComponent,
     register_input,
     toptronic,
 )
-
-# Range of each encoding; the C++ side clamps to the same limits, so an accepted value is sent unchanged
-TYPE_VALUE_RANGES = {
-    "U8": (0, 0xFF),
-    "U16": (0, 0xFFFF),
-    "U32": (0, 0xFFFFFFFF),
-    "S8": (-(1 << 7), (1 << 7) - 1),
-    "S16": (-(1 << 15), (1 << 15) - 1),
-    "S32": (-(1 << 31), (1 << 31) - 1),
-    "S64": (-(1 << 63), (1 << 63) - 1),
-}
 
 TopTronicButton = toptronic.class_("TopTronicButton", button.Button)
 
@@ -33,7 +23,8 @@ TopTronicButton = toptronic.class_("TopTronicButton", button.Button)
 def _validate_value(config: ConfigType) -> ConfigType:
     # config[CONF_TYPE] holds the option name; its codegen expression cannot be compared
     type_name = str(config[CONF_TYPE])
-    low, high = TYPE_VALUE_RANGES[type_name]
+    # The C++ side clamps to the same limits, so an accepted value is sent unchanged
+    low, high = TYPE_RANGES[type_name]
     if not low <= config[CONF_VALUE] <= high:
         raise cv.Invalid(
             f"Value {config[CONF_VALUE]} is outside the {type_name} range "

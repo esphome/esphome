@@ -250,3 +250,82 @@ def test_debug_switch_rejects_initial_state() -> None:
                 "candump": {"name": "CAN dump", "initial_state": True},
             }
         )
+
+
+NUMBER = {CONF_TYPE: "S16", "min_value": 100, "max_value": 300, "step": 5}
+
+
+def test_linked_number_and_sensor_must_share_the_wire_type(set_core_config) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            "sensor": [_entity(type="U16")],
+            "number": [_entity(**NUMBER)],
+        },
+    )
+    with pytest.raises(cv.Invalid, match="wire types must match"):
+        _final_validate(HUB_CONFIG)
+
+
+def test_linked_select_and_text_sensor_must_share_the_mapping(set_core_config) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            "text_sensor": [_entity(options=["Off", "On"], values=[0, 1])],
+            "select": [_entity(options=["Low", "High"], values=[0, 1])],
+        },
+    )
+    with pytest.raises(cv.Invalid, match="mapping differs"):
+        _final_validate(HUB_CONFIG)
+
+
+def test_linked_select_may_list_the_same_mapping_in_another_order(
+    set_core_config,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            "text_sensor": [_entity(options=["Off", "On"], values=[0, 1])],
+            "select": [_entity(options=["On", "Off"], values=[1, 0])],
+        },
+    )
+    _final_validate(HUB_CONFIG)
+
+
+@pytest.mark.parametrize(
+    "bounds", [{"max_value": 1000}, {"min_value": -1, "max_value": 100}]
+)
+def test_number_bounds_must_fit_the_wire_type(bounds) -> None:
+    with pytest.raises(cv.Invalid, match="must fit type U8"):
+        tt_number.CONFIG_SCHEMA(
+            {"name": "Setpoint", **COORDS, **NUMBER, CONF_TYPE: "U8", **bounds}
+        )
+
+
+def test_number_step_must_be_positive() -> None:
+    with pytest.raises(cv.Invalid):
+        tt_number.CONFIG_SCHEMA({"name": "Setpoint", **COORDS, **NUMBER, "step": 0})
+
+
+def test_duplicate_option_values_are_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="'values' must be unique"):
+        tt_select.CONFIG_SCHEMA(
+            {
+                "name": "Choice",
+                **COORDS,
+                CONF_OPTIONS: ["Off", "On"],
+                CONF_VALUES: [1, 1],
+            }
+        )
+
+
+def test_duplicate_select_labels_are_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="must be unique for a select"):
+        tt_select.CONFIG_SCHEMA(
+            {
+                "name": "Choice",
+                **COORDS,
+                CONF_OPTIONS: ["Off", "Off"],
+                CONF_VALUES: [0, 1],
+            }
+        )

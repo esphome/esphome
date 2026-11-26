@@ -12,6 +12,7 @@ from . import (
     CONF_TOPTRONIC_ID,
     CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
+    TYPE_RANGES,
     TopTronicComponent,
     register_input,
     toptronic,
@@ -20,10 +21,20 @@ from . import (
 TopTronicNumber = toptronic.class_("TopTronicNumber", number.Number)
 
 
-def _validate_min_max(config: ConfigType) -> ConfigType:
-    """Reject a range that cannot be represented as a number entity."""
+def _validate_range(config: ConfigType) -> ConfigType:
+    """Reject a range the wire type cannot carry, or one the entity cannot represent."""
     if config[CONF_MIN_VALUE] >= config[CONF_MAX_VALUE]:
         raise cv.Invalid("'min_value' must be smaller than 'max_value'")
+    # config[CONF_TYPE] holds the option name; its codegen expression cannot be compared
+    type_name = str(config[CONF_TYPE])
+    low, high = TYPE_RANGES[type_name]
+    if config[CONF_MIN_VALUE] < low or config[CONF_MAX_VALUE] > high:
+        raise cv.Invalid(
+            f"'min_value'..'max_value' must fit type {type_name}, whose range is "
+            f"{low}..{high}"
+        )
+    if config[CONF_STEP] > high - low:
+        raise cv.Invalid(f"'step' must not exceed the range of type {type_name}")
     return config
 
 
@@ -35,13 +46,13 @@ CONFIG_SCHEMA = cv.All(
             # Raw device units: min_value/max_value/step are divided by 10**decimal for the entity
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
-            cv.Required(CONF_STEP): cv.positive_float,
+            cv.Required(CONF_STEP): cv.positive_not_null_float,
             cv.Optional(CONF_DECIMAL, default=0): cv.int_range(min=0, max=6),
         }
     )
     .extend(number.number_schema(TopTronicNumber))
     .extend(CONFIG_SCHEMA_BASE),
-    _validate_min_max,
+    _validate_range,
 )
 
 

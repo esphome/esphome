@@ -26,7 +26,10 @@ TYPE_MAX_VALUE = {"U8": 255, "S8": 127}
 
 
 def _validate_values_fit_type(config: ConfigType) -> ConfigType:
-    """Reject an option value the configured type cannot carry."""
+    """Reject an option value the configured type cannot carry, or a repeated label."""
+    # A select is addressed by its label, so a repeated one could never be written
+    if len(set(config[CONF_OPTIONS])) != len(config[CONF_OPTIONS]):
+        raise cv.Invalid("'options' must be unique for a select")
     if (max_value := TYPE_MAX_VALUE.get(config[CONF_TYPE])) is None:
         return config
     for value in config[CONF_VALUES]:
