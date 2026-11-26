@@ -77,71 +77,70 @@ extern "C" {
 
 /** Counters, so a board can say where its time goes. */
 typedef struct {
-    uint32_t fills_direct;     /**< solid fills drawn as native rectangles */
-    uint32_t fills_handed;     /**< of those, filled by a filler (the PPA) rather than the CPU */
-    uint32_t fills_hidden;     /**< of those, not drawn at all: an opaque picture drawn later covers them */
-    uint32_t fills_trimmed;    /**< of those, drawn only round an opaque picture drawn later over the rest */
-    uint32_t images_turned;    /**< images copied with their turn in one pass */
-    uint32_t images_native;    /**< pre-turned images copied row by row */
-    uint32_t tiles;            /**< upright tiles drawn by the software renderer */
-    uint32_t tiles_unread;     /**< of which, painted over wholly so never read back */
-    uint32_t batches;          /**< runs of tasks drawn through one set of tiles */
-    uint32_t tasks_general;    /**< tasks drawn through tiles */
-    uint32_t tasks_refused;    /**< tasks whose matrix was not a quarter turn */
-    uint32_t window_skips;     /**< writes cut around the video window */
-    uint64_t bytes_turned;     /**< bytes moved through a turn */
-    uint64_t bytes_straight;   /**< bytes moved without one */
-    uint64_t bytes_drawn;      /**< bytes LVGL's renderer wrote into tiles, overdraw included */
-    uint64_t bytes_handed;     /**< of bytes_turned, those a turner (the PPA) moved rather than the CPU */
-    uint32_t waits;            /**< times the CPU waited for a turner */
-    uint8_t tile_internal;     /**< 1 when the tile is in internal RAM rather than PSRAM */
-    uint8_t tiles_in_turn;     /**< 2 when one tile is drawn while the other is turned, 4 when a
-                                    pair is drawn on two cores while the last pair is turned */
-    uint8_t cores;             /**< 2 when a second core paints every other tile */
-    uint32_t tiles_other_core; /**< of `tiles`, those the second core painted */
-    uint8_t turner_failed;     /**< 1, for good, once a turner stopped answering: the CPU turns
-                                    from then on, and the screen must be drawn again once */
-    uint64_t bytes_straight_handed; /**< of bytes_straight, those a turner (the PPA) copied */
-    uint32_t images_cached;    /**< pictures drawn from a copy turned once (lv_draw_ortho_set_image_cache) */
-    uint32_t image_cache_builds; /**< pictures turned into the cache */
-    uint32_t image_cache_bytes; /**< what the turned copies hold now */
-    uint64_t bytes_turned_images; /**< of bytes_turned, pictures turned in one pass: a camera frame drawn by
+  uint32_t fills_direct;          /**< solid fills drawn as native rectangles */
+  uint32_t fills_handed;          /**< of those, filled by a filler (the PPA) rather than the CPU */
+  uint32_t fills_hidden;          /**< of those, not drawn at all: an opaque picture drawn later covers them */
+  uint32_t fills_trimmed;         /**< of those, drawn only round an opaque picture drawn later over the rest */
+  uint32_t images_turned;         /**< images copied with their turn in one pass */
+  uint32_t images_native;         /**< pre-turned images copied row by row */
+  uint32_t tiles;                 /**< upright tiles drawn by the software renderer */
+  uint32_t tiles_unread;          /**< of which, painted over wholly so never read back */
+  uint32_t batches;               /**< runs of tasks drawn through one set of tiles */
+  uint32_t tasks_general;         /**< tasks drawn through tiles */
+  uint32_t tasks_refused;         /**< tasks whose matrix was not a quarter turn */
+  uint32_t window_skips;          /**< writes cut around the video window */
+  uint64_t bytes_turned;          /**< bytes moved through a turn */
+  uint64_t bytes_straight;        /**< bytes moved without one */
+  uint64_t bytes_drawn;           /**< bytes LVGL's renderer wrote into tiles, overdraw included */
+  uint64_t bytes_handed;          /**< of bytes_turned, those a turner (the PPA) moved rather than the CPU */
+  uint32_t waits;                 /**< times the CPU waited for a turner */
+  uint8_t tile_internal;          /**< 1 when the tile is in internal RAM rather than PSRAM */
+  uint8_t tiles_in_turn;          /**< 2 when one tile is drawn while the other is turned, 4 when a
+                                       pair is drawn on two cores while the last pair is turned */
+  uint8_t cores;                  /**< 2 when a second core paints every other tile */
+  uint32_t tiles_other_core;      /**< of `tiles`, those the second core painted */
+  uint8_t turner_failed;          /**< 1, for good, once a turner stopped answering: the CPU turns
+                                       from then on, and the screen must be drawn again once */
+  uint64_t bytes_straight_handed; /**< of bytes_straight, those a turner (the PPA) copied */
+  uint32_t images_cached;         /**< pictures drawn from a copy turned once (lv_draw_ortho_set_image_cache) */
+  uint32_t image_cache_builds;    /**< pictures turned into the cache */
+  uint32_t image_cache_bytes;     /**< what the turned copies hold now */
+  uint64_t bytes_turned_images;   /**< of bytes_turned, pictures turned in one pass: a camera frame drawn by
                                        LVGL is here, once per frame shown when nothing draws it twice */
-    uint64_t bytes_read_back;  /**< of bytes_turned, what was under a tile, turned back into it before
-                                    the tile was drawn; the rest of bytes_turned is tiles going out */
-    uint32_t images_again;     /**< of images_turned, the same picture (same pixels in memory) as the one
-                                    turned just before it: a camera frame drawn a second time */
-    uint32_t images_in_layer;  /**< of images_turned, those turned into a layer of LVGL's (a widget drawn
-                                    apart, then drawn again as a whole) rather than the screen */
-    uint64_t wait_us;          /**< time the CPU spent in `waits`, in microseconds: the part of a frame
-                                    that is the turner's and not the drawing's */
-    uint32_t images_flash;     /**< big pictures in the flash left to the tiles: the CPU reads the flash
-                                    faster than the turner does (lv_draw_ortho_set_flash_cb) */
-    uint32_t sync_noted;       /**< LVGL's copies between frame buffers written down (lv_draw_ortho_take_sync) */
-    uint64_t sync_bytes_noted; /**< what LVGL would have copied */
-    uint32_t sync_copies;      /**< copies actually made, each a rectangle the next frame does not draw */
-    uint64_t sync_bytes_copied; /**< what they copied: the rest of sync_bytes_noted was never needed */
-    uint64_t sync_bytes_handed; /**< of those, bytes the turner (the PPA) copied */
-    uint32_t sync_others;      /**< other copies between those frame buffers, made at once (esp_lvgl_adapter's
-                                    own, bringing a third panel buffer up to date) */
-    uint64_t sync_others_handed; /**< bytes of those the turner copied */
-    uint8_t helper_cores;      /**< one bit per core a task doing the second core's work runs on
-                                    (ESP32): work goes to the one on the other core than the
-                                    drawing task, which may be either */
+  uint64_t bytes_read_back;       /**< of bytes_turned, what was under a tile, turned back into it before
+                                       the tile was drawn; the rest of bytes_turned is tiles going out */
+  uint32_t images_again;          /**< of images_turned, the same picture (same pixels in memory) as the one
+                                       turned just before it: a camera frame drawn a second time */
+  uint32_t images_in_layer;       /**< of images_turned, those turned into a layer of LVGL's (a widget drawn
+                                       apart, then drawn again as a whole) rather than the screen */
+  uint64_t wait_us;               /**< time the CPU spent in `waits`, in microseconds: the part of a frame
+                                       that is the turner's and not the drawing's */
+  uint32_t images_flash;          /**< big pictures in the flash left to the tiles: the CPU reads the flash
+                                       faster than the turner does (lv_draw_ortho_set_flash_cb) */
+  uint32_t sync_noted;            /**< LVGL's copies between frame buffers written down (lv_draw_ortho_take_sync) */
+  uint64_t sync_bytes_noted;      /**< what LVGL would have copied */
+  uint32_t sync_copies;           /**< copies actually made, each a rectangle the next frame does not draw */
+  uint64_t sync_bytes_copied;     /**< what they copied: the rest of sync_bytes_noted was never needed */
+  uint64_t sync_bytes_handed;     /**< of those, bytes the turner (the PPA) copied */
+  uint32_t sync_others;           /**< other copies between those frame buffers, made at once (esp_lvgl_adapter's
+                                       own, bringing a third panel buffer up to date) */
+  uint64_t sync_others_handed;    /**< bytes of those the turner copied */
+  uint8_t helper_cores;           /**< one bit per core a task doing the second core's work runs on
+                                       (ESP32): work goes to the one on the other core than the
+                                       drawing task, which may be either */
 } lv_draw_ortho_stats_t;
 
 /** Called with a straight (unturned) copy so a platform can hand it to DMA.
  *  Must copy `h` rows of `row_bytes` and return true, or return false to let
  *  the CPU do it. */
-typedef bool (*lv_draw_ortho_copy_cb_t)(void * dest, int32_t dest_stride,
-                                        const void * src, int32_t src_stride,
+typedef bool (*lv_draw_ortho_copy_cb_t)(void *dest, int32_t dest_stride, const void *src, int32_t src_stride,
                                         int32_t row_bytes, int32_t h);
 
 /** A picture in memory, for a turner: `w` x `h` pixels, `stride` bytes a row. */
 typedef struct {
-    void * buf;
-    uint32_t stride;
-    uint32_t w, h;
+  void *buf;
+  uint32_t stride;
+  uint32_t w, h;
 } lv_draw_ortho_pic_t;
 
 /**
@@ -151,8 +150,8 @@ typedef struct {
  * `dst` with its top-left corner at (dx, dy). Return a ticket, counting up
  * from 1, once it is QUEUED -- or 0 to decline, and the CPU does it.
  */
-typedef uint32_t (*lv_draw_ortho_turn_cb_t)(const lv_draw_ortho_pic_t * src, const lv_area_t * block,
-                                            const lv_draw_ortho_pic_t * dst, int32_t dx, int32_t dy,
+typedef uint32_t (*lv_draw_ortho_turn_cb_t)(const lv_draw_ortho_pic_t *src, const lv_area_t *block,
+                                            const lv_draw_ortho_pic_t *dst, int32_t dx, int32_t dy,
                                             lv_display_rotation_t rot, lv_color_format_t cf);
 
 /** Return true once the turn with this ticket, and every one queued before
@@ -180,7 +179,7 @@ void lv_draw_ortho_set_turner(lv_draw_ortho_turn_cb_t turn, lv_draw_ortho_wait_c
  * for the first and writes back and drops the second. Only a tile in internal
  * RAM is lent. NULL stops lending.
  */
-typedef void (*lv_draw_ortho_loan_cb_t)(void * mem, size_t bytes);
+typedef void (*lv_draw_ortho_loan_cb_t)(void *mem, size_t bytes);
 void lv_draw_ortho_set_loan(lv_draw_ortho_loan_cb_t loan);
 
 /**
@@ -189,7 +188,7 @@ void lv_draw_ortho_set_loan(lv_draw_ortho_loan_cb_t loan);
  * buffer (no gradient, no rounded corner, fully opaque); returns once it is
  * in memory, or false to let the CPU do it.
  */
-typedef bool (*lv_draw_ortho_fill_cb_t)(const lv_draw_ortho_pic_t * dst, const lv_area_t * rect, lv_color_t color,
+typedef bool (*lv_draw_ortho_fill_cb_t)(const lv_draw_ortho_pic_t *dst, const lv_area_t *rect, lv_color_t color,
                                         lv_color_format_t cf);
 void lv_draw_ortho_set_filler(lv_draw_ortho_fill_cb_t fill);
 
@@ -231,10 +230,10 @@ void lv_draw_ortho_set_batching(bool enable);
  * window's edge would otherwise put stale pixels back. That is the caller's,
  * and the README says how on an ESP32-P4.
  */
-void lv_draw_ortho_set_window(lv_display_t * disp, const lv_area_t * native_area);
+void lv_draw_ortho_set_window(lv_display_t *disp, const lv_area_t *native_area);
 
 /** Where an area of the UI (an object's coordinates) lands on the panel. */
-void lv_draw_ortho_native_area(lv_display_t * disp, const lv_area_t * area, lv_area_t * native_area);
+void lv_draw_ortho_native_area(lv_display_t *disp, const lv_area_t *area, lv_area_t *native_area);
 
 /**
  * Keep up to `bytes` of pictures turned once, 0 (the default) to keep none
@@ -257,11 +256,11 @@ void lv_draw_ortho_set_image_cache(size_t bytes);
 
 /** Forget the turned copy of the picture whose pixels are at `data` -- after
  *  changing them in place -- or of every picture with NULL. */
-void lv_draw_ortho_image_cache_drop(const void * data);
+void lv_draw_ortho_image_cache_drop(const void *data);
 
 /** Whether a picture's pixels never change, so its turned copy may be kept.
  *  Never asked about one marked LV_IMAGE_FLAGS_MODIFIABLE. */
-typedef bool (*lv_draw_ortho_constant_cb_t)(const lv_image_dsc_t * img);
+typedef bool (*lv_draw_ortho_constant_cb_t)(const lv_image_dsc_t *img);
 
 /** Decide which pictures may be kept instead of "in the flash" (NULL for that
  *  again). Forgets everything kept so far. */
@@ -283,10 +282,10 @@ void lv_draw_ortho_set_image_constant_cb(lv_draw_ortho_constant_cb_t cb);
  * mode, a single buffer, or (LVGL 9.6) a display with a sync_cb of its own.
  * One display at a time.
  */
-bool lv_draw_ortho_take_sync(lv_display_t * disp);
+bool lv_draw_ortho_take_sync(lv_display_t *disp);
 
 /** Give LVGL its copies back (NULL: whichever display has them). */
-void lv_draw_ortho_release_sync(lv_display_t * disp);
+void lv_draw_ortho_release_sync(lv_display_t *disp);
 
 /**
  * Decide which pictures have their pixels in the flash instead of "on an
@@ -301,7 +300,7 @@ void lv_draw_ortho_release_sync(lv_display_t * disp);
  */
 void lv_draw_ortho_set_flash_cb(lv_draw_ortho_constant_cb_t cb);
 
-const lv_draw_ortho_stats_t * lv_draw_ortho_get_stats(void);
+const lv_draw_ortho_stats_t *lv_draw_ortho_get_stats(void);
 void lv_draw_ortho_reset_stats(void);
 
 #endif /* LV_USE_DRAW_ORTHO */

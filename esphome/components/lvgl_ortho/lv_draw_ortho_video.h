@@ -36,21 +36,21 @@ extern "C" {
 #include "driver/ppa.h"
 
 typedef struct {
-    lv_display_t * disp;
-    ppa_client_handle_t client;
-    lv_area_t ui_area;      /* where the video is, as the UI sees it */
-    lv_area_t native;       /* the same, on the panel */
-    lv_area_t crop;         /* the part of each frame shown, in frame pixels */
-    bool cropped;
-    bool placed;
+  lv_display_t *disp;
+  ppa_client_handle_t client;
+  lv_area_t ui_area; /* where the video is, as the UI sees it */
+  lv_area_t native;  /* the same, on the panel */
+  lv_area_t crop;    /* the part of each frame shown, in frame pixels */
+  bool cropped;
+  bool placed;
 } lv_draw_ortho_video_t;
 
 /** Register a PPA client for `disp`. */
-esp_err_t lv_draw_ortho_video_init(lv_draw_ortho_video_t * v, lv_display_t * disp);
+esp_err_t lv_draw_ortho_video_init(lv_draw_ortho_video_t *v, lv_display_t *disp);
 
 /** Put the video at `ui_area` (UI coordinates, e.g. an object's coords). LVGL
  *  stops drawing there from the next refresh. */
-void lv_draw_ortho_video_place(lv_draw_ortho_video_t * v, const lv_area_t * ui_area);
+void lv_draw_ortho_video_place(lv_draw_ortho_video_t *v, const lv_area_t *ui_area);
 
 /**
  * Show only part of each frame: `x`, `y`, `w`, `h` in the frame's own pixels.
@@ -59,18 +59,18 @@ void lv_draw_ortho_video_place(lv_draw_ortho_video_t * v, const lv_area_t * ui_a
  * Guition) a centred crop keeps the picture at 1:1, where scaling it by 0.99
  * would soften every pixel. Pass w or h 0 to show the whole frame again.
  */
-void lv_draw_ortho_video_set_crop(lv_draw_ortho_video_t * v, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+void lv_draw_ortho_video_set_crop(lv_draw_ortho_video_t *v, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 
 /**
  * Write one frame into the window: `frame` is `w` x `h`, upright as the UI
  * should show it, RGB565 or RGB888, and is scaled to the window's size. The
  * mirror flags are in that upright frame (a camera's usual mirror_x).
  */
-esp_err_t lv_draw_ortho_video_show(lv_draw_ortho_video_t * v, const void * frame, uint32_t w, uint32_t h,
+esp_err_t lv_draw_ortho_video_show(lv_draw_ortho_video_t *v, const void *frame, uint32_t w, uint32_t h,
                                    lv_color_format_t cf, bool mirror_x, bool mirror_y);
 
 /** Give LVGL the window back and release the PPA client. */
-void lv_draw_ortho_video_deinit(lv_draw_ortho_video_t * v);
+void lv_draw_ortho_video_deinit(lv_draw_ortho_video_t *v);
 
 #ifdef __cplusplus
 }

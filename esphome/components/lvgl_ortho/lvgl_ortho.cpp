@@ -183,10 +183,12 @@ void LvglOrtho::setup() {
   ESP_LOGI(TAG, "LVGL draws the panel's %dx%d directly at ESPHome rotation %d (%d touch device(s), turned by LVGL)",
            (int) this->width_, (int) this->height_, this->degrees_, n);
   if (this->panel_fbs_ > 0) {
-    ESP_LOGI(TAG, "...into the panel's own %d frame buffers: nothing is turned and nothing is copied", this->panel_fbs_);
-    ESP_LOGI(TAG, "...LVGL's copies between them %s", this->sync_on_ ? "made only where the next frame does not draw, "
-                                                                       "by the PPA"
-                                                                     : "left to LVGL (could not be taken)");
+    ESP_LOGI(TAG, "...into the panel's own %d frame buffers: nothing is turned and nothing is copied",
+             this->panel_fbs_);
+    ESP_LOGI(TAG, "...LVGL's copies between them %s",
+             this->sync_on_ ? "made only where the next frame does not draw, "
+                              "by the PPA"
+                            : "left to LVGL (could not be taken)");
   } else {
     ESP_LOGI(TAG, "...into a buffer of its own, copied to the display. For no copy at all, use youkorr/lvgl_9.5's "
                   "mipi_dsi with framebuffers: 3");
@@ -197,8 +199,8 @@ bool LvglOrtho::use_panel_buffers_() {
 #ifdef USE_LVGL_ORTHO_NATIVE_DSI
   if (this->native_dsi_ != nullptr) {
     auto *panel = this->native_dsi_;
-    if (panel->is_failed() || panel->get_num_framebuffers() != 3 ||
-        panel->get_native_width() != this->width_ || panel->get_native_height() != this->height_)
+    if (panel->is_failed() || panel->get_num_framebuffers() != 3 || panel->get_native_width() != this->width_ ||
+        panel->get_native_height() != this->height_)
       return false;
     void *fb0 = panel->get_framebuffer(0);
     void *fb1 = panel->get_framebuffer(1);
@@ -260,9 +262,10 @@ void LvglOrtho::dump_config() {
   ESP_LOGCONFIG(TAG, "  Drawing tile: %u KiB in %s", (unsigned) (LV_DRAW_ORTHO_TILE_BYTES / 1024),
                 lv_draw_ortho_get_stats()->tile_internal ? "internal RAM" : "PSRAM (internal RAM was full)");
   if (this->ppa_on_) {
-    ESP_LOGCONFIG(TAG, "  Turns: the PPA, %s", lv_draw_ortho_get_stats()->tiles_in_turn >= 2
-                  ? "the CPU drawing one tile while it turns the other"
-                  : "the CPU waiting for each (no internal RAM for a second tile)");
+    ESP_LOGCONFIG(TAG, "  Turns: the PPA, %s",
+                  lv_draw_ortho_get_stats()->tiles_in_turn >= 2
+                      ? "the CPU drawing one tile while it turns the other"
+                      : "the CPU waiting for each (no internal RAM for a second tile)");
   } else {
     ESP_LOGCONFIG(TAG, "  Turns: the CPU%s", this->ppa_ ? " (no PPA client)" : " (ppa: false)");
   }
@@ -437,19 +440,19 @@ bool LvglOrtho::show_video(lv_obj_t *obj, const uint8_t *frame, uint16_t width, 
     if (this->video_obj_ != nullptr)
       lv_obj_invalidate(this->video_obj_);
     lv_draw_ortho_video_place(&this->video_, &ui);
-    lv_draw_ortho_video_set_crop(&this->video_, crop.x1, crop.y1, lv_area_get_width(&crop),
-                                 lv_area_get_height(&crop));
+    lv_draw_ortho_video_set_crop(&this->video_, crop.x1, crop.y1, lv_area_get_width(&crop), lv_area_get_height(&crop));
     this->video_obj_ = obj;
     this->video_ui_ = ui;
     this->video_crop_ = crop;
-    ESP_LOGI(TAG, "Video: %dx%d of the frame from %d,%d, at %d,%d to %d,%d on the panel", (int) lv_area_get_width(&crop),
-             (int) lv_area_get_height(&crop), (int) crop.x1, (int) crop.y1, (int) this->video_.native.x1,
-             (int) this->video_.native.y1, (int) this->video_.native.x2, (int) this->video_.native.y2);
+    ESP_LOGI(TAG, "Video: %dx%d of the frame from %d,%d, at %d,%d to %d,%d on the panel",
+             (int) lv_area_get_width(&crop), (int) lv_area_get_height(&crop), (int) crop.x1, (int) crop.y1,
+             (int) this->video_.native.x1, (int) this->video_.native.y1, (int) this->video_.native.x2,
+             (int) this->video_.native.y2);
   }
 
   const uint32_t t0 = micros();
-  esp_err_t err = lv_draw_ortho_video_show(&this->video_, frame, width, height, LV_COLOR_FORMAT_RGB565, mirror_x,
-                                           mirror_y);
+  esp_err_t err =
+      lv_draw_ortho_video_show(&this->video_, frame, width, height, LV_COLOR_FORMAT_RGB565, mirror_x, mirror_y);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "The PPA refused the video frame (%s); the object is LVGL's again", esp_err_to_name(err));
     this->video_failed_ = true;
@@ -495,8 +498,9 @@ void LvglOrtho::loop() {
   // unsticks the PPA; a reset does.
   if (this->ppa_on_ && !this->ppa_lost_ && lv_draw_ortho_get_stats()->turner_failed) {
     this->ppa_lost_ = true;
-    ESP_LOGE(TAG, "The PPA stopped answering for %d ms: the CPU turns from now on, until a reset. "
-                  "Please report the panel and the screen that was shown, with the lines below",
+    ESP_LOGE(TAG,
+             "The PPA stopped answering for %d ms: the CPU turns from now on, until a reset. "
+             "Please report the panel and the screen that was shown, with the lines below",
              LV_DRAW_ORTHO_PPA_TIMEOUT_MS);
     // What it was stuck on, whole: the one thing a board can say and nothing
     // here can reproduce. The silicon decides the macro-block size the bypass
@@ -513,9 +517,11 @@ void LvglOrtho::loop() {
     const float s = (now - this->last_report_) / 1000.0f;
     if (this->last_report_ != 0 && s > 0) {
       // INFO, not DEBUG: this line is what says, on the board, whether it is fast.
-      ESP_LOGI(TAG, "Last %.0fs: %.1f video frames/s (%.1f ms each), %.1f screens/s shown, %.0f panel rows/s copied (%.1f ms/s)",
-               s, this->video_frames_ / s, this->video_frames_ ? this->video_us_ / 1000.0f / this->video_frames_ : 0.0f,
-               this->presents_ / s, this->flush_rows_ / s, this->flush_us_ / 1000.0f / s);
+      ESP_LOGI(
+          TAG,
+          "Last %.0fs: %.1f video frames/s (%.1f ms each), %.1f screens/s shown, %.0f panel rows/s copied (%.1f ms/s)",
+          s, this->video_frames_ / s, this->video_frames_ ? this->video_us_ / 1000.0f / this->video_frames_ : 0.0f,
+          this->presents_ / s, this->flush_rows_ / s, this->flush_us_ / 1000.0f / s);
 #ifdef USE_LVGL_ORTHO_NATIVE_DSI
       if (this->native_present_count_ > 0) {
         ESP_LOGI(TAG, "  native DSI present: %.2f ms/frame, %.1f ms/s, %u successful presents",
@@ -529,7 +535,8 @@ void LvglOrtho::loop() {
       if (st->bytes_turned > 0) {
         // The wait is the PPA's share of a frame; the rest of the frame time
         // is LVGL drawing, the camera and the loop.
-        ESP_LOGI(TAG, "  turned %.0f KiB/s, %.0f%% of it by the PPA, the CPU waited %.1f times/s for it, "
+        ESP_LOGI(TAG,
+                 "  turned %.0f KiB/s, %.0f%% of it by the PPA, the CPU waited %.1f times/s for it, "
                  "%.1f ms a screen",
                  st->bytes_turned / 1024.0f / s, 100.0f * st->bytes_handed / st->bytes_turned, st->waits / s,
                  this->presents_ ? st->wait_us / 1000.0f / this->presents_ : 0.0f);
@@ -538,7 +545,8 @@ void LvglOrtho::loop() {
         // drawing it twice; read-back is what lies under tiles of a part of
         // the screen drawn again.
         const uint64_t tiles_out = st->bytes_turned - st->bytes_turned_images - st->bytes_read_back;
-        ESP_LOGI(TAG, "    of it: pictures %.0f KiB/s (%.2f a screen, %.0f KiB each), tiles out %.0f KiB/s, "
+        ESP_LOGI(TAG,
+                 "    of it: pictures %.0f KiB/s (%.2f a screen, %.0f KiB each), tiles out %.0f KiB/s, "
                  "read back under tiles %.0f KiB/s",
                  st->bytes_turned_images / 1024.0f / s,
                  this->presents_ ? (float) st->images_turned / this->presents_ : 0.0f,

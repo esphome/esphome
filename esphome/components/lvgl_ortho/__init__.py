@@ -15,11 +15,11 @@ it is drawn. A camera is shown with id(...).show_video().
 """
 
 import esphome.codegen as cg
-from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.components import display
 from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
 import esphome.config_validation as cv
 from esphome.const import CONF_DISPLAY_ID, CONF_ID, CONF_ROTATION
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["lvgl"]
@@ -28,12 +28,19 @@ CODEOWNERS = ["@youkorr"]
 lvgl_ortho_ns = cg.esphome_ns.namespace("lvgl_ortho")
 LvglOrtho = lvgl_ortho_ns.class_("LvglOrtho", cg.Component)
 
+
 def _bytes(value):
     """A size in bytes: 4194304, "4MB", "512KB" or 0."""
     if isinstance(value, int):
         return cv.int_range(min=0)(value)
     text = cv.string(value).strip().upper().replace(" ", "")
-    for suffix, scale in (("MIB", 1 << 20), ("MB", 1 << 20), ("KIB", 1 << 10), ("KB", 1 << 10), ("B", 1)):
+    for suffix, scale in (
+        ("MIB", 1 << 20),
+        ("MB", 1 << 20),
+        ("KIB", 1 << 10),
+        ("KB", 1 << 10),
+        ("B", 1),
+    ):
         if text.endswith(suffix):
             number = text[: -len(suffix)]
             break
@@ -144,11 +151,13 @@ def _force_matrix_defines():
     from esphome.helpers import write_file_if_changed
 
     # ESPHome's lvgl calls it _get_data, youkorr/lvgl_9.5 get_data.
-    get = getattr(df, "get_data", None) or getattr(df, "_get_data")
+    get = getattr(df, "get_data", None) or df._get_data
     defines = get(df.KEY_LV_DEFINES, {})
     for name in MATRIX_DEFINES:
         defines[name] = "1"
-    write_file_if_changed(CORE.relative_src_path(lv.LV_CONF_FILENAME), lv.generate_lv_conf_h())
+    write_file_if_changed(
+        CORE.relative_src_path(lv.LV_CONF_FILENAME), lv.generate_lv_conf_h()
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

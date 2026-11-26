@@ -61,7 +61,7 @@ void lv_draw_ortho_ppa_deinit(void);
  *  rows or columns otherwise (the frame's edge, never its middle), and waited
  *  for with a bound. ESP_ERR_TIMEOUT marks the PPA stuck. `op->mode` is
  *  ignored. For lv_draw_ortho_video.c. */
-esp_err_t lv_draw_ortho_ppa_srm(const ppa_srm_oper_config_t * op);
+esp_err_t lv_draw_ortho_ppa_srm(const ppa_srm_oper_config_t *op);
 
 /**
  * Turn a big picture in PSRAM -- a camera frame -- through internal RAM: two
@@ -88,15 +88,15 @@ esp_err_t lv_draw_ortho_ppa_use_tiles(bool on);
 
 /** What lv_draw_ortho_ppa_set_stage() and _use_tiles() changed. */
 typedef struct {
-    uint32_t pictures;    /**< blocks turned through the bands */
-    uint32_t bands;       /**< bands they were turned in */
-    uint32_t declined;    /**< big blocks in PSRAM turned the plain way, or partly */
-    uint32_t rows;        /**< rows in a band, the last time */
-    uint32_t band_bytes;  /**< each band's size: set_stage()'s, else the last lent tile's half, else 0 */
-    uint64_t us;          /**< spent turning them, but the wait for the last band (the caller's) */
+  uint32_t pictures;   /**< blocks turned through the bands */
+  uint32_t bands;      /**< bands they were turned in */
+  uint32_t declined;   /**< big blocks in PSRAM turned the plain way, or partly */
+  uint32_t rows;       /**< rows in a band, the last time */
+  uint32_t band_bytes; /**< each band's size: set_stage()'s, else the last lent tile's half, else 0 */
+  uint64_t us;         /**< spent turning them, but the wait for the last band (the caller's) */
 } lv_draw_ortho_ppa_stage_stats_t;
 
-void lv_draw_ortho_ppa_get_stage_stats(lv_draw_ortho_ppa_stage_stats_t * out, bool reset);
+void lv_draw_ortho_ppa_get_stage_stats(lv_draw_ortho_ppa_stage_stats_t *out, bool reset);
 
 /** How long a PPA transaction may take before the PPA is taken for stuck. A
  *  whole 1280x720 turn takes 15 to 45 ms on a P4. */
@@ -110,13 +110,13 @@ bool lv_draw_ortho_ppa_stuck(void);
 void lv_draw_ortho_ppa_mark_stuck(void);
 
 /** A line of lv_draw_ortho_ppa_describe_stall(). */
-typedef void (*lv_draw_ortho_ppa_line_cb_t)(const char * line, void * user);
+typedef void (*lv_draw_ortho_ppa_line_cb_t)(const char *line, void *user);
 
 /** After a stall, a few lines on what the PPA was stuck on: which engine, the
  *  transaction that never finished with its whole geometry and the bypass
  *  each driver would program, those queued behind it, and the last that
  *  finished. Nothing when the PPA has not stalled. */
-void lv_draw_ortho_ppa_describe_stall(lv_draw_ortho_ppa_line_cb_t line, void * user);
+void lv_draw_ortho_ppa_describe_stall(lv_draw_ortho_ppa_line_cb_t line, void *user);
 
 /** How a `w` x `h` input block turned at `rot` is cut before it is sent:
  *  the number of pieces (1 when it is sent whole) with each piece's x, y, w, h
@@ -130,8 +130,8 @@ int lv_draw_ortho_ppa_cut(uint32_t w, uint32_t h, lv_display_rotation_t rot, uin
  *  driver does not give it. DIG-734 as v5.5.6 and earlier meet it, and a last
  *  macro block within twice the FIFO's depth, which master meets too (a Tab5
  *  hung at exactly the depth). */
-bool lv_draw_ortho_ppa_dig734(uint32_t w, uint32_t h, lv_display_rotation_t rot, uint32_t bits,
-                              float scale_x, float scale_y);
+bool lv_draw_ortho_ppa_dig734(uint32_t w, uint32_t h, lv_display_rotation_t rot, uint32_t bits, float scale_x,
+                              float scale_y);
 
 #ifdef __cplusplus
 }
