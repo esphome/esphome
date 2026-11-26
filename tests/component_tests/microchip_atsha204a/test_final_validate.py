@@ -167,6 +167,4 @@ def test_swi_uart_rejects_libretiny(tmp_path: Path) -> None:
         ),
         tmp_path,
     )
-    assert any(
-        "Single-wire UART is unavailable on LibreTiny" in err for err in errors
-    ), errors
+    assert any("does not apply rx_buffer_size" in err for err in errors), errors

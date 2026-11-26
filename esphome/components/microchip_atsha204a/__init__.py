@@ -183,8 +183,10 @@ def _final_validate(config: ConfigType) -> None:
         esp32_rmt.final_validate_rmt_channels(config)
     else:
         if CORE.is_libretiny:
+            # Use the shared buffer check once the LibreTiny UART backend honors rx_buffer_size.
             raise cv.Invalid(
-                "Single-wire UART is unavailable on LibreTiny because its receive buffer is too small",
+                "Single-wire UART is unavailable on LibreTiny because the UART backend "
+                "does not apply rx_buffer_size",
                 [CONF_TYPE],
             )
         _VALIDATE_SWI_UART(config)
