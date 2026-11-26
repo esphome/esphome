@@ -198,6 +198,19 @@ def _final_validate(config: ConfigType) -> ConfigType:
     )
     config[_KEY_DECODED_SIZE] = (decoded_width, decoded_height)
 
+    # The camera captures at most once per `max_framerate` period, so a request
+    # can time out before the frame it asked for is taken.
+    max_framerate = camera_config.get(esp32_camera.CONF_MAX_FRAMERATE)
+    timeout_ms = config[CONF_TIMEOUT].total_milliseconds
+    if max_framerate and 1000 / max_framerate >= timeout_ms:
+        _LOGGER.warning(
+            "camera_image: the camera's 'max_framerate' allows one frame every "
+            "%d ms, which is not shorter than the %d ms 'timeout'; requests may "
+            "time out, so increase 'timeout'",
+            round(1000 / max_framerate),
+            timeout_ms,
+        )
+
     if CONF_CROP in config:
         crop = config[CONF_CROP]
         # An OV2640 `window` publishes a smaller frame than the resolution. The

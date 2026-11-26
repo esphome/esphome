@@ -49,10 +49,12 @@ void CameraImage::update() {
     return;
 
   this->waiting_ = true;
+  this->timed_out_ = false;
   this->set_timeout(REQUEST_TIMEOUT_ID, this->request_timeout_, [this]() {
     if (!this->waiting_)
       return;
     this->waiting_ = false;
+    this->timed_out_ = true;
     ESP_LOGW(TAG, "Camera did not deliver a frame within %u ms", static_cast<unsigned>(this->request_timeout_));
     this->on_error_callback_.call();
   });
@@ -66,8 +68,14 @@ void CameraImage::on_camera_image(const std::shared_ptr<camera::CameraImage> &im
   // component asked for may clear the pending request. A frame captured for the
   // API, web server or RTSP server would otherwise be decoded here while the
   // frame requested for this component is dropped.
-  if (!this->waiting_)
+  if (!this->waiting_) {
+    if (this->timed_out_ && image != nullptr && image->was_requested_by(camera::COMPONENT_REQUESTER)) {
+      this->timed_out_ = false;
+      ESP_LOGD(TAG, "Dropped a frame that arrived after the %" PRIu32 " ms timeout; increase 'timeout'",
+               this->request_timeout_);
+    }
     return;
+  }
   if (image != nullptr && !image->was_requested_by(camera::COMPONENT_REQUESTER))
     return;
   this->waiting_ = false;

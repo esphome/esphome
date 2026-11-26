@@ -253,3 +253,21 @@ def test_crop_with_camera_window_warns(
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
     camera_image.FINAL_VALIDATE_SCHEMA(config)
     assert "has a 'window'" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("max_framerate", "warns"),
+    [(10.0, False), (0.25, False), (0.2, True), (0.1, True)],
+)
+def test_slow_max_framerate_warns(
+    set_core_config: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+    max_framerate: float,
+    warns: bool,
+) -> None:
+    config = _validate(set_core_config)
+    full = _full_config()
+    full[esp32_camera.DOMAIN][esp32_camera.CONF_MAX_FRAMERATE] = max_framerate
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    camera_image.FINAL_VALIDATE_SCHEMA(config)
+    assert ("'max_framerate' allows" in caplog.text) is warns

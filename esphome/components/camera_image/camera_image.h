@@ -54,6 +54,8 @@ class CameraImage final : public PollingComponent, public runtime_image::Runtime
 #endif
   uint32_t request_timeout_;
   bool waiting_{false};
+  /// Set by a request timeout, so the frame that arrives afterwards is reported.
+  bool timed_out_{false};
   LazyCallbackManager<void()> on_image_callback_{};
   LazyCallbackManager<void()> on_error_callback_{};
 };
