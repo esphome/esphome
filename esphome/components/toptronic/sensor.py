@@ -12,6 +12,7 @@ from . import (
     TT_TYPE_OPTIONS,
     TopTronicComponent,
     config_schema_polling,
+    register_sensor,
     toptronic,
 )
 
@@ -43,4 +44,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(sens.set_datapoint(config[CONF_DATAPOINT]))
     cg.add(sens.set_type(config[CONF_TYPE]))
 
-    cg.add(tt.add_sensor(sens))
+    cg.add(register_sensor(tt, sens))
