@@ -21,6 +21,11 @@ inline canbus::CanFrame make_frame(uint32_t can_id, const std::vector<uint8_t> &
   return f;
 }
 
+// moves the loop clock (App.get_loop_component_start_time()) forward, which the SDO client reads
+inline void advance_loop_clock(uint32_t ms) {
+  LoopBlockingGuard clock{nullptr, nullptr, App.get_loop_component_start_time() + ms};
+}
+
 // records the frames the hub sends
 class FakeCanbus : public canbus::Canbus {
  public:
@@ -43,6 +48,13 @@ class FakeCanbus : public canbus::Canbus {
     for (const auto &f : this->sent)
       n += f.can_id == can_id;
     return n;
+  }
+  const Frame *find(uint32_t can_id) const {
+    for (const auto &f : this->sent) {
+      if (f.can_id == can_id)
+        return &f;
+    }
+    return nullptr;
   }
 
  protected:
@@ -70,17 +82,18 @@ class TestHub : public CANopenComponent {
  public:
   // frames queued in the CANopenNode driver, waiting to be sent
   uint16_t tx_count() const { return this->co_->CANmodule->CANtxCount; }
-  using CANopenComponent::CANopenComponent;
-  // delivers a frame as the canbus callback does
+  explicit TestHub(canbus::Canbus *canbus, uint8_t node_id = 0x10) : CANopenComponent(canbus, node_id) {}
+  // a received frame, as the canbus callback delivers it (processed right away)
   void frame(uint32_t can_id, const std::vector<uint8_t> &data) { this->on_frame_(make_frame(can_id, data)); }
   void frame(const canbus::CanFrame &f) { this->on_frame_(f); }
 };
 
+// A hub without node id (only its SDO client sends) on a FakeCanbus, recording the replies of its requests.
 // Requests to node 0x21 go out on 0x621, its replies come on 0x5A1.
 class SdoTest : public ::testing::Test {
  protected:
   FakeCanbus bus_;
-  TestHub hub_{&this->bus_};
+  TestHub hub_{&this->bus_, CANopenComponent::NO_NODE_ID};
   std::vector<SDOReply> replies_;
   std::string data_;  // reply.data, copied during the callback
   uint16_t response_timeout_ms_{20};
@@ -107,10 +120,8 @@ class SdoTest : public ::testing::Test {
     return out;
   }
 
-  // advances the loop clock
-  static void advance_(uint32_t ms) {
-    LoopBlockingGuard clock{nullptr, nullptr, App.get_loop_component_start_time() + ms};
-  }
+  // moves the loop clock the hub reads forward
+  static void advance_(uint32_t ms) { advance_loop_clock(ms); }
 
   // long enough for the response timeout to end a transfer
   void wait_for_timeout_() {

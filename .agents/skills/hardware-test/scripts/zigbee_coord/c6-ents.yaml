@@ -1,0 +1,5 @@
+# Entity flow (runi.sh) on the C6; nrf-ents.yaml is the same on the dongle.
+packages:
+  base: !include c6base.yaml
+  sw: !include sw.yaml
+  ents: !include ents.yaml

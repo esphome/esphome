@@ -92,11 +92,11 @@ uart_mock:
     - delay: 100ms
       inject_rx: [0xAA, 0xFF, 0x03, 0x00, 0x01, 0x02, 0x03, 0x04]
 
-    # Phase 4 (t=600ms): 75 bytes of 0xFF
+    # Phase 4 (t=450ms): 75 bytes of 0xFF, within the 250 ms the reader waits for the rest of a frame
     # The first 22 complete the truncated frame's 30 bytes without its footer, so it is
-    # dropped with an 'Invalid header/footer' warning; the rest cannot start a header and
+    # dropped with an 'Invalid footer' warning; the rest cannot start a header and
     # are dropped too, leaving the buffer empty for the recovery frame.
-    - delay: 200ms
+    - delay: 50ms
       inject_rx:
         [
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -109,7 +109,7 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 5 (t=700ms): Valid frame after the garbage - recovery test
+    # Phase 5 (t=550ms): Valid frame after the garbage - recovery test
     # The buffer is empty again, so this valid frame should parse correctly.
     #
     # Target 1: X=300mm, Y=400mm, Speed=30mm/s (moving away), Res=100mm

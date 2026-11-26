@@ -51,8 +51,10 @@ class Wiznet6300NoSPI : public Wiznet6300 {
 using Wiznet6300lwIPFixed = LwipIntfDev<Wiznet6300NoSPI>;
 #elif defined(USE_ETHERNET_ENC28J60)
 #include <ENC28J60lwIP.h>
+#elif defined(USE_ETHERNET_USB)
+#include <NCMEthernetlwIP.h>
 #else
-#error "Unsupported RP2040 SPI Ethernet type"
+#error "Unsupported RP2040 Ethernet type"
 #endif
 #endif
 
@@ -101,6 +103,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_YT8531,
   ETHERNET_TYPE_CH390,
   ETHERNET_TYPE_KSZ8851SNL,
+  ETHERNET_TYPE_USB,
 };
 
 struct ManualIP {
@@ -340,8 +343,10 @@ class EthernetComponent final : public Component {
   Wiznet6300lwIPFixed *eth_{nullptr};
 #elif defined(USE_ETHERNET_ENC28J60)
   ENC28J60lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_USB)
+  NCMEthernetlwIP *eth_{nullptr};
 #else
-#error "Unsupported RP2040 SPI Ethernet type"
+#error "Unsupported RP2040 Ethernet type"
 #endif
   uint32_t last_link_check_{0};
   uint8_t clk_pin_;

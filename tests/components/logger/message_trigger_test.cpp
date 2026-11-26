@@ -4,8 +4,6 @@
 #include <vector>
 
 #include "esphome/components/logger/logger.h"
-#include "esphome/core/automation.h"
-#include "esphome/core/base_automation.h"
 #include "esphome/core/log.h"
 
 namespace esphome::logger::testing {
@@ -33,14 +31,14 @@ struct Recorder {
 
 // An on_message automation at LEVEL whose actions record into `rec`
 template<uint8_t LEVEL> struct OnMessage {
-  OnMessage(Logger *logger, Recorder *rec) : trigger(logger, LEVEL), rec(rec) {
-    this->automation.add_action(&this->action);
+  OnMessage(Logger *logger, Recorder *rec) {
+    recorder = rec;
+    logger->add_log_callback(nullptr, on_message_callback<LEVEL, record>);
   }
-  LoggerMessageTrigger trigger;
-  Recorder *rec;
-  LambdaAction<uint8_t, const char *, const char *> action{
-      [this](uint8_t level, const char *tag, const char *message) { this->rec->record(level, tag, message); }};
-  Automation<uint8_t, const char *, const char *> automation{&this->trigger};
+  static void record(const uint8_t &level, const char *const &tag, const char *const &message) {
+    recorder->record(level, tag, message);
+  }
+  static inline Recorder *recorder{nullptr};
 };
 
 class LoggerMessageTriggerTest : public ::testing::Test {
