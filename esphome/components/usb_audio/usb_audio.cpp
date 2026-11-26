@@ -246,7 +246,16 @@ esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_
   return err;
 }
 
-esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms) {
+// Takes back what a failed write counted. Never wraps: a count stuck near 2^32 would leave the speaker no room for
+// good.
+static void uncount(std::atomic<uint32_t> &count, uint32_t length) {
+  uint32_t current = count.load();
+  while (!count.compare_exchange_weak(current, current > length ? current - length : 0)) {
+  }
+}
+
+esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms,
+                                           std::atomic<uint32_t> &ring_bytes, std::atomic<uint32_t> *ring_padding) {
   if (!this->enter_driver_(timeout_ms)) {
     // A non-blocking caller retries later.
     return ESP_ERR_TIMEOUT;
@@ -256,8 +265,22 @@ esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, u
     this->driver_users_.fetch_sub(1);
     return ESP_ERR_INVALID_STATE;
   }
+  // Counted before the write, since the driver submits transfers inside it and on_transfer_taken() must see these
+  // bytes then. Not counted while waiting for a control request above: a transfer the driver parks meanwhile would be
+  // taken off bytes it does not hold yet.
+  ring_bytes.fetch_add(length);
+  if (ring_padding != nullptr) {
+    ring_padding->fetch_add(length);
+  }
   esp_err_t err = uac_host_device_write(handle, const_cast<uint8_t *>(data), static_cast<uint32_t>(length),
                                         pdMS_TO_TICKS(timeout_ms));
+  if (err != ESP_OK) {
+    // The driver writes whole chunks only, so a failed write stored nothing.
+    uncount(ring_bytes, length);
+    if (ring_padding != nullptr) {
+      uncount(*ring_padding, length);
+    }
+  }
   this->driver_users_.fetch_sub(1);
   if (err == ESP_FAIL || err == ESP_ERR_INVALID_STATE) {
     // Ring buffer full or stream inactive; report as timeout so callers back off and retry.

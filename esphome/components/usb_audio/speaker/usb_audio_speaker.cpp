@@ -299,20 +299,8 @@ size_t USBAudioSpeaker::ring_room_() const {
 }
 
 esp_err_t USBAudioSpeaker::write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding) {
-  // Counted first: the driver submits transfers inside the write, and on_transfer_taken() must see these bytes then.
-  // A failed write stores nothing, since the driver only writes whole chunks.
-  this->ring_bytes_.fetch_add(length);
-  if (padding) {
-    this->ring_padding_.fetch_add(length);
-  }
-  const esp_err_t err = this->parent_->write_speaker(data, length, timeout_ms);
-  if (err != ESP_OK) {
-    this->ring_bytes_.fetch_sub(length);
-    if (padding) {
-      this->ring_padding_.fetch_sub(length);
-    }
-  }
-  return err;
+  return this->parent_->write_speaker(data, length, timeout_ms, this->ring_bytes_,
+                                      padding ? &this->ring_padding_ : nullptr);
 }
 
 void USBAudioSpeaker::pad_with_silence_() {
