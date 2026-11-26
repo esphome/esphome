@@ -19,7 +19,7 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
-#ifdef USE_OTA_STATE_LISTENER
+#ifdef USE_TOPTRONIC_OTA_PAUSE
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
@@ -205,7 +205,7 @@ class TopTronicButton final : public button::Button, public TopTronicInput {
 #endif
 
 class TopTronic : public Component
-#ifdef USE_OTA_STATE_LISTENER
+#ifdef USE_TOPTRONIC_OTA_PAUSE
     ,
                   public ota::OTAGlobalStateListener
 #endif
@@ -233,7 +233,7 @@ class TopTronic : public Component
   void setup() override;
   void loop() override;
   void dump_config() override;
-#ifdef USE_OTA_STATE_LISTENER
+#ifdef USE_TOPTRONIC_OTA_PAUSE
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
 #endif
 
