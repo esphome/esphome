@@ -42,3 +42,21 @@ wave on the same pad no longer reaches the input (the pad reads 0).
 Compare lock lists between builds: `usb_serial_jtag` holds `NO_LIGHT_SLEEP` by itself. For a soak that the USB console
 must not keep awake, set `logger: hardware_uart: UART0`, dump the locks into `open_memstream()` and log the SLEEP,
 CPU_MAX and light sleep count lines, read over the API.
+
+## ESP32-S3 on native USB: no sleep, or no port (#21074)
+
+- `esp32_power_management` sets `CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION=y` (a user `sdkconfig_options: n` loses), so
+  while the USB Serial/JTAG sees the host, the `usb_serial_jtag` NO_LIGHT_SLEEP lock is held: 240 s with sleep allowed
+  gave 4 light sleeps and SLEEP 0 %. Any S3, C3 or C6 on USB Serial/JTAG measures nothing unless that is turned off.
+- With it turned off (the line edited in both trees) the S3 sleeps and the port vanishes, and it does not come back
+  when the firmware takes a permanent NO_LIGHT_SLEEP lock afterwards: a macOS host disables the root port and the
+  device never re-enumerates. A port on the computer itself cannot be power cycled with uhubctl; only a replug
+  recovers it.
+- Also tried: 20 s awake, 20 s sleep allowed, totals saved in RTC_NOINIT memory, then the D+/D- pull override
+  (pull-ups off, pull-downs on) for 300 ms through the `usb_serial_jtag_ll_phy_*` / `usb_fsls_phy_ll` calls and
+  `esp_restart()`. The port stayed listed through the window and vanished at the reconnect, never to return.
+- So for a light sleep measurement on these chips: put the board on a uhubctl-capable hub, or log over UART0 through
+  a USB-UART adapter (`logger: hardware_uart: UART0`) and read the totals over the API (Power lock check above).
+  Prove any reconnect trick on a 20 s window before the real run.
+- Recovery after a replug: `esptool --after no_reset chip-id` within the first 20 s (while the lock is still held)
+  parks the chip in the ROM loader; then flash.

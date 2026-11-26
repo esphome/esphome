@@ -69,55 +69,69 @@ TEST_F(TextFilterTest, TimeoutSendsTheConfiguredValue) {
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "Offline"}));
 }
 
-TEST_F(TextFilterTest, ResetChainMakesTheFiltersBehaveAsAtBoot) {
-  TimeoutThrottleFilter combined(1000, PRIORITIZED);
-  ThrottleFilter throttle(1000);
-  this->sensor_.add_filters({&combined, &throttle});
+TEST_F(TextFilterTest, EveryFilterRunsInOrderThenTheSensorGetsTheValue) {
+  // Each step only gives this result in this order, and only if none is skipped
+  AppendFilter append_b("b");
+  ToUpperFilter upper;
+  AppendFilter append_c("c");
+  this->sensor_.add_filters({&append_b, &upper, &append_c});
+  this->sensor_.publish_state("a");
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"ABc"}));
+}
+
+// A timeout that is not the last filter sends its value on through the rest of the chain
+TEST_F(TextFilterTest, TimeoutBeforeTheLastSendsThroughTheChain) {
+  TimeoutFilterConfigured timeout(1000, "offline");
+  ToUpperFilter upper;
+  this->sensor_.add_filters({&timeout, &upper});
   this->publish_at_(1000, "a");
-  this->publish_at_(1200, "b");  // held by the throttle
-  combined.reset_chain();
-  EXPECT_TRUE(combined.is_idle());  // no timeout is left to send "b" later
-  this->publish_at_(1300, "c");     // passes at once, as the first value after boot
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "c"}));
+  loop_at(timeout, 2000);
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"A", "OFFLINE"}));
 }
 
-TEST_F(TextFilterTest, DetachAndAttachDoNothingWithoutFilters) {
-  this->publish_at_(1000, "a");
-  EXPECT_EQ(this->sensor_.detach_filters(), nullptr);
-  this->sensor_.attach_filters(nullptr);
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a"}));
-}
-
-TEST_F(TextFilterTest, DetachSendsNothingWhenTheStateIsTheRawValue) {
-  ThrottleFilter throttle(1000);
-  this->sensor_.add_filter(&throttle);
-  this->publish_at_(1000, "a");  // passes unchanged
-  EXPECT_EQ(this->sensor_.detach_filters(), &throttle);
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a"}));
-}
-
-TEST_F(TextFilterTest, DetachSendsTheRawValueWhenAFilterChangedIt) {
-  AppendFilter append("!");
-  this->sensor_.add_filter(&append);
-  this->publish_at_(1000, "a");
-  this->sensor_.detach_filters();
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a!", "a"}));
-}
-
-TEST_F(TextFilterTest, DetachSendsTheHeldValueAndAttachFiltersTheCurrentOne) {
+TEST_F(TextFilterTest, PublishUnfilteredWithoutFiltersIsAPublish) {
   int raw_calls = 0;
   this->sensor_.add_on_raw_state_callback([&raw_calls](const std::string &) { raw_calls++; });
-  ThrottleFilter throttle(1000);
+  this->sensor_.publish_state_unfiltered("a");
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a"}));
+  EXPECT_EQ(raw_calls, 1);
+}
+
+TEST_F(TextFilterTest, PublishUnfilteredSkipsTheFilters) {
+  int raw_calls = 0;
+  this->sensor_.add_on_raw_state_callback([&raw_calls](const std::string &) { raw_calls++; });
   AppendFilter append("!");
-  this->sensor_.add_filters({&throttle, &append});
-  this->publish_at_(1000, "a");
-  this->publish_at_(1200, "b");  // held by the throttle
-  Filter *filters = this->sensor_.detach_filters();
-  this->publish_at_(1300, "c");  // unfiltered
-  this->sensor_.attach_filters(filters);
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a!", "b", "c", "c!"}));
-  EXPECT_EQ(raw_calls, 3);  // attaching runs "c" through the filters without a second raw callback
-  EXPECT_EQ(this->sensor_.get_raw_state(), "c");
+  this->sensor_.add_filter(&append);
+  this->sensor_.publish_state("a");
+  this->sensor_.publish_state_unfiltered("b");
+  EXPECT_EQ(this->sensor_.get_raw_state(), "b");
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a!", "b"}));
+  EXPECT_EQ(raw_calls, 2);
+}
+
+// A raw callback that publishes again wins: the outer call does not overwrite it with its own value
+TEST_F(TextFilterTest, PublishUnfilteredKeepsValueFromRawCallback) {
+  AppendFilter append("!");
+  this->sensor_.add_filter(&append);
+  this->sensor_.add_on_raw_state_callback([this](const std::string &state) {
+    if (state == "a")
+      this->sensor_.publish_state_unfiltered("b");
+  });
+  this->sensor_.publish_state_unfiltered("a");
+  EXPECT_EQ(this->sensor_.state, "b");
+  EXPECT_EQ(this->sensor_.get_raw_state(), "b");
+}
+
+// The raw state goes through the filters again, and the raw callbacks are not called
+TEST_F(TextFilterTest, ReapplyFiltersSkipsRawCallbacks) {
+  int raw_calls = 0;
+  this->sensor_.add_on_raw_state_callback([&raw_calls](const std::string &) { raw_calls++; });
+  AppendFilter append("!");
+  this->sensor_.add_filter(&append);
+  this->sensor_.publish_state_unfiltered("a");
+  this->sensor_.reapply_filters();
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "a!"}));
+  EXPECT_EQ(raw_calls, 1);
 }
 
 // Feeds the same values to the timeout + throttle chain and to the merged filter

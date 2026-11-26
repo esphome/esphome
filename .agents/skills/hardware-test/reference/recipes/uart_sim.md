@@ -122,3 +122,31 @@ hides nothing. `drive.py HOST LOG RUNS [GAP]` presses Run.
 - On a real radar, `soak.py HOST SECONDS OUT` counts state updates per entity and keeps the W and E log lines across
   reconnects; compare a soak per build. Use `ld2450/zonedrive.py` for LD2450 zone readbacks. LD2412 gate thresholds
   are read back only at boot, so check a write by setting it, rebooting the ESP and reading it, then restore it.
+
+## PMS5003T fed from the host without wires, and UART RX under power management (#23038)
+
+`scripts/uart_sim/pms_feed/`: on an ESP32 devkit the USB adapter's TX also reaches GPIO3, so a second hardware UART
+with `rx_pin: GPIO3` (TX GPIO4) receives what the host writes while the logger stays on UART0 at 9600: one port at
+9600 reads the logs and carries the frames. `pmsfeed.py PORT SECONDS OUT --reset` sends one PMS5003T frame per
+second (PM1.0 = frame number), captures the log and prints the feed, parse and warning counts; `pms-common.yaml`
+counts the pm_1_0 publishes on the device. `pms-dut.yaml` is the plain build, `pms-dfs.yaml` adds frequency scaling
+(`enable_light_sleep: true` for the light sleep case) and `pms-manual-pm.yaml` calls `esp_pm_configure()` by hand
+(`pmh.hpp`) for a tree without `esp32_power_management`. Run both power management builds with `--expect-pm`,
+which fails unless the capture proves power management was on (add `--expect-light-sleep` for the light sleep
+case); an `esp_pm_configure()` failure always fails.
+
+- The plain build parses every frame (run it with `--expect-all 0`); frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
+  classic devkit, has the numbers and the REF_TICK workaround).
+
+## virtual_uart: sensors without any UART (#20428)
+
+`scripts/uart_sim/virtual_uart/`: `vu-common.yaml` and `vu.hpp` put an sds011 and an mhz19 on `virtual_uart` buses.
+`on_tx` models the mhz19 (collects 9 bytes, answers GET_PPM with 400 + n*37 ppm), and the sds011 gets a static frame
+and a lambda frame every 2 s. It also has an overflow round (21 B dropped, 20 B exact fit, 1 B dropped), a 128 B ring
+with no reader read back as 0..127 every 200 ms, and a write to the bus's own UART from `on_tx`. Counters are logged
+as `SUM` lines every 10 s, so early boot logs lost on a USB CDC port do not matter. `drive.py HOST SECONDS OUT`
+records API states and logs. No wiring; `vu-esp8266.yaml`, `vu-c3.yaml` and `vu-pico.yaml` build it per platform.
+
+- `discard_available()` is on `UARTDevice`, not on the component; drain with `read_array` in a harness.
+- A RP2040 build with only virtual buses still links arduino-pico `SerialUART` (about 2 KB flash, 400 B RAM),
+  because `uart_component_rp2.cpp` is compiled.

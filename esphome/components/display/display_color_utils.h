@@ -41,6 +41,16 @@ inline Color apply_color_order(Color color, ColorOrder order) {
   }
 }
 
+/** Rec.601 luma weights (0.299/0.587/0.114), scaled by 256 */
+static constexpr uint16_t REC601_LUMA_R = 77;
+static constexpr uint16_t REC601_LUMA_G = 150;
+static constexpr uint16_t REC601_LUMA_B = 29;
+
+/** Rec.601 luma of an RGB color, for optimum perceptual brightness */
+constexpr uint8_t rec601_luma(Color color) {
+  return (uint8_t) ((REC601_LUMA_R * color.r + REC601_LUMA_G * color.g + REC601_LUMA_B * color.b + 128u) >> 8);
+}
+
 class ColorUtil {
  public:
   /// Reads one packed pixel of the given bitness from a source buffer into the
@@ -149,10 +159,8 @@ class ColorUtil {
         return color_to_565(color);
     }
   }
-  static uint32_t color_to_grayscale4(Color color) {
-    uint32_t gs4 = esp_scale8(color.white, 15);
-    return gs4;
-  }
+  /// The brighter of the white channel (grayscale colors such as `white: 50%`) and the RGB luma, as 4 bits.
+  static uint32_t color_to_grayscale4(Color color) { return esp_scale8(std::max(color.white, rec601_luma(color)), 15); }
   /***
    * Converts a Color value to an 8bit index using a 24bit 888 palette.
    * Uses euclidiean distance to calculate the linear distance between
@@ -201,16 +209,6 @@ class ColorUtil {
     return color;
   }
 };
-
-/** Rec.601 luma weights (0.299/0.587/0.114), scaled by 256 */
-static constexpr uint16_t REC601_LUMA_R = 77;
-static constexpr uint16_t REC601_LUMA_G = 150;
-static constexpr uint16_t REC601_LUMA_B = 29;
-
-/** Rec.601 luma of an RGB color, for optimum perceptual brightness */
-constexpr uint8_t rec601_luma(Color color) {
-  return (uint8_t) ((REC601_LUMA_R * color.r + REC601_LUMA_G * color.g + REC601_LUMA_B * color.b + 128u) >> 8);
-}
 
 /** Map an RGB color to a single monochrome bit: 1 = white, 0 = black */
 constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }

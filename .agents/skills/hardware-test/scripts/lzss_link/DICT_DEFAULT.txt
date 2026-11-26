@@ -1,0 +1,1 @@
+{"name":"","value":,"state":"ON","OFF","unit":"","id":"","type":"temperature","humidity","time":"","status":"ok","error":null,"enabled":true,"false},{"":[{""}]}

@@ -11,7 +11,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["duco"]
-CODEOWNERS = ["@kokx"]
+CODEOWNERS = ["@kokx", "@w1ll14m"]
 
 # Same order as MODE_CODES in select.cpp
 DUCO_MODE_OPTIONS = [

@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
+    CONF_NUMBER,
     CONF_POLLING_INTERVAL,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
@@ -53,12 +54,15 @@ from .const import (
     CONF_ROUTER,
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
     KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeNumber,
 )
 from .const_esp32 import (
     ACCESS,
@@ -351,8 +355,14 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
+    ep_ref: dict[str, Any] = {}
+    config[KEY_ZIGBEE_EP] = ep_ref
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    add_ep(
+        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
+    )
+    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
 
@@ -387,6 +397,16 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
         ep = copy.deepcopy(BINARY_OUTPUT_EP)
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
+def validate_light_esp32(config: ConfigType) -> ConfigType:
+    # Implemented in #22283
+    for key in (CONF_USE_DEVICE_TYPE, CONF_REPORT, CONF_ENDPOINT):
+        if key in config:
+            raise cv.Invalid(
+                f"Zigbee option '{key}' is not supported on lights yet", path=[key]
+            )
     return config
 
 
@@ -516,6 +536,26 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
+    zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ZIGBEE_NUMBER],
+        zb,
+        config[KEY_ZIGBEE_EP][CONF_NUMBER],
+        entity,
+    )
+    await cg.register_component(var, {})
+    if (report := config.get(CONF_REPORT, "default")) not in (
+        "default",
+        "coordinator",
+    ):
+        cg.add(var.set_report(report))
+
+
+async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
+    """Placeholder: lights are not exposed over Zigbee yet."""
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(
