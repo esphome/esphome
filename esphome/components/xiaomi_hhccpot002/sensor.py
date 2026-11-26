@@ -5,6 +5,8 @@ from esphome.const import (
     CONF_CONDUCTIVITY,
     CONF_MAC_ADDRESS,
     CONF_MOISTURE,
+    DEVICE_CLASS_CONDUCTIVITY,
+    DEVICE_CLASS_MOISTURE,
     ICON_FLOWER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
@@ -17,7 +19,7 @@ AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_hhccpot002_ns = cg.esphome_ns.namespace("xiaomi_hhccpot002")
 XiaomiHHCCPOT002 = xiaomi_hhccpot002_ns.class_(
-    "XiaomiHHCCPOT002", xiaomi_ble.XiaomiDevice, cg.Component
+    "XiaomiHHCCPOT002", xiaomi_ble.XiaomiDevice
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -30,23 +32,23 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
                 icon=ICON_FLOWER,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CONDUCTIVITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 

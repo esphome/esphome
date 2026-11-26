@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_DISCONNECTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -11,8 +12,6 @@ from esphome.types import ConfigType
 from . import CONF_TCP_UART_ID, TcpUart
 
 DEPENDENCIES = ["tcp_uart"]
-
-CONF_DISCONNECTS = "disconnects"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),

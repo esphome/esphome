@@ -1,0 +1,22 @@
+# ESP8266 harness: UART0 TX is looped back into its own RX inside the chip, so the frames the case scripts write
+# reach the reader under test with no wires. Logs go over the API only.
+substitutions:
+  tx: GPIO1
+  rx: GPIO3
+
+packages:
+  base: !include lfh-base.yaml
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          USC0(0) |= (1 << UCLBE);
+          ESP_LOGI("harness", "UART0 loopback on");
+
+esp8266:
+  board: ${board}
+
+logger:
+  baud_rate: 0

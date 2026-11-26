@@ -15,10 +15,6 @@ static constexpr uint32_t NETWORK_POLL_ID = 0;
 static constexpr uint32_t NETWORK_POLL_INTERVAL_MS = 1000;
 
 void UDPComponent::setup() {
-  size_t address_count = 0;
-  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++)
-    address_count++;
-  this->sockaddrs_.init(address_count);
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
     const char *address = *it;
     SockaddrEntry entry{};
@@ -246,10 +242,18 @@ void UDPComponent::loop() {
   }
   // One byte more than the largest packet, as a read cuts a longer datagram to fit and so cannot report it
   std::array<uint8_t, MAX_PACKET_SIZE + 1> buf;
+  struct sockaddr_storage source;
   for (;;) {
     if (!this->listen_socket_->ready())
       break;
-    auto len = this->listen_socket_->read(buf.data(), buf.size());
+    socklen_t source_len = sizeof(source);
+    auto len =
+        this->listen_socket_->recvfrom(buf.data(), buf.size(), reinterpret_cast<sockaddr *>(&source), &source_len);
+    if (len < 0 && errno != EWOULDBLOCK && errno != EAGAIN) {
+      // The raw lwIP socket consumes a packet whose source address it cannot convert
+      ESP_LOGD(TAG, "Read failed: errno %d", errno);
+      break;
+    }
     if (len <= 0)
       break;
     size_t packet_len = static_cast<size_t>(len);
@@ -258,7 +262,9 @@ void UDPComponent::loop() {
       continue;
     }
     ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
+    this->rx_source_ = reinterpret_cast<sockaddr *>(&source);
     this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
+    this->rx_source_ = nullptr;
   }
 }
 

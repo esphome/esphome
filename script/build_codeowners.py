@@ -8,6 +8,7 @@ from esphome.config import get_component, get_platform
 from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
+from esphome.loader import ComponentManifest
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -43,6 +44,7 @@ CORE.config_path = root
 CORE.data[KEY_CORE] = {KEY_TARGET_FRAMEWORK: None, KEY_TARGET_PLATFORM: None}
 
 codeowners = defaultdict(list)
+components: list[tuple[str, Path, ComponentManifest]] = []
 
 for path in components_dir.iterdir():
     if not path.is_dir():
@@ -58,17 +60,20 @@ for path in components_dir.iterdir():
         )
         sys.exit(1)
 
+    components.append((name, path, comp))
+
+platform_components = {
+    name for name, _, comp in components if comp.is_platform_component
+}
+
+for name, path, comp in components:
     codeowners[f"esphome/components/{name}/*"].extend(comp.codeowners)
 
     for platform_path in path.iterdir():
-        if platform_path.name == "__init__.py":
-            # `import pkg.__init__` is valid but distinct from `import pkg`: it re-executes
-            # the component's __init__.py as a second, separate module. That's harmless for
-            # components whose top-level code is idempotent, but not guaranteed in general
-            # (e.g. code that registers into a global registry with a duplicate check), so
-            # never treat __init__.py itself as a platform candidate.
-            continue
         platform_name = platform_path.stem
+        if platform_name not in platform_components:
+            # Helper modules and scripts are not platforms, so don't import them
+            continue
         platform = get_platform(platform_name, name)
         if platform is None:
             continue

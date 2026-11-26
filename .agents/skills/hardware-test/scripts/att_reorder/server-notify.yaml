@@ -1,0 +1,45 @@
+# Peripheral (ESP32-S3) for gattcheck.py: FFF1 to FFF6 each hold their own value, FFF1, FFF2 and 2ACD can notify,
+# and FFF1 and 2ACD send a changing value every second. Substitution: name.
+esphome:
+  name: ${name}
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+esp32_ble:
+  name: ${name}
+esp32_ble_server:
+  manufacturer: ESPHome
+  model: attcheck
+  services:
+    - uuid: FFF0
+      advertise: true
+      characteristics:
+        - {id: c1, uuid: FFF1, read: true, notify: true, value: "fff1-v"}
+        - {uuid: FFF2, read: true, notify: true, value: "fff2-v"}
+        - {uuid: FFF3, read: true, value: "fff3-v"}
+        - {uuid: FFF4, read: true, value: "fff4-v"}
+        - {uuid: FFF5, read: true, value: "fff5-v"}
+        - {uuid: FFF6, read: true, value: "fff6-v"}
+    - uuid: "1826"
+      characteristics:
+        - {uuid: 2ACC, read: true, value: "2acc-v"}
+        - {id: cd, uuid: 2ACD, read: true, notify: true, value: "2acd-0"}
+  on_connect:
+    - logger.log: {format: "SRV connected", level: INFO}
+globals:
+  - {id: n, type: int, initial_value: "0"}
+interval:
+  - interval: 1s
+    then:
+      - lambda: id(n)++;
+      - ble_server.characteristic.set_value:
+          id: cd
+          value: !lambda 'std::string v = "2acd-" + to_string(id(n)); return std::vector<uint8_t>(v.begin(), v.end());'
+      - ble_server.characteristic.notify: {id: cd}
+      - ble_server.characteristic.set_value:
+          id: c1
+          value: !lambda 'std::string v = "fff1-n" + to_string(id(n)); return std::vector<uint8_t>(v.begin(), v.end());'
+      - ble_server.characteristic.notify: {id: c1}

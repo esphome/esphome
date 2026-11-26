@@ -46,6 +46,8 @@ class LightTargetStateReachedListener {
 };
 
 struct LightStateRTCState {
+  // User-provided so GCC stores the defaults instead of copying a constant, which is RAM on ESP8266
+  LightStateRTCState() {}  // NOLINT(modernize-use-equals-default)
   // Group 4-byte aligned members first
   float brightness{1.0f};
   float color_brightness{1.0f};
@@ -60,7 +62,10 @@ struct LightStateRTCState {
   // Group smaller members at the end
   ColorMode color_mode{ColorMode::UNKNOWN};
   bool state{false};
+  // Zeroed so a saved copy has no unset padding bytes
+  uint8_t reserved_[2]{};
 };
+static_assert(sizeof(LightStateRTCState) == 44, "the saved layout must not change");
 
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
@@ -223,17 +228,24 @@ class LightState : public EntityBase, public Component {
   void set_resume_effect(bool resume_effect) { this->resume_effect_ = resume_effect; }
 #endif  // USE_LIGHT_RESUME_EFFECT
 
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// Set whether setup() writes the initial state to the output, instead of the first loop().
+  void set_write_on_setup(bool write_on_setup) { this->write_on_setup_ = write_on_setup; }
+#endif  // USE_LIGHT_WRITE_ON_SETUP
+
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects() const { return !this->effects_.empty(); }
 
   /// Get all effects for this light state.
   const ConstVector<LightEffect *> &get_effects() const { return this->effects_; }
 
+#ifdef USE_LIGHT_EFFECTS
   /// Codegen only: point at the generated table of this light's effects, which must outlive it.
   /// Codegen caps the count at 65535, so an effect index always fits the uint16_t active index.
   void add_effects(LightEffect *const *effects, size_t count) {
     this->effects_ = ConstVector<LightEffect *>(effects, count);
   }
+#endif
 
   /// Get the total number of effects available for this light.
   size_t get_effect_count() const { return this->effects_.size(); }
@@ -321,6 +333,10 @@ class LightState : public EntityBase, public Component {
   // The two halves of loop()
   void apply_effect_and_transformer_();
   void write_if_pending_();
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// The write of a loop() pass, without its effect and transition steps; setup() calls it with write_on_setup.
+  virtual void write_start_up_state() { this->write_if_pending_(); }
+#endif  // USE_LIGHT_WRITE_ON_SETUP
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
@@ -369,8 +385,13 @@ class LightState : public EntityBase, public Component {
   LightOutput *output_;
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+#ifdef USE_LIGHT_EFFECTS
   /// List of effects for this light.
   ConstVector<LightEffect *> effects_;
+#else
+  // No light has effects; the effect paths fold away
+  static constexpr ConstVector<LightEffect *> effects_ PROGMEM{};
+#endif
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
 
@@ -411,8 +432,12 @@ class LightState : public EntityBase, public Component {
   const GammaTable *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
+#ifdef USE_LIGHT_EFFECTS
   /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
   uint16_t active_effect_index_{};
+#else
+  static constexpr uint16_t active_effect_index_{0};
+#endif
 #ifdef USE_LIGHT_RESUME_EFFECT
   /// The effect index that was active when the light was last turned off; shares the active index's word
   uint16_t previous_effect_index_{0};
@@ -432,6 +457,10 @@ class LightState : public EntityBase, public Component {
   /// Whether a plain turn-on restores the effect that was active when the light was turned off.
   bool resume_effect_ : 1 {false};
 #endif  // USE_LIGHT_RESUME_EFFECT
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// Whether setup() writes the initial state; the output must be set up before the light.
+  bool write_on_setup_ : 1 {false};
+#endif  // USE_LIGHT_WRITE_ON_SETUP
 };
 
 }  // namespace esphome::light
