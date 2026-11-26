@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::duco {
 
@@ -178,26 +179,21 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
+// Indexed by node type - 1 (types 1-49); type 0 wraps to a huge index and falls back to UNKNOWN too
+PROGMEM_STRING_TABLE(NodeTypeStrings, "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", "CLIMA", "UCBAT", "UC", "UCRH", "UCVOC",
+                     "UCCO2", "VLV", "VLVRH", "VLVVOC", "VLVCO2", "BOX", "SWITCH", "ACTUAT", "UCBATRH", "PWMIN", "IAV",
+                     "IAVRH", "IAVVOC", "IAVCO2", "BOILER", "TRONIC", "VLVCO2RH", "UCSUN", "UCVENT", "EAV", "EAVRH",
+                     "EAVVOC", "EAVCO2", "BSRH", "BSVOC", "BSCO2", "MOTORRLY", "WXSENSOR", "MOTORMB", "DI", "DO",
+                     "COMM", "RLYMB", "PERILEX", "RO", "HEATODA", "AO", "CSCO2", "UNKNOWN");
+
+static_assert(NodeTypeStrings::LAST_INDEX == 49);
+
 const LogString *node_type_name(uint8_t type) {
-  const bool bs = (type & NODE_TYPE_BS) != 0;
-  switch (type & ~NODE_TYPE_BS) {
-    case 8:
-      return LOG_STR("UCBAT");
-    case 9:
-      return LOG_STR("UC");
-    case 10:
-      return bs ? LOG_STR("BSRH") : LOG_STR("UCRH");
-    case 12:
-      return bs ? LOG_STR("BSCO2") : LOG_STR("UCCO2");
-    case 13:
-      return LOG_STR("VLV");
-    case 17:
-      return LOG_STR("BOX");
-    case 18:
-      return LOG_STR("SWITCH");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  uint8_t base_type = type & ~NODE_TYPE_BS;
+  // A box sensor reports the UC type it is built on; BSRH and BSCO2 are types 35 and 37
+  if ((type & NODE_TYPE_BS) && (base_type == 10 || base_type == 12))
+    base_type += 25;
+  return NodeTypeStrings::get_log_str(base_type - 1);
 }
 
 void DucoDiscovery::setup() {

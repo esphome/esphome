@@ -33,16 +33,8 @@ static const LogString *chip_type_to_str(uint8_t chip_type) {
 // Oversampling strings indexed by Oversampling enum (0-5): NONE, X2, X4, X8, X16, X32
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "");
 
-static const LogString *oversampling_to_str(Oversampling oversampling) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
-}
-
 // IIR filter strings indexed by IIRFilter enum (0-7): OFF, 2, 4, 8, 16, 32, 64, 128
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
-
-static const LogString *iir_filter_to_str(IIRFilter filter) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(filter), IIRFilterStrings::LAST_INDEX);
-}
 
 void BMP3XXComponent::setup() {
   // Call the Device base class "initialise" function
@@ -110,7 +102,7 @@ void BMP3XXComponent::dump_config() {
                 "BMP3XX:\n"
                 "  Type: %s (0x%X)",
                 LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(IIRFilterStrings::get_log_str(this->iir_filter_)));
   if (this->operation_mode_ == NORMAL_MODE) {
     // Each data rate step doubles the period, starting from 5 ms at 200 Hz
     ESP_LOGCONFIG(TAG, "  Data Rate Period: %" PRIu32 " ms", UINT32_C(5) << this->odr_.bit.odr_sel);
@@ -118,11 +110,13 @@ void BMP3XXComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_sensor_) {
     LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
+    ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                  LOG_STR_ARG(OversamplingStrings::get_log_str(this->temperature_oversampling_)));
   }
   if (this->pressure_sensor_) {
     LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
+    ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                  LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)));
   }
 }
 

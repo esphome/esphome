@@ -173,6 +173,7 @@ class ModemComponent : public Component {
   ModemState handle_state_disconnecting_();
   /// Pause the task before the next pass, then go to state
   uint32_t next_probe_delay_();
+  bool sim_power_up_cfun1_();
   ModemState retry_(ModemState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemState next_state);
   // What the task left for loop() to do
@@ -321,6 +322,7 @@ class ModemComponent : public Component {
   bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
   bool resync_{false};        // a command timed out, so CONNECTING syncs again first
   bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
+  bool sim_rf_off_{false};    // ENABLING left the modem at CFUN=4, so a SIM that stays unready may need CFUN=1
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif

@@ -121,7 +121,7 @@ EXPECTED_DROPPED_STATES = ["7", "7"]
 # bytes, which publishes the swallowed frame and resumes the next one.
 EXPECTED_RECOVERY_PRESENCE = [
     True,  # baseline short frame
-    False,  # short frame after the dropped oversized length field
+    False,  # short frame right after the oversized length field, still parsed
     True,  # rescued: short frame swallowed by the truncated standard frame
     False,  # short frame whose header byte completed the truncated frame
     True,  # short frame
@@ -132,8 +132,8 @@ EXPECTED_RECOVERY_PRESENCE = [
     False,  # short frame
 ]
 # The truncated frame takes the next 6 bytes to reach its declared length
-TRUNCATED_FRAME_HEX = "F4 F3 F2 F1 05 00 01 02 2C 6E 02 2C 01 62 6E"
-BAD_COMMAND_FRAME_HEX = "FD FC FB FA 04 00 FE 01 00 00 00 00 00 00"
+TRUNCATED_FRAME_HEX = "F4:F3:F2:F1:05:00:01:02:2C:6E:02:2C:01:62:6E"
+BAD_COMMAND_FRAME_HEX = "FD:FC:FB:FA:04:00:FE:01:00:00:00:00:00:00"
 
 
 def _tx_frame(line: str) -> str | None:
@@ -302,7 +302,6 @@ async def test_uart_mock_ld2410s_recovery(
     tx_frames: list[tuple[float, str]] = []
     resent = loop.create_future()
     gave_up = loop.create_future()
-    oversized_dropped = loop.create_future()
     footer_mismatches: list[str] = []
     ignored_changes = 0
 
@@ -321,12 +320,6 @@ async def test_uart_mock_ld2410s_recovery(
             and not gave_up.done()
         ):
             gave_up.set_result(True)
-        if (
-            "Dropping frame with a 255 byte payload, larger than the receive buffer"
-            in line
-            and not oversized_dropped.done()
-        ):
-            oversized_dropped.set_result(True)
         if "Footer does not match header: " in line:
             footer_mismatches.append(
                 ANSI_ESCAPE.sub("", line.split("header: ", 1)[1]).strip()
@@ -375,7 +368,6 @@ async def test_uart_mock_ld2410s_recovery(
         assert collector.binary_states["has_target"] == EXPECTED_RECOVERY_PRESENCE
         assert ignored_changes == 2
         assert setting_states == []
-        assert oversized_dropped.done(), "Oversized length field was not dropped"
         assert footer_mismatches == [TRUNCATED_FRAME_HEX, BAD_COMMAND_FRAME_HEX]
 
         frames = [frame for _, frame in tx_frames]

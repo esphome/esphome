@@ -10,6 +10,8 @@ import time
 from aioesphomeapi import EntityState, TextSensorState
 import pytest
 
+from esphome.const import __version__
+
 from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -43,8 +45,17 @@ async def test_build_info(
         build_time_str_entity = require_entity(
             entities, "build_time_string", exact=True
         )
+        version_entities = {
+            name: require_entity(entities, name, exact=True)
+            for name in (
+                "version_full",
+                "version_no_hash",
+                "version_no_time",
+                "version_bare",
+            )
+        }
 
-        # Wait for all three text sensors to have valid states
+        # Wait for all text sensors to have valid states
         loop = asyncio.get_running_loop()
         states: dict[int, TextSensorState] = {}
         all_received = loop.create_future()
@@ -52,6 +63,7 @@ async def test_build_info(
             config_hash_entity.key,
             build_time_entity.key,
             build_time_str_entity.key,
+            *(entity.key for entity in version_entities.values()),
         }
 
         def on_state(state: EntityState) -> None:
@@ -104,3 +116,16 @@ async def test_build_info(
             f"compilation_time '{compilation_time}' should match "
             f"build_time_str '{build_time_str}'"
         )
+
+        # The version text sensor in each hide_hash / hide_timestamp combination
+        version_states = {
+            name: states[entity.key].state for name, entity in version_entities.items()
+        }
+        assert version_states == {
+            "version_full": (
+                f"{__version__} (config hash {config_hash}, built {build_time_str})"
+            ),
+            "version_no_hash": f"{__version__}, built {build_time_str}",
+            "version_no_time": f"{__version__} (config hash {config_hash})",
+            "version_bare": __version__,
+        }

@@ -50,3 +50,25 @@ injection) are in [fake_i2c.md](fake_i2c.md).
   rc 6 and nothing on the wire; a write+read whose address is NACKed leaves no STOP (`S 90-`), dev too.
   arduino-pico: after a register write over 256 bytes, the next empty write (a probe) sends the stale buffer to the
   failed write's address.
+
+## Simulated TCA9548A (#22827)
+
+`scripts/i2c_wire_ab/mux/`, the same A/B for the `tca9548a` hub.
+- Host: `run.sh TREE OUT [freq]` copies `test_muxab.cpp.example` into the tree's `tests/components/tca9548a/` and runs
+  the unit test: an upstream bus that models the mux at 0x70 with devices behind its channels and records the wire
+  plus every frequency switch (`F<kHz>`); `freq` builds with `I2C_PORT_FREQUENCY_COUNT=4`. `cmp.py BASE PR` compares
+  rc and stream per case and lists the allocating calls.
+- Device: `muxdev.hpp` sweeps register writes through a channel (8 and 16 bit registers up to 300 bytes, reads, 112
+  probes, a channel write followed by a root bus probe), then rounds of 500 SSD1306 shaped 24 byte writes with malloc
+  and free heap counts. `pd.yaml` runs it on a classic ESP32 against `pdmux.hpp` (the `dev/pdslave.hpp` target
+  extended to a mux at 0x70 with devices at 0x3C and 0x48, and the SCL rate per transaction as `@<kHz>`); `d1.yaml` on
+  an ESP8266 puts a `MuxShim` bus that answers 0x70 in front of the real Wire bus. Pass `-s xflags
+  -DMX_WRITE_PREFIXED` on trees that have `I2CBus::write_prefixed` (#22780; the host harness needs it in both trees),
+  and `-s xflags "-DMX_LOAD_ONLY -DMX_GAP_US=2000"` to run only the load rounds. `devruns.sh NAME YAML PORT
+  [SECONDS]` uploads and takes three captures; judge with `mxmaj.py BASE PR` (majority per case over the captures
+  that exist, so one capture each also works).
+- Target gotchas: clearing the GPIO status after a transaction loses a START that follows within microseconds, so the
+  ISR keeps listening 500 us after a STOP. Chaining transactions in the ISR must stay under the interrupt watchdog
+  (`CONFIG_ESP_INT_WDT_TIMEOUT_MS: "1000"`, the ISR gives up at 600 ms). Back to back writes still drop transactions
+  on both builds; a 2 ms gap does not. On ESP32 count mallocs only in the calling task (`xTaskGetCurrentTaskHandle`),
+  since other tasks run on the other core.

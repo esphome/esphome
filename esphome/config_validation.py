@@ -298,6 +298,8 @@ RESERVED_IDS = [
     "xor",
     "xor_eq",
     "App",
+    "app_lists",
+    "AppList",
     "pinMode",
     "delay",
     "delayMicroseconds",
@@ -2107,6 +2109,38 @@ def enum(mapping, **kwargs):
         value = add_class_to_obj(value, core.EnumValue)
         value.enum_value = mapping[value]
         return value
+
+    return validator
+
+
+_TIME_PERIOD_TO_INT: dict[str, Callable[[typing.Any], int]] = {
+    "ms": lambda value: positive_time_period_milliseconds(value).total_milliseconds,
+    "us": lambda value: positive_time_period_microseconds(value).total_microseconds,
+}
+
+
+def time_period_enum(
+    mapping: dict[int, typing.Any], unit: typing.Literal["ms", "us"] = "ms"
+) -> Callable[[typing.Any], core.EnumValue]:
+    """Validate a time period that must be one of the keys of ``mapping``.
+
+    The keys are whole numbers of ``unit``. Returns the same value as
+    ``enum(mapping, int=True)`` given that number.
+    """
+    to_int = _TIME_PERIOD_TO_INT[unit]
+    enum_validator = enum(mapping, int=True)
+
+    @schema_extractor("enum")
+    def validator(value: typing.Any) -> core.EnumValue | dict[str, None]:
+        if value is SCHEMA_EXTRACT:
+            return {f"{key}{unit}": None for key in mapping}
+        number = to_int(value)
+        if number not in mapping:
+            options = ", ".join(f"{key}{unit}" for key in mapping)
+            raise Invalid(
+                f"Unknown value '{number}{unit}', valid options are {options}"
+            )
+        return enum_validator(number)
 
     return validator
 
