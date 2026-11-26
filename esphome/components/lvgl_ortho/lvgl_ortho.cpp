@@ -80,7 +80,7 @@ void LvglOrtho::setup() {
     return;
   }
   const lv_color_format_t cf = lv_display_get_color_format(this->disp_);
-  if (lv_color_format_get_size(cf) != 2) {
+  if (cf != LV_COLOR_FORMAT_RGB565) {
     ESP_LOGE(TAG, "LVGL draws in %u bytes a pixel; lvgl_ortho is written for 16 bits (color_depth: 16)",
              (unsigned) lv_color_format_get_size(cf));
     this->mark_failed();
@@ -92,8 +92,21 @@ void LvglOrtho::setup() {
   // rows follow each other -- and the panel's own frame buffers have none.
   this->stride_ = (uint32_t) this->width_ * 2;
 
+  const size_t size = ((size_t) this->stride_ * this->height_ + LINE - 1) & ~(LINE - 1);
+  this->buf_ = (uint8_t *) heap_caps_aligned_alloc(LINE, size, MALLOC_CAP_SPIRAM);
+  if (this->buf_ == nullptr) {
+    ESP_LOGE(TAG, "No %u bytes of PSRAM for the panel-sized buffer", (unsigned) size);
+    this->mark_failed();
+    return;
+  }
+  if (!lv_draw_ortho_init()) {
+    heap_caps_free(this->buf_);
+    this->buf_ = nullptr;
+    ESP_LOGE(TAG, "Could not allocate orthogonal renderer resources");
+    this->mark_failed();
+    return;
+  }
   instance_ = this;
-  lv_draw_ortho_init();
   if (this->ppa_) {
     const esp_err_t err = lv_draw_ortho_ppa_init();
     this->ppa_on_ = err == ESP_OK;
@@ -138,18 +151,9 @@ void LvglOrtho::setup() {
       ESP_LOGW(TAG, "cores: 2 refused (LVGL built without an OS, or no internal RAM for the tile): one core draws");
     }
   }
-  if (!this->use_panel_buffers_()) {
-    const size_t size = ((size_t) this->stride_ * this->height_ + LINE - 1) & ~(LINE - 1);
-    this->buf_ = (uint8_t *) heap_caps_aligned_alloc(LINE, size, MALLOC_CAP_SPIRAM);
-    if (this->buf_ == nullptr) {
-      ESP_LOGE(TAG, "No %u bytes of PSRAM for the panel-sized buffer", (unsigned) size);
-      this->mark_failed();
-      return;
-    }
-    memset(this->buf_, 0, size);
-    lv_display_set_buffers_with_stride(this->disp_, this->buf_, nullptr, size, this->stride_,
-                                       LV_DISPLAY_RENDER_MODE_DIRECT);
-  }
+  memset(this->buf_, 0, size);
+  lv_display_set_buffers_with_stride(this->disp_, this->buf_, nullptr, size, this->stride_,
+                                     LV_DISPLAY_RENDER_MODE_DIRECT);
   lv_display_set_flush_cb(this->disp_, flush_cb);
   // Counted against the screens shown: a refresh that draws without being
   // shown is a picture turned for nothing.

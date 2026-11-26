@@ -211,7 +211,7 @@ void lv_draw_ortho_set_filler(lv_draw_ortho_fill_cb_t fill);
 bool lv_draw_ortho_set_cores(uint32_t cores);
 
 /** Create the draw unit. Call after `lv_init()`. */
-void lv_draw_ortho_init(void);
+bool lv_draw_ortho_init(void);
 
 void lv_draw_ortho_set_copy_cb(lv_draw_ortho_copy_cb_t cb);
 

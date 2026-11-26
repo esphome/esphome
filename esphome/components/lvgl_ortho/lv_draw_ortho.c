@@ -2453,25 +2453,38 @@ static int32_t delete_cb(lv_draw_unit_t *draw_unit) {
   return 0;
 }
 
-void lv_draw_ortho_init(void) {
+bool lv_draw_ortho_init(void) {
   if (g_unit)
-    return;
+    return true;
+
+  bool internal = false;
+  void *tile = tile_alloc(LV_DRAW_ORTHO_TILE_BYTES + TILE_ALIGN, &internal);
+  if (tile == NULL)
+    return false;
+  job_t *jobs = lv_malloc(sizeof(job_t) * LV_DRAW_ORTHO_MAX_BATCH);
+  if (jobs == NULL) {
+    tile_free(tile);
+    return false;
+  }
   ortho_unit_t *u = lv_draw_create_unit(sizeof(ortho_unit_t));
+  if (u == NULL) {
+    lv_free(jobs);
+    tile_free(tile);
+    return false;
+  }
   u->text_mutex_ready = lv_mutex_init(&u->text_mutex) == LV_RESULT_OK;
   u->base.name = "ORTHO";
   u->base.evaluate_cb = evaluate;
   u->base.dispatch_cb = dispatch;
   u->base.delete_cb = delete_cb;
-  bool internal = false;
-  u->tile_alloc[0] = tile_alloc(LV_DRAW_ORTHO_TILE_BYTES + TILE_ALIGN, &internal);
-  LV_ASSERT_MALLOC(u->tile_alloc[0]);
+  u->tile_alloc[0] = tile;
   g_tile_internal = internal;
-  u->tile[0] = tile_aligned(u->tile_alloc[0]);
+  u->tile[0] = tile_aligned(tile);
   u->tile_bytes = LV_DRAW_ORTHO_TILE_BYTES;
-  u->jobs = lv_malloc(sizeof(job_t) * LV_DRAW_ORTHO_MAX_BATCH);
-  LV_ASSERT_MALLOC(u->jobs);
+  u->jobs = jobs;
   g_unit = u;
   more_tiles(u);
+  return true;
 }
 
 void lv_draw_ortho_set_filler(lv_draw_ortho_fill_cb_t fill) { g_fill = fill; }
