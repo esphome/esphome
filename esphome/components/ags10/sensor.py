@@ -8,13 +8,8 @@ from esphome.const import (
     CONF_TVOC,
     CONF_VALUE,
     CONF_VERSION,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_RADIATOR,
     ICON_RESTART,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_OHM,
-    UNIT_PARTS_PER_BILLION,
 )
 from esphome.types import ConfigType
 
@@ -29,22 +24,14 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AGS10Component),
-            cv.Required(CONF_TVOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Required(CONF_TVOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
             cv.Optional(CONF_VERSION): sensor.sensor_schema(
                 icon=ICON_RESTART,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_RESISTANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
+                kind=sensor.RESISTANCE,
                 icon=ICON_RESTART,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }

@@ -9,6 +9,6 @@ sensor:
     id: source
     on_value_range:
       - trigger_id: range_trigger
-        above: !lambda "return id(range_trigger).is_action_running() ? 100.0f : 10.0f;"
+        above: !lambda "return id(range_trigger).is_ready() ? 100.0f : 10.0f;"
         then:
           - delay: 1s

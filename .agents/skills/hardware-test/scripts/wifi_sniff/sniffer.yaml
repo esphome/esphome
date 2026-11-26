@@ -1,0 +1,21 @@
+# ESP32-C3 (any ESP32 on ESP-IDF works) as a sniffer for the frames TARGET sends. Set the target's MAC and the
+# channel of its AP (0 hops and locks on the target). No wifi:, api: or ota:; read the SNIF lines from serial.
+substitutions:
+  target: "02:00:00:00:00:01"
+esphome:
+  name: wsniff
+esp32:
+  variant: esp32c3
+  framework:
+    type: esp-idf
+external_components:
+  - source:
+      type: local
+      path: ext
+logger:
+  hardware_uart: UART0
+  level: INFO
+  tx_buffer_size: 1024
+wsniff:
+  channel: 6
+  target: ${target}

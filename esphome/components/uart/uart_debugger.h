@@ -3,7 +3,6 @@
 #ifdef USE_UART_DEBUGGER
 
 #include <vector>
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/string_ref.h"
 #include "uart.h"
@@ -18,7 +17,7 @@ namespace esphome::uart {
 /// 'appropriate time' means exactly, is determined by a number of
 /// configurable constraints. E.g. when a given number of bytes is gathered
 /// and/or when no more data has been seen for a given time interval.
-class UARTDebugger final : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, StringRef> {
+class UARTDebugger : public FiringComponent<UARTDirection, const std::vector<uint8_t> &, StringRef> {
  public:
   explicit UARTDebugger(UARTComponent *parent);
   void loop() override;

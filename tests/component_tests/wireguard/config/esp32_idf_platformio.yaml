@@ -1,0 +1,8 @@
+packages:
+  common: !include libsodium_common.yaml
+
+esp32:
+  variant: esp32
+  toolchain: platformio
+  framework:
+    type: esp-idf

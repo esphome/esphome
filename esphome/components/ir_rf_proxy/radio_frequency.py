@@ -54,8 +54,8 @@ async def to_code(config: ConfigType) -> None:
     """Code generation for remote_base radio frequency platform."""
     var = await radio_frequency.new_radio_frequency(config)
 
-    if CONF_FREQUENCY in config:
-        cg.add(var.set_frequency_hz(int(config[CONF_FREQUENCY])))
+    if (frequency := config.get(CONF_FREQUENCY)) is not None:
+        cg.add(var.set_frequency_hz(int(frequency)))
 
     if CONF_REMOTE_TRANSMITTER_ID in config:
         await ir_rf_base.attach_transmitter(var, config, CONF_REMOTE_TRANSMITTER_ID)
