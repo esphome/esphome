@@ -161,7 +161,8 @@ void Canbus::loop() {
     this->frame_callbacks_.call(can_message);
   }
 
-  if (message_counter == this->max_frames_per_loop_) {
+  this->rx_capped_ = message_counter == this->max_frames_per_loop_;
+  if (this->rx_capped_) {
     ESP_LOGW(TAG,
              "Reached max_frames_per_loop=%" PRIu32 ", deferring remaining CAN frames. Some frames might be dropped",
              this->max_frames_per_loop_);
