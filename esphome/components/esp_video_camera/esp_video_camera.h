@@ -112,7 +112,7 @@ class ESPVideoCamera : public camera::Camera {
   bool start_capture_();
   void stop_capture_();
   bool schedule_uvc_capture_operation_(bool start, bool retry);
-  static void uvc_capture_task_(void *param);
+  static void uvc_capture_task(void *param);
   void stop_capture_from_loop_(bool retry);
   std::atomic<bool> uvc_capture_busy_{false};
   bool uvc_capture_start_{false};
