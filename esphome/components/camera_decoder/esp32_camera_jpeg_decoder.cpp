@@ -21,7 +21,7 @@ constexpr size_t JPEG_BUFFER_ALIGNMENT = 16;
 /// esp_new_jpeg rotates only frames whose width and height are multiples of this many pixels.
 constexpr unsigned JPEG_ROTATION_BLOCK = 8;
 
-/// Maps the configured rotation to the library's enum once, at construction.
+/// Maps the configured rotation to the library's enum when the decoder opens.
 jpeg_rotate_t rotation_to_jpeg(int degrees) {
   switch (degrees) {
     case 90:

@@ -21,8 +21,8 @@ constexpr size_t RGB888_BYTES_PER_PIXEL = 3;
 /// conversion used by the camera image processors.
 inline void rgb888_to_grayscale_in_place(uint8_t *buffer, size_t pixels) {
   // esp_jpeg_common.h documents RGB888 as R, G, B from low to high address.
-  // The destination index is always at most RGB888_BYTES_PER_PIXEL times the
-  // source index, so a forward pass never reads a pixel it has overwritten.
+  // Pixel i is written at byte i and read from byte RGB888_BYTES_PER_PIXEL * i,
+  // so a forward pass never reads a pixel it has overwritten.
   for (size_t i = 0; i < pixels; i++) {
     const uint8_t *pixel = buffer + i * RGB888_BYTES_PER_PIXEL;
     buffer[i] = static_cast<uint8_t>((pixel[0] * LUMA_RED + pixel[1] * LUMA_GREEN + pixel[2] * LUMA_BLUE) >> 8);
