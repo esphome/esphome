@@ -664,8 +664,8 @@ bool ESPVideoCamera::dequeue_capture_(v4l2_buffer &buf) {
 }
 
 bool ESPVideoCamera::valid_jpeg_(const uint8_t *data, size_t length) {
-  const bool valid = length >= 4 && data[0] == 0xFF && data[1] == 0xD8 && data[length - 2] == 0xFF &&
-                     data[length - 1] == 0xD9;
+  const bool valid =
+      length >= 4 && data[0] == 0xFF && data[1] == 0xD8 && data[length - 2] == 0xFF && data[length - 1] == 0xD9;
   if (!valid && !this->warned_invalid_frame_) {
     this->warned_invalid_frame_ = true;
     ESP_LOGW(TAG, "Invalid JPEG frame dropped");
@@ -720,7 +720,8 @@ void ESPVideoCamera::loop_direct_capture_(uint32_t now) {
   if (buf.index < (uint32_t) this->num_capture_buffers_) {
     const auto &mapped = this->capture_buffers_[buf.index];
     const auto *data = (const uint8_t *) mapped.start;
-    if (buf.bytesused <= mapped.length && !(buf.flags & V4L2_BUF_FLAG_ERROR) && this->valid_jpeg_(data, buf.bytesused)) {
+    if (buf.bytesused <= mapped.length && !(buf.flags & V4L2_BUF_FLAG_ERROR) &&
+        this->valid_jpeg_(data, buf.bytesused)) {
       this->last_dequeue_ms_ = now;
       if (this->frame_due_(now))
         this->deliver_frame_(data, buf.bytesused, now);

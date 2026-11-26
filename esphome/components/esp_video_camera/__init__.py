@@ -266,7 +266,9 @@ def _validate_device_options(config: ConfigType) -> ConfigType:
         invalid = (CONF_USB_PERIPHERAL_MAP,)
     for key in invalid:
         if key in config:
-            raise cv.Invalid("Option is not supported for this camera device", path=[key])
+            raise cv.Invalid(
+                "Option is not supported for this camera device", path=[key]
+            )
     if CONF_XCLK_FREQUENCY in config and config.get(CONF_XCLK_PIN, -1) < 0:
         raise cv.Invalid("Requires an active xclk_pin", path=[CONF_XCLK_FREQUENCY])
     return config
@@ -294,9 +296,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.frequency, cv.int_range(min=1000000, max=40000000)
             ),
             # 0 is the High-Speed controller; a bit mask names another.
-            cv.Optional(CONF_USB_PERIPHERAL_MAP): cv.hex_int_range(
-                min=0, max=0xFF
-            ),
+            cv.Optional(CONF_USB_PERIPHERAL_MAP): cv.hex_int_range(min=0, max=0xFF),
         }
     )
     .extend(cv.ENTITY_BASE_SCHEMA)
