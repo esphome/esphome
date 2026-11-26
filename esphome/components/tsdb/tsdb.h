@@ -210,8 +210,6 @@ class TsdbComponent final : public PollingComponent {
   uint32_t dump_rows_{60};
   uint32_t dump_requested_{0};
 #endif
-  tsdbmath::MemoryMode memory_mode_{tsdbmath::MEMORY_AUTO};
-  tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   uint32_t last_reopen_{0};
   uint32_t last_sync_{0};
   uint32_t last_timestamp_{0};
@@ -237,6 +235,8 @@ class TsdbComponent final : public PollingComponent {
   esp_err_t mount_error_{ESP_OK};
   esp_err_t format_error_{ESP_OK};
 
+  tsdbmath::MemoryMode memory_mode_{tsdbmath::MEMORY_AUTO};
+  tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   bool format_on_first_boot_{true};
   bool recreate_on_schema_change_{false};
   bool require_time_{true};
