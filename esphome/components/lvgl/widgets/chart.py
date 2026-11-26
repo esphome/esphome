@@ -90,6 +90,7 @@ lv_chart_t = LvType("lv_chart_t")
 lv_chart_series_t = cg.global_ns.struct("lv_chart_series_t")
 chart_point_value = lvgl_ns.chart_point_value
 chart_point_slot = lvgl_ns.chart_point_slot
+chart_stacked_point_value = lvgl_ns.chart_stacked_point_value
 chart_set_next_point = lvgl_ns.chart_set_next_point
 chart_set_point = lvgl_ns.chart_set_point
 
@@ -329,14 +330,8 @@ def x_axis_error(chart_type: str, config: ConfigType) -> cv.Invalid | None:
     return None
 
 
-def _negative_stacked_value(chart_type: str, values: list | None) -> bool:
-    """LVGL stacks bars only for values of 0 or more."""
-    return chart_type == "LV_CHART_TYPE_STACKED" and any(
-        isinstance(value, (int, float)) and value < 0 for value in values or ()
-    )
-
-
-STACKED_NEGATIVE = "A stacked chart can't show negative values"
+def is_stacked(chart_config: ConfigType) -> bool:
+    return chart_config[CONF_TYPE] == "LV_CHART_TYPE_STACKED"
 
 
 def validate_chart(config: ConfigType) -> ConfigType:
@@ -362,8 +357,6 @@ def validate_chart(config: ConfigType) -> ConfigType:
                 "Only a scatter chart series can use the secondary X axis",
                 path=[CONF_SERIES, index, CONF_X_AXIS],
             )
-        if _negative_stacked_value(config[CONF_TYPE], values):
-            raise cv.Invalid(STACKED_NEGATIVE, path=[CONF_SERIES, index, CONF_VALUES])
         key, data = (CONF_POINTS, points) if is_scatter else (CONF_VALUES, values)
         if data is not None and len(data) > point_count:
             raise cv.Invalid(
@@ -397,12 +390,6 @@ def validate_series_action(
                 f"{key} can't have more than point_count ({point_count}) entries",
                 path=[key],
             )
-    for key in (CONF_VALUE, CONF_VALUES):
-        values = config.get(key)
-        if _negative_stacked_value(
-            chart_type, values if isinstance(values, list) else [values]
-        ):
-            raise cv.Invalid(STACKED_NEGATIVE, path=[key])
     index = config.get(CONF_INDEX)
     if isinstance(index, int) and index >= point_count:
         raise cv.Invalid(
@@ -551,6 +538,7 @@ class ChartType(WidgetType):
                     series.get(CONF_VALUES, []),
                     y_scale,
                     str(series[CONF_ID]),
+                    is_stacked(config),
                 )
 
         lv.chart_refresh(w.obj)
@@ -593,11 +581,15 @@ def series_multipliers(
     return axis_multiplier(chart_config, x_axis), axis_multiplier(chart_config, y_axis)
 
 
-async def chart_value(value: Any, multiplier: float) -> Any:
-    """A chart value scaled to LVGL's integer points; NaN leaves a gap."""
+async def chart_value(value: Any, multiplier: float, stacked: bool = False) -> Any:
+    """A chart value scaled to LVGL's integer points; NaN leaves a gap. LVGL draws
+    nothing for a value of 0 or less on a stacked chart, and logs a warning for each
+    one at every redraw, so on a stacked chart those are stored as gaps too."""
     if isinstance(value, Lambda):
-        return chart_point_value(await lv_float.process(value), multiplier)
-    if (scaled := scale_value(value, multiplier)) is None:
+        helper = chart_stacked_point_value if stacked else chart_point_value
+        return helper(await lv_float.process(value), multiplier)
+    scaled = scale_value(value, multiplier)
+    if scaled is None or (stacked and scaled <= 0):
         return literal("LV_CHART_POINT_NONE")
     return scaled
 
@@ -701,19 +693,27 @@ def _all_fixed(values: list) -> bool:
 
 
 async def set_series_values(
-    chart: MockObj, series: MockObj, values: list, y_scale: float, name: str
+    chart: MockObj,
+    series: MockObj,
+    values: list,
+    y_scale: float,
+    name: str,
+    stacked: bool,
 ) -> None:
     """Append `values` in order, so the series start point follows the data; writing
     slots by index would leave the next appended value overwriting the first one.
     `name` names the constant array used when all the values are fixed."""
     if _all_fixed(values):
         array = _value_array(
-            f"{name}_chart_values", [await chart_value(v, y_scale) for v in values]
+            f"{name}_chart_values",
+            [await chart_value(v, y_scale, stacked) for v in values],
         )
         lv.chart_set_series_values(chart, series, array, len(values))
         return
     for value in values:
-        lv.chart_set_next_value(chart, series, await chart_value(value, y_scale))
+        lv.chart_set_next_value(
+            chart, series, await chart_value(value, y_scale, stacked)
+        )
 
 
 def _fixed_point(point: ConfigType, x_scale: float, y_scale: float) -> tuple[Any, Any]:
@@ -785,17 +785,18 @@ async def series_action_to_code(
     args: list,
     action: Callable,
 ) -> MockObj:
-    """Generate a series action. `action` is called with the chart, the series, and
-    the X and Y multipliers of the series' axes."""
+    """Generate a series action. `action` is called with the chart, the series, the X
+    and Y multipliers of the series' axes, and whether the chart is stacked."""
     # Named from global scope, so a trigger argument such as `x` cannot shadow them
     series = await lv_global(config[CONF_ID])
     chart, series_config = get_chart_series()[str(config[CONF_ID])]
     x_scale, y_scale = series_multipliers(chart.config, series_config)
+    stacked = is_stacked(chart.config)
 
     async def do_action(w: Widget) -> None:
         # The LVGL calls redraw what they change, so no lv_chart_refresh(): in
         # CIRCULAR mode that would redraw the whole chart for every new value.
-        await action(automation.parent_ref(w.obj), series, x_scale, y_scale)
+        await action(automation.parent_ref(w.obj), series, x_scale, y_scale, stacked)
 
     return await action_to_code([chart], do_action, action_id, template_arg, args)
 
@@ -807,13 +808,19 @@ async def series_append_to_code(
     config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
 ) -> MockObj:
     async def append(
-        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+        chart: MockObj,
+        series: MockObj,
+        x_scale: float,
+        y_scale: float,
+        stacked: bool,
     ) -> None:
         name = str(action_id)
         if (point := config.get(CONF_POINT)) is not None:
             await set_series_points(chart, series, [point], x_scale, y_scale, name)
         else:
-            await set_series_values(chart, series, [config[CONF_VALUE]], y_scale, name)
+            await set_series_values(
+                chart, series, [config[CONF_VALUE]], y_scale, name, stacked
+            )
 
     return await series_action_to_code(config, action_id, template_arg, args, append)
 
@@ -825,7 +832,11 @@ async def series_set_to_code(
     config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
 ) -> MockObj:
     async def set_data(
-        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+        chart: MockObj,
+        series: MockObj,
+        x_scale: float,
+        y_scale: float,
+        stacked: bool,
     ) -> None:
         if CONF_INDEX not in config:
             # Clearing also moves the start point back to the first slot.
@@ -835,7 +846,7 @@ async def series_set_to_code(
                 await set_series_points(chart, series, points, x_scale, y_scale, name)
             else:
                 await set_series_values(
-                    chart, series, config[CONF_VALUES], y_scale, name
+                    chart, series, config[CONF_VALUES], y_scale, name, stacked
                 )
             return
         index = await lv_positive_int.process(config[CONF_INDEX])
@@ -860,7 +871,10 @@ async def series_set_to_code(
             )
         else:
             lv.chart_set_series_value_by_id(
-                chart, series, slot, await chart_value(config[CONF_VALUE], y_scale)
+                chart,
+                series,
+                slot,
+                await chart_value(config[CONF_VALUE], y_scale, stacked),
             )
 
     return await series_action_to_code(config, action_id, template_arg, args, set_data)
@@ -876,7 +890,11 @@ async def series_clear_to_code(
     config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
 ) -> MockObj:
     async def clear(
-        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+        chart: MockObj,
+        series: MockObj,
+        x_scale: float,
+        y_scale: float,
+        stacked: bool,
     ) -> None:
         lv.chart_set_all_values(chart, series, literal("LV_CHART_POINT_NONE"))
 
@@ -890,7 +908,11 @@ async def series_update_to_code(
     config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
 ) -> MockObj:
     async def update(
-        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+        chart: MockObj,
+        series: MockObj,
+        x_scale: float,
+        y_scale: float,
+        stacked: bool,
     ) -> None:
         if (color := config.get(CONF_COLOR)) is not None:
             lv.chart_set_series_color(chart, series, await lv_color.process(color))

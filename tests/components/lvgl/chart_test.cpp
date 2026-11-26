@@ -28,6 +28,14 @@ TEST(ChartPointValueTest, LimitsToTheInt32RangeWithoutMakingAGap) {
   EXPECT_NE(chart_point_value(3e9f, 1.0f), LV_CHART_POINT_NONE);
 }
 
+TEST(ChartStackedPointValueTest, StoresValuesOfZeroOrLessAsGaps) {
+  EXPECT_EQ(chart_stacked_point_value(0.0f, 1.0f), LV_CHART_POINT_NONE);
+  EXPECT_EQ(chart_stacked_point_value(0.4f, 1.0f), LV_CHART_POINT_NONE);
+  EXPECT_EQ(chart_stacked_point_value(-3.0f, 1.0f), LV_CHART_POINT_NONE);
+  EXPECT_EQ(chart_stacked_point_value(NAN, 1.0f), LV_CHART_POINT_NONE);
+  EXPECT_EQ(chart_stacked_point_value(0.4f, 10.0f), 4);
+}
+
 class ChartPointSlotTest : public ::testing::Test {
  protected:
   static constexpr uint32_t POINT_COUNT = 5;

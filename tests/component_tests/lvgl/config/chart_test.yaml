@@ -72,6 +72,13 @@ lvgl:
               - {x: nan, y: 30}
               - {x: 30, y: 40}
     - chart:
+        id: stacked_chart
+        type: stacked
+        point_count: 4
+        series:
+          - id: stacked_series
+            values: [0, 0.4, -1, 5]
+    - chart:
         id: bar_chart
         type: bar
         indicator:
@@ -84,6 +91,12 @@ lvgl:
     - button:
         on_click:
           - lvgl.widget.refresh: bar_chart
+          - lvgl.chart.series.append:
+              id: stacked_series
+              value: !lambda return -2.0f;
+          - lvgl.chart.series.append:
+              id: stacked_series
+              value: 0
           - lvgl.chart.series.append:
               id: gap_series
               point:

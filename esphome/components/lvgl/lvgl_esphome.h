@@ -136,6 +136,13 @@ inline int32_t chart_point_value(float value, float multiplier) {
   return static_cast<int32_t>(std::clamp(std::round(value * multiplier), -POINT_LIMIT, POINT_LIMIT));
 }
 
+/// As chart_point_value(), for a stacked chart. LVGL draws nothing for a value of 0 or less there, and logs a
+/// warning for each one at every redraw, so those are stored as gaps.
+inline int32_t chart_stacked_point_value(float value, float multiplier) {
+  const int32_t point = chart_point_value(value, multiplier);
+  return point <= 0 ? LV_CHART_POINT_NONE : point;
+}
+
 /// The storage slot of the point `index` places from the left of the chart.
 /// In SHIFT mode the chart is drawn from the series start point; an index out of range is returned unchanged,
 /// so LVGL ignores it.

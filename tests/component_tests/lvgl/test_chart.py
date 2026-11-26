@@ -722,19 +722,25 @@ def test_unsupported_chart_types(chart_type: str) -> None:
         CHART_SCHEMA({"type": chart_type})
 
 
-def test_stacked_chart_rejects_negative_values() -> None:
-    with pytest.raises(Invalid, match="negative"):
-        CHART_SCHEMA({"type": "stacked", "series": [{"id": "s", "values": [1, -1]}]})
-    assert CHART_SCHEMA({"type": "bar", "series": [{"id": "s", "values": [-1]}]})
+def test_stacked_chart_stores_values_of_zero_or_less_as_gaps(
+    generate_main, component_config_path
+) -> None:
+    """LVGL draws nothing for them on a stacked chart, but logs a warning each time."""
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
-
-@pytest.mark.parametrize(
-    "payload", [{"value": -0.5}, {"values": [1, -2]}, {"index": 0, "value": -1}]
-)
-def test_stacked_series_actions_reject_negative_values(payload: dict) -> None:
-    with pytest.raises(Invalid, match="negative"):
-        validate_series_action(SET, payload, "LV_CHART_TYPE_STACKED", 10)
-    validate_series_action(SET, payload, "LV_CHART_TYPE_BAR", 10)
+    assert (
+        "static const int32_t stacked_series_chart_values[] = "
+        "{LV_CHART_POINT_NONE, LV_CHART_POINT_NONE, LV_CHART_POINT_NONE, 5};"
+        in main_cpp
+    )
+    assert (
+        "lv_chart_set_next_value(::stacked_chart, ::stacked_series, "
+        "lvgl::chart_stacked_point_value(" in main_cpp
+    )
+    assert (
+        "lv_chart_set_next_value(::stacked_chart, ::stacked_series, "
+        "LV_CHART_POINT_NONE);" in main_cpp
+    )
 
 
 def test_chart_enums_list_their_choices_for_the_schema() -> None:
