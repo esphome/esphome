@@ -8,6 +8,9 @@
 
 #if defined(USE_MICROCHIP_ATSHA204A_SWI_UART) && defined(USE_RP2)
 #include "esphome/components/uart/uart_component_rp2.h"
+#elif defined(USE_MICROCHIP_ATSHA204A_SWI_UART) && defined(USE_LIBRETINY)
+#include <Arduino.h>
+#include "esphome/components/uart/uart_component_libretiny.h"
 #endif
 #ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
 #include "driver/gpio.h"
@@ -153,6 +156,14 @@ bool UARTTransport::setup() {
   const bool hardware_uart = this->parent_->available_for_write() != SIZE_MAX;
 #elif defined(USE_RP2)
   const bool hardware_uart = static_cast<uart::RP2UartComponent *>(this->parent_)->is_hw_serial();
+#elif defined(USE_LIBRETINY)
+  constexpr unsigned min_rx_buffer_size = (1 + MAX_COMMAND) * 8;
+  if (LT_SERIAL_BUFFER_SIZE < min_rx_buffer_size) {
+    ESP_LOGE(TAG, "Set framework.options.LT_SERIAL_BUFFER_SIZE to at least %u for single-wire UART (currently %u)",
+             min_rx_buffer_size, static_cast<unsigned>(LT_SERIAL_BUFFER_SIZE));
+    return false;
+  }
+  const bool hardware_uart = static_cast<uart::LibreTinyUARTComponent *>(this->parent_)->get_hw_serial_number() >= 0;
 #else
   constexpr bool hardware_uart = true;
 #endif

@@ -182,16 +182,21 @@ def _final_validate(config: ConfigType) -> None:
         fv.id_declaration_match_schema(_validate_rmt_wiring)(uart_id)
         esp32_rmt.final_validate_rmt_channels(config)
     else:
-        if CORE.is_libretiny:
-            # Use the shared buffer check once the LibreTiny UART backend honors rx_buffer_size.
+        if CORE.is_ln882x:
             raise cv.Invalid(
-                "Single-wire UART is unavailable on LibreTiny because the UART backend "
-                "does not apply rx_buffer_size",
+                "Single-wire UART requires seven data bits, which LibreTiny's LN882x UART backend does not configure",
+                [CONF_TYPE],
+            )
+        if CORE.is_libretiny and CORE.framework_version < cv.Version(1, 8, 0):
+            raise cv.Invalid(
+                "Single-wire UART requires LibreTiny 1.8.0 or later for LT_SERIAL_BUFFER_SIZE",
                 [CONF_TYPE],
             )
         _VALIDATE_SWI_UART(config)
         fv.id_declaration_match_schema(_validate_swi_uart_wiring)(uart_id)
-    _VALIDATE_UART_BUFFER(uart_id)
+    # LibreTiny sizes its hardware ring at build time. The transport checks that size at startup.
+    if not CORE.is_libretiny:
+        _VALIDATE_UART_BUFFER(uart_id)
     uart.claim_exclusive(config, DOMAIN)
 
 

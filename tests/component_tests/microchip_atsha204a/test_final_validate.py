@@ -157,14 +157,42 @@ def test_swi_uart_wiring(
         assert any(error in err for err in errors), errors
 
 
-def test_swi_uart_rejects_libretiny(tmp_path: Path) -> None:
+def test_swi_uart_accepts_libretiny_with_default_yaml_buffer(tmp_path: Path) -> None:
     errors = _validation_errors(
         SWI_UART_CONFIG.format(
             platform="bk72xx:\n  board: cb3s",
             bus="uart",
             wiring="  tx_pin: P11\n  rx_pin: P10",
             wake_pin="P6",
+        ).replace("rx_buffer_size: 1024", "rx_buffer_size: 256"),
+        tmp_path,
+    )
+    assert errors == []
+
+
+def test_swi_uart_rejects_ln882x_without_seven_bit_framing(tmp_path: Path) -> None:
+    errors = _validation_errors(
+        SWI_UART_CONFIG.format(
+            platform="ln882x:\n  board: generic-ln882h",
+            bus="uart",
+            wiring="  tx_pin: PA02\n  rx_pin: PA03",
+            wake_pin="PA01",
         ),
         tmp_path,
     )
-    assert any("does not apply rx_buffer_size" in err for err in errors), errors
+    assert any("requires seven data bits" in err for err in errors), errors
+
+
+def test_swi_uart_rejects_libretiny_without_buffer_override_support(
+    tmp_path: Path,
+) -> None:
+    errors = _validation_errors(
+        SWI_UART_CONFIG.format(
+            platform="bk72xx:\n  board: cb3s\n  framework:\n    version: 1.7.0",
+            bus="uart",
+            wiring="  tx_pin: P11\n  rx_pin: P10",
+            wake_pin="P6",
+        ),
+        tmp_path,
+    )
+    assert any("requires LibreTiny 1.8.0 or later" in err for err in errors), errors
