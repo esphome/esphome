@@ -351,8 +351,9 @@ void USBAudioSpeaker::pad_with_silence_() {
 void USBAudioSpeaker::on_transfer_taken() {
   bool report = false;
   portENTER_CRITICAL(&this->taken_lock_);
-  // Only a take on the writer's task comes after the driver stored the write.
-  if (this->writer_task_ == xTaskGetCurrentTaskHandle() && this->pending_bytes_ != 0) {
+  // Only a take on the writer's task comes after the driver stored the write; no write, no task lookup.
+  const TaskHandle_t writer = this->writer_task_;
+  if (writer != nullptr && writer == xTaskGetCurrentTaskHandle() && this->pending_bytes_ != 0) {
     this->count_(this->pending_bytes_, this->pending_padding_);
     this->pending_bytes_ = 0;
   }
