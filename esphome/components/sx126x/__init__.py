@@ -4,11 +4,20 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.const import (
+    CONF_BANDWIDTH,
     CONF_BITRATE,
     CONF_CRC_ENABLE,
+    CONF_DEVIATION,
     CONF_MODULATION,
     CONF_ON_PACKET,
+    CONF_PA_POWER,
+    CONF_PA_RAMP,
+    CONF_PAYLOAD_LENGTH,
+    CONF_PREAMBLE_SIZE,
     CONF_RST_PIN,
+    CONF_RX_START,
+    CONF_SHAPING,
+    CONF_SYNC_VALUE,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY
@@ -22,33 +31,24 @@ DEPENDENCIES = ["spi"]
 
 CONF_SX126X_ID = "sx126x_id"
 
-CONF_BANDWIDTH = "bandwidth"
 CONF_CODING_RATE = "coding_rate"
 CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
 CONF_CRC_SIZE = "crc_size"
 CONF_CRC_POLYNOMIAL = "crc_polynomial"
 CONF_CRC_INITIAL = "crc_initial"
-CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
 CONF_HW_VERSION = "hw_version"
-CONF_PA_POWER = "pa_power"
-CONF_PA_RAMP = "pa_ramp"
-CONF_PAYLOAD_LENGTH = "payload_length"
 CONF_PREAMBLE_DETECT = "preamble_detect"
-CONF_PREAMBLE_SIZE = "preamble_size"
-CONF_RX_START = "rx_start"
 CONF_RF_SWITCH = "rf_switch"
-CONF_SHAPING = "shaping"
 CONF_SPREADING_FACTOR = "spreading_factor"
-CONF_SYNC_VALUE = "sync_value"
 CONF_TCXO_VOLTAGE = "tcxo_voltage"
 CONF_TCXO_DELAY = "tcxo_delay"
 CONF_WHITENING_ENABLE = "whitening_enable"
 CONF_WHITENING_INITIAL = "whitening_initial"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
-SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
+SX126x = sx126x_ns.class_("SX126x", cg.Component)
 SX126xListener = sx126x_ns.class_("SX126xListener")
 SX126xBw = sx126x_ns.enum("SX126xBw")
 SX126xPacketType = sx126x_ns.enum("SX126xPacketType")
@@ -217,7 +217,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_RF_SWITCH): cv.boolean,
             cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
             cv.Optional(CONF_SPREADING_FACTOR, default=7): cv.int_range(min=6, max=12),
-            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.ensure_list(cv.hex_uint8_t),
+            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.All(
+                cv.ensure_list(cv.hex_uint8_t), cv.Length(max=8)
+            ),
             cv.Optional(CONF_TCXO_VOLTAGE, default="NONE"): cv.enum(TCXO_VOLTAGE),
             cv.Optional(CONF_TCXO_DELAY, default="5ms"): cv.All(
                 cv.positive_time_period_microseconds,

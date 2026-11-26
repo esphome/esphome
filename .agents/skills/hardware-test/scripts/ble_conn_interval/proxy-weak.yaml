@@ -1,0 +1,18 @@
+# proxy.yaml with the BLE TX power lowered on every power type to approximate a weaker link; -s txlvl N (esp_power_level_t).
+# Applied from an interval once the controller is enabled: calling esp_ble_tx_power_set earlier faults in ble_txpwr_set.
+packages:
+  base: !include proxy.yaml
+substitutions:
+  txlvl: "4"
+globals:
+  - {id: txpwr_done, type: bool, initial_value: "false"}
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (id(txpwr_done) || esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED)
+            return;
+          for (int t = ESP_BLE_PWR_TYPE_CONN_HDL0; t <= ESP_BLE_PWR_TYPE_DEFAULT; t++)
+            esp_ble_tx_power_set((esp_ble_power_type_t) t, (esp_power_level_t) ${txlvl});
+          id(txpwr_done) = true;
+          ESP_LOGI("weak", "BLE TX power level %d (conn0 reads %d)", ${txlvl}, esp_ble_tx_power_get(ESP_BLE_PWR_TYPE_CONN_HDL0));

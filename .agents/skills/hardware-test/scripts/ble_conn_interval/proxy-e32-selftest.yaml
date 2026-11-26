@@ -1,0 +1,14 @@
+# proxy-e32.yaml plus a self test that takes and releases the coexistence hold every 10 s, with no API client at all.
+# Needs esp32_ble_tracker::coex_ble_priority_acquire()/release() from #22904.
+packages:
+  base: !include proxy-e32.yaml
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          esphome::esp32_ble_tracker::coex_ble_priority_acquire();
+          ESP_LOGI("selftest", "SELFTEST held, ble_status=0x%x", (unsigned) coex_schm_status_get(1));
+      - delay: 2s
+      - lambda: |-
+          esphome::esp32_ble_tracker::coex_ble_priority_release();
+          ESP_LOGI("selftest", "SELFTEST released, ble_status=0x%x", (unsigned) coex_schm_status_get(1));

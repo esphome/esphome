@@ -9,6 +9,7 @@
 
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/light/esp_color_correction.h"
+#include "esphome/components/light/light_state.h"
 
 namespace esphome::light::testing {
 
@@ -34,7 +35,6 @@ class Strip : public AddressableLight {
     this->accessor_ = &this->internal_accessor_;
   }
 
-  ~Strip() { delete this->power_estimation_; }  // NOLINT(cppcoreguidelines-owning-memory)
   int32_t size() const override { return this->num_leds_; }
   void clear_effect_data() override {}
   LightTraits get_traits() override { return {}; }
@@ -42,7 +42,8 @@ class Strip : public AddressableLight {
   uint8_t sent_red{0};
   // Every channel draws ma_per_channel at full level; setup turns the settings into the idle draw and budget
   void configure_power(float ma_per_channel, float idle_ma_per_led, float max_current_ma) {
-    this->set_power_estimation(ma_per_channel, ma_per_channel, ma_per_channel, ma_per_channel, idle_ma_per_led);
+    this->set_power_estimation(&this->power_storage_, ma_per_channel, ma_per_channel, ma_per_channel, ma_per_channel,
+                               idle_ma_per_led);
     this->set_max_current_ma(max_current_ma);
     this->call_setup();
   }
@@ -51,12 +52,38 @@ class Strip : public AddressableLight {
   uint8_t power_brightness() const { return this->correction_.get_power_brightness(); }
 
  protected:
+  PowerEstimation power_storage_;
   const size_t num_leds_;
   std::vector<uint8_t> buffer_;
   light::CorrectedBufferColorAccessor internal_accessor_;
 };
 
+// A strip that shows colors, for a light state to drive
+class RgbStrip : public Strip {
+ public:
+  using Strip::Strip;
+  LightTraits get_traits() override {
+    LightTraits traits;
+    traits.set_supported_color_modes({ColorMode::RGB});
+    return traits;
+  }
+};
+
+void start_on(LightStateRTCState &state, bool restored) { state.state = true; }
+
 }  // namespace
+
+TEST(PowerLimit, LimitsTheFrameWrittenOnSetup) {
+  RgbStrip strip(10);
+  // Full white draws 10 x 60 + 10 mA; the budget is about half of that
+  strip.configure_power(20, 1, 310);
+  AddressableLightState state(&strip);
+  state.set_state_callback(start_on);
+  state.set_write_on_setup(true);
+  state.setup();
+  EXPECT_LT(strip.power_brightness(), 255);
+  EXPECT_LT(strip.sent_red, 255);
+}
 
 TEST(PowerLimit, CorrectionRoundTripsUnderTheLimit) {
   const auto table = build_gamma_table(2.2);

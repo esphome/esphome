@@ -11,7 +11,12 @@ import subprocess
 import sys
 import traceback
 
-from helpers import get_all_dependencies, has_cpp_unit_tests, root_path as _root_path
+from helpers import (
+    BENCHMARK_YAML_FILENAME,
+    get_all_dependencies,
+    has_cpp_unit_tests,
+    root_path as _root_path,
+)
 import yaml
 
 # Ensure the repo root is on sys.path so that ``tests.testing_helpers`` and
@@ -49,9 +54,6 @@ EXIT_CONFIG_ERROR = 3
 EXIT_NO_EXECUTABLE = 4
 # A test folder with this name would be synced into src/esphome and swept away with the core tree
 CORE_TREE_DIR = "esphome"
-
-# Name of the per-component YAML config file in benchmark directories
-BENCHMARK_YAML_FILENAME = "benchmark.yaml"
 
 
 def hash_components(components: list[str]) -> str:
@@ -352,6 +354,7 @@ def compile_and_get_binary(
     tests_dir: Path,
     manifest_override_loader: ManifestOverrideLoader,
     label: str = "build",
+    cxx_build_flags: list[str] | None = None,
 ) -> tuple[int, str | None]:
     """Compile an ESPHome configuration and return the binary path.
 
@@ -361,6 +364,7 @@ def compile_and_get_binary(
         tests_dir: Base directory for test files (used as config_path base)
         manifest_override_loader: Callback to apply manifest overrides for components
         label: Label for log messages (e.g. "unit tests", "benchmarks")
+        cxx_build_flags: Compiler flags for C++ compiles only
 
     Returns:
         Tuple of (exit_code, program_path_or_none)
@@ -401,6 +405,9 @@ def compile_and_get_binary(
     # Add remaining components and dependencies to the configuration after
     # validation, so their source files are included in the build.
     populate_dependency_config(config, components_with_dependencies)
+
+    for flag in cxx_build_flags or ():
+        CORE.add_cxx_build_flag(flag)
 
     # Register platforms from the extra config (benchmark.yaml) so
     # USE_SENSOR, USE_LIGHT, etc. defines are emitted without needing
@@ -450,6 +457,7 @@ def build_and_run(
     build_only: bool = False,
     extra_run_args: list[str] | None = None,
     extra_include_dirs: list[Path] | None = None,
+    cxx_build_flags: list[str] | None = None,
 ) -> int:
     """Build and optionally run a C++ test/benchmark binary.
 
@@ -470,6 +478,7 @@ def build_and_run(
         extra_run_args: Extra arguments to pass to the binary
         extra_include_dirs: Additional directories whose .cpp files
             should be compiled (resolved relative to tests_dir if possible)
+        cxx_build_flags: Compiler flags for C++ compiles only
 
     Returns:
         Exit code
@@ -528,7 +537,12 @@ def build_and_run(
     )
 
     exit_code, program_path = compile_and_get_binary(
-        config, components, tests_dir, manifest_override_loader, label
+        config,
+        components,
+        tests_dir,
+        manifest_override_loader,
+        label,
+        cxx_build_flags=cxx_build_flags,
     )
 
     if exit_code != EXIT_OK or program_path is None:

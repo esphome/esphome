@@ -1,8 +1,15 @@
-"""Black/white/red e-paper displays using the UltraChip UC8151D controller.
+"""E-paper displays using the UltraChip UC8151D controller.
 
-Supported models:
+Supported black/white/red models:
 - uc8151: the controller on its own; dimensions and pins must be configured
 - waveshare-2.13in-bv3: 104x212 pixels (2.13" B V3, EPD_2in13b_V3)
+
+Supported black/white models, with partial updates when ``full_update_every`` is greater than 1:
+- goodisplay-gdew029t5-2.9: Good Display GDEW029T5, 2.9" 128x296 flexible panel; replaces the
+  waveshare_epaper model gdew029t5. Also sold by Seeed as SKU 104990852 (seeed-104990852).
+
+The reset and busy pins are required for these models: only a hardware reset wakes the panel after a
+full refresh, and the busy pin times the refresh, which takes about 3 seconds.
 
 The busy pin of these displays is low while busy, so configure it with ``inverted: true``.
 """
@@ -10,7 +17,7 @@ The busy pin of these displays is low while busy, so configure it with ``inverte
 from typing import Any
 
 import esphome.config_validation as cv
-from esphome.const import CONF_DIMENSIONS
+from esphome.const import CONF_BUSY_PIN, CONF_DIMENSIONS, CONF_RESET_PIN
 from esphome.types import ConfigType
 
 from . import EpaperModel
@@ -22,10 +29,8 @@ MAX_GATES = 296
 class UC8151(EpaperModel):
     """EpaperModel class for black/white/red displays using the UC8151D controller."""
 
+    class_name = "EPaperWaveshareBWR"
     source_files = ("epaper_spi_bwr.cpp", "epaper_waveshare_bwr.cpp")
-
-    def __init__(self, name: str, **defaults: Any) -> None:
-        super().__init__(name, "EPaperWaveshareBWR", **defaults)
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         width, height = self.get_dimensions(config)
@@ -60,3 +65,48 @@ uc8151.extend(
     width=104,
     height=212,
 )
+
+
+class UC8151Mono(UC8151):
+    """EpaperModel class for black/white displays using the UC8151D controller."""
+
+    class_name = "EPaperUC8151"
+    source_files = ("epaper_spi_ultrachip.cpp", "epaper_spi_uc8151.cpp")
+
+    def __init__(
+        self, name: str, class_name: str | None = None, **defaults: Any
+    ) -> None:
+        defaults.setdefault("partial_update", True)
+        super().__init__(name, class_name, **defaults)
+
+    def option(
+        self, name: str, fallback: Any = cv.UNDEFINED
+    ) -> cv.Optional | cv.Required:
+        # The panel wakes only by hardware reset and a refresh is timed by the busy line
+        if name in (CONF_RESET_PIN, CONF_BUSY_PIN):
+            return cv.Required(name)
+        return super().option(name, fallback)
+
+    def get_init_sequence(self, config: dict) -> tuple:
+        width, height = self.get_dimensions(config)
+        return (
+            # PANEL SETTING (black/white mode, LUT from OTP); the driver loads a register LUT for partial updates
+            (0x00, 0x1F),
+            # RESOLUTION SETTING: sources, then gates
+            (0x61, width, height >> 8, height & 0xFF),
+            # VCOM AND DATA INTERVAL SETTING: 1 in DTM2 is white
+            (0x50, 0x97),
+        )
+
+
+# Good Display GDEW029T5, 2.9" mono 128x296 flexible panel. Replaces the waveshare_epaper model gdew029t5.
+goodisplay_gdew029t5 = UC8151Mono(
+    "goodisplay-gdew029t5-2.9",
+    data_rate="10MHz",
+    width_multiple=8,
+    width=128,
+    height=296,
+)
+
+# Seeed 2.9" flexible mono e-paper, SKU 104990852 (ribbon cable WFT0290CZ10)
+goodisplay_gdew029t5.extend("seeed-104990852")

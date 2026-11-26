@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_HARDWARE_VERSION
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
@@ -10,7 +11,6 @@ CONF_HEART_BEAT = "heart_beat"
 CONF_PRODUCT_MODEL = "product_model"
 CONF_PRODUCT_ID = "product_id"
 CONF_HARDWARE_MODEL = "hardware_model"
-CONF_HARDWARE_VERSION = "hardware_version"
 
 CONF_KEEP_AWAY = "keep_away"
 CONF_MOTION_STATUS = "motion_status"
@@ -55,7 +55,7 @@ async def to_code(config: ConfigType) -> None:
     await text_sensors(CONF_PRODUCT_MODEL, hub.set_product_model_text_sensor)
     await text_sensors(CONF_PRODUCT_ID, hub.set_product_id_text_sensor)
     await text_sensors(CONF_HARDWARE_MODEL, hub.set_hardware_model_text_sensor)
-    await text_sensors(CONF_HARDWARE_VERSION, hub.set_firware_version_text_sensor)
+    await text_sensors(CONF_HARDWARE_VERSION, hub.set_firmware_version_text_sensor)
     await text_sensors(CONF_KEEP_AWAY, hub.set_keep_away_text_sensor)
     await text_sensors(CONF_MOTION_STATUS, hub.set_motion_status_text_sensor)
     await text_sensors(CONF_CUSTOM_MODE_END, hub.set_custom_mode_end_text_sensor)

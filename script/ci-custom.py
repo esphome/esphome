@@ -4,17 +4,26 @@ import argparse
 import ast
 import codecs
 import collections
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 import fnmatch
 import functools
 import os.path
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 
 import colorama
-from helpers import filter_changed, git_ls_files, print_error_for_file, styled
+from helpers import (
+    ESPHOME_COMPONENTS_PATH,
+    filter_changed,
+    git_ls_files,
+    print_error_for_file,
+    root_path,
+    styled,
+)
+import yaml
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -544,7 +553,7 @@ def lint_conf_matches(fname, match):
     )
 
 
-CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
 with codecs.open("esphome/const.py", "r", encoding="utf-8") as const_f_handle:
     constants_content = const_f_handle.read()
 with codecs.open(
@@ -590,7 +599,7 @@ def lint_conf_from_const_py(fname, match):
     return err
 
 
-UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
 UNIT_CONSTANTS = [
     m.group(1) for m in re.finditer(UNIT_RE, constants_content, re.MULTILINE)
 ]
@@ -608,6 +617,89 @@ def lint_unit_from_const_py(fname, match):
     if err is None:
         UNIT_CONSTANTS_USES[name].append(fname)
     return err
+
+
+# Names that start with CONF_ or UNIT_ but are not config key or unit constants.
+NON_LITERAL_CONSTANT_ALLOWLIST = {"UNIT_OF_MEASUREMENT_MAX_LENGTH"}
+
+
+def _constant_names(target: ast.expr) -> Iterator[ast.Name]:
+    """Yield the CONF_/UNIT_ names bound by an assignment target."""
+    if isinstance(target, ast.Name):
+        if (
+            target.id.startswith(("CONF_", "UNIT_"))
+            and target.id not in NON_LITERAL_CONSTANT_ALLOWLIST
+        ):
+            yield target
+    elif isinstance(target, ast.Starred):
+        yield from _constant_names(target.value)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            yield from _constant_names(elt)
+
+
+def _module_level_statements(nodes: Iterable[ast.AST]) -> Iterator[ast.AST]:
+    """Yield statements at module level, including those inside if/try/with/for blocks.
+
+    Function and class bodies are a different scope and are not entered.
+    """
+    for node in nodes:
+        yield node
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield from _module_level_statements(
+            child
+            for child in ast.iter_child_nodes(node)
+            if isinstance(child, (ast.stmt, ast.excepthandler, ast.match_case))
+        )
+
+
+@lint_content_check(include=["esphome/*.py"])
+def lint_constant_is_plain_string(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    """Require module-level CONF_ and UNIT_ constants to be plain string literals.
+
+    Other scripts and lints (for example the duplicate constant checks above) read these
+    definitions as text, so a computed value would be missed or moved incorrectly.
+    """
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
+        return []
+    errs: list[tuple[int, int, str]] = []
+    for node in _module_level_statements(tree.body):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+            value = node.value
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+            value = None
+        else:
+            continue
+        # Unpacking a string binds single characters or a list, so only a plain name counts.
+        if (
+            isinstance(value, ast.Constant)
+            and type(value.value) is str
+            and all(isinstance(target, ast.Name) for target in targets)
+        ):
+            continue
+        for target in targets:
+            for name in _constant_names(target):
+                example = highlight(f'{name.id} = "value"')
+                msg = (
+                    f"Constant {highlight(name.id)} must be set to a plain string "
+                    f"literal, such as {example}. Do not build it from other "
+                    "constants, f-strings, operators or function calls. If the value "
+                    "is not a config key or a unit, give it a name without the CONF_ "
+                    "or UNIT_ prefix."
+                )
+                errs.append((name.lineno, name.col_offset + 1, msg))
+    return errs
 
 
 RAW_PIN_ACCESS_RE = (
@@ -789,10 +881,88 @@ def lint_unit_constants_usage():
     return errs
 
 
+def _git_output(*args: str) -> str | None:
+    """Run a git command and return its stdout, or None if it fails."""
+    proc = subprocess.run(
+        ["git", *args], capture_output=True, text=True, check=False, close_fds=False
+    )
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def _base_commit() -> str | None:
+    """Return the commit that holds the base branch, or None when there is none.
+
+    In a GitHub pull request run, HEAD is the test merge commit and its first parent is
+    the tip of the target branch (the checkout needs fetch-depth 2 for it). Elsewhere,
+    such as pre-commit or a local run, use the merge base of HEAD with dev, found the same
+    way as helpers.changed_files(). Without a dev remote ref there is nothing to compare
+    against, so the caller skips the check.
+    """
+    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+        if (out := _git_output("rev-parse", "--verify", "-q", "HEAD^1")) is None:
+            print(
+                "WARNING: HEAD has no parent commit; cannot find new constants "
+                "(the checkout needs fetch-depth: 2)",
+                file=sys.stderr,
+            )
+            return None
+        return out.strip()
+    remotes = ["upstream", "origin", *(_git_output("remote") or "").split()]
+    for remote in remotes:
+        if out := _git_output("merge-base", f"refs/remotes/{remote}/dev", "HEAD"):
+            return out.strip()
+    return None
+
+
+def _constants_defined_at(commit: str) -> set[str]:
+    """Return the names of all CONF_/UNIT_ definitions in Python files at a commit."""
+    out = _git_output(
+        "grep",
+        "-h",
+        "-o",
+        "-E",
+        r"^(CONF|UNIT)_[A-Za-z0-9_]+[[:space:]]*(:[^=]*)?=",
+        commit,
+        "--",
+        "*.py",
+    )
+    # git grep exits 1 when nothing matches, which is an empty set and not an error.
+    # Each line is the name followed by an optional annotation and "=".
+    return {re.match(r"\w+", line)[0] for line in (out or "").splitlines()}
+
+
+@lint_post_check
+def lint_new_constant_in_multiple_files() -> list[str]:
+    """Reject a constant that this change adds, brand new, in two or more files.
+
+    Constants that already exist on the base branch are left to the 3+ files checks
+    above, which a workflow can fix by moving them. Skipped when no base commit is known.
+    """
+    candidates: dict[str, list[str]] = {}
+    for name, uses in (*CONSTANTS_USES.items(), *UNIT_CONSTANTS_USES.items()):
+        files = sorted({str(u) for u in uses if fnmatch.fnmatch(str(u), "esphome/*")})
+        if len(files) >= 2:
+            candidates[name] = files
+    if not candidates or (base := _base_commit()) is None:
+        return []
+    existing = _constants_defined_at(base)
+    return [
+        f"New constant {highlight(name)} is defined in {len(files)} files "
+        f"({', '.join(files)}). Define it once and import it everywhere else: in "
+        "esphome/const.py if core code uses it, otherwise in "
+        "esphome/components/const/__init__.py, or in one component that the others "
+        "import it from."
+        for name, files in sorted(candidates.items())
+        if name not in existing
+    ]
+
+
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1027
+CONST_PY_MAX_CONF = 1022
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -1308,7 +1478,8 @@ def lint_log_tag_as_string(fname, match):
     )
 
 
-LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
+# The ESP_LOG* macros, and esp_log_printf_ for calls that pick the log level at run time
+LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(|\besp_log_printf_\s*\(")
 # Comments, raw/plain string literals and single char literals are consumed whole so ; ( ) ? :
 # inside them are never seen. A char literal is exactly one (escaped) char so a digit separator
 # like 1'000'000 cannot open one.
@@ -1318,6 +1489,22 @@ CPP_SKIP_RE = (
     + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
 )
 LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
+# Splitting arguments also needs brackets, braces, commas and template brackets: clang-format writes a
+# comparison as `a < b`, so a `<` right after a name (or after `]`, a templated lambda) opens a
+# template argument list, and `>` closes one unless it is `->` or `>=`
+LOG_ARG_TOKEN_RE = re.compile(
+    CPP_SKIP_RE + r"|[()\[\]{},]|(?<=[\w\]])<(?![<=])|(?<!-)>(?!=)", re.DOTALL
+)
+# Call heads are found in the same pass that skips comments and literals, so commented-out code and
+# code examples inside strings are never taken for calls
+LOG_CALL_HEAD_SCAN_RE = re.compile(
+    CPP_SKIP_RE + "|" + LOG_CALL_START_RE.pattern, re.DOTALL
+)
+# A format argument that is a string literal, after any comments or macro line continuations; raw and
+# prefixed literals count too
+LOG_FORMAT_LITERAL_RE = re.compile(
+    r"(?:\s|\\\n|" + CPP_COMMENT_RE + r')*(?P<fmt>(?:u8|u|U|L)?R?")', re.DOTALL
+)
 # The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
 # i.e. a string literal used as a ternary branch.
 LOG_TERNARY_LITERAL_RE = re.compile(
@@ -1333,9 +1520,12 @@ def _line_col(content: str, pos: int) -> tuple[int, int]:
 
 
 def _iter_log_calls(content: str) -> Iterator[tuple[int, str | None]]:
-    """Yield (start, text) for every ESP_LOG*(...) call, text running to the matching close paren.
+    """Yield (start, text) for every ESP_LOG*(...) and esp_log_printf_(...) call, text running to the
+    matching close paren.
     text is None when no matching paren exists so callers can report the call instead of skipping it."""
-    for head in LOG_CALL_START_RE.finditer(content):
+    for head in LOG_CALL_HEAD_SCAN_RE.finditer(content):
+        if not LOG_CALL_START_RE.fullmatch(head.group(0)):
+            continue  # a comment or literal
         depth = 1
         for tok in LOG_CALL_TOKEN_RE.finditer(content, head.end()):
             if tok.group(0) == "(":
@@ -1354,7 +1544,16 @@ def _unbalanced_log_call_error(content: str, pos: int) -> tuple[int, int, str]:
     return (
         lineno,
         col,
-        "ESP_LOG call has no matching closing parenthesis, so it cannot be checked.",
+        "Log call has no matching closing parenthesis, so it cannot be checked.",
+    )
+
+
+def _log_call_has_nolint(content: str, log_start: int, log_text: str) -> bool:
+    """True when a bare NOLINT is on any line the log call spans."""
+    first_line = content.rfind("\n", 0, log_start) + 1
+    last_line = content.find("\n", log_start + len(log_text))
+    return bool(
+        NOLINT_RE.search(content[first_line : last_line if last_line != -1 else None])
     )
 
 
@@ -1450,11 +1649,7 @@ def lint_log_no_bare_literal_ternary(
         if log_text is None:
             continue  # reported by lint_log_multiline_continuation, which sees every file
         # A NOLINT anywhere on the lines the call spans silences every branch in it
-        first_line = content.rfind("\n", 0, log_start) + 1
-        last_line = content.find("\n", log_start + len(log_text))
-        if NOLINT_RE.search(
-            content[first_line : last_line if last_line != -1 else None]
-        ):
+        if _log_call_has_nolint(content, log_start, log_text):
             continue
         for offset, literal in _find_ternary_literals(log_text):
             lineno, col = _line_col(content, log_start + offset)
@@ -1473,6 +1668,75 @@ def lint_log_no_bare_literal_ternary(
                     ),
                 )
             )
+    return errs
+
+
+def _log_call_arg(
+    call: str, index: int, templates: bool = True
+) -> tuple[int, str] | None:
+    """(offset, text as written) of a top level argument of a balanced log call, None if it has fewer."""
+    depth, start, arg = 0, call.index("(") + 1, 0
+    opened: list[int] = []  # depth at which each open template argument list started
+    for tok in LOG_ARG_TOKEN_RE.finditer(call, start):
+        t = tok.group(0)
+        if t == "<":
+            if templates:
+                opened.append(depth)
+        elif t == ">":
+            if opened and opened[-1] == depth:
+                opened.pop()
+        elif t in "([{":
+            depth += 1
+        elif depth > 0 and t in ")]}":
+            depth -= 1
+            while opened and opened[-1] > depth:
+                opened.pop()  # a `<` that never closed inside these parens
+        elif opened and opened[-1] == depth and t == ",":
+            continue
+        elif depth == 0 and t in ",)":
+            if t == ")" and opened:
+                # A `<` that never closed was a comparison after all
+                return _log_call_arg(call, index, templates=False)
+            if arg == index:
+                return start, call[start : tok.start()]
+            if t == ")":
+                return None
+            arg += 1
+            start = tok.end()
+    return None
+
+
+@lint_content_check(include=cpp_include, exclude=LOG_LITERAL_LINT_EXCLUDE)
+def lint_log_direct_call_format_in_flash(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    if "esp_log_printf_" not in content:
+        return []
+    errs = []
+    for log_start, log_text in _iter_log_calls(content):
+        if log_text is None or not log_text.startswith("esp_log_printf_"):
+            continue
+        fmt_arg = _log_call_arg(log_text, 3)
+        if fmt_arg is None or not (m := LOG_FORMAT_LITERAL_RE.match(fmt_arg[1])):
+            continue
+        fmt_offset = fmt_arg[0] + m.start("fmt")
+        fmt = fmt_arg[1][m.start("fmt") :].strip()
+        if _log_call_has_nolint(content, log_start, log_text):
+            continue
+        lineno, col = _line_col(content, log_start + fmt_offset)
+        errs.append(
+            (
+                lineno,
+                col,
+                (
+                    "esp_log_printf_ called with a bare format string. The ESP_LOG* macros move the "
+                    "format string to flash on ESP8266, a direct call does not. Wrap it in "
+                    f"{highlight('ESPHOME_LOG_FORMAT(...)')}:\n"
+                    f"  Before: {highlight(fmt)}\n"
+                    f"  After:  {highlight(f'ESPHOME_LOG_FORMAT({fmt})')}"
+                ),
+            )
+        )
     return errs
 
 
@@ -1556,6 +1820,91 @@ def lint_test_package_key_matches_bus(fname, content):
                     ),
                 )
             )
+    return errs
+
+
+GROUPED_TEST_IDS = {
+    # tca9548a adds I2C buses next to the shared package bus
+    "i2c_id": ("i2c_device_schema", "i2c.I2CDevice"),
+    # several tests define their own IMU or one-wire bus
+    "motion_id": ("CONF_MOTION_ID",),
+    "one_wire_id": ("one_wire_device_schema",),
+}
+
+
+YAML_NULL_TAG = "tag:yaml.org,2002:null"
+YAML_MAP_TAG = "tag:yaml.org,2002:map"
+
+
+@functools.cache
+def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
+    """The GROUPED_TEST_IDS the entity's own schema file takes."""
+    base = Path(root_path) / ESPHOME_COMPONENTS_PATH
+    paths = (
+        [base / platform / f"{domain}.py", base / platform / domain / "__init__.py"]
+        if platform
+        else [base / domain / "__init__.py"]
+    )
+    text = "".join(p.read_text() for p in paths if p.exists())
+    return tuple(
+        key
+        for key, markers in GROUPED_TEST_IDS.items()
+        if any(m in text for m in markers)
+    )
+
+
+def _yaml_entries(root: yaml.MappingNode) -> Iterator[tuple[str, yaml.MappingNode]]:
+    """(domain, entry) for each top-level entry, list items included."""
+    for key_node, value_node in root.value:
+        items = (
+            value_node.value
+            if isinstance(value_node, yaml.SequenceNode)
+            else [value_node]
+        )
+        for item in items:
+            if isinstance(item, yaml.MappingNode):
+                yield key_node.value, item
+            elif item.tag == YAML_NULL_TAG:  # `as5600:` is an empty mapping
+                yield (
+                    key_node.value,
+                    yaml.MappingNode(YAML_MAP_TAG, [], item.start_mark),
+                )
+
+
+@lint_content_check(
+    include=["tests/components/*/test.*.yaml", "tests/components/*/common*.yaml"]
+)
+def lint_grouped_test_ids(fname, content):
+    """CI merges grouped tests, so an id another test can duplicate must be set."""
+    from analyze_component_buses import is_groupable  # pylint: disable=import-outside-toplevel
+
+    if not is_groupable(Path(root_path) / Path(fname).parent):
+        return None
+    try:
+        root = yaml.compose(
+            content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+        )
+    except yaml.YAMLError:
+        return None  # yamllint and the build test report broken YAML
+    if not isinstance(root, yaml.MappingNode):
+        return None
+    errs: list[tuple[int, int, str]] = []
+    for domain, entry in _yaml_entries(root):
+        # An empty `i2c_id:` is the same as leaving it out
+        keys = {
+            k.value: v.value
+            for k, v in entry.value
+            if isinstance(k, yaml.ScalarNode) and v.tag != YAML_NULL_TAG
+        }
+        errs.extend(
+            (
+                entry.start_mark.line + 1,
+                entry.start_mark.column + 1,
+                f"Set {highlight(id_key)}: a grouped CI build can add a second candidate",
+            )
+            for id_key in _grouped_test_ids(domain, keys.get("platform"))
+            if id_key not in keys
+        )
     return errs
 
 

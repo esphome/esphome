@@ -107,10 +107,8 @@ void INA3221Component::update() {
     return;
   }
   // In single-shot mode, writing the configuration register starts one conversion of every channel
-  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, this->config_)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_byte_16(INA3221_REGISTER_CONFIG, this->config_)))
     return;
-  }
   this->set_timeout(READ_TIMEOUT_ID, this->single_shot_wait_ms_, [this]() { this->read_data_(); });
 }
 
@@ -132,18 +130,14 @@ void INA3221Component::read_data_() {
     float bus_voltage_v = NAN, current_a = NAN;
     uint16_t raw;
     if (sum_all || channel.should_measure_bus_voltage()) {
-      if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw)) {
-        this->status_set_warning();
+      if (!this->status_comm_check(this->read_byte_16(ina3221_bus_voltage_register(i), &raw)))
         return;
-      }
       bus_voltage_v = int16_t(raw) / 1000.0f;
       PUBLISH_STATE(channel.bus_voltage_sensor_, bus_voltage_v);
     }
     if (sum_all || channel.should_measure_shunt_voltage()) {
-      if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw)) {
-        this->status_set_warning();
+      if (!this->status_comm_check(this->read_byte_16(ina3221_shunt_voltage_register(i), &raw)))
         return;
-      }
       const float shunt_voltage_v = int16_t(raw) * 40.0f / 8.0f / 1000000.0f;
       PUBLISH_STATE(channel.shunt_voltage_sensor_, shunt_voltage_v);
       current_a = shunt_voltage_v / channel.shunt_resistance_;
@@ -161,16 +155,15 @@ void INA3221Component::read_data_() {
 #ifdef USE_INA3221_SUMMATION
   if (this->sum_shunt_voltage_sensor_ != nullptr) {
     uint16_t raw;
-    if (!this->read_byte_16(INA3221_REGISTER_SHUNT_VOLTAGE_SUM, &raw)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA3221_REGISTER_SHUNT_VOLTAGE_SUM, &raw)))
       return;
-    }
     // 40 uV per step, held in bits 15..1
     this->sum_shunt_voltage_sensor_->publish_state(int16_t(raw) * 40.0f / 2.0f / 1000000.0f);
   }
   PUBLISH_STATE(this->sum_current_sensor_, total_current_a);
   PUBLISH_STATE(this->sum_power_sensor_, total_power_w);
 #endif
+  this->status_clear_warning();
 }
 
 void INA3221Component::on_powerdown() {
