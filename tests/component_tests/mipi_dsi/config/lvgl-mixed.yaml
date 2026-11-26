@@ -1,0 +1,16 @@
+packages:
+  panel: !include owned.yaml
+  spi: !include ../../../test_build_components/common/spi/esp32-p4-idf.yaml
+
+display:
+  - platform: mipi_spi
+    model: ST7789V
+    dimensions: 240x320
+    id: second_panel
+    spi_id: spi_bus
+    dc_pin: GPIO10
+    cs_pin: GPIO11
+    byte_order: little_endian
+
+lvgl:
+  displays: [panel, second_panel]
