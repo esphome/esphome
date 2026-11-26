@@ -36,14 +36,18 @@ void SSOCRReader::dump_config() {
 }
 
 void SSOCRReader::update() {
-  this->camera_->request_image(camera::IDLE);
+  this->camera_->request_image(camera::COMPONENT_REQUESTER);
   this->set_timeout(FRAME_TIMEOUT_ID, FRAME_TIMEOUT_MS, [this]() { ESP_LOGW(TAG, "Frame timeout"); });
 }
 
 void SSOCRReader::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
-  // Only the frame this reader asked for arms the timeout; any other listener's frame is ignored.
-  if (!this->cancel_timeout(FRAME_TIMEOUT_ID))
+  if (!image->was_requested_by(camera::COMPONENT_REQUESTER))
     return;
+  // No pending timeout means the frame is late, or another component asked for it.
+  if (!this->cancel_timeout(FRAME_TIMEOUT_ID)) {
+    ESP_LOGV(TAG, "Ignoring a frame with no request pending");
+    return;
+  }
   this->pending_frame_ = image;
   this->enable_loop();
 }
