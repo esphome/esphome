@@ -1,3 +1,4 @@
+#ifdef USE_HOST
 #include <gtest/gtest.h>
 
 #include "esphome/components/ethernet/ethernet_component.h"
@@ -48,33 +49,33 @@ class EthernetLifecycleTest : public ::testing::Test {
 
   void TearDown() override { global_eth_component = nullptr; }
 
-  void tick() {
+  void tick_() {
     LoopBlockingGuard clock{nullptr, nullptr, ++this->now_};
     this->ethernet_.loop();
   }
 
-  void driver_started() { this->ethernet_.on_driver_start_(); }
-  void driver_stopped() { this->ethernet_.on_driver_stop_(); }
+  void driver_started_() { this->ethernet_.on_driver_start_(); }
+  void driver_stopped_() { this->ethernet_.on_driver_stop_(); }
 
-  void start_connecting() {
+  void start_connecting_() {
     this->ethernet_.enable();
-    this->driver_started();
-    this->tick();
+    this->driver_started_();
+    this->tick_();
   }
 
-  void got_ip() {
+  void got_ip_() {
     this->ethernet_.connected_ = true;
-    this->tick();
+    this->tick_();
   }
 
-  void lost_link() {
+  void lost_link_() {
     this->ethernet_.connected_ = false;
-    this->tick();
+    this->tick_();
   }
 
-  void start_connected() {
-    this->start_connecting();
-    this->got_ip();
+  void start_connected_() {
+    this->start_connecting_();
+    this->got_ip_();
     ASSERT_TRUE(this->ethernet_.is_connected());
   }
 
@@ -83,7 +84,7 @@ class EthernetLifecycleTest : public ::testing::Test {
 };
 
 TEST_F(EthernetLifecycleTest, RejectedStopLeavesConnectionEnabled) {
-  this->start_connected();
+  this->start_connected_();
   driver.stop_ok = false;
 
   this->ethernet_.disable();
@@ -95,7 +96,7 @@ TEST_F(EthernetLifecycleTest, RejectedStopLeavesConnectionEnabled) {
 }
 
 TEST_F(EthernetLifecycleTest, DriverStopAcknowledgementAndDisconnectPrecedeRestart) {
-  this->start_connected();
+  this->start_connected_();
   int disconnects = 0;
   LambdaAction<> disconnect{[&] {
     EXPECT_EQ(driver.starts, 1);
@@ -109,24 +110,24 @@ TEST_F(EthernetLifecycleTest, DriverStopAcknowledgementAndDisconnectPrecedeResta
   EXPECT_FALSE(this->ethernet_.is_connected());
   EXPECT_FALSE(this->ethernet_.is_driver_stopped());
   this->ethernet_.enable();
-  this->tick();
+  this->tick_();
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(disconnects, 0);
 
-  this->driver_stopped();
+  this->driver_stopped_();
   EXPECT_TRUE(this->ethernet_.is_driver_stopped());
-  this->tick();
+  this->tick_();
   EXPECT_EQ(disconnects, 1);
   EXPECT_EQ(driver.starts, 2);
   EXPECT_TRUE(this->ethernet_.is_enabled());
   EXPECT_FALSE(this->ethernet_.is_driver_stopped());
-  this->tick();
+  this->tick_();
   EXPECT_EQ(driver.starts, 2);
   EXPECT_EQ(disconnects, 1);
 }
 
 TEST_F(EthernetLifecycleTest, EnableAfterStopEventStillWaitsForDisconnect) {
-  this->start_connected();
+  this->start_connected_();
   int disconnects = 0;
   int reconnects = 0;
   LambdaAction<> disconnect{[&] {
@@ -140,45 +141,45 @@ TEST_F(EthernetLifecycleTest, EnableAfterStopEventStillWaitsForDisconnect) {
   on_connect.add_action(&reconnect);
 
   this->ethernet_.disable();
-  this->driver_stopped();
+  this->driver_stopped_();
   this->ethernet_.enable();
   EXPECT_EQ(driver.starts, 1);
-  this->tick();
+  this->tick_();
   EXPECT_EQ(disconnects, 1);
   EXPECT_EQ(driver.starts, 2);
-  this->driver_started();
-  this->tick();
-  this->got_ip();
+  this->driver_started_();
+  this->tick_();
+  this->got_ip_();
   EXPECT_EQ(reconnects, 1);
   EXPECT_EQ(disconnects, 1);
 }
 
 TEST_F(EthernetLifecycleTest, DisableCancelsQueuedRestart) {
-  this->start_connected();
+  this->start_connected_();
   this->ethernet_.disable();
   this->ethernet_.enable();
   this->ethernet_.disable();
   EXPECT_EQ(driver.stops, 1);
 
-  this->driver_started();
-  this->tick();
+  this->driver_started_();
+  this->tick_();
   EXPECT_FALSE(this->ethernet_.is_driver_stopped());
-  this->driver_stopped();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
   EXPECT_TRUE(this->ethernet_.is_driver_stopped());
   EXPECT_EQ(driver.starts, 1);
 }
 
 TEST_F(EthernetLifecycleTest, DisconnectAutomationMayCancelRestart) {
-  this->start_connected();
+  this->start_connected_();
   LambdaAction<> cancel{[this] { this->ethernet_.disable(); }};
   Automation<> automation{this->ethernet_.get_disconnect_trigger()};
   automation.add_action(&cancel);
 
   this->ethernet_.disable();
   this->ethernet_.enable();
-  this->driver_stopped();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
 
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(driver.stops, 1);
@@ -186,16 +187,16 @@ TEST_F(EthernetLifecycleTest, DisconnectAutomationMayCancelRestart) {
 }
 
 TEST_F(EthernetLifecycleTest, DisconnectAutomationMayRestartExactlyOnce) {
-  this->start_connected();
+  this->start_connected_();
   LambdaAction<> restart{[this] { this->ethernet_.enable(); }};
   Automation<> automation{this->ethernet_.get_disconnect_trigger()};
   automation.add_action(&restart);
 
   this->ethernet_.disable();
   this->ethernet_.enable();
-  this->driver_stopped();
-  this->tick();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
+  this->tick_();
 
   EXPECT_EQ(driver.starts, 2);
   EXPECT_EQ(driver.stops, 1);
@@ -203,7 +204,7 @@ TEST_F(EthernetLifecycleTest, DisconnectAutomationMayRestartExactlyOnce) {
 }
 
 TEST_F(EthernetLifecycleTest, RestartQueuedByDisconnectAutomationNeedsAnotherStop) {
-  this->start_connected();
+  this->start_connected_();
   LambdaAction<> restart{[this] {
     this->ethernet_.enable();
     this->ethernet_.disable();
@@ -214,16 +215,16 @@ TEST_F(EthernetLifecycleTest, RestartQueuedByDisconnectAutomationNeedsAnotherSto
 
   this->ethernet_.disable();
   this->ethernet_.enable();
-  this->driver_stopped();
-  this->tick();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
+  this->tick_();
   EXPECT_EQ(driver.starts, 2);
   EXPECT_EQ(driver.stops, 2);
   EXPECT_TRUE(this->ethernet_.is_disabled());
   EXPECT_FALSE(this->ethernet_.is_driver_stopped());
 
-  this->driver_stopped();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
   EXPECT_EQ(driver.starts, 3);
   EXPECT_TRUE(this->ethernet_.is_enabled());
 }
@@ -239,11 +240,11 @@ TEST_F(EthernetLifecycleTest, FailedStartCleansUpAndAwaitsStopBeforeRetry) {
 
   driver.start_ok = true;
   this->ethernet_.enable();
-  this->tick();
+  this->tick_();
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(driver.stops, 1);
-  this->driver_stopped();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
   EXPECT_EQ(driver.starts, 2);
   EXPECT_TRUE(this->ethernet_.is_enabled());
 }
@@ -256,7 +257,7 @@ TEST_F(EthernetLifecycleTest, FailedStartWithRejectedCleanupRemainsBlocked) {
 
   driver.start_ok = true;
   this->ethernet_.enable();
-  this->tick();
+  this->tick_();
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(driver.stops, 1);
   EXPECT_TRUE(this->ethernet_.is_disabled());
@@ -264,7 +265,7 @@ TEST_F(EthernetLifecycleTest, FailedStartWithRejectedCleanupRemainsBlocked) {
 }
 
 TEST_F(EthernetLifecycleTest, StoppingWhileConnectingDoesNotFireDisconnectAgain) {
-  this->start_connecting();
+  this->start_connecting_();
   int disconnects = 0;
   LambdaAction<> disconnect{[&] { ++disconnects; }};
   Automation<> automation{this->ethernet_.get_disconnect_trigger()};
@@ -272,24 +273,25 @@ TEST_F(EthernetLifecycleTest, StoppingWhileConnectingDoesNotFireDisconnectAgain)
 
   this->ethernet_.disable();
   this->ethernet_.enable();
-  this->driver_stopped();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
   EXPECT_EQ(disconnects, 0);
   EXPECT_EQ(driver.starts, 2);
 
-  this->driver_started();
-  this->tick();
-  this->got_ip();
-  this->lost_link();
+  this->driver_started_();
+  this->tick_();
+  this->got_ip_();
+  this->lost_link_();
   EXPECT_EQ(disconnects, 1);
 
   this->ethernet_.disable();
   this->ethernet_.enable();
-  this->driver_stopped();
-  this->tick();
+  this->driver_stopped_();
+  this->tick_();
   EXPECT_EQ(disconnects, 1);
   EXPECT_EQ(driver.starts, 3);
 }
 
 }  // namespace testing
 }  // namespace esphome::ethernet
+#endif  // USE_HOST
