@@ -196,10 +196,13 @@ E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info)
       winner.has_runner_up = true;
     }
   } else {
-    // Take over. A winner pushed aside becomes the runner-up.
-    winner.has_runner_up = winner.active;
-    winner.runner_up_priority = winner.priority;
-    winner.runner_up_ms = now;
+    // Take over. A winner pushed aside becomes the runner-up, timed from its last packet; after a handoff the
+    // runner-up kept until then stays.
+    if (winner.active) {
+      winner.has_runner_up = true;
+      winner.runner_up_priority = winner.priority;
+      winner.runner_up_ms = winner.last_packet_ms;
+    }
     memcpy(winner.cid, info.cid, E131_CID_SIZE);
     winner.priority = info.priority;
     winner.sequence = info.sequence;
