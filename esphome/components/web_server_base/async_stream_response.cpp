@@ -230,10 +230,15 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
       sent = add_iovecs(*this->client_, iov, iovcnt, scratch, sizeof(scratch));
       if (sent > 0) {
         const size_t space_after = this->client_->space();
-        // On LibreTiny an ACK can arrive while the adds run in the tcpip thread; it leaves more space than they used
-        if (space_after + sent > space_before)
+        // On LibreTiny an ACK can arrive while the adds run in the tcpip thread; it leaves more space than they used.
+        // The space is then recorded as if it had not, so the ACKs for these bytes still count at the next write: a
+        // buffer the ACK emptied would otherwise look unchanged after an idle pause and the stream would be closed.
+        if (space_after + sent > space_before) {
           this->last_ack_ms_ = now;
-        this->space_after_write_ = space_after;
+          this->space_after_write_ = space_before - sent;
+        } else {
+          this->space_after_write_ = space_after;
+        }
       }
     }
   }
