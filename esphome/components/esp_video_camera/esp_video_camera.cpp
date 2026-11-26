@@ -501,6 +501,8 @@ bool ESPVideoCamera::init_pipeline_() {
 }
 
 void ESPVideoCamera::loop() {
+  if (this->uvc_capture_busy_.load(std::memory_order_acquire))
+    return;
   const uint32_t now = App.get_loop_component_start_time();
   // A snapshot request survives failed starts so the retry still runs for it,
   // but is dropped once its requester will have given up.
@@ -545,8 +547,12 @@ void ESPVideoCamera::loop() {
     if (this->capture_retry_pending_ && (int32_t) (now - this->capture_retry_at_ms_) < 0)
       return;
     this->capture_retry_pending_ = false;
-    if (!this->start_capture_())
+    if (this->is_uvc_()) {
+      if (!this->schedule_uvc_capture_operation_(true, true))
+        this->arm_capture_retry_();
+    } else if (!this->start_capture_()) {
       this->arm_capture_retry_();
+    }
     return;
   }
 
@@ -555,6 +561,8 @@ void ESPVideoCamera::loop() {
   } else {
     this->loop_direct_capture_(now);
   }
+  if (this->uvc_capture_busy_.load(std::memory_order_acquire))
+    return;
   if (!this->streaming_)
     return;  // the capture failed above and has armed its retry
 
@@ -567,8 +575,7 @@ void ESPVideoCamera::loop() {
              "EPERM, which is indistinguishable from \"no frame yet\", so a device that has really gone can look "
              "like this.",
              this->device_, (unsigned) (NO_FRAME_WARNING_MS / 1000));
-    this->stop_capture_();
-    this->arm_capture_retry_();
+    this->stop_capture_from_loop_(true);
     return;
   }
 
@@ -580,8 +587,42 @@ void ESPVideoCamera::loop() {
     // Zero means "not idle", so a genuine zero is stored as 1.
     this->idle_since_ms_ = now == 0 ? 1 : now;
   } else if ((now - this->idle_since_ms_) >= CAPTURE_IDLE_TIMEOUT_MS) {
-    this->stop_capture_();
+    this->stop_capture_from_loop_(false);
   }
+}
+
+void ESPVideoCamera::uvc_capture_task_(void *param) {
+  auto *camera = static_cast<ESPVideoCamera *>(param);
+  if (camera->uvc_capture_start_) {
+    if (!camera->start_capture_())
+      camera->arm_capture_retry_();
+  } else {
+    camera->stop_capture_();
+    if (camera->uvc_capture_retry_)
+      camera->arm_capture_retry_();
+  }
+  camera->uvc_capture_busy_.store(false, std::memory_order_release);
+  vTaskDelete(nullptr);
+}
+
+bool ESPVideoCamera::schedule_uvc_capture_operation_(bool start, bool retry) {
+  this->uvc_capture_start_ = start;
+  this->uvc_capture_retry_ = retry;
+  this->uvc_capture_busy_.store(true, std::memory_order_release);
+  if (xTaskCreatePinnedToCore(uvc_capture_task_, "uvc_capture", 4096, this, 5, nullptr, 0) != pdPASS) {
+    this->uvc_capture_busy_.store(false, std::memory_order_release);
+    ESP_LOGE(TAG, "Failed to create UVC capture task");
+    return false;
+  }
+  return true;
+}
+
+void ESPVideoCamera::stop_capture_from_loop_(bool retry) {
+  if (this->is_uvc_() && this->schedule_uvc_capture_operation_(false, retry))
+    return;
+  this->stop_capture_();
+  if (retry)
+    this->arm_capture_retry_();
 }
 
 void ESPVideoCamera::arm_capture_retry_() {
@@ -593,8 +634,7 @@ bool ESPVideoCamera::handle_device_gone_(int err) {
   if (!errno_means_device_gone(err))
     return false;
   ESP_LOGW(TAG, "Capture device '%s' disappeared (%s); will retry", this->device_, strerror(err));
-  this->stop_capture_();
-  this->arm_capture_retry_();
+  this->stop_capture_from_loop_(true);
   return true;
 }
 
@@ -698,8 +738,7 @@ void ESPVideoCamera::requeue_capture_(v4l2_buffer &buf) {
   if (this->handle_device_gone_(err))
     return;
   ESP_LOGW(TAG, "Capture QBUF failed: %s; restarting the capture", strerror(err));
-  this->stop_capture_();
-  this->arm_capture_retry_();
+  this->stop_capture_from_loop_(true);
 }
 
 void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
