@@ -166,6 +166,18 @@ bool E131Component::packet_(const uint8_t *data, size_t len, int &universe, E131
   return true;
 }
 
+#ifdef USE_E131_ARBITRATION
+// Only called on a packet that packet_() accepted, so the framing layer is complete.
+void E131Component::source_info_(const uint8_t *data, E131SourceInfo &info) {
+  auto *sbuff = reinterpret_cast<const E131RawPacket *>(data);
+  info.cid = sbuff->cid;
+  info.source_name = sbuff->source_name;
+  info.priority = sbuff->priority;
+  info.sequence = sbuff->sequence_number;
+  info.options = sbuff->options;
+}
+#endif
+
 }  // namespace esphome::e131
 
 #endif

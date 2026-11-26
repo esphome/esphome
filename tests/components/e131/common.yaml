@@ -3,3 +3,4 @@ wifi:
   password: password1
 
 e131:
+  arbitrate_sources: true
