@@ -3,7 +3,6 @@
 #include <cmath>
 
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::derivative {
@@ -11,7 +10,6 @@ namespace esphome::derivative {
 ESPHOME_LOG_TAG(TAG, "derivative");
 
 void DerivativeSensor::setup() {
-  this->last_update_ = App.get_loop_component_start_time();
   this->source_sensor_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
 }
 
