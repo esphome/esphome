@@ -158,14 +158,14 @@ void MipiDsi::setup() {
   if (this->num_fbs_ > 1)
     this->frame_complete_ = xSemaphoreCreateCounting(2, 0);
 #endif
-  if (this->io_lock_ == nullptr || (MIPI_DSI_HAS_DMA_FRAME_EVENT && this->num_fbs_ > 1 &&
-                                   this->frame_complete_ == nullptr)) {
+  if (this->io_lock_ == nullptr ||
+      (MIPI_DSI_HAS_DMA_FRAME_EVENT && this->num_fbs_ > 1 && this->frame_complete_ == nullptr)) {
     this->mark_failed(LOG_STR("Could not allocate display synchronization semaphores"));
     return;
   }
   // ISR context must be in internal memory even when the component resides in PSRAM.
-  auto *ctx = static_cast<DsiCallbackContext *>(heap_caps_malloc(sizeof(DsiCallbackContext),
-                                                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  auto *ctx = static_cast<DsiCallbackContext *>(
+      heap_caps_malloc(sizeof(DsiCallbackContext), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
   if (ctx == nullptr) {
     this->mark_failed(LOG_STR("Could not allocate display callback context"));
     return;
