@@ -270,7 +270,7 @@ class EthernetComponent final : public Component {
   // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
   void ethernet_lazy_init_();
   bool start_driver_();
-  enum class DriverStopReason : uint8_t { DISABLE, FAILED_START };
+  enum class DriverStopReason : uint8_t { DRIVER_STOP_REASON_DISABLE, DRIVER_STOP_REASON_FAILED_START };
   bool stop_driver_(DriverStopReason reason);
   void on_driver_start_() {
     this->started_ = true;

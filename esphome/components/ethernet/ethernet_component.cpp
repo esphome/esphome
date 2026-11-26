@@ -37,7 +37,8 @@ void EthernetComponent::loop() {
 
   switch (this->state_) {
     case EthernetComponentState::STOPPED:
-      if (this->started_) {
+      // A failed driver start can post START before its cleanup posts STOP.
+      if (!this->disabled_ && this->started_) {
         ESP_LOGI(TAG, "Starting connection");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
@@ -123,7 +124,7 @@ void EthernetComponent::enable() {
   this->driver_stopped_.store(false, std::memory_order_release);
   if (!this->start_driver_()) {
     // A failed start may leave the driver's state changed. Only STOP delivery permits another start.
-    this->stop_driver_(DriverStopReason::FAILED_START);
+    this->stop_driver_(DriverStopReason::DRIVER_STOP_REASON_FAILED_START);
     return;
   }
   this->disabled_ = false;
@@ -138,7 +139,7 @@ void EthernetComponent::disable() {
     return;
 
   ESP_LOGD(TAG, "Disabling");
-  if (!this->stop_driver_(DriverStopReason::DISABLE))
+  if (!this->stop_driver_(DriverStopReason::DRIVER_STOP_REASON_DISABLE))
     return;
   this->disabled_ = true;
   // ETH_EVENT_STOP will clear started_; loop() will transition to STOPPED.

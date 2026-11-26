@@ -14,6 +14,7 @@ struct Driver {
   bool stop_ok{true};
   int starts{0};
   int stops{0};
+  int connect_attempts{0};
 };
 Driver driver;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace
@@ -30,7 +31,10 @@ bool EthernetComponent::stop_driver_(DriverStopReason) {
   ++testing::driver.stops;
   return testing::driver.stop_ok;
 }
-void EthernetComponent::start_connect_() { this->connect_begin_ = App.get_loop_component_start_time(); }
+void EthernetComponent::start_connect_() {
+  ++testing::driver.connect_attempts;
+  this->connect_begin_ = App.get_loop_component_start_time();
+}
 void EthernetComponent::finish_connect_() {}
 void EthernetComponent::dump_connect_params_() {}
 void EthernetComponent::dump_config() {}
@@ -238,6 +242,11 @@ TEST_F(EthernetLifecycleTest, FailedStartCleansUpAndAwaitsStopBeforeRetry) {
   EXPECT_TRUE(this->ethernet_.is_disabled());
   EXPECT_FALSE(this->ethernet_.is_driver_stopped());
 
+  // The driver can post START before returning an error from esp_eth_start().
+  this->driver_started_();
+  this->tick_();
+  EXPECT_EQ(driver.connect_attempts, 0);
+
   driver.start_ok = true;
   this->ethernet_.enable();
   this->tick_();
@@ -247,6 +256,9 @@ TEST_F(EthernetLifecycleTest, FailedStartCleansUpAndAwaitsStopBeforeRetry) {
   this->tick_();
   EXPECT_EQ(driver.starts, 2);
   EXPECT_TRUE(this->ethernet_.is_enabled());
+  this->driver_started_();
+  this->tick_();
+  EXPECT_EQ(driver.connect_attempts, 1);
 }
 
 TEST_F(EthernetLifecycleTest, FailedStartWithRejectedCleanupRemainsBlocked) {

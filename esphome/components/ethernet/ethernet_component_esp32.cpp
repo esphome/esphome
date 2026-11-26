@@ -505,7 +505,7 @@ bool EthernetComponent::stop_driver_(DriverStopReason reason) {
   const esp_err_t err = esp_eth_stop(this->eth_handle_);
   if (err == ESP_OK)
     return true;
-  if (reason == DriverStopReason::FAILED_START) {
+  if (reason == DriverStopReason::DRIVER_STOP_REASON_FAILED_START) {
     ESP_LOGE(TAG, "Start cleanup failed: %s; Ethernet restart requires reboot", esp_err_to_name(err));
   } else {
     ESP_LOGW(TAG, "esp_eth_stop failed: %s", esp_err_to_name(err));
