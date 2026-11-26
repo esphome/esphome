@@ -20,6 +20,12 @@ static constexpr uint8_t FRAME_30[30] = {0xAA, 0xFF, 0x03, 0x00, 0x0E, 0x03, 0xB
 static constexpr uint8_t ULTRASONIC_NOISY[] = {0x12, 0xFF, 0x07, 0xA1, 0xA7, 0x34, 0xFF, 0xFF, 0x07, 0xA1, 0xA7,
                                                0x00, 0xFF, 0x07, 0xA1, 0xA7, 0x56, 0xFF, 0x07, 0xA1, 0xA7};
 
+// Pioneer WT shaped frames (A5 01 header, whole-frame length at byte 7) of 12, 20 and 12 bytes among noise
+static constexpr uint8_t LENGTH_FRAMES[] = {0x00, 0xA5, 0x01, 0x01, 0x23, 0x00, 0xA5, 0x00, 0x0C, 0x11, 0x22, 0x33,
+                                            0x44, 0xA5, 0x01, 0x01, 0x23, 0x00, 0xA5, 0x00, 0x14, 0x11, 0x22, 0x33,
+                                            0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0x7E, 0xA5, 0x01,
+                                            0x01, 0x23, 0x00, 0xA5, 0x00, 0x0C, 0x11, 0x22, 0x33, 0x44};
+
 // --- LineReader: one GGA sentence fed byte by byte ---
 
 static void LineReader_NmeaLine(benchmark::State &state) {
@@ -92,5 +98,33 @@ static void FrameReader_UltrasonicNoisy(benchmark::State &state) {
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(FrameReader_UltrasonicNoisy);
+
+// --- LengthFrameReader: frames of different lengths among noise ---
+
+// A5 01, whole-frame length at 7
+using PioneerFormat = FrameFormat<FrameHeader<0xA5, 0x01>, FrameLengthU8<LengthField{.offset = 7}>>;
+
+static void LengthFrameReader_MixedFrames(benchmark::State &state) {
+  LengthFrameReader<255, PioneerFormat> reader;
+  const uint8_t *bytes = LENGTH_FRAMES;
+  uint32_t frames = 0;
+
+  auto handle = [&frames](const uint8_t *frame, size_t /*len*/) {
+    benchmark::DoNotOptimize(frame);
+    frames++;
+    return true;
+  };
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(bytes);
+    for (int i = 0; i < kInnerIterations; i++) {
+      for (size_t j = 0; j < sizeof(LENGTH_FRAMES); j++)
+        reader.feed(bytes[j], handle);
+    }
+    benchmark::DoNotOptimize(frames);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LengthFrameReader_MixedFrames);
 
 }  // namespace esphome::benchmarks

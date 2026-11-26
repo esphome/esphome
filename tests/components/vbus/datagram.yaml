@@ -1,0 +1,11 @@
+vbus:
+  on_datagram:
+    - then:
+        - lambda: |-
+            ESP_LOGD("vbus.test", "%04x %04x %04x %04x %08" PRIx32,
+                     command, source, destination, value_id, value);
+    - then:
+        - delay: 1ms
+        - lambda: |-
+            ESP_LOGD("vbus.test", "%04x %04x %04x %04x %08" PRIx32,
+                     command, source, destination, value_id, value);

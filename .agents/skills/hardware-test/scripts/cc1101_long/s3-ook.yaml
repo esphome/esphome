@@ -1,0 +1,15 @@
+# Example OOK board file for an E07-M1101D on an ESP32-S3; change the pins to match your board.
+substitutions:
+  name: cc-s3-ook
+  clk: GPIO12
+  mosi: GPIO11
+  miso: GPIO13
+  cs: GPIO10
+  gdo0: GPIO9
+  rxsym: "192"
+packages:
+  c: !include ookcommon.yaml
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf

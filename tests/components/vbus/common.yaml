@@ -35,23 +35,53 @@ binary_sensor:
 
 sensor:
   - platform: vbus
-    model: deltasol c
+    model: deltasol_bs_plus
     temperature_1:
-      name: DeltaSol C Temperature 1
+      name: BS Plus Temperature 1
     temperature_2:
-      name: DeltaSol C Temperature 2
+      name: BS Plus Temperature 2
     temperature_3:
-      name: DeltaSol C Temperature 3
+      name: BS Plus Temperature 3
+    temperature_4:
+      name: BS Plus Temperature 4
+    pump_speed_1:
+      name: BS Plus Pump Speed 1
+    pump_speed_2:
+      name: BS Plus Pump Speed 2
     operating_hours_1:
-      name: DeltaSol C Operating Hours 1
+      name: BS Plus Operating Hours 1
+    operating_hours_2:
+      name: BS Plus Operating Hours 2
     heat_quantity:
-      name: DeltaSol C Heat Quantity
+      name: BS Plus Heat Quantity
     time:
-      name: DeltaSol C System Time
+      name: BS Plus Time
+    version:
+      name: BS Plus Version
   - platform: vbus
-    model: deltasol_cs4
+    model: deltasol_bs_2009
     temperature_1:
-      name: "DeltaSol CS4 Temperature 1"
+      name: BS 2009 Temperature 1
+    temperature_2:
+      name: BS 2009 Temperature 2
+    temperature_3:
+      name: BS 2009 Temperature 3
+    temperature_4:
+      name: BS 2009 Temperature 4
+    pump_speed_1:
+      name: BS 2009 Pump Speed 1
+    pump_speed_2:
+      name: BS 2009 Pump Speed 2
+    operating_hours_1:
+      name: BS 2009 Operating Hours 1
+    operating_hours_2:
+      name: BS 2009 Operating Hours 2
+    heat_quantity:
+      name: BS 2009 Heat Quantity
+    time:
+      name: BS 2009 Time
+    version:
+      name: BS 2009 Version
   - platform: vbus
     model: deltasol_bs2
     temperature_1:
@@ -73,4 +103,109 @@ sensor:
     heat_quantity:
       name: BS2 Heat Quantity
     version:
-      name: BS2 Firmware Version
+      name: BS2 Version
+  - platform: vbus
+    model: deltasol c
+    temperature_1:
+      name: DeltaSol C Temperature 1
+    temperature_2:
+      name: DeltaSol C Temperature 2
+    temperature_3:
+      name: DeltaSol C Temperature 3
+    temperature_4:
+      name: DeltaSol C Temperature 4
+    pump_speed_1:
+      name: DeltaSol C Pump Speed 1
+    pump_speed_2:
+      name: DeltaSol C Pump Speed 2
+    operating_hours_1:
+      name: DeltaSol C Operating Hours 1
+    operating_hours_2:
+      name: DeltaSol C Operating Hours 2
+    heat_quantity:
+      name: DeltaSol C Heat Quantity
+    time:
+      name: DeltaSol C Time
+  - platform: vbus
+    model: deltasol_cs2
+    temperature_1:
+      name: CS2 Temperature 1
+    temperature_2:
+      name: CS2 Temperature 2
+    temperature_3:
+      name: CS2 Temperature 3
+    temperature_4:
+      name: CS2 Temperature 4
+    pump_speed:
+      name: CS2 Pump Speed
+    operating_hours:
+      name: CS2 Operating Hours
+    heat_quantity:
+      name: CS2 Heat Quantity
+    version:
+      name: CS2 Version
+  - platform: vbus
+    model: deltasol_cs4
+    temperature_1:
+      name: DeltaSol CS4 Temperature 1
+    temperature_2:
+      name: DeltaSol CS4 Temperature 2
+    temperature_3:
+      name: DeltaSol CS4 Temperature 3
+    temperature_4:
+      name: DeltaSol CS4 Temperature 4
+    temperature_5:
+      name: DeltaSol CS4 Temperature 5
+    pump_speed_1:
+      name: DeltaSol CS4 Pump Speed 1
+    pump_speed_2:
+      name: DeltaSol CS4 Pump Speed 2
+    operating_hours_1:
+      name: DeltaSol CS4 Operating Hours 1
+    operating_hours_2:
+      name: DeltaSol CS4 Operating Hours 2
+    heat_quantity:
+      name: DeltaSol CS4 Heat Quantity
+    time:
+      name: DeltaSol CS4 Time
+    version:
+      name: DeltaSol CS4 Version
+    flow_rate:
+      name: DeltaSol CS4 Flow Rate
+  - platform: vbus
+    model: deltasol_cs_plus
+    temperature_1:
+      name: CS Plus Temperature 1
+    temperature_2:
+      name: CS Plus Temperature 2
+    temperature_3:
+      name: CS Plus Temperature 3
+    temperature_4:
+      name: CS Plus Temperature 4
+    temperature_5:
+      name: CS Plus Temperature 5
+    pump_speed_1:
+      name: CS Plus Pump Speed 1
+    pump_speed_2:
+      name: CS Plus Pump Speed 2
+    operating_hours_1:
+      name: CS Plus Operating Hours 1
+    operating_hours_2:
+      name: CS Plus Operating Hours 2
+    heat_quantity:
+      name: CS Plus Heat Quantity
+    time:
+      name: CS Plus Time
+    version:
+      name: CS Plus Version
+    flow_rate:
+      name: CS Plus Flow Rate
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    sensors:
+      - id: vcustom_s
+        name: VBus Custom Sensor
+        lambda: return (x[1] << 8) + x[0];

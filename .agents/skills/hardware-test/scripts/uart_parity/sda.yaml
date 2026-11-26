@@ -1,0 +1,5 @@
+# hardware UART0 on GPIO1/3, report on the UART
+substitutions:
+  name: sda
+packages:
+  c: !include common.yaml

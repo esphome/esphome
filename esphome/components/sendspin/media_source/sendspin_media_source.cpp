@@ -166,25 +166,24 @@ void SendspinMediaSource::notify_audio_played(uint32_t frames, int64_t timestamp
 // --- Sendspin PlayerRoleListener overrides ---
 
 // THREAD CONTEXT: Sendspin sync task background thread. May block up to timeout_ms.
-size_t SendspinMediaSource::on_audio_write(uint8_t *data, size_t length, uint32_t timeout_ms) {
+size_t SendspinMediaSource::on_audio_output(std::span<const uint8_t> pcm, const sendspin::AudioFormat &format,
+                                            uint32_t timeout_ms) {
   if (!this->has_listener() || (this->get_state() != media_source::MediaSourceState::PLAYING)) {
     vTaskDelay(pdMS_TO_TICKS(timeout_ms));
     return 0;
   }
 
-  // PlayerRole::get_current_stream_params() is safe to call from the sync task.
-  auto &params = this->player_role_->get_current_stream_params();
-  if (!params.bit_depth.has_value() || !params.channels.has_value() || !params.sample_rate.has_value()) {
-    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
-    return 0;
-  }
-  audio::AudioStreamInfo stream_info(*params.bit_depth, *params.channels, *params.sample_rate);
+  audio::AudioStreamInfo stream_info(format.bits_per_sample, format.channels, format.sample_rate);
 
-  return this->write_output(data, length, timeout_ms, stream_info);
+  return this->write_output(pcm.data(), pcm.size(), timeout_ms, stream_info);
 }
 
 // THREAD CONTEXT: Main loop (PlayerRoleListener lifecycle callback)
 void SendspinMediaSource::on_stream_start() {
+  // A stream/start for a stream already playing only changes its format, which each audio write carries
+  if (this->get_state() != media_source::MediaSourceState::IDLE) {
+    return;
+  }
   if (!this->pending_start_) {
     // Dedup rapid on_stream_start() calls
     this->pending_start_ = true;
