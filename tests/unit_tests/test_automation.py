@@ -2188,6 +2188,10 @@ async def test_grouped_automations_build_in_entry_order_across_lists(
             },
             "on_x: only the watched value can be passed",
         ),
+        (
+            {"watched": lambda parent: parent.speed, "filter": CHANGE_TRIGGER.changed},
+            "on_x: this filter needs args or last_type",
+        ),
     ],
 )
 def test_grouped_automation_rejects_a_missing_value(

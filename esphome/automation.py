@@ -2489,6 +2489,7 @@ async def build_automation_lists(
 CHANGE_TRIGGER = (
     cg.global_ns.namespace("esphome").namespace("internal").namespace("change_trigger")
 )
+_BOOL_FILTERS = (str(CHANGE_TRIGGER.entered), str(CHANGE_TRIGGER.left))
 
 
 @dataclass(frozen=True, slots=True)
@@ -2513,6 +2514,14 @@ class GroupedAutomation:
             raise ValueError(f"{self.conf_key}: a filter or args need a watched value")
         if len(self.args) > 1:
             raise ValueError(f"{self.conf_key}: only the watched value can be passed")
+        # Without args or last_type the copy is a bool, which only suits entered and left
+        if (
+            self.filter is not None
+            and not self.args
+            and self.last_type is None
+            and str(self.filter) not in _BOOL_FILTERS
+        ):
+            raise ValueError(f"{self.conf_key}: this filter needs args or last_type")
 
 
 @dataclass(slots=True)
