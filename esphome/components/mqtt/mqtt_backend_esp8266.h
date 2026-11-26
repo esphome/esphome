@@ -59,7 +59,7 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   void disconnect() final { mqtt_client_.disconnect(true); }
 #if ASYNC_TCP_SSL_ENABLED
   // The library's loop() only pumps TLS output; without TLS the base class's empty loop() stays inline
-  void loop() final { mqtt_client_.loop(); }
+  void loop() final { this->mqtt_client_.loop(); }
 #endif
   bool subscribe(const char *topic, uint8_t qos) final { return mqtt_client_.subscribe(topic, qos) != 0; }
   bool unsubscribe(const char *topic) final { return mqtt_client_.unsubscribe(topic) != 0; }
