@@ -371,9 +371,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     }
     // Capture old_state before set_state_value — current pointer aliases subclass storage
     bool has_full_cbs = !this->full_state_callbacks_.empty();
-    optional<T> old_state;
-    if (has_full_cbs)
-      old_state = current != nullptr ? optional<T>(*current) : nullopt;
+    // Initialized in one step: assigning it later trips a GCC 10 -Wmaybe-uninitialized false positive
+    const optional<T> old_state = has_full_cbs && current != nullptr ? optional<T>(*current) : nullopt;
     // Update storage before firing callbacks so callback code can inspect current state
     this->flags_.has_state = new_state.has_value();
     if (new_state.has_value()) {
