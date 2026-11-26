@@ -114,6 +114,8 @@ async def to_code(config: ConfigType) -> None:
     if CORE.using_arduino:
         if CORE.is_esp8266:
             cg.add_library("ESP8266WiFi", None)
+            # async_tcp provides it as ESP8266AsyncTCP
+            CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP"])
         if CORE.is_libretiny:
             CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP", "RPAsyncTCP"])
         if CORE.is_rp2:

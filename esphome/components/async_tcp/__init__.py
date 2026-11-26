@@ -41,9 +41,8 @@ async def to_code(config: ConfigType) -> None:
         # (a function-like -D does not survive PlatformIO's build flags)
         cg.add_build_flag("-DxPortGetCoreID=int")
     elif CORE.is_esp8266:
-        # https://github.com/esphome-libs/ESPAsyncTCP, published as ESP8266AsyncTCP so the
-        # archived ESP32Async/ESPAsyncTCP that ESPAsyncWebServer depends on can be ignored
-        CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP"])
+        # https://github.com/esphome-libs/ESPAsyncTCP, published as ESP8266AsyncTCP so web_server_base
+        # can ignore the archived ESP32Async/ESPAsyncTCP that ESPAsyncWebServer depends on
         cg.add_library("esphome/ESP8266AsyncTCP", "2.2.2")
     elif CORE.is_rp2:
         # https://github.com/esphome-libs/RPAsyncTCP, a fork of ayushsharma82/RPAsyncTCP

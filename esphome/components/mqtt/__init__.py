@@ -97,8 +97,6 @@ from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["network"]
 DOMAIN = "mqtt"
-ESP8266_ASYNC_MQTT_CLIENT_LIBRARY = "esphome/AsyncMqttClient-esphome"
-ESP8266_ASYNC_MQTT_CLIENT_VERSION = "2.2.0"
 
 _SHA1_FINGERPRINT_RE = re.compile(
     r"(?:[0-9a-fA-F]{40}|(?:[0-9a-fA-F]{2}:){19}[0-9a-fA-F]{2})"
@@ -691,10 +689,8 @@ async def to_code(config):
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
     elif CORE.is_esp8266:
-        cg.add_library(
-            ESP8266_ASYNC_MQTT_CLIENT_LIBRARY,
-            ESP8266_ASYNC_MQTT_CLIENT_VERSION,
-        )
+        # https://github.com/esphome-libs/async-mqtt-client, with BearSSL support
+        cg.add_library("esphome/AsyncMqttClient-esphome", "2.2.0")
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
@@ -818,14 +814,12 @@ async def to_code(config):
     # end esp-idf
 
     if fingerprints := config.get(CONF_SSL_FINGERPRINTS):
-        cg.add(
-            var.set_ssl_fingerprint(
-                [
-                    HexInt(b)
-                    for b in bytes.fromhex(normalize_fingerprint(fingerprints[0]))
-                ]
-            )
+        cg.extern_progmem_array(
+            "esphome::mqtt::SSL_FINGERPRINT",
+            cg.uint8,
+            [HexInt(b) for b in bytes.fromhex(normalize_fingerprint(fingerprints[0]))],
         )
+        cg.add(var.set_ssl_fingerprint())
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
         # The core's handler keeps its message in RAM; the replacement in mqtt_client.cpp does not
         cg.add_build_flag("-Wl,--wrap=stack_thunk_fatal_smashing")

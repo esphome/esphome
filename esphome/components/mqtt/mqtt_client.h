@@ -28,7 +28,6 @@
 #endif
 #include "lwip/ip_addr.h"
 
-#include <array>
 #include <atomic>
 #include <span>
 #include <vector>
@@ -39,6 +38,10 @@
 #endif
 
 namespace esphome::mqtt {
+
+#if defined(USE_ESP8266) && ASYNC_TCP_SSL_ENABLED
+extern const uint8_t SSL_FINGERPRINT[] PROGMEM;
+#endif
 
 // Max lengths for stack-based topic building.
 // These limits are enforced at Python config validation time in mqtt/__init__.py
@@ -196,7 +199,12 @@ class MQTTClientComponent final : public Component {
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
 #endif
 #if defined(USE_ESP8266) && ASYNC_TCP_SSL_ENABLED
-  void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint);
+  // The broker's certificate SHA1, generated as SSL_FINGERPRINT in flash; the library keeps its own copy
+  void set_ssl_fingerprint() {
+    uint8_t fingerprint[20];
+    progmem_memcpy(fingerprint, SSL_FINGERPRINT, sizeof(fingerprint));
+    this->mqtt_backend_.set_server_fingerprint(fingerprint);
+  }
 #endif
 #ifdef USE_ESP32
   void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }

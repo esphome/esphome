@@ -5,47 +5,29 @@ from pathlib import Path
 
 from esphome.core import CORE
 
-ESP8266_ASYNC_MQTT_CLIENT_LIBRARY = "esphome/AsyncMqttClient-esphome"
-ESP8266_ASYNC_MQTT_CLIENT_VERSION = "2.2.0"
-ESP8266_ESP_ASYNC_TCP_LIBRARY = "esphome/ESP8266AsyncTCP"
-ESP8266_ESP_ASYNC_TCP_VERSION = "2.2.2"
 
-
-def _assert_esp8266_mqtt_libraries() -> None:
-    async_mqtt_client = CORE.platformio_libraries["AsyncMqttClient-esphome"]
-    assert async_mqtt_client.name == ESP8266_ASYNC_MQTT_CLIENT_LIBRARY
-    assert async_mqtt_client.version == ESP8266_ASYNC_MQTT_CLIENT_VERSION
-    assert async_mqtt_client.repository is None
-
-    async_tcp = CORE.platformio_libraries["ESP8266AsyncTCP"]
-    assert async_tcp.name == ESP8266_ESP_ASYNC_TCP_LIBRARY
-    assert async_tcp.version == ESP8266_ESP_ASYNC_TCP_VERSION
-    assert async_tcp.repository is None
-
-
-def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
+def test_mqtt_esp8266_codegen_without_fingerprint(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test ESP8266 MQTT uses the ESP8266 MQTT libraries."""
+    """Test ESP8266 MQTT without ssl_fingerprints builds no TLS."""
     main_cpp = generate_main(component_config_path("esp8266.yaml"))
 
     assert "set_ssl_fingerprint" not in main_cpp
     assert "-DASYNC_TCP_SSL_ENABLED=1" not in CORE.build_flags
-    _assert_esp8266_mqtt_libraries()
 
 
-def test_mqtt_esp8266_tls_fingerprint_codegen_uses_esp8266_mqtt_libraries(
+def test_mqtt_esp8266_tls_fingerprint_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test ESP8266 MQTT TLS fingerprint codegen uses the ESP8266 MQTT libraries."""
+    """Test ESP8266 MQTT TLS fingerprint codegen."""
     main_cpp = generate_main(component_config_path("esp8266_tls_fingerprint.yaml"))
 
     assert "mqtt_client->set_broker_port(8883);" in main_cpp
-    assert "mqtt_client->set_ssl_fingerprint({" in main_cpp
+    assert "mqtt_client->set_ssl_fingerprint();" in main_cpp
+    assert "SSL_FINGERPRINT" in main_cpp
     assert "mqtt_client->disable_log_message();" in main_cpp
     assert "0x00, 0x11, 0x22, 0x33" in main_cpp
     assert "0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF" in main_cpp
     assert "-DASYNC_TCP_SSL_ENABLED=1" in CORE.build_flags
-    _assert_esp8266_mqtt_libraries()

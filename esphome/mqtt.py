@@ -91,20 +91,19 @@ def _unverified_context() -> ssl.SSLContext:
     return context
 
 
-def _pinned_context(fingerprints: list[str]) -> ssl.SSLContext:
+def _pinned_context(pinned: str) -> ssl.SSLContext:
     """Return a context that refuses a broker whose certificate SHA1 is not pinned.
 
     paho calls do_handshake() on each new socket before it sends CONNECT, so the
     check covers every connect and reconnect.
     """
-    pinned = frozenset(fingerprints)
 
     # SSLSocket's dup/recvmsg/sendmsg raise NotImplementedError by design, not abstract
     class _PinnedSSLSocket(ssl.SSLSocket):  # pylint: disable=abstract-method
         def do_handshake(self, block: bool = False) -> None:
             super().do_handshake(block)
             cert = self.getpeercert(binary_form=True)
-            if (fingerprint := hashlib.sha1(cert or b"").hexdigest()) not in pinned:
+            if (fingerprint := hashlib.sha1(cert or b"").hexdigest()) != pinned:
                 # Two arguments, or str() prints the message as a tuple
                 raise ssl.SSLCertVerificationError(
                     ssl.SSL_ERROR_SSL,
@@ -202,12 +201,8 @@ def prepare(
         client.username_pw_set(username, password)
 
     mqtt_conf = config[CONF_MQTT]
-    host = str(mqtt_conf[CONF_BROKER])
-    port = int(mqtt_conf[CONF_PORT])
     if fingerprints := mqtt_conf.get(CONF_SSL_FINGERPRINTS):
-        client.tls_set_context(
-            _pinned_context([normalize_fingerprint(f) for f in fingerprints])
-        )
+        client.tls_set_context(_pinned_context(normalize_fingerprint(fingerprints[0])))
     # Validation sets tls whenever a certificate option or the wss transport implies it
     elif mqtt_conf.get(CONF_TLS):
         if mqtt_conf.get(CONF_VERIFY_SSL) is False:
@@ -240,6 +235,8 @@ def prepare(
         client.tls_set_context(context)
 
     try:
+        host = str(config[CONF_MQTT][CONF_BROKER])
+        port = int(config[CONF_MQTT][CONF_PORT])
         client.connect(host, port)
     except OSError as err:
         raise EsphomeError(f"Cannot connect to MQTT broker: {err}") from err
