@@ -7,6 +7,13 @@
 
 namespace esphome::duco {
 
+#ifdef USE_DUCO_CONFIGURATION_SWITCH
+void Duco::setup() {
+  if (this->allow_system_configuration_switch_ != nullptr)
+    this->allow_system_configuration_switch_->restore(false);
+}
+#endif
+
 ESPHOME_LOG_TAG(TAG, "duco");
 
 static constexpr uint8_t HEADER_START = 0xAA;
