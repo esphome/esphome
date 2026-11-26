@@ -728,10 +728,10 @@ def _is_fixed(point: ConfigType) -> bool:
 
 
 async def _float_argument(value: Any) -> Any:
-    """A coordinate as the float a chart helper takes."""
+    """A value as the float a chart helper takes. A fixed NaN is written as NAN."""
     if isinstance(value, Lambda):
         return await lv_float.process(value)
-    return literal("NAN") if math.isnan(value) else value
+    return value
 
 
 async def set_series_points(
