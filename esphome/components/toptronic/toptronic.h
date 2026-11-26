@@ -64,28 +64,6 @@ struct Option {
   const char *text;  // codegen string literal, valid for the life of the program
 };
 
-// Options are fixed by the configuration, so they live in a codegen-sized vector
-#ifdef TOPTRONIC_OPTION_COUNT
-static constexpr size_t MAX_OPTIONS = TOPTRONIC_OPTION_COUNT;
-#else
-static constexpr size_t MAX_OPTIONS = 8;
-#endif
-struct Option {
-  uint8_t value;
-  const char *text;  // codegen string literal, valid for the life of the program
-};
-
-// Options are fixed by the configuration, so they live in a codegen-sized vector
-#ifdef TOPTRONIC_OPTION_COUNT
-static constexpr size_t MAX_OPTIONS = TOPTRONIC_OPTION_COUNT;
-#else
-static constexpr size_t MAX_OPTIONS = 8;
-#endif
-struct Option {
-  uint8_t value;
-  const char *text;  // codegen string literal, valid for the life of the program
-};
-
 // Shared entity base. update() fires the GET wired up by the hub.
 class TopTronicBase : public PollingComponent {
  public:
