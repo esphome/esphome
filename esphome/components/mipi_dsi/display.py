@@ -60,7 +60,6 @@ from esphome.const import (
     KEY_ESP32,
 )
 from esphome.core import CORE
-from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
 from . import mipi_dsi_ns, models
@@ -184,11 +183,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> None:
-    global_config = full_config.get()
-
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-
-    if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
+    if not requires_buffer(config) and not display.has_external_writer(config[CONF_ID]):
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
 
