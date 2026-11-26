@@ -1,7 +1,6 @@
 """Reads analog gauges out of frames from an esp32_camera."""
 
 from itertools import pairwise
-import logging
 import math
 
 import esphome.codegen as cg
@@ -57,8 +56,6 @@ CONF_MAX_SCAN_RADIUS = "max_scan_radius"
 CONF_DEADZONE_DIAMETER = "deadzone_diameter"
 CONF_PROCESS_CHANNEL = "process_channel"
 
-
-_LOGGER = logging.getLogger(__name__)
 
 analog_gauge_reader_ns = cg.esphome_ns.namespace("analog_gauge_reader")
 AnalogGaugeReader = analog_gauge_reader_ns.class_(
@@ -127,13 +124,16 @@ DIAL_SCHEMA = cv.Schema(
         cv.Optional(CONF_COLOR_TOLERANCE, default=0.0): cv.float_range(
             min=0.0, max=442.0
         ),
-        cv.Optional(CONF_CALIBRATION): cv.ensure_list(
-            cv.Schema(
-                {
-                    cv.Required(CONF_RAW): cv.float_,
-                    cv.Required(CONF_MAPPED): cv.float_,
-                }
-            )
+        cv.Optional(CONF_CALIBRATION): cv.All(
+            cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_RAW): cv.float_,
+                        cv.Required(CONF_MAPPED): cv.float_,
+                    }
+                )
+            ),
+            cv.Length(min=1, max=255),
         ),
     }
 )
@@ -237,12 +237,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
         if dial[CONF_MIN_SCAN_RADIUS] >= dial[CONF_MAX_SCAN_RADIUS]:
             raise cv.Invalid(
                 f"Dial '{dial[CONF_ID]}' scan window is empty", path=[CONF_DIALS]
-            )
-        if CONF_CALIBRATION in dial and dial[CONF_MIN_ANGLE] > dial[CONF_MAX_ANGLE]:
-            _LOGGER.warning(
-                "Dial '%s' has both a calibration map and a wrap-around angle "
-                "range; the calibration map takes precedence",
-                dial[CONF_ID],
             )
         sweep = (dial[CONF_MAX_ANGLE] - dial[CONF_MIN_ANGLE]) % 360.0
         full_circle = (dial[CONF_MIN_ANGLE], dial[CONF_MAX_ANGLE]) == (0.0, 360.0)

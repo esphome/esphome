@@ -1,0 +1,16 @@
+packages:
+  base: !include base.yaml
+
+sensor:
+  - platform: analog_gauge_reader
+    analog_gauge_reader_id: gauge
+    dials:
+      - dial: dial_1
+        value:
+          name: First Entry
+  - platform: analog_gauge_reader
+    analog_gauge_reader_id: gauge
+    dials:
+      - dial: dial_1
+        angle:
+          name: Second Entry

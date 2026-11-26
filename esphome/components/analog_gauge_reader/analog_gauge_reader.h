@@ -192,11 +192,14 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
 
 /// Stretches the crop to the full 0-255 range.
 inline void apply_auto_contrast(uint8_t *data, int size) {
+  // Copy the extremes first: the iterators point into the buffer that is rewritten below.
   const auto [min_it, max_it] = std::minmax_element(data, data + size);
-  if (*max_it > *min_it) {
-    const float scale = 255.0f / static_cast<float>(*max_it - *min_it);
+  const uint8_t min_value = *min_it;
+  const uint8_t max_value = *max_it;
+  if (max_value > min_value) {
+    const float scale = 255.0f / static_cast<float>(max_value - min_value);
     for (int i = 0; i < size; i++)
-      data[i] = static_cast<uint8_t>(static_cast<float>(data[i] - *min_it) * scale);
+      data[i] = static_cast<uint8_t>(static_cast<float>(data[i] - min_value) * scale);
   }
 }
 
@@ -260,6 +263,8 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   int img_height_;
   int max_crop_w_{0};
   int max_crop_h_{0};
+  /// A frame has been requested and has not arrived or timed out yet.
+  bool requested_{false};
   bool paused_{false};
   bool debug_{false};
   /// Reads every dial of one decoded frame; true when the sensors were published.

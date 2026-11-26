@@ -1,5 +1,7 @@
 #include "analog_gauge_reader.h"
 
+#ifdef USE_ANALOG_GAUGE_READER
+
 #include "esphome/components/camera_decoder/jpeg_grayscale.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -59,10 +61,13 @@ void AnalogGaugeReader::dump_config() {
 }
 
 void AnalogGaugeReader::update() {
-  if (this->paused_)
+  // A request that is still outstanding keeps its original deadline.
+  if (this->paused_ || this->requested_)
     return;
+  this->requested_ = true;
   this->set_timeout(FRAME_TIMEOUT_ID, FRAME_TIMEOUT_MS, [this]() {
     ESP_LOGW(TAG, "Frame timeout");
+    this->requested_ = false;
     this->status_set_warning();
   });
   this->camera_->request_image(camera::IDLE);
@@ -70,8 +75,10 @@ void AnalogGaugeReader::update() {
 
 void AnalogGaugeReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
   // Frames the camera captures for other listeners are not ours to process.
-  if (this->paused_ || !this->cancel_timeout(FRAME_TIMEOUT_ID))
+  if (this->paused_ || !this->requested_)
     return;
+  this->requested_ = false;
+  this->cancel_timeout(FRAME_TIMEOUT_ID);
   this->pending_frame_ = image;
   this->enable_loop();
 }
@@ -152,17 +159,17 @@ bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
 
     gauge_needle_detector::DetectorConfig detector_config;
     detector_config.id = dial.id;
-    detector_config.needle_type = dial.needle_type;
+    // A colour distance map is dark where the colour matches, whatever the needle's brightness.
+    detector_config.needle_type =
+        dial.target_color != NO_TARGET_COLOR ? gauge_needle_detector::NEEDLE_TYPE_DARK : dial.needle_type;
     detector_config.algorithm = dial.algorithm;
     detector_config.min_scan_radius = dial.min_scan_radius;
     detector_config.max_scan_radius = dial.max_scan_radius;
     detector_config.deadzone_diameter = dial.deadzone_diameter;
     detector_config.debug = this->debug_;
 
-    const uint32_t start_algo = micros();
     const gauge_needle_detector::DetectionResult result =
         this->detector_.detect(gray, dial.crop_w, dial.crop_h, detector_config);
-    const uint32_t dur_algo = micros() - start_algo;
     // Zero confidence means no needle; its angle must not become a value.
     if (result.confidence <= 0.0f) {
       ESP_LOGW(TAG, "No needle found for dial %s (or the detector failed, see its log); dropping this frame", dial.id);
@@ -171,8 +178,6 @@ bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
 
     const float val = angle_to_value(result.angle, dial);
     const float display_angle = wrap360(result.angle + 90.0f);
-    ESP_LOGV(TAG, "Dial %s: Angle=%.1f (North), Val=%.2f, Conf=%.2f, Time=%" PRIu32 " us", dial.id, display_angle, val,
-             result.confidence, dur_algo);
     this->readings_.push_back({&dial, val, display_angle, result.confidence});
   }
 
@@ -202,7 +207,6 @@ bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
   }
 #endif
   total_value = roundf(total_value * precision) / precision;
-  ESP_LOGV(TAG, "Result: %.6f", total_value);
   PUBLISH_STATE(this->value_sensor_, total_value);
   return true;
 }
@@ -251,3 +255,5 @@ bool AnalogGaugeReader::crop_dial_(const uint8_t *src, const camera::CameraImage
 }
 
 }  // namespace esphome::analog_gauge_reader
+
+#endif  // USE_ANALOG_GAUGE_READER

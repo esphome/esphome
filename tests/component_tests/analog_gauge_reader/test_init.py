@@ -24,6 +24,8 @@ DIR = Path("tests/component_tests/analog_gauge_reader")
         ("test_target_color_channel.yaml", "both target_color and process_channel"),
         ("test_scan_window.yaml", "scan window is empty"),
         ("test_duplicate_sensors.yaml", "only one sensor entry"),
+        ("test_two_sensor_entries.yaml", "one analog_gauge_reader sensor entry"),
+        ("test_empty_calibration.yaml", "at least 1"),
     ],
 )
 def test_invalid_config_is_rejected(
