@@ -70,14 +70,18 @@ TEST(ChangeHelpers, ChangedComparesWholeStrings) {
   EXPECT_TRUE(internal::change_trigger::changed(last, "eco"));
 }
 
-// The copy's type decides; a watched value of another type converts to it
-TEST(ChangeHelpers, ChangedConvertsTheWatchedValueToTheCopysType) {
-  uint8_t last = 0;
-  const int watched = 3;
+// A watched value converts to the copy's type when that does not narrow it; a narrowing one does not compile
+TEST(ChangeHelpers, ChangedWidensTheWatchedValueToTheCopysType) {
+  int last = 0;
+  const uint8_t watched = 3;
   EXPECT_TRUE(internal::change_trigger::changed(last, watched));
   EXPECT_EQ(last, 3);
   EXPECT_FALSE(internal::change_trigger::changed(last, watched));
 }
+template<typename T, typename U>
+concept TracksChange = requires(T &last, U now) { internal::change_trigger::changed(last, now); };
+static_assert(TracksChange<int, uint8_t>);
+static_assert(!TracksChange<uint8_t, int>);
 
 TEST(ChangeHelpers, ChangedTreatsNanAsUnchanged) {
   float last = 0.0f;

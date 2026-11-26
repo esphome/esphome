@@ -2512,6 +2512,12 @@ class GroupedAutomation:
     def __post_init__(self) -> None:
         if (self.filter is not None or self.args) and self.watched is None:
             raise ValueError(f"{self.conf_key}: a filter or args need a watched value")
+        if self.filter is None and (
+            self.last_type is not None or (self.watched is not None and not self.args)
+        ):
+            raise ValueError(
+                f"{self.conf_key}: a watched value without args, or last_type, needs a filter"
+            )
         if len(self.args) > 1:
             raise ValueError(f"{self.conf_key}: only the watched value can be passed")
         # The automation gets a copy, so a reference type would alias the parent's value

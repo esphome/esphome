@@ -2193,6 +2193,14 @@ async def test_grouped_automations_build_in_entry_order_across_lists(
             "on_x: this filter needs args or last_type",
         ),
         (
+            {"watched": lambda parent: parent.speed},
+            "on_x: a watched value without args, or last_type, needs a filter",
+        ),
+        (
+            {"watched": lambda parent: parent.speed, "last_type": cg.int_, "args": []},
+            "on_x: a watched value without args, or last_type, needs a filter",
+        ),
+        (
             {
                 "watched": lambda parent: parent.name,
                 "args": [(cg.std_string.operator("const").operator("ref"), "x")],

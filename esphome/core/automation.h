@@ -850,11 +850,15 @@ inline bool left(bool &last, bool now) {
 }
 
 /// Codegen use only: whether `now` differs from `last`; NaN counts as equal to NaN. Stores `now` in `last`.
-template<typename T> bool changed(T &last, std::type_identity_t<T> now) {
-  bool result = now != last;
+/// `now` may be any type that converts to the copy's type without narrowing.
+template<typename T, typename U>
+  requires requires(U u) { T{u}; }
+bool changed(T &last, U now) {
+  const T value{now};
+  bool result = value != last;
   if constexpr (std::is_floating_point_v<T>)
-    result = result && !(std::isnan(now) && std::isnan(last));
-  last = now;
+    result = result && !(std::isnan(value) && std::isnan(last));
+  last = value;
   return result;
 }
 
