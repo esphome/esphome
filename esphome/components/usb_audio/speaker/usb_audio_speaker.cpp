@@ -55,14 +55,19 @@ void USBAudioSpeaker::loop() {
   }
   if ((commands & COMMAND_START) && this->state_ == speaker::STATE_STOPPED) {
     if (this->writes_in_flight_ != 0) {
-      // A write from before the stop may still count its bytes; reset once it has.
-      this->request_(COMMAND_START, 0);
+      // A write from before the stop may still count its bytes; reset once it has, unless a stop() came since.
+      uint8_t pending = this->commands_;
+      while (!(pending & COMMAND_STOP)) {
+        if (this->commands_.compare_exchange_weak(pending, pending | COMMAND_START)) {
+          this->enable_loop_soon_any_context();
+          break;
+        }
+      }
     } else {
       // Suspending flushed the driver's ring buffer, and resuming restarts its packet sizing.
       portENTER_CRITICAL(&this->taken_lock_);
       this->ring_bytes_ = 0;
       this->ring_padding_ = 0;
-      this->settle_armed_ = false;
       // Resuming resets the driver's accumulator, then prepares every transfer, which advances it by their packets.
       this->packet_frac_accum_ = CONFIG_UAC_NUM_ISOC_URBS * CONFIG_UAC_NUM_PACKETS_PER_URB * this->packet_frac_ % 1000;
       this->unreported_frames_ = 0;
@@ -135,20 +140,20 @@ uint32_t USBAudioSpeaker::audio_tail_bytes_() {
   return ring < next ? next - ring : 0;
 }
 
-// A take on the driver's task of a still pending write looks like a park. Once no write or transfer event has come for
-// the in-flight time, the driver holds less than a transfer, so replay takes until that is counted. True while waiting.
+// A take on the driver's task of a write still being counted looks like a park. Once no write or transfer event has
+// come for the in-flight time, the driver holds less than a transfer, so replay takes until that is counted.
+// True while waiting for the bus to idle.
 bool USBAudioSpeaker::settle_stale_count_() {
-  if (!this->settle_armed_) {
+  if (this->state_ != speaker::STATE_RUNNING || this->ring_bytes_ == 0) {
     return false;
   }
-  // No count precheck: transfer_bytes_ rounds up, so a stale take can sit below it at 44.1 kHz.
-  if (this->state_ != speaker::STATE_RUNNING) {
-    this->settle_armed_ = false;
-    return false;
+  auto busy = [this]() { return this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_); };
+  if (busy()) {
+    return true;
   }
   portENTER_CRITICAL(&this->taken_lock_);
-  // Under the lock, so a take inside a write that just started has already set the event time.
-  if (this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_)) {
+  // Again under the lock, so a take inside a write that just started has already set the event time.
+  if (busy()) {
     portEXIT_CRITICAL(&this->taken_lock_);
     return true;
   }
@@ -167,7 +172,6 @@ bool USBAudioSpeaker::settle_stale_count_() {
     this->queue_report_(this->last_finish_us_);
   }
   portEXIT_CRITICAL(&this->taken_lock_);
-  this->settle_armed_ = false;
   this->deliver_reports_();
   return false;
 }
@@ -338,7 +342,8 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     }
   }
   this->writes_in_flight_.fetch_sub(1);
-  if (this->audio_tail_bytes_() > 0) {
+  // For settle_stale_count_() and the tail flush.
+  if (this->ring_bytes_ != 0) {
     this->enable_loop_soon_any_context();
   }
   return written;
@@ -422,10 +427,6 @@ void USBAudioSpeaker::on_transfer_taken() {
     uint32_t next_accum = accum;
     tail = left < this->transfer_bytes_ && left > padding_now && left < this->next_transfer_bytes_(next_accum);
     report = this->take_(ring, padding_now, size, accum, now_us);
-  } else if (writer != nullptr && ring + this->pending_bytes_ >= size) {
-    // Maybe a take of the pending write; loop() replays it if nothing else does.
-    this->settle_armed_ = true;
-    report = true;
   }
   portEXIT_CRITICAL(&this->taken_lock_);
   if (report || tail) {

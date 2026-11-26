@@ -115,8 +115,6 @@ class USBAudioSpeaker : public speaker::Speaker,
   std::atomic<uint8_t> writes_in_flight_{0};
   // Set by loop() while it pads a tail; play_internal_() waits instead of writing after the padding.
   std::atomic<bool> flushing_{false};
-  // A park on the driver's task may have hidden a take; see settle_stale_count_().
-  std::atomic<bool> settle_armed_{false};
   // Set while play() rejects audio in a format other than usb_stream_info_, so the error is logged once.
   std::atomic<bool> format_mismatch_{false};
   bool finishing_{false};
