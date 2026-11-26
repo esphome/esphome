@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ICON,
     CONF_ID,
-    CONF_SOURCE_ID,
+    CONF_SENSOR,
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import inherit_property_from
@@ -40,7 +40,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(DerivativeSensor)
     .extend(
         {
-            cv.Required(CONF_SOURCE_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_TIME_UNIT, default="s"): cv.enum(
                 DERIVATIVE_TIMES, lower=True
             ),
@@ -57,16 +57,16 @@ FINAL_VALIDATE_SCHEMA = cv.All(
             cv.Optional(CONF_ICON): cv.icon,
             cv.Optional(CONF_UNIT_OF_MEASUREMENT): sensor.validate_unit_of_measurement,
             cv.Optional(CONF_ACCURACY_DECIMALS): sensor.validate_accuracy_decimals,
-            cv.Required(CONF_SOURCE_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
         },
         extra=cv.ALLOW_EXTRA,
     ),
-    inherit_property_from(CONF_ICON, CONF_SOURCE_ID),
+    inherit_property_from(CONF_ICON, CONF_SENSOR),
     inherit_property_from(
-        CONF_UNIT_OF_MEASUREMENT, CONF_SOURCE_ID, transform=inherit_unit_of_measurement
+        CONF_UNIT_OF_MEASUREMENT, CONF_SENSOR, transform=inherit_unit_of_measurement
     ),
     inherit_property_from(
-        CONF_ACCURACY_DECIMALS, CONF_SOURCE_ID, transform=inherit_accuracy_decimals
+        CONF_ACCURACY_DECIMALS, CONF_SENSOR, transform=inherit_accuracy_decimals
     ),
 )
 
@@ -77,5 +77,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    await cg.add_variable(var.set_source_sensor, config[CONF_SOURCE_ID])
+    await cg.add_variable(var.set_source_sensor, config[CONF_SENSOR])
     cg.add(var.set_time(config[CONF_TIME_UNIT]))

@@ -3,7 +3,7 @@ sensor:
     id: derivative_my_sensor
     pin: VCC
   - platform: derivative
-    source_id: derivative_my_sensor
+    sensor: derivative_my_sensor
     name: Derivative Sensor
     time_unit: s
     state_class: measurement

@@ -5,7 +5,7 @@ sensor:
     attenuation: 12db
   - platform: derivative
     id: derivative_sensor
-    source_id: derivative_my_sensor
+    sensor: derivative_my_sensor
     name: Derivative Sensor
     time_unit: s
     state_class: measurement
