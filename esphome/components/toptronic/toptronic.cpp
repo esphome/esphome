@@ -211,30 +211,9 @@ void TopTronicSelect::control(size_t index) {
 }
 #endif
 
-void TopTronic::add_sensor(TopTronicBase *sensor) {
-  const uint32_t id = sensor->get_id();
-  if (auto existing = this->sensors_.find(id); existing != this->sensors_.end()) {
-    // Config validation rejects two read entities on one datapoint, so only external components get here
-    ESP_LOGW(TAG, "Duplicate datapoint: '%s' replaces '%s'", LOG_STR_ARG(sensor->get_log_name()),
-             LOG_STR_ARG(existing->second->get_log_name()));
-  }
-  this->sensors_[id] = sensor;
-}
-
-void TopTronic::add_input(TopTronicInput *input) {
-  const uint32_t id = input->get_id();
-  if (auto existing = this->inputs_.find(id); existing != this->inputs_.end()) {
-    ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
-             LOG_STR_ARG(existing->second->get_log_name()));
-  }
-  input->set_hub(this);
-  this->inputs_[id] = input;
-}
-
 void TopTronic::register_sensor_callbacks() {
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  for (const auto &s : this->sensors_) {
-    auto *sensor = s.second;
+  for (auto *sensor : this->sensors_) {
     sensor->cache_request_data();
     sensor->add_on_update_callback([this, sensor, can_id]() -> void {
       if (this->paused_)
@@ -327,8 +306,8 @@ void TopTronic::update_all() {
     return;
   }
   this->refresh_queue_.clear();
-  for (const auto &s : this->sensors_)
-    this->refresh_queue_.push_back(RefreshEntry{s.second, 0, 0});
+  for (auto *sensor : this->sensors_)
+    this->refresh_queue_.push_back(RefreshEntry{sensor, 0, 0});
   this->refresh_in_progress_ = true;
   this->refresh_queued_ = static_cast<uint16_t>(this->refresh_queue_.size());
   this->refresh_answered_ = 0;
@@ -426,13 +405,15 @@ void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
 }
 
 TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) {
-  auto it = this->sensors_.find(sensor_id);
-  return it == this->sensors_.end() ? nullptr : it->second;
+  for (auto *sensor : this->sensors_) {
+    if (sensor->get_id() == sensor_id)
+      return sensor;
+  }
+  return nullptr;
 }
 
 void TopTronic::link_inputs_() {
-  for (const auto &i : this->inputs_) {
-    auto *input = i.second;
+  for (auto *input : this->inputs_) {
     auto *sensor_base = this->get_sensor_(input->get_id());
     if (sensor_base == nullptr) {
       // A write-only input (for example a select with no readback) is valid, so this
@@ -648,13 +629,12 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   }
   const uint16_t datapoint = encode_uint16(data[3], data[4]);
   uint32_t id = data[1] + (data[2] << 8) + (static_cast<uint32_t>(datapoint) << 16);
-  auto sensor_it = this->sensors_.find(id);
-  if (sensor_it == this->sensors_.end()) {
+  TopTronicBase *sensor_base = this->get_sensor_(id);
+  if (sensor_base == nullptr) {
     // Usually a preset whose fg/fn/dp differ from what the device sends
     ESP_LOGD(TAG, "[DROP] No sensor for fg=%u fn=%u dp=%u", data[1], data[2], datapoint);
     return;
   }
-  TopTronicBase *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
   if (sensor_base->type() == SensorType::SENSOR_TYPE_SENSOR)

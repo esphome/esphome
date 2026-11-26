@@ -15,6 +15,7 @@ from . import (
     TopTronicComponent,
     _request_option,
     _validate_options_values_lengths,
+    register_input,
     toptronic,
 )
 
@@ -72,4 +73,4 @@ async def to_code(config: ConfigType) -> None:
         _request_option(str(var))
         cg.add(var.add_option(value))
 
-    cg.add(tt.add_input(var))
+    cg.add(register_input(tt, var))
