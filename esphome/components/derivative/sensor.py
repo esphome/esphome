@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_SENSOR,
     CONF_UNIT_OF_MEASUREMENT,
+    STATE_CLASS_MEASUREMENT,
 )
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
@@ -27,16 +28,21 @@ CONF_TIME_UNIT = "time_unit"
 
 
 def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:
-    # A rate: m with time_unit "s" becomes m/s.
-    return f"{uom}/{config[CONF_TIME_UNIT]}"
-
-
-def inherit_accuracy_decimals(decimals: int, config: ConfigType) -> int:
-    return decimals + 2
+    # The reverse of integration: kWh with time_unit "h" becomes kW, m with "s" becomes m/s.
+    suffix = config[CONF_TIME_UNIT]
+    prefix = uom.removesuffix(suffix)
+    if (
+        prefix
+        and prefix != uom
+        and not prefix.endswith("/")
+        and uom not in DERIVATIVE_TIME_UNITS
+    ):
+        return prefix
+    return f"{uom}/{suffix}"
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(DerivativeSensor)
+    sensor.sensor_schema(DerivativeSensor, state_class=STATE_CLASS_MEASUREMENT)
     .extend(
         {
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
@@ -54,9 +60,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
     inherit_property_from(
         CONF_UNIT_OF_MEASUREMENT, CONF_SENSOR, transform=inherit_unit_of_measurement
     ),
-    inherit_property_from(
-        CONF_ACCURACY_DECIMALS, CONF_SENSOR, transform=inherit_accuracy_decimals
-    ),
+    inherit_property_from(CONF_ACCURACY_DECIMALS, CONF_SENSOR),
 )
 
 

@@ -7,4 +7,3 @@ sensor:
     sensor: derivative_my_sensor
     name: Derivative Sensor
     time_unit: s
-    state_class: measurement
