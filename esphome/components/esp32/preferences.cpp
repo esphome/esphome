@@ -220,6 +220,11 @@ ESPPreferenceObject ESP32Preferences::make_rtc_preference_(size_t length, uint32
 bool ESP32Preferences::sync() {
   if (s_pending_save.empty())
     return true;
+  // No handle after reset() or a failed open, both already logged
+  if (this->nvs_handle == 0) {
+    s_pending_save.clear();
+    return false;
+  }
 
   ESP_LOGV(TAG, "Saving %zu items...", s_pending_save.size());
   int cached = 0, written = 0, failed = 0;

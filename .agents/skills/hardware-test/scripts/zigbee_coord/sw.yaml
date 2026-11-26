@@ -1,0 +1,10 @@
+# Template switch "Sw" shared by the entity and number flows.
+switch:
+  - platform: template
+    name: "Sw"
+    id: sw
+    optimistic: true
+    on_turn_on:
+      - logger.log: "HWT SW turned ON"
+    on_turn_off:
+      - logger.log: "HWT SW turned OFF"

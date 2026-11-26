@@ -1,0 +1,91 @@
+canopen:
+  - id: canopen_node
+    canbus_id: can_bus
+    node_id: 0x10
+    heartbeat_interval: 1s
+    identity:
+      vendor_id: 0x12345678
+      product_code: 0x2A
+      revision_number: 0x00010002
+      serial_number: 0x1
+    device_name: canopen test node
+    hardware_version: rev B
+    software_version: "1.0"
+    nmt_startup: pre_operational
+    on_nmt_state_change:
+      - if:
+          condition:
+            lambda: "return state == esphome::canopen::NMTState::NMT_STATE_PRE_OPERATIONAL;"
+          then:
+            - lambda: "id(canopen_node).set_nmt_state(esphome::canopen::NMTState::NMT_STATE_OPERATIONAL);"
+    on_heartbeat:
+      - lambda: |-
+          if (state == esphome::canopen::NMTState::NMT_STATE_BOOTUP)
+            ESP_LOGI("canopen_test", "node 0x%02x booted", node_id);
+    on_emcy:
+      - logger.log:
+          format: "EMCY node 0x%02x: 0x%04x"
+          args: [node_id, emergency.error_code]
+  # no node_id: SDO client only (on the same canbus: it talks to canopen_node over the local loopback)
+  - id: canopen_client
+    canbus_id: can_bus
+    response_timeout: 200ms
+    on_heartbeat:
+      - logger.log:
+          format: "heartbeat from node 0x%02x"
+          args: [node_id]
+
+esphome:
+  on_boot:
+    - lambda: |-
+        static canopen::FrameListener tpdo1{0x180, 0x780, +[](void *, uint32_t can_id, const uint8_t *data, uint8_t len) {
+          ESP_LOGD("canopen_test", "TPDO1 0x%03x, %u bytes", (unsigned) can_id, len);
+        }, nullptr};
+        id(canopen_node).add_frame_listener(tpdo1);
+        const uint8_t data[2] = {0x01, 0x02};
+        id(canopen_node).send_frame(0x210, data, sizeof(data));
+
+script:
+  - id: canopen_sdo
+    then:
+      - canopen.sdo_write:
+          id: canopen_node
+          node_id: 0x01
+          index: 0x1017
+          value: 1000
+          size: 2
+          on_success:
+            - logger.log: "heartbeat time set"
+          on_error:
+            - logger.log:
+                format: "sdo_write: %s, abort 0x%08x"
+                args: ["LOG_STR_ARG(esphome::canopen::sdo_result_to_string(result))", "(unsigned) abort_code"]
+      - canopen.sdo_write:
+          id: canopen_node
+          node_id: !lambda "return 0x02;"
+          index: 0x6040
+          value: !lambda "return 0x0F;"
+      - canopen.sdo_read:
+          id: canopen_client
+          node_id: 0x10
+          index: 0x1018
+          subindex: 1
+          size: 4
+          on_value:
+            - logger.log:
+                format: "vendor id 0x%08x"
+                args: ["(unsigned) x"]
+          on_error:
+            - logger.log:
+                format: "sdo_read: %s, abort 0x%08x"
+                args: ["LOG_STR_ARG(esphome::canopen::sdo_result_to_string(result))", "(unsigned) abort_code"]
+      - canopen.sdo_read:
+          id: canopen_node
+          node_id: !lambda "return 0x01;"
+          index: 0x1000
+      - lambda: |-
+          id(canopen_node).read_sdo<uint32_t>(0x01, 0x1018, 1, +[](void *, const esphome::canopen::SDOReply &reply) {
+            if (reply.ok())
+              ESP_LOGI("canopen_test", "vendor id 0x%08x", (unsigned) reply.value);
+          }, nullptr);
+      - lambda: id(canopen_client).cancel_sdo(nullptr);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#include "esphome/core/helpers.h"  // for ESPDEPRECATED
 
 #include <cstddef>
 #include <cstdint>
@@ -140,16 +139,6 @@ const char *audio_file_type_to_string(AudioFileType file_type);
 /// @param url URL to inspect for file extension (may be null or empty)
 /// @return The detected AudioFileType, or NONE if unknown
 AudioFileType detect_audio_file_type(const char *content_type, const char *url);
-
-/// @brief Scales Q15 fixed point audio samples. Scales in place if audio_samples == output_buffer.
-/// @param audio_samples PCM int16 audio samples
-/// @param output_buffer Buffer to store the scaled samples
-/// @param scale_factor Q15 fixed point scaling factor
-/// @param samples_to_scale Number of samples to scale
-// Remove before 2026.12.0
-ESPDEPRECATED("Use esp_audio_libs::gain::apply() (from <gain.h>) instead. Removed in 2026.12.0.", "2026.6.0")
-void scale_audio_samples(const int16_t *audio_samples, int16_t *output_buffer, int16_t scale_factor,
-                         size_t samples_to_scale);
 
 /// @brief Unpacks a quantized audio sample into a Q31 fixed-point number.
 /// @param data Pointer to uint8_t array containing the audio sample

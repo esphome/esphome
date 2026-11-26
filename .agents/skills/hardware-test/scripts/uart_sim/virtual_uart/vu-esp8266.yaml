@@ -1,0 +1,6 @@
+substitutions:
+  name: virtual-uart-esp8266
+esp8266:
+  board: nodemcuv2
+packages:
+  common: !include vu-common.yaml

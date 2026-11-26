@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <iterator>
 
 #include "esphome/core/application.h"
@@ -13,13 +12,6 @@
 namespace esphome::airton_serial {
 
 ESPHOME_LOG_TAG(TAG, "airton_serial.climate");
-
-static constexpr uint8_t SYNC_BYTE = 0x7A;
-static constexpr uint8_t LENGTH_POS = 4;
-static constexpr uint8_t OPCODE_POS = 7;
-static constexpr uint8_t MIN_FRAME_LEN = OPCODE_POS + 1 + 2;  // Up to the opcode, then the CRC
-// A partial frame left this long without a new byte is not a frame start.
-static constexpr uint32_t FRAME_GAP_MS = 50;
 
 static constexpr uint8_t ADDR_MODULE = 0x21;
 static constexpr uint8_t ADDR_DISPLAY = 0xD1;
@@ -121,58 +113,15 @@ void AirtonSerialClimate::setup() {
 
 void AirtonSerialClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  bool received = false;
-  this->read_available([this, &received](uint8_t byte) {
-    received = true;
-    this->handle_byte_(byte);
-  });
-  if (received) {
-    this->last_rx_ms_ = now;
-  } else if (this->rx_pos_ > 0 && now - this->last_rx_ms_ >= FRAME_GAP_MS) {
-    // A corrupt length can hold back complete frames behind it; look for them in what is buffered.
-    while (this->rx_pos_ > 0)
-      this->drop_first_byte_();
+  auto accept = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  this->read_frames(this->reader_, accept, now, this->last_rx_ms_);
+}
+
+bool AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
+  if (crc16(data, len - 2) != encode_uint16(data[len - 2], data[len - 1])) {
+    ESP_LOGW(TAG, "Bad CRC on %u-byte frame", static_cast<unsigned>(len));
+    return false;
   }
-}
-
-void AirtonSerialClimate::handle_byte_(uint8_t byte) {
-  // Bytes are checked as they arrive, so rx_pos_ stays below the longest frame length.
-  this->rx_buffer_[this->rx_pos_++] = byte;
-  this->scan_buffer_();
-}
-
-void AirtonSerialClimate::drop_first_byte_() {
-  this->rx_pos_--;
-  std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + 1, this->rx_pos_);
-  this->scan_buffer_();
-}
-
-void AirtonSerialClimate::scan_buffer_() {
-  const uint8_t *buf = this->rx_buffer_.data();
-  while (this->rx_pos_ > 0) {
-    uint8_t drop = 1;
-    if (buf[0] == SYNC_BYTE && (this->rx_pos_ < 2 || buf[1] == SYNC_BYTE)) {
-      if (this->rx_pos_ <= LENGTH_POS)
-        return;
-      const uint8_t len = buf[LENGTH_POS];
-      if (len >= MIN_FRAME_LEN && len <= MAX_FRAME_LEN) {
-        if (this->rx_pos_ < len)
-          return;
-        if (crc16(buf, len - 2) == encode_uint16(buf[len - 2], buf[len - 1])) {
-          this->handle_frame_(buf, len);
-          drop = len;
-        } else {
-          ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
-        }
-      }
-    }
-    // Not a frame start, or a bad frame: look for the next start after its first byte.
-    this->rx_pos_ -= drop;
-    std::memmove(this->rx_buffer_.data(), buf + drop, this->rx_pos_);
-  }
-}
-
-void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   const uint8_t opcode = data[OPCODE_POS];
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   if (opcode == OP_A3_STATE || opcode == OP_AC_POLL) {
@@ -181,7 +130,7 @@ void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   }
 #endif
   if (data[3] != ADDR_MODULE)
-    return;
+    return true;
   if (data[2] == ADDR_BOARD) {
     if (len == 34 && opcode == OP_A3_STATE) {
       this->handle_a3_(data);
@@ -191,6 +140,7 @@ void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   } else if (data[2] == ADDR_DISPLAY && len == 13 && opcode == OP_A4_ACK) {
     ESP_LOGD(TAG, "A4 acknowledgement from display");
   }
+  return true;
 }
 
 void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
@@ -369,11 +319,14 @@ void AirtonSerialClimate::send_a5_() {
 void AirtonSerialClimate::send_ab_() {
   uint8_t frame[sizeof(AB_FRAME)];
   progmem_memcpy(frame, AB_FRAME, sizeof(AB_FRAME));
+  this->reader_.drop_kept();
   this->write_array(frame, sizeof(frame));
 }
 
 void AirtonSerialClimate::write_frame_(uint8_t *frame, size_t len) {
   put_be16(frame + len - 2, crc16(frame, len - 2));
+  // Kept bytes of an earlier frame must not merge into the reply
+  this->reader_.drop_kept();
   this->write_array(frame, len);
 }
 

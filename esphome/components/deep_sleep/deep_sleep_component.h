@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/core/automation.h"
+#include "esphome/core/base_automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -83,41 +83,27 @@ inline bool woke_from_deep_sleep() { return get_wakeup_cause() != WAKEUP_CAUSE_N
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 
-/** Setup priority of on_wake triggers.
- *
- * Between restoring global variables (setup_priority::HARDWARE, 800) and on_boot automations at
- * their default priority (600), so on_wake automations can update state (e.g. globals) that
- * on_boot automations then use.
- */
-inline constexpr float ON_WAKE_TRIGGER_SETUP_PRIORITY = 700.0f;
-
-/// Fires once on boot when the device woke from deep sleep, with the wakeup cause.
-class WakeTrigger : public Trigger<WakeupCause>, public Component {
+/// Calls Fn once on boot when the device woke from deep sleep, with the wakeup cause.
+template<auto Fn, uint32_t PRIORITY_BITS> class WakeCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
   void setup() override {
     const WakeupCause cause = get_wakeup_cause();
     if (cause != WAKEUP_CAUSE_NONE) {
-      this->trigger(cause);
+      Fn(cause);
     }
   }
-  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
 };
 
 #if defined(USE_ESP32) && SOC_PM_SUPPORT_EXT1_WAKEUP
-/// Fires once on boot when the device was woken from deep sleep by the given ext1 pin.
-class Ext1WakeTrigger : public Trigger<>, public Component {
+/// Calls Fn once on boot when the device was woken from deep sleep by ext1 pin PIN.
+template<auto Fn, uint32_t PRIORITY_BITS, uint8_t PIN>
+class Ext1WakeCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
-  explicit Ext1WakeTrigger(uint8_t pin) : pin_(pin) {}
   void setup() override {
-    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 &&
-        (esp_sleep_get_ext1_wakeup_status() & (1ULL << this->pin_))) {
-      this->trigger();
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 && (esp_sleep_get_ext1_wakeup_status() & (1ULL << PIN))) {
+      Fn();
     }
   }
-  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
-
- protected:
-  uint8_t pin_;
 };
 #endif
 
@@ -147,9 +133,9 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
-  void init_wakeup_pins(size_t capacity) { this->wakeup_pins_.init(capacity); }
+  SLOT_LIST_REQUIRES(DEEP_SLEEP_WAKEUP_PIN_COUNT)
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
-    this->wakeup_pins_.emplace_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
+    this->wakeup_pins_.push_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
   }
 #endif  // USE_BK72XX
 
@@ -207,10 +193,6 @@ class DeepSleepComponent final : public Component {
 
   optional<uint64_t> sleep_duration_;
 
-#ifdef USE_BK72XX
-  FixedVector<WakeUpPinItem> wakeup_pins_;
-#endif  // USE_BK72XX
-
 #ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_{nullptr};
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
@@ -227,6 +209,10 @@ class DeepSleepComponent final : public Component {
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};
+#ifdef USE_BK72XX
+  // Last, so the inline storage does not push the other members past short load offsets
+  [[no_unique_address]] SlotList<WakeUpPinItem, DEEP_SLEEP_WAKEUP_PIN_COUNT> wakeup_pins_;
+#endif
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

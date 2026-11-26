@@ -24,7 +24,7 @@ def main_cpp(request: pytest.FixtureRequest) -> str:
         CORE.config_path = config_path
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
-        return CORE.cpp_main_section
+        return CORE.cpp_global_section + CORE.cpp_main_section
     finally:
         CORE.config_path = original_path
         CORE.reset()
@@ -67,3 +67,19 @@ def test_polygon_accepts_border_keys() -> None:
         }
     )
     assert config["border_width"] == 2
+
+
+def test_computed_text_outlives_the_layer(main_cpp: str) -> None:
+    # The layer draws the label when it is finished, so the computed text is held, without a copy,
+    # in a reference declared before the layer and used for the descriptor
+    text = main_cpp.index("const std::string &text_VAR_ = ")
+    layer = main_cpp.index("lv_canvas_init_layer(", text)
+    assign = main_cpp.index("dsc_VAR_.text = text_VAR_.c_str();", layer)
+    main_cpp.index("lv_canvas_finish_layer(", assign)
+
+
+def test_conditional_text_is_copied_until_the_layer_is_drawn(main_cpp: str) -> None:
+    # An if_nan text picks between a temporary's c_str() and a literal, so it is copied
+    text = main_cpp.index("const std::string text_VAR_ = (std::isfinite(")
+    layer = main_cpp.index("lv_canvas_init_layer(", text)
+    main_cpp.index("dsc_VAR_.text = text_VAR_.c_str();", layer)

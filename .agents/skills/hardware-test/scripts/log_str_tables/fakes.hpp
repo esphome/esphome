@@ -59,7 +59,9 @@ template<size_t N> struct RingUart : public esphome::uart::UARTComponent {
   }
   size_t available() override { return this->tail - this->head; }
   esphome::uart::UARTFlushResult flush() override { return esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+#if defined(USE_ESP8266) || defined(USE_ESP32)  // the base declares load_settings(bool) only there
   void load_settings(bool) override {}
+#endif
   void check_logger_conflict() override {}
 };
 

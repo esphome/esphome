@@ -3,9 +3,13 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+#ifdef USE_ESP32_BLE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
@@ -21,6 +25,7 @@ extern "C" {
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
+#include <esp_idf_version.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
@@ -150,6 +155,13 @@ void ESP32BLE::setup() {
   }
 
   this->state_ = BLE_COMPONENT_STATE_DISABLED;
+#ifdef USE_ESP32_BLE_SWITCH
+  if (this->enabled_switch_ != nullptr) {
+    // The switch's restore mode decides the boot state; enable_on_boot only applies to restore_mode: DISABLED
+    this->enabled_switch_->restore(this->enable_on_boot_);
+    return;
+  }
+#endif
   if (this->enable_on_boot_) {
     this->enable();
   }
@@ -157,7 +169,7 @@ void ESP32BLE::setup() {
 
 // Queue the transition for loop(). A pending transition the other way is
 // cancelled instead, since nothing was torn down or brought up yet; any other
-// state is already there or on its way.
+// state is already there or on its way. The enabled switch, if any, is published with the requested state.
 void ESP32BLE::request_state_(bool enable) {
   if (enable) {
     if (this->state_ == BLE_COMPONENT_STATE_DISABLED) {
@@ -172,6 +184,9 @@ void ESP32BLE::request_state_(bool enable) {
       this->state_ = BLE_COMPONENT_STATE_DISABLED;
     }
   }
+#ifdef USE_ESP32_BLE_SWITCH
+  PUBLISH_STATE(this->enabled_switch_, enable);
+#endif
 }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
@@ -765,6 +780,9 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
     case ESP_GAP_BLE_LOCAL_IR_EVT:                  // Local identity root key generated at security init
     case ESP_GAP_BLE_LOCAL_ER_EVT:                  // Local encryption root key generated at security init
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+    case ESP_GAP_BLE_SET_RPA_TIMEOUT_COMPLETE_EVT:  // Private address timeout set by Bluedroid on every enable
+#endif
       return;
 
     default:
@@ -903,6 +921,9 @@ void ESP32BLE::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
+#ifdef USE_ESP32_BLE_SWITCH
+  LOG_SWITCH("  ", "Enabled switch", this->enabled_switch_);
+#endif
 }
 
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -1,0 +1,7 @@
+# A copy number of NumR: on dev its Min/Max/Resolution read 0/0/0 (#23051). Use with number.yaml.
+number:
+  - platform: copy
+    source_id: numr
+    name: "NumCopy"
+    on_value:
+      - logger.log: {format: "HWT NUMCOPY set %.1f", args: [x]}
