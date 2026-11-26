@@ -9,9 +9,7 @@ namespace esphome::duco {
 ESPHOME_LOG_TAG(TAG, "duco.setpoint");
 
 static constexpr uint8_t FUNCTION_NODE_SETTING = 0x18;
-void DucoSetpoint::update() {
-  this->parent_->send(this, FUNCTION_NODE_SETTING, {0x00, this->address_, this->item_});
-}
+void DucoSetpoint::update() { this->parent_->send(this, FUNCTION_NODE_SETTING, {0x00, this->address_, this->item_}); }
 
 void DucoSetpoint::receive_response(const DucoMessage &message) {
   if (message.size < 3)
@@ -29,9 +27,9 @@ void DucoSetpoint::control(float value) {
     return;
   }
   const auto setpoint = static_cast<uint16_t>(lroundf(value));
-  this->parent_->send(nullptr, FUNCTION_NODE_SETTING,
-                      {0x01, this->address_, this->item_, static_cast<uint8_t>(setpoint >> 8),
-                       static_cast<uint8_t>(setpoint)});
+  this->parent_->send(
+      nullptr, FUNCTION_NODE_SETTING,
+      {0x01, this->address_, this->item_, static_cast<uint8_t>(setpoint >> 8), static_cast<uint8_t>(setpoint)});
   // Update state immediately
   this->publish_state(value);
 }

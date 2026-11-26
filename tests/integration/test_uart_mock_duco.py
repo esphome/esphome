@@ -120,7 +120,9 @@ async def test_uart_mock_duco(
         await wait_for(
             lambda: state_of(co2_setpoint) == pytest.approx(800), "CO2 setpoint"
         )
-        await wait_for(lambda: state_of(rh_setpoint) == pytest.approx(70), "RH setpoint")
+        await wait_for(
+            lambda: state_of(rh_setpoint) == pytest.approx(70), "RH setpoint"
+        )
         await wait_for(lambda: state_of(serial) == "SN1234", "serial number")
         await wait_for(lambda: state_of(node_serial) == "SN2234", "node serial number")
         await wait_for(lambda: state_of(version) == "1.2.3.4", "version")
@@ -171,8 +173,10 @@ async def test_uart_mock_duco(
 
         client.switch_command(configuration.key, True)
         await wait_for(
-            lambda: states.get(configuration.key) is not None
-            and states[configuration.key].state,
+            lambda: (
+                states.get(configuration.key) is not None
+                and states[configuration.key].state
+            ),
             "configuration unlocked",
         )
         client.number_command(co2_setpoint.key, 900)
@@ -182,7 +186,9 @@ async def test_uart_mock_duco(
         )
         client.number_command(rh_setpoint.key, 75)
         await waiter.wait_for("Setpoint write node 2 item 4 value 75")
-        await wait_for(lambda: state_of(rh_setpoint) == pytest.approx(75), "new RH setpoint")
+        await wait_for(
+            lambda: state_of(rh_setpoint) == pytest.approx(75), "new RH setpoint"
+        )
 
         client.select_command(mode.key, "CNT2")
         await waiter.wait_for("Mode set to 09")

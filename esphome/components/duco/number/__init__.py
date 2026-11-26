@@ -65,18 +65,25 @@ CONFIG_SCHEMA = cv.Any(
     cv.All(
         DUCO_COMPONENT_SCHEMA.extend(
             {
-                cv.Optional(CONF_COMFORT_TEMPERATURE): cv.ensure_list(COMFORT_TEMPERATURE_SCHEMA),
+                cv.Optional(CONF_COMFORT_TEMPERATURE): cv.ensure_list(
+                    COMFORT_TEMPERATURE_SCHEMA
+                ),
                 cv.Optional(CONF_CO2_SETPOINT): cv.ensure_list(CO2_SCHEMA),
                 cv.Optional(CONF_RH_SETPOINT): cv.ensure_list(RH_SCHEMA),
             }
         ),
-        cv.has_at_least_one_key(CONF_COMFORT_TEMPERATURE, CONF_CO2_SETPOINT, CONF_RH_SETPOINT),
+        cv.has_at_least_one_key(
+            CONF_COMFORT_TEMPERATURE, CONF_CO2_SETPOINT, CONF_RH_SETPOINT
+        ),
     ),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    if not any(key in config for key in (CONF_COMFORT_TEMPERATURE, CONF_CO2_SETPOINT, CONF_RH_SETPOINT)):
+    if not any(
+        key in config
+        for key in (CONF_COMFORT_TEMPERATURE, CONF_CO2_SETPOINT, CONF_RH_SETPOINT)
+    ):
         comfort_entities = [config]
     else:
         comfort_entities = config.get(CONF_COMFORT_TEMPERATURE, [])
