@@ -42,6 +42,9 @@ bool parse_measurements(const char *line, float *values) {
 void SMT100Component::setup() {
   // loop() only runs while a request is due or its answer is expected
   this->disable_loop();
+  // An update() that ran before this, from a lambda or a log automation, could not enable the loop yet
+  if (this->state_ != State::STATE_IDLE)
+    this->enable_loop();
 }
 
 void SMT100Component::update() {
@@ -88,8 +91,10 @@ void SMT100Component::send_request_(uint32_t now) {
 }
 
 void SMT100Component::finish_request_(const char *answer) {
-  this->state_ = State::STATE_IDLE;
+  // The loop goes off first: disable_loop() can log, and an update() from a log automation that already saw
+  // the idle state would queue a request with no loop to send it
   this->disable_loop();
+  this->state_ = State::STATE_IDLE;
 
   float values[FIELD_COUNT];
   const bool valid = answer != nullptr && parse_measurements(answer, values);

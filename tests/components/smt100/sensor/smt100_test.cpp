@@ -34,10 +34,12 @@ class SMT100Test : public ::testing::Test {
     this->sut_.setup();
   }
 
+  // Advances the clock and runs loop() the way the core does: only while the component has its loop enabled.
   void loop_after_(uint32_t ms) {
     this->now_ += ms;
     set_loop_time(this->now_);
-    this->sut_.loop();
+    if (this->sut_.is_in_loop_state())
+      this->sut_.loop();
   }
 
   // Runs update() and the loop pass that sends the request.
@@ -123,6 +125,42 @@ TEST(SMT100Parse, RejectsWhatIsNotAnAnswer) {
 TEST_F(SMT100Test, SendsNothingUntilAnUpdate) {
   this->loop_after_(16);
   EXPECT_EQ(this->uart_.tx, "");
+}
+
+TEST_F(SMT100Test, LoopIsOffWhileNothingIsRequested) {
+  EXPECT_FALSE(this->sut_.is_in_loop_state());
+  this->read_(ANSWER);
+  EXPECT_FALSE(this->sut_.is_in_loop_state());
+}
+
+TEST(SMT100Setup, SendsARequestMadeBeforeSetup) {
+  // A lambda can call update() before setup() has run; the request must not be left without a loop to send it
+  FakeUART uart;
+  SMT100Component sut;
+  sut.set_uart_parent(&uart);
+  sut.update();
+  sut.setup();
+
+  ASSERT_TRUE(sut.is_in_loop_state());
+  set_loop_time(1000);
+  sut.loop();
+  EXPECT_EQ(uart.tx, REQUEST);
+}
+
+TEST_F(SMT100Test, SendsARequestMadeFromAStateCallback) {
+  // on_value automations run while the answer is published
+  bool again = true;
+  this->voltage_.add_on_state_callback([this, &again](float state) {
+    if (again) {
+      again = false;
+      this->sut_.update();
+    }
+  });
+
+  this->read_(ANSWER);
+  this->loop_after_(16);
+
+  EXPECT_EQ(this->uart_.tx, std::string(REQUEST) + REQUEST);
 }
 
 TEST_F(SMT100Test, PublishesTheAnswer) {
