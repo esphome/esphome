@@ -67,7 +67,8 @@ bool I2CTransport::command(const uint8_t *packet, size_t size) {
 
 Receive I2CTransport::receive(uint8_t *packet) {
   const auto status = this->read(packet, 1);
-  if (status == i2c::ERROR_NOT_ACKNOWLEDGED)
+  // Arduino Wire reports a read NACK as a short read, which the bus maps to ERROR_TIMEOUT.
+  if (status == i2c::ERROR_NOT_ACKNOWLEDGED || status == i2c::ERROR_TIMEOUT)
     return Receive::RECEIVE_PENDING;
   if (status != i2c::ERROR_OK)
     return Receive::RECEIVE_IO_ERROR;

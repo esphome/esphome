@@ -73,7 +73,7 @@ def _validation_errors(yaml: str, tmp_path: Path) -> list[str]:
 
 @pytest.mark.parametrize(
     ("frequency", "valid"),
-    [("1kHz", False), ("10kHz", True), ("100kHz", True), ("400kHz", False)],
+    [("10kHz", False), ("25kHz", True), ("100kHz", True), ("400kHz", False)],
 )
 def test_direct_i2c_frequency(frequency: str, valid: bool, tmp_path: Path) -> None:
     errors = _validation_errors(
@@ -83,7 +83,7 @@ def test_direct_i2c_frequency(frequency: str, valid: bool, tmp_path: Path) -> No
         assert errors == []
     else:
         assert any(
-            "requires a frequency between 10kHz and 100kHz" in err for err in errors
+            "requires a frequency between 25kHz and 100kHz" in err for err in errors
         ), errors
 
 
@@ -146,6 +146,12 @@ def test_rmt_uart_wiring(
             "uart",
             "  tx_pin: GPIO25\n  rx_pin: GPIO26\n  rx_timeout: 0",
             "value must be at least 1",
+        ),
+        (
+            "esp32:\n  variant: esp32",
+            "uart",
+            "  tx_pin: GPIO25\n  rx_pin: GPIO26\n  rx_timeout: 92",
+            "value must be at most 32",
         ),
         (
             "esp32:\n  variant: esp32",

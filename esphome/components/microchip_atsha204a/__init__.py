@@ -92,8 +92,9 @@ CONFIG_SCHEMA = cv.typed_schema(
     lower=True,
 )
 
+# A maximum-size command takes about 33 ms on the bus at 25 kHz.
 _VALIDATE_I2C = i2c.final_validate_device_schema(
-    DOMAIN, min_frequency="10kHz", max_frequency="100kHz"
+    DOMAIN, min_frequency="25kHz", max_frequency="100kHz"
 )
 _VALIDATE_RMT_UART = uart.final_validate_device_schema(
     DOMAIN,
