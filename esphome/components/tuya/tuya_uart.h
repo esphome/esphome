@@ -22,7 +22,7 @@ static constexpr size_t MAX_FRAME_SIZE = 255;
 // 55 AA, version, command, payload length (2, BE), payload, checksum
 using TuyaLength = PayloadLengthU16BE<LengthField{.offset = 4, .trailer = 1}>;
 void warn_too_long(size_t len);
-using TuyaFrame = FrameFormat<FrameHeader<0x55, 0xAA>, WarnIfLonger<TuyaLength, MAX_FRAME_SIZE, warn_too_long>>;
+using TuyaFrame = FrameFormat<FrameHeader<0x55, 0xAA>, TuyaLength, WarnIfLongerThan<MAX_FRAME_SIZE, warn_too_long>>;
 
 enum class TuyaCommandType : uint8_t {
   HEARTBEAT = 0x00,
