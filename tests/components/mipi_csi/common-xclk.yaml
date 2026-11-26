@@ -1,0 +1,8 @@
+mipi_csi:
+  sensor: OV5647
+  resolution: 1280x960
+  pixel_format: YUV422
+  sccb_frequency: 400kHz
+  external_clock:
+    pin: GPIO20
+    frequency: 24MHz
