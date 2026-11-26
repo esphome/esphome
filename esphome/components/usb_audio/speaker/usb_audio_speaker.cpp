@@ -55,7 +55,7 @@ void USBAudioSpeaker::loop() {
   }
   if ((commands & COMMAND_START) && this->state_ == speaker::STATE_STOPPED) {
     if (this->writes_in_flight_ != 0) {
-      // A write from before the stop may still count its bytes; reset only once it has.
+      // A write from before the stop may still count its bytes; reset once it has.
       this->request_(COMMAND_START, 0);
     } else {
       // Suspending flushed the driver's ring buffer, and resuming restarts its packet sizing.
@@ -68,8 +68,8 @@ void USBAudioSpeaker::loop() {
       this->unreported_frames_ = 0;
       this->report_frames_pending_ = 0;
       this->last_finish_us_ = 0;
-      // The idle windows for a tail flush and a stale count start now, not at the previous stream's last transfer.
-      const uint32_t now_us = static_cast<uint32_t>(esp_timer_get_time());
+      // Idle windows start now, not at the previous stream's last transfer.
+      const uint32_t now_us = micros();
       this->last_taken_us_ = now_us;
       this->last_event_us_ = now_us;
       portEXIT_CRITICAL(&this->taken_lock_);
@@ -100,7 +100,7 @@ void USBAudioSpeaker::loop() {
   }
 }
 
-// Called with taken_lock_ held: queues the unreported frames for loop() to report.
+// Called with taken_lock_ held.
 void USBAudioSpeaker::queue_report_(int64_t finish_us) {
   this->report_frames_pending_ += this->unreported_frames_;
   this->report_finish_us_ = finish_us;
@@ -135,10 +135,8 @@ uint32_t USBAudioSpeaker::audio_tail_bytes_() {
   return ring < next ? next - ring : 0;
 }
 
-// A take on the driver's task that used a still pending write counts as a park (on_transfer_taken() arms this); if the
-// driver then parks every transfer, no later event replays it. With no write and no transfer event for longer than one
-// is in flight, the driver holds less than its next transfer, so replay the takes until less than that is counted.
-// Returns true while armed and the bus is busy, so loop() keeps running.
+// A take on the driver's task of a still pending write looks like a park. Once no write or transfer event has come for
+// the in-flight time, the driver holds less than a transfer, so replay takes until that is counted. True while waiting.
 bool USBAudioSpeaker::settle_stale_count_() {
   if (!this->settle_armed_) {
     return false;
@@ -147,12 +145,9 @@ bool USBAudioSpeaker::settle_stale_count_() {
     this->settle_armed_ = false;
     return false;
   }
-  if (this->stream_busy_()) {
-    return true;
-  }
   portENTER_CRITICAL(&this->taken_lock_);
-  // Checked again under the lock: a take inside a write that started meanwhile sets the event time before counting.
-  if (this->stream_busy_()) {
+  // Under the lock, so a take inside a write that just started has already set the event time.
+  if (this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_)) {
     portEXIT_CRITICAL(&this->taken_lock_);
     return true;
   }
@@ -160,11 +155,12 @@ bool USBAudioSpeaker::settle_stale_count_() {
   while (true) {
     uint32_t accum = this->packet_frac_accum_;
     const uint32_t size = this->next_transfer_bytes_(accum);
+    const uint32_t padding_now = this->ring_padding_;
     const uint32_t ring = this->ring_bytes_;
     if (ring < size) {
       break;
     }
-    this->take_(ring, this->ring_padding_, size, accum, now_us);
+    this->take_(ring, padding_now, size, accum, now_us);
   }
   if (this->unreported_frames_ > 0) {
     this->queue_report_(this->last_finish_us_);
@@ -173,10 +169,6 @@ bool USBAudioSpeaker::settle_stale_count_() {
   this->settle_armed_ = false;
   this->deliver_reports_();
   return false;
-}
-
-bool USBAudioSpeaker::stream_busy_() const {
-  return this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_);
 }
 
 // Pads an audio tail to a whole transfer once the bus has gone idle, so the driver takes it and the frames get
@@ -359,20 +351,17 @@ size_t USBAudioSpeaker::ring_room_() const {
 }
 
 esp_err_t USBAudioSpeaker::write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding) {
-  // Counted once stored, so the count never drops below the real fill: by a take on this task inside the write, else
-  // on return. A take on the driver's task can come before the store. An overlapping write is counted on return.
+  // Counted once stored, so the count never falls below the real fill: by a take inside the write, else on return.
   TaskHandle_t none = nullptr;
   const bool tracked = this->writer_task_.compare_exchange_strong(none, xTaskGetCurrentTaskHandle());
   if (tracked) {
-    // Only this task touches these until it clears writer_task_.
     this->pending_bytes_ = length;
     this->pending_padding_ = padding;
   }
   const esp_err_t err = this->parent_->write_speaker(data, length, timeout_ms);
   if (tracked) {
     // 0 if a take inside the write counted them.
-    length = this->pending_bytes_;
-    this->pending_bytes_ = 0;
+    length = this->pending_bytes_.exchange(0);
     this->writer_task_ = nullptr;
   }
   // A failed write stored nothing, since the driver only writes whole chunks.
@@ -413,17 +402,16 @@ void USBAudioSpeaker::on_transfer_taken() {
   const int64_t now_us = esp_timer_get_time();
   this->last_event_us_ = static_cast<uint32_t>(now_us);
   portENTER_CRITICAL(&this->taken_lock_);
-  // Only a take on the writer's task comes after the driver stored the write; no write, no task lookup.
+  // Only a take on the writer's task comes after the driver stored the write.
   const TaskHandle_t writer = this->writer_task_;
-  if (writer != nullptr && writer == xTaskGetCurrentTaskHandle() && this->pending_bytes_ != 0) {
-    this->count_(this->pending_bytes_, this->pending_padding_);
-    this->pending_bytes_ = 0;
+  if (writer != nullptr && writer == xTaskGetCurrentTaskHandle()) {
+    this->count_(this->pending_bytes_.exchange(0), this->pending_padding_);
   }
   // Mirror the driver: the next transfer is CONFIG_UAC_NUM_PACKETS_PER_URB packets, and the driver takes it only when
   // the ring buffer holds all of it; otherwise it parks the transfer until the next write.
   uint32_t accum = this->packet_frac_accum_;
   const uint32_t size = this->next_transfer_bytes_(accum);
-  // Padding first: count_() adds the ring before the padding, so the ring read next holds whatever padding was added.
+  // Padding first, since count_() adds the ring first.
   const uint32_t padding_now = this->ring_padding_;
   const uint32_t ring = this->ring_bytes_;
   // A tail left behind (less than the next transfer of the caller's audio) is flushed from loop() once the bus idles.
@@ -434,7 +422,7 @@ void USBAudioSpeaker::on_transfer_taken() {
     tail = left < this->transfer_bytes_ && left > padding_now && left < this->next_transfer_bytes_(next_accum);
     report = this->take_(ring, padding_now, size, accum, now_us);
   } else if (writer != nullptr && ring + this->pending_bytes_ >= size) {
-    // This park on the driver's task may have been a take of the pending write; loop() replays it if nothing else does.
+    // Maybe a take of the pending write; loop() replays it if nothing else does.
     this->settle_armed_ = true;
     report = true;
   }
@@ -446,22 +434,19 @@ void USBAudioSpeaker::on_transfer_taken() {
   }
 }
 
-// Called with taken_lock_ held: the driver took the next transfer, `size` bytes, from a ring counted at `ring`.
-// Returns true when frames were queued for loop() to report.
+// Called with taken_lock_ held. Returns true when frames were queued for loop() to report.
 bool USBAudioSpeaker::take_(uint32_t ring, uint32_t padding_now, uint32_t size, uint32_t accum, int64_t now_us) {
   this->packet_frac_accum_ = accum;
   this->ring_bytes_.fetch_sub(size);
-  // Padding sits at the end of the ring buffer and is not audio from the caller, so it is not reported.
+  // Padding sits at the end of the ring and is not the caller's audio, so it is not reported.
   const uint32_t padding = std::min(padding_now, ring);
   const uint32_t audio = std::min(size, ring - padding);
   if (audio < size) {
     this->ring_padding_.fetch_sub(std::min(size - audio, padding));
   }
   this->last_taken_us_ = static_cast<uint32_t>(now_us);
-  // The bus plays one packet per millisecond, so while it streams a transfer finishes one transfer after the one
-  // taken before it, however late this callback runs. It cannot finish later than now plus the transfers in flight,
-  // so a callback that runs on time pulls back any lateness the chain picked up. When the bus is idle, after a start
-  // (the driver submits nothing until the first write) or once it ran dry, the transfer plays right away.
+  // While streaming, a transfer finishes one transfer after the previous one, however late this runs, but no later
+  // than the transfers in flight allow; on an idle bus it plays right away.
   const int64_t finish_us = this->last_finish_us_ < now_us
                                 ? now_us + this->transfer_us_
                                 : std::min(this->last_finish_us_ + this->transfer_us_, now_us + this->in_flight_us_);
@@ -486,11 +471,8 @@ void USBAudioSpeaker::deliver_reports_() {
   }
 }
 
-bool USBAudioSpeaker::within_in_flight_(const std::atomic<uint32_t> &since_us) const {
-  // The time is read before the clock, so an event that lands in between cannot make the difference negative.
-  const uint32_t us = since_us;
-  return static_cast<uint32_t>(esp_timer_get_time()) - us < this->in_flight_us_;
-}
+// since_us is read before the clock, so an event landing in between cannot make the difference negative.
+bool USBAudioSpeaker::within_in_flight_(uint32_t since_us) const { return micros() - since_us < this->in_flight_us_; }
 
 bool USBAudioSpeaker::has_buffered_data_() const {
   // The driver still holds a whole transfer to take, or one it took has not finished playing. Less than a transfer
