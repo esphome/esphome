@@ -121,8 +121,8 @@ async def test_uart_mock_ld2410(
         )
 
         # Verify the truncated frame was dropped with a warning
-        assert any("Invalid length" in line for line in waiter.lines), (
-            "Expected 'Invalid length' warning in logs"
+        assert any("Invalid footer" in line for line in waiter.lines), (
+            "Expected 'Invalid footer' warning in logs"
         )
 
         # Verify LD2410 sent setup commands (TX logging)

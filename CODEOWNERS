@@ -88,6 +88,7 @@ esphome/components/bl0906/* @athom-tech @jesserockz @tarontop
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @dan-s-github @tobias-
 esphome/components/bl0942/* @dbuezas @dwmw2
+esphome/components/ble/* @jesserockz
 esphome/components/ble_client/* @buxtronix @clydebarrow
 esphome/components/ble_device_base/* @Bl00d-B0b
 esphome/components/ble_midi/* @bogdanr
@@ -125,6 +126,7 @@ esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @bdraco @DT-art1
 esphome/components/camera_encoder/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
+esphome/components/canopen/* @mrk-its
 esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @esphome/core
 esphome/components/cc1101/* @gabest11 @lygris
@@ -185,11 +187,11 @@ esphome/components/ds2484/* @mrk-its
 esphome/components/ds248x/* @tomwellnitz
 esphome/components/ds3231/* @linkedupbits
 esphome/components/dsmr/* @glmnet @PolarGoose
-esphome/components/duco/* @kokx
-esphome/components/duco/number/* @kokx
-esphome/components/duco/select/* @kokx
-esphome/components/duco/sensor/* @kokx
-esphome/components/duco/text_sensor/* @kokx
+esphome/components/duco/* @kokx @w1ll14m
+esphome/components/duco/number/* @kokx @w1ll14m
+esphome/components/duco/select/* @kokx @w1ll14m
+esphome/components/duco/sensor/* @kokx @w1ll14m
+esphome/components/duco/text_sensor/* @kokx @w1ll14m
 esphome/components/duty_time/* @dudanov
 esphome/components/ecocomfort2/* @gledian
 esphome/components/ee895/* @Stock-M
@@ -354,6 +356,7 @@ esphome/components/ld2410s/* @NovakIrs
 esphome/components/ld2412/* @Rihan9
 esphome/components/ld2420/* @descipher
 esphome/components/ld2450/* @hareeshmu
+esphome/components/ld2451/* @poolski
 esphome/components/ld2460/* @jesusvallejo
 esphome/components/ld24xx/* @kbx81
 esphome/components/ld6002b/* @hepter

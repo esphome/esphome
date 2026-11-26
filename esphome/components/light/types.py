@@ -42,15 +42,6 @@ LIMIT_MODES = LimitMode.options("CLAMP", "DO_NOTHING")
 # Actions
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)
 
-# Triggers
-LightTurnOnTrigger = light_ns.class_(
-    "LightTurnOnTrigger", automation.Trigger.template()
-)
-LightTurnOffTrigger = light_ns.class_(
-    "LightTurnOffTrigger", automation.Trigger.template()
-)
-LightStateTrigger = light_ns.class_("LightStateTrigger", automation.Trigger.template())
-
 # Effects
 LightEffect = light_ns.class_("LightEffect")
 PulseLightEffect = light_ns.class_("PulseLightEffect", LightEffect)
