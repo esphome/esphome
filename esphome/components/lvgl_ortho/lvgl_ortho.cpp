@@ -257,7 +257,6 @@ void LvglOrtho::flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t * /*
 // black and each frame costs half a second.
 static void draw_block(display::Display *d, int x, int y, int w, int h, const uint8_t *px) {
   d->draw_pixels_at(x, y, w, h, px, display::COLOR_BITNESS_565, false);
-
 }
 
 void LvglOrtho::copy_native_(const lv_area_t &in) {

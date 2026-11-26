@@ -31,7 +31,6 @@
 #include "lv_draw_ortho.h"
 #include "lv_draw_ortho_video.h"
 
-
 namespace esphome::lvgl_ortho {
 
 class LvglOrtho : public Component {
