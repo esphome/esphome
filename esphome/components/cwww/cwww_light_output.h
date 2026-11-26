@@ -12,7 +12,14 @@ class CWWWLightOutput final : public light::LightOutput {
   void set_warm_white(output::FloatOutput *warm_white) { warm_white_ = warm_white; }
   void set_cold_white_temperature(float cold_white_temperature) { cold_white_temperature_ = cold_white_temperature; }
   void set_warm_white_temperature(float warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
-  void set_constant_brightness(bool constant_brightness) { constant_brightness_ = constant_brightness; }
+  void set_constant_brightness(light::ConstantBrightness constant_brightness) {
+    this->constant_brightness_ = constant_brightness;
+  }
+  // Lambdas from before color_temperature_priority pass a bool
+  void set_constant_brightness(bool constant_brightness) {
+    this->set_constant_brightness(constant_brightness ? light::ConstantBrightness::CONSTANT_BRIGHTNESS_ENABLED
+                                                      : light::ConstantBrightness::CONSTANT_BRIGHTNESS_DISABLED);
+  }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::COLD_WARM_WHITE});
@@ -32,7 +39,7 @@ class CWWWLightOutput final : public light::LightOutput {
   output::FloatOutput *warm_white_;
   float cold_white_temperature_{0};
   float warm_white_temperature_{0};
-  bool constant_brightness_;
+  light::ConstantBrightness constant_brightness_{light::ConstantBrightness::CONSTANT_BRIGHTNESS_DISABLED};
 };
 
 }  // namespace esphome::cwww

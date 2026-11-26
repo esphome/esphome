@@ -256,11 +256,8 @@ void LightState::current_values_as_rgbw(float *red, float *green, float *blue, f
   *white = this->gamma_correct_lut(*white);
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                                         bool constant_brightness) {
-  this->current_values.as_rgb(red, green, blue);
-  *red = this->gamma_correct_lut(*red);
-  *green = this->gamma_correct_lut(*green);
-  *blue = this->gamma_correct_lut(*blue);
+                                         ConstantBrightness constant_brightness) {
+  this->current_values_as_rgb(red, green, blue);
   this->current_values_as_cwww(cold_white, warm_white, constant_brightness);
 }
 void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
@@ -273,8 +270,8 @@ void LightState::current_values_as_rgbct(float *red, float *green, float *blue, 
   *blue = this->gamma_correct_lut(*blue);
   *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
-void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
-  if (!constant_brightness) {
+void LightState::current_values_as_cwww(float *cold_white, float *warm_white, ConstantBrightness constant_brightness) {
+  if (constant_brightness == ConstantBrightness::CONSTANT_BRIGHTNESS_DISABLED) {
     // Without constant_brightness, gamma commutes with simple multiplication:
     //   gamma(white_level * cw) = gamma(white_level) * gamma(cw)
     // (since gamma(a*b) = (a*b)^g = a^g * b^g = gamma(a) * gamma(b))
@@ -300,7 +297,8 @@ void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bo
   // Applying gamma AFTER the formula would be incorrect because gamma is
   // nonlinear: gamma(a/b) != gamma(a)/gamma(b), so the carefully balanced
   // ratio would be distorted, causing a severe brightness dip at mid-range
-  // color temperatures.
+  // color temperatures. color_temperature_priority balances the same linear
+  // fractions and only scales the result, so the same holds there.
   const auto &v = this->current_values;
   if (!(v.get_color_mode() & ColorCapability::COLD_WARM_WHITE)) {
     *cold_white = *warm_white = 0;
@@ -311,8 +309,20 @@ void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bo
   const float ww_level = this->gamma_correct_lut(v.get_warm_white());
   const float white_level = this->gamma_correct_lut(v.get_state() * v.get_brightness());
   const float sum = cw_level > 0 || ww_level > 0 ? cw_level + ww_level : 1;  // Don't divide by zero.
-  *cold_white = white_level * std::max(cw_level, ww_level) * cw_level / sum;
-  *warm_white = white_level * std::max(cw_level, ww_level) * ww_level / sum;
+  float level = white_level * std::max(cw_level, ww_level);
+#ifdef USE_LIGHT_COLOR_TEMPERATURE_PRIORITY
+  if (constant_brightness == ConstantBrightness::CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY)
+    level *= 2.0f;  // full brightness drives both channels fully where they balance
+#endif
+  *cold_white = level * cw_level / sum;
+  *warm_white = level * ww_level / sum;
+#ifdef USE_LIGHT_COLOR_TEMPERATURE_PRIORITY
+  const float peak = std::max(*cold_white, *warm_white);
+  if (peak > 1.0f) {  // the color temperature wins: scale both down, keeping their ratio
+    *cold_white /= peak;
+    *warm_white /= peak;
+  }
+#endif
 }
 void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {
   auto traits = this->get_traits();

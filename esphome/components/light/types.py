@@ -39,6 +39,9 @@ COLOR_MODES = ColorMode.options(
 LimitMode = light_ns.enum("LimitMode", is_class=True)
 LIMIT_MODES = LimitMode.options("CLAMP", "DO_NOTHING")
 
+# How cold/warm white lights spread brightness over the two channels
+ConstantBrightness = light_ns.enum("ConstantBrightness", is_class=True)
+
 # Actions
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)
 

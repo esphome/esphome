@@ -24,6 +24,21 @@ namespace esphome::light {
 class LightOutput;
 class LightState;
 
+/// How a cold/warm white light spreads its brightness over the two channels. The constant output below holds for
+/// a settled color temperature: a color temperature transition interpolates the stored channels, which dims the
+/// light midway in every mode.
+enum class ConstantBrightness : uint8_t {
+  /// Each channel follows its own color temperature share; full brightness drives both fully at mid-range.
+  CONSTANT_BRIGHTNESS_DISABLED = 0,
+  /// The cold+warm output stays the same across color temperatures, at most one channel's full output.
+  CONSTANT_BRIGHTNESS_ENABLED,
+#ifdef USE_LIGHT_COLOR_TEMPERATURE_PRIORITY
+  /// Constant output up to half brightness, then both channels up to full where the color temperature allows.
+  /// Codegen compiles it in only when a light uses it.
+  CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY,
+#endif
+};
+
 /** Listener interface for light remote value changes.
  *
  * Components can implement this interface to receive notifications
@@ -334,12 +349,23 @@ class LightState : public EntityBase, public Component {
   void current_values_as_rgbw(float *red, float *green, float *blue, float *white);
 
   void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                               bool constant_brightness = false);
+                               bool constant_brightness = false) {
+    this->current_values_as_rgbww(red, green, blue, cold_white, warm_white,
+                                  constant_brightness ? ConstantBrightness::CONSTANT_BRIGHTNESS_ENABLED
+                                                      : ConstantBrightness::CONSTANT_BRIGHTNESS_DISABLED);
+  }
+  void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
+                               ConstantBrightness constant_brightness);
 
   void current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
                                float *white_brightness);
 
-  void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
+  void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false) {
+    this->current_values_as_cwww(cold_white, warm_white,
+                                 constant_brightness ? ConstantBrightness::CONSTANT_BRIGHTNESS_ENABLED
+                                                     : ConstantBrightness::CONSTANT_BRIGHTNESS_DISABLED);
+  }
+  void current_values_as_cwww(float *cold_white, float *warm_white, ConstantBrightness constant_brightness);
 
   void current_values_as_ct(float *color_temperature, float *white_brightness);
 

@@ -12,6 +12,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_COLOR_CORRECT,
+    CONF_CONSTANT_BRIGHTNESS,
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_EFFECT,
     CONF_EFFECTS,
@@ -88,6 +89,7 @@ from .types import (  # noqa: F401
     BufferColorAccessor,
     ChannelColors,
     ColorMode,
+    ConstantBrightness,
     GammaTable,
     LightEffect,
     LightOutput,
@@ -602,6 +604,38 @@ def light_schema(
     if default_restore_mode is not cv.UNDEFINED:
         result.add_extra(_apply_default_restore_mode(default_restore_mode))
     return result
+
+
+CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY = "color_temperature_priority"
+CONSTANT_BRIGHTNESS_MODES = {
+    False: ConstantBrightness.CONSTANT_BRIGHTNESS_DISABLED,
+    True: ConstantBrightness.CONSTANT_BRIGHTNESS_ENABLED,
+    CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY: ConstantBrightness.CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY,
+}
+# constant_brightness of the cwww and rgbww platforms: a boolean or color_temperature_priority
+validate_constant_brightness = cv.All(
+    cv.Any(
+        cv.boolean,
+        cv.one_of(CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY, lower=True),
+    ),
+    # Always passes; lists all three values for the schema dumper, which keeps one Any branch
+    cv.one_of(*CONSTANT_BRIGHTNESS_MODES),
+)
+# The constant_brightness keys shared by the cwww and rgbww platforms
+CONSTANT_BRIGHTNESS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(
+            CONF_CONSTANT_BRIGHTNESS, default=False
+        ): validate_constant_brightness,
+    }
+)
+
+
+def constant_brightness_to_code(var: MockObj, config: ConfigType) -> None:
+    mode = config[CONF_CONSTANT_BRIGHTNESS]
+    if mode == CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY:
+        cg.add_define("USE_LIGHT_COLOR_TEMPERATURE_PRIORITY")
+    cg.add(var.set_constant_brightness(CONSTANT_BRIGHTNESS_MODES[mode]))
 
 
 def validate_color_temperature_channels(value):

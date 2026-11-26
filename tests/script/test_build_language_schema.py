@@ -793,3 +793,20 @@ def test_lvgl_actions_with_long_names_keep_their_own_schemas(
     table_cell = actions["table.cell.update"]["schema"]["config_vars"]
     assert {"row", "column", "text"} <= set(table_cell)
     assert "row" not in actions["table.update"]["schema"]["config_vars"]
+
+
+def test_light_constant_brightness_lists_bool_and_priority(
+    language_schema_dir: Path,
+) -> None:
+    """constant_brightness keeps its true/false choices beside color_temperature_priority."""
+    light_schema = json.loads((language_schema_dir / "light.json").read_text())
+    constant_brightness = light_schema["light"]["schemas"][
+        "CONSTANT_BRIGHTNESS_SCHEMA"
+    ]["schema"]["config_vars"]["constant_brightness"]
+
+    assert constant_brightness["type"] == "enum"
+    assert set(constant_brightness["values"]) == {
+        "true",
+        "false",
+        "color_temperature_priority",
+    }

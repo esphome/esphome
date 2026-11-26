@@ -34,6 +34,49 @@ output:
       - logger.log:
           format: "NCB_WW_OUTPUT:%.6f"
           args: [state]
+  - platform: template
+    id: ctp_cold_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "CTP_CW_OUTPUT:%.6f"
+          args: [state]
+  - platform: template
+    id: ctp_warm_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "CTP_WW_OUTPUT:%.6f"
+          args: [state]
+  - platform: template
+    id: rgbww_cold_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "RGBWW_CW_OUTPUT:%.6f"
+          args: [state]
+  - platform: template
+    id: rgbww_warm_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "RGBWW_WW_OUTPUT:%.6f"
+          args: [state]
+  - platform: template
+    id: rgbww_red_output
+    type: float
+    write_action:
+      - lambda: (void) state;
+  - platform: template
+    id: rgbww_green_output
+    type: float
+    write_action:
+      - lambda: (void) state;
+  - platform: template
+    id: rgbww_blue_output
+    type: float
+    write_action:
+      - lambda: (void) state;
 
 light:
   - platform: cwww
@@ -55,3 +98,26 @@ light:
     warm_white_color_temperature: 2000 K
     constant_brightness: false
     gamma_correct: 2.8
+
+  - platform: cwww
+    name: "Test CTP Light"
+    id: test_ctp_light
+    cold_white: ctp_cold_white_output
+    warm_white: ctp_warm_white_output
+    cold_white_color_temperature: 6536 K
+    warm_white_color_temperature: 2000 K
+    constant_brightness: color_temperature_priority
+    gamma_correct: 2.8
+
+  # Plain rgbww: its write path without constant_brightness options
+  - platform: rgbww
+    name: "Test RGBWW Light"
+    id: test_rgbww_light
+    red: rgbww_red_output
+    green: rgbww_green_output
+    blue: rgbww_blue_output
+    cold_white: rgbww_cold_white_output
+    warm_white: rgbww_warm_white_output
+    cold_white_color_temperature: 6536 K
+    warm_white_color_temperature: 2000 K
+    color_interlock: true

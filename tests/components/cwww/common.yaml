@@ -6,3 +6,10 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     constant_brightness: true
+  - platform: cwww
+    name: CWWW Light CT Priority
+    cold_white: cwww_light_output_1
+    warm_white: cwww_light_output_2
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    constant_brightness: color_temperature_priority

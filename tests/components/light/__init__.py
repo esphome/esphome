@@ -16,6 +16,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_LIGHT_WRITE_ON_SETUP")
         # The tests attach effects with add_effects()
         cg.add_define("USE_LIGHT_EFFECTS")
+        # constant_brightness: color_temperature_priority
+        cg.add_define("USE_LIGHT_COLOR_TEMPERATURE_PRIORITY")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["json"]
