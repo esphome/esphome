@@ -137,24 +137,24 @@ class TFLiteMicroHelper : public Component {
   void set_resource_variables(tflite::MicroResourceVariables *variables) { this->resource_variables_ = variables; }
 
   /// Model spec of the loaded model; all defaults when none is loaded.
-  ModelSpec get_model_spec();
+  ModelSpec get_model_spec() const;
 
   // These read the interpreter, so they report 0 until the model is READY.
-  int get_input_width();
-  int get_input_height();
-  int get_input_channels();
+  int get_input_width() const;
+  int get_input_height() const;
+  int get_input_channels() const;
   /// A copy of the loaded model's configuration; defaults when none is loaded.
-  ModelConfig get_config();
-  size_t get_arena_used_bytes();
+  ModelConfig get_config() const;
+  size_t get_arena_used_bytes() const;
 
-  size_t get_tensor_arena_size();
+  size_t get_tensor_arena_size() const;
   /// Size the last load asked the allocator for, after probing (not a usage figure).
-  size_t get_tensor_arena_size_effective();
-  size_t get_tensor_arena_size_actual();
-  size_t get_model_size_bytes();
-  ArenaStats get_arena_stats();
+  size_t get_tensor_arena_size_effective() const;
+  size_t get_tensor_arena_size_actual() const;
+  size_t get_model_size_bytes() const;
+  ArenaStats get_arena_stats() const;
   void report_memory_status();
-  LoadStats get_last_load_stats();
+  LoadStats get_last_load_stats() const;
 
 #ifdef USE_TFLITE_MODEL_DEBUG
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
@@ -168,7 +168,7 @@ class TFLiteMicroHelper : public Component {
   /// Lock the lifecycle mutex, or report a same-task re-entry instead of blocking.
   class LockGuard {
    public:
-    explicit LockGuard(TFLiteMicroHelper *helper);
+    explicit LockGuard(const TFLiteMicroHelper *helper);
     ~LockGuard();
     LockGuard(const LockGuard &) = delete;
     LockGuard &operator=(const LockGuard &) = delete;
@@ -177,7 +177,7 @@ class TFLiteMicroHelper : public Component {
     void unlock();
 
    private:
-    TFLiteMicroHelper *helper_;
+    const TFLiteMicroHelper *helper_;
     bool locked_{false};
   };
 
@@ -220,9 +220,9 @@ class TFLiteMicroHelper : public Component {
   /// Serializes load, unload, inference and set_model(), so an unload from another
   /// task cannot free the arena while it is in use.
   /// Task holding mutex_, so a log emitted under the lock cannot deadlock the device.
-  std::atomic<TaskHandle_t> lock_owner_{nullptr};
-  std::atomic<bool> reentry_reported_{false};
-  esphome::Mutex mutex_;
+  mutable std::atomic<TaskHandle_t> lock_owner_{nullptr};
+  mutable std::atomic<bool> reentry_reported_{false};
+  mutable esphome::Mutex mutex_;
 
   TfLiteStatus invoke_locked_();
   bool run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size);

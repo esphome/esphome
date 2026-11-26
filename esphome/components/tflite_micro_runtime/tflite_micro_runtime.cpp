@@ -44,7 +44,7 @@ InputType tensor_type_to_input_type(TfLiteType type) {
 
 }  // namespace
 
-TFLiteMicroHelper::LockGuard::LockGuard(TFLiteMicroHelper *helper) : helper_(helper) {
+TFLiteMicroHelper::LockGuard::LockGuard(const TFLiteMicroHelper *helper) : helper_(helper) {
   if (this->helper_ == nullptr)
     return;
   const TaskHandle_t current = xTaskGetCurrentTaskHandle();
@@ -384,59 +384,59 @@ int TFLiteMicroHelper::get_input_channels_locked_() const {
   return this->is_model_loaded() ? this->model_handler_.get_input_channels() : 0;
 }
 
-int TFLiteMicroHelper::get_input_width() {
+int TFLiteMicroHelper::get_input_width() const {
   LockGuard guard(this);
   return guard.locked() ? this->get_input_width_locked_() : 0;
 }
 
-int TFLiteMicroHelper::get_input_height() {
+int TFLiteMicroHelper::get_input_height() const {
   LockGuard guard(this);
   return guard.locked() ? this->get_input_height_locked_() : 0;
 }
 
-int TFLiteMicroHelper::get_input_channels() {
+int TFLiteMicroHelper::get_input_channels() const {
   LockGuard guard(this);
   return guard.locked() ? this->get_input_channels_locked_() : 0;
 }
 
-ModelConfig TFLiteMicroHelper::get_config() {
+ModelConfig TFLiteMicroHelper::get_config() const {
   LockGuard guard(this);
   if (!guard.locked())
     return ModelConfig{};
   return this->model_handler_.get_config();
 }
 
-size_t TFLiteMicroHelper::get_arena_used_bytes() {
+size_t TFLiteMicroHelper::get_arena_used_bytes() const {
   LockGuard guard(this);
   return guard.locked() && this->is_model_loaded() ? this->model_handler_.get_arena_used_bytes() : 0;
 }
 
-size_t TFLiteMicroHelper::get_tensor_arena_size() {
+size_t TFLiteMicroHelper::get_tensor_arena_size() const {
   LockGuard guard(this);
   return guard.locked() ? this->tensor_arena_size_requested_ : 0;
 }
 
-size_t TFLiteMicroHelper::get_tensor_arena_size_effective() {
+size_t TFLiteMicroHelper::get_tensor_arena_size_effective() const {
   LockGuard guard(this);
   return guard.locked() ? this->tensor_arena_size_effective_ : 0;
 }
 
-size_t TFLiteMicroHelper::get_tensor_arena_size_actual() {
+size_t TFLiteMicroHelper::get_tensor_arena_size_actual() const {
   LockGuard guard(this);
   return guard.locked() ? this->tensor_arena_allocation_.actual_size : 0;
 }
 
-size_t TFLiteMicroHelper::get_model_size_bytes() {
+size_t TFLiteMicroHelper::get_model_size_bytes() const {
   LockGuard guard(this);
   return guard.locked() ? this->model_length_ : 0;
 }
 
-LoadStats TFLiteMicroHelper::get_last_load_stats() {
+LoadStats TFLiteMicroHelper::get_last_load_stats() const {
   LockGuard guard(this);
   return guard.locked() ? this->last_load_stats_ : LoadStats{};
 }
 
-ModelSpec TFLiteMicroHelper::get_model_spec() {
+ModelSpec TFLiteMicroHelper::get_model_spec() const {
   ModelSpec spec;
   LockGuard guard(this);
   if (!guard.locked() || !this->is_model_loaded())
@@ -452,7 +452,7 @@ ModelSpec TFLiteMicroHelper::get_model_spec() {
   return spec;
 }
 
-ArenaStats TFLiteMicroHelper::get_arena_stats() {
+ArenaStats TFLiteMicroHelper::get_arena_stats() const {
   ArenaStats stats;
   LockGuard guard(this);
   if (!guard.locked())
