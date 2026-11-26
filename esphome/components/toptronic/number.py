@@ -13,6 +13,7 @@ from . import (
     CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
     TopTronicComponent,
+    register_input,
     toptronic,
 )
 
@@ -63,4 +64,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_type(config[CONF_TYPE]))
     cg.add(var.set_multiplier(divider))
 
-    cg.add(tt.add_input(var))
+    cg.add(register_input(tt, var))
