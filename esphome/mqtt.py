@@ -99,7 +99,8 @@ def _pinned_context(fingerprints: list[str]) -> ssl.SSLContext:
     """
     pinned = frozenset(fingerprints)
 
-    class _PinnedSSLSocket(ssl.SSLSocket):
+    # SSLSocket's dup/recvmsg/sendmsg raise NotImplementedError by design, not abstract
+    class _PinnedSSLSocket(ssl.SSLSocket):  # pylint: disable=abstract-method
         def do_handshake(self, block: bool = False) -> None:
             super().do_handshake(block)
             cert = self.getpeercert(binary_form=True)
