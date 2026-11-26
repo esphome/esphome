@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    KEY_BOARD,
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -23,7 +24,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 from . import boards
-from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
+from .const import KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
 
 _LOGGER = logging.getLogger(__name__)
 

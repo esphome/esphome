@@ -8,10 +8,10 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 from esphome.components.mipi import DriverChip
 from esphome.components.mipi_spi.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-from esphome.const import CONF_BUFFER_SIZE, PlatformFramework
+from esphome.const import CONF_BUFFER_SIZE, KEY_BOARD, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable

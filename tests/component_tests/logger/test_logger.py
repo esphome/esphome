@@ -16,7 +16,7 @@ from esphome.components.logger import (
     validate_task_log_buffer_alignment,
 )
 from esphome.config_validation import Invalid
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -243,11 +243,7 @@ def test_libretiny_uart_needs_default_pins(
 ) -> None:
     """Opening a LibreTiny port with no default pins hangs at boot, so it is rejected."""
     from esphome.components import rtl87xx
-    from esphome.components.libretiny.const import (
-        KEY_BOARD,
-        KEY_COMPONENT_DATA,
-        KEY_LIBRETINY,
-    )
+    from esphome.components.libretiny.const import KEY_COMPONENT_DATA, KEY_LIBRETINY
 
     set_core_config(PlatformFramework.RTL87XX_ARDUINO)
     CORE.data[KEY_LIBRETINY] = {
@@ -279,11 +275,7 @@ def test_final_validate_checks_libretiny_uart_pins(
 ) -> None:
     """The pin check runs from final validation, only when serial logging is on."""
     from esphome.components import rtl87xx
-    from esphome.components.libretiny.const import (
-        KEY_BOARD,
-        KEY_COMPONENT_DATA,
-        KEY_LIBRETINY,
-    )
+    from esphome.components.libretiny.const import KEY_COMPONENT_DATA, KEY_LIBRETINY
     from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART
 
     set_core_config(platform)

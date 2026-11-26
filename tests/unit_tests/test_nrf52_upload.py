@@ -19,7 +19,6 @@ from esphome.components.nrf52.const import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
-    KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
@@ -31,6 +30,7 @@ from esphome.components.zephyr.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    KEY_BOARD,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,

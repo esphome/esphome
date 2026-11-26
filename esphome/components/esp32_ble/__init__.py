@@ -283,7 +283,7 @@ DEFAULT_MAX_CONNECTIONS = 3
 IDF_MAX_CONNECTIONS = 9
 
 # Connection slot tracking keys
-KEY_ESP32_BLE = DOMAIN
+KEY_ESP32_BLE = "esp32_ble"
 KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
 
 # Export for use by other components (bluetooth_proxy, etc.)

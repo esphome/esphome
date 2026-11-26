@@ -6,9 +6,9 @@ import re
 from typing import Any
 
 from esphome.components.const import CONF_HOLD_STATE
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32S3
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32S3
 from esphome.components.it8951.display import CONFIG_SCHEMA
-from esphome.const import CONF_ENABLE_PIN, CONF_NUMBER, PlatformFramework
+from esphome.const import CONF_ENABLE_PIN, CONF_NUMBER, KEY_BOARD, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 

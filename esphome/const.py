@@ -1446,22 +1446,23 @@ STATE_CLASS_TOTAL_INCREASING = "total_increasing"
 # The state represents a total amount that can both increase and decrease, e.g. a net energy meter.
 STATE_CLASS_TOTAL = "total"
 
+KEY_BOARD = "board"
 KEY_CORE = "core"
-KEY_TARGET_PLATFORM = "target_platform"
-KEY_TARGET_FRAMEWORK = "target_framework"
-KEY_FRAMEWORK_VERSION = "framework_version"
-KEY_NAME = "name"
-KEY_VARIANT = "variant"
-KEY_IDF_EXTRA_TARGETS = "idf_extra_targets"
-KEY_PAST_SAFE_MODE = "past_safe_mode"
-# esp32 storage keys; defined here so the upload/logs fast path
+# KEY_ESP32 and KEY_IDF_VERSION are esp32 storage keys; defined here so the upload/logs fast path
 # (storage_json.apply_to_core, espidf.toolchain) can use them without
 # importing the esp32 component package.
 KEY_ESP32 = "esp32"
 # Also used by esp8266 to index its BOARDS metadata dicts, whose
 # entries in boards.py spell the literal; do not change the value.
 KEY_FLASH_SIZE = "flash_size"
+KEY_FRAMEWORK_VERSION = "framework_version"
+KEY_IDF_EXTRA_TARGETS = "idf_extra_targets"
 KEY_IDF_VERSION = "idf_version"
+KEY_NAME = "name"
+KEY_PAST_SAFE_MODE = "past_safe_mode"
+KEY_TARGET_FRAMEWORK = "target_framework"
+KEY_TARGET_PLATFORM = "target_platform"
+KEY_VARIANT = "variant"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""

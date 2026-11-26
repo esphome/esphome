@@ -9,7 +9,6 @@ from voluptuous import Invalid
 from esphome import config_validation as cv
 import esphome.codegen as cg
 from esphome.components.esp32 import (
-    KEY_BOARD,
     KEY_IDF_VERSION,
     KEY_VARIANT,
     VARIANT_ESP32,
@@ -30,6 +29,7 @@ from esphome.const import (
     CONF_ID,
     CONF_NETWORKS,
     CONF_PRIORITY,
+    KEY_BOARD,
     PlatformFramework,
 )
 from esphome.core import CORE, ID

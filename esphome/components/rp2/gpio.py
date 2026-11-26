@@ -14,13 +14,14 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    KEY_BOARD,
 )
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 from . import boards
-from .const import KEY_BOARD, KEY_RP2, rp2_ns
+from .const import KEY_RP2, rp2_ns
 
 RP2GPIOPin = rp2_ns.class_("RP2GPIOPin", cg.InternalGPIOPin)
 

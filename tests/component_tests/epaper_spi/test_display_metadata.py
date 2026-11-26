@@ -7,8 +7,8 @@ from typing import Any
 from esphome import config_validation as cv
 from esphome.components.display import get_all_display_metadata, get_display_metadata
 from esphome.components.epaper_spi.display import CONFIG_SCHEMA
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
-from esphome.const import PlatformFramework
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 

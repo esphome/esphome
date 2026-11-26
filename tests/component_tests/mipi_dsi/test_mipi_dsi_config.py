@@ -9,7 +9,6 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.esp32 import (
-    KEY_BOARD,
     KEY_SDKCONFIG_OPTIONS,
     VARIANT_ESP32P4,
     VARIANT_ESP32S3,
@@ -26,6 +25,7 @@ from esphome.const import (
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_WIDTH,
+    KEY_BOARD,
     KEY_ESP32,
     KEY_VARIANT,
     PlatformFramework,

@@ -12,12 +12,11 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
-    KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_PM_STATIC,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, KEY_BOARD
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 

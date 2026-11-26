@@ -10,9 +10,9 @@ from esphome.components import nrf52
 from esphome.components.nrf52 import framework
 from esphome.components.nrf52.toolchain import get_elf_path
 from esphome.components.zephyr import build_zephyr
-from esphome.components.zephyr.const import KEY_BOARD, KEY_SYSBUILD
+from esphome.components.zephyr.const import KEY_SYSBUILD
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
+from esphome.const import KEY_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE, EsphomeError
 
 SUM = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"

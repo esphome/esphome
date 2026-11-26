@@ -1,10 +1,8 @@
 import esphome.codegen as cg
 
-KEY_BOARD = "board"
 KEY_LWIP_OPTS = "lwip_opts"
 KEY_RP2 = "rp2"
 KEY_PIO_FILES = "pio_files"
-KEY_VARIANT = "variant"
 
 VARIANT_RP2040 = "RP2040"
 VARIANT_RP2350 = "RP2350"

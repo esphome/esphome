@@ -7,7 +7,7 @@ import re
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 from esphome.components.mics_5524.coefficients import (
     GASES,
     DatasheetCurve,
@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_ETHANOL,
     CONF_HYDROGEN,
     CONF_METHANE,
+    KEY_BOARD,
     PlatformFramework,
 )
 from esphome.helpers import fnv1_hash

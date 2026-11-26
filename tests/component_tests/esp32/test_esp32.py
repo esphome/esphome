@@ -42,7 +42,6 @@ from esphome.components.esp32 import (
 )
 from esphome.components.esp32.boards import BOARDS, STANDARD_BOARDS
 from esphome.components.esp32.const import (
-    KEY_BOARD,
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
     KEY_IDF_VERSION,
@@ -75,6 +74,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    KEY_BOARD,
     PlatformFramework,
     Toolchain,
 )

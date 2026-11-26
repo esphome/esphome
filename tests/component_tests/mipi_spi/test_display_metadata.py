@@ -8,14 +8,9 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.const import BYTE_ORDER_BIG
 from esphome.components.display import get_all_display_metadata, get_display_metadata
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_VARIANT,
-    VARIANT_ESP32,
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32S3
 from esphome.components.mipi_spi.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.core import ID
 from tests.component_tests.types import SetCoreConfigCallable
 

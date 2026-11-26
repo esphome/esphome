@@ -8,12 +8,7 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_VARIANT,
-    VARIANT_ESP32,
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32S3
 from esphome.components.mipi import CONF_NATIVE_HEIGHT
 from esphome.components.mipi_spi.display import (
     CONF_BUS_MODE,
@@ -32,6 +27,7 @@ from esphome.const import (
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_WIDTH,
+    KEY_BOARD,
     PlatformFramework,
 )
 from esphome.types import ConfigType

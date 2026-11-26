@@ -8,12 +8,18 @@ from esphome.components.libretiny.const import (
     FAMILY_BK7231T,
     FAMILY_BK7238,
     FAMILY_BK7251,
-    KEY_BOARD,
     KEY_FAMILY,
     KEY_LIBRETINY,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_INPUT, CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PULLUP
+from esphome.const import (
+    CONF_INPUT,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    CONF_PULLUP,
+    KEY_BOARD,
+)
 from esphome.core import CORE
 
 

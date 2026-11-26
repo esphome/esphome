@@ -8,19 +8,14 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_VARIANT,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32C3, VARIANT_ESP32S3
 from esphome.components.mipi_rgb.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 
 # Importing pca9554 registers its pin schema with pins.PIN_SCHEMA_REGISTRY so that
 # models (e.g. SEEED-INDICATOR-D1) that reference pca9554-backed pins in their
 # defaults can be validated by the mipi_rgb CONFIG_SCHEMA in this test.
 import esphome.components.pca9554  # noqa: F401
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable

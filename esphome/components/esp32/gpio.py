@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
+    KEY_BOARD,
     PLATFORM_ESP32,
 )
 from esphome.core import CORE
@@ -21,7 +22,6 @@ from esphome.types import ConfigType
 
 from . import boards
 from .const import (
-    KEY_BOARD,
     KEY_ESP32,
     KEY_VARIANT,
     VARIANT_ESP32,

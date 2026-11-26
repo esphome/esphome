@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_RAW_DATA_ID,
     CONF_TYPE,
     CONF_URL,
+    TYPE_LOCAL,
 )
 from esphome.core import CORE, ID, HexInt
 from esphome.cpp_generator import MockObj, ProgmemAssignmentExpression
@@ -33,7 +34,6 @@ DOMAIN = "audio_file"
 
 audio_file_ns = cg.esphome_ns.namespace("audio_file")
 
-TYPE_LOCAL = "local"
 TYPE_WEB = "web"
 
 

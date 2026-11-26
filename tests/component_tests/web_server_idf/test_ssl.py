@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from esphome import loader
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32, idf_version
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, idf_version
 from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
@@ -17,7 +17,7 @@ from esphome.components.web_server_base import get_httpd_client_count
 from esphome.components.web_server_idf import HTTPS_MAX_CONNECTIONS, consume_ssl_sockets
 from esphome.config import read_config
 import esphome.config_validation as cv
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.helpers import get_define_value
 from tests.component_tests.types import SetCoreConfigCallable

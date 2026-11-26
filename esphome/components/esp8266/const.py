@@ -10,7 +10,6 @@ from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priori
 _LOGGER = logging.getLogger(__name__)
 
 KEY_ESP8266 = "esp8266"
-KEY_BOARD = "board"
 KEY_PIN_INITIAL_STATES = "pin_initial_states"
 CONF_RESTORE_FROM_FLASH = "restore_from_flash"
 CONF_EARLY_PIN_INIT = "early_pin_init"

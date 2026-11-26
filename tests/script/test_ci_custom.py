@@ -191,80 +191,282 @@ def test_nothrow_nolint_inside_a_string_does_not_suppress() -> None:
     assert len(_lint_nothrow('auto *p = new (std::nothrow) Foo; log("NOLINT");\n')) == 1
 
 
-# --- rule: UNIT_ constants must not be redefined (mirror of the CONF_ check) ---
-
-# Real UNIT_ constants that live in each canonical home.
-UNIT_IN_CONST_PY = ci_custom.UNIT_CONSTANTS[0]
-UNIT_IN_COMPONENT_CONST = ci_custom.COMPONENT_UNIT_CONSTANTS[0]
+# --- rule: a name defined in a canonical const home must not be redefined ---
 
 
-def _unit_def(fname: str, content: str) -> list:
-    return ci_custom.lint_unit_from_const_py(fname, content)
+def _home_name(homes: set[str], prefix: str) -> str:
+    return min(n for n in homes if n.startswith(prefix))
 
 
-def test_unit_already_in_const_py_is_flagged() -> None:
-    errs = _unit_def("esphome/components/x/sensor.py", f'{UNIT_IN_CONST_PY} = "x"\n')
-    assert errs
+def _redefine(fname: str, content: str) -> list:
+    return ci_custom.lint_const_from_const_py(fname, content)
+
+
+@pytest.mark.parametrize("annotation", ["", ": str"])
+@pytest.mark.parametrize(
+    "prefix", ["CONF_", "UNIT_", "KEY_", "ICON_", "DEVICE_CLASS_", "STATE_CLASS_"]
+)
+def test_name_already_in_const_py_is_flagged(prefix: str, annotation: str) -> None:
+    name = _home_name(ci_custom.CONSTANTS, prefix)
+    errs = _redefine("esphome/components/x/sensor.py", f'{name}{annotation} = "x"\n')
+    assert len(errs) == 1
     assert "const.py" in errs[0][2]
+    assert name in errs[0][2]
 
 
-def test_unit_already_in_component_const_is_flagged() -> None:
-    errs = _unit_def(
-        "esphome/components/x/sensor.py", f'{UNIT_IN_COMPONENT_CONST} = "x"\n'
-    )
-    assert errs
+@pytest.mark.parametrize("prefix", ["CONF_", "UNIT_", "KEY_", "ICON_"])
+def test_name_already_in_component_const_is_flagged(prefix: str) -> None:
+    name = _home_name(ci_custom.COMPONENT_CONSTANTS, prefix)
+    errs = _redefine("esphome/components/x/sensor.py", f'{name} = "x"\n')
+    assert len(errs) == 1
     assert "esphome.components.const" in errs[0][2]
 
 
-def test_unit_not_in_const_py_is_tracked_not_flagged() -> None:
-    ci_custom.UNIT_CONSTANTS_USES.clear()
-    assert _unit_def("a.py", 'UNIT_FOO_BAR = "fb"\n') == []
-    assert ci_custom.UNIT_CONSTANTS_USES["UNIT_FOO_BAR"] == ["a.py"]
+def test_non_string_redefinition_is_flagged() -> None:
+    name = _home_name(ci_custom.CONSTANTS, "STATE_CLASS_")
+    assert _redefine("esphome/components/x/sensor.py", f"{name} = OTHER\n")
 
 
-def test_unit_defined_in_three_files_is_flagged() -> None:
-    ci_custom.UNIT_CONSTANTS_USES.clear()
+@pytest.mark.parametrize("name", ["DOMAIN", "CODEOWNERS", "__version__"])
+def test_component_metadata_may_repeat_a_home_name(name: str) -> None:
+    assert _redefine("esphome/components/x/__init__.py", f'{name} = "x"\n') == []
+
+
+def test_name_not_in_a_home_passes() -> None:
+    assert _redefine("a.py", 'MY_LOCAL_THING = "x"\nx == 1\n') == []
+
+
+def test_redefinition_reports_each_name_at_its_line_and_column() -> None:
+    first = _home_name(ci_custom.CONSTANTS, "ICON_")
+    second = _home_name(ci_custom.CONSTANTS, "STATE_CLASS_")
+    content = f'OTHER = 1\n{first} = {second} = "x"\n'
+    errs = _redefine("a.py", content)
+    assert [(line, col) for line, col, _ in errs] == [(2, 1), (2, len(first) + 4)]
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        'OTHER, {name} = "a", "b"\n',
+        '[OTHER, *{name}] = "a", "b"\n',
+        'if X:\n    {name} = "x"\n',
+        'try:\n    pass\nexcept ImportError:\n    {name} = "x"\n',
+        'with X:\n    {name}: str = "x"\n',
+        'for _ in X:\n    {name} = "x"\n',
+        '{name} = "x"  # a comment\n',
+        '{name}="x"\n',
+    ],
+)
+def test_redefinition_forms_are_all_flagged(template: str) -> None:
+    name = _home_name(ci_custom.CONSTANTS, "ICON_")
+    assert len(_redefine("a.py", template.format(name=name))) == 1
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        'def f() -> None:\n    {name} = "x"\n',
+        'async def f() -> None:\n    {name} = "x"\n',
+        'class A:\n    {name} = "x"\n',
+        "{name}: str\n",
+        "{name} += 1\n",
+        "a.{name} = 1\n",
+    ],
+)
+def test_redefinition_outside_module_scope_or_without_value_passes(
+    template: str,
+) -> None:
+    name = _home_name(ci_custom.CONSTANTS, "ICON_")
+    assert _redefine("a.py", template.format(name=name)) == []
+
+
+def test_unparseable_file_is_left_to_the_python_linters() -> None:
+    name = _home_name(ci_custom.CONSTANTS, "ICON_")
+    assert _redefine("a.py", f"{name} = (\n") == []
+    assert _matches("CONF_FOO = (\n") == []
+
+
+def test_indented_and_comparison_are_not_definitions() -> None:
+    name = _home_name(ci_custom.CONSTANTS, "ICON_")
+    assert _redefine("a.py", f'def f() -> None:\n    {name} = "x"\n') == []
+    assert _redefine("a.py", f"{name} == 1\n") == []
+
+
+def test_module_level_names_reads_assignments_with_ast(tmp_path: Path) -> None:
+    path = tmp_path / "homes.py"
+    path.write_text(
+        'A = "a"\nB: str = "b"\nC, (D, E) = 1, (2, 3)\nDOMAIN = "d"\n'
+        '__version__ = "1"\nF += 1\nH: int\nimport os\ndef f() -> None:\n    G = 1\n'
+        'try:\n    I = "i"\nexcept ImportError:\n    J = K = "j"\n'
+    )
+    assert ci_custom._module_level_names(str(path)) == {
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "I",
+        "J",
+        "K",
+    }
+
+
+def test_homes_do_not_overlap_in_the_repo() -> None:
+    assert ci_custom.lint_homes_do_not_overlap() == []
+
+
+def test_overlapping_home_names_are_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ci_custom, "CONSTANTS", {"ICON_A", "CONF_B"})
+    monkeypatch.setattr(ci_custom, "COMPONENT_CONSTANTS", {"CONF_B", "ICON_C"})
+    errs = ci_custom.lint_homes_do_not_overlap()
+    assert len(errs) == 1
+    assert "CONF_B" in errs[0]
+
+
+# --- 3+ files tracking for CONF_, UNIT_ and KEY_ ---
+
+
+@pytest.mark.parametrize("name", ["CONF_FOO_BAR", "UNIT_FOO_BAR", "KEY_FOO_BAR"])
+def test_const_not_in_a_home_is_tracked_not_flagged(name: str) -> None:
+    ci_custom.CONSTANTS_USES.clear()
+    assert _redefine("a.py", f'{name} = "fb"\n') == []
+    assert ci_custom.CONSTANTS_USES[name] == ["a.py"]
+
+
+def test_commented_chained_and_indented_string_consts_are_tracked() -> None:
+    ci_custom.CONSTANTS_USES.clear()
+    assert _redefine("a.py", 'KEY_FOO_BAR = "x"  # note\n') == []
+    assert _redefine("b.py", 'KEY_FOO_BAR = KEY_BAZ_QUX = "x"\n') == []
+    assert _redefine("c.py", 'if X:\n    KEY_FOO_BAR = "x"\n') == []
+    assert _redefine("d.py", 'def f() -> None:\n    KEY_FOO_BAR = "x"\n') == []
+    assert _redefine("e.py", 'A, KEY_FOO_BAR = "x", "y"\n') == []
+    assert ci_custom.CONSTANTS_USES["KEY_FOO_BAR"] == ["a.py", "b.py", "c.py"]
+    assert ci_custom.CONSTANTS_USES["KEY_BAZ_QUX"] == ["b.py"]
+
+
+@pytest.mark.parametrize("value", ["OTHER", "8"])
+def test_non_string_const_is_not_tracked(value: str) -> None:
+    ci_custom.CONSTANTS_USES.clear()
+    assert _redefine("a.py", f"KEY_FOO_BAR = {value}\n") == []
+    assert not ci_custom.CONSTANTS_USES
+
+
+def test_other_names_are_not_tracked() -> None:
+    ci_custom.CONSTANTS_USES.clear()
+    assert _redefine("a.py", 'ICON_FOO_BAR = "mdi:x"\n') == []
+    assert not ci_custom.CONSTANTS_USES
+
+
+@pytest.mark.parametrize("name", ["CONF_FOO_BAR", "UNIT_FOO_BAR", "KEY_FOO_BAR"])
+def test_const_defined_in_three_files_is_flagged(name: str) -> None:
+    ci_custom.CONSTANTS_USES.clear()
     for fname in ("a.py", "b.py", "c.py"):
-        _unit_def(fname, 'UNIT_FOO_BAR = "fb"\n')
-    errs = ci_custom.lint_unit_constants_usage()
-    assert any("UNIT_FOO_BAR" in e and "3 files" in e for e in errs)
+        _redefine(fname, f'{name} = "fb"\n')
+    errs = ci_custom.lint_constants_usage()
+    assert any(name in e and "3 files" in e for e in errs)
 
 
-def test_unit_defined_in_two_files_is_not_flagged() -> None:
-    ci_custom.UNIT_CONSTANTS_USES.clear()
+@pytest.mark.parametrize("name", ["CONF_FOO_BAR", "UNIT_FOO_BAR", "KEY_FOO_BAR"])
+def test_const_defined_in_two_files_is_not_flagged(name: str) -> None:
+    ci_custom.CONSTANTS_USES.clear()
     for fname in ("a.py", "b.py"):
-        _unit_def(fname, 'UNIT_FOO_BAR = "fb"\n')
-    assert ci_custom.lint_unit_constants_usage() == []
+        _redefine(fname, f'{name} = "fb"\n')
+    assert ci_custom.lint_constants_usage() == []
 
 
-# --- same rule for CONF_, now also recognising the components/const home ---
-
-CONF_IN_CONST_PY = ci_custom.CONSTANTS[0]
-CONF_IN_COMPONENT_CONST = ci_custom.COMPONENT_CONSTANTS[0]
+# --- rule: CONF_ and KEY_ names must match their values ---
 
 
-def _conf_def(fname: str, content: str) -> list:
-    return ci_custom.lint_conf_from_const_py(fname, content)
+def _matches(content: str) -> list:
+    return ci_custom.lint_const_matches_value("a.py", content)
 
 
-def test_conf_already_in_const_py_is_flagged() -> None:
-    errs = _conf_def("esphome/components/x/sensor.py", f'{CONF_IN_CONST_PY} = "x"\n')
-    assert errs
-    assert "const.py" in errs[0][2]
+@pytest.mark.parametrize("prefix", ["CONF", "KEY"])
+@pytest.mark.parametrize(
+    "definition",
+    [
+        'FOO_BAR = "foo_bar"',
+        'FOO_BAR: Final = "foo_bar"',
+        'FOO_BAR: str = "foo_bar"',
+        'FOO_BAR = "foo.bar"',
+        '    FOO_BAR = "foo_bar"',
+    ],
+)
+def test_matching_name_and_value_pass(prefix: str, definition: str) -> None:
+    assert _matches(f"{definition.replace('FOO', prefix + '_FOO', 1)}\n") == []
 
 
-def test_conf_already_in_component_const_is_flagged() -> None:
-    errs = _conf_def(
-        "esphome/components/x/sensor.py", f'{CONF_IN_COMPONENT_CONST} = "x"\n'
+@pytest.mark.parametrize("prefix", ["CONF", "KEY"])
+@pytest.mark.parametrize("annotation", ["", ": Final"])
+def test_mismatched_name_and_value_is_flagged(prefix: str, annotation: str) -> None:
+    errs = _matches(f'{prefix}_FOO_BAR{annotation} = "other"\n')
+    assert len(errs) == 1
+    assert f"{prefix}_FOO_BAR" in errs[0][2]
+    assert "does not match value" in errs[0][2]
+
+
+@pytest.mark.parametrize("prefix", ["CONF", "KEY"])
+@pytest.mark.parametrize(
+    "template",
+    [
+        '{p}_FOO = "foo"  # note\n',
+        '{p}_FOO="foo"\n',
+        '{p}_FOO = "fo" "o"\n',
+        '{p}_FOO = "FOO".lower()\n',
+        '{p}_FOO = OTHER = "foo"\n',
+        'class A:\n    {p}_FOO = "foo"\n',
+        'def f() -> None:\n    {p}_FOO: Final = "foo"\n',
+        "{p}_FOO = 8\n",
+        '{p}_FOO, OTHER = "a", "b"\n',
+        'a.{p}_FOO = "x"\n',
+    ],
+)
+def test_matching_forms_pass(prefix: str, template: str) -> None:
+    assert _matches(template.format(p=prefix)) == []
+
+
+@pytest.mark.parametrize("prefix", ["CONF", "KEY"])
+@pytest.mark.parametrize(
+    ("template", "line", "col"),
+    [
+        ('{p}_FOO = "wrong"  # note\n', 1, 1),
+        ('{p}_FOO="wrong"\n', 1, 1),
+        ('{p}_FOO = "wr" "ong"\n', 1, 1),
+        ('class A:\n    {p}_FOO = "wrong"\n', 2, 5),
+        ('{p}_FOO: Final = "wrong"\n', 1, 1),
+        ('OTHER = {p}_FOO = "wrong"\n', 1, 9),
+    ],
+)
+def test_mismatching_forms_are_flagged(
+    prefix: str, template: str, line: int, col: int
+) -> None:
+    errs = _matches(template.format(p=prefix))
+    assert [(ln, c) for ln, c, _ in errs] == [(line, col)]
+    assert f"{prefix}_FOO" in errs[0][2]
+    assert "wrong" in errs[0][2]
+
+
+def test_unit_name_may_differ_from_value() -> None:
+    assert _matches('UNIT_FOO_BAR = "other"\n') == []
+
+
+def test_dict_entries_are_not_definitions() -> None:
+    assert _matches('{\n    KEY_FOO: "other",\n    KEY_BAR: "x",\n}\n') == []
+
+
+# --- const.py ordering ---
+
+
+def test_const_ordering_checks_key_block() -> None:
+    ordered = 'KEY_A = "a"\nKEY_B_C = "bc"\nKEY_BD = "bd"\n'
+    assert ci_custom.lint_const_ordered("esphome/const.py", ordered) == []
+    errs = ci_custom.lint_const_ordered(
+        "esphome/const.py", 'KEY_B = "b"\nKEY_A = "a"\n'
     )
-    assert errs
-    assert "esphome.components.const" in errs[0][2]
-
-
-def test_conf_not_in_a_const_home_is_tracked_not_flagged() -> None:
-    ci_custom.CONSTANTS_USES.pop("CONF_FOO_BAR", None)
-    assert _conf_def("a.py", 'CONF_FOO_BAR = "foo_bar"\n') == []
-    assert ci_custom.CONSTANTS_USES["CONF_FOO_BAR"] == ["a.py"]
+    assert [line for line, _col, _msg in errs] == [1, 2]
+    assert "KEY_B" in errs[0][2]
 
 
 # --- ESP_LOG call scanner and bare-literal-ternary lint ---

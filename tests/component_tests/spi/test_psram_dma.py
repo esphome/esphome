@@ -4,7 +4,6 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.esp32 import (
-    KEY_BOARD,
     KEY_IDF_VERSION,
     KEY_VARIANT,
     VARIANT_ESP32,
@@ -18,7 +17,13 @@ from esphome.components.spi import (
     spi_device_schema,
 )
 from esphome.config import Config
-from esphome.const import CONF_ID, CONF_SPI_ID, KEY_FRAMEWORK_VERSION, PlatformFramework
+from esphome.const import (
+    CONF_ID,
+    CONF_SPI_ID,
+    KEY_BOARD,
+    KEY_FRAMEWORK_VERSION,
+    PlatformFramework,
+)
 from esphome.core import CORE, ID
 from tests.component_tests.types import SetCoreConfigCallable
 

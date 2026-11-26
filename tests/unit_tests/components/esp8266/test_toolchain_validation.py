@@ -17,7 +17,7 @@ from esphome.components.esp8266 import (
     _validate_native_toolchain,
     _warn_platformio_toolchain,
 )
-from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266
+from esphome.components.esp8266.const import KEY_ESP8266
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_TOOLCHAIN,
     CONF_VERSION,
+    KEY_BOARD,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP8266,

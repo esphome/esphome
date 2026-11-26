@@ -35,13 +35,12 @@ from esphome.components.esp8266.boards import (
 )
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import (
-    KEY_BOARD,
     KEY_ESP8266,
     KEY_SCANF_FLOAT,
     THROW_STUBS_HEADER,
 )
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import KEY_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 
 

@@ -8,9 +8,9 @@ import pytest
 
 from esphome.components import nrf52
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
-from esphome.components.zephyr.const import KEY_BOARD, KEY_BOOTLOADER
+from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
+from esphome.const import KEY_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE
 
 

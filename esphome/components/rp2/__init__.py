@@ -16,10 +16,12 @@ from esphome.const import (
     CONF_VARIANT,
     CONF_VERSION,
     CONF_WATCHDOG_TIMEOUT,
+    KEY_BOARD,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    KEY_VARIANT,
     PLATFORM_RP2,
     ThreadModel,
 )
@@ -39,11 +41,9 @@ from esphome.types import ConfigType
 
 from . import boards
 from .const import (
-    KEY_BOARD,
     KEY_LWIP_OPTS,
     KEY_PIO_FILES,
     KEY_RP2,
-    KEY_VARIANT,
     MCU_TO_VARIANT,
     STANDARD_BOARDS,
     VARIANT_FRIENDLY,

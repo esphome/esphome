@@ -43,7 +43,7 @@ CalibrateHeadingAction = motion_ns.class_("CalibrateHeadingAction", automation.A
 
 KEY_ACCELEROMETER = "accelerometer"
 KEY_GYROSCOPE = "gyroscope"
-KEY_TAP_THRESHOLD_IDS = "motion_tap_threshold_ids"
+KEY_MOTION_TAP_THRESHOLD_IDS = "motion_tap_threshold_ids"
 
 ACCELERATION_G = cv.All(cv.float_with_unit("acceleration", "(g|G)?"), cv.positive_float)
 
@@ -263,7 +263,7 @@ async def setup_tap(var: MockObj, tap: ConfigType) -> None:
 
 
 def _final_validate(config: list[ConfigType]) -> None:
-    ids = CORE.data.get(KEY_TAP_THRESHOLD_IDS, ())
+    ids = CORE.data.get(KEY_MOTION_TAP_THRESHOLD_IDS, ())
     for index, conf in enumerate(config):
         if conf[CONF_ID].id in ids and CONF_TAP not in conf:
             raise cv.Invalid(
@@ -332,7 +332,7 @@ CLEAR_ACTION_SCHEMA = cv.Schema(
 def _tap_threshold_id(value: object) -> ID:
     # Checked against the target's tap block in final validation
     value = cv.use_id(MotionComponent)(value)
-    CORE.data.setdefault(KEY_TAP_THRESHOLD_IDS, set()).add(value.id)
+    CORE.data.setdefault(KEY_MOTION_TAP_THRESHOLD_IDS, set()).add(value.id)
     return value
 
 

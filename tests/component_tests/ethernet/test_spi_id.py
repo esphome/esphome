@@ -7,14 +7,8 @@ import pytest
 from voluptuous import Invalid
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_IDF_VERSION,
-    KEY_VARIANT,
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32 import KEY_IDF_VERSION, KEY_VARIANT, VARIANT_ESP32S3
 from esphome.components.ethernet import CONF_INTERFACE, CONFIG_SCHEMA, _final_validate
-from esphome.components.rp2.const import KEY_BOARD as RP2_KEY_BOARD
 
 # Registers the rp2 pin schema so RP2 configs can validate pins.
 import esphome.components.rp2.gpio  # noqa: F401
@@ -27,6 +21,7 @@ from esphome.const import (
     CONF_SPI,
     CONF_SPI_ID,
     CONF_TYPE,
+    KEY_BOARD,
     PlatformFramework,
 )
 from esphome.core import CORE, ID
@@ -107,7 +102,7 @@ def test_bus_pins_still_required_without_spi_id(
 def test_spi_id_rejected_on_rp2(set_core_config: SetCoreConfigCallable) -> None:
     """spi_id is ESP32-only; the RP2 path is unchanged."""
     set_core_config(
-        PlatformFramework.RP2_ARDUINO, platform_data={RP2_KEY_BOARD: "rpipicow"}
+        PlatformFramework.RP2_ARDUINO, platform_data={KEY_BOARD: "rpipicow"}
     )
     CORE.name = "spi-id-test"
     config = {

@@ -27,7 +27,6 @@ from esphome.components.nrf52.framework import get_nrf52_board, get_nrf52_varian
 from esphome.components.zephyr import Section
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
-    KEY_BOARD,
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_ZEPHYR,
@@ -35,7 +34,7 @@ from esphome.components.zephyr.const import (
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
 from esphome.config import path_context
 import esphome.config_validation as cv
-from esphome.const import CONF_INVERTED, CONF_NUMBER, KEY_CORE, Toolchain
+from esphome.const import CONF_INVERTED, CONF_NUMBER, KEY_BOARD, KEY_CORE, Toolchain
 from esphome.core import CORE
 
 

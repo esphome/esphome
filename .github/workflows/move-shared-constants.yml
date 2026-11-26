@@ -1,8 +1,8 @@
 ---
 name: Move Shared Constants
 
-# When the CI "Run script/ci-custom" job fails because a CONF_ or UNIT_ constant is
-# defined in 3 or more files, open one PR against dev that moves those constants
+# When the CI "Run script/ci-custom" job fails because a CONF_, UNIT_ or KEY_ constant
+# is defined in 3 or more files, open one PR against dev that moves those constants
 # into esphome/const.py or esphome/components/const/__init__.py. Each triggering
 # PR gets one move PR, which later runs rebuild from dev. Above MAX_CONSTANTS the
 # workflow asks the author to move them by hand instead.

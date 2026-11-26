@@ -5,7 +5,6 @@ from esphome.components.libretiny import get_libretiny_family
 from esphome.components.libretiny.const import (
     FAMILY_BK7231Q,
     FAMILY_BK7238,
-    KEY_BOARD,
     KEY_LIBRETINY,
 )
 import esphome.config_validation as cv
@@ -17,6 +16,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
     CONF_PIN,
+    KEY_BOARD,
 )
 from esphome.core import CORE
 from esphome.types import ConfigType

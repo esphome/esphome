@@ -11,13 +11,8 @@ from esphome import config_validation as cv
 from esphome.components.epaper_spi.display import CONFIG_SCHEMA, MODELS
 from esphome.components.epaper_spi.models import EpaperModel
 from esphome.components.epaper_spi.models.ssd1677 import CONF_BORDER_WAVEFORM
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_VARIANT,
-    VARIANT_ESP32,
-    VARIANT_ESP32S3,
-)
-from esphome.const import PlatformFramework
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32S3
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable

@@ -7,12 +7,7 @@ import pytest
 from voluptuous import Invalid
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_IDF_VERSION,
-    KEY_VARIANT,
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32 import KEY_IDF_VERSION, KEY_VARIANT, VARIANT_ESP32S3
 from esphome.components.esp32.const import (
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -20,7 +15,7 @@ from esphome.components.esp32.const import (
     KEY_SDKCONFIG_OPTIONS,
 )
 from esphome.components.ethernet import CONF_CLOCK_SPEED, CONFIG_SCHEMA
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.core import CORE
 
 from ..types import SetCoreConfigCallable
