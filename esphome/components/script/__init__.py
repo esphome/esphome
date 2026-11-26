@@ -192,8 +192,7 @@ async def to_code(config):
         # Add a human-readable name to the script
         cg.add(trigger.set_name(cg.LogStringLiteral(conf[CONF_ID].id)))
 
-        if CONF_MAX_RUNS in conf:
-            cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
+        cg.add_optional(trigger.set_max_runs, conf.get(CONF_MAX_RUNS))
 
         if conf[CONF_MODE] == CONF_QUEUED:
             await cg.register_component(trigger, conf)

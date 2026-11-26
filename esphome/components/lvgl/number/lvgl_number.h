@@ -1,7 +1,5 @@
 #pragma once
 
-#include <utility>
-
 #include "esphome/components/number/number.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
@@ -10,8 +8,8 @@ namespace esphome::lvgl {
 
 class LVGLNumber final : public number::Number, public Component {
  public:
-  LVGLNumber(std::function<void(float)> control_lambda, std::function<float()> value_lambda, bool restore)
-      : control_lambda_(std::move(control_lambda)), value_lambda_(std::move(value_lambda)), restore_(restore) {}
+  LVGLNumber(void (*control_lambda)(float), float (*value_lambda)(), bool restore)
+      : control_lambda_(control_lambda), value_lambda_(value_lambda), restore_(restore) {}
 
   void setup() override {
     float value = this->value_lambda_();
@@ -36,8 +34,8 @@ class LVGLNumber final : public number::Number, public Component {
     this->control_lambda_(value);
     this->publish_(value);
   }
-  std::function<void(float)> control_lambda_;
-  std::function<float()> value_lambda_;
+  void (*control_lambda_)(float);
+  float (*value_lambda_)();
   bool restore_;
   ESPPreferenceObject pref_{};
 };

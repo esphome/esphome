@@ -1,12 +1,12 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
+#include "esphome/core/frame_reader.h"
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor_with_dedup.h"
@@ -24,6 +24,9 @@ static constexpr uint8_t FLAG_HEALTH = 0x10;
 static constexpr uint8_t FLAG_SLEEP = 0x02;
 static constexpr uint8_t FLAG_ECO = 0x01;
 
+static constexpr uint8_t SYNC_BYTE = 0x7A;
+static constexpr uint8_t LENGTH_POS = 4;
+static constexpr uint8_t OPCODE_POS = 7;
 static constexpr uint8_t MAX_FRAME_LEN = 64;
 
 /// Climate on the Airton serial bus. The ESP takes the place of the original Wi-Fi module (address 0x21):
@@ -61,16 +64,17 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   bool can_send_command_();
   void send_command_();
   void write_frame_(uint8_t *frame, size_t len);
-  void handle_byte_(uint8_t byte);
-  void drop_first_byte_();
-  void scan_buffer_();
-  void handle_frame_(const uint8_t *data, size_t len);
+  /// Returns false for a frame that fails the CRC
+  bool handle_frame_(const uint8_t *data, size_t len);
   void handle_a3_(const uint8_t *data);
   void handle_ac_(const uint8_t *data);
   void publish_settings_();
 
-  std::array<uint8_t, MAX_FRAME_LEN> rx_buffer_;
-  uint8_t rx_pos_{0};
+  // 7A 7A, ..., whole-frame length at 4, opcode, ..., CRC (2); the shortest runs up to the opcode
+  LengthFrameReader<MAX_FRAME_LEN,
+                    FrameFormat<FrameHeader<SYNC_BYTE, SYNC_BYTE>, FrameLengthU8<LengthField{.offset = LENGTH_POS}>,
+                                FrameMinLength<OPCODE_POS + 3>>>
+      reader_;
   uint8_t flags_{FLAG_DISPLAY};
   bool state_received_{false};
   uint8_t swing_{0};      // Raw swing byte

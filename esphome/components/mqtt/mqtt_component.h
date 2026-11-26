@@ -235,21 +235,38 @@ class MQTTComponent : public Component {
    * @param topic The topic.
    * @param f The Json Message builder.
    */
-  bool publish_json(const std::string &topic, const json::json_build_t &f);
+  bool publish_json(const std::string &topic, const json::json_build_t &f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
+  template<json::JsonBuildCallable F> bool publish_json(const std::string &topic, F &&f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
 
   /** Construct and send a JSON MQTT message (no heap allocation for topic).
    *
    * @param topic The topic as C string.
    * @param f The Json Message builder.
    */
-  bool publish_json(const char *topic, const json::json_build_t &f);
+  bool publish_json(const char *topic, const json::json_build_t &f) {
+    return this->publish_json(topic, json::json_build_ref(f));
+  }
+  /// A JsonBuildCallable; it is not copied, so its captures never allocate
+  template<json::JsonBuildCallable F> bool publish_json(const char *topic, F &&f) {
+    return this->publish_json(topic, json::json_build_ref(f));
+  }
+  bool publish_json(const char *topic, json::JsonBuildRef f);
 
   /** Construct and send a JSON MQTT message (no heap allocation for topic).
    *
    * @param topic The topic as StringRef (for use with get_state_topic_to_()).
    * @param f The Json Message builder.
    */
-  bool publish_json(StringRef topic, const json::json_build_t &f) { return this->publish_json(topic.c_str(), f); }
+  bool publish_json(StringRef topic, const json::json_build_t &f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
+  template<json::JsonBuildCallable F> bool publish_json(StringRef topic, F &&f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
 
   /** Subscribe to a MQTT topic.
    *
