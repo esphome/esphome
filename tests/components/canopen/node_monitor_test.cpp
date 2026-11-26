@@ -115,6 +115,54 @@ TEST_F(NodeMonitorTest, TimeoutReportsOffline) {
   EXPECT_EQ(this->events_.front().event, NodeEvent::NODE_EVENT_ONLINE);
 }
 
+// An event's automation sees the state it reports: CANopenNode calls the consumer callbacks before it stores the new
+// state, so the events are dispatched after CO_process().
+TEST(CanopenNodeMonitor, QueriesInAnEventSeeTheNewState) {
+  struct Seen {
+    NodeEvent event;
+    bool online;
+    NMTState state;
+  };
+  FakeCanbus bus;
+  TestHub hub{&bus};
+  std::vector<Seen> seen;
+  hub.monitor_node(0x21, 30);
+  hub.add_on_node_event_callback([&](uint8_t node_id, NodeEvent event, NMTState state) {
+    seen.push_back({event, hub.is_node_online(node_id), hub.get_node_state(node_id)});
+  });
+  hub.setup();
+  ASSERT_FALSE(hub.is_failed());
+  hub.loop();
+  auto find = [&](NodeEvent event) {
+    for (const Seen &s : seen) {
+      if (s.event == event)
+        return s;
+    }
+    ADD_FAILURE() << "no event " << static_cast<int>(event);
+    return Seen{event, false, NMTState::NMT_STATE_UNKNOWN};
+  };
+
+  hub.frame(0x721, {0x05});
+  Seen online = find(NodeEvent::NODE_EVENT_ONLINE);
+  EXPECT_TRUE(online.online);
+  EXPECT_EQ(online.state, NMTState::NMT_STATE_OPERATIONAL);
+
+  seen.clear();
+  hub.frame(0x721, {0x00});
+  Seen reset = find(NodeEvent::NODE_EVENT_RESET);
+  EXPECT_FALSE(reset.online);
+  EXPECT_EQ(reset.state, NMTState::NMT_STATE_UNKNOWN);
+
+  hub.frame(0x721, {0x05});
+  ASSERT_TRUE(hub.is_node_online(0x21));
+  seen.clear();
+  std::this_thread::sleep_for(std::chrono::milliseconds(60));
+  hub.loop();
+  Seen offline = find(NodeEvent::NODE_EVENT_OFFLINE);
+  EXPECT_FALSE(offline.online);
+  EXPECT_EQ(offline.state, NMTState::NMT_STATE_UNKNOWN);
+}
+
 // 0x1016 holds each node once, with the shortest timeout it was registered with; invalid entries and nodes added after
 // setup are ignored. Read only: CANopenNode's consumer isn't built to take writes.
 TEST(CanopenNodeMonitor, ConsumerEntries) {

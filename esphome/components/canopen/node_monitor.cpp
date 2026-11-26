@@ -80,6 +80,7 @@ void CANopenComponent::init_node_monitor_() {
   // change: it would drop a heartbeat received before (from the bus, or a local node's boot-up queued before our
   // first loop()). The entries are as that pass would leave them (state unknown, no frame), so it can start monitoring.
   hb->NMTisPreOrOperationalPrev = true;
+  this->pending_node_events_.init(2 * this->hb_cons_.size());
   for (uint8_t i = 0, n = this->hb_cons_.size(); i < n; i++) {
     CO_HBconsumer_initCallbackHeartbeatStarted(hb, i, this, on_hb_started);
     CO_HBconsumer_initCallbackNmtChanged(hb, i, this, on_hb_nmt_changed);
@@ -106,27 +107,35 @@ void CANopenComponent::node_event_(uint8_t node_id, NodeEvent event, NMTState st
 }
 
 #ifdef USE_CANOPEN_NODE_MONITOR
-// CANopenNode heartbeat consumer callbacks (called from CO_process())
+// CANopenNode heartbeat consumer callbacks (called from CO_process(), before the consumer stores the new state): they
+// only record the event, dispatch_node_events_() runs the user callbacks after CO_process().
+// push_back() ignores an event beyond the capacity, which the 2 per node and pass can't reach.
 void CANopenComponent::on_hb_started(uint8_t node_id, uint8_t idx, void *object) {
   auto *self = static_cast<CANopenComponent *>(object);
-  // the heartbeat's state is already stored, but CO_HBconsumer_getNmtState() only returns it once HBstate is ACTIVE,
-  // which CANopenNode sets after this callback
+  // the heartbeat's state is already stored (CO_HBconsumer_getNmtState() returns it once HBstate is ACTIVE)
   CO_NMT_internalState_t state = self->co_->HBcons->monitoredNodes[idx].NMTstate;
-  self->node_event_(node_id, NodeEvent::NODE_EVENT_ONLINE, to_nmt_state(state));
+  self->pending_node_events_.push_back({node_id, NodeEvent::NODE_EVENT_ONLINE, to_nmt_state(state)});
 }
 
 void CANopenComponent::on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object) {
-  static_cast<CANopenComponent *>(object)->node_event_(node_id, NodeEvent::NODE_EVENT_NMT_CHANGED, to_nmt_state(state));
+  static_cast<CANopenComponent *>(object)->pending_node_events_.push_back(
+      {node_id, NodeEvent::NODE_EVENT_NMT_CHANGED, to_nmt_state(state)});
 }
 
 void CANopenComponent::on_hb_timeout(uint8_t node_id, uint8_t idx, void *object) {
-  static_cast<CANopenComponent *>(object)->node_event_(node_id, NodeEvent::NODE_EVENT_OFFLINE,
-                                                       NMTState::NMT_STATE_UNKNOWN);
+  static_cast<CANopenComponent *>(object)->pending_node_events_.push_back(
+      {node_id, NodeEvent::NODE_EVENT_OFFLINE, NMTState::NMT_STATE_UNKNOWN});
 }
 
 void CANopenComponent::on_hb_remote_reset(uint8_t node_id, uint8_t idx, void *object) {
-  static_cast<CANopenComponent *>(object)->node_event_(node_id, NodeEvent::NODE_EVENT_RESET,
-                                                       NMTState::NMT_STATE_BOOTUP);
+  static_cast<CANopenComponent *>(object)->pending_node_events_.push_back(
+      {node_id, NodeEvent::NODE_EVENT_RESET, NMTState::NMT_STATE_BOOTUP});
+}
+
+void CANopenComponent::dispatch_node_events_() {
+  for (const PendingNodeEvent &e : this->pending_node_events_)
+    this->node_event_(e.node_id, e.event, e.state);
+  this->pending_node_events_.clear();
 }
 #endif  // USE_CANOPEN_NODE_MONITOR
 

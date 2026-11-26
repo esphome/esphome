@@ -272,8 +272,18 @@ class CANopenComponent : public Component {
   static void on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object);
   static void on_hb_timeout(uint8_t node_id, uint8_t idx, void *object);
   static void on_hb_remote_reset(uint8_t node_id, uint8_t idx, void *object);
-  std::vector<uint32_t> hb_cons_;  // 0x1016:1.., (node_id << 16) | timeout_ms
-  uint8_t hb_cons_count_{0};       // 0x1016:0
+  void dispatch_node_events_();
+  // CANopenNode calls the consumer callbacks before it stores the node's new state, so they only record the event;
+  // process_node_() dispatches them after CO_process(), when is_node_online() / get_node_state() agree with them.
+  // At most 2 per monitored node per CO_process() (heartbeat started or boot-up or timeout, then NMT changed).
+  struct PendingNodeEvent {
+    uint8_t node_id;
+    NodeEvent event;
+    NMTState state;
+  };
+  FixedVector<PendingNodeEvent> pending_node_events_;  // allocated in init_node_monitor_()
+  std::vector<uint32_t> hb_cons_;                      // 0x1016:1.., (node_id << 16) | timeout_ms
+  uint8_t hb_cons_count_{0};                           // 0x1016:0
 #endif
 
   // --- Raw frames (frames.cpp) ---
