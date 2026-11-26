@@ -60,13 +60,17 @@ validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
 CONF_ON_CLOSED = "on_closed"
 
-# The state callback carries nothing; each automation fires only in its end state.
-_CALLBACK_AUTOMATIONS = (
-    automation.CallbackAutomation(
-        CONF_ON_OPEN, "add_on_state_callback", when="{parent}->is_fully_open()"
+# Each fires once, on the publish that reaches its end position; a first publish counts as reaching it.
+_STATE_AUTOMATIONS = (
+    automation.GroupedAutomation(
+        CONF_ON_OPEN,
+        lambda valve: valve.is_fully_open(),
+        automation.CHANGE_TRIGGER.entered,
     ),
-    automation.CallbackAutomation(
-        CONF_ON_CLOSED, "add_on_state_callback", when="{parent}->is_fully_closed()"
+    automation.GroupedAutomation(
+        CONF_ON_CLOSED,
+        lambda valve: valve.is_fully_closed(),
+        automation.CHANGE_TRIGGER.entered,
     ),
 )
 
@@ -125,7 +129,9 @@ def valve_schema(
 async def _setup_valve_core(var, config):
     setup_device_class(config)
 
-    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    await automation.build_grouped_callback_automations(
+        var, config, "add_on_state_callback", _STATE_AUTOMATIONS
+    )
 
     mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
     if mqtt_ is not None:

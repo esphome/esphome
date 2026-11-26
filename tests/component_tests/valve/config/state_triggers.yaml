@@ -1,0 +1,21 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+logger:
+
+valve:
+  - platform: template
+    id: tap
+    name: Tap
+    optimistic: true
+    on_open:
+      - logger.log: open
+    on_closed:
+      - logger.log: closed
+  - platform: template
+    id: drain
+    name: Drain
+    optimistic: true
