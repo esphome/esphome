@@ -504,12 +504,14 @@ void ESPVideoCamera::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   // A snapshot request survives failed starts so the retry still runs for it,
   // but is dropped once its requester will have given up.
-  if (this->single_requesters_ == 0) {
+  const uint8_t seen = this->single_requesters_.load();
+  if (seen == 0) {
     this->snapshot_pending_since_ms_ = 0;
   } else if (this->snapshot_pending_since_ms_ == 0) {
     this->snapshot_pending_since_ms_ = now == 0 ? 1 : now;  // zero means "none pending"
   } else if ((now - this->snapshot_pending_since_ms_) >= SNAPSHOT_TIMEOUT_MS) {
-    this->single_requesters_ = 0;
+    ESP_LOGW(TAG, "Snapshot request timed out");
+    this->single_requesters_.fetch_and(static_cast<uint8_t>(~seen));
     this->snapshot_pending_since_ms_ = 0;
   }
   const bool wanted = this->requesters_() != 0;
@@ -559,7 +561,7 @@ void ESPVideoCamera::loop() {
   // A source that stops delivering is otherwise silent, since an empty queue
   // looks like "no frame yet". Frames are dequeued even while idle, so this is
   // independent of consumers and of max_framerate.
-  if ((now - this->last_dequeue_ms_) >= NO_FRAME_WARNING_MS) {
+  if ((now - this->last_dequeue_ms_) >= NO_FRAME_WARNING_MS + this->min_interval_ms_) {
     ESP_LOGW(TAG,
              "No frame from %s for %us; restarting the capture. esp_video reports several unrelated failures as "
              "EPERM, which is indistinguishable from \"no frame yet\", so a device that has really gone can look "
@@ -602,12 +604,15 @@ bool ESPVideoCamera::dequeue_capture_(v4l2_buffer &buf) {
   buf.memory = V4L2_MEMORY_MMAP;
   if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &buf) < 0) {
     const int err = errno;
-    if (!errno_means_no_frame(err) && !this->handle_device_gone_(err)) {
+    if (this->handle_device_gone_(err))
+      return false;
+    if (!errno_means_no_frame(err) && err != ETIMEDOUT && !this->warned_dequeue_failure_) {
+      this->warned_dequeue_failure_ = true;
       ESP_LOGW(TAG, "Capture DQBUF failed: %s", strerror(err));
     }
     return false;
   }
-  this->last_dequeue_ms_ = App.get_loop_component_start_time();
+  this->warned_dequeue_failure_ = false;
   // A buffer this component never mapped still has to go back to the driver;
   // say so once, or it looks like a camera that sends nothing.
   if (buf.index >= (uint32_t) this->num_capture_buffers_ && !this->warned_stray_buffer_) {
@@ -616,6 +621,16 @@ bool ESPVideoCamera::dequeue_capture_(v4l2_buffer &buf) {
              this->num_capture_buffers_);
   }
   return true;
+}
+
+bool ESPVideoCamera::valid_jpeg_(const uint8_t *data, size_t length) {
+  const bool valid = length >= 4 && data[0] == 0xFF && data[1] == 0xD8 && data[length - 2] == 0xFF &&
+                     data[length - 1] == 0xD9;
+  if (!valid && !this->warned_invalid_frame_) {
+    this->warned_invalid_frame_ = true;
+    ESP_LOGW(TAG, "Invalid JPEG frame dropped");
+  }
+  return valid;
 }
 
 void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length, uint32_t now) {
@@ -662,8 +677,15 @@ void ESPVideoCamera::loop_direct_capture_(uint32_t now) {
   struct v4l2_buffer buf;
   if (!this->dequeue_capture_(buf))
     return;
-  if (buf.index < (uint32_t) this->num_capture_buffers_ && this->frame_due_(now))
-    this->deliver_frame_((const uint8_t *) this->capture_buffers_[buf.index].start, buf.bytesused, now);
+  if (buf.index < (uint32_t) this->num_capture_buffers_) {
+    const auto &mapped = this->capture_buffers_[buf.index];
+    const auto *data = (const uint8_t *) mapped.start;
+    if (buf.bytesused <= mapped.length && !(buf.flags & V4L2_BUF_FLAG_ERROR) && this->valid_jpeg_(data, buf.bytesused)) {
+      this->last_dequeue_ms_ = now;
+      if (this->frame_due_(now))
+        this->deliver_frame_(data, buf.bytesused, now);
+    }
+  }
   this->requeue_capture_(buf);
 }
 
@@ -692,7 +714,12 @@ void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
   const bool due = this->frame_due_(now);
 
   bool encoder_broken = false;
-  if (wanted && due && cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
+  const bool valid_capture = cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0 &&
+                             cap_buf.bytesused <= this->capture_buffers_[cap_buf.index].length &&
+                             !(cap_buf.flags & V4L2_BUF_FLAG_ERROR);
+  if (valid_capture && !wanted)
+    this->last_dequeue_ms_ = now;
+  if (wanted && due && valid_capture) {
     // Queue OUTPUT, dequeue CAPTURE, then reclaim OUTPUT (Espressif's
     // examples/m2m order); waiting on OUTPUT first deadlocks.
     struct v4l2_buffer out_buf;
@@ -744,8 +771,12 @@ void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
           encoder_broken = true;
         }
 
-        if (jpeg_buf.bytesused > 0)
-          this->deliver_frame_((const uint8_t *) this->jpeg_out_buffer_.start, jpeg_buf.bytesused, now);
+        const auto *data = (const uint8_t *) this->jpeg_out_buffer_.start;
+        if (jpeg_buf.index == 0 && jpeg_buf.bytesused <= this->jpeg_out_buffer_.length &&
+            !(jpeg_buf.flags & V4L2_BUF_FLAG_ERROR) && this->valid_jpeg_(data, jpeg_buf.bytesused)) {
+          this->last_dequeue_ms_ = now;
+          this->deliver_frame_(data, jpeg_buf.bytesused, now);
+        }
 
         // Hand the encoder its output buffer back now that it has been copied.
         if (!encoder_broken) {
@@ -844,7 +875,7 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   }
 
   // A device that cannot honour the request keeps its own format silently.
-  uint32_t negotiated = pixelformat;  // assumed, if the device has no G_FMT
+  uint32_t negotiated;
   memset(&fmt, 0, sizeof(fmt));
   fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->capture_fd_, VIDIOC_G_FMT, &fmt) == 0) {
@@ -852,8 +883,8 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
     this->capture_height_ = fmt.fmt.pix.height;
     negotiated = fmt.fmt.pix.pixelformat;
   } else {
-    this->capture_width_ = width;
-    this->capture_height_ = height;
+    ESP_LOGE(TAG, "VIDIOC_G_FMT failed: %s", strerror(errno));
+    return false;
   }
   char negotiated_str[5];
   ESP_LOGI(TAG, "Capture resolution: %ux%u (%s)", (unsigned) this->capture_width_, (unsigned) this->capture_height_,
@@ -953,6 +984,8 @@ bool ESPVideoCamera::start_capture_() {
   this->stats_bytes_ = 0;
   this->logged_qbuf_failure_ = false;
   this->warned_stray_buffer_ = false;
+  this->warned_dequeue_failure_ = false;
+  this->warned_invalid_frame_ = false;
   this->last_dequeue_ms_ = this->stats_since_ms_;
   return true;
 }
