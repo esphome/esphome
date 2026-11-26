@@ -1,0 +1,48 @@
+# Joins the DUT's open AP, fetches the portal page every 5 s and logs JOIN and STAT lines. Substitutions: name, board,
+# logger_uart, ap_ssid (same as dut.yaml).
+substitutions:
+  board: esp32-c3-devkitm-1
+  logger_uart: USB_SERIAL_JTAG
+  ap_ssid: bleaptest
+esphome:
+  name: ${name}
+esp32:
+  board: ${board}
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: ${logger_uart}
+wifi:
+  ssid: ${ap_ssid}
+  reboot_timeout: 0s
+  on_connect:
+    - lambda: |-
+        id(joins)++;
+        ESP_LOGI("cli", "JOIN %d at %u ms", id(joins), (unsigned) millis());
+  on_disconnect:
+    - lambda: ESP_LOGI("cli", "LEFT at %u ms", (unsigned) millis());
+http_request:
+  timeout: 5s
+globals:
+  - {id: joins, type: int, initial_value: "0"}
+  - {id: pages_ok, type: int, initial_value: "0"}
+  - {id: pages_fail, type: int, initial_value: "0"}
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition: wifi.connected
+          then:
+            - http_request.get:
+                url: http://192.168.4.1/
+                on_response:
+                  then:
+                    - lambda: if (response->status_code == 200) id(pages_ok)++; else id(pages_fail)++;
+                on_error:
+                  then:
+                    - lambda: id(pages_fail)++;
+  - interval: 15s
+    then:
+      - lambda: |-
+          ESP_LOGI("cli", "STAT up=%u joins=%d connected=%d pages_ok=%d pages_fail=%d", (unsigned) (millis() / 1000),
+                   id(joins), (int) wifi::global_wifi_component->is_connected(), id(pages_ok), id(pages_fail));

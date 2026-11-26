@@ -1,0 +1,49 @@
+# Full SDO client suite: values, actions, strings, length wrap, limits, bad objects, queues, NMT stop and start,
+# soak, then 40 s of requests while drive.py holds node B in reset, then recovery.
+substitutions:
+  name: canopen-a
+packages:
+  common: !include client-common.yaml
+esphome:
+  name: ${name}
+script:
+  - id: suite
+    then:
+      - delay: 4s
+      - script.execute: phases
+      - script.wait: phases
+      - lambda: |-
+          cot::summary("before nmt stop");
+          cot::nmt(id(can_bus), 0x02);
+      - delay: 200ms
+      - lambda: |-
+          id(hub).read_sdo<uint32_t>(0x20, 0x2002, 0, cot::cb, cot::mk("read while B stopped", cot::R::SDO_RESULT_TIMEOUT, 0x05040000));
+          id(hub).write_sdo<uint8_t>(0x20, 0x2000, 0, 7, cot::cb, cot::mk("write while B stopped", cot::R::SDO_RESULT_TIMEOUT, 0x05040000));
+          id(hub).read_sdo_data(0x20, 0x2010, 0, cot::rbuf, 80, cot::cb, cot::mk("data read while B stopped", cot::R::SDO_RESULT_TIMEOUT, 0x05040000));
+      - delay: 2s
+      - lambda: cot::nmt(id(can_bus), 0x01);
+      - delay: 200ms
+      - lambda: |-
+          id(hub).read_sdo<uint32_t>(0x20, 0x2002, 0, cot::cb, cot::mk("read after NMT start", cot::R::SDO_RESULT_SUCCESS));
+      - delay: 2s
+      - lambda: |-
+          cot::summary("before soak");
+          cot::soak_start(id(hub), 60000);
+      - delay: 62s
+      - lambda: |-
+          cot::soak_report();
+          cot::summary("after soak");
+          ESP_LOGI("cot", "PHASE offline: request every 250 ms for 40 s (B held in reset from outside)");
+      - repeat:
+          count: 160
+          then:
+            - lambda: cot::off_tick(id(hub));
+            - delay: 250ms
+      - delay: 2s
+      - lambda: |-
+          cot::off_report();
+          ESP_LOGI("cot", "PHASE recovery");
+          cot::phase_values(id(hub));
+          cot::phase_strings_after(id(hub));
+      - delay: 3s
+      - lambda: cot::summary("final");

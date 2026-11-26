@@ -25,6 +25,9 @@ namespace esphome::espnow {
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
+/// A short description of an ESP-NOW error code, for logging.
+const LogString *espnow_error_to_str(esp_err_t error);
+
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
   ON_NEW_PEER = 1,
@@ -104,7 +107,7 @@ class ESPNowComponent final : public Component {
     memcpy(peer.address, address.data(), ESP_NOW_ETH_ALEN);
     this->peers_.push_back(peer);
   }
-  // Add a peer with the esp_now api and add to the internal list if doesnt exist already
+  // Add a peer with the esp_now api and add to the internal list if doesn't exist already
   esp_err_t add_peer(const uint8_t *peer);
   // Remove a peer with the esp_now api and remove from the internal list if exists
   esp_err_t del_peer(const uint8_t *peer);
@@ -123,6 +126,7 @@ class ESPNowComponent final : public Component {
   uint8_t get_wifi_channel();
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
+  bool get_auto_add_peer() const { return this->auto_add_peer_; }
 
 #if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
   // WiFiConnectStateListener interface: refresh the cached channel after each (re)connect
@@ -148,6 +152,10 @@ class ESPNowComponent final : public Component {
     return this->send(peer_address, payload.data(), payload.size(), std::move(callback));
   }
   esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size, send_callback_t callback = nullptr);
+  /// How many more packets send() can queue now; they share one pool.
+  size_t get_send_queue_free() const {
+    return MAX_ESP_NOW_SEND_QUEUE_SIZE - 1 - this->send_packet_queue_.size() - (this->current_send_packet_ != nullptr);
+  }
 
   void register_receive_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {

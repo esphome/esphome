@@ -1,0 +1,15 @@
+---
+esphome:
+  name: test
+
+rp2:
+  board: rpipicow
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+tcp_uart:
+  - id: tcp_uart_server
+    role: server
+    port: 5020

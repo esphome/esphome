@@ -1,0 +1,43 @@
+# DS18B20 on GPIO4 with a bus search every ${search_interval}. Set busy_control to "true" to replace the search with
+# the same busy time and no 1-Wire traffic (the control run). Substitutions: name, board, search_interval, busy_control.
+substitutions:
+  board: d1_mini
+  search_interval: 100ms
+  busy_control: "false"
+packages:
+  base: !include base.yaml
+one_wire:
+  - platform: gpio
+    pin: GPIO4
+    id: owbus
+globals:
+  - {id: searches, type: uint32_t, initial_value: "0"}
+  - {id: search_bad, type: uint32_t, initial_value: "0"}
+  - {id: reads_ok, type: uint32_t, initial_value: "0"}
+  - {id: reads_nan, type: uint32_t, initial_value: "0"}
+sensor:
+  - platform: dallas_temp
+    one_wire_id: owbus
+    id: t1
+    name: Temp
+    update_interval: 2s
+    on_raw_value:
+      - lambda: if (std::isnan(x)) id(reads_nan)++; else id(reads_ok)++;
+interval:
+  - interval: ${search_interval}
+    then:
+      - lambda: |-
+          if (${busy_control}) {
+            delayMicroseconds(13000);  // about one search with one sensor answering
+            return;
+          }
+          id(owbus)->search();
+          id(searches)++;
+          if (id(owbus)->get_devices().size() != 1)
+            id(search_bad)++;
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("lock", "ALIVE up=%u ok=%u nan=%u searches=%u search_bad=%u heap=%u t=%.2f",
+                   (unsigned) (millis() / 1000), (unsigned) id(reads_ok), (unsigned) id(reads_nan),
+                   (unsigned) id(searches), (unsigned) id(search_bad), (unsigned) ESP.getFreeHeap(), id(t1).state);

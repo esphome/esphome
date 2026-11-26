@@ -24,6 +24,7 @@ from esphome.components.esp32 import KEY_IDF_VERSION
 from esphome.components.esp32_ble_tracker import (
     CONF_SOFTWARE_COEXISTENCE,
     CONFIG_SCHEMA,
+    SHORT_SCAN_WINDOW_DEFINE,
 )
 from esphome.const import CONF_INTERVAL, PlatformFramework
 from esphome.core import CORE
@@ -200,13 +201,17 @@ def test_connection_scan_window_truncation_collapse_rejected(
     ("config_file", "window_call", "connection_call", "warns"),
     [
         # Raised window with GATT clients: the injected fallback is emitted.
-        ("scan_window_raised.yaml", "set_scan_window(512)", True, False),
+        ("scan_window_raised.yaml", "set_scan_window(512)", 48, False),
         # Explicit window: nothing injected.
-        ("scan_window_explicit.yaml", "set_scan_window(48)", False, False),
-        # Scan-only build compiles the path out: the injected default is
-        # dropped silently, a user-set value warns.
-        ("scan_window_scan_only.yaml", "set_scan_window(512)", False, False),
-        ("scan_window_user_set_scan_only.yaml", "set_scan_window(512)", False, True),
+        ("scan_window_explicit.yaml", "set_scan_window(48)", None, False),
+        # Scan-only build without a wifi AP compiles the path out: the injected
+        # default is dropped silently, a user-set value warns.
+        ("scan_window_scan_only.yaml", "set_scan_window(512)", None, False),
+        ("scan_window_user_set_scan_only.yaml", "set_scan_window(512)", None, True),
+        # A wifi AP needs the short window even without clients
+        # (esphome/esphome#22534).
+        ("scan_window_scan_only_ap.yaml", "set_scan_window(512)", 48, False),
+        ("scan_window_user_set_scan_only_ap.yaml", "set_scan_window(512)", 32, False),
     ],
 )
 def test_connection_scan_window_codegen(
@@ -215,12 +220,17 @@ def test_connection_scan_window_codegen(
     caplog: pytest.LogCaptureFixture,
     config_file: str,
     window_call: str,
-    connection_call: bool,
+    connection_call: int | None,
     warns: bool,
 ) -> None:
     main_cpp = generate_main(component_config_path(config_file))
     assert window_call in main_cpp
-    assert ("set_connection_scan_window(48)" in main_cpp) == connection_call
+    armed = any(define.name == SHORT_SCAN_WINDOW_DEFINE for define in CORE.defines)
+    assert armed == (connection_call is not None)
+    if connection_call is None:
+        assert "set_connection_scan_window(" not in main_cpp
+    else:
+        assert f"set_connection_scan_window({connection_call})" in main_cpp
     assert ("'connection_scan_window' has no effect" in caplog.text) == warns
 
 

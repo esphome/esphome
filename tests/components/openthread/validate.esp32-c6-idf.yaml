@@ -1,0 +1,11 @@
+packages:
+  openthread: !include common.yaml
+
+openthread:
+  device_type: MTD
+  tlv: 0e080000000000010000000300001435060004001fffe0
+  # Largest allowed poll period
+  poll_period: 7200s
+  core_options:
+    # The floor of the derived value
+    OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL: "470"

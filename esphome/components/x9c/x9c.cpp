@@ -20,9 +20,7 @@ void X9cOutput::trim_value(int32_t change_amount) {
   this->cs_pin_->digital_write(false);  // Select chip
 
   for (int i = 0; i < abs(change_amount); i++) {  // Move wiper
-    this->inc_pin_->digital_write(true);
-    delayMicroseconds(this->step_delay_);
-    this->inc_pin_->digital_write(false);
+    pulse_pin(this->inc_pin_, true, this->step_delay_);
     delayMicroseconds(this->step_delay_);
   }
 

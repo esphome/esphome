@@ -198,15 +198,6 @@ class LvLambdaComponent final : public Component {
   void (*callback_)();
 };
 
-template<typename... Ts> class ObjUpdateAction final : public Action<Ts...> {
- public:
-  explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
-
- protected:
-  void play(const Ts &...x) override { this->lamb_(x...); }
-
-  std::function<void(Ts...)> lamb_;
-};
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
@@ -259,6 +250,8 @@ class LvglComponent final : public PollingComponent {
 
   // Returns true if the display has been explicitly paused via set_paused().
   bool is_paused() const { return this->paused_; }
+  // True when there has been no input for longer than timeout ms.
+  bool is_idle(uint32_t timeout) const { return lv_display_get_inactive_time(this->disp_) > timeout; }
   // If the display is paused and we have resume_on_input_ set to true, resume the display.
   void maybe_wakeup() {
     if (this->paused_ && this->resume_on_input_) {
@@ -413,24 +406,6 @@ class IdleTrigger final : public Trigger<> {
  protected:
   TemplatableFn<uint32_t> timeout_;
   bool is_idle_{};
-};
-
-template<typename... Ts> class LvglAction final : public Action<Ts...>, public Parented<LvglComponent> {
- public:
-  explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
-
- protected:
-  void play(const Ts &...x) override { this->action_(this->parent_); }
-  std::function<void(LvglComponent *)> action_{};
-};
-
-template<typename Tc, typename... Ts> class LvglCondition final : public Condition<Ts...>, public Parented<Tc> {
- public:
-  LvglCondition(std::function<bool(Tc *)> &&condition_lambda) : condition_lambda_(std::move(condition_lambda)) {}
-  bool check(const Ts &...x) override { return this->condition_lambda_(this->parent_); }
-
- protected:
-  std::function<bool(Tc *)> condition_lambda_{};
 };
 
 #ifdef USE_LVGL_TOUCHSCREEN

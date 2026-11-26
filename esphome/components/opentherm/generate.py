@@ -118,8 +118,7 @@ def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
 
 
 def add_property_set(var: cg.MockObj, config_key: str, config: dict[str, Any]) -> None:
-    if config_key in config:
-        cg.add(getattr(var, f"set_{config_key}")(config[config_key]))
+    cg.add_optional(getattr(var, f"set_{config_key}"), config.get(config_key))
 
 
 Create = Callable[[dict[str, Any], str, cg.MockObj], Awaitable[cg.Pvariable]]

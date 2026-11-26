@@ -1,0 +1,15 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+  watchdog_timeout: 0s
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+status_led:
+  pin: GPIO2
+
+http_request:
+  verify_ssl: false

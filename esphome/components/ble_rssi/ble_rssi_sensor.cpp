@@ -5,6 +5,6 @@ namespace esphome::ble_rssi {
 
 ESPHOME_LOG_TAG(TAG, "ble_rssi");
 
-void BLERSSISensor::dump_config() { LOG_SENSOR("", "BLE RSSI Sensor", this); }
+void BLERSSISensor::dump_child_config() { LOG_SENSOR("", "BLE RSSI Sensor", this); }
 
 }  // namespace esphome::ble_rssi

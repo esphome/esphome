@@ -168,9 +168,8 @@ bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
     return false;
   // On ESP8266, ProgmemStr is __FlashStringHelper* - need to copy from flash
   char buf[64];
-  strncpy_P(buf, reinterpret_cast<const char *>(payload), sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-  return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
+  const size_t len = buf_append_str_p(buf, sizeof(buf), 0, reinterpret_cast<const char *>(payload));
+  return global_mqtt_client->publish(topic, buf, len, this->qos_, this->retain_);
 }
 #endif
 
@@ -182,11 +181,7 @@ bool MQTTComponent::publish_float_(StringRef topic, float value, int8_t accuracy
   return this->publish(topic, buf, len);
 }
 
-bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
-  return this->publish_json(topic.c_str(), f);
-}
-
-bool MQTTComponent::publish_json(const char *topic, const json::json_build_t &f) {
+bool MQTTComponent::publish_json(const char *topic, json::JsonBuildRef f) {
   if (topic[0] == '\0')
     return false;
   return global_mqtt_client->publish_json(topic, f, this->qos_, this->retain_);
@@ -239,8 +234,8 @@ bool MQTTComponent::send_discovery_() {
 
         const auto entity_category = this->get_entity()->get_entity_category();
         if (entity_category != ENTITY_CATEGORY_NONE) {
-          root[MQTT_ENTITY_CATEGORY] = EntityCategoryMqttStrings::get_progmem_str(
-              static_cast<uint8_t>(entity_category), static_cast<uint8_t>(ENTITY_CATEGORY_CONFIG));
+          root[MQTT_ENTITY_CATEGORY] =
+              EntityCategoryMqttStrings::get_progmem_str(entity_category, ENTITY_CATEGORY_CONFIG);
         }
 
         if (config.state_topic) {

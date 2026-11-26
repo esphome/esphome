@@ -1,7 +1,7 @@
 from ipaddress import IPv4Address
 
 import esphome.codegen as cg
-from esphome.components import esp32, wifi
+from esphome.components import esp32, network, wifi
 from esphome.components.const import CONF_ENABLED, CONF_WINDOW
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
@@ -97,20 +97,22 @@ def supported_traffic_generator_modes(config: ConfigType) -> list[str]:
     return [mode for mode in TRAFFIC_GENERATOR_MODES if wifi_raw or mode != "wifi_raw"]
 
 
+WIFI_RAW_UNSUPPORTED = (
+    "not supported on ESP32-C6 or with the ht_vht CSI capture profile"
+)
+
+
 def validate_config(config: ConfigType) -> ConfigType:
     mode = config[CONF_TRAFFIC_GENERATOR_MODE]
     if mode not in supported_traffic_generator_modes(config):
-        raise cv.Invalid(
-            "wifi_raw traffic is not supported on ESP32-C6 "
-            "or with the ht_vht CSI capture profile"
-        )
+        raise cv.Invalid(f"wifi_raw traffic is {WIFI_RAW_UNSUPPORTED}")
     if (
         CONF_TRAFFIC_GENERATOR_TARGET_MAC in config
         and "wifi_raw" not in supported_traffic_generator_modes(config)
     ):
         raise cv.Invalid(
             f"{CONF_TRAFFIC_GENERATOR_TARGET_MAC} requires wifi_raw traffic, "
-            "which is not supported on ESP32-C6 or with the ht_vht CSI capture profile"
+            f"which is {WIFI_RAW_UNSUPPORTED}"
         )
     if mode in ("wifi_raw", "external") and CONF_TRAFFIC_GENERATOR_TARGET_IP in config:
         raise cv.Invalid(f"{mode} traffic does not use a target IP address")
@@ -194,6 +196,7 @@ CONFIG_SCHEMA = cv.All(
     cv.require_framework_version(
         esp_idf=cv.Version(5, 5, 3), esp32_arduino=cv.Version(3, 3, 7)
     ),
+    network.require_ipv4("espectre"),
     validate_config,
 )
 
@@ -248,7 +251,7 @@ async def to_code(config: ConfigType) -> None:
         )
 
     wifi.enable_runtime_roaming_suppression()
-    esp32.add_idf_component(name="francescopace/espectre", ref="3.1.0")
+    esp32.add_idf_component(name="francescopace/espectre", ref="3.2.2")
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CSI_ENABLED", True)
     # CSI is reported once per received transmission, so aggregation hides frames from sensing.
     # Disabling TX aggregation also lets the SDK fix the station TX rate (6.5 Mbps on ESP32).

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -610,6 +611,8 @@ template<typename... Ts> class Trigger {
 
 template<typename... Ts> class ActionList;
 
+// A branch's last action links to its owner (if, while). Only Action objects are tagged, never function pointers,
+// which use the low bit on ARM Thumb (#9283).
 template<typename... Ts> class Action {
  public:
   virtual void play_complex(const Ts &...x) {
@@ -631,7 +634,7 @@ template<typename... Ts> class Action {
   /// the following actions in the chain.
   int num_running_total() {
     int total = this->num_running_;
-    if (Action *next = this->chain_next_())
+    if (Action *next = this->link_.next())
       total += next->num_running_total();
     return total;
   }
@@ -644,10 +647,10 @@ template<typename... Ts> class Action {
   void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
-      if (this->next_is_owner_()) {
-        this->owner_()->play(x...);
-      } else if (this->next_ != nullptr) {
-        this->next_->play_complex(x...);
+      if (this->link_.is_owner()) {
+        this->link_.owner()->play(x...);
+      } else if (Action *next = this->link_.next()) {
+        next->play_complex(x...);
       }
     }
   }
@@ -660,56 +663,39 @@ template<typename... Ts> class Action {
 
   virtual void stop() {}
   void stop_next_() {
-    if (Action *next = this->chain_next_())
+    if (Action *next = this->link_.next())
       next->stop_complex();
   }
 
   bool is_running_next_() {
-    Action *next = this->chain_next_();
+    Action *next = this->link_.next();
     return next != nullptr && next->is_running();
   }
 
-  // A branch's last action points at its owner with the low bit set. Only Action objects are
-  // tagged, never function pointers, which use that bit on ARM Thumb (#9283).
-  static constexpr uintptr_t OWNER_TAG = 1;
-  bool next_is_owner_() const { return reinterpret_cast<uintptr_t>(this->next_) & OWNER_TAG; }
-  /// Only valid when next_is_owner_().
-  Action *owner_() const { return reinterpret_cast<Action *>(reinterpret_cast<char *>(this->next_) - OWNER_TAG); }
-  Action *chain_next_() const { return this->next_is_owner_() ? nullptr : this->next_; }
-  static Action *tag_owner(Action *owner) {
-    return reinterpret_cast<Action *>(reinterpret_cast<char *>(owner) + OWNER_TAG);
-  }
-
-  Action<Ts...> *next_{nullptr};
+  /// The next action, or the owner on a branch's last action; nullptr ends a top-level list.
+  ChainLink<Action<Ts...>, Action<Ts...>> link_;
 
   /// The number of instances of this sequence in the list of actions
   /// that is currently being executed.
   int num_running_{0};
 };
 
-// The vtable pointer gives every instantiation this alignment.
-static_assert(alignof(Action<>) >= 2, "the owner tag needs a free low bit in Action object pointers");
-
 template<typename... Ts> class ActionList {
  public:
-  void add_action(Action<Ts...> *action) {
-    // Walk to end of chain - action lists are short and only built during setup()
-    *this->tail_() = action;
-  }
+  void add_action(Action<Ts...> *action) { *this->tail_() = action; }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     // Find tail once, then append all actions in a single pass
     Action<Ts...> **tail = this->tail_();
     for (auto *action : actions) {
       *tail = action;
-      tail = &action->next_;
+      tail = action->link_.next_slot();
     }
   }
   /// Resume `owner` via play() when the list finishes; call once, after adding actions.
   void set_owner(Action<Ts...> *owner) {
     // Nothing to tag in an empty list
-    if (this->actions_ == nullptr)
-      return;
-    *this->tail_() = Action<Ts...>::tag_owner(owner);
+    if (this->actions_ != nullptr)
+      *this->tail_() = ChainLink<Action<Ts...>, Action<Ts...>>::tagged(owner);
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
@@ -743,14 +729,14 @@ template<typename... Ts> class ActionList {
   template<size_t... S> void play_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play(std::get<S>(tuple)...);
   }
-  // Lists with an owner are complete; never append after set_owner()
+  // Walk to the end of the chain; action lists are short and only built during setup()
   Action<Ts...> **tail_() {
     Action<Ts...> **tail = &this->actions_;
     while (*tail != nullptr) {
       // Not checked in release builds: only automation.py builds these lists, appending each action and
       // then finishing the branch once, so appending after set_owner() would be a codegen bug.
-      ESPHOME_DEBUG_ASSERT(!(*tail)->next_is_owner_());
-      tail = &(*tail)->next_;
+      ESPHOME_DEBUG_ASSERT(!(*tail)->link_.is_owner());
+      tail = (*tail)->link_.next_slot();
     }
     return tail;
   }
@@ -843,5 +829,30 @@ static_assert(sizeof(TriggerOnFalseForwarder) <= sizeof(void *));
 static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
 static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
 static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
+
+/// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
+/// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.
+template<typename... Ts> class FiringComponent : public Component {
+  // fire() takes Ts by value, so a buffer type (vector, string) must be a reference or it is copied on every fire
+  static_assert(((std::is_reference_v<Ts> || std::is_trivially_copyable_v<Ts>) && ...),
+                "FiringComponent arguments must be references or trivially copyable");
+
+ public:
+  using Firing = FiringComponent;
+
+ protected:
+  virtual void fire(Ts... x) = 0;
+};
+
+/// The generated leaf for a FiringComponent base: fire() calls the automation function Fn, so the base's logic is
+/// compiled once and each automation only adds a vtable.
+template<auto Fn, class Base, class = typename Base::Firing> class FireCallback;
+template<auto Fn, class Base, typename... Ts> class FireCallback<Fn, Base, FiringComponent<Ts...>> final : public Base {
+ public:
+  using Base::Base;
+
+ protected:
+  void fire(Ts... x) override { Fn(x...); }
+};
 
 }  // namespace esphome
