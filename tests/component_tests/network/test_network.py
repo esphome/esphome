@@ -48,7 +48,6 @@ def _define_value(name: str) -> str | None:
 )
 def test_configured_interfaces(config: ConfigType, expected: set[str]) -> None:
     """configured_interfaces() lists each interface the config brings up."""
-    assert configured_interfaces(config) == expected
     CORE.config = config
     assert configured_interfaces() == expected
 

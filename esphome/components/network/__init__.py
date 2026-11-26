@@ -361,21 +361,17 @@ INTERFACE_WIFI_AP = "wifi_ap"
 INTERFACE_ETHERNET = "ethernet"
 
 
-def configured_interfaces(config: ConfigType | None = None) -> frozenset[str]:
+def configured_interfaces() -> frozenset[str]:
     """Return the network interfaces the config brings up.
 
     Any ``wifi:`` block brings up the station interface, plus the access point when it has ``ap:``.
-    Pass the full config (``fv.full_config.get()``) during final validation; ``CORE.config`` is
-    used otherwise.
     """
-    if config is None:
-        config = CORE.config
     interfaces: set[str] = set()
-    if (wifi_config := config.get(CONF_WIFI)) is not None:
+    if (wifi_config := CORE.config.get(CONF_WIFI)) is not None:
         interfaces.add(INTERFACE_WIFI_STA)
         if CONF_AP in wifi_config:
             interfaces.add(INTERFACE_WIFI_AP)
-    if CONF_ETHERNET in config:
+    if CONF_ETHERNET in CORE.config:
         interfaces.add(INTERFACE_ETHERNET)
     return frozenset(interfaces)
 
