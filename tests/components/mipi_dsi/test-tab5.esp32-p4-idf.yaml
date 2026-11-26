@@ -21,3 +21,4 @@ pi4ioe5v6408:
 display:
   - platform: mipi_dsi
     model: M5STACK-TAB5
+    framebuffers: 3
