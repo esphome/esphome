@@ -124,20 +124,24 @@ void MQTTClientComponent::setup() {
           this->payload_buffer_.clear();
         }
       });
+  // AsyncMqttClient calls this from its TCP context; loop() logs it and runs the automations
   this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
-    if (this->state_ == MQTT_CLIENT_DISABLED)
-      return;
-    this->state_ = MQTT_CLIENT_DISCONNECTED;
-    this->disconnect_reason_ = reason;
+    // State first, so an automation that loop() runs for this reason is not overwritten
+    if (this->state_ != MQTT_CLIENT_DISABLED)
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+    this->disconnect_reason_ = static_cast<int8_t>(reason);
+    // Run the on_disconnect automations without waiting for the next loop interval
+    App.wake_loop_threadsafe();
   });
-#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Always set, so a callback added after setup() still sees whether the session was kept
   this->mqtt_backend_.set_on_connect([this](bool session_present) {
     this->session_present_ = session_present;
-#ifndef USE_ESP32
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_ESP32)
     // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
     this->subacks_.reset();
 #endif
   });
+#ifdef USE_MQTT_SESSION_PERSISTENCE
 #ifndef USE_ESP32
   this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) { this->subacks_.add(return_code); });
 #endif
@@ -323,12 +327,18 @@ bool MQTTClientComponent::can_proceed() {
 }
 
 void MQTTClientComponent::start_dnslookup_() {
+  this->status_set_warning();
+  // No lookup can start before the network is up: there is no DNS server to ask yet.
+  // Stay disconnected, and loop() calls this again as soon as it is up.
+  this->waiting_for_network_ = !network::is_connected();
+  if (this->waiting_for_network_)
+    return;
+
   for (auto &subscription : this->subscriptions_) {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
 
-  this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
@@ -358,9 +368,12 @@ void MQTTClientComponent::start_dnslookup_() {
     }
     default:
     case ERR_ARG: {
-      // error
+      // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
-      break;
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = static_cast<int8_t>(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+      this->connect_begin_ = millis();
+      return;
     }
   }
 
@@ -375,8 +388,7 @@ void MQTTClientComponent::check_dnslookup_() {
   if (this->dns_resolve_error_) {
     ESP_LOGW(TAG, "Couldn't resolve IP address for '%s'", this->credentials_.address.c_str());
     this->state_ = MQTT_CLIENT_DISCONNECTED;
-    this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
-    this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+    this->disconnect_reason_ = static_cast<int8_t>(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
     return;
   }
 
@@ -427,9 +439,7 @@ void MQTTClientComponent::start_connect_() {
                                  this->last_will_.payload.c_str());
   }
 
-#ifdef USE_MQTT_SESSION_PERSISTENCE
   this->session_present_ = false;
-#endif
   this->mqtt_backend_.connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
   this->connect_begin_ = millis();
@@ -483,20 +493,30 @@ void MQTTClientComponent::check_connected() {
 
   for (MQTTComponent *component : this->children_)
     component->schedule_resend_state();
+  // The delay above yields, so the link may already be gone
+  if (this->is_connected())
+    this->on_connect_.call(this->session_present_);
 }
 
 void MQTTClientComponent::loop() {
   // Call the backend loop first
   mqtt_backend_.loop();
 
-  if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
-        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
+  if (this->disconnect_reason_ != NO_DISCONNECT) {
+    int8_t raw;
+    {
+      // Read and clear in one step; the backend may report another disconnect from its network task
+      InterruptLock lock;
+      raw = this->disconnect_reason_;
+      this->disconnect_reason_ = NO_DISCONNECT;
+    }
+    const auto reason = static_cast<MQTTClientDisconnectReason>(raw);
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(reason);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
     ESP_LOGW(TAG, "Disconnected: %s", LOG_STR_ARG(reason_s));
-    this->disconnect_reason_.reset();
+    this->on_disconnect_.call(reason);
   }
 
   const uint32_t now = App.get_loop_component_start_time();
@@ -505,7 +525,9 @@ void MQTTClientComponent::loop() {
     case MQTT_CLIENT_DISABLED:
       return;  // Return to avoid a reboot when disabled
     case MQTT_CLIENT_DISCONNECTED:
-      if (now - this->connect_begin_ > 5000) {
+      // Back off 5 s after a failed attempt. Without a network no attempt was made, so the
+      // first one starts as soon as the network is up instead of 5 s after boot.
+      if (this->waiting_for_network_ || now - this->connect_begin_ > 5000) {
         this->start_dnslookup_();
       }
       break;
@@ -771,11 +793,6 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
   return this->publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
                        message.retain);
 }
-bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
-                                       bool retain) {
-  return this->publish_json(topic.c_str(), f, qos, retain);
-}
-
 bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
   if (!this->is_connected()) {
@@ -804,7 +821,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
   return ret != 0;
 }
 
-bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+bool MQTTClientComponent::publish_json(const char *topic, json::JsonBuildRef f, uint8_t qos, bool retain) {
   auto message = json::build_json(f);
   return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }
@@ -833,7 +850,9 @@ __attribute__((noinline)) static bool topic_matches(const char *message, const M
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // LibreTiny: this runs in the async_tcp task, and a command such as restart would block that task while its
+  // teardown waits for the MQTT and API traffic only that task can send, so commands run on the main loop.
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
   //
   // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
@@ -874,7 +893,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   });
 #endif
 }
@@ -952,16 +971,6 @@ bool MQTTClientComponent::teardown() {
     return false;
   this->mqtt_backend_.disconnect();
   return true;
-}
-
-void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
-  this->mqtt_backend_.set_on_connect(std::forward<mqtt_on_connect_callback_t>(callback));
-}
-
-void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
-  auto callback_copy = callback;
-  this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
-  this->on_disconnect_.add(std::move(callback_copy));
 }
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

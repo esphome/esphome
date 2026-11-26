@@ -1,5 +1,6 @@
 #include "duty_time_sensor.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/optional.h"
 
 namespace esphome::duty_time_sensor {
 
@@ -7,7 +8,11 @@ ESPHOME_LOG_TAG(TAG, "duty_time_sensor");
 
 #ifdef USE_BINARY_SENSOR
 void DutyTimeSensor::set_sensor(binary_sensor::BinarySensor *const sensor) {
-  sensor->add_on_state_callback([this](bool state) { this->process_state_(state); });
+  // Every change, the first state too: an on_state callback skips it unless trigger_on_initial_state is set
+  sensor->add_full_state_callback([this](optional<bool> /*previous*/, optional<bool> state) {
+    if (state.has_value())
+      this->process_state_(*state);
+  });
 }
 #endif
 
@@ -27,9 +32,6 @@ void DutyTimeSensor::update() {
 }
 
 void DutyTimeSensor::loop() {
-  if (this->func_ == nullptr)
-    return;
-
   const bool state = this->func_();
 
   if (state != this->last_state_)
@@ -44,10 +46,13 @@ void DutyTimeSensor::setup() {
     this->pref_.load(&seconds);
   }
 
-  this->set_value_(seconds);
+  this->set_value(seconds);
+  // Only a lambda is polled; a binary sensor source reports through its callback
+  if (this->func_ == nullptr)
+    this->disable_loop();
 }
 
-void DutyTimeSensor::set_value_(const uint32_t sec) {
+void DutyTimeSensor::set_value(const uint32_t sec) {
   this->last_time_ = 0;
   if (this->last_state_)
     this->last_time_ = millis();  // last time with 0 ms correction

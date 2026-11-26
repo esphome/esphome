@@ -7,6 +7,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
+#include <atomic>
+
 #ifdef USE_ETHERNET
 
 #ifdef USE_ESP32
@@ -49,8 +51,10 @@ class Wiznet6300NoSPI : public Wiznet6300 {
 using Wiznet6300lwIPFixed = LwipIntfDev<Wiznet6300NoSPI>;
 #elif defined(USE_ETHERNET_ENC28J60)
 #include <ENC28J60lwIP.h>
+#elif defined(USE_ETHERNET_USB)
+#include <NCMEthernetlwIP.h>
 #else
-#error "Unsupported RP2040 SPI Ethernet type"
+#error "Unsupported RP2040 Ethernet type"
 #endif
 #endif
 
@@ -71,6 +75,12 @@ class EthernetIPStateListener {
                            const network::IPAddress &dns2) = 0;
 };
 #endif  // USE_ETHERNET_IP_STATE_LISTENERS
+
+/// Called on the main loop with the on_connect and on_disconnect triggers.
+class EthernetConnectStateListener {
+ public:
+  virtual void on_ethernet_connect_state(bool connected) = 0;
+};
 
 enum EthernetType : uint8_t {
   ETHERNET_TYPE_UNKNOWN = 0,
@@ -93,6 +103,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_YT8531,
   ETHERNET_TYPE_CH390,
   ETHERNET_TYPE_KSZ8851SNL,
+  ETHERNET_TYPE_USB,
 };
 
 struct ManualIP {
@@ -216,6 +227,8 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
 #endif
+  SLOT_LIST(EthernetConnectStateListener, connect_state_listeners_, add_connect_state_listener,
+            ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS)
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
   Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
@@ -245,6 +258,11 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
 #endif
+  void notify_connect_state_listeners_(bool connected) {
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_ethernet_connect_state(connected);
+    }
+  }
 
 #ifdef USE_ESP32
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -325,8 +343,10 @@ class EthernetComponent final : public Component {
   Wiznet6300lwIPFixed *eth_{nullptr};
 #elif defined(USE_ETHERNET_ENC28J60)
   ENC28J60lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_USB)
+  NCMEthernetlwIP *eth_{nullptr};
 #else
-#error "Unsupported RP2040 SPI Ethernet type"
+#error "Unsupported RP2040 Ethernet type"
 #endif
   uint32_t last_link_check_{0};
   uint8_t clk_pin_;
@@ -356,6 +376,10 @@ class EthernetComponent final : public Component {
   // to be called at runtime after enable_on_boot:false without re-allocating, and
   // ensures setup() skips the heavy init when enable_on_boot_ is false.
   bool ethernet_initialized_{false};
+  // PHY link state, written by the event task; the connect timeout retries only with a link.
+  std::atomic<bool> link_up_{false};
+  // Last link state loop() saw; a rising edge restarts the connect timeout.
+  bool link_was_up_{false};
 #endif
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
@@ -366,6 +390,9 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
+#ifdef USE_ESP32
+  std::atomic<uint8_t> ip_state_pending_{0};
+#endif
 #endif
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER

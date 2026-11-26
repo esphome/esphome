@@ -1,0 +1,15 @@
+# W5100S-EVB-Pico (any RP2040 board works) as a USB NCM Ethernet device. Substitutions: name, ip (a static
+# link-local address such as 169.254.77.10; the host self-assigns one in 169.254.0.0/16 about 17 s after enumeration).
+rp2:
+  board: wiznet_5100s_evb_pico
+packages:
+  common: !include ../rp2_web_ble/rp-common.yaml
+web_server: !remove
+logger:
+  baud_rate: 115200
+ethernet:
+  type: USB
+  manual_ip:
+    static_ip: ${ip}
+    gateway: 169.254.0.1
+    subnet: 255.255.0.0

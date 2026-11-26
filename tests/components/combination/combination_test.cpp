@@ -83,4 +83,33 @@ TEST(RangeCombination, NoFiniteStateIsNan) {
   EXPECT_TRUE(std::isnan(f.run()));
 }
 
+TEST(LinearCombination, SumsStatesTimesComputedCoefficients) {
+  LinearCombinationComponent combination;
+  std::array<sensor::Sensor, 3> sources;
+  std::array<LinearCombinationComponent::SensorSource, 3> storage{};
+  combination.set_source_storage(storage);
+  sources[0].state = 2.0f;
+  sources[1].state = NAN;
+  sources[2].state = 3.0f;
+  combination.add_source(&sources[0], [](float) -> float { return 1.5f; });
+  combination.add_source(&sources[1], [](float) -> float { return 1.0f; });
+  combination.add_source(&sources[2], [](float x) -> float { return x; });
+  combination.handle_new_value(0.0f);
+  EXPECT_FLOAT_EQ(combination.get_state(), 12.0f);
+}
+
+// Each source's error comes from its compute function when the source publishes
+TEST(KalmanCombination, WeightsSourcesByComputedError) {
+  KalmanCombinationComponent combination;
+  std::array<sensor::Sensor, 2> sources;
+  std::array<KalmanCombinationComponent::SensorSource, 2> storage{};
+  combination.set_source_storage(storage);
+  combination.add_source(&sources[0], [](float) -> float { return 1.0f; });
+  combination.add_source(&sources[1], [](float x) -> float { return x / 10.0f; });
+  combination.setup();
+  sources[0].publish_state(10.0f);  // error 1, the first value is taken as is
+  sources[1].publish_state(20.0f);  // error 2: 10 + 1 * (20 - 10) / (1 + 4)
+  EXPECT_FLOAT_EQ(combination.get_state(), 12.0f);
+}
+
 }  // namespace esphome::combination::testing

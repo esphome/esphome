@@ -52,8 +52,7 @@ void SPIComponent::setup() {
 
 #ifdef USE_SPI_SOFTWARE
   if (!this->using_hw_) {
-    this->clk_pin_->setup();
-    this->clk_pin_->digital_write(true);
+    setup_output_pin(this->clk_pin_, true);
     this->sdo_pin_->setup();
     this->sdi_pin_->setup();
     return;

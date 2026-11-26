@@ -51,8 +51,7 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   }
   const auto mode = this->number_->traits.get_mode();
   if (mode != NUMBER_MODE_AUTO) {
-    root[MQTT_MODE] =
-        NumberMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), static_cast<uint8_t>(NUMBER_MODE_BOX));
+    root[MQTT_MODE] = NumberMqttModeStrings::get_progmem_str(mode, NUMBER_MODE_BOX);
   }
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 

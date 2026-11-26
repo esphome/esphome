@@ -1,0 +1,43 @@
+wifi:
+  id: wf
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  on_connect:
+    - lambda: ESP_LOGI("ev", "EV WIFI UP %u", (unsigned) millis());
+  on_disconnect:
+    - lambda: ESP_LOGI("ev", "EV WIFI DOWN %u", (unsigned) millis());
+
+logger:
+  level: DEBUG
+
+mqtt:
+  id: mq
+  port: ${broker_port}
+  broker: ${broker}
+  discovery: false
+  reboot_timeout: 0s
+  log_topic: null
+  birth_message: {topic: "${name}/status", payload: online}
+  will_message: {topic: "${name}/status", payload: offline}
+  on_connect:
+    - lambda: ESP_LOGI("ev", "EV MQTT UP %u", (unsigned) millis());
+  on_disconnect:
+    - lambda: ESP_LOGI("ev", "EV MQTT DOWN %u reason=%d", (unsigned) millis(), (int) reason);
+  on_message:
+    - topic: ${name}/in
+      then:
+        - lambda: ESP_LOGI("ev", "EV MSG %u %s", (unsigned) millis(), x.c_str());
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: ESP_LOGI("ev", "EV ALIVE %u build=${name}", (unsigned) millis());
+  # Wi-Fi drop: off for 15 s every 120 s, first one 60 s after boot
+  - interval: 120s
+    startup_delay: 60s
+    then:
+      - lambda: ESP_LOGI("ev", "EV DROP %u", (unsigned) millis());
+      - wifi.disable:
+      - delay: 15s
+      - lambda: ESP_LOGI("ev", "EV RESTORE %u", (unsigned) millis());
+      - wifi.enable:

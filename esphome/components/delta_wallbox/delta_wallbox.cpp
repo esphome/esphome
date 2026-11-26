@@ -64,9 +64,6 @@ PROGMEM_STRING_TABLE(DeltaStateStrings, "CHECK_PAIRING", "CONNECTED", "GET_CHARG
                      "GET_SERIAL_NUMBER", "HALTED", "IDLE", "SEND_LOGIN_CREDENTIALS", "TIME_SYNC");
 static_assert(DeltaStateStrings::LAST_INDEX == static_cast<uint8_t>(DeltaState::DELTA_STATE_TIME_SYNC),
               "DeltaStateStrings must list every DeltaState");
-static const LogString *delta_state_to_string(DeltaState state) {
-  return DeltaStateStrings::get_log_str(static_cast<uint8_t>(state), DeltaStateStrings::LAST_INDEX);
-}
 
 // The function code a handshake step waits for; 0 where any frame is handled
 static uint8_t expected_function_code(DeltaState state) {
@@ -171,11 +168,12 @@ void DeltaWallbox::update() {
 void DeltaWallbox::write_frame_(const uint8_t *frame, size_t len) {
   if (this->tx_char_handle_ == 0) {
     ESP_LOGW(TAG, "TX characteristic handle is not ready while in state %s. Dropping %u-byte frame.",
-             LOG_STR_ARG(delta_state_to_string(this->state_)), (unsigned int) len);
+             LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)), (unsigned int) len);
     return;
   }
   ESP_LOGD(TAG, "Sending %u-byte frame in state %s (conn_id=%u, tx_handle=0x%04X).", (unsigned int) len,
-           LOG_STR_ARG(delta_state_to_string(this->state_)), this->parent_->get_conn_id(), this->tx_char_handle_);
+           LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)), this->parent_->get_conn_id(),
+           this->tx_char_handle_);
   auto status =
       esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->tx_char_handle_, len,
                                const_cast<uint8_t *>(frame), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -198,7 +196,7 @@ void DeltaWallbox::drop_rx_bytes_(size_t count) {
 }
 
 void DeltaWallbox::send_next_state_command_() {
-  ESP_LOGD(TAG, "Preparing command for state %s.", LOG_STR_ARG(delta_state_to_string(this->state_)));
+  ESP_LOGD(TAG, "Preparing command for state %s.", LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)));
   switch (this->state_) {
     case DeltaState::DELTA_STATE_GET_MODEL:
       ESP_LOGI(TAG, "Requesting charger model name...");
@@ -269,23 +267,23 @@ void DeltaWallbox::send_next_state_command_() {
 
 void DeltaWallbox::retransmit_() {
   ESP_LOGW(TAG, "No answer in login state %s within %u ms. Sending the command again...",
-           LOG_STR_ARG(delta_state_to_string(this->state_)), (unsigned int) RETRANSMIT_TIMEOUT_MS);
+           LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)), (unsigned int) RETRANSMIT_TIMEOUT_MS);
   this->send_next_state_command_();
 }
 
 void DeltaWallbox::advance_to_(DeltaState next) {
-  ESP_LOGD(TAG, "State transition: %s -> %s", LOG_STR_ARG(delta_state_to_string(this->state_)),
-           LOG_STR_ARG(delta_state_to_string(next)));
+  ESP_LOGD(TAG, "State transition: %s -> %s", LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)),
+           LOG_STR_ARG(DeltaStateStrings::get_log_str(next)));
   this->state_ = next;
   this->send_next_state_command_();
 }
 
 void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
   ESP_LOGD(TAG, "Received valid frame in state %s: func=0x%02X len=%u",
-           LOG_STR_ARG(delta_state_to_string(this->state_)), frame[1], (unsigned int) len);
+           LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)), frame[1], (unsigned int) len);
   if (frame[1] & FC_EXCEPTION_FLAG) {
     ESP_LOGE(TAG, "Modbus exception received in state %s! Error code: 0x%02X",
-             LOG_STR_ARG(delta_state_to_string(this->state_)), frame[2]);
+             LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)), frame[2]);
     if (this->state_ == DeltaState::DELTA_STATE_TIME_SYNC) {
       // The clock write is optional, so a charger that refuses it is used without it
       ESP_LOGW(TAG, "Charger refused the clock sync; continuing without it");
@@ -464,8 +462,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         } else if (byte_count == REGISTER_BYTE_COUNT) {
           // Error status register (0x01B5)
           uint16_t reg_val = encode_uint16(frame[3], frame[4]);
-          char hex_str[16];
-          snprintf(hex_str, sizeof(hex_str), "%04X", reg_val);
+          char hex_str[5];
+          format_hex_pretty_to(hex_str, reg_val);
           PUBLISH_STATE(this->error_code_text_sensor_, hex_str);
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
@@ -485,7 +483,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
 
 void DeltaWallbox::reset_state_() {
   ESP_LOGW(TAG, "Resetting component state from %s. pairing_attempts=%u, pairing_in_progress=%s, rx_buffer=%u bytes",
-           LOG_STR_ARG(delta_state_to_string(this->state_)), this->pairing_attempts_,
+           LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)), this->pairing_attempts_,
            this->pairing_in_progress_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"), (unsigned int) this->rx_len_);
   this->cancel_timeout(RETRANSMIT_TIMEOUT_ID);
   this->rx_len_ = 0;
@@ -641,7 +639,7 @@ void DeltaWallbox::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
               progress = true;
             } else {
               ESP_LOGW(TAG, "CRC mismatch while parsing notification data in state %s. Dropping one byte from buffer.",
-                       LOG_STR_ARG(delta_state_to_string(this->state_)));
+                       LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)));
               // Shift by one byte to realign with the next possible frame start
               this->drop_rx_bytes_(1);
               progress = true;
@@ -650,7 +648,7 @@ void DeltaWallbox::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         } else {
           ESP_LOGW(TAG,
                    "Unsupported function code 0x%02X while parsing notification data in state %s. Advancing buffer.",
-                   func_code, LOG_STR_ARG(delta_state_to_string(this->state_)));
+                   func_code, LOG_STR_ARG(DeltaStateStrings::get_log_str(this->state_)));
           this->drop_rx_bytes_(1);
           progress = true;
         }

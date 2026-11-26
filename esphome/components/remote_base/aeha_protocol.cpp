@@ -59,7 +59,7 @@ optional<AEHAData> AEHAProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  for (uint8_t pos = 0; pos < 35; pos++) {
+  for (uint8_t pos = 0; pos < AEHA_MAX_DATA_BYTES; pos++) {
     uint8_t data = 0;
     for (uint8_t mask = 1 << 7; mask != 0; mask >>= 1) {
       if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
@@ -83,20 +83,21 @@ optional<AEHAData> AEHAProtocol::decode(RemoteReceiveData src) {
   return {};
 }
 
-std::string AEHAProtocol::format_data_(const std::vector<uint8_t> &data) {
-  std::string out;
-  for (uint8_t byte : data) {
-    char buf[8];  // "0x%02X," = 5 chars + null + margin
-    snprintf(buf, sizeof(buf), "0x%02X,", byte);
-    out += buf;
-  }
-  out.pop_back();
-  return out;
-}
-
 void AEHAProtocol::dump(const AEHAData &data) {
-  auto data_str = format_data_(data.data);
-  ESP_LOGI(TAG, "Received AEHA: address=0x%04X, data=[%s]", data.address, data_str.c_str());
+  // "0xAB," per byte, the last comma replaced by the terminator
+  char buf[AEHA_MAX_DATA_BYTES * 5];
+  char *p = buf;
+  for (uint8_t byte : data.data) {
+    *p++ = '0';
+    *p++ = 'x';
+    *p++ = format_hex_pretty_char(byte >> 4);
+    *p++ = format_hex_pretty_char(byte & 0x0F);
+    *p++ = ',';
+  }
+  if (p != buf)
+    p--;
+  *p = '\0';
+  ESP_LOGI(TAG, "Received AEHA: address=0x%04X, data=[%s]", data.address, buf);
 }
 
 }  // namespace esphome::remote_base

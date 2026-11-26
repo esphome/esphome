@@ -1,0 +1,16 @@
+---
+esphome:
+  name: test
+  on_boot:
+    - then:
+        - logger.log: booted
+
+esp32:
+  board: nodemcu-32s
+
+logger:
+
+sensor:
+  - platform: template
+    id: esphome__automation_id__fn
+    lambda: return 1.0;

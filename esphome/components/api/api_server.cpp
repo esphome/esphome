@@ -4,6 +4,7 @@
 #include <cinttypes>
 #include <cstring>
 #include "api_connection.h"
+#include "api_connection_buffer.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -66,8 +67,9 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
-#if defined(USE_API_HOMEASSISTANT_STATES) && defined(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT)
-  this->state_subs_.reserve(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT);
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  if (this->homeassistant_subscribe_publisher_ != nullptr)
+    this->homeassistant_subscribe_publisher_();
 #endif
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
@@ -257,9 +259,10 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Save client info before closing socket and removal for the trigger
-  char peername_buf[socket::SOCKADDR_STR_LEN];
-  std::string client_name(client->get_name());
-  std::string client_peername(client->get_peername_to(peername_buf));
+  char client_name[CLIENT_INFO_NAME_MAX_LEN];
+  memcpy(client_name, client->get_name(), sizeof(client_name));
+  char peername[socket::SOCKADDR_STR_LEN];
+  client->get_peername_to(peername);
 #endif
 
   // Read before the swap-and-reset below destroys the connection
@@ -302,7 +305,7 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Fire trigger after client is removed so api.connected reflects the true state
-  this->client_disconnected_trigger_.trigger(client_name, client_peername);
+  this->client_disconnected_callback_.call(StringRef(client_name), StringRef(peername));
 #endif
 }
 
@@ -387,6 +390,10 @@ void APIServer::dump_config() {
 #endif
 #ifdef USE_API_OUTGOING_CONNECTION
   this->outgoing_conn_.dump_config();
+#endif
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  if (this->homeassistant_dump_publisher_ != nullptr)
+    this->homeassistant_dump_publisher_();
 #endif
 }
 
@@ -590,92 +597,95 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 
 #ifdef USE_API_HOMEASSISTANT_STATES
-// Helper to add subscription (reduces duplication)
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
-                                        std::function<void(StringRef)> &&f, bool once) {
-  this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = entity_id,
-      .attribute = attribute,
-      .callback = std::move(f),
-      .once = once,
-      .entity_id_len = static_cast<uint16_t>(strlen(entity_id)),
-      // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
-  });
-}
-
-// Helper to add subscription with heap-allocated strings (reduces duplication)
-void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(StringRef)> &&f, bool once) {
-  HomeAssistantStateSubscription sub;
-  // Allocate heap storage for the strings
-  sub.entity_id_dynamic_storage = std::make_unique<std::string>(std::move(entity_id));
-  sub.entity_id = sub.entity_id_dynamic_storage->c_str();
-  sub.entity_id_len = static_cast<uint16_t>(sub.entity_id_dynamic_storage->size());
-
-  if (attribute.has_value()) {
-    sub.attribute_dynamic_storage = std::make_unique<std::string>(std::move(attribute.value()));
-    sub.attribute = sub.attribute_dynamic_storage->c_str();
-  } else {
-    sub.attribute = nullptr;
+                                        Callback<void(StringRef)> callback, bool once) {
+  const HomeAssistantStateSubscription sub{entity_id, attribute, callback, once,
+                                           static_cast<uint16_t>(strlen(entity_id))};
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  static constexpr size_t COUNTED_SLOTS = HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT;
+  if (this->state_subs_.size() < COUNTED_SLOTS) {
+    this->state_subs_.push_back(sub);
+    return;
   }
-
-  sub.callback = std::move(f);
-  sub.once = once;
-  this->state_subs_.push_back(std::move(sub));
+#endif
+  this->add_extra_state_subscription_(sub);
 }
 
-// New const char* overload (for internal components - zero allocation)
-void APIServer::subscribe_home_assistant_state(const char *entity_id, const char *attribute,
-                                               std::function<void(StringRef)> &&f) {
-  this->add_state_subscription_(entity_id, attribute, std::move(f), false);
+void APIServer::add_extra_state_subscription_(const HomeAssistantStateSubscription &sub) {
+  uint16_t capacity;
+  this->extra_state_subs_ = static_cast<HomeAssistantStateSubscription *>(callback_manager_grow(
+      this->extra_state_subs_, this->extra_state_sub_count_, capacity, sizeof(HomeAssistantStateSubscription)));
+  this->extra_state_subs_[this->extra_state_sub_count_++] = sub;
 }
 
-void APIServer::get_home_assistant_state(const char *entity_id, const char *attribute,
-                                         std::function<void(StringRef)> &&f) {
-  this->add_state_subscription_(entity_id, attribute, std::move(f), true);
+// Strings and callback of a std::string subscription; never freed, so the record's pointers stay valid
+template<typename F> struct OwnedStateSubscription {
+  std::string entity_id;
+  std::string attribute;
+  F callback;
+};
+
+template<typename F>
+static APIServer::HomeAssistantStateSubscription make_owned_state_subscription(std::string entity_id,
+                                                                               optional<std::string> attribute, F &&f,
+                                                                               bool once) {
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  auto *owned = new OwnedStateSubscription<std::decay_t<F>>{
+      std::move(entity_id), attribute.has_value() ? std::move(*attribute) : std::string(), std::forward<F>(f)};
+  return {owned->entity_id.c_str(), attribute.has_value() ? owned->attribute.c_str() : nullptr,
+          // A legacy std::string callback gets a copy through StringRef's conversion
+          Callback<void(StringRef)>::create([owned](StringRef state) { owned->callback(state); }), once,
+          static_cast<uint16_t>(owned->entity_id.size())};
 }
 
-// std::string overload with StringRef callback (zero-allocation callback)
+// Not in state_subs_: its slots are counted for the homeassistant entities
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(StringRef)> &&f) {
-  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
+  this->add_extra_state_subscription_(
+      make_owned_state_subscription(std::move(entity_id), std::move(attribute), std::move(f), false));
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                          std::function<void(StringRef)> &&f) {
-  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
+  this->add_extra_state_subscription_(
+      make_owned_state_subscription(std::move(entity_id), std::move(attribute), std::move(f), true));
 }
 
-// Legacy helper: wraps std::string callback and delegates to StringRef version
-void APIServer::add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                                        std::function<void(const std::string &)> &&f, bool once) {
-  // Wrap callback to convert StringRef -> std::string, then delegate
-  this->add_state_subscription_(std::move(entity_id), std::move(attribute),
-                                std::function<void(StringRef)>([f = std::move(f)](StringRef state) { f(state.str()); }),
-                                once);
-}
-
-// Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string)
+// Legacy std::string callback (for custom_api_device.h)
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(const std::string &)> &&f) {
-  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), false);
+  this->add_extra_state_subscription_(
+      make_owned_state_subscription(std::move(entity_id), std::move(attribute), std::move(f), false));
 }
 
 void APIServer::get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                          std::function<void(const std::string &)> &&f) {
-  this->add_state_subscription_(std::move(entity_id), std::move(attribute), std::move(f), true);
+  this->add_extra_state_subscription_(
+      make_owned_state_subscription(std::move(entity_id), std::move(attribute), std::move(f), true));
 }
 
-const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_state_subs() const {
-  return this->state_subs_;
+const APIServer::HomeAssistantStateSubscription *APIServer::get_state_sub(size_t index) const {
+  std::span<const HomeAssistantStateSubscription> counted = this->state_sub_list_(false);
+  if (index < counted.size())
+    return &counted[index];
+  index -= counted.size();
+  std::span<const HomeAssistantStateSubscription> extra = this->state_sub_list_(true);
+  return index < extra.size() ? &extra[index] : nullptr;
 }
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS
 void APIServer::update_state_subscription_entity_id(const char *entity_id) {
-  for (auto &it : this->state_subs_) {
-    if (it.entity_id == entity_id)
-      it.entity_id_len = static_cast<uint16_t>(strlen(entity_id));
-  }
+  const auto len = static_cast<uint16_t>(strlen(entity_id));
+  auto update = [entity_id, len](HomeAssistantStateSubscription *it, HomeAssistantStateSubscription *end) {
+    for (; it != end; ++it) {
+      if (it->entity_id == entity_id)
+        it->entity_id_len = len;
+    }
+  };
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  update(this->state_subs_.begin(), this->state_subs_.end());
+#endif
+  update(this->extra_state_subs_, this->extra_state_subs_ + this->extra_state_sub_count_);
 }
 #endif
 #endif
@@ -806,6 +816,31 @@ void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &imag
 }
 #endif
 
+// Kept out of api_connection.cpp so GCC inlines its send path as before
+void APIConnection::send_shutdown_disconnect_() {
+#ifndef USE_DEEP_SLEEP
+  // Queued states first: Home Assistant mishandles states after DisconnectRequest (#22610).
+  // Not with deep sleep: its entities stay available, and the disconnect must not wait on a slow link
+  this->flags_.state_subscription = false;
+  this->destroy_active_iterator_();
+  // process_batch_ first flushes any overflow without blocking; stop once the queue stops shrinking
+  for (size_t left = this->deferred_batch_.size(); left != 0;) {
+    this->process_batch_();
+    const size_t now_left = this->deferred_batch_.size();
+    if (now_left >= left)
+      break;
+    left = now_left;
+  }
+#endif
+  DisconnectRequest req;
+  if (!this->send_message(req)) {
+    // tx buffer full: first in the queue, so a slow link still delivers it before the teardown timeout.
+    // Due at once: teardown does not advance the cached loop time the batch_delay gate reads
+    this->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
+    this->make_batch_due_now_();
+  }
+}
+
 void APIServer::on_shutdown() {
   this->shutting_down_ = true;
 
@@ -818,15 +853,8 @@ void APIServer::on_shutdown() {
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;
 
-  // Send disconnect requests to all connected clients
-  for (auto &c : this->active_clients()) {
-    DisconnectRequest req;
-    if (!c->send_message(req)) {
-      // If we can't send the disconnect request directly (tx_buffer full),
-      // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
-    }
-  }
+  for (auto &c : this->active_clients())
+    c->send_shutdown_disconnect_();
 }
 
 bool APIServer::teardown() {
@@ -915,6 +943,16 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
     }
   }
   ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %" PRIu32, action_call_id);
+}
+void APIServer::send_action_response_json_(uint32_t action_call_id, bool success, StringRef error_message,
+                                           void (*build)(void *ctx, JsonObject root), void *ctx, bool with_data) {
+  if (!with_data) {
+    this->send_action_response(action_call_id, success, error_message);
+    return;
+  }
+  const auto json = json::build_json([build, ctx](JsonObject root) { build(ctx, root); });
+  this->send_action_response(action_call_id, success, error_message, reinterpret_cast<const uint8_t *>(json.data()),
+                             json.size());
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
