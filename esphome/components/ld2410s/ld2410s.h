@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #ifdef USE_BINARY_SENSOR
@@ -9,8 +10,8 @@
 #endif
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/ld24xx/ld24xx.h"
 #endif
+#include "esphome/components/ld24xx/ld24xx.h"
 #ifdef USE_LD2410S_VERSION
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -26,6 +27,8 @@ namespace esphome::ld2410s {
 // Largest frame read here is the standard data frame: 4 header + 2 length + payload + 4 footer
 static constexpr size_t RX_BUFFER_SIZE = 96;
 static_assert(RX_BUFFER_SIZE <= 255, "frame lengths are kept in a byte");
+// Minimal output: header, state, distance low, distance high, footer
+using ShortDataFrameFormat = FrameFormat<FrameHeader<0x6E>, FrameFixedLength<5>>;
 
 /// The module's common parameters, in the order the parameter read answers them
 enum class Parameter : uint8_t {
@@ -78,14 +81,11 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #endif
 
  protected:
-  enum class FrameType : uint8_t { NONE, SHORT_DATA, STD_DATA, COMMAND };
-
-  void receive_byte_(uint8_t byte);
-  /// Returns false when the footer does not match, so the bytes can be scanned again.
-  bool handle_frame_();
+  /// Returns false for bytes that are not a real frame.
+  bool handle_frame_(const uint8_t *frame, uint8_t len);
   /// Returns false for a data frame whose state byte is impossible, so it counts as dropped.
-  bool handle_data_frame_(const uint8_t *payload, uint16_t len);
-  void handle_command_ack_(const uint8_t *payload, uint16_t len);
+  bool handle_data_frame_(const uint8_t *payload, uint16_t len, bool standard);
+  bool handle_command_ack_(const uint8_t *payload, uint16_t len);
 #ifdef USE_LD2410S_PARAMETERS
   bool handle_parameters_(const uint8_t *values, uint16_t len);
 #endif
@@ -96,11 +96,6 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
     if (this->dropped_frames_ < UINT8_MAX) {
       this->dropped_frames_++;
     }
-  }
-  void reset_frame_() {
-    this->rx_len_ = 0;
-    this->expected_len_ = 0;
-    this->frame_type_ = FrameType::NONE;
   }
   void start_sequence_(const uint16_t *sequence, uint8_t length, uint32_t now);
   void restart_init_(uint32_t at);
@@ -119,19 +114,16 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   const uint16_t *sequence_{nullptr};  // PROGMEM; null while nothing is being sent
   uint32_t next_send_at_{0};
   uint32_t last_frame_at_{0};
+  uint32_t last_rx_{0};
 #ifdef USE_LD2410S_PARAMETERS
   uint8_t parameters_[PARAMETER_COUNT]{};  // all fit a byte: gates, seconds, tenths of a hertz, speed
 #endif
-  uint8_t rx_buffer_[RX_BUFFER_SIZE];
-  uint8_t rx_len_{0};
-  uint8_t expected_len_{0};
+  LengthFrameReader<RX_BUFFER_SIZE, ld24xx::CmdFrameFormat, ld24xx::DataFrameFormat, ShortDataFrameFormat> reader_;
   uint8_t sequence_len_{0};
   uint8_t step_{0};
   uint8_t step_timeouts_{0};
   uint8_t dropped_frames_{0};  // since the last accepted data frame, saturates at 255
-  FrameType frame_type_{FrameType::NONE};
   bool awaiting_ack_{false};
-  bool rescanning_{false};
   bool init_done_{false};
 #ifdef USE_LD2410S_PARAMETERS
   bool parameters_known_{false};  // the module answered the parameter read at least once

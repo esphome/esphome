@@ -13,7 +13,7 @@ class RecordAction : public Action<> {
  public:
   RecordAction(Log *log, int id) : log_(log), id_(id) {}
   void play() override { this->log_->push_back(this->id_); }
-  Action<> *next() const { return this->next_; }
+  Action<> *next() const { return this->link_.next(); }
 
  protected:
   Log *log_;
@@ -88,12 +88,11 @@ class CountdownCondition : public Condition<> {
   int passes_;
 };
 
-// Reads an action's next_ through Action's own tag helpers
+// Exposes Action's protected link_
 class TaggedOwner : public RecordAction {
  public:
+  using RecordAction::link_;
   using RecordAction::RecordAction;
-  static bool is_tagged(const TaggedOwner *a) { return a->next_is_owner_(); }
-  static Action<> *owner_of(const TaggedOwner *a) { return a->owner_(); }
 };
 
 class InspectList : public ActionList<> {
@@ -112,10 +111,10 @@ TEST(ActionBranchOwner, SetOwnerTagsOnlyTheLastAction) {
   EXPECT_EQ(list.head(), &a);
   EXPECT_EQ(a.next(), &b);
   EXPECT_EQ(b.next(), &c);
-  EXPECT_FALSE(TaggedOwner::is_tagged(&a));
-  EXPECT_FALSE(TaggedOwner::is_tagged(&b));
-  EXPECT_TRUE(TaggedOwner::is_tagged(&c));
-  EXPECT_EQ(TaggedOwner::owner_of(&c), &owner);
+  EXPECT_FALSE(a.link_.is_owner());
+  EXPECT_FALSE(b.link_.is_owner());
+  EXPECT_TRUE(c.link_.is_owner());
+  EXPECT_EQ(c.link_.owner(), &owner);
 }
 
 TEST(ActionBranchOwner, EmptyListStaysEmpty) {

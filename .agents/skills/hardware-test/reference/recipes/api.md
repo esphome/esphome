@@ -78,3 +78,45 @@ the client only sees resets, the crash is in the log.
   closed PCB's callbacks); after: 490/500, the 10 failures are connection resets from overload, which is expected there.
 - ESP32 (BSD sockets) passes 500/500 on both and is the control.
 - Compare against dev on the same board; count reboots and decode crash addresses as well as the client's failures.
+
+## API overflow buffer driven and counted on the device (#22771)
+
+`scripts/api/overflow/`: `ovfwrap.hpp` wraps `APIOverflowBuffer::enqueue_iov` and `try_drain` with `-Wl,--wrap` and
+counts calls and bytes; the `try_drain` symbol differs per platform (`...6socket11LWIPRawImplE` on ESP8266,
+`...6socket13BSDSocketImplE` on ESP32 IDF), so pass it as a substitution and check `nm` shows both `__wrap_` symbols
+(a wrong name silently drops the wrapper). ESP-IDF builds keep `nm` in the IDF tools cache
+(`xtensa-esp-elf/*/xtensa-esp-elf/bin/`), not under the PlatformIO directory. `putbe-common.yaml` (60 sensors from `putbe-sensors.yaml`, which `gen_sensors.py` writes; four
+800 char text sensors flooded every 50 ms, counters as sensors, plus two udp `entity_transport` links) and
+`apitest.py HOST OUT` (2 KB receive buffer, 3 x 6 s `pause_reading`, validates every burst state and the final states;
+`API_KEY` in the env). Result on #22771: 82 to 159 enqueues per run on a D1 mini and an ESP32, no drops.
+
+`scripts/entity_transport/trcheck.py` compares remote entity values with the sender's published ones over the API on
+both boards; it accepts late updates and checks floats by the formula the sender uses, so only values the sender never
+published fail. Declare remote entities for both the base and the PR name of the peer so one image serves all four
+pairings. Facts from that run:
+- Xtensa GCC (lx106 and esp32) defines `__CHAR_UNSIGNED__`; macOS host builds use signed `char`, so a host harness
+  can miss a sign bug in byte handling.
+- udp `packet_interface` with broadcast between a D1 mini and an ESP32 loses most hdlc acks; unicast `addresses:` still
+  resets the reliability session a few times a minute (dev and PR alike). A D1 mini's API can deliver states 5 to 11 s
+  late under that load.
+
+## Driver pitfalls
+
+- `aioesphomeapi`'s `execute_service` is a coroutine now: without `await` the action silently never runs.
+
+## Entity, device and area lists A/B (#23234, #23242)
+
+For changes to how entities are registered or stored. `scripts/app_lists/`: `entities.yaml` (template entities of 17
+types on the main device and two sub-devices in three areas) plus `net.yaml` (Wi-Fi, plaintext API, web_server v3,
+OTA, heap sensor), with `app-lists-d1.yaml` as the platform example (an S3 build only swaps the platform block).
+
+- `drive.py HOST OUT drive` writes the API listing (device_info with devices and areas, every entity) to
+  `OUT-list.json` and the dump_config log to `OUT-dump.txt`, then sends 15 commands and waits for each state. Diff the
+  listing of base and PR with the device name masked.
+- `web.sh HOST OUT` saves `GET /` and 8 s of `/events`; `evnorm.py OUT-events.txt` keeps the first event of each
+  entity in order with values masked. `ents.sh CAPTURE` keeps the dump_config entity lines of a serial capture.
+- Sizes: the build's RAM and Flash lines, `esphome::App` from `nm -S`, where the lists landed from `objdump -t -C
+  firmware.elf` (`.irom0.text` on ESP8266, `.flash.rodata` on ESP32).
+- The test board's first boot after flashing can join Wi-Fi and not answer ARP; a serial reset fixes it. On a weak
+  link give the drivers 15 s for each state.
+- Results: https://github.com/esphome/esphome/pull/23234 and https://github.com/esphome/esphome/pull/23242

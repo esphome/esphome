@@ -60,7 +60,8 @@ class ComponentIteratorCameraTest : public ::testing::Test {
 TEST_F(ComponentIteratorCameraTest, RefusedCameraIsReofferedNotSkipped) {
   CameraRefusingIterator it;
   it.camera_refusals = 2;
-  it.begin();
+  // include_internal: the walk never reads the unconstructed codegen entities of test builds
+  it.begin(true);
   // Runs until the camera refuses, which stops the pass
   it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.camera_calls, 1);

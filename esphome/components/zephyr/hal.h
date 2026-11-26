@@ -43,8 +43,8 @@ __attribute__((always_inline)) inline uint32_t millis() { return static_cast<uin
 
 // NOLINTNEXTLINE(readability-identifier-naming)
 __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { ::k_busy_wait(us); }
-__attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32(); }
-__attribute__((always_inline)) inline uint32_t arch_get_cpu_freq_hz() { return sys_clock_hw_cycles_per_sec(); }
+uint32_t arch_get_cpu_cycle_count();  // Stops while the CPU sleeps on nRF52, so only for busy-wait timing.
+uint32_t arch_get_cpu_freq_hz();
 
 void arch_feed_wdt();
 void arch_init();

@@ -29,7 +29,9 @@ esphome:
     name: esphome.test
     version: "1.1"
     on_update:
-      logger.log: on_update
+      - logger.log: on_update
+      - delay: 10ms
+      - lambda: 'ESP_LOGD("test", "Updated from %s", version.c_str());'
   areas:
     - id: another_area
       name: Another area

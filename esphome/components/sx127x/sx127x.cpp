@@ -143,9 +143,7 @@ const LogString *SX127x::configure_radio_() {
   this->applied_ = {this->frequency_, this->payload_length_, this->modulation_, this->packet_mode_, this->rx_start_};
 
   // toggle chip reset
-  this->rst_pin_->digital_write(false);
-  delayMicroseconds(1000);
-  this->rst_pin_->digital_write(true);
+  pulse_pin(this->rst_pin_, false, 1000);
   delayMicroseconds(10000);
 
   // check silicon version to make sure hw is ok
@@ -340,9 +338,7 @@ SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
     }
   }
   if (result != SX127xError::SX127X_ERROR_NONE) {
-    ESP_LOGW(
-        TAG, "Packet send failed: %s",
-        LOG_STR_ARG(SX127xErrorStrings::get_log_str(static_cast<uint8_t>(result), SX127xErrorStrings::LAST_INDEX)));
+    ESP_LOGW(TAG, "Packet send failed: %s", LOG_STR_ARG(SX127xErrorStrings::get_log_str(result)));
   }
   return result;
 }

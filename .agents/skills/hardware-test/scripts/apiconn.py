@@ -34,6 +34,7 @@ async def connect(
     timeout: float = 10,
     port: int = 6053,
     on_stop: Callable[[bool], Awaitable[None]] | None = None,
+    client_info: str = "aioesphomeapi",
 ) -> APIClient:
     """Connect and log in, retrying once a second; exits after TRIES failures with the last error.
 
@@ -43,7 +44,11 @@ async def connect(
     last: BaseException | None = None
     for _ in range(tries):
         c = APIClient(
-            host, port, None, noise_psk=None if key in (None, "", "-") else key
+            host,
+            port,
+            None,
+            noise_psk=None if key in (None, "", "-") else key,
+            client_info=client_info,
         )
         live = [False]
 
@@ -73,6 +78,23 @@ async def connect(
 def log_text(msg) -> str:
     """The message of a subscribe_logs callback as text, without ANSI colour codes."""
     return ANSI.sub("", msg.message.decode(errors="replace"))
+
+
+def adv_name(data: bytes) -> str | None:
+    """Complete local name, else the shortened one."""
+    i = 0
+    short = None
+    while i < len(data):
+        ln = data[i]
+        if ln == 0 or i + 1 + ln > len(data):
+            break
+        t = data[i + 1]
+        if t == 0x09:
+            return data[i + 2 : i + 1 + ln].decode(errors="replace")
+        if t == 0x08:
+            short = data[i + 2 : i + 1 + ln].decode(errors="replace")
+        i += 1 + ln
+    return short
 
 
 def stop_event() -> tuple[asyncio.Event, Callable[[bool], Awaitable[None]]]:

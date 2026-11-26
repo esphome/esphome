@@ -36,7 +36,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   void perform(bool force) override;
   void check() override { this->update(); }
 
-  ~HttpRequestUpdate() override { this->release_source_url_(); }
+  ~HttpRequestUpdate() { this->release_source_url_(); }
 
   /// Codegen only: the config literal lives in flash for the life of the program, so it is kept by pointer.
   void set_source_url_static(const char *source_url) {

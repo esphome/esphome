@@ -4,6 +4,8 @@ esphome:
     then:
       - rp2_ble_tracker.start_scan:
           continuous: true
+      - rp2_ble_tracker.start_scan:
+          continuous: !lambda return millis() > 0;
       # Bare form: passes the configured scan_parameters mode (asserted in the codegen test).
       - rp2_ble_tracker.start_scan:
       - rp2_ble_tracker.stop_scan
