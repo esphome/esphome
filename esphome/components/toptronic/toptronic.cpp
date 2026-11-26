@@ -533,8 +533,6 @@ void TopTronic::setup() {
     }
   }
 #endif
-  ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->device_id_, this->sensors_.size(),
-           this->inputs_.size());
 }
 
 void TopTronic::loop() {
