@@ -159,12 +159,12 @@ E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info)
   E131Decision decision = E131Decision::IGNORE;
 
   // Network data loss (6.7.1): the winner, or the runner-up, sent nothing for the timeout.
-  if (winner.active && now - winner.last_packet_ms > E131_NETWORK_DATA_LOSS_TIMEOUT_MS) {
+  if (winner.active && now - winner.last_packet_ms >= E131_NETWORK_DATA_LOSS_TIMEOUT_MS) {
     winner.active = false;
     memcpy(left_cid, winner.cid, E131_CID_SIZE);
     left_reason = "lost";
   }
-  if (winner.has_runner_up && now - winner.runner_up_ms > E131_NETWORK_DATA_LOSS_TIMEOUT_MS)
+  if (winner.has_runner_up && now - winner.runner_up_ms >= E131_NETWORK_DATA_LOSS_TIMEOUT_MS)
     winner.has_runner_up = false;
 
   const bool terminated = info.options & E131_OPTION_STREAM_TERMINATED;
@@ -196,9 +196,9 @@ E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info)
       winner.has_runner_up = true;
     }
   } else {
-    // Take over. A winner pushed aside becomes the runner-up, timed from its last packet; after a handoff the
-    // runner-up kept until then stays.
-    if (winner.active) {
+    // Take over. A winner pushed aside becomes the runner-up, timed from its last packet, unless the runner-up
+    // kept until then is higher; after a handoff that runner-up stays.
+    if (winner.active && !(winner.has_runner_up && winner.runner_up_priority > winner.priority)) {
       winner.has_runner_up = true;
       winner.runner_up_priority = winner.priority;
       winner.runner_up_ms = winner.last_packet_ms;
