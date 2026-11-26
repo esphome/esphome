@@ -28,9 +28,7 @@ static constexpr uint32_t DSI_DMA_READ_PRIORITY = 15;
 // Only these releases expose the DMA-specific completion event (not VSYNC).
 #if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 5) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)) || \
     ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-#define MIPI_DSI_HAS_DMA_FRAME_EVENT 1
-#else
-#define MIPI_DSI_HAS_DMA_FRAME_EVENT 0
+#define MIPI_DSI_HAS_DMA_FRAME_EVENT
 #endif
 
 struct DsiCallbackContext {
@@ -154,12 +152,15 @@ void MipiDsi::setup() {
   // need to know when the display is ready for SLPOUT command - will be 120ms after reset
   auto when = millis() + 120;
   this->io_lock_ = xSemaphoreCreateBinary();
-#if MIPI_DSI_HAS_DMA_FRAME_EVENT
+#ifdef MIPI_DSI_HAS_DMA_FRAME_EVENT
   if (this->num_fbs_ > 1)
     this->frame_complete_ = xSemaphoreCreateCounting(2, 0);
 #endif
-  if (this->io_lock_ == nullptr ||
-      (MIPI_DSI_HAS_DMA_FRAME_EVENT && this->num_fbs_ > 1 && this->frame_complete_ == nullptr)) {
+  bool sync_allocation_failed = this->io_lock_ == nullptr;
+#ifdef MIPI_DSI_HAS_DMA_FRAME_EVENT
+  sync_allocation_failed |= this->num_fbs_ > 1 && this->frame_complete_ == nullptr;
+#endif
+  if (sync_allocation_failed) {
     this->mark_failed(LOG_STR("Could not allocate display synchronization semaphores"));
     return;
   }
@@ -175,7 +176,7 @@ void MipiDsi::setup() {
   esp_lcd_dpi_panel_event_callbacks_t cbs = {
       .on_color_trans_done = notify_refresh_ready,
   };
-#if MIPI_DSI_HAS_DMA_FRAME_EVENT
+#ifdef MIPI_DSI_HAS_DMA_FRAME_EVENT
   if (this->frame_complete_ != nullptr)
     cbs.on_frame_buf_complete = notify_frame_complete;
 #endif
