@@ -33,9 +33,26 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   const uint8_t len = frame.payload_length();
   if (frame.use_extended_id || len > 8)
     return;
+  const uint16_t ident = (frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0);
+  if (this->bus_frame_staged_) {
+    // an earlier local node queued this frame for us, behind the older local frames and ahead of its replies
+    this->bus_frame_staged_ = false;
+    this->deliver_local_();
+    return;
+  }
   // frames other local nodes sent before are older: they go first
   this->deliver_local_();
-  this->handle_frame_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
+  for (CANopenComponent *node = this->next_local_; node != nullptr && node != this; node = node->next_local_)
+    node->stage_bus_frame_(ident, frame.data, len);
+  this->handle_frame_(ident, frame.data, len);
+}
+
+void CANopenComponent::stage_bus_frame_(uint16_t ident, const uint8_t *data, uint8_t len) {
+  if (this->local_queue_.capacity() == 0 || this->is_failed())
+    return;  // not set up: no canbus callback either
+  // set even when the queue is full and the frame is lost: otherwise this node would take itself for the first one
+  this->bus_frame_staged_ = true;
+  this->queue_local_(ident, data, len);
 }
 
 void CANopenComponent::handle_frame_(uint16_t ident, const uint8_t *data, uint8_t len) {

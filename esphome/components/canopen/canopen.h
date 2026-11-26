@@ -210,6 +210,10 @@ class CANopenComponent : public Component {
   };
   void queue_local_(uint16_t ident, const uint8_t *data, uint8_t len);
   void deliver_local_();
+  // A bus frame reaches the local nodes' canbus callbacks one after another: the first one queues it for the others
+  // before it handles it, so what it sends in reply lands behind the frame in their queues, as on a bus. The others
+  // then take it from their queue instead of handling it directly (bus_frame_staged_).
+  void stage_bus_frame_(uint16_t ident, const uint8_t *data, uint8_t len);
   // A client-only hub with no request queued or running and no frame waiting to be resent. A node always has work
   // (heartbeat).
   bool idle_() const;
@@ -237,6 +241,9 @@ class CANopenComponent : public Component {
   uint16_t local_dropped_{0};  // frames lost on a full local_queue_, logged by deliver_local_()
   uint8_t node_id_;
   bool hold_flush_{false};
+  // the current bus frame is already in local_queue_ (staged by the local node whose callback ran first); set and
+  // cleared within one frame, since canbus calls all callbacks for a frame before it reads the next
+  bool bus_frame_staged_{false};
 
 #ifdef USE_CANOPEN_NODE
   // --- Identity and device information (device_info.cpp) ---
