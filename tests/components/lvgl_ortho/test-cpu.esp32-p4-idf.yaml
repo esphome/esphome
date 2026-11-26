@@ -1,0 +1,24 @@
+display:
+  - platform: mipi_dsi
+    id: panel
+    model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C
+
+psram:
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+lvgl:
+  displays: [panel]
+  byte_order: little_endian
+  widgets:
+    - label:
+        text: CPU renderer
+
+lvgl_ortho:
+  rotation: 90
+  ppa: false
+  cores: 1
+  image_cache: 0
+  camera_ram: 0

@@ -884,6 +884,7 @@ static void draw_tile(const job_t *jobs, int32_t n, const ortho_t *o, const lv_a
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "esp_system.h"
 #if CONFIG_FREERTOS_NUMBER_OF_CORES > 1
 #define ORTHO_HELPER (2)
 #endif
@@ -932,6 +933,16 @@ typedef struct {
 static helper_t g_helper;
 
 #if ORTHO_HELPER == 2
+// A dispatched job owns stack-backed descriptors and tile memory until it completes.
+// Never return from a timed-out join or free those resources while the worker may still use them.
+enum { HELPER_TIMEOUT_MS = 2000 };
+
+static void helper_wait_done(helper_task_t *h) {
+  if (xSemaphoreTake(h->done, pdMS_TO_TICKS(HELPER_TIMEOUT_MS)) != pdTRUE) {
+    esp_system_abort("lvgl_ortho: render worker completion timeout");
+  }
+}
+
 static void helper_main(void *arg) {
   helper_task_t *h = arg;
   for (;;) {
@@ -1024,8 +1035,10 @@ static void helper_stop_thread(void) {
   for (int k = 0; k < 2; k++) {
     helper_task_t *h = &g_helper.on_core[k];
     if (h->task) {
-      xSemaphoreGive(h->go);
-      xSemaphoreTake(h->done, portMAX_DELAY);
+      if (xSemaphoreGive(h->go) != pdTRUE) {
+        esp_system_abort("lvgl_ortho: render worker shutdown while scheduled");
+      }
+      helper_wait_done(h);
       vSemaphoreDelete(h->go);
       vSemaphoreDelete(h->done);
     }
@@ -1068,7 +1081,9 @@ static bool helper_run(helper_fn_t fn, void *arg) {
 #if ORTHO_HELPER == 1
   SIM_MARK(2042);
 #elif ORTHO_HELPER == 2
-  xSemaphoreGive(g_helper.on_core[g_helper.busy].go);
+  if (xSemaphoreGive(g_helper.on_core[g_helper.busy].go) != pdTRUE) {
+    esp_system_abort("lvgl_ortho: render worker already scheduled");
+  }
 #elif ORTHO_HELPER == 3
   pthread_mutex_lock(&g_helper.m);
   g_helper.state = 1;
@@ -1085,7 +1100,7 @@ static void helper_join(void) {
   SIM_MARK(2043);
   SIM_MARK(2041);
 #elif ORTHO_HELPER == 2
-  xSemaphoreTake(g_helper.on_core[g_helper.busy].done, portMAX_DELAY);
+  helper_wait_done(&g_helper.on_core[g_helper.busy]);
 #elif ORTHO_HELPER == 3
   pthread_mutex_lock(&g_helper.m);
   while (g_helper.state != 2)
