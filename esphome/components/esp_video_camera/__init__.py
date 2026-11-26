@@ -146,21 +146,25 @@ def _validate_device(value):
         return _JPEG_DEVICE
     if low == "uvc":
         return f"{_UVC_DEVICE_PREFIX}0"
-    if low.startswith("uvc") and len(low) == 4 and low[3].isdigit():
+    if low.startswith("uvc") and len(low) == 4 and low[3] in "0123456789":
         return f"{_UVC_DEVICE_PREFIX}{low[3]}"
-    if value.startswith("/dev/video"):
+    if value == _JPEG_DEVICE or _is_uvc(value):
         return value
     # No "csi": that device only produces RGB565/RAW, and a camera platform has to
     # publish JPEG. "jpeg" is the same sensor through the hardware encoder.
     raise cv.Invalid(
         f"device '{value}' is invalid. Use 'jpeg' (hardware encoder, MIPI sensors), "
-        "'uvc' / 'uvc0'..'uvc9' (USB-UVC camera), or a '/dev/videoN' path."
+        "'uvc' / 'uvc0'..'uvc9' (USB-UVC camera), or their corresponding /dev/video10 and /dev/video40-49 paths."
     )
 
 
 def _is_uvc(device: str) -> bool:
     """True for a USB camera: esp_video reserves /dev/video40-49 for USB-UVC."""
-    return device.startswith(_UVC_DEVICE_PREFIX)
+    return (
+        device.startswith(_UVC_DEVICE_PREFIX)
+        and len(device) == len(_UVC_DEVICE_PREFIX) + 1
+        and device[-1] in "0123456789"
+    )
 
 
 def _xclk_pin(value):
@@ -249,6 +253,25 @@ def _warn_about_idf_log_level(config):
     return config
 
 
+def _validate_device_options(config: ConfigType) -> ConfigType:
+    if _is_uvc(config[CONF_DEVICE]):
+        invalid = (
+            CONF_I2C_ID,
+            CONF_SENSOR_MODEL,
+            CONF_XCLK_PIN,
+            CONF_XCLK_FREQUENCY,
+            CONF_JPEG_QUALITY,
+        )
+    else:
+        invalid = (CONF_USB_PERIPHERAL_MAP,)
+    for key in invalid:
+        if key in config:
+            raise cv.Invalid("Option is not supported for this camera device", path=[key])
+    if CONF_XCLK_FREQUENCY in config and config.get(CONF_XCLK_PIN, -1) < 0:
+        raise cv.Invalid("Requires an active xclk_pin", path=[CONF_XCLK_FREQUENCY])
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -261,17 +284,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SENSOR_MODEL): _validate_sensor_model,
             # V4L2_CID_JPEG_COMPRESSION_QUALITY semantics: 1..100, higher is
             # better. esp_video's hardware encoder defaults to 80.
-            cv.Optional(CONF_JPEG_QUALITY, default=80): cv.int_range(min=1, max=100),
+            cv.Optional(CONF_JPEG_QUALITY): cv.int_range(min=1, max=100),
             cv.Optional(CONF_MAX_FRAMERATE, default=10): cv.float_range(
                 min=0.1, max=60.0
             ),
             # No default: most ESP32-P4 boards already drive the sensor clock.
             cv.Optional(CONF_XCLK_PIN): _xclk_pin,
-            cv.Optional(CONF_XCLK_FREQUENCY, default="24MHz"): cv.All(
+            cv.Optional(CONF_XCLK_FREQUENCY): cv.All(
                 cv.frequency, cv.int_range(min=1000000, max=40000000)
             ),
             # 0 is the High-Speed controller; a bit mask names another.
-            cv.Optional(CONF_USB_PERIPHERAL_MAP, default=0): cv.hex_int_range(
+            cv.Optional(CONF_USB_PERIPHERAL_MAP): cv.hex_int_range(
                 min=0, max=0xFF
             ),
         }
@@ -286,6 +309,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     # A 1280x720 RGB565 capture buffer alone is 1.8 MB.
     cv.requires_component(PSRAM_DOMAIN),
+    _validate_device_options,
     _validate_i2c_bus,
     _validate_resolution_for_sensor,
     # Last: it changes network settings, which a rejected config must not do.
@@ -362,12 +386,14 @@ async def to_code(config):
     # Setting a pin is what turns the clock on; -1 leaves it to the board.
     if (xclk_pin := config.get(CONF_XCLK_PIN, -1)) >= 0:
         cg.add(var.set_xclk_pin(xclk_pin))
-        cg.add(var.set_xclk_freq(config[CONF_XCLK_FREQUENCY]))
-    cg.add(var.set_usb_peripheral_map(config[CONF_USB_PERIPHERAL_MAP]))
+        cg.add(var.set_xclk_freq(config.get(CONF_XCLK_FREQUENCY, 24000000)))
+    if uvc:
+        cg.add(var.set_usb_peripheral_map(config.get(CONF_USB_PERIPHERAL_MAP, 0)))
 
     if (resolution := config[CONF_RESOLUTION]) != "auto":
         cg.add(var.set_resolution(*resolution))
-    cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
+    if CONF_JPEG_QUALITY in config:
+        cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
     cg.add(var.set_min_frame_interval(int(1000 / config[CONF_MAX_FRAMERATE])))
 
     add_idf_component(name="espressif/esp_video", ref=_ESP_VIDEO_VERSION)
@@ -388,12 +414,15 @@ async def to_code(config):
 
     # A mipi_dsi display in the same config puts DW-GDMA callbacks in internal RAM;
     # without this the CSI controller is not, and VIDIOC_STREAMON then fails.
-    add_idf_sdkconfig_option("CONFIG_CAM_CTLR_MIPI_CSI_ISR_CACHE_SAFE", True)
+    if not uvc:
+        add_idf_sdkconfig_option("CONFIG_CAM_CTLR_MIPI_CSI_ISR_CACHE_SAFE", True)
 
     if uvc:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
-        # UVC descriptors overrun the 256-byte default
-        add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 2048)
+        # Large webcam configuration descriptors (e.g. C920) exceed 2048 bytes.
+        add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 8192)
+        # Some webcams omit EOH in their payload headers.
+        add_idf_sdkconfig_option("CONFIG_UVC_CHECK_PAYLOAD_HEADER_EOH", False)
         # The Kconfig minimum; the wait blocks the task that opens the device
         add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 500)
         # Size URBs from the endpoint; esp_video's fixed size tears isochronous transfers
