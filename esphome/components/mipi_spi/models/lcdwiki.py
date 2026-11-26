@@ -3,9 +3,30 @@
 # It is the commented-out panel table in that file, with the 0x71 and 0xBE values from the
 # active one, which is what the shipped firmware writes.
 
-from esphome.components.mipi import MODE_RGB, SLPOUT, DriverChip, delay
+from esphome.components.mipi import (
+    DFUNCTR,
+    FRMCTR1,
+    GAMMASET,
+    GMCTRN1,
+    GMCTRP1,
+    MODE_RGB,
+    PWCTR1,
+    PWCTR2,
+    SLPOUT,
+    VMCTR1,
+    VMCTR2,
+    DriverChip,
+    delay,
+)
 from esphome.components.spi import TYPE_QUAD
-from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
+from esphome.const import (
+    CONF_IGNORE_STRAPPING_WARNING,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_NUMBER,
+)
+
+from .ili import ILI9341
 
 # fmt: off
 ES3C35P = DriverChip(
@@ -84,3 +105,40 @@ ES3C35P = DriverChip(
 
 # The speakerless variant uses the same display
 ES3C35P.extend("ES3C35P-NS")
+
+# 2.8" 240x320 ILI9341V IPS panel on an ESP32-S3. Init sequence from LCDwiki's ILI9341V_Init.txt
+# for this board: https://www.lcdwiki.com/res/ES3C28P/ILI9341V_Init.txt
+# Its power and VCOM values differ from the generic ILI9341 model, whose values leave an
+# afterimage on this panel. DFUNCTR 0xA2 sets the source scan direction, so no mirror_x is needed.
+# fmt: off
+ES3C28P = ILI9341.extend(
+    "ES3C28P",
+    mirror_x=False,
+    invert_colors=True,
+    data_rate="40MHz",
+    cs_pin=10,
+    dc_pin={CONF_NUMBER: 46, CONF_IGNORE_STRAPPING_WARNING: True},
+    initsequence=(
+        (0xCF, 0x00, 0xC1, 0x30),  # Power control B
+        (0xED, 0x64, 0x03, 0x12, 0x81),  # Power on sequence control
+        (0xE8, 0x85, 0x00, 0x78),  # Driver timing control A
+        (0xCB, 0x39, 0x2C, 0x00, 0x34, 0x02),  # Power control A
+        (0xF7, 0x20),  # Pump ratio control
+        (0xEA, 0x00, 0x00),  # Driver timing control B
+        (PWCTR1, 0x13),
+        (PWCTR2, 0x13),
+        (VMCTR1, 0x22, 0x35),
+        (VMCTR2, 0xBD),
+        (DFUNCTR, 0x0A, 0xA2),
+        (0xF6, 0x01, 0x30),  # Interface control
+        (FRMCTR1, 0x00, 0x1B),
+        (0xF2, 0x00),  # 3-gamma off
+        (GAMMASET, 0x01),
+        (GMCTRP1, 0x0F, 0x35, 0x31, 0x0B, 0x0E, 0x06, 0x49, 0xA7, 0x33, 0x07, 0x0F, 0x03, 0x0C, 0x0A, 0x00),
+        (GMCTRN1, 0x00, 0x0A, 0x0F, 0x04, 0x11, 0x08, 0x36, 0x58, 0x4D, 0x07, 0x10, 0x0C, 0x32, 0x34, 0x0F),
+    ),
+)
+# fmt: on
+
+# The variant without touch uses the same display
+ES3C28P.extend("ES3N28P")
