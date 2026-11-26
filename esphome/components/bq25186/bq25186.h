@@ -54,7 +54,7 @@ inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, 
   if (value == last)
     return;
   last = value;
-  sensor->publish_state(BQ25186StatusStrings::get_progmem_str(first + value, BQ25186StatusStrings::LAST_INDEX));
+  sensor->publish_state(BQ25186StatusStrings::get_progmem_str(first + value));
 }
 #endif
 

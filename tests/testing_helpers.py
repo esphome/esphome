@@ -94,3 +94,19 @@ def add_defines_to_code(manifest: ComponentManifestOverride, *defines: str) -> N
     if hasattr(original_to_code, "priority"):
         to_code.priority = original_to_code.priority
     manifest.to_code = to_code
+
+
+def get_define_value(name: str) -> str | None:
+    """Rendered value of a CORE define, or None when absent.
+
+    Values are codegen expressions (IntLiteral); they are compared rendered.
+    A value-less define (e.g. USE_BK72XX_BLE) is present but renders as the
+    string "None", while an absent define returns the None object — easy to
+    conflate in assertions, so use this helper for valued defines only.
+    """
+    from esphome.core import CORE
+
+    for define in CORE.defines:
+        if define.name == name:
+            return str(define.value)
+    return None

@@ -85,8 +85,7 @@ async def to_code(config: ConfigType) -> None:
             await output.register_output(var, conf)
             cg.add(var.set_parent(paren))
             cg.add(var.set_set_command(command))
-            if (CONF_POSSIBLE_VALUES) in conf:
-                cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
+            cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
 
 
 automation.register_apply_action(

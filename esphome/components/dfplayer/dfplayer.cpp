@@ -158,12 +158,10 @@ void DFPlayer::loop() {
         break;
       case 9:  // End byte
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+        this->read_buffer_[this->read_pos_] = byte;  // stored after the switch; the dump needs it now
         char byte_sequence[100];
-        byte_sequence[0] = '\0';
-        for (size_t i = 0; i < this->read_pos_ + 1; ++i) {
-          snprintf(byte_sequence + strlen(byte_sequence), sizeof(byte_sequence) - strlen(byte_sequence), "%02X ",
-                   this->read_buffer_[i]);
-        }
+        format_hex_pretty_to(byte_sequence, reinterpret_cast<const uint8_t *>(this->read_buffer_), this->read_pos_ + 1,
+                             ' ');
         ESP_LOGVV(TAG, "Received byte sequence: %s", byte_sequence);
 #endif
         if (byte != 0xEF) {
@@ -173,7 +171,7 @@ void DFPlayer::loop() {
         }
         // Parse valid received command
         uint8_t cmd = this->read_buffer_[3];
-        uint16_t argument = (this->read_buffer_[5] << 8) | this->read_buffer_[6];
+        uint16_t argument = encode_uint16(this->read_buffer_[5], this->read_buffer_[6]);
 
         ESP_LOGV(TAG, "Received message cmd: %#02x arg %#04x", cmd, argument);
 

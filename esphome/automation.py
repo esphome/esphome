@@ -1,10 +1,12 @@
 from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from functools import partial
 import logging
 import math
 import re
 import string
+import struct
 from typing import Any
 
 import voluptuous as vol
@@ -263,6 +265,9 @@ validate_condition_list = cv.validate_registry("condition", CONDITION_REGISTRY)
 ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 ApplyRunAction = cg.esphome_ns.class_("ApplyRunAction", Action)
 ApplyCondition = cg.esphome_ns.class_("ApplyCondition", Condition)
+# A component whose logic calls fire(); FireCallback<fn, Base> implements it, so pass the base in template_args
+FiringComponent = cg.esphome_ns.class_("FiringComponent", cg.Component)
+FireCallback = cg.esphome_ns.class_("FireCallback", FiringComponent)
 
 
 @dataclass(frozen=True)
@@ -335,25 +340,23 @@ def _is_collecting(id_: ID) -> bool:
     return collector is not None and collector.action_id is id_
 
 
-def _collect_action(
-    id_: ID, statements: list[str], emit: Callable[[], MockObj] | None
-) -> bool:
-    """Record ``id_`` as inline if it is the action or condition being collected.
+def _collect_action(action: _InlineAction) -> bool:
+    """Record ``action`` as inline if it is the action or condition being collected.
 
     Matching the id leaves the conditions and child actions a builder creates to emit normally.
     """
-    if not _is_collecting(id_):
+    if not _is_collecting(action.id_):
         return False
     collector = _INLINE_COLLECTOR.get()
     # Replacing it would silently lose the statements already collected
     if collector.action is not None:
         raise EsphomeError(f"The builder of {collector.name} built its action twice")
-    collector.action = _InlineAction(id_, statements, emit)
+    collector.action = action
     return True
 
 
 def _collect_control_flow(action_id: ID, statements: list[str]) -> MockObj:
-    _collect_action(action_id, statements, None)
+    _collect_action(_InlineAction(action_id, statements, None))
     return _COLLECTED_ACTION
 
 
@@ -409,8 +412,7 @@ def _condition_expression(
 ) -> str:
     if isinstance(condition, _InlineCondition):
         return f"({condition.expression})"
-    names = ", ".join(name for _, name in args)
-    return f"{parent_ref(condition)}->check({names})"
+    return f"{parent_ref(condition)}->check({_arg_names(args)})"
 
 
 def _condition_object(condition: MockObj | _InlineCondition) -> MockObj:
@@ -553,7 +555,7 @@ IN_RANGE_CHECK = ApplyCall(
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
 ValueRange = cg.esphome_ns.struct("ValueRange")
-# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+# The bounds of an on_value_range trigger, rendered by ``build_value_range_automation``.
 _VALUE_RANGE_BOUNDS = ApplyCall(
     "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
 )
@@ -646,7 +648,8 @@ def parent_ref(var: MockObj) -> MockObj:
     return MockObj(f"::{var}", "->")
 
 
-async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
+async def apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
+    """The object ``config[id_key]`` names, as ``parent_ref`` spells it."""
     return str(parent_ref(await cg.get_variable(config[id_key])))
 
 
@@ -675,12 +678,22 @@ def _apply_function(
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
+    action = _inline_action(id_, return_type, template_arg, args, statements)
+    return _COLLECTED_ACTION if _collect_action(action) else action.emit()
 
+
+def _inline_action(
+    id_: ID,
+    return_type: SafeExpType,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    statements: list[str],
+) -> _InlineAction:
     def emit() -> MockObj:
         fn = apply_static_function(id_, return_type, _apply_params(args), statements)
         return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
-    return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
+    return _InlineAction(id_, statements, emit)
 
 
 def apply_statements_action(
@@ -773,6 +786,15 @@ async def call_user_lambda(
     ):
         return cg.RawExpression(f"({expr})")
     return expr
+
+
+async def bind_lambda(
+    value: Lambda, args: TemplateArgsType, return_type: SafeExpType, name: str
+) -> str:
+    """``const <return_type> <name> = <value>(args...);``, a statement of its own so the
+    order of evaluation is fixed; args are passed as ``call_user_lambda`` does."""
+    call = await call_user_lambda(value, args, return_type)
+    return f"const {return_type} {name} = {call};"
 
 
 async def _render_call(
@@ -868,7 +890,7 @@ def apply_action_builder(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
         for spec in statements_spec:
@@ -916,10 +938,10 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        call = await call_user_lambda(value, args, _BYTE_VECTOR)
+        bind = await bind_lambda(value, args, _BYTE_VECTOR, "esphome__bytes")
         return [
             "{",
-            f"  const std::vector<uint8_t> esphome__bytes = {call};",
+            f"  {bind}",
             f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
@@ -951,17 +973,22 @@ def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -
     return not members or any(value is not None for value in values)
 
 
-async def new_value_range_trigger(
-    trigger_id: ID, parent: MockObj, config: ConfigType
+async def build_value_range_automation(
+    config: ConfigType, base: MockObjClass, parent: MockObj
 ) -> MockObj:
-    """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+    """Build ``FireCallback<fn, base>`` for ``parent`` with a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
 
-    The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
+    The component exists before its bounds are rendered, so a bound may use the component's own id.
     A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
     the const ``x`` is a backstop if bounds are ever inlined again.
     """
-    trigger = cg.new_Pvariable(
-        trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
+    bounds_name = _apply_function_name(config[CONF_TRIGGER_ID])
+    var = await build_component_automation(
+        config,
+        FireCallback,
+        template_args=[base],
+        args=[(cg.float_, "x")],
+        ctor_args=[parent, cg.RawExpression(bounds_name)],
     )
     config = {**IN_RANGE_DEFAULTS, **config}
     members = _VALUE_RANGE_BOUNDS.members
@@ -974,14 +1001,14 @@ async def new_value_range_trigger(
         None,
         [(cg.float_, "x")],
     )
-    # The trigger above already names this function, so it must keep this exact name
+    # The component above already names this function, so it must keep this exact name
     cg.static_function(
-        _apply_function_name(trigger_id),
+        bounds_name,
         ValueRange,
         [(cg.RawExpression("const float"), "x")],
         [f"return {bounds};"],
     )
-    return trigger
+    return var
 
 
 def register_apply_condition(
@@ -1014,7 +1041,7 @@ def register_apply_condition(
     ) -> MockObj:
         if defaults:
             config = {**defaults, **config}
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         values = _apply_values(config, members)
         check = await _render_call(
             name, call.target, members, values, config, parent, args, compare=True
@@ -1151,9 +1178,6 @@ IfAction = cg.esphome_ns.class_("IfAction", Action)
 WhileAction = cg.esphome_ns.class_("WhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
 WaitUntilAction = cg.esphome_ns.class_("WaitUntilAction", Action, cg.Component)
-UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
-SuspendComponentAction = cg.esphome_ns.class_("SuspendComponentAction", Action)
-ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
 TriggerForwarder = cg.esphome_ns.class_("TriggerForwarder")
 TriggerOnTrueForwarder = cg.esphome_ns.class_("TriggerOnTrueForwarder")
@@ -1192,11 +1216,13 @@ def new_lambda_pvariable(
             or stateless_class is StatelessLambdaCondition
         )
         and _collect_action(
-            id_obj,
-            [f"{immediate_lambda_call(lambda_expr)};"],
-            lambda: new_lambda_pvariable(
-                id_obj, lambda_expr, stateless_class, template_arg
-            ),
+            _InlineAction(
+                id_obj,
+                [f"{immediate_lambda_call(lambda_expr)};"],
+                lambda: new_lambda_pvariable(
+                    id_obj, lambda_expr, stateless_class, template_arg
+                ),
+            )
         )
     ):
         return _COLLECTED_ACTION
@@ -1311,7 +1337,7 @@ async def condition_group_to_code(
 
         operator = " || " if condition_id.type is OrCondition else " && "
         check = operator.join(_condition_expression(item, args) for item in items)
-        _collect_action(condition_id, [f"return {check};"], emit)
+        _collect_action(_InlineAction(condition_id, [f"return {check};"], emit))
         return _COLLECTED_ACTION
     conditions = await build_condition_list(config, template_arg, args)
     return _new_condition_group(condition_id, template_arg, conditions)
@@ -1338,11 +1364,13 @@ async def not_condition_to_code(
     if _is_collecting(condition_id):
         item = await _build_condition_or_inline(config, template_arg, args)
         _collect_action(
-            condition_id,
-            [f"return !{_condition_expression(item, args)};"],
-            lambda: cg.new_Pvariable(
-                condition_id, template_arg, _condition_object(item)
-            ),
+            _InlineAction(
+                condition_id,
+                [f"return !{_condition_expression(item, args)};"],
+                lambda: cg.new_Pvariable(
+                    condition_id, template_arg, _condition_object(item)
+                ),
+            )
         )
         return _COLLECTED_ACTION
     condition = await build_condition(config, template_arg, args)
@@ -1771,25 +1799,44 @@ async def lambda_action_to_code(
     return new_lambda_pvariable(action_id, lambda_, StatelessLambdaAction, template_arg)
 
 
-register_simple_action(
-    "component.update",
-    UpdateComponentAction,
-    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
-    synchronous=True,
+_POLLING_COMPONENT_SCHEMA = maybe_simple_id(
+    {cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}
 )
 
 
-register_simple_action(
-    "component.suspend",
-    SuspendComponentAction,
-    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
-    synchronous=True,
-)
+async def _polling_component_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    calls: list[str],
+) -> MockObj:
+    """Run ``calls`` on the component once it is ready, through ``PollingComponent``.
+
+    An if block, not an early return, so actions merged after this one still run.
+    """
+    parent = await apply_parent(config)
+    statements = [
+        f"{cg.PollingComponent} &esphome__component = *{parent};",
+        "if (esphome__component.is_ready()) {",
+        *(f"  esphome__component.{call};" for call in calls),
+        "}",
+    ]
+    return apply_statements_action(action_id, template_arg, args, statements)
+
+
+for _name, _call in (
+    ("component.update", "update()"),
+    ("component.suspend", "stop_poller()"),
+):
+    register_action(_name, ApplyAction, _POLLING_COMPONENT_SCHEMA, synchronous=True)(
+        partial(_polling_component_action, calls=[_call])
+    )
 
 
 @register_action(
     "component.resume",
-    ResumeComponentAction,
+    ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
@@ -1806,12 +1853,16 @@ async def component_resume_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    comp = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, comp)
-    if CONF_UPDATE_INTERVAL in config:
-        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, cg.uint32)
-        cg.add(var.set_update_interval(template_))
-    return var
+    calls: list[str] = []
+    if (interval := config.get(CONF_UPDATE_INTERVAL)) is not None:
+        if isinstance(interval, Lambda):
+            # Built with the trigger's own argument types and always called, so the body
+            # may modify its by-value arguments
+            lamb = await cg.process_lambda(interval, args, return_type=cg.uint32)
+            interval = immediate_lambda_call(lamb)
+        calls.append(f"set_update_interval({cg.safe_exp(interval)})")
+    calls.append("start_poller()")
+    return await _polling_component_action(config, action_id, template_arg, args, calls)
 
 
 async def build_action(
@@ -1924,14 +1975,19 @@ async def _build_action_plan(
     """Build the actions of ``config``; adjacent inline actions stay together, not yet emitted."""
     plan: list[MockObj | list[_InlineAction]] = []
     for conf in config:
-        action = await _build_action_or_inline(conf, templ, arg_type)
-        if not isinstance(action, _InlineAction):
-            plan.append(action)
-        elif plan and isinstance(plan[-1], list):
-            plan[-1].append(action)
-        else:
-            plan.append([action])
+        _plan_append(plan, await _build_action_or_inline(conf, templ, arg_type))
     return plan
+
+
+def _plan_append(
+    plan: list[MockObj | list[_InlineAction]], action: MockObj | _InlineAction
+) -> None:
+    if not isinstance(action, _InlineAction):
+        plan.append(action)
+    elif plan and isinstance(plan[-1], list):
+        plan[-1].append(action)
+    else:
+        plan.append([action])
 
 
 def _emit_action_plan(
@@ -2080,8 +2136,7 @@ async def new_automation(
 async def _build_automation_plan(
     args: TemplateArgsType, config: ConfigType
 ) -> list[MockObj | list[_InlineAction]]:
-    templ = cg.TemplateArguments(*(arg[0] for arg in args))
-    return await _build_action_plan(config[CONF_THEN], templ, args)
+    return await _build_action_plan(config[CONF_THEN], _args_templ(args), args)
 
 
 def _automation_from_plan(
@@ -2090,7 +2145,7 @@ def _automation_from_plan(
     config: ConfigType,
     *ctor_args: MockObj,
 ) -> MockObj:
-    templ = cg.TemplateArguments(*(arg[0] for arg in args))
+    templ = _args_templ(args)
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     for action in _emit_action_plan(plan, templ, args):
         cg.add(obj.add_action(action))
@@ -2100,8 +2155,8 @@ def _automation_from_plan(
 def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) -> bool:
     """Whether a callback automation is all inline actions, so it needs no objects.
 
-    Without a Trigger or a manual id nothing can reach such an automation to stop it, so
-    no stop checks are needed either. Only for callers that create no Trigger.
+    Without a Trigger or an automation id set by hand nothing can reach such an automation
+    to stop it, so no stop checks are needed either. Only for callers that create no Trigger.
     """
     return (
         not config[CONF_AUTOMATION_ID].is_manual
@@ -2110,17 +2165,43 @@ def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) ->
     )
 
 
+def _direct_statements(
+    plan: list[MockObj | list[_InlineAction]], config: ConfigType
+) -> list[str] | None:
+    if not _is_direct(plan, config):
+        return None
+    return [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
+
+
 def _direct_function(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
 ) -> MockObj | None:
-    if not _is_direct(plan, config):
+    if (statements := _direct_statements(plan, config)) is None:
         return None
-    statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
     return apply_static_function(
         plan[0][0].id_, cg.void, _apply_params(args), statements
     )
+
+
+def _call_target(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+) -> MockObj:
+    """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
+    if (target := _direct_function(plan, args, config)) is None:
+        target = parent_ref(_automation_from_plan(plan, args, config)).trigger
+    return target
+
+
+def _args_templ(args: TemplateArgsType) -> cg.TemplateArguments:
+    return cg.TemplateArguments(*(arg[0] for arg in args))
+
+
+def _arg_names(args: TemplateArgsType) -> str:
+    return ", ".join(name for _, name in args)
 
 
 def _when_call(
@@ -2140,6 +2221,74 @@ async def build_automation(
     return await new_automation(args, config, trigger)
 
 
+async def build_component_automation(
+    config: ConfigType,
+    component_class: MockObjClass,
+    priority: float | None = None,
+    *,
+    id_key: str = CONF_TRIGGER_ID,
+    template_args: Sequence[SafeExpType] = (),
+    args: Sequence[tuple[SafeExpType, str]] = (),
+    ctor_args: Sequence[SafeExpType] = (),
+) -> MockObj:
+    """Create and register ``component_class<function[, priority bits], *template_args>(*ctor_args)``,
+    whose function takes ``args`` and runs the automation's actions; ``config[id_key]`` names it.
+    """
+    name, build = declare_automation_function(list(args), config)
+    id_ = config[id_key].copy()
+    id_.type = component_class
+    bits = [] if priority is None else [_float_bits(priority)]
+    var = cg.new_Pvariable(
+        id_, cg.TemplateArguments(name, *bits, *template_args), *ctor_args
+    )
+    # Registered before the actions are built, which can wait for other ids
+    await cg.register_component(var, config)
+    await build()
+    return var
+
+
+def _float_bits(value: float) -> HexInt:
+    """``value`` as a C++ float's bit pattern, for a template argument.
+
+    Out of float range becomes signed infinity, as the C++ conversion does.
+    """
+    try:
+        packed = struct.pack("<f", value)
+    except OverflowError:
+        packed = struct.pack("<f", math.copysign(math.inf, value))
+    (bits,) = struct.unpack("<I", packed)
+    return HexInt(bits)
+
+
+def declare_automation_function(
+    args: TemplateArgsType, config: ConfigType, after: list[str] | None = None
+) -> tuple[MockObj, Callable[[], Awaitable[None]]]:
+    """Declare a ``static void`` function that runs ``config``; return its name and the coroutine that defines its body.
+
+    Await it once the object naming the function exists; ``after`` runs after the last action unless stopped.
+    """
+    automation_id = config[CONF_AUTOMATION_ID]
+    fn_id = cg.unique_global_id(_apply_function_name(automation_id), None)
+    name = fn_id.id
+    define = cg.declare_static_function(name, cg.void, _apply_params(args))
+    CORE.register_variable(fn_id, cg.RawExpression(name))
+
+    async def build() -> None:
+        plan = await _build_automation_plan(args, config)
+        if after:
+            after_id = cg.unique_global_id(f"{automation_id.id}__after", ApplyAction)
+            _plan_append(
+                plan,
+                _inline_action(after_id, cg.void, _args_templ(args), args, after),
+            )
+        if (body := _direct_statements(plan, config)) is None:
+            automation = _automation_from_plan(plan, args, config)
+            body = [f"{parent_ref(automation)}->trigger({_arg_names(args)});"]
+        define(body)
+
+    return cg.RawExpression(name), build
+
+
 async def build_trigger_callback(
     args: TemplateArgsType,
     config: ConfigType,
@@ -2147,11 +2296,13 @@ async def build_trigger_callback(
     forward: Sequence[str | Expression] | None = None,
     when: str | ApplyCall | None = None,
     parent: MockObj | None = None,
-) -> LambdaExpression:
-    """Build ``config`` and return a stateless callback that runs its actions.
+) -> MockObj:
+    """Build ``config`` and return a static function to register as the callback.
 
-    An automation that is all inline actions becomes a function the callback calls, with no
-    Automation or action objects; otherwise the callback triggers an Automation.
+    An automation that is all inline actions becomes a function with no Automation or action
+    objects, registered itself when the callback passes its arguments unchanged; otherwise the
+    function triggers an Automation. A function pointer, unlike a lambda per site, shares one
+    ``Callback::create`` per signature, so ``setup()`` needs no stack slot per registration.
 
     ``params`` are the parent callback's parameters, ``forward`` the expressions passed to
     the actions (default: the parameter names; write the parent as ``parent_ref(var)``),
@@ -2172,9 +2323,8 @@ async def _trigger_callback(
     forward: Sequence[str | Expression] | None,
     call: ApplyCall | None,
     parent: MockObj | None,
-) -> LambdaExpression:
-    if (target := _direct_function(plan, args, config)) is None:
-        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
+) -> MockObj:
+    target = _call_target(plan, args, config)
     statements: list[str] = []
     if call is not None:
         members = call.members
@@ -2192,11 +2342,19 @@ async def _trigger_callback(
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
+        if _is_direct(plan, config) and not statements and _same_types(params, args):
+            return target
         forward = [name for _, name in params]
     statements.append(f"{target}({', '.join(map(str, forward))});")
-    return LambdaExpression(
-        ["\n".join(statements)], _apply_params(params), capture="", return_type=cg.void
+    return apply_static_function(
+        config[CONF_AUTOMATION_ID], cg.void, _apply_params(params), statements
     )
+
+
+def _same_types(params: TemplateArgsType, args: TemplateArgsType) -> bool:
+    return [str(cg.safe_exp(t)) for t, _ in params] == [
+        str(cg.safe_exp(t)) for t, _ in args
+    ]
 
 
 async def build_callback_automation(
@@ -2219,11 +2377,11 @@ async def build_callback_automation(
     pointer-sized (single Automation* field) to fit inline in Callback::ctx_
     and avoid heap allocation.
 
-    With ``params``, ``forward`` or ``when`` the callback is instead the stateless
-    lambda of ``build_trigger_callback``. An automation that is all inline actions needs
-    no objects and is called directly, so it also takes that lambda when no filter is
-    given. A ``forwarder`` given with them is used when the automation does need objects;
-    they must then describe the same filter. A ``forwarder`` alone keeps its objects.
+    With ``params``, ``forward`` or ``when`` the callback is instead the static function
+    of ``build_trigger_callback``. An automation that is all inline actions needs no
+    objects, so it also takes that function when no filter is given. A ``forwarder`` given
+    with them is used when the automation does need objects; they must then describe the
+    same filter. A ``forwarder`` alone keeps its objects.
 
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").

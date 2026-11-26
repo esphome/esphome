@@ -197,8 +197,9 @@ uint8_t SoftwareI2CBus::read_byte_(bool ack) {
   return data;
 }
 
-ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
-                                      uint8_t *read_buffer, size_t read_count) {
+ErrorCode SoftwareI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len,
+                                    const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                                    size_t read_count) {
   if (!this->initialized_) {
     ESP_LOGD(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
@@ -209,25 +210,28 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
   }
   this->bus_stuck_ = false;
 
+  if (prefix_len != 0)
+    ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
   ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
 
   this->timed_out_ = false;
   ErrorCode err = ERROR_OK;
   this->start_();
   // An empty transfer only addresses the device (used by the bus scan)
-  if (write_count != 0 || read_count == 0) {
+  const size_t total = prefix_len + write_count;
+  if (total != 0 || read_count == 0) {
     if (!this->write_byte_(address << 1)) {
       err = ERROR_NOT_ACKNOWLEDGED;
     }
-    for (size_t i = 0; err == ERROR_OK && i < write_count; i++) {
-      if (!this->write_byte_(write_buffer[i])) {
+    for (size_t i = 0; err == ERROR_OK && i < total; i++) {
+      if (!this->write_byte_(i < prefix_len ? prefix[i] : write_buffer[i - prefix_len])) {
         ESP_LOGVV(TAG, "TX of byte %u to 0x%02X not acknowledged", (unsigned) i, address);
         err = ERROR_NOT_ACKNOWLEDGED;
       }
     }
   }
   if (err == ERROR_OK && read_count != 0) {
-    if (write_count != 0) {
+    if (total != 0) {
       this->start_();  // repeated start
     }
     if (!this->write_byte_((address << 1) | 1)) {

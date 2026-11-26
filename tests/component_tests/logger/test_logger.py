@@ -1,14 +1,18 @@
 """Tests for the logger component."""
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 import re
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from esphome.components.logger import (
+    CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     _validate_libretiny_uart_pins,
+    request_tag_log_level,
     validate_task_log_buffer_alignment,
 )
 from esphome.config_validation import Invalid
@@ -66,38 +70,6 @@ def test_logger_pre_setup_before_other_components(generate_main):
             f"Component allocation '{alloc.group()}' at position {alloc.start()} "
             f"appears before logger pre_setup() at position {logger_pre_setup.start()}"
         )
-
-
-def test_default_uart_selection_is_not_emitted(generate_main):
-    """UART0 is the C++ initializer on ESP8266, so the setter is skipped."""
-    main_cpp = generate_main("tests/component_tests/logger/test_logger.yaml")
-
-    assert "set_uart_selection(" not in main_cpp
-
-
-def test_custom_uart_selection_is_emitted(generate_main):
-    """A non default UART still reaches the setter before pre_setup()."""
-    main_cpp = generate_main("tests/component_tests/logger/test_logger_uart1.yaml")
-
-    assert "set_uart_selection(logger::UART_SELECTION_UART1);" in main_cpp
-
-
-def test_libretiny_default_uart_selection_is_not_emitted(generate_main):
-    """DEFAULT is the C++ initializer on LibreTiny, so the setter is skipped."""
-    main_cpp = generate_main(
-        "tests/component_tests/logger/test_logger_libretiny_default.yaml"
-    )
-
-    assert "set_uart_selection(" not in main_cpp
-
-
-def test_libretiny_uart0_is_emitted(generate_main):
-    """UART0 is not the LibreTiny initializer, so it must still be set."""
-    main_cpp = generate_main(
-        "tests/component_tests/logger/test_logger_libretiny_uart0.yaml"
-    )
-
-    assert "set_uart_selection(logger::UART_SELECTION_UART0);" in main_cpp
 
 
 def test_ram_log_strings_is_deprecated(
@@ -168,23 +140,87 @@ def test_log_v2_only_on_native_toolchain(
 
 
 @pytest.mark.parametrize(
-    ("config", "usb_cdc"),
+    ("config", "port", "zephyr_cdc_loop"),
     [
-        pytest.param("test_logger_rp2_usb_cdc.yaml", True, id="usb_cdc"),
-        pytest.param("test_logger_rp2_uart0.yaml", False, id="uart0"),
+        pytest.param("test_logger.yaml", "UART0", False, id="esp8266_default"),
+        pytest.param("test_logger_uart1.yaml", "UART1", False, id="esp8266_uart1"),
+        pytest.param(
+            "test_logger_uart0_swap.yaml", "UART0_SWAP", False, id="esp8266_uart0_swap"
+        ),
+        pytest.param(
+            "test_logger_libretiny_default.yaml",
+            "DEFAULT",
+            False,
+            id="libretiny_default",
+        ),
+        pytest.param(
+            "test_logger_libretiny_uart0.yaml", "UART0", False, id="libretiny_uart0"
+        ),
+        pytest.param(
+            "test_logger_rp2_usb_cdc.yaml", "USB_CDC", False, id="rp2_usb_cdc"
+        ),
+        pytest.param("test_logger_rp2_uart0.yaml", "UART0", False, id="rp2_uart0"),
+        pytest.param(
+            "test_logger_esp32_usb_cdc.yaml", "USB_CDC", False, id="esp32_usb_cdc"
+        ),
+        pytest.param(
+            "test_logger_esp32_usb_serial_jtag.yaml",
+            "USB_SERIAL_JTAG",
+            False,
+            id="esp32_usb_serial_jtag",
+        ),
+        pytest.param(
+            "test_logger_nrf52_usb_cdc.yaml", "USB_CDC", True, id="nrf52_usb_cdc"
+        ),
+        # Zephyr polls the USB port only when it logs there
+        pytest.param(
+            "test_logger_nrf52_usb_cdc_no_serial.yaml",
+            "USB_CDC",
+            False,
+            id="nrf52_no_serial",
+        ),
     ],
 )
-def test_rp2_usb_cdc_selection_define(
+def test_uart_selection_defines(
     generate_main: Callable[[str | Path], str],
     config: str,
-    usb_cdc: bool,
+    port: str,
+    zephyr_cdc_loop: bool,
 ) -> None:
-    """The USB CDC crash replay only compiles in when the logger uses USB CDC."""
+    """The chosen port is fixed at build time: one flag, its enum value and its dump_config name."""
     generate_main(f"tests/component_tests/logger/{config}")
 
+    defines = {d.name: d.value for d in CORE.defines}
+    prefix = "USE_LOGGER_UART_SELECTION_"
+    assert {d.removeprefix(prefix) for d in defines if d.startswith(prefix)} == {port}
     assert (
-        "USE_LOGGER_UART_SELECTION_USB_CDC" in {d.name for d in CORE.defines}
-    ) is usb_cdc
+        str(defines["ESPHOME_LOGGER_UART_SELECTION"])
+        == f"logger::UART_SELECTION_{port}"
+    )
+    assert str(defines["ESPHOME_LOGGER_UART_NAME"]) == f'"{port}"'
+    assert ("USE_LOGGER_ZEPHYR_CDC_LOOP" in defines) is zephyr_cdc_loop
+
+
+def test_esp8266_without_serial_dumps_no_port(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """ESP8266 without serial logging keeps UART0 selected but never opens it."""
+    generate_main("tests/component_tests/logger/test_logger_no_serial.yaml")
+
+    defines = {d.name: d.value for d in CORE.defines}
+    assert "USE_LOGGER_UART_SELECTION_UART0" in defines
+    assert str(defines["ESPHOME_LOGGER_UART_NAME"]) == '"NONE"'
+
+
+def test_log_listener_slots_count_every_listener(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Two on_message triggers and the API each take a slot."""
+    generate_main("tests/component_tests/logger/test_logger_listeners.yaml")
+
+    assert (
+        str({d.name: d.value for d in CORE.defines}["ESPHOME_LOG_MAX_LISTENERS"]) == "3"
+    )
 
 
 @pytest.mark.parametrize(
@@ -261,3 +297,108 @@ def test_final_validate_checks_libretiny_uart_pins(
     else:
         with pytest.raises(Invalid, match="no default pins for UART1"):
             FINAL_VALIDATE_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("buffer_size", "level", "expected"),
+    [
+        (0, "NONE", "NONE"),
+        (512, "ERROR", "ERROR"),
+        (512, "WARN", "WARN"),
+        (0, "INFO", "WARN"),
+    ],
+)
+def test_implicit_boot_log_level_respects_global_level(
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    expected: str,
+) -> None:
+    """The full schema supplies a usable default even when logging is disabled."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = CONFIG_SCHEMA({"level": level, "boot_log_buffer_size": buffer_size})
+    assert config["boot_log_level"] == expected
+
+
+@pytest.mark.parametrize(
+    ("buffer_size", "level", "boot_level", "valid"),
+    [
+        (0, "NONE", "NONE", True),
+        (512, "DEBUG", "INFO", True),
+        (0, "ERROR", "WARN", False),
+        (512, "WARN", "INFO", False),
+    ],
+)
+def test_explicit_boot_log_level_is_preserved_or_rejected(
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    boot_level: str,
+    valid: bool,
+) -> None:
+    """An explicit level must still fit within the compiled global level."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = {
+        "level": level,
+        "boot_log_level": boot_level,
+        "boot_log_buffer_size": buffer_size,
+    }
+    if valid:
+        assert CONFIG_SCHEMA(config)["boot_log_level"] == boot_level
+    else:
+        with pytest.raises(Invalid, match="boot log level"):
+            CONFIG_SCHEMA(config)
+
+
+def test_default_global_and_boot_log_levels(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Omitting both options retains DEBUG logging and WARN boot capture."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = CONFIG_SCHEMA({})
+    assert config["level"] == "DEBUG"
+    assert config["boot_log_level"] == "WARN"
+
+
+@pytest.mark.parametrize(
+    ("logger_config", "expected"),
+    [
+        pytest.param({"level": "DEBUG", "logs": {}}, "WARN", id="not_set_by_user"),
+        pytest.param(
+            {"level": "DEBUG", "logs": {"lib": "DEBUG"}}, None, id="set_by_user"
+        ),
+        pytest.param(
+            {"level": "WARN", "logs": {}}, None, id="logger_level_already_drops_it"
+        ),
+        pytest.param(
+            {"level": "DEBUG", "initial_level": "ERROR", "logs": {}},
+            "ERROR",
+            id="capped_at_initial_level",
+        ),
+        pytest.param(None, None, id="no_logger"),
+    ],
+)
+def test_request_tag_log_level(
+    logger_config: dict | None, expected: str | None
+) -> None:
+    """A requested tag level is set unless the user sets the tag or the logger level drops it."""
+    CORE.config = (
+        {} if logger_config is None else {"logger": {"id": "log", **logger_config}}
+    )
+    log = MagicMock()
+    with (
+        patch("esphome.components.logger.cg.get_variable", AsyncMock(return_value=log)),
+        patch("esphome.components.logger.cg.add") as add,
+        patch("esphome.components.logger.cg.add_define") as add_define,
+    ):
+        asyncio.run(request_tag_log_level("lib", "WARN"))
+    if expected is None:
+        add.assert_not_called()
+        add_define.assert_not_called()
+        return
+    add_define.assert_called_once_with("USE_LOGGER_RUNTIME_TAG_LEVELS")
+    log.set_log_level.assert_called_once()
+    tag, level = log.set_log_level.call_args.args
+    assert tag == "lib"
+    # MockObj's == builds a C++ expression, so compare the text
+    assert str(level) == f"ESPHOME_LOG_LEVEL_{expected}"

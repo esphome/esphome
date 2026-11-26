@@ -81,6 +81,12 @@ def test_as7341_rejects_as7343_only_band(
             {"type": "AS7341", "atime": 255, "astep": 65534, "update_interval": "100s"},
             None,
         ),
+        # about 100 ms with the default exposure
+        ({"type": "AS7341", "update_interval": "150ms"}, None),
+        (
+            {"type": "AS7341", "update_interval": "50ms"},
+            "longer than the update_interval",
+        ),
     ],
 )
 def test_exposure_bound(

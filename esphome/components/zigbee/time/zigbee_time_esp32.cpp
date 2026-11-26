@@ -25,6 +25,8 @@ void ZigbeeTime::setup() {
 }
 
 void ZigbeeTime::register_zb_time_() {
+  if (this->registered_)
+    return;
   ezb_zcl_time_interface_t time_interface = {
       .get_utc_time = esphome::zigbee::ZigbeeTime::get_utc_time,
       .set_utc_time = esphome::zigbee::ZigbeeTime::set_utc_time,

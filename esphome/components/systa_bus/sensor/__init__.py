@@ -1,16 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_MODEL,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_PERCENT,
-    ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_ID, CONF_MODEL, ICON_PERCENT, ICON_THERMOMETER
 from esphome.types import ConfigType
 
 from .. import (
@@ -21,7 +12,7 @@ from .. import (
     systa_bus_ns,
 )
 
-SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
+SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor")
 
 CONF_TEMPERATURE_TSA = "temperature_tsa"
 CONF_TEMPERATURE_TSE = "temperature_tse"
@@ -30,18 +21,9 @@ CONF_TEMPERATURE_TW2 = "temperature_tw2"
 CONF_PUMP_SPEED = "pump_speed"
 
 _TEMPERATURE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    icon=ICON_THERMOMETER,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
 )
-_PUMP_SPEED_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
-    icon=ICON_PERCENT,
-    accuracy_decimals=0,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_PUMP_SPEED_SCHEMA = sensor.sensor_schema(kind=sensor.PERCENT, icon=ICON_PERCENT)
 
 # Sensors per model, keyed by config key
 MODEL_SENSORS = {
@@ -56,7 +38,7 @@ MODEL_SENSORS = {
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_SYSTASOLAR_AQUA: cv.COMPONENT_SCHEMA.extend(
+        CONF_SYSTASOLAR_AQUA: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(SystaSolarAquaSensor),
                 cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
@@ -75,7 +57,6 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
 
     # The schema only lets a model's own keys through, so unconfigured ones are skipped here
     sensors = sensor.sub_sensors(config)
