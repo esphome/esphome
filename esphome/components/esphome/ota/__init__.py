@@ -16,7 +16,9 @@ from esphome.components.ota import (
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_DELTA,
     CONF_API,
+    CONF_DELTA_BASE,
     CONF_ENCRYPTION,
     CONF_ESPHOME,
     CONF_ID,
@@ -130,6 +132,8 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(
                     merged_ota_esphome_configs_by_port[conf_port], ota_conf
                 )
+            if ota_conf.get(CONF_ALLOW_DELTA) and not CORE.is_esp32:
+                raise cv.Invalid(f"{CONF_ALLOW_DELTA} is only supported on the esp32")
             if ota_conf.get(CONF_ALLOW_PARTITION_ACCESS) and not CORE.is_esp32:
                 raise cv.Invalid(
                     f"{CONF_ALLOW_PARTITION_ACCESS} is only supported on the esp32"
@@ -332,6 +336,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
             cv.SplitDefault(CONF_PORT, **DEFAULT_OTA_PORTS): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
+            cv.Optional(CONF_ALLOW_DELTA): cv.boolean,
+            cv.Optional(CONF_DELTA_BASE): cv.string,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_ENCRYPTION): _encryption_schema,
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
@@ -388,6 +394,12 @@ async def to_code(config: ConfigType) -> None:
 
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
+
+    if config.get(CONF_ALLOW_DELTA):
+        from esphome.components import esp32
+
+        cg.add_define("USE_OTA_DELTA")
+        esp32.add_idf_component(name="espressif/esp_delta_ota", ref="1.1.4")
 
     # ESP8266 and RP2040 inflate gzip at reboot; the rest inflate on the fly
     if not (CORE.is_esp8266 or CORE.is_rp2):

@@ -2181,3 +2181,122 @@ def test_run_ota_impl_resolve_failure_hint(
     assert "Is it connected to WiFi?" in caplog.text
     assert ("try --device <IP>" in caplog.text) is expect_device_hint
     assert "static IP address" in caplog.text
+
+
+def _delta_patch(new_image: bytes) -> bytes:
+    """A delta patch header (magic, base SHA-256, new image MD5) and a stand-in body."""
+    from esphome import delta_patch
+
+    header = bytearray(delta_patch.HEADER_SIZE)
+    header[0:4] = delta_patch.DELTA_MAGIC.to_bytes(4, "little")
+    header[delta_patch.NEW_MD5_OFFSET : delta_patch.NEW_MD5_OFFSET + 16] = hashlib.md5(
+        new_image
+    ).digest()
+    return bytes(header) + b"patch body" * 50
+
+
+@pytest.mark.usefixtures("mock_time")
+@pytest.mark.parametrize(
+    "extra_features",
+    [0, espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION],
+    ids=["uncompressed", "compressed"],
+)
+def test_perform_ota_delta_sends_type_and_rebuilt_image_md5(
+    mock_socket: Mock, extra_features: int
+) -> None:
+    """A delta upload sends type 0x03 and the MD5 of the image the device rebuilds, not of the patch."""
+    new_image = b"the new firmware image" * 10
+    patch_bytes = _delta_patch(new_image)
+    mock_socket.recv.side_effect = [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([espota2.SERVER_FEATURE_SUPPORTS_DELTA | extra_features]),
+        bytes([espota2.RESPONSE_AUTH_OK]),
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),
+        bytes([espota2.RESPONSE_CHUNK_OK]),
+        bytes([espota2.RESPONSE_RECEIVE_OK]),
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),
+    ]
+
+    espota2.perform_ota(
+        mock_socket,
+        None,
+        io.BytesIO(patch_bytes),
+        "firmware.delta.bin",
+        espota2.OTA_TYPE_UPDATE_APP_DELTA,
+    )
+
+    sent = [c.args[0] for c in mock_socket.sendall.call_args_list]
+    assert sent[2] == bytes([espota2.OTA_TYPE_UPDATE_APP_DELTA])
+    assert hashlib.md5(new_image).hexdigest().encode() in sent
+    assert hashlib.md5(patch_bytes).hexdigest().encode() not in sent
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_delta_needs_device_support(mock_socket: Mock) -> None:
+    """A device built without allow_delta is refused before anything is sent after the handshake."""
+    mock_socket.recv.side_effect = [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION]),
+    ]
+
+    with pytest.raises(espota2.OTADeltaRefused, match="allow_delta"):
+        espota2.perform_ota(
+            mock_socket,
+            None,
+            io.BytesIO(_delta_patch(b"image")),
+            "firmware.delta.bin",
+            espota2.OTA_TYPE_UPDATE_APP_DELTA,
+        )
+    assert bytes([espota2.OTA_TYPE_UPDATE_APP_DELTA]) not in [
+        c.args[0] for c in mock_socket.sendall.call_args_list
+    ]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [espota2.RESPONSE_ERROR_DELTA_BASE_MISMATCH, espota2.RESPONSE_ERROR_DELTA_PATCH],
+)
+def test_check_error_delta_refusal(code: int) -> None:
+    """A refused patch is its own error, so the uploader can send the full image instead."""
+    with pytest.raises(espota2.OTADeltaRefused):
+        espota2.check_error([code], [espota2.RESPONSE_OK])
+
+
+def test_run_ota_passes_delta_refusal_through(
+    mock_run_ota_impl: Mock, tmp_path: Path
+) -> None:
+    mock_run_ota_impl.side_effect = espota2.OTADeltaRefused("refused")
+    with pytest.raises(espota2.OTADeltaRefused):
+        espota2.run_ota(
+            "192.168.1.100",
+            3232,
+            None,
+            tmp_path / "x.delta.bin",
+            espota2.OTA_TYPE_UPDATE_APP_DELTA,
+        )
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_run_ota_impl_delta_refusal_not_retried(
+    mock_socket_constructor: Mock,
+    mock_resolve_ip: Mock,
+    mock_perform_ota: Mock,
+    tmp_path: Path,
+) -> None:
+    patch_file = tmp_path / "x.delta.bin"
+    patch_file.write_bytes(b"patch")
+    mock_perform_ota.side_effect = espota2.OTADeltaRefused("refused")
+    with pytest.raises(espota2.OTADeltaRefused):
+        espota2.run_ota_impl_(
+            "192.168.1.100",
+            3232,
+            None,
+            patch_file,
+            espota2.OTA_TYPE_UPDATE_APP_DELTA,
+        )
+    assert mock_perform_ota.call_count == 1

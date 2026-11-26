@@ -25,7 +25,11 @@ struct TaskResult {
   const char *source_url{nullptr};  // the URL this check reads, fixed before it starts
   update::UpdateInfo info;
   const LogString *error_str{nullptr};  // set on failure, nullptr on success
-  bool owns_source_url{false};          // the check holds the buffer until it ends, see begin_check_()
+#ifdef USE_OTA_DELTA
+  std::string delta_url;
+  std::string delta_md5;
+#endif
+  bool owns_source_url{false};  // the check holds the buffer until it ends, see begin_check_()
 };
 
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
@@ -65,6 +69,10 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
   uint8_t initial_check_remaining_{0};
+#ifdef USE_OTA_DELTA
+  std::string delta_url_;
+  std::string delta_md5_;
+#endif
 
  private:
   friend class testing::HttpRequestUpdateTest;

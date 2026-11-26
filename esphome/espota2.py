@@ -43,6 +43,7 @@ DEFAULT_OTA_PORTS: dict[str, int] = {
 OTA_TYPE_UPDATE_APP = 0x00
 OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
 OTA_TYPE_UPDATE_BOOTLOADER = 0x02
+OTA_TYPE_UPDATE_APP_DELTA = 0x03
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
@@ -80,6 +81,8 @@ RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
 RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94
 RESPONSE_ERROR_UPDATE_BUSY = 0x95
+RESPONSE_ERROR_DELTA_BASE_MISMATCH = 0x96
+RESPONSE_ERROR_DELTA_PATCH = 0x97
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -99,6 +102,7 @@ SERVER_FEATURE_SUPPORTS_NOISE = 0x04
 # Binding once offered: the device then expects the image size and a deflate stream
 SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
 SERVER_FEATURE_SUPPORTS_UDP = 0x10
+SERVER_FEATURE_SUPPORTS_DELTA = 0x20
 
 # Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
 DEFLATE_WINDOW_BITS = 12
@@ -144,7 +148,12 @@ NOISE_PROLOGUE_INIT = b"NoiseOTAInit"
 # updates extend this set. Anything outside the set is rejected up front so callers
 # of perform_ota/run_ota get a clear error instead of a post-auth 0x8E from the device.
 _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
-    {OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE, OTA_TYPE_UPDATE_BOOTLOADER}
+    {
+        OTA_TYPE_UPDATE_APP,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+        OTA_TYPE_UPDATE_BOOTLOADER,
+        OTA_TYPE_UPDATE_APP_DELTA,
+    }
 )
 
 UPLOAD_BLOCK_SIZE = 8192
@@ -307,6 +316,13 @@ _ERROR_MESSAGES: dict[int, str] = {
         "uploading without one, or update your esphome installation if it "
         "predates OTA encryption."
     ),
+    RESPONSE_ERROR_DELTA_BASE_MISMATCH: (
+        "The delta patch was made for another firmware than the one the device runs. "
+        "Upload the full image, or make the patch from the firmware the device runs."
+    ),
+    RESPONSE_ERROR_DELTA_PATCH: (
+        "The device could not apply the delta patch. Nothing was switched; upload the full image."
+    ),
     RESPONSE_ERROR_UPDATE_BUSY: (
         "The device is busy with another update that writes to its flash. "
         "Wait for it to finish, then retry."
@@ -317,6 +333,10 @@ _ERROR_MESSAGES: dict[int, str] = {
 
 class OTAError(EsphomeError):
     pass
+
+
+class OTADeltaRefused(OTAError):
+    """The device cannot take this delta patch; the full image can still be sent."""
 
 
 class OTANetworkError(OTAError):
@@ -547,6 +567,8 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
         )
     dat = data[0]
     error_msg = _ERROR_MESSAGES.get(dat)
+    if dat in (RESPONSE_ERROR_DELTA_BASE_MISMATCH, RESPONSE_ERROR_DELTA_PATCH):
+        raise OTADeltaRefused(error_msg)
     if error_msg is not None:
         raise OTAError(error_msg)
     if expect is None:
@@ -1171,7 +1193,13 @@ def perform_ota(
     if isinstance(sock, NoiseSocketWrapper):
         _LOGGER.info("Encrypted connection established")
 
-    if ota_type != OTA_TYPE_UPDATE_APP:
+    if ota_type == OTA_TYPE_UPDATE_APP_DELTA:
+        if not (extended_proto and features & SERVER_FEATURE_SUPPORTS_DELTA):
+            raise OTADeltaRefused(
+                "The running firmware was built without 'allow_delta: true', so --delta-from "
+                "cannot be used. Upload the full image once with the option enabled."
+            )
+    elif ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
         # partition-access server feature. Reject up front so the user gets
         # a clear capability error instead of a post-auth 0x8E from the device.
@@ -1293,6 +1321,10 @@ def perform_ota(
         upload_md5 = hashlib.md5(
             file_contents if deflate else upload_contents
         ).hexdigest()
+        if ota_type == OTA_TYPE_UPDATE_APP_DELTA:
+            from esphome.delta_patch import new_image_md5
+
+            upload_md5 = new_image_md5(file_contents)
         _LOGGER.debug("MD5 of upload is %s", upload_md5)
 
         send_check(sock, upload_md5, "file checksum")
@@ -1661,6 +1693,8 @@ def run_ota_impl_(
                         f"The device rejected both 'key' and '{CONF_OLD_KEY}'"
                     ) from err
                 raise
+            except OTADeltaRefused:
+                raise
             except OTAHandshakeNetworkError as err:
                 last_error = str(err)
                 prefer_udp = True
@@ -1726,6 +1760,8 @@ def run_ota(
             old_noise_psk,
             on_upload_start,
         )
+    except OTADeltaRefused:
+        raise
     except OTAError as err:
         _LOGGER.error(err)
         return 1, None

@@ -1,12 +1,18 @@
 #include "http_request_update.h"
 
 #include <cstring>
+#include <strings.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
+
+#ifdef USE_OTA_DELTA
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
+#endif
 
 namespace esphome::http_request {
 
@@ -25,6 +31,40 @@ namespace esphome::http_request {
 ESPHOME_LOG_TAG(TAG, "http_request.update");
 
 static const size_t MAX_READ_SIZE = 256;
+
+static void merge_url(std::string &path, const char *source) {
+  if (path.empty() || strncasecmp(path.c_str(), "http://", 7) == 0 || strncasecmp(path.c_str(), "https://", 8) == 0)
+    return;
+  const size_t source_len = strlen(source);
+  size_t prefix_len;
+  if (path[0] == '/') {
+    // scheme and host, up to the first slash after "https://"
+    const char *host_end = source_len > 8 ? strchr(source + 8, '/') : nullptr;
+    prefix_len = host_end != nullptr ? host_end - source : source_len;
+  } else {
+    // directory of the manifest, up to and including its last slash
+    const char *dir_end = strrchr(source, '/');
+    prefix_len = dir_end != nullptr ? dir_end - source + 1 : 0;
+  }
+  path.insert(0, source, prefix_len);
+}
+
+#ifdef USE_OTA_DELTA
+static bool running_sha256(char (&out)[65]) {
+  static Mutex lock;
+  static char hex[65] = {0};
+  LockGuard guard(lock);
+  if (hex[0] == 0) {
+    uint8_t sha[32];
+    if (esp_partition_get_sha256(esp_ota_get_running_partition(), sha) != ESP_OK)
+      return false;
+    for (int i = 0; i < 32; i++)
+      snprintf(hex + 2 * i, 3, "%02x", sha[i]);
+  }
+  memcpy(out, hex, sizeof(hex));
+  return true;
+}
+#endif
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
 static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
@@ -168,7 +208,8 @@ void HttpRequestUpdate::update_task(void *params) {
 
     bool valid = false;
     {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
-      valid = json::parse_json(data, read_index, [info](JsonObject root) -> bool {
+      valid = json::parse_json(data, read_index, [result](JsonObject root) -> bool {
+        auto *info = &result->info;
         if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
             !root[ESPHOME_F("builds")].is<JsonArray>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
@@ -200,6 +241,21 @@ void HttpRequestUpdate::update_task(void *params) {
               info->summary = ota[ESPHOME_F("summary")].as<std::string>();
             if (ota[ESPHOME_F("release_url")].is<const char *>())
               info->release_url = ota[ESPHOME_F("release_url")].as<std::string>();
+#ifdef USE_OTA_DELTA
+            if (ota[ESPHOME_F("delta")].is<JsonArray>()) {
+              char running[65];
+              const bool have_running = running_sha256(running);
+              for (JsonObject d : ota[ESPHOME_F("delta")].as<JsonArray>()) {
+                if (have_running && d[ESPHOME_F("from_sha256")].is<const char *>() &&
+                    d[ESPHOME_F("path")].is<const char *>() && d[ESPHOME_F("md5")].is<const char *>() &&
+                    strcasecmp(d[ESPHOME_F("from_sha256")].as<const char *>(), running) == 0) {
+                  result->delta_url = d[ESPHOME_F("path")].as<std::string>();
+                  result->delta_md5 = d[ESPHOME_F("md5")].as<std::string>();
+                  break;
+                }
+              }
+            }
+#endif
 
             return true;
           }
@@ -216,21 +272,10 @@ void HttpRequestUpdate::update_task(void *params) {
     }
 
     // Merge source_url_ and firmware_url
-    if (!info->firmware_url.empty() && info->firmware_url.find("http") == std::string::npos) {
-      const char *source = source_url;
-      const size_t source_len = strlen(source);
-      size_t prefix_len;
-      if (info->firmware_url[0] == '/') {
-        // scheme and host, up to the first slash after "https://"
-        const char *host_end = source_len > 8 ? strchr(source + 8, '/') : nullptr;
-        prefix_len = host_end != nullptr ? host_end - source : source_len;
-      } else {
-        // directory of the manifest, up to and including its last slash
-        const char *dir_end = strrchr(source, '/');
-        prefix_len = dir_end != nullptr ? dir_end - source + 1 : 0;
-      }
-      info->firmware_url.insert(0, source, prefix_len);
-    }
+    merge_url(info->firmware_url, source_url);
+#ifdef USE_OTA_DELTA
+    merge_url(result->delta_url, source_url);
+#endif
 
 #ifdef ESPHOME_PROJECT_VERSION
     info->current_version = ESPHOME_PROJECT_VERSION;
@@ -271,6 +316,10 @@ defer:
     }
 
     this_update->update_info_ = std::move(result->info);
+#ifdef USE_OTA_DELTA
+    this_update->delta_url_ = std::move(result->delta_url);
+    this_update->delta_md5_ = std::move(result->delta_md5);
+#endif
     this_update->state_ = new_state;
     delete result;  // Safe: moved-from state is valid for destruction
 
@@ -295,6 +344,12 @@ void HttpRequestUpdate::perform(bool force) {
 
   this->ota_parent_->set_md5(this->update_info.md5);
   this->ota_parent_->set_url(this->update_info.firmware_url);
+#ifdef USE_OTA_DELTA
+  this->ota_parent_->set_delta(this->delta_url_, this->delta_md5_);
+  if (!this->delta_url_.empty()) {
+    ESP_LOGI(TAG, "A patch for the running firmware is available: %s", this->delta_url_.c_str());
+  }
+#endif
   // Flash in the next loop
   this->defer([this]() { this->ota_parent_->flash(); });
 }

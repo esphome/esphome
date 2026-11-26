@@ -52,7 +52,19 @@ void OtaHttpRequestComponent::flash() {
   this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-  auto ota_status = this->do_ota_();
+  uint8_t ota_status = ota::OTA_RESPONSE_ERROR_UNKNOWN;
+#ifdef USE_OTA_DELTA
+  if (!this->request_->delta_url.empty() && this->validate_url_(this->request_->delta_url)) {
+    ota_status = this->do_ota_(true);
+    if (ota_status != ota::OTA_RESPONSE_OK) {
+      ESP_LOGW(TAG, "Delta update failed (%u): downloading the full image", ota_status);
+    }
+  }
+  this->request_->delta_url.clear();
+  this->request_->delta_md5.clear();
+  if (ota_status != ota::OTA_RESPONSE_OK)
+#endif
+    ota_status = this->do_ota_();
 
   switch (ota_status) {
     case ota::OTA_RESPONSE_OK:
@@ -82,7 +94,7 @@ void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::sh
   container->end();
 };
 
-uint8_t OtaHttpRequestComponent::do_ota_() {
+uint8_t OtaHttpRequestComponent::do_ota_(bool delta) {
   uint8_t buf[OtaHttpRequestComponent::HTTP_RECV_BUFFER + 1];
   uint32_t last_progress = 0;
   uint32_t update_start_time = millis();
@@ -95,12 +107,17 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   ESP_LOGD(TAG, "MD5 expected: %s", this->request_->md5_expected.c_str());
 
-  auto url_with_auth = this->get_url_with_auth_(this->request_->url);
+  const std::string &url = delta ? this->request_->delta_url : this->request_->url;
+  const std::string &download_md5 = delta ? this->request_->delta_md5 : this->request_->md5_expected;
+  if (delta && (download_md5.size() != MD5_SIZE || this->request_->md5_expected.size() != MD5_SIZE)) {
+    return OTA_MD5_INVALID;
+  }
+  auto url_with_auth = this->get_url_with_auth_(url);
   if (url_with_auth.empty()) {
     return OTA_BAD_URL;
   }
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
-  ESP_LOGI(TAG, "Connecting to: %s", this->request_->url.c_str());
+  ESP_LOGI(TAG, "Connecting to: %s", url.c_str());
 
   auto container = this->parent_->get(url_with_auth);
 
@@ -114,7 +131,12 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   md5_receive.init();
   ESP_LOGV(TAG, "MD5Digest initialized, OTA backend begin");
   auto backend = ota::make_ota_backend();
+#ifdef USE_OTA_DELTA
+  auto error_code =
+      backend->begin(container->content_length, delta ? ota::OTA_TYPE_UPDATE_APP_DELTA : ota::OTA_TYPE_UPDATE_APP);
+#else
   auto error_code = backend->begin(container->content_length);
+#endif
   if (error_code != ota::OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "backend->begin error: %d", error_code);
     // Nothing to abort: begin() failed, so no OTA handle was opened
@@ -190,12 +212,12 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   md5_receive.calculate();
   md5_receive.get_hex(md5_receive_str);
   this->request_->md5_computed = md5_receive_str;
-  if (strncmp(this->request_->md5_computed.c_str(), this->request_->md5_expected.c_str(), MD5_SIZE) != 0) {
+  if (strncmp(this->request_->md5_computed.c_str(), download_md5.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->request_->md5_computed.c_str());
     this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
-    backend->set_update_md5(md5_receive_str);
+    backend->set_update_md5(delta ? this->request_->md5_expected.c_str() : md5_receive_str);
   }
 
   container->end();

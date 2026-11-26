@@ -126,8 +126,10 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.espota2 import (
     OTA_TYPE_UPDATE_APP,
+    OTA_TYPE_UPDATE_APP_DELTA,
     OTA_TYPE_UPDATE_BOOTLOADER,
     OTA_TYPE_UPDATE_PARTITION_TABLE,
+    OTADeltaRefused,
 )
 from esphome.platformio import toolchain
 from esphome.types import ConfigType
@@ -1559,6 +1561,7 @@ class MockArgs:
     prompt_ota_key: bool = False
     ota_key: str | None = None
     env_ota_key: str | None = None
+    delta_from: str | None = None
 
 
 # The keyword half of every run_ota call; a test overrides the one it is about
@@ -8835,3 +8838,354 @@ def test_run_esphome_warns_for_an_api_key_another_command_ignores(
         run_esphome(["esphome", "version"])
     assert "ESPHOME_API_KEY" not in os.environ
     assert "ESPHOME_API_KEY is set but the version command" in caplog.text
+
+
+def _esp32_firmware(tmp_path: Path) -> Path:
+    firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    firmware.parent.mkdir(parents=True, exist_ok=True)
+    firmware.write_bytes(b"new image")
+    return firmware
+
+
+def test_upload_program_delta_sends_a_patch_and_removes_it(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--delta-from sends the patch as type 0x03 and deletes the temporary patch afterwards."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    firmware = _esp32_firmware(tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    sent: dict[str, Any] = {}
+
+    def _run_ota(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        sent["path"] = args[3]
+        sent["bytes"] = args[3].read_bytes()
+        return 0, "192.168.1.100"
+
+    mock_run_ota.side_effect = _run_ota
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, "allow_delta": True}]
+    }
+    base = tmp_path / "base.bin"
+    with patch("esphome.delta_patch.make_patch", return_value=b"PATCH") as make:
+        exit_code, _ = upload_program(
+            config, MockArgs(delta_from=str(base)), ["192.168.1.100"]
+        )
+
+    assert exit_code == 0
+    make.assert_called_once_with(base, firmware)
+    assert mock_run_ota.call_args.args[4] == OTA_TYPE_UPDATE_APP_DELTA
+    assert sent["bytes"] == b"PATCH"
+    assert not sent["path"].exists()
+
+
+def test_upload_program_delta_removes_the_patch_when_the_upload_fails(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    _esp32_firmware(tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    paths: list[Path] = []
+
+    def _run_ota(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        paths.append(args[3])
+        raise EsphomeError("upload failed")
+
+    mock_run_ota.side_effect = _run_ota
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, "allow_delta": True}]
+    }
+    with (
+        patch("esphome.delta_patch.make_patch", return_value=b"PATCH"),
+        pytest.raises(EsphomeError, match="upload failed"),
+    ):
+        upload_program(config, MockArgs(delta_from="base.bin"), ["192.168.1.100"])
+
+    assert paths
+    assert not paths[0].exists()
+
+
+def test_upload_program_delta_needs_allow_delta(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    _esp32_firmware(tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+
+    with pytest.raises(EsphomeError, match="allow_delta: true"):
+        upload_program(config, MockArgs(delta_from="base.bin"), ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("platform", "port_type", "config"),
+    [
+        pytest.param(PLATFORM_ESP32, "SERIAL", {}, id="serial"),
+        pytest.param(
+            PLATFORM_ESP32,
+            "NETWORK",
+            {
+                CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+                CONF_WEB_SERVER: {CONF_PORT: 80},
+            },
+            id="web_server",
+        ),
+        pytest.param(
+            PLATFORM_BK72XX,
+            "NETWORK",
+            {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 8892}]},
+            id="not_esp32",
+        ),
+    ],
+)
+def test_upload_program_delta_refused_on_routes_without_it(
+    mock_run_ota: Mock,
+    mock_run_web_server_ota: Mock,
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    platform: str,
+    port_type: str,
+    config: ConfigType,
+) -> None:
+    """Routes that cannot send a patch refuse --delta-from instead of sending the full image."""
+    setup_core(platform=platform, tmp_path=tmp_path)
+    mock_get_port_type.return_value = port_type
+
+    with pytest.raises(EsphomeError, match="--delta-from works only"):
+        upload_program(config, MockArgs(delta_from="base.bin"), ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
+    mock_run_web_server_ota.assert_not_called()
+    mock_upload_using_esptool.assert_not_called()
+
+
+DELTA_CONFIG = {
+    CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, "allow_delta": True}]
+}
+
+
+def _saved_base(tmp_path: Path) -> Path:
+    return tmp_path / ".esphome" / "build" / "test" / "last-installed.ota.bin"
+
+
+def test_upload_program_delta_base_saved_after_a_full_upload(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """With allow_delta and no saved base, the full image goes and becomes the next base."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    firmware = _esp32_firmware(tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    with patch("esphome.delta_patch.make_patch") as make:
+        exit_code, _ = upload_program(DELTA_CONFIG, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    make.assert_not_called()
+    assert mock_run_ota.call_args.args[3] == firmware
+    assert mock_run_ota.call_args.args[4] == OTA_TYPE_UPDATE_APP
+    assert _saved_base(tmp_path).read_bytes() == b"new image"
+
+
+def test_upload_program_delta_base_used_automatically(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A saved base turns the next upload into a patch, and the new image replaces the base."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    firmware = _esp32_firmware(tmp_path)
+    _saved_base(tmp_path).write_bytes(b"old image")
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    with patch("esphome.delta_patch.make_patch", return_value=b"PATCH") as make:
+        exit_code, _ = upload_program(DELTA_CONFIG, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    make.assert_called_once_with(_saved_base(tmp_path), firmware)
+    assert mock_run_ota.call_count == 1
+    assert mock_run_ota.call_args.args[4] == OTA_TYPE_UPDATE_APP_DELTA
+    assert _saved_base(tmp_path).read_bytes() == b"new image"
+
+
+def test_upload_program_delta_refused_falls_back_to_the_full_image(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A device that refuses the patch made from the saved base gets the full image in the same run."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    firmware = _esp32_firmware(tmp_path)
+    _saved_base(tmp_path).write_bytes(b"old image")
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.side_effect = [
+        OTADeltaRefused("made for another firmware"),
+        (0, "192.168.1.100"),
+    ]
+
+    with patch("esphome.delta_patch.make_patch", return_value=b"PATCH"):
+        exit_code, _ = upload_program(DELTA_CONFIG, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    types = [c.args[4] for c in mock_run_ota.call_args_list]
+    assert types == [OTA_TYPE_UPDATE_APP_DELTA, OTA_TYPE_UPDATE_APP]
+    assert mock_run_ota.call_args.args[3] == firmware
+    assert _saved_base(tmp_path).read_bytes() == b"new image"
+
+
+def test_upload_program_delta_unusable_base_falls_back(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A saved base no patch can be made from (or no detools) means a full upload, not an error."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    _esp32_firmware(tmp_path)
+    _saved_base(tmp_path).write_bytes(b"not an image")
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    with patch("esphome.delta_patch.make_patch", side_effect=EsphomeError("bad base")):
+        exit_code, _ = upload_program(DELTA_CONFIG, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_ota.call_count == 1
+    assert mock_run_ota.call_args.args[4] == OTA_TYPE_UPDATE_APP
+
+
+def test_upload_program_delta_from_refused_does_not_fall_back(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A patch asked for with --delta-from fails instead of quietly sending the full image."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    _esp32_firmware(tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.side_effect = OTADeltaRefused("made for another firmware")
+
+    with patch("esphome.delta_patch.make_patch", return_value=b"PATCH"):
+        exit_code, _ = upload_program(
+            DELTA_CONFIG, MockArgs(delta_from="base.bin"), ["192.168.1.100"]
+        )
+
+    assert exit_code == 1
+    assert mock_run_ota.call_count == 1
+    assert not _saved_base(tmp_path).exists()
+
+
+def test_upload_program_delta_base_kept_when_the_upload_fails(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    _esp32_firmware(tmp_path)
+    _saved_base(tmp_path).write_bytes(b"old image")
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (1, None)
+
+    with patch("esphome.delta_patch.make_patch", return_value=b"PATCH"):
+        exit_code, _ = upload_program(DELTA_CONFIG, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 1
+    assert _saved_base(tmp_path).read_bytes() == b"old image"
+
+
+def test_upload_program_delta_base_option_sets_the_path(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """delta_base is relative to the configuration folder."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    _esp32_firmware(tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_delta": True,
+                "delta_base": "ota/kitchen.ota.bin",
+            }
+        ]
+    }
+
+    upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    saved = CORE.relative_config_path("ota/kitchen.ota.bin")
+    assert saved.read_bytes() == b"new image"
+    assert not _saved_base(tmp_path).exists()
+
+
+def test_upload_program_delta_from_bad_base_fails(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A --delta-from base no patch can be made from is an error, not a quiet full upload."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    _esp32_firmware(tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    with (
+        patch("esphome.delta_patch.make_patch", side_effect=EsphomeError("bad base")),
+        pytest.raises(EsphomeError, match="bad base"),
+    ):
+        upload_program(DELTA_CONFIG, MockArgs(delta_from="base.bin"), ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_delta_from_is_for_app_updates(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_delta": True,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True, delta_from="b")
+
+    with pytest.raises(EsphomeError, match="for app updates only"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_without_config_refuses_delta_from(
+    mock_run_ota: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Without the YAML there is no allow_delta to check, so --delta-from is refused."""
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "firmware.bin"
+    image.write_bytes(ESP32_IMAGE)
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome([*_upload_argv(image), "--delta-from", "base.bin"]) == 1
+    mock_run_ota.assert_not_called()
+    assert "--delta-from needs the device's YAML configuration" in caplog.text
