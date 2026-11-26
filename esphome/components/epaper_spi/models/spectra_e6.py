@@ -45,11 +45,9 @@ spectra_e6 = SpectraE6(
         # BTST1
         (0x05, 0x40, 0x1F, 0x1F, 0x2C,),
         # BTST2 value is display specific.
-        # The controller has a default which works but won't be optimal.
         # BTST3
         (0x08, 0x6F, 0x1F, 0x1F, 0x22,),
-        # PLL
-        (0x30, 0x08,),
+        # PLL value is display specific.
         # CDI
         (0x50, 0x3F,),
         # TCON
@@ -73,6 +71,9 @@ spectra_e6_3p6 = spectra_e6.extend(
     add_init_sequence=(
         # Values from Waveshare "3.6inch e-Paper (E)" example code (MIT license)
         # https://github.com/waveshareteam/e-Paper/blob/master/E-paper_Separate_Program/3.6inch_e-Paper_E
+        # PLL
+        (0x30, 0x08,),
+        # BTST2
         # Example code sends (0x06, 0x6F, 0x1F, 0x17, 0x17) during init,
         # then sends this command each time the screen is turned on.
         (0x06, 0x6F, 0x1F, 0x16, 0x29,),
@@ -91,6 +92,8 @@ spectra_e6_4 = spectra_e6.extend(
     add_init_sequence=(
         # Values from Waveshare "4inch e-Paper (E)" example code (MIT license)
         # https://github.com/waveshareteam/e-Paper/blob/master/E-paper_Separate_Program/4inch_e-Paper_E
+        # PLL
+        (0x30, 0x08,),
         # BTST2
         # Example code sends (0x06, 0x6F, 0x1F, 0x17, 0x17) during init,
         # then sends this command each time the screen is turned on.
@@ -110,6 +113,8 @@ spectra_e6_7p3 = spectra_e6.extend(
     add_init_sequence=(
         # Values from Waveshare "7.3inch e-Paper (E)" example code (MIT license)
         # https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_7in3e.c
+        # PLL
+        (0x30, 0x03,),
         # BTST2
         # Example code sets this command multiple times - during init, and again each time the screen is turned on.
         (0x06, 0x6F, 0x1F, 0x17, 0x49,),
