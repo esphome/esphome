@@ -1,0 +1,189 @@
+# Runs the race steps on the device, for a board whose API is too slow (a C6 under coexistence); include it with
+# race.yaml and wifi-drop.yaml. Each step waits until Thread has been up for 40 s with Wi-Fi connected; the step
+# counter survives reboots and starts again at 0 on a new build or a press of Auto Reset. Steps: 20 reboots, 3 Wi-Fi
+# drops, then the race modes and delays in RACE_STEPS.
+globals:
+  - id: auto_step
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: br_up
+    type: bool
+    initial_value: 'false'
+  - id: br_up_at
+    type: uint32_t
+    initial_value: '0'
+  - id: step_at
+    type: uint32_t
+    initial_value: '0'
+  # build time of the firmware that ran the steps: a new build starts again at step 0
+  - id: auto_build
+    type: uint32_t
+    restore_value: true
+    initial_value: '0'
+  # races that never fired, and the mode of a race armed before a reboot; both survive the mode 2 reboots
+  - id: not_fired
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: auto_armed
+    type: int
+    restore_value: true
+    initial_value: '0'
+  # resets that followed a fired race (other than the mode 2 reboot itself): the crashes this test looks for
+  - id: crashed
+    type: int
+    restore_value: true
+    initial_value: '0'
+  # resets other than a software reboot or power on while a race was armed but before it fired
+  - id: reset_armed
+    type: int
+    restore_value: true
+    initial_value: '0'
+  # reboot steps that came back with another reset reason (a shutdown watchdog or panic)
+  - id: bad_reboot
+    type: int
+    restore_value: true
+    initial_value: '0'
+  # resets during a plain Wi-Fi drop step (auto_armed -2 at boot)
+  - id: drop_reset
+    type: int
+    restore_value: true
+    initial_value: '0'
+logger:
+  on_message:
+    - level: INFO
+      then:
+        - lambda: |-
+            if (strstr(message, "Border routing started") != nullptr) {
+              id(br_up) = true;
+              id(br_up_at) = millis();
+            }
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          struct RaceStep { int mode, delay_ms; };
+          static constexpr int REBOOTS = 20, DROPS = 3;
+          static constexpr RaceStep RACE_STEPS[] = {{1, 0},   {1, 0},   {1, 50},  {1, 100}, {1, 200}, {1, 300}, {1, 500},
+                                                    {3, 0},   {3, 0},   {3, 0},   {2, 0},   {2, 50},  {2, 150}, {2, 300}};
+          static constexpr int STEPS = REBOOTS + DROPS + sizeof(RACE_STEPS) / sizeof(RACE_STEPS[0]);
+          const uint32_t now = App.get_loop_component_start_time();
+          const uint32_t build = (uint32_t) App.get_build_time();
+          if (id(auto_build) != build) {
+            id(auto_build) = build;
+            id(auto_step) = 0;
+            id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = id(drop_reset) = 0;
+            ESP_LOGI("hwt", "HWT auto new build, step counter reset");
+          }
+          // first tick after a boot with a race armed: only a mode 2 race reboots by software (safe_reboot)
+          static bool booted = true;
+          if (booted) {
+            booted = false;
+            const esp_reset_reason_t why = esp_reset_reason();
+            const uint32_t mark = race_rtc_fired;
+            if (id(auto_armed) == -1 && why != ESP_RST_SW) {  // a planned reboot step
+              ESP_LOGE("hwt", "HWT auto reboot step came back with reset reason %d", (int) why);
+              id(bad_reboot)++;
+            } else if (id(auto_armed) == -2) {  // a drop step never reboots
+              ESP_LOGE("hwt", "HWT auto wifi drop step came back with reset reason %d", (int) why);
+              id(drop_reset)++;
+            } else if (id(auto_armed) > 0 && !(id(auto_armed) == 2 && why == ESP_RST_SW && mark == RACE_RTC_REBOOT)) {
+              if (mark == RACE_RTC_FIRED || mark == RACE_RTC_REBOOT) {
+                ESP_LOGE("hwt", "HWT auto race mode %d fired, then reset reason %d", id(auto_armed), (int) why);
+                id(crashed)++;
+              } else if (why != ESP_RST_SW && why != ESP_RST_POWERON) {
+                // a panic or watchdog while armed, not a missed race
+                ESP_LOGE("hwt", "HWT auto race mode %d armed, reset reason %d before it fired", id(auto_armed),
+                         (int) why);
+                id(reset_armed)++;
+              } else {
+                ESP_LOGW("hwt", "HWT auto race mode %d not fired, reset reason %d", id(auto_armed), (int) why);
+                id(not_fired)++;
+              }
+            }
+            id(auto_armed) = 0;
+            // save the verdict before clearing its evidence, so a crash loop cannot lose it
+            crashed->update();
+            reset_armed->update();
+            bad_reboot->update();
+            drop_reset->update();
+            not_fired->update();
+            auto_armed->update();
+            global_preferences->sync();
+            race_rtc_fired = 0;
+          }
+          // Thread must have been attached for 40 s too: Border routing started does not mean the C6 joined
+          static uint32_t thread_up_at = 0;
+          const bool thread_up = openthread::global_openthread_component->is_connected();
+          if (!thread_up)
+            thread_up_at = 0;
+          else if (thread_up_at == 0)
+            thread_up_at = now != 0 ? now : 1;
+          const int st = id(auto_step);
+          if (st > STEPS)
+            return;
+          // each Wi-Fi loss needs a fresh "Border routing started", or a failed restart passes on the old one
+          // it is logged only once Wi-Fi is connected, so clear it on every poll that sees Wi-Fi down
+          const bool wifi_up = wifi::global_wifi_component->is_connected();
+          if (!wifi_up)
+            id(br_up) = false;
+          if (!(id(br_up) && wifi_up && thread_up && now - thread_up_at > 40000 && now - id(br_up_at) > 40000)) {
+            if (now - id(step_at) > 300000 && now - id(br_up_at) > 300000) {
+              id(step_at) = now;
+              ESP_LOGW("hwt", "HWT auto stuck at step %d", st);
+            }
+            return;
+          }
+          // the previous race step left race_mode armed: border routing never logged its restart
+          if (id(race_mode) != 0) {
+            ESP_LOGW("hwt", "HWT auto step %d race not fired", st - 1);
+            id(race_mode) = 0;
+            id(not_fired)++;
+          }
+          id(auto_armed) = 0;
+          id(auto_step) = st + 1;
+          if (st == STEPS) {  // the last step has recovered
+            ESP_LOGI("hwt",
+                     "HWT auto done, races not fired: %d, resets after a race: %d, resets before one: %d, "
+                     "bad reboots: %d, resets during a drop: %d",
+                     id(not_fired), id(crashed), id(reset_armed), id(bad_reboot), id(drop_reset));
+            return;
+          }
+          id(step_at) = now;
+          id(br_up) = false;
+          if (st < REBOOTS) {
+            ESP_LOGI("hwt", "HWT auto step %d reboot", st);
+            id(auto_armed) = -1;  // a planned reboot: the next boot checks it was the software reset
+            App.safe_reboot();
+          } else if (st < REBOOTS + DROPS) {
+            ESP_LOGI("hwt", "HWT auto step %d wifi drop", st);
+            id(auto_armed) = -2;  // saved now, so a reset during the drop is counted at the next boot
+            auto_step->update();
+            auto_armed->update();
+            global_preferences->sync();
+            id(wifi_drop).execute(30);
+          } else {
+            const RaceStep &r = RACE_STEPS[st - REBOOTS - DROPS];
+            ESP_LOGI("hwt", "HWT auto step %d race mode %d after %d ms", st, r.mode, r.delay_ms);
+            id(race_mode) = r.mode;
+            id(race_delay) = r.delay_ms;
+            id(auto_armed) = r.mode;
+            race_rtc_fired = 0;
+            // restored globals save on their own update(): store the step and the arm now, so a crash during
+            // the race restores them and counts the race as not fired
+            auto_step->update();
+            auto_armed->update();
+            not_fired->update();
+            crashed->update();
+            global_preferences->sync();
+            id(race_drop).execute();
+          }
+button:
+  - platform: template
+    name: Auto Reset
+    on_press:
+      - lambda: |-
+          id(auto_step) = 0;
+          id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = id(drop_reset) = 0;
+          ESP_LOGI("hwt", "HWT auto step counter reset");

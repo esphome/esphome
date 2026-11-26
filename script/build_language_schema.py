@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections.abc import Container
 import copy
 import inspect
 import json
@@ -262,6 +263,27 @@ def add_pin_validators():
     }
 
 
+def split_registry_name(
+    name: str, platforms: Container[str], components: Container[str]
+) -> tuple[str, str] | None:
+    """Split a dotted registry name into the domain it is filed under and its name
+    there.
+
+    A two-part name is always split at the dot. `sensor.template.publish` belongs to
+    the `template.sensor` platform, and `lvgl.chart.series.append` to the `lvgl`
+    component as `chart.series.append`. A longer name whose first part is not a known
+    platform or component gives None.
+    """
+    parts = name.split(".")
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    if len(parts) == 3 and parts[0] in platforms:
+        return f"{parts[1]}.{parts[0]}", parts[2]
+    if parts[0] in components:
+        return parts[0], ".".join(parts[1:])
+    return None
+
+
 def add_module_registries(domain, module):
     for attr_name in dir(module):
         attr_obj = getattr(module, attr_name)
@@ -283,20 +305,13 @@ def add_module_registries(domain, module):
                 if "." not in name:
                     reg_entry_name = name
                 else:
-                    parts = name.split(".")
-                    if len(parts) == 2:
-                        reg_domain = parts[0]
-                        reg_entry_name = parts[1]
-                    elif len(parts) == 3:
-                        # is a platform or a component?
-                        if parts[0] in schema_core[S_PLATFORMS]:
-                            reg_domain = ".".join([parts[1], parts[0]])
-                            reg_entry_name = parts[2]
-                        elif parts[0] in schema_core[S_COMPONENTS]:
-                            reg_domain = parts[0]
-                            reg_entry_name = ".".join([parts[1], parts[2]])
-                        else:
-                            print(f"registry {name} is unknown")
+                    split = split_registry_name(
+                        name, schema_core[S_PLATFORMS], schema_core[S_COMPONENTS]
+                    )
+                    if split is None:
+                        print(f"registry {name} is unknown")
+                        continue
+                    reg_domain, reg_entry_name = split
 
                 if reg_domain not in output:
                     output[reg_domain] = {}

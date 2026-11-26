@@ -33,15 +33,15 @@ EXPECTED_BODY = [
     ),
     (
         "::bus_status->publish_state(sy6970::BusStatusStrings::get_progmem_str("
-        f"(({STATUS} >> 5) & 7), sy6970::BusStatusStrings::LAST_INDEX));"
+        f"(({STATUS} >> 5) & 7)));"
     ),
     (
         "::charge_status->publish_state(sy6970::ChargeStatusStrings::get_progmem_str("
-        f"(({STATUS} >> 3) & 3), sy6970::ChargeStatusStrings::LAST_INDEX));"
+        f"(({STATUS} >> 3) & 3)));"
     ),
     (
         "::ntc_status->publish_state(sy6970::NtcStatusStrings::get_progmem_str("
-        f"({REG}[sy6970::SY6970_REG_FAULT] & 7), sy6970::NtcStatusStrings::LAST_INDEX));"
+        f"({REG}[sy6970::SY6970_REG_FAULT] & 7)));"
     ),
 ]
 

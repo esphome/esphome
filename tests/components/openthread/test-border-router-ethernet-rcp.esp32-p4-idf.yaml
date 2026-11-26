@@ -1,0 +1,20 @@
+packages:
+  openthread: !include common.yaml
+  dataset: !include border_router_network.yaml
+
+ethernet:
+  type: IP101
+  mdc_pin: GPIO31
+  mdio_pin: GPIO52
+  power_pin: GPIO51
+  clk:
+    pin: GPIO50
+    mode: CLK_EXT_IN
+  phy_addr: 1
+
+openthread:
+  border_router:
+    backbone: ethernet
+    rcp:
+      rx_pin: GPIO21
+      tx_pin: GPIO20
