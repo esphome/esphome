@@ -34,6 +34,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             cg.add_define("API_WIZARD_DATA_SIZE", 200)
             cg.add_define("API_WIZARD_INPUT_COUNT", 3)
         cg.add_define("API_MAX_SEND_QUEUE", 8)
+        cg.add_define("API_KEEPALIVE_TIMEOUT_MS", 60000)
         cg.add_define("MAX_API_CONNECTIONS", 1)
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
 

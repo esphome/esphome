@@ -1,7 +1,8 @@
 """Add a host build's API to a throwaway Home Assistant and allow it to call actions.
 
-usage: haflow.py TOKENFILE   env: HA_URL (default http://127.0.0.1:8129)
-Runs the esphome config flow against 127.0.0.1:6053, then turns on allow_service_calls in the options flow.
+usage: haflow.py TOKENFILE [HOST]   env: HA_URL (default http://127.0.0.1:8129)
+Runs the esphome config flow against HOST:6053 (default 127.0.0.1, a host build), then turns on
+allow_service_calls in the options flow.
 """
 
 import pathlib
@@ -16,7 +17,9 @@ tok = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").strip()
 flow = "/api/config/config_entries/flow"
 f = req_or_exit(flow, {"handler": "esphome"}, token=tok)
 r = req_or_exit(
-    f"{flow}/{f['flow_id']}", {"host": "127.0.0.1", "port": 6053}, token=tok
+    f"{flow}/{f['flow_id']}",
+    {"host": sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1", "port": 6053},
+    token=tok,
 )
 if r.get("type") == "form" and r.get("errors"):
     sys.exit(f"config flow step {r.get('step_id')} failed: {r['errors']}")

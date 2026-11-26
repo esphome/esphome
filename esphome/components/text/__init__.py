@@ -10,8 +10,10 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_VALUE,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
     entity_duplicate_validator,
     mqtt_component_class,
     queue_entity_register,
@@ -27,6 +29,7 @@ IS_PLATFORM_COMPONENT = True
 text_ns = cg.esphome_ns.namespace("text")
 Text = text_ns.class_("Text", cg.EntityBase)
 TextPtr = Text.operator("ptr")
+ApplyText = text_ns.class_("ApplyText", Text)
 
 # Conditions
 TextMode = text_ns.enum("TextMode")
@@ -118,16 +121,28 @@ async def register_text(
 
 async def new_text(
     config: ConfigType,
-    *,
+    *args,
     min_length: int | None = 0,
     max_length: int | None = 255,
     pattern: str | None = None,
 ) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_text(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
     )
     return var
+
+
+APPLY_ENTITY = ApplyEntity(
+    ApplyText,
+    ((TextPtr, "entity"), (cg.std_string.operator("const").operator("ref"), "value")),
+    "entity->publish_state(value);",
+)
+
+
+def sub_texts(config: ConfigType, *, parent: MockObj | ID | None = None) -> SubEntities:
+    """Return a SubEntities bound to new_text; ``apply`` statements can use ``entity`` and ``value``."""
+    return SubEntities(new_text, config, parent, APPLY_ENTITY)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

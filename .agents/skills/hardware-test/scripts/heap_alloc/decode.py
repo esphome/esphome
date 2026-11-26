@@ -32,12 +32,12 @@ def is_xtensa(elf: str) -> bool:
     return int.from_bytes(Path(elf).read_bytes()[18:20], "little") == XTENSA
 
 
-def find_addr2line() -> str:
+def find_addr2line(name: str = "xtensa-esp*-elf-addr2line") -> str:
     for root in tool_roots():
-        for path in root.glob("**/bin/xtensa-esp*-elf-addr2line"):
+        for path in root.glob(f"**/bin/{name}"):
             if path.is_file():
                 return str(path)
-    sys.exit("no addr2line found; pass it as the third argument")
+    sys.exit(f"no {name} found; pass its path")
 
 
 def short(path: str) -> str:
