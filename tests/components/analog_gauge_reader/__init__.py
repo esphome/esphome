@@ -1,8 +1,15 @@
-"""The reader's math is header-only, so its unit test needs no camera or decoder."""
+"""The reader's math is header-only; the device code is compiled out on the host."""
 
+from esphome.components import gauge_needle_detector
+from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    """Drop the camera dependencies, which cannot build on the host."""
-    manifest.dependencies = []
+    """Load only the components whose headers the math header includes."""
+
+    async def to_code_testing(config: ConfigType) -> None:
+        gauge_needle_detector.enable_detectors({"auto"})
+
+    manifest.dependencies = ["camera", "gauge_needle_detector", "sensor"]
+    manifest.to_code = to_code_testing

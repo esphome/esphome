@@ -180,6 +180,14 @@ TEST(AutoContrast, StretchesToTheFullRange) {
   EXPECT_EQ(255, data[2]);
 }
 
+TEST(AutoContrast, MinimumRewrittenFirstKeepsTheBaseline) {
+  std::vector<uint8_t> data = {150, 50, 100};
+  apply_auto_contrast(data.data(), static_cast<int>(data.size()));
+  EXPECT_EQ(255, data[0]);
+  EXPECT_EQ(0, data[1]);
+  EXPECT_EQ(127, data[2]);
+}
+
 TEST(AutoContrast, FlatCropIsLeftAlone) {
   std::vector<uint8_t> data = {80, 80, 80};
   apply_auto_contrast(data.data(), static_cast<int>(data.size()));
