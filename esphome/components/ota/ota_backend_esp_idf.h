@@ -70,8 +70,17 @@ class IDFOTABackend final {
 #endif
 
  private:
+  OTAResponseTypes write_app_(const uint8_t *data, size_t len);
 #ifdef USE_OTA_BLOCK_ERASE_AHEAD
   OTAResponseTypes erase_ahead_(size_t len);
+#endif
+  OTAResponseTypes begin_app_(size_t image_size);
+#ifdef USE_OTA_DELTA
+  OTAResponseTypes begin_delta_(size_t image_size);
+  OTAResponseTypes delta_write_(const uint8_t *data, size_t len);
+  void delta_deinit_();
+  static esp_err_t delta_read_cb_(uint8_t *buf, size_t size, int src_offset, void *user_data);
+  static esp_err_t delta_write_cb_(const uint8_t *buf, size_t size, void *user_data);
 #endif
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
   // Accept an image signed by any key the running app trusts (up to 3 blocks),
@@ -88,6 +97,22 @@ class IDFOTABackend final {
 #endif
   char expected_bin_md5_[32];
   bool md5_set_{false};
+#ifdef USE_OTA_DELTA
+  static constexpr size_t DELTA_HEADER_SIZE = 64;
+  bool delta_{false};
+  bool delta_header_ok_{false};
+  uint8_t delta_header_[DELTA_HEADER_SIZE];
+  size_t delta_header_len_{0};
+  void *delta_handle_{nullptr};
+  const esp_partition_t *delta_base_{nullptr};
+  OTAResponseTypes delta_error_{OTA_RESPONSE_OK};
+  static constexpr size_t DELTA_IO_SIZE = 4096;
+  uint8_t *delta_rbuf_{nullptr};
+  size_t delta_rbuf_start_{SIZE_MAX};
+  uint8_t *delta_wbuf_{nullptr};
+  size_t delta_wlen_{0};
+  OTAResponseTypes delta_flush_();
+#endif
 #ifdef USE_OTA_PARTITIONS
   // Buffer first so it packs tightly after the preceding `bool md5_set_` with no alignment
   // padding. Only resident during an active OTA: the backend is constructed per connection and

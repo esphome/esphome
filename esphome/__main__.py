@@ -1257,6 +1257,12 @@ def upload_program(
             host,
         )
 
+    delta_from = getattr(args, "delta_from", None)
+    if delta_from and (
+        not CORE.is_esp32 or port_type in (PortType.SERIAL, PortType.BOOTSEL)
+    ):
+        raise EsphomeError(DELTA_FROM_ROUTE_ERROR)
+
     platform_upload = platform_hooks.get_platform_hook(
         CORE.target_platform, "upload_program"
     )
@@ -1315,6 +1321,8 @@ def upload_program(
     if chosen_platform == CONF_WEB_SERVER:
         if ota_key:
             raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
+        if delta_from:
+            raise EsphomeError(DELTA_FROM_ROUTE_ERROR)
         if is_partition_table or is_bootloader:
             raise EsphomeError(
                 f"{option_string} is only supported with the esphome OTA platform; "
@@ -1456,17 +1464,103 @@ def _upload_via_native_api(
 
     ota_type = _esphome_ota_type(args, binary)
 
-    return espota2.run_ota(
-        network_devices,
-        remote_port,
-        password,
-        binary,
-        ota_type,
-        noise_psk,
-        plaintext_fallback=plaintext_fallback,
-        allow_plaintext_upload=allow_plaintext_upload,
-        old_noise_psk=old_noise_psk,
+    def upload(image: Path, image_type: int) -> tuple[int, str | None]:
+        return espota2.run_ota(
+            network_devices,
+            remote_port,
+            password,
+            image,
+            image_type,
+            noise_psk,
+            plaintext_fallback=plaintext_fallback,
+            allow_plaintext_upload=allow_plaintext_upload,
+            old_noise_psk=old_noise_psk,
+        )
+
+    delta_from = getattr(args, "delta_from", None)
+    if delta_from:
+        if ota_type != espota2.OTA_TYPE_UPDATE_APP:
+            raise EsphomeError("--delta-from is for app updates only")
+        if not ota_conf.get("allow_delta"):
+            raise EsphomeError(
+                "--delta-from needs 'allow_delta: true' on the esphome OTA platform"
+            )
+    if ota_type != espota2.OTA_TYPE_UPDATE_APP or not ota_conf.get("allow_delta"):
+        return upload(binary, ota_type)
+
+    base_store = _delta_base_path(ota_conf)
+    base = Path(delta_from) if delta_from else base_store
+    result = None
+    if delta_from or base.is_file():
+        result = _upload_delta(upload, base, binary, explicit=bool(delta_from))
+    if result is None:
+        result = upload(binary, espota2.OTA_TYPE_UPDATE_APP)
+    if result[0] == 0:
+        _keep_delta_base(binary, base_store)
+    return result
+
+
+def _keep_delta_base(binary: Path, base_store: Path) -> None:
+    """Keep the image the device now runs; a failure here never fails the finished upload."""
+    import shutil
+
+    try:
+        if base_store.exists() and base_store.samefile(binary):
+            return
+        base_store.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(binary, base_store)
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not keep %s as the base of the next delta patch: %s", base_store, err
+        )
+
+
+def _delta_base_path(ota_conf: ConfigType) -> Path:
+    """Where the last installed app image is kept, as the base of the next delta patch."""
+    if path := ota_conf.get("delta_base"):
+        return CORE.relative_config_path(path)
+    return CORE.relative_build_path("last-installed.ota.bin")
+
+
+def _upload_delta(
+    upload: Callable[[Path, int], tuple[int, str | None]],
+    base: Path,
+    binary: Path,
+    explicit: bool,
+) -> tuple[int, str | None] | None:
+    """Send a patch from base to binary. None means: send the full image instead.
+
+    A patch the user asked for (--delta-from) fails loudly; one made from the saved base falls back to the full image
+    when it cannot be made or the device refuses it.
+    """
+    import tempfile
+
+    from esphome import espota2
+    from esphome.delta_patch import make_patch
+
+    try:
+        patch = make_patch(base, binary)
+    except EsphomeError as err:
+        if explicit:
+            raise
+        _LOGGER.warning("No delta patch (%s); uploading the full image", err)
+        return None
+    _LOGGER.info(
+        "Delta patch: %s bytes for a %s-byte image",
+        len(patch),
+        binary.stat().st_size,
     )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        patch_path = Path(tmp_dir) / "firmware.delta.bin"
+        patch_path.write_bytes(patch)
+        try:
+            return upload(patch_path, espota2.OTA_TYPE_UPDATE_APP_DELTA)
+        except espota2.OTADeltaRefused as err:
+            if explicit:
+                _LOGGER.error(err)
+                return 1, None
+            _LOGGER.warning("%s Uploading the full image.", err)
+            return None
 
 
 def _old_key_notice(config: ConfigType) -> None:
@@ -1808,6 +1902,10 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
 ENV_OTA_KEY = "ESPHOME_OTA_KEY"
 ENV_OTA_PASSWORD = "ESPHOME_OTA_PASSWORD"
 ENV_API_KEY = "ESPHOME_API_KEY"
+DELTA_FROM_ROUTE_ERROR = (
+    "--delta-from works only for network uploads of an esp32 app over the "
+    f"{CONF_ESPHOME} OTA platform"
+)
 OTA_KEY_PLATFORM_ERROR = (
     f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
     "platform; to flash by serial instead, name the port with --device"
@@ -1907,6 +2005,10 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
     if args.ota_platform == CONF_WEB_SERVER:
         raise EsphomeError(
             f"Without a configuration, only the {CONF_ESPHOME} OTA platform can be used"
+        )
+    if getattr(args, "delta_from", None):
+        raise EsphomeError(
+            "--delta-from needs the device's YAML configuration (allow_delta: true)"
         )
     if args.partition_table and args.bootloader:
         raise EsphomeError(
@@ -2678,6 +2780,11 @@ def parse_args(argv):
             f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
             "(HTTP Basic auth) when that is the only configured platform."
         ),
+    )
+    parser_upload.add_argument(
+        "--delta-from",
+        metavar="BASE_BIN",
+        help="Send only a patch against BASE_BIN, the firmware the device runs (needs allow_delta: true).",
     )
     parser_upload.add_argument(
         "--partition-table",
