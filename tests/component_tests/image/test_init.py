@@ -21,6 +21,7 @@ from esphome.components.image import (
     CONF_OPAQUE,
     CONF_TRANSPARENCY,
     PLATFORM_FILE,
+    ImageGrayscale,
     _expand_platform_entry,
     _flatten_legacy_image_config,
     _is_legacy_image_format,
@@ -29,6 +30,7 @@ from esphome.components.image import (
     expand_platform_config,
     get_all_image_metadata,
     get_image_metadata,
+    is_alpha_only,
 )
 from esphome.const import (
     CONF_DEFAULTS,
@@ -1053,3 +1055,47 @@ async def test_rgb111_layout_per_frame(
     assert data == frame0_row * height + frame1_row * height, (
         f"Expected {frame_size} row-padded bytes per frame, got {data}"
     )
+
+
+def _gradient() -> PILImage.Image:
+    return PILImage.linear_gradient("L").resize((8, 8))
+
+
+def _black() -> PILImage.Image:
+    return PILImage.new("L", (8, 8), 0)
+
+
+@pytest.mark.parametrize(
+    ("make_image", "expected"),
+    [
+        pytest.param(_gradient, False, id="L"),
+        pytest.param(lambda: _gradient().convert("P"), False, id="P"),
+        pytest.param(lambda: _gradient().convert("1"), False, id="1"),
+        pytest.param(
+            lambda: PILImage.merge("RGB", [_black(), _black(), _gradient()]),
+            False,
+            id="RGB blue on black",
+        ),
+        pytest.param(
+            lambda: PILImage.merge("LA", [_black(), _gradient()]), True, id="LA"
+        ),
+        pytest.param(
+            lambda: PILImage.merge("RGBA", [_black(), _black(), _black(), _gradient()]),
+            True,
+            id="RGBA",
+        ),
+        pytest.param(lambda: _gradient().convert("RGBA"), False, id="RGBA opaque"),
+    ],
+)
+def test_is_alpha_only(
+    make_image: Callable[[], PILImage.Image], expected: bool
+) -> None:
+    assert is_alpha_only(make_image()) is expected
+
+
+def test_grayscale_image_stays_opaque(caplog: pytest.LogCaptureFixture) -> None:
+    encoder = ImageGrayscale(8, 8, CONF_OPAQUE, PILImage.Dither.NONE, False)
+    with caplog.at_level(logging.WARNING):
+        encoder.convert(_gradient(), "gradient.png")
+    assert encoder.transparency == CONF_OPAQUE
+    assert "alpha only" not in caplog.text

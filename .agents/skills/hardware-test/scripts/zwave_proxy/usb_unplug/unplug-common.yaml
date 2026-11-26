@@ -1,0 +1,88 @@
+# Waveshare ESP32-P4-Module-DEV-KIT (Ethernet, usb_host on the USB-A port) with a CP2102 standing in for a Z-Wave
+# stick (esphome#23159): zwave_proxy picks the first connected UART of a list. 40 s after boot, 8 cycles of root
+# port power off 8 s and on 25 s (a software unplug and replug), with STATE lines every 5 s and ALLDONE at the end.
+# Device file: esphome: {name: ...}; packages: {common: !include unplug-common.yaml};
+#   zwave_proxy: {uart_id: [zw_cdc, zw_cp]}   (or uart_id: zw_cp for the single UART base build)
+esp32:
+  board: esp32-p4-evboard
+  framework:
+    type: esp-idf
+logger:
+  level: VERY_VERBOSE
+  hardware_uart: UART0
+  logs:
+    zwave_proxy: VERY_VERBOSE
+    usb_uart: VERBOSE
+    usb_host: DEBUG
+    component: DEBUG
+    scheduler: DEBUG
+    app: DEBUG
+    api: DEBUG
+    api.service: DEBUG
+    api.connection: DEBUG
+    ethernet: DEBUG
+    mdns: DEBUG
+    socket: DEBUG
+    sensor: DEBUG
+    esp32.preferences: DEBUG
+ethernet:
+  type: IP101
+  mdc_pin: GPIO31
+  mdio_pin: GPIO52
+  power_pin: GPIO51
+  clk:
+    mode: CLK_EXT_IN
+    pin: GPIO50
+  phy_addr: 1
+api:
+  reboot_timeout: 0s
+usb_host:
+usb_uart:
+  - type: CDC_ACM
+    vid: 0x303A
+    pid: 0x4001
+    manufacturer: Nabu Casa
+    product: ZWA-2
+    claim_comm_interface: false
+    channels:
+      - id: zw_cdc
+        baud_rate: 115200
+  - type: CP210X
+    channels:
+      - id: zw_cp
+        baud_rate: 115200
+        debug: true
+        debug_prefix: "[CP] "
+script:
+  - id: cycle
+    then:
+      - repeat:
+          count: 8
+          then:
+            - lambda: |-
+                ESP_LOGI("zwt", "CYCLE %u OFF cp=%d heap=%u min=%u", (unsigned) (iteration + 1), (int) id(zw_cp)->is_connected(),
+                         (unsigned) esp_get_free_heap_size(), (unsigned) esp_get_minimum_free_heap_size());
+                esp_err_t err = usb_host_lib_set_root_port_power(false);
+                ESP_LOGI("zwt", "root port off: %s", esp_err_to_name(err));
+            - delay: 8s
+            - lambda: |-
+                ESP_LOGI("zwt", "ON cdc=%d cp=%d heap=%u", (int) id(zw_cdc)->is_connected(), (int) id(zw_cp)->is_connected(),
+                         (unsigned) esp_get_free_heap_size());
+                esp_err_t err = usb_host_lib_set_root_port_power(true);
+                ESP_LOGI("zwt", "root port on: %s", esp_err_to_name(err));
+            - delay: 25s
+      - lambda: |-
+          ESP_LOGI("zwt", "ALLDONE cdc=%d cp=%d heap=%u min=%u", (int) id(zw_cdc)->is_connected(), (int) id(zw_cp)->is_connected(),
+                   (unsigned) esp_get_free_heap_size(), (unsigned) esp_get_minimum_free_heap_size());
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          ESP_LOGI("zwt", "STATE cdc=%d cp=%d heap=%u", (int) id(zw_cdc)->is_connected(), (int) id(zw_cp)->is_connected(),
+                   (unsigned) esp_get_free_heap_size());
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - delay: 40s
+      - script.execute: cycle

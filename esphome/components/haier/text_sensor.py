@@ -3,7 +3,7 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ENTITY_CATEGORY_NONE
 
-from .climate import CONF_HAIER_ID, HonClimate
+from .climate import CONF_HAIER_ID, ICON_ALARM, HonClimate
 
 CODEOWNERS = ["@paveldn"]
 TextSensorTypeEnum = HonClimate.enum("SubTextSensorType", True)
@@ -12,6 +12,7 @@ TextSensorTypeEnum = HonClimate.enum("SubTextSensorType", True)
 CONF_CLEANING_STATUS = "cleaning_status"
 CONF_PROTOCOL_VERSION = "protocol_version"
 CONF_APPLIANCE_NAME = "appliance_name"
+CONF_ACTIVE_ALARMS_TEXT = "active_alarms_text"
 
 # Additional icons
 ICON_SPRAY_BOTTLE = "mdi:spray-bottle"
@@ -28,6 +29,10 @@ TEXT_SENSOR_TYPES = {
     ),
     CONF_APPLIANCE_NAME: text_sensor.text_sensor_schema(
         icon=ICON_TEXT_BOX,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    CONF_ACTIVE_ALARMS_TEXT: text_sensor.text_sensor_schema(
+        icon=ICON_ALARM,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
