@@ -116,6 +116,7 @@ class ESPVideoCamera : public camera::Camera {
   bool frame_due_(uint32_t now) const { return (now - this->last_frame_ms_) >= this->min_interval_ms_; }
   // Copy a finished JPEG frame into PSRAM and hand it to the listeners.
   void deliver_frame_(const uint8_t *data, size_t length, uint32_t now);
+  bool valid_jpeg_(const uint8_t *data, size_t length);
   // DQBUF one capture buffer. False when there is none: no frame yet, a device
   // that went away (handled), or an error that was logged.
   bool dequeue_capture_(v4l2_buffer &buf);
@@ -196,6 +197,8 @@ class ESPVideoCamera : public camera::Camera {
   // One-shot: say once per capture that the driver handed back a buffer this
   // component never mapped, rather than on every frame.
   bool warned_stray_buffer_{false};
+  bool warned_dequeue_failure_{false};
+  bool warned_invalid_frame_{false};
   // One-shot: dump the rejected buffer's placement on the first encoder QBUF
   // failure of a capture, not on every frame.
   bool logged_qbuf_failure_{false};
