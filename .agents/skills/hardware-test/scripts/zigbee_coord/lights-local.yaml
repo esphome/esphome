@@ -1,0 +1,14 @@
+# Local light changes 150 s after boot, so the coordinator sees reports it did not cause.
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - delay: 150s
+        - logger.log: "HWT local changes start"
+        - light.turn_on: {id: led, brightness: 30%, red: 0%, green: 0%, blue: 100%}
+        - light.turn_on: {id: mono, brightness: 20%}
+        - light.toggle: binl
+        - delay: 20s
+        - light.turn_off: led
+        - light.turn_off: mono
+        - logger.log: "HWT local changes done"

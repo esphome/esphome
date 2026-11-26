@@ -11,10 +11,10 @@ namespace esphome::binary_sensor {
 ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 void Filter::output(bool value) {
-  if (this->next_ == nullptr) {
-    this->parent_->send_state_internal(value);
+  if (this->link_.is_owner()) {
+    this->link_.owner()->send_state_internal(value);
   } else {
-    this->next_->input(value);
+    this->link_.next()->input(value);
   }
 }
 
@@ -38,7 +38,7 @@ optional<bool> delay_output(Filter *filter, uint32_t delay, bool value) {
 }
 
 void TimeoutFilter::input(bool value) {
-  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
+  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->chain_owner_()->invalidate_state(); });
   // Every input re-arms the timeout, including repeats, so this filter must not de-dup
   this->output(value);
 }

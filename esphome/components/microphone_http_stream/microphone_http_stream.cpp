@@ -199,24 +199,24 @@ void MicrophoneHttpStream::send_audio_(ClientSlot *client) {
       client->chunk_data = data;
       client->chunk_len = static_cast<uint16_t>(amount);
       client->chunk_sent = 0;
-      web_server_idf::write_chunk_header(client->chunk_header, amount);
+      web_server_base::write_chunk_header(client->chunk_header, amount);
     }
 
     struct iovec parts[3] = {
-        {client->chunk_header, web_server_idf::CHUNK_HDR_LEN},
+        {client->chunk_header, web_server_base::CHUNK_HDR_LEN},
         {client->chunk_data, client->chunk_len},
-        {const_cast<char *>(web_server_idf::CHUNK_END), web_server_idf::CHUNK_END_LEN},
+        {const_cast<char *>(web_server_base::CHUNK_END), web_server_base::CHUNK_END_LEN},
     };
     struct iovec *iov = parts;
     int iovcnt = 3;
-    web_server_idf::advance_iovecs(iov, iovcnt, client->chunk_sent);
+    web_server_base::advance_iovecs(iov, iovcnt, client->chunk_sent);
     const ssize_t sent = stream->write(iov, iovcnt);
     if (sent < 0) {
       client->set_stop_reason(StopReason::STOP_REASON_SEND_FAILED);  // write() already closed the stream
       return;
     }
     client->chunk_sent += static_cast<uint16_t>(sent);
-    if (client->chunk_sent < web_server_idf::CHUNK_HDR_LEN + client->chunk_len + web_server_idf::CHUNK_END_LEN)
+    if (client->chunk_sent < web_server_base::CHUNK_HDR_LEN + client->chunk_len + web_server_base::CHUNK_END_LEN)
       return;  // Socket full; continue from chunk_sent on the next pass
     client->ring->receive_release(client->chunk_data);
     client->chunk_data = nullptr;

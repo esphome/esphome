@@ -8,26 +8,19 @@
 #include "stm32flash.h"
 #endif
 
-#ifndef USE_ESP_IDF
-#include <HardwareSerial.h>
-#endif
-
 #include <algorithm>
 #include <cstring>
 #include <memory>
-#include <numeric>
 
 namespace {
 
 ESPHOME_LOG_TAG(TAG, "shelly_dimmer");
 
 constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
+// After this long without a byte, a partial frame is searched, so a stray header cannot hide the reply
+constexpr uint8_t SHELLY_DIMMER_RX_GAP = 20;  // ms
 constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
 constexpr uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
-
-// Protocol framing.
-constexpr uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
-constexpr uint8_t SHELLY_DIMMER_PROTO_END_BYTE = 0x04;
 
 // Supported commands.
 constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SWITCH = 0x01;
@@ -58,11 +51,6 @@ template<typename T, size_t N> constexpr size_t size(const T (& /*unused*/)[N]) 
 
 namespace esphome::shelly_dimmer {
 
-/// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
-uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
-  return std::accumulate<decltype(buf), uint16_t>(buf, buf + len, 0);
-}
-
 bool ShellyDimmer::is_running_configured_version() const {
   return this->version_major_ == USE_SHD_FIRMWARE_MAJOR_VERSION &&
          this->version_minor_ == USE_SHD_FIRMWARE_MINOR_VERSION;
@@ -70,7 +58,7 @@ bool ShellyDimmer::is_running_configured_version() const {
 
 void ShellyDimmer::handle_firmware() {
   // Reset the STM32 and check the firmware version.
-  this->reset_normal_boot_();
+  this->reset_(false);
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
   ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
            this->version_minor_, USE_SHD_FIRMWARE_MAJOR_VERSION, USE_SHD_FIRMWARE_MINOR_VERSION);
@@ -83,7 +71,7 @@ void ShellyDimmer::handle_firmware() {
       return;
     }
 
-    this->reset_normal_boot_();
+    this->reset_(false);
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
     if (!this->setup_check(is_running_configured_version(),
                            LOG_STR("STM32 firmware upgrade already performed, but version is still incorrect")))
@@ -151,7 +139,7 @@ void ShellyDimmer::write_state(light::LightState *state) {
 #ifdef USE_SHD_FIRMWARE_DATA
 bool ShellyDimmer::upgrade_firmware_() {
   ESP_LOGW(TAG, "Starting STM32 firmware upgrade");
-  this->reset_dfu_boot_();
+  this->reset_(true);
 
   // Cleanup with RAII
   auto stm32 = stm32_init(this, STREAM_SERIAL, 1);
@@ -273,13 +261,16 @@ bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint
   // Write the frame and wait for acknowledgement.
   int retries = SHELLY_DIMMER_MAX_RETRIES;
   while (retries--) {
+    // Kept bytes of an earlier reply must not merge into this one
+    this->reader_.drop_kept();
     this->write_array(frame, frame_len);
     this->flush();
 
     ESP_LOGD(TAG, "Command sent, waiting for reply");
     const uint32_t tx_time = millis();
-    while (millis() - tx_time < SHELLY_DIMMER_ACK_TIMEOUT) {
-      if (this->read_frame_()) {
+    uint32_t last_rx = tx_time;
+    for (uint32_t now = tx_time; now - tx_time < SHELLY_DIMMER_ACK_TIMEOUT; now = millis()) {
+      if (this->read_frame_(now, last_rx)) {
         return true;
       }
       delay(1);
@@ -303,83 +294,31 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   }
 
   // Checksum over the sequence, command, length and payload bytes
-  p = put_be16(p, shelly_dimmer_checksum(data + 1, 3 + len));
+  p = put_be16(p, sum16_bytes(data + 1, 3 + len));
   *p++ = SHELLY_DIMMER_PROTO_END_BYTE;
   return p - data;
 }
 
-int ShellyDimmer::handle_byte_(uint8_t c) {
-  const uint8_t pos = this->buffer_pos_;
-
-  if (pos == 0) {
-    // Must be start byte.
-    return c == SHELLY_DIMMER_PROTO_START_BYTE ? 1 : -1;
-  } else if (pos < 4) {
-    // Header.
-    return 1;
-  }
-
-  // Decode payload length from header.
-  const uint8_t payload_len = this->buffer_[3];
-  if ((4 + payload_len + 3) > SHELLY_DIMMER_BUFFER_SIZE) {
-    return -1;
-  }
-
-  if (pos < 4 + payload_len + 1) {
-    // Payload.
-    return 1;
-  }
-
-  if (pos == 4 + payload_len + 1) {
-    // Verify checksum.
-    const uint16_t csum = encode_uint16(this->buffer_[pos - 1], c);
-    const uint16_t csum_verify = shelly_dimmer_checksum(&this->buffer_[1], 3 + payload_len);
-    if (csum != csum_verify) {
-      return -1;
+bool ShellyDimmer::read_frame_(uint32_t now, uint32_t &last_rx) {
+  bool received = false;
+  auto handler = [this, &received](const uint8_t *frame, size_t len) {
+    // The checksum covers seq, cmd, length and payload
+    if (frame[len - 1] != SHELLY_DIMMER_PROTO_END_BYTE ||
+        encode_uint16(frame[len - 3], frame[len - 2]) != sum16_bytes(frame + 1, len - 4)) {
+      return false;
     }
-    return 1;
-  }
-
-  if (pos == 4 + payload_len + 2) {
-    // Must be end byte.
-    return c == SHELLY_DIMMER_PROTO_END_BYTE ? 0 : -1;
-  }
-  return -1;
+    this->handle_frame_(frame);
+    received = true;
+    return true;
+  };
+  this->read_frames(this->reader_, handler, now, last_rx, SHELLY_DIMMER_RX_GAP);
+  return received;
 }
 
-bool ShellyDimmer::read_frame_() {
-  while (this->available()) {
-    const uint8_t c = this->read();
-    this->buffer_[this->buffer_pos_] = c;
-
-    ESP_LOGV(TAG, "Read byte: 0x%02x (pos %d)", c, this->buffer_pos_);
-
-    switch (this->handle_byte_(c)) {
-      case 0: {
-        // Frame successfully received.
-        this->handle_frame_();
-        this->buffer_pos_ = 0;
-        return true;
-      }
-      case -1: {
-        // Failure.
-        this->buffer_pos_ = 0;
-        break;
-      }
-      case 1: {
-        // Need more data.
-        this->buffer_pos_++;
-        break;
-      }
-    }
-  }
-  return false;
-}
-
-bool ShellyDimmer::handle_frame_() {
-  const uint8_t seq = this->buffer_[1];
-  const uint8_t cmd = this->buffer_[2];
-  const uint8_t payload_len = this->buffer_[3];
+bool ShellyDimmer::handle_frame_(const uint8_t *frame) {
+  const uint8_t seq = frame[1];
+  const uint8_t cmd = frame[2];
+  const uint8_t payload_len = frame[3];
 
   ESP_LOGD(TAG, "Got frame: 0x%02x", cmd);
 
@@ -389,7 +328,7 @@ bool ShellyDimmer::handle_frame_() {
     return false;
   }
 
-  const uint8_t *payload = &this->buffer_[4];
+  const uint8_t *payload = frame + PayloadLength::KNOWN_AT;
 
   // Handle response.
   switch (cmd) {
@@ -464,6 +403,11 @@ bool ShellyDimmer::handle_frame_() {
 void ShellyDimmer::reset_(bool boot0) {
   ESP_LOGD(TAG, "Reset STM32, boot0=%d", boot0);
 
+  // The STM32 bootloader needs even parity, the regular firmware none
+  this->parent_->set_parity(boot0 ? uart::UART_CONFIG_PARITY_EVEN : uart::UART_CONFIG_PARITY_NONE);
+  this->parent_->load_settings(false);
+  this->flush();
+
   this->pin_boot0_->digital_write(boot0);
   this->pin_nrst_->digital_write(false);
 
@@ -477,32 +421,6 @@ void ShellyDimmer::reset_(bool boot0) {
   delay(50);  // NOLINT
 
   ESP_LOGD(TAG, "Reset STM32 done");
-}
-
-void ShellyDimmer::reset_normal_boot_() {
-  // set NONE parity in normal mode
-
-#ifndef USE_ESP_IDF  // workaround for reconfiguring the uart
-  Serial.end();
-  Serial.begin(115200, SERIAL_8N1);
-  Serial.flush();
-#endif
-
-  this->flush();
-  this->reset_(false);
-}
-
-void ShellyDimmer::reset_dfu_boot_() {
-  // set EVEN parity in bootloader mode
-
-#ifndef USE_ESP_IDF  // workaround for reconfiguring the uart
-  Serial.end();
-  Serial.begin(115200, SERIAL_8E1);
-  Serial.flush();
-#endif
-
-  this->flush();
-  this->reset_(true);
 }
 
 }  // namespace esphome::shelly_dimmer

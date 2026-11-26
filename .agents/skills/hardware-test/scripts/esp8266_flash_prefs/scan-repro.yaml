@@ -1,0 +1,36 @@
+# Wi-Fi scan versus flash erase heap collapse on the ESP8266 (#21046): a restore_value global bumped every second
+# with 1 s flash syncs, and a raw SDK scan every 3 s once connected (ungated it pre-empts ESPHome's own scan and the
+# board never joins). Add `ping -i 0.05` from the computer (run.sh does). Build a control with
+# `-s restore_from_flash false`.
+substitutions:
+  name: scan-repro
+  restore_from_flash: "true"
+
+esphome:
+  name: ${name}
+  includes:
+    - scan_cb.h
+
+packages:
+  base: !include flash-prefs-common.yaml
+
+globals:
+  - id: counter
+    type: uint32_t
+    restore_value: true
+    initial_value: "0"
+
+interval:
+  # Dirty the flash sector every second so sync() erases + writes each second
+  - interval: 1s
+    then:
+      - lambda: id(counter) += 1;
+  # Start a raw SDK scan every 3 s so erases overlap scans
+  - interval: 3s
+    then:
+      - lambda: |-
+          if (!wifi::global_wifi_component->is_connected())
+            return;
+          bool ok = wifi_station_scan(nullptr, repro_scan_done);
+          ESP_LOGD("repro", "scan start %d, counter %u, free heap %u, max block %u, done %u, up %u", ok, id(counter),
+                   ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(), repro_scan_done_count, millis() / 1000);

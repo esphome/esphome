@@ -184,3 +184,25 @@ Connected-then-lost, held, releases after the router was back and router-side le
 - The first `Connection lost` in a capture is the reset from opening the D1 mini port (see `reference/boards.md`), not
   an outage.
 - About 2 min per outage; run blocks of 10 interleaved base/PR with a reflash between.
+
+## Network facts that skew a soak
+
+- An access point can keep beaconing while it answers every join with `Probe Request Unsuccessful`; the boards then
+  fall back to weaker APs and lose pings on every build, and the roam scan retries the broken AP every 5 min (a short
+  drop each time). A BSSID pin in the config does not stop the roam scan either. Check a gateway ping and the board's
+  join log before reading a soak (#22977).
+- On 2026.10.2 `wifi: reboot_timeout` does not apply when `ap:` is configured (fixed by #9958 in 2026.11.0), so a
+  board that loses the network on such a build never reboots itself and needs a power cycle.
+
+## Which address a device sends to: promiscuous sniffer (#23010)
+
+`scripts/wifi_sniff/` answers "where do this device's frames go" without a monitor-mode adapter. The `wsniff`
+external component brings Wi-Fi up in station mode without joining (so the radio ACKs frames sent to its own MAC),
+hops channels until it hears the target MAC (or uses a fixed `channel:`), then logs every 5 s a SNIF line with the
+frames the target sent per destination, frame control and RSSI. `sniffer.yaml` builds it on an ESP32-C3; read the
+serial log. `sniff_timeline.py CAPTURE MAC=LABEL...` prints Null Data frames per destination per window, with
+`(ToDS)` for frames toward the AP.
+
+- Used for espectre's target MAC (#23010): set the sniffer's own MAC as the target and the device's Null Data
+  stream moves to it within one window; an address nothing answers gets only 5 to 20 retried frames per second.
+- While espectre runs, an OTA fails with `esp_ota_write` err 0x107 (on dev too); flash that board over USB.
