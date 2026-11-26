@@ -6,6 +6,7 @@ import logging
 import math
 import re
 import string
+import struct
 from typing import Any
 
 import voluptuous as vol
@@ -264,6 +265,9 @@ validate_condition_list = cv.validate_registry("condition", CONDITION_REGISTRY)
 ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 ApplyRunAction = cg.esphome_ns.class_("ApplyRunAction", Action)
 ApplyCondition = cg.esphome_ns.class_("ApplyCondition", Condition)
+# A component whose logic calls fire(); FireCallback<fn, Base> implements it, so pass the base in template_args
+FiringComponent = cg.esphome_ns.class_("FiringComponent", cg.Component)
+FireCallback = cg.esphome_ns.class_("FireCallback", FiringComponent)
 
 
 @dataclass(frozen=True)
@@ -551,7 +555,7 @@ IN_RANGE_CHECK = ApplyCall(
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
 ValueRange = cg.esphome_ns.struct("ValueRange")
-# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+# The bounds of an on_value_range trigger, rendered by ``build_value_range_automation``.
 _VALUE_RANGE_BOUNDS = ApplyCall(
     "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
 )
@@ -969,17 +973,22 @@ def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -
     return not members or any(value is not None for value in values)
 
 
-async def new_value_range_trigger(
-    trigger_id: ID, parent: MockObj, config: ConfigType
+async def build_value_range_automation(
+    config: ConfigType, base: MockObjClass, parent: MockObj
 ) -> MockObj:
-    """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+    """Build ``FireCallback<fn, base>`` for ``parent`` with a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
 
-    The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
+    The component exists before its bounds are rendered, so a bound may use the component's own id.
     A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
     the const ``x`` is a backstop if bounds are ever inlined again.
     """
-    trigger = cg.new_Pvariable(
-        trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
+    bounds_name = _apply_function_name(config[CONF_TRIGGER_ID])
+    var = await build_component_automation(
+        config,
+        FireCallback,
+        template_args=[base],
+        args=[(cg.float_, "x")],
+        ctor_args=[parent, cg.RawExpression(bounds_name)],
     )
     config = {**IN_RANGE_DEFAULTS, **config}
     members = _VALUE_RANGE_BOUNDS.members
@@ -992,14 +1001,14 @@ async def new_value_range_trigger(
         None,
         [(cg.float_, "x")],
     )
-    # The trigger above already names this function, so it must keep this exact name
+    # The component above already names this function, so it must keep this exact name
     cg.static_function(
-        _apply_function_name(trigger_id),
+        bounds_name,
         ValueRange,
         [(cg.RawExpression("const float"), "x")],
         [f"return {bounds};"],
     )
-    return trigger
+    return var
 
 
 def register_apply_condition(
@@ -2146,8 +2155,8 @@ def _automation_from_plan(
 def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) -> bool:
     """Whether a callback automation is all inline actions, so it needs no objects.
 
-    Without a Trigger or a manual id nothing can reach such an automation to stop it, so
-    no stop checks are needed either. Only for callers that create no Trigger.
+    Without a Trigger or an automation id set by hand nothing can reach such an automation
+    to stop it, so no stop checks are needed either. Only for callers that create no Trigger.
     """
     return (
         not config[CONF_AUTOMATION_ID].is_manual
@@ -2176,6 +2185,17 @@ def _direct_function(
     )
 
 
+def _call_target(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+) -> MockObj:
+    """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
+    if (target := _direct_function(plan, args, config)) is None:
+        target = parent_ref(_automation_from_plan(plan, args, config)).trigger
+    return target
+
+
 def _args_templ(args: TemplateArgsType) -> cg.TemplateArguments:
     return cg.TemplateArguments(*(arg[0] for arg in args))
 
@@ -2201,6 +2221,45 @@ async def build_automation(
     return await new_automation(args, config, trigger)
 
 
+async def build_component_automation(
+    config: ConfigType,
+    component_class: MockObjClass,
+    priority: float | None = None,
+    *,
+    id_key: str = CONF_TRIGGER_ID,
+    template_args: Sequence[SafeExpType] = (),
+    args: Sequence[tuple[SafeExpType, str]] = (),
+    ctor_args: Sequence[SafeExpType] = (),
+) -> MockObj:
+    """Create and register ``component_class<function[, priority bits], *template_args>(*ctor_args)``,
+    whose function takes ``args`` and runs the automation's actions; ``config[id_key]`` names it.
+    """
+    name, build = declare_automation_function(list(args), config)
+    id_ = config[id_key].copy()
+    id_.type = component_class
+    bits = [] if priority is None else [_float_bits(priority)]
+    var = cg.new_Pvariable(
+        id_, cg.TemplateArguments(name, *bits, *template_args), *ctor_args
+    )
+    # Registered before the actions are built, which can wait for other ids
+    await cg.register_component(var, config)
+    await build()
+    return var
+
+
+def _float_bits(value: float) -> HexInt:
+    """``value`` as a C++ float's bit pattern, for a template argument.
+
+    Out of float range becomes signed infinity, as the C++ conversion does.
+    """
+    try:
+        packed = struct.pack("<f", value)
+    except OverflowError:
+        packed = struct.pack("<f", math.copysign(math.inf, value))
+    (bits,) = struct.unpack("<I", packed)
+    return HexInt(bits)
+
+
 def declare_automation_function(
     args: TemplateArgsType, config: ConfigType, after: list[str] | None = None
 ) -> tuple[MockObj, Callable[[], Awaitable[None]]]:
@@ -2209,8 +2268,10 @@ def declare_automation_function(
     Await it once the object naming the function exists; ``after`` runs after the last action unless stopped.
     """
     automation_id = config[CONF_AUTOMATION_ID]
-    name = _apply_function_name(automation_id)
+    fn_id = cg.unique_global_id(_apply_function_name(automation_id), None)
+    name = fn_id.id
     define = cg.declare_static_function(name, cg.void, _apply_params(args))
+    CORE.register_variable(fn_id, cg.RawExpression(name))
 
     async def build() -> None:
         plan = await _build_automation_plan(args, config)
@@ -2263,10 +2324,7 @@ async def _trigger_callback(
     call: ApplyCall | None,
     parent: MockObj | None,
 ) -> MockObj:
-    if (direct := _direct_function(plan, args, config)) is None:
-        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
-    else:
-        target = direct
+    target = _call_target(plan, args, config)
     statements: list[str] = []
     if call is not None:
         members = call.members
@@ -2284,8 +2342,8 @@ async def _trigger_callback(
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
-        if direct is not None and not statements and _same_types(params, args):
-            return direct
+        if _is_direct(plan, config) and not statements and _same_types(params, args):
+            return target
         forward = [name for _, name in params]
     statements.append(f"{target}({', '.join(map(str, forward))});")
     return apply_static_function(

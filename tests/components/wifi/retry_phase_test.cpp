@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <cstring>
 #include <utility>
 #include <vector>
 
@@ -12,17 +11,6 @@ namespace {
 
 constexpr bssid_t BSSID_A = {0x02, 0x00, 0x00, 0x00, 0x00, 0x0A};
 constexpr bssid_t BSSID_B = {0x02, 0x00, 0x00, 0x00, 0x00, 0x0B};
-
-WiFiAP make_ap(const char *ssid) {
-  WiFiAP ap;
-  ap.set_ssid(ssid);
-  ap.set_password("password1");
-  return ap;
-}
-
-WiFiScanResult make_result(const char *ssid, const bssid_t &bssid) {
-  return WiFiScanResult(bssid, ssid, strlen(ssid), 6, -50, true, false);
-}
 
 class WiFiRetryPhaseTest : public ::testing::Test {
  protected:

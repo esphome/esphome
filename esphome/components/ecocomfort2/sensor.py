@@ -6,10 +6,7 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
     CONF_VOC,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_BILLION,
 )
 from esphome.types import ConfigType
 
@@ -25,12 +22,7 @@ CONFIG_SCHEMA = cv.All(
                 kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
-            cv.Optional(CONF_VOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_VOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
             cv.Optional(CONF_DIRECTION): sensor.sensor_schema(
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

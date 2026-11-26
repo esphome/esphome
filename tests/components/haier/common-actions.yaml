@@ -15,7 +15,7 @@ button:
       - climate.haier.power_toggle: haier_ac
       - climate.haier.set_vertical_airflow:
           id: haier_ac
-          vertical_airflow: UP
+          vertical_airflow: MAX_DOWN
       - climate.haier.set_horizontal_airflow:
           id: haier_ac
           horizontal_airflow: !lambda return esphome::haier::hon_protocol::HorizontalSwingMode::LEFT;
