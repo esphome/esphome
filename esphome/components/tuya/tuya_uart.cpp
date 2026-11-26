@@ -113,8 +113,8 @@ bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
   }
   const uint8_t version = frame[2];
   const uint8_t command = frame[3];
-  const uint8_t *message_data = frame + TuyaLength::KNOWN_AT;
-  const size_t length = len - TuyaLength::KNOWN_AT - 1;
+  const uint8_t *message_data = frame + TuyaLength::PAYLOAD_AT;
+  const size_t length = len - TuyaLength::PAYLOAD_AT - 1;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
   ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
