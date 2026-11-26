@@ -35,7 +35,7 @@ ICON_SPEEDOMETER = "mdi:speedometer"
 
 def _accuracy_schema() -> cv.Schema:
     return sensor.sensor_schema(
-        unit_of_measurement=UNIT_METER,
+        kind=sensor.LENGTH_M,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_DISTANCE,
         state_class=STATE_CLASS_MEASUREMENT,
