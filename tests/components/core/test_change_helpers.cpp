@@ -91,4 +91,15 @@ TEST(ChangeHelpers, ChangedTreatsNanAsUnchanged) {
   EXPECT_FALSE(internal::change_trigger::changed(last, 1.0f));
 }
 
+// Text keeps the text comparison for a mutable buffer or nullptr too, not the pointer comparison
+TEST(ChangeHelpers, ChangedComparesTextForCharBuffersAndNullptr) {
+  char first[] = "eco";
+  char second[] = "eco";
+  const char *last = nullptr;
+  EXPECT_TRUE(internal::change_trigger::changed(last, first));
+  EXPECT_FALSE(internal::change_trigger::changed(last, second));
+  const char *empty = "";
+  EXPECT_FALSE(internal::change_trigger::changed(empty, nullptr));
+}
+
 }  // namespace esphome::core::testing

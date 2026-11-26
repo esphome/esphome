@@ -852,7 +852,7 @@ inline bool left(bool &last, bool now) {
 /// Codegen use only: whether `now` differs from `last`; NaN counts as equal to NaN. Stores `now` in `last`.
 /// `now` may be any type that converts to the copy's type without narrowing.
 template<typename T, typename U>
-  requires requires(U u) { T{u}; }
+  requires(!std::is_same_v<T, const char *>) && requires(U u) { T{u}; }
 bool changed(T &last, U now) {
   const T value{now};
   bool result = value != last;
