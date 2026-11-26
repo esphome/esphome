@@ -55,7 +55,7 @@ class Frame {
   static constexpr uint8_t BROADCAST_ADDRESS = 0xF;  // also the address of an unregistered device
 
   Frame() = default;
-  /// The payload is at most MAX_PAYLOAD_LENGTH bytes; send() checks that
+  /// The payload is at most MAX_PAYLOAD_LENGTH bytes, protected in this constructor
   Frame(uint8_t initiator_addr, uint8_t destination_addr, const uint8_t *payload, unsigned int payload_size);
   Frame(uint8_t initiator_addr, uint8_t destination_addr, const std::initializer_list<uint8_t> &payload)
       : Frame(initiator_addr, destination_addr, payload.begin(), payload.size()) {}

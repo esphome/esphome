@@ -59,6 +59,7 @@ static uint8_t device_type_of(uint8_t logical_address) {
 
 Frame::Frame(uint8_t initiator_addr, uint8_t destination_addr, const uint8_t *payload, unsigned int payload_size) {
   this->data_[0] = ((initiator_addr & 0xf) << 4) | (destination_addr & 0xf);
+  payload_size = std::min(payload_size, static_cast<unsigned int>(Frame::MAX_PAYLOAD_LENGTH));
   this->size_ = 1 + payload_size;
   std::memcpy(this->data_.data() + 1, payload, payload_size);
 }
@@ -138,7 +139,7 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
   // never answered (so an instance on the unregistered address 0xF answers nothing, though it may
   // still send), and an unregistered initiator cannot be answered directly
   if (!this->monitor_mode_ && !frame->is_broadcast() && frame->destination_addr() == this->address_ &&
-      frame->initiator_addr() != Frame::BROADCAST_ADDRESS && !is_claimed(frame->opcode())) {
+      frame->initiator_addr() != Frame::BROADCAST_ADDRESS && !HDMICEC::is_claimed(frame->opcode())) {
     this->reply_builtin_(frame);
   }
 }
@@ -275,7 +276,8 @@ void HDMICEC::transmit_message_() {
     this->transmitting_ = false;
     this->finish_attempt_(false);
   }
-  // Otherwise the acknowledge result arrives through the interrupt
+  // Otherwise, a UART transmit can proceed in the background,
+  // and the transmit acknowledge result arrives through the receiver interrupt
 }
 
 void HDMICEC::finish_attempt_(bool sent_ok) {
