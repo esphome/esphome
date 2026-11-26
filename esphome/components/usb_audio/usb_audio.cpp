@@ -246,8 +246,7 @@ esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_
   return err;
 }
 
-esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms,
-                                           std::atomic<uint32_t> &ring_bytes, std::atomic<uint32_t> *ring_padding) {
+esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms) {
   if (!this->enter_driver_(timeout_ms)) {
     // A non-blocking caller retries later.
     return ESP_ERR_TIMEOUT;
@@ -257,27 +256,9 @@ esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, u
     this->driver_users_.fetch_sub(1);
     return ESP_ERR_INVALID_STATE;
   }
-  // Counted after the wait above, or parked transfers would be taken off bytes not yet written, and before the
-  // write, since on_transfer_taken() runs inside it.
-  ring_bytes.fetch_add(length);
-  if (ring_padding != nullptr) {
-    ring_padding->fetch_add(length);
-  }
   esp_err_t err = uac_host_device_write(handle, const_cast<uint8_t *>(data), static_cast<uint32_t>(length),
                                         pdMS_TO_TICKS(timeout_ms));
-  bool clamped = false;
-  if (err != ESP_OK) {
-    // The driver writes whole chunks only, so a failed write stored nothing.
-    clamped = uncount(ring_bytes, length);
-    if (ring_padding != nullptr) {
-      uncount(*ring_padding, length);
-    }
-  }
   this->driver_users_.fetch_sub(1);
-  if (clamped) {
-    // Transfers were taken off bytes the driver never held; the count is now below the real fill.
-    ESP_LOGW(TAG, "Speaker ring count clamped after a failed write");
-  }
   if (err == ESP_FAIL || err == ESP_ERR_INVALID_STATE) {
     // Ring buffer full or stream inactive; report as timeout so callers back off and retry.
     err = ESP_ERR_TIMEOUT;

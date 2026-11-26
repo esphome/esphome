@@ -35,15 +35,6 @@ enum class StreamEvent : uint8_t {
   FAILED,
 };
 
-/// Subtracts `length` from a ring count, stopping at 0 so a race between a rollback and a take never wraps it.
-/// Returns true if it had to stop there.
-inline bool uncount(std::atomic<uint32_t> &count, uint32_t length) {
-  uint32_t current = count.load();
-  while (!count.compare_exchange_weak(current, current > length ? current - length : 0)) {
-  }
-  return current < length;
-}
-
 /// A speaker or microphone platform that streams through the hub. The hub calls it on the main loop only.
 class USBAudioStream {
  public:
@@ -112,9 +103,7 @@ class USBAudioComponent : public Component {
   // Safe from any task. While the worker holds the driver for a control transfer, these wait for it within timeout_ms
   // and return ESP_ERR_TIMEOUT if it is still busy, instead of blocking on the driver's interface lock for seconds.
   esp_err_t read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms);
-  /// Counts `length` in `ring_bytes` (and `ring_padding`, if given) for a successful write.
-  esp_err_t write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms, std::atomic<uint32_t> &ring_bytes,
-                          std::atomic<uint32_t> *ring_padding);
+  esp_err_t write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms);
 
  protected:
   static constexpr size_t EVENT_QUEUE_LENGTH = 16;

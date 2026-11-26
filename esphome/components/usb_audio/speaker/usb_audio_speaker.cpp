@@ -268,7 +268,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       continue;
     }
     const uint32_t timeout_ms = budget_ms > 0 ? budget_ms - elapsed : 0;
-    const esp_err_t err = this->parent_->write_speaker(data + written, chunk, timeout_ms, this->ring_bytes_, nullptr);
+    const esp_err_t err = this->write_(data + written, chunk, timeout_ms, false);
     now = millis();
     if (err == ESP_OK) {
       written += chunk;
@@ -298,6 +298,40 @@ size_t USBAudioSpeaker::ring_room_() const {
   return room - room % this->frame_bytes_;
 }
 
+esp_err_t USBAudioSpeaker::write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding) {
+  // Counted once stored, so the count never drops below the real fill: by a take on this task inside the write, else
+  // on return. A take on the driver's task can come before the store. An overlapping write is counted on return.
+  portENTER_CRITICAL(&this->taken_lock_);
+  const bool tracked = this->writer_task_ == nullptr;
+  if (tracked) {
+    this->writer_task_ = xTaskGetCurrentTaskHandle();
+    this->pending_bytes_ = length;
+    this->pending_padding_ = padding;
+  }
+  portEXIT_CRITICAL(&this->taken_lock_);
+  const esp_err_t err = this->parent_->write_speaker(data, length, timeout_ms);
+  portENTER_CRITICAL(&this->taken_lock_);
+  if (tracked) {
+    // 0 if a take inside the write counted them.
+    length = this->pending_bytes_;
+    this->pending_bytes_ = 0;
+    this->writer_task_ = nullptr;
+  }
+  // A failed write stored nothing, since the driver only writes whole chunks.
+  if (err == ESP_OK) {
+    this->count_(length, padding);
+  }
+  portEXIT_CRITICAL(&this->taken_lock_);
+  return err;
+}
+
+void USBAudioSpeaker::count_(uint32_t length, bool padding) {
+  this->ring_bytes_.fetch_add(length);
+  if (padding) {
+    this->ring_padding_.fetch_add(length);
+  }
+}
+
 void USBAudioSpeaker::pad_with_silence_() {
   if (this->state_ != speaker::STATE_RUNNING) {
     this->pad_remaining_ = 0;
@@ -308,8 +342,7 @@ void USBAudioSpeaker::pad_with_silence_() {
   const size_t piece = sizeof(SILENCE) - sizeof(SILENCE) % this->usb_stream_info_.frames_to_bytes(1);
   while (this->pad_remaining_ > 0) {
     const size_t chunk = std::min<size_t>({this->pad_remaining_, piece, this->ring_room_()});
-    if (chunk == 0 ||
-        this->parent_->write_speaker(SILENCE, chunk, 0, this->ring_bytes_, &this->ring_padding_) != ESP_OK) {
+    if (chunk == 0 || this->write_(SILENCE, chunk, 0, true) != ESP_OK) {
       // A full buffer; the rest is written on a later loop().
       break;
     }
@@ -321,6 +354,11 @@ void USBAudioSpeaker::pad_with_silence_() {
 void USBAudioSpeaker::on_transfer_taken() {
   bool report = false;
   portENTER_CRITICAL(&this->taken_lock_);
+  // Only a take on the writer's task comes after the driver stored the write.
+  if (this->pending_bytes_ != 0 && this->writer_task_ == xTaskGetCurrentTaskHandle()) {
+    this->count_(this->pending_bytes_, this->pending_padding_);
+    this->pending_bytes_ = 0;
+  }
   // Mirror the driver: the next transfer is CONFIG_UAC_NUM_PACKETS_PER_URB packets, and the driver takes it only when
   // the ring buffer holds all of it; otherwise it parks the transfer until the next write.
   uint32_t accum = this->packet_frac_accum_;
@@ -330,7 +368,7 @@ void USBAudioSpeaker::on_transfer_taken() {
   bool tail = ring < size && ring > this->ring_padding_;
   if (ring >= size) {
     this->packet_frac_accum_ = accum;
-    uncount(this->ring_bytes_, size);
+    this->ring_bytes_.fetch_sub(size);
     {
       const uint32_t left = ring - size;
       uint32_t next_accum = accum;
@@ -341,7 +379,7 @@ void USBAudioSpeaker::on_transfer_taken() {
     const uint32_t padding = std::min<uint32_t>(this->ring_padding_, ring);
     const uint32_t audio = std::min(size, ring - padding);
     if (audio < size) {
-      uncount(this->ring_padding_, std::min(size - audio, padding));
+      this->ring_padding_.fetch_sub(std::min(size - audio, padding));
     }
     const int64_t now_us = esp_timer_get_time();
     this->last_taken_us_ = static_cast<uint32_t>(now_us);
