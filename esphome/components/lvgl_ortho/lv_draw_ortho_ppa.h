@@ -40,10 +40,9 @@
  *    no harm, Espressif's own esp_lvgl_adapter gives it to every transaction
  *    -- each at least 16 pixels a side: no sliver.
  *  - No wait is unbounded: a transaction that has not finished in
- *    LV_DRAW_ORTHO_PPA_TIMEOUT_MS marks the PPA stuck, and lv_draw_ortho and
- *    the video window go on without it. The driver's own blocking mode waits
- *    with portMAX_DELAY, which is a frozen screen. What it was stuck on is
- *    kept: lv_draw_ortho_ppa_describe_stall().
+ *    LV_DRAW_ORTHO_PPA_TIMEOUT_MS enters the ESP-IDF panic path rather than
+ *    allowing CPU access to buffers that may still be owned by DMA. A refused
+ *    submission can still fall back after all accepted transactions complete.
  */
 #ifndef LV_DRAW_ORTHO_PPA_H
 #define LV_DRAW_ORTHO_PPA_H
@@ -66,7 +65,7 @@ void lv_draw_ortho_ppa_deinit(void);
 /** One scale-rotate-mirror through the same client and the same guards: cut
  *  for DIG-734 when it is 1:1 and unmirrored, trimmed by up to three source
  *  rows or columns otherwise (the frame's edge, never its middle), and waited
- *  for with a bound. ESP_ERR_TIMEOUT marks the PPA stuck. `op->mode` is
+ *  for with a bound. An unresolved completion timeout enters the ESP-IDF panic path. `op->mode` is
  *  ignored. For lv_draw_ortho_video.c. */
 esp_err_t lv_draw_ortho_ppa_srm(const ppa_srm_oper_config_t *op);
 
