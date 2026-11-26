@@ -61,7 +61,7 @@ struct SDOReply {
 // Called exactly once per request; with REJECTED before the request call returns false, or from a failed setup().
 using SDOCallback = void (*)(void *context, const SDOReply &reply);
 
-// NMT state as sent in a heartbeat (CiA 301)
+// NMT state as sent in a heartbeat (CiA 301); also used for our own state
 enum class NMTState : uint8_t {
   NMT_STATE_BOOTUP = 0,
   NMT_STATE_STOPPED = 4,

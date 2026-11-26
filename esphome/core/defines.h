@@ -48,8 +48,8 @@
 #define ESPHOME_LOGGER_BOOT_LOG_LEVEL ESPHOME_LOG_LEVEL_WARN
 #define ESPHOME_LOGGER_BOOT_LOG_MAX_LEVEL ESPHOME_LOG_LEVEL_WARN
 
-// CANopenNode configuration: canopen sets these as build flags, not as USE_* defines
-#define CO_CONFIG_SDO_CLI 0x03
+// CANopenNode configuration: canopen sets these as build flags (enable_*()), not as USE_* defines
+#define CO_CONFIG_SDO_CLI 0x0B
 #define CO_CONFIG_FIFO 0x01
 #define CO_CONFIG_SDO_CLI_BUFFER_SIZE 7
 
@@ -77,6 +77,8 @@
 #define USE_CANBUS_FD
 #define USE_CANOPEN_EMCY
 #define USE_CANOPEN_HEARTBEAT
+#define USE_CANOPEN_NODE
+#define USE_CANOPEN_SDO_CLIENT
 #define USE_CC1101_LONG_PACKET
 #define USE_CLIMATE
 #define USE_CLIMATE_VISUAL_OVERRIDES
