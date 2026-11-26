@@ -54,16 +54,16 @@ class USBAudioSpeaker : public speaker::Speaker,
   void deliver_reports_();
   void begin_finishing_();
   void stop_();
-  uint32_t clear_ring_();
   void queue_report_(int64_t finish_us);
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
   /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
   void pad_with_silence_();
   /// Write to the driver, counting the bytes in ring_bytes_ (and in ring_padding_ for silence padding).
   esp_err_t write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding);
-  /// Adds stored bytes to the ring count; adding never races a take.
+  /// Adds stored bytes to the ring count, the ring before the padding.
   void count_(uint32_t length, bool padding);
   bool settle_stale_count_();
+  bool take_(uint32_t ring, uint32_t padding_now, uint32_t size, uint32_t accum, int64_t now_us);
   /// A write is in flight, or the driver raised a transfer event within the time its transfers take.
   bool stream_busy_() const;
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
@@ -110,15 +110,18 @@ class USBAudioSpeaker : public speaker::Speaker,
   int64_t report_finish_us_{0};
   // When the last transfer taken finishes playing; reset on a start, so the next one starts the chain from now.
   int64_t last_finish_us_{0};
-  // The write in progress; see write_(). The pending fields are only touched on writer_task_.
+  // The write in progress; see write_(). Only writer_task_ changes the pending fields; the driver's task reads
+  // pending_bytes_ only to arm settle_stale_count_().
   std::atomic<TaskHandle_t> writer_task_{nullptr};
-  uint32_t pending_bytes_{0};
+  std::atomic<uint32_t> pending_bytes_{0};
   bool pending_padding_{false};
   std::atomic<uint8_t> commands_{0};
   // play() calls and silence padding that may be using the device handle; the hub closes a lost device only at zero.
   std::atomic<uint8_t> writes_in_flight_{0};
   // Set by loop() while it pads a tail; play_internal_() waits instead of writing after the padding.
   std::atomic<bool> flushing_{false};
+  // Set when a park on the driver's task may have been a take of a pending write; see settle_stale_count_().
+  std::atomic<bool> settle_armed_{false};
   // Set while play() rejects audio in a format other than usb_stream_info_, so the error is logged once.
   std::atomic<bool> format_mismatch_{false};
   bool finishing_{false};

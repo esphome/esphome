@@ -60,7 +60,9 @@ void USBAudioSpeaker::loop() {
     } else {
       // Suspending flushed the driver's ring buffer, and resuming restarts its packet sizing.
       portENTER_CRITICAL(&this->taken_lock_);
-      this->clear_ring_();
+      this->ring_bytes_ = 0;
+      this->ring_padding_ = 0;
+      this->settle_armed_ = false;
       // Resuming resets the driver's accumulator, then prepares every transfer, which advances it by their packets.
       this->packet_frac_accum_ = CONFIG_UAC_NUM_ISOC_URBS * CONFIG_UAC_NUM_PACKETS_PER_URB * this->packet_frac_ % 1000;
       this->unreported_frames_ = 0;
@@ -98,15 +100,6 @@ void USBAudioSpeaker::loop() {
   }
 }
 
-// Called with taken_lock_ held: zeroes the ring count and returns the caller's audio it held.
-uint32_t USBAudioSpeaker::clear_ring_() {
-  const uint32_t ring = this->ring_bytes_;
-  const uint32_t audio = ring - std::min<uint32_t>(this->ring_padding_, ring);
-  this->ring_bytes_ = 0;
-  this->ring_padding_ = 0;
-  return audio;
-}
-
 // Called with taken_lock_ held: queues the unreported frames for loop() to report.
 void USBAudioSpeaker::queue_report_(int64_t finish_us) {
   this->report_frames_pending_ += this->unreported_frames_;
@@ -142,12 +135,16 @@ uint32_t USBAudioSpeaker::audio_tail_bytes_() {
   return ring < next ? next - ring : 0;
 }
 
-// A take on the driver's task that used a still pending write counts as a park; if the driver then parks every
-// transfer, no later event corrects it. With no write and no transfer event for longer than one is in flight, the
-// driver holds less than its next transfer, so a whole transfer or more is stale: report it as played and drop it.
-// Returns true while such a count may still settle, so loop() keeps running.
+// A take on the driver's task that used a still pending write counts as a park (on_transfer_taken() arms this); if the
+// driver then parks every transfer, no later event replays it. With no write and no transfer event for longer than one
+// is in flight, the driver holds less than its next transfer, so replay the takes until less than that is counted.
+// Returns true while armed and the bus is busy, so loop() keeps running.
 bool USBAudioSpeaker::settle_stale_count_() {
+  if (!this->settle_armed_) {
+    return false;
+  }
   if (this->state_ != speaker::STATE_RUNNING || this->ring_bytes_ < this->transfer_bytes_) {
+    this->settle_armed_ = false;
     return false;
   }
   if (this->stream_busy_()) {
@@ -159,9 +156,21 @@ bool USBAudioSpeaker::settle_stale_count_() {
     portEXIT_CRITICAL(&this->taken_lock_);
     return true;
   }
-  this->unreported_frames_ += this->usb_stream_info_.bytes_to_frames(this->clear_ring_());
-  this->queue_report_(esp_timer_get_time());
+  const int64_t now_us = esp_timer_get_time();
+  while (true) {
+    uint32_t accum = this->packet_frac_accum_;
+    const uint32_t size = this->next_transfer_bytes_(accum);
+    const uint32_t ring = this->ring_bytes_;
+    if (ring < size) {
+      break;
+    }
+    this->take_(ring, this->ring_padding_, size, accum, now_us);
+  }
+  if (this->unreported_frames_ > 0) {
+    this->queue_report_(this->last_finish_us_);
+  }
   portEXIT_CRITICAL(&this->taken_lock_);
+  this->settle_armed_ = false;
   this->deliver_reports_();
   return false;
 }
@@ -336,8 +345,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     }
   }
   this->writes_in_flight_.fetch_sub(1);
-  // A count loop() may have to settle once the bus idles, or a tail to flush.
-  if (this->ring_bytes_ >= this->transfer_bytes_ || this->audio_tail_bytes_() > 0) {
+  if (this->audio_tail_bytes_() > 0) {
     this->enable_loop_soon_any_context();
   }
   return written;
@@ -415,39 +423,20 @@ void USBAudioSpeaker::on_transfer_taken() {
   // the ring buffer holds all of it; otherwise it parks the transfer until the next write.
   uint32_t accum = this->packet_frac_accum_;
   const uint32_t size = this->next_transfer_bytes_(accum);
+  // Padding first: count_() adds the ring before the padding, so the ring read next holds whatever padding was added.
+  const uint32_t padding_now = this->ring_padding_;
   const uint32_t ring = this->ring_bytes_;
   // A tail left behind (less than the next transfer of the caller's audio) is flushed from loop() once the bus idles.
-  bool tail = ring < size && ring > this->ring_padding_;
+  bool tail = ring < size && ring > padding_now;
   if (ring >= size) {
-    this->packet_frac_accum_ = accum;
-    this->ring_bytes_.fetch_sub(size);
-    {
-      const uint32_t left = ring - size;
-      uint32_t next_accum = accum;
-      tail =
-          left < this->transfer_bytes_ && left > this->ring_padding_ && left < this->next_transfer_bytes_(next_accum);
-    }
-    // Padding sits at the end of the ring buffer and is not audio from the caller, so it is not reported.
-    const uint32_t padding = std::min<uint32_t>(this->ring_padding_, ring);
-    const uint32_t audio = std::min(size, ring - padding);
-    if (audio < size) {
-      this->ring_padding_.fetch_sub(std::min(size - audio, padding));
-    }
-    this->last_taken_us_ = static_cast<uint32_t>(now_us);
-    // The bus plays one packet per millisecond, so while it streams a transfer finishes one transfer after the one
-    // taken before it, however late this callback runs. It cannot finish later than now plus the transfers in flight,
-    // so a callback that runs on time pulls back any lateness the chain picked up. When the bus is idle, after a start
-    // (the driver submits nothing until the first write) or once it ran dry, the transfer plays right away.
-    const int64_t finish_us = this->last_finish_us_ < now_us
-                                  ? now_us + this->transfer_us_
-                                  : std::min(this->last_finish_us_ + this->transfer_us_, now_us + this->in_flight_us_);
-    this->last_finish_us_ = finish_us;
-    this->unreported_frames_ += this->usb_stream_info_.bytes_to_frames(audio);
-    // Batched like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out.
-    if (this->unreported_frames_ > 0 && (this->unreported_frames_ >= this->report_frames_ || audio == ring - padding)) {
-      this->queue_report_(finish_us);
-      report = true;
-    }
+    const uint32_t left = ring - size;
+    uint32_t next_accum = accum;
+    tail = left < this->transfer_bytes_ && left > padding_now && left < this->next_transfer_bytes_(next_accum);
+    report = this->take_(ring, padding_now, size, accum, now_us);
+  } else if (writer != nullptr && ring + this->pending_bytes_ >= size) {
+    // This park on the driver's task may have been a take of the pending write; loop() replays it if nothing else does.
+    this->settle_armed_ = true;
+    report = true;
   }
   portEXIT_CRITICAL(&this->taken_lock_);
   if (report || tail) {
@@ -455,6 +444,35 @@ void USBAudioSpeaker::on_transfer_taken() {
     // does not change what they compute.
     this->enable_loop_soon_any_context();
   }
+}
+
+// Called with taken_lock_ held: the driver took the next transfer, `size` bytes, from a ring counted at `ring`.
+// Returns true when frames were queued for loop() to report.
+bool USBAudioSpeaker::take_(uint32_t ring, uint32_t padding_now, uint32_t size, uint32_t accum, int64_t now_us) {
+  this->packet_frac_accum_ = accum;
+  this->ring_bytes_.fetch_sub(size);
+  // Padding sits at the end of the ring buffer and is not audio from the caller, so it is not reported.
+  const uint32_t padding = std::min(padding_now, ring);
+  const uint32_t audio = std::min(size, ring - padding);
+  if (audio < size) {
+    this->ring_padding_.fetch_sub(std::min(size - audio, padding));
+  }
+  this->last_taken_us_ = static_cast<uint32_t>(now_us);
+  // The bus plays one packet per millisecond, so while it streams a transfer finishes one transfer after the one
+  // taken before it, however late this callback runs. It cannot finish later than now plus the transfers in flight,
+  // so a callback that runs on time pulls back any lateness the chain picked up. When the bus is idle, after a start
+  // (the driver submits nothing until the first write) or once it ran dry, the transfer plays right away.
+  const int64_t finish_us = this->last_finish_us_ < now_us
+                                ? now_us + this->transfer_us_
+                                : std::min(this->last_finish_us_ + this->transfer_us_, now_us + this->in_flight_us_);
+  this->last_finish_us_ = finish_us;
+  this->unreported_frames_ += this->usb_stream_info_.bytes_to_frames(audio);
+  // Batched like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out.
+  if (this->unreported_frames_ > 0 && (this->unreported_frames_ >= this->report_frames_ || audio == ring - padding)) {
+    this->queue_report_(finish_us);
+    return true;
+  }
+  return false;
 }
 
 void USBAudioSpeaker::deliver_reports_() {
