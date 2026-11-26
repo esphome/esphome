@@ -821,8 +821,6 @@ async def to_code(config):
         )
         cg.add(var.set_ssl_fingerprint())
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
-        # The core's handler keeps its message in RAM; the replacement in mqtt_client.cpp does not
-        cg.add_build_flag("-Wl,--wrap=stack_thunk_fatal_smashing")
 
     # The client queues subscriptions until it connects, so they can be made at construction.
     for conf in config.get(CONF_ON_MESSAGE, []):
