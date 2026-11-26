@@ -1,6 +1,7 @@
 #pragma once
 
 #include "light_color_values.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
@@ -186,6 +187,12 @@ class LightCall {
   void perform();
 
  protected:
+#ifdef USE_LIGHT_MOVE
+  friend class LightState;
+  /// What the transition this call starts is, see LightState::perform_move(). Carried by the call, not by LightState: a
+  /// call that something else makes while this one runs (a log callback) cannot take it.
+  enum MoveKind : uint8_t { MOVE_NONE, MOVE_BRIGHTNESS };
+#endif
   /// Get the currently targeted, or active if none set, color mode.
   ColorMode get_active_color_mode_();
 
@@ -251,6 +258,9 @@ class LightCall {
   uint16_t flags_{FLAG_PUBLISH | FLAG_SAVE};  // Tracks which values are set
   ColorMode color_mode_;
   bool state_;
+#ifdef USE_LIGHT_MOVE
+  uint8_t move_ : 2 {MOVE_NONE};  // a MoveKind
+#endif
 };
 
 }  // namespace light

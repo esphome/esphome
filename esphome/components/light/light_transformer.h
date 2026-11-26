@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "light_color_values.h"
@@ -31,6 +32,12 @@ class LightTransformer {
 
   /// This will be called after transition is finished.
   virtual void stop() {}
+
+#ifdef USE_LIGHT_MOVE
+  /// Where this transformation has got to, for a move to start from. `current` is what apply() last returned, which is
+  /// right unless apply() writes the output itself.
+  virtual LightColorValues get_reached_values(const LightColorValues &current) { return current; }
+#endif
 
   const LightColorValues &get_start_values() const { return this->start_values_; }
 

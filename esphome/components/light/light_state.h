@@ -108,6 +108,24 @@ class LightState : public EntityBase, public Component {
   /// a transition or flash runs.
   bool set_external_state(const LightColorValues &values);
 
+#ifdef USE_LIGHT_MOVE
+  /// The values the light shows now: current_values, or for an addressable light's own transition, which writes the
+  /// LEDs itself and leaves current_values at its start, where that transition has got to.
+  LightColorValues get_shown_values();
+  /// Perform `call` as a move from `start`: current_values is set to `start`, so callers pass where the light should
+  /// begin, usually get_shown_values(). `call` must make a transition, not a flash. Its transition runs at constant
+  /// speed, current_values follows it on every output, and a move that ends at 0% turns the light off, as Matter's
+  /// MoveWithOnOff does. light.move builds the call, to a brightness.
+  void perform_move(LightCall &call, const LightColorValues &start);
+  /// Freeze a running move where the light is now, like the Matter Level Control Stop command. That is the last
+  /// value applied, also when the move's time is up and the next loop() has not applied its end yet. Only the
+  /// brightness is frozen. Other transitions, flashes and effects run on, and nothing happens when no
+  /// move is running.
+  void stop_move();
+  /// Whether a move is running.
+  bool is_moving() const { return this->moving_; }
+#endif
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Load state from preferences
@@ -374,7 +392,12 @@ class LightState : public EntityBase, public Component {
   /// Internal method to stop the current effect (if one is active).
   void stop_effect_();
   /// Internal method to start a transition to the target color with the given length.
+#ifdef USE_LIGHT_MOVE
+  /// `move` is the LightCall::MoveKind of the call: a move runs a linear transition.
+  void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values, uint8_t move);
+#else
   void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values);
+#endif
 
   /// Internal method to start a flash for the specified amount of time.
   void start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values);
@@ -474,6 +497,10 @@ class LightState : public EntityBase, public Component {
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_ : 1 {false};
   bool called_ : 1 {false};  // see called_since_clear()
+#ifdef USE_LIGHT_MOVE
+  /// Whether the running transformer is a move; cleared whenever it is replaced or ends.
+  bool moving_ : 1 {false};
+#endif
   /// Whether this light persists its state to preferences at all.
   bool save_enabled_ : 1 {false};
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL

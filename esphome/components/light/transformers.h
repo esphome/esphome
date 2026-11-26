@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "light_color_values.h"
 #include "light_state.h"
@@ -10,6 +11,11 @@ namespace esphome::light {
 
 class LightTransitionTransformer : public LightTransformer {
  public:
+#ifdef USE_LIGHT_MOVE
+  /// A linear transition runs at constant speed, which a light.move needs; the default eases in and out.
+  explicit LightTransitionTransformer(bool linear = false) : linear_(linear) {}
+#endif
+
   void start() override {
     // When turning light on from off state, use target state and only increase brightness from zero.
     if (!this->start_values_.is_on() && this->target_values_.is_on()) {
@@ -49,7 +55,11 @@ class LightTransitionTransformer : public LightTransformer {
     if (this->changing_color_mode_)
       p = p < 0.5f ? p * 2 : (p - 0.5f) * 2;
 
+#ifdef USE_LIGHT_MOVE
+    float v = this->linear_ ? p : LightTransformer::smoothed_progress(p);
+#else
     float v = LightTransformer::smoothed_progress(p);
+#endif
     return LightColorValues::lerp(start, end, v);
   }
 
@@ -57,6 +67,9 @@ class LightTransitionTransformer : public LightTransformer {
   LightColorValues end_values_{};
   LightColorValues intermediate_values_{};
   bool changing_color_mode_{false};
+#ifdef USE_LIGHT_MOVE
+  bool linear_{false};
+#endif
 };
 
 class LightFlashTransformer : public LightTransformer {
