@@ -2574,7 +2574,9 @@ async def build_grouped_callback_automations(
         value = None if entry.watched is None else entry.watched(ref)
         # A copy, as actions take x by reference and may change the parent
         forward = (
-            [StaticCastExpression(entry.args[0][0], value)] if entry.args else None
+            [StaticCastExpression(cg.safe_exp(entry.args[0][0]), value)]
+            if entry.args
+            else None
         )
         for index, conf in enumerate(config.get(entry.conf_key, [])):
             target = await build_trigger_callback(

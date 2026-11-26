@@ -2057,6 +2057,26 @@ async def test_grouped_automations_single_filtered_gets_a_function(
 
 
 @pytest.mark.asyncio
+async def test_grouped_automations_copy_a_python_arg_type(mock_cg: MockCodegen) -> None:
+    """A Python type in args becomes its C++ type in the copy handed to the automation."""
+    entry = GroupedAutomation(
+        "on_speed_set",
+        lambda fan: fan.speed,
+        CHANGE_TRIGGER.changed,
+        args=[(int, "x")],
+    )
+    await build_grouped_callback_automations(
+        MockObj("fan", "->"),
+        _parent("fan", on_speed_set=[_conf(1)]),
+        "add_on_state_callback",
+        (entry,),
+    )
+    assert f"::{NEW_OBJ}->trigger(static_cast<int32_t>(::fan->speed));" in _definition(
+        mock_cg, "esphome__automation_1__fn"
+    )
+
+
+@pytest.mark.asyncio
 async def test_grouped_automations_filter_then_when(mock_cg: MockCodegen) -> None:
     """With both, the filter runs on every callback and the automation tests the when filter after it."""
     entry = GroupedAutomation(
