@@ -474,7 +474,7 @@ void TopTronic::setup() {
       }
     });
   }
-#ifdef USE_OTA_STATE_LISTENER
+#ifdef USE_TOPTRONIC_OTA_PAUSE
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 }
@@ -485,7 +485,7 @@ void TopTronic::loop() {
     this->disable_loop();
 }
 
-#ifdef USE_OTA_STATE_LISTENER
+#ifdef USE_TOPTRONIC_OTA_PAUSE
 // Stop bus traffic while an OTA update runs so it does not compete with the update
 void TopTronic::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) {
   if (state == ota::OTA_STARTED) {
