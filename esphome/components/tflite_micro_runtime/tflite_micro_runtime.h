@@ -163,26 +163,26 @@ class TFLiteMicroHelper : public Component {
   void set_resource_variables(tflite::MicroResourceVariables *variables) { this->resource_variables_ = variables; }
 
   /// Model spec of the loaded model; all defaults when none is loaded.
-  ModelSpec get_model_spec();
+  ModelSpec get_model_spec() const;
 
   // These read the interpreter, so they report 0 until the model is READY.
-  int get_input_width();
-  int get_input_height();
-  int get_input_channels();
+  int get_input_width() const;
+  int get_input_height() const;
+  int get_input_channels() const;
   /// A copy of the loaded model's configuration; defaults when none is loaded.
-  ModelConfig get_config();
-  size_t get_arena_used_bytes();
+  ModelConfig get_config() const;
+  size_t get_arena_used_bytes() const;
 
-  size_t get_tensor_arena_size();
+  size_t get_tensor_arena_size() const;
   /// Size the last load asked the allocator for, after probing (not a usage figure).
-  size_t get_tensor_arena_size_effective();
-  size_t get_tensor_arena_size_actual();
-  size_t get_model_size_bytes();
-  ArenaStats get_arena_stats();
+  size_t get_tensor_arena_size_effective() const;
+  size_t get_tensor_arena_size_actual() const;
+  size_t get_model_size_bytes() const;
+  ArenaStats get_arena_stats() const;
   void report_memory_status();
-  LoadStats get_last_load_stats();
+  LoadStats get_last_load_stats() const;
   /// The result run_inference() produced for the current notification.
-  ProcessedOutput get_last_result();
+  ProcessedOutput get_last_result() const;
 
 #ifdef USE_TFLITE_MODEL_DEBUG
   /// Sweep the model's parameters. Refused while a result waits for its callback,
@@ -197,7 +197,7 @@ class TFLiteMicroHelper : public Component {
   class LockGuard {
    public:
     /// @param wait false to give up at once when another task holds the lock.
-    explicit LockGuard(TFLiteMicroHelper *helper, bool wait = true);
+    explicit LockGuard(const TFLiteMicroHelper *helper, bool wait = true);
     ~LockGuard();
     LockGuard(const LockGuard &) = delete;
     LockGuard &operator=(const LockGuard &) = delete;
@@ -206,7 +206,7 @@ class TFLiteMicroHelper : public Component {
     void unlock();
 
    private:
-    TFLiteMicroHelper *helper_;
+    const TFLiteMicroHelper *helper_;
     bool locked_{false};
   };
 
@@ -261,7 +261,7 @@ class TFLiteMicroHelper : public Component {
   std::atomic<uint32_t> pending_epoch_{0};
   std::atomic<uint32_t> dispatched_epoch_{0};
   /// Task holding mutex_, so a log emitted under the lock cannot deadlock the device.
-  std::atomic<TaskHandle_t> lock_owner_{nullptr};
+  mutable std::atomic<TaskHandle_t> lock_owner_{nullptr};
   /// The result run_inference() produced, kept until its callback runs. Invalid
   /// until an inference fills it.
   ProcessedOutput last_result_{0.0f, 0.0f, false};
@@ -271,12 +271,12 @@ class TFLiteMicroHelper : public Component {
   /// Serializes load, unload, inference and set_model(), so an unload from another
   /// task cannot free the arena while it is in use. The mutex is not recursive, so
   /// a same-task re-entry is rejected by LockGuard instead of deadlocking.
-  esphome::Mutex mutex_;
+  mutable esphome::Mutex mutex_;
   /// True while the main loop is inside the callback. A run started there is
   /// refused, so the callbacks for the current result all read that result.
   std::atomic<bool> dispatching_{false};
   /// Set once per re-entry so the nested error log cannot recurse forever.
-  std::atomic<bool> reentry_reported_{false};
+  mutable std::atomic<bool> reentry_reported_{false};
   /// True from the start of a run until its callback is delivered, so another
   /// task cannot overwrite the decoder before the callbacks read it.
   bool result_reserved_{false};
