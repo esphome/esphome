@@ -17,8 +17,9 @@ namespace esphome::web_server {
 // line, no blank line)
 using web_server_base::CHUNK_HDR_LEN;
 using web_server_base::write_chunk_header;
+// A PROGMEM copy that shadows web_server_base::CHUNK_END, whose constexpr array sits in RAM on ESP8266
 extern const char CHUNK_END[];
-constexpr size_t CHUNK_END_LEN = 2;
+using web_server_base::CHUNK_END_LEN;
 // Between two data lines: the end of one and the prefix of the next
 extern const char SSE_SEP[];
 constexpr size_t SSE_SEP_LEN = 8;
