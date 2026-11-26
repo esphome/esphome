@@ -41,10 +41,12 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
     this->deliver_local_();
     return;
   }
-  // frames other local nodes sent before are older: they go first
-  this->deliver_local_();
+  // queued for the other local nodes before we send anything: what we send while handling our older local frames or
+  // this one is on the bus after it
   for (CANopenComponent *node = this->next_local_; node != nullptr && node != this; node = node->next_local_)
     node->stage_bus_frame_(ident, frame.data, len);
+  // frames other local nodes sent before are older: they go first
+  this->deliver_local_();
   this->handle_frame_(ident, frame.data, len);
 }
 

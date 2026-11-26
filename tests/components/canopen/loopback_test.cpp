@@ -303,6 +303,35 @@ TEST_F(LocalPair, ReplyAfterTheBusFrame) {
   EXPECT_EQ(seen_by_b, (std::vector<uint32_t>{0x123, 0x124, 0x125}));
 }
 
+// The same for a reply to an older local frame the first node takes before the bus frame: it's sent after the bus frame
+// was received, so the other node gets it after that frame.
+TEST_F(LocalPair, ReplyToAnOlderLocalFrameAfterTheBusFrame) {
+  struct Relay {
+    TestHub *hub;
+    static void on_frame(void *context, uint32_t, const uint8_t *, uint8_t) {
+      const uint8_t data[] = {2};
+      static_cast<Relay *>(context)->hub->send_frame(0x124, data, 1);
+    }
+  } relay{&a};
+  std::vector<uint32_t> seen_by_b;
+  struct Ids {
+    std::vector<uint32_t> *ids;
+    static void on_frame(void *context, uint32_t can_id, const uint8_t *, uint8_t) {
+      static_cast<Ids *>(context)->ids->push_back(can_id);
+    }
+  } ids{&seen_by_b};
+  FrameListener on_a{0x123, 0x7FF, Relay::on_frame, &relay};
+  FrameListener on_b{0x120, 0x7F0, Ids::on_frame, &ids};
+  a.add_frame_listener(on_a);
+  b.add_frame_listener(on_b);
+  start();
+  const uint8_t data[] = {1};
+  ASSERT_TRUE(b.send_frame(0x123, data, 1));  // waits in a's queue
+  bus.queue(0x125, {3});
+  bus.loop();  // a takes 0x123 (and replies 0x124), then 0x125
+  EXPECT_EQ(seen_by_b, (std::vector<uint32_t>{0x125, 0x124}));
+}
+
 // A bus frame staged for a node whose queue is full is lost for that node only, and not passed on twice.
 TEST_F(LocalPair, BusFrameOnAFullQueue) {
   Frames on_a, on_b;
