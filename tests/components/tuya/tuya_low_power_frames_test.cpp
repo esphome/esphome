@@ -10,6 +10,7 @@
 #include "esphome/components/tuya/tuya_uart.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 // Drives whole frames through TuyaUART with the low_power protocol: handshake, write queue and recovery.
 namespace esphome::tuya::testing {
@@ -88,6 +89,12 @@ class TuyaLowPowerFrames : public ::testing::Test {
     this->tuya_.add_on_mcu_ready_callback([this]() { this->ready_count_++; });
     this->step_(0);
     this->tuya_.setup();
+  }
+
+  // The network status interval (id 1) must not outlive this TuyaUART into a later test
+  void TearDown() override {
+    App.scheduler.cancel_interval(&this->tuya_, uint32_t{1});
+    App.scheduler.call(millis());
   }
 
   // One loop pass at loop time now. Commands keep a 10 ms gap measured with millis(), so wait that long first.
