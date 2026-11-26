@@ -151,6 +151,42 @@ TEST(ATSHA204A, RejectsClosingSessionTokenDuringTransportCallback) {
   EXPECT_EQ(transport.commands.size(), 1U);
 }
 
+TEST(ATSHA204A, InvalidFollowUpClosesOnlyTheMatchingSession) {
+  for (auto mode : {EndMode::END_MODE_KEEP_AWAKE, EndMode::END_MODE_IDLE}) {
+    TestTransport transport;
+    TestChip chip(transport);
+    uint32_t token = 0;
+    chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, mode, 0, true,
+                 [&](int status, const CommandResponse &, uint32_t session) {
+                   EXPECT_EQ(status, 0);
+                   token = session;
+                 });
+    chip.advance({0x04, 0x11, 0x33, 0x43});
+    chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
+    ASSERT_NE(token, 0U);
+    const std::array<uint8_t, MAX_COMMAND - 6> oversized{};
+    const auto invalid = [](int status, const CommandResponse &, uint32_t session) {
+      EXPECT_EQ(status, INVALID_ARGUMENT);
+      EXPECT_EQ(session, 0U);
+    };
+    const auto before = transport.low_power_modes.size();
+
+    chip.command(Opcode::OPCODE_WRITE, 0, 0, oversized, EndMode::END_MODE_SLEEP, token + 1, true, invalid);
+    EXPECT_EQ(transport.wakes, 1);
+    EXPECT_EQ(transport.low_power_modes.size(), before);
+
+    chip.command(Opcode::OPCODE_WRITE, 0, 0, oversized, EndMode::END_MODE_SLEEP, token, true, invalid);
+    if (mode == EndMode::END_MODE_IDLE) {
+      EXPECT_EQ(transport.wakes, 2);
+      chip.advance({0x04, 0x11, 0x33, 0x43});
+    }
+    ASSERT_EQ(transport.low_power_modes.size(), before + 1);
+    EXPECT_FALSE(transport.low_power_modes.back());
+    EXPECT_FALSE(chip.end_session(token));
+    EXPECT_EQ(transport.commands.size(), 1U);
+  }
+}
+
 TEST(ATSHA204A, ExpiresHeldSessionWithoutComponentLoop) {
   TestTransport transport;
   TestChip chip(transport);

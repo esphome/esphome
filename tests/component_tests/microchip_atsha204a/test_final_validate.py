@@ -40,6 +40,8 @@ def _validation_errors(yaml: str, tmp_path: Path) -> list[str]:
     [
         ("GPIO21", "", None),
         ("GPIO21", "  rx_timeout: 0", "value must be at least 1"),
+        ("GPIO21", "  rx_timeout: 32", None),
+        ("GPIO21", "  rx_timeout: 33", "value must be at most 32"),
         ("GPIO21", "  tx_pin: GPIO22", "requires an RX-only UART"),
         ("GPIO34", "", "Use a non-inverted, output-capable GPIO"),
         (
