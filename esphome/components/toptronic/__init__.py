@@ -486,6 +486,7 @@ async def to_code(config: ConfigType) -> None:
     _request_hub()
     # Pause bus traffic while an OTA update runs
     ota.request_ota_state_listeners()
+    cg.add_define("USE_TOPTRONIC_OTA_PAUSE")
     max_pending = config[CONF_MAX_PENDING_MESSAGES]
     max_frames = config[CONF_MAX_FRAMES_PER_MESSAGE]
     for _ in range(max_pending):
