@@ -142,6 +142,9 @@ MIN_SAMPLE_INTERVAL_MS = 16
 
 MAX_SAMPLE_COUNT = 16
 
+#: Emitted when the calibration code (and so the persisted R0) is needed.
+CALIBRATION_DEFINE = "USE_MQ_GAS_SENSORS_CALIBRATION"
+
 #: At most this many analog-to-digital conversions per reading once the internal
 #: ADC's own averaging is multiplied in: every ``sample()`` of an owned ``adc``
 #: runs its whole ``adc_samples:`` burst inside the same loop pass as the reading.
@@ -974,23 +977,28 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_max_ppm(resolved.max_ppm))
     multiplier = _voltage_multiplier(config)
     cg.add(var.set_voltage_multiplier(multiplier))
-    cg.add(
-        var.set_preference_key(
-            _preference_key(
-                resolved.vcc,
-                multiplier,
-                _effective_rl(config, resolved.rl),
-                ratio_in_clean_air,
-                sensor_type=f"{resolved.type_key}/{resolved.gas}",
-                sampler=(
-                    f"pin:{config[CONF_PIN]}"
-                    if CONF_PIN in config
-                    else f"voltage:{config[CONF_VOLTAGE].id}"
-                ),
-                correction_mode=str(config[CONF_CORRECTION_MODE]),
+    # The calibration, its persistence and the `calibrate_r0` action are compiled
+    # in only when a `calibration:` block asks for them (the action emits the same
+    # define when it is used).
+    if calibration is not None:
+        cg.add_define(CALIBRATION_DEFINE)
+        cg.add(
+            var.set_preference_key(
+                _preference_key(
+                    resolved.vcc,
+                    multiplier,
+                    _effective_rl(config, resolved.rl),
+                    ratio_in_clean_air,
+                    sensor_type=f"{resolved.type_key}/{resolved.gas}",
+                    sampler=(
+                        f"pin:{config[CONF_PIN]}"
+                        if CONF_PIN in config
+                        else f"voltage:{config[CONF_VOLTAGE].id}"
+                    ),
+                    correction_mode=str(config[CONF_CORRECTION_MODE]),
+                )
             )
         )
-    )
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_sample_interval(config[CONF_SAMPLE_INTERVAL]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
@@ -1062,10 +1070,19 @@ async def to_code(config: ConfigType) -> None:
     )
 
 
-CALIBRATE_R0_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.Required(CONF_ID): cv.use_id(MQGasSensor),
-    }
+def _require_calibration_code(config: ConfigType) -> ConfigType:
+    """Compile the calibration code in: the action calls into it."""
+    cg.add_define(CALIBRATION_DEFINE)
+    return config
+
+
+CALIBRATE_R0_ACTION_SCHEMA = cv.All(
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(MQGasSensor),
+        }
+    ),
+    _require_calibration_code,
 )
 
 

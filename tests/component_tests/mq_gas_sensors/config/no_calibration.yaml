@@ -1,0 +1,25 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mq8_adc
+    name: MQ-8 AO voltage
+    pin: GPIO34
+    attenuation: 12db
+
+  # R0 is hard-coded and no calibration action is used: the calibration and the
+  # persisted R0 stay out of the build.
+  - platform: mq_gas_sensors
+    id: mq8_fixed
+    name: MQ-8 H2
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq8_adc
+    voltage_divider:
+      r1: 20.0
+      r2: 10.0
+    r0: 10.0

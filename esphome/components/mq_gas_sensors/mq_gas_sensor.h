@@ -36,7 +36,9 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   explicit MQGasSensor(voltage_sampler::VoltageSampler *source) : source_(source) {}
 
   void setup() override;
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   void loop() override;
+#endif
   void update() override;
   void dump_config() override;
 
@@ -67,11 +69,13 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   void set_samples(uint8_t samples) { this->samples_ = samples; }
   void set_sample_interval(uint32_t interval) { this->sample_interval_ = interval; }
   void set_warmup_time(uint32_t warmup) { this->warmup_time_ = warmup; }
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   void set_calibration(bool enabled, float ratio_in_clean_air, uint32_t delay, uint32_t duration, uint32_t samples,
                        bool persist);
   /// Identity of the wiring the persisted R0 belongs to: a value stored for a
   /// different supply, scaling or load resistor must never be read back.
   void set_preference_key(uint32_t key) { this->preference_key_ = key; }
+#endif
 #ifdef USE_MQ_GAS_SENSORS_LOG_SENSOR
   void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
 #endif
@@ -109,6 +113,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   // ----------------------------------------------------------------- runtime
   bool has_r0() const { return this->r0_ > 0.0f; }
 
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   /// Start a clean-air calibration now - the `mq_gas_sensors.calibrate_r0` action.
   ///
   /// The samples are taken straight away, except while the warm-up window still
@@ -117,6 +122,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// stored in flash when `persist:` is on; without a `calibration:` block it uses
   /// its defaults (10 samples, not persisted).
   void start_calibration();
+#endif
 
   float get_r0() const { return this->r0_; }
   float get_rs() const { return this->rs_; }
@@ -140,11 +146,13 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// Full MQUnifiedsensor pipeline; returns NAN when no valid reading exists.
   float read_ppm_();
 
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   void begin_calibration_();
   void process_calibration_();
   void finish_calibration_();
   /// Raise the status warning and schedule the next calibration attempt.
   void schedule_calibration_retry_();
+#endif
   /// True while the warm-up window of `warmup_time_` is still running; ends the
   /// window for good once it has passed.
   ///
@@ -159,8 +167,10 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// Publish the current R0 to `r0_sensor` (no-op when it is not configured).
   /// Only called where R0 is set - it does not change between readings.
   void publish_r0_();
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   bool save_r0_();
   bool load_r0_();
+#endif
   void log_config_();
   /// Log the value published by the next `publish_state()` at `INFO`
   /// (`'<type> <gas>': <ppm> ppm`), the "normal mode" counterpart of the
@@ -211,11 +221,13 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   float min_ppm_{0.0f};
   float max_ppm_{10000.0f};
   float correction_factor_{0.0f};
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   float calibration_sum_{0.0f};
   /// Smallest and largest clean-air sample of the run; a wide spread means the
   /// sensor was not settled, see `calibration_is_stable()`.
   float calibration_min_{0.0f};
   float calibration_max_{0.0f};
+#endif
   float sensor_voltage_{0.0f};
   float rs_{0.0f};
   float ratio_{0.0f};
@@ -230,6 +242,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
 #endif
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   uint32_t calibration_delay_{0};
   uint32_t calibration_duration_{0};
   uint32_t calibration_samples_{10};
@@ -246,13 +259,16 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// Windows in which the sampler answered only part of the conversions: a
   /// degrading sampler that never fails outright.
   uint32_t calibration_partial_{0};
+#endif
   /// Loop time the warm-up window started at; only read while `in_warmup_()`
   /// holds it open.
   uint32_t warmup_start_{0};
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   /// Wiring hash of the stored R0 (`_preference_key()` in ``sensor.py``), folded
   /// into the preference key by `setup()`.
   uint32_t preference_key_{0};
   ESPPreferenceObject r0_pref_{};
+#endif
 
 #ifdef USE_MQ_GAS_SENSORS_LOG_SENSOR
   text_sensor::TextSensor *log_sensor_{nullptr};
@@ -270,10 +286,12 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
 
   bool r0_configured_{false};
   bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   bool calibration_enabled_{false};
   bool persist_{false};
   bool calibrating_{false};
   bool calibration_pending_{false};
+#endif
   /// The warm-up window ended; latched, so `in_warmup_()` never reports it again.
   bool warmup_ended_{false};
   bool warned_no_r0_{false};
@@ -295,6 +313,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// The temperature/humidity sources cannot provide a usable correction.
   bool correction_degraded_{false};
   bool warned_correction_{false};
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   /// The first rejected calibration sample was logged (debug only).
   bool calibration_rejection_logged_{false};
 
@@ -304,6 +323,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// Floor of the delay between two calibration attempts (ms): a failed attempt
   /// runs the whole sample run again, so a shorter delay only repeats the failure.
   static constexpr uint32_t CALIBRATION_RETRY_MIN_MS = 10000;
+#endif
 };
 
 }  // namespace esphome::mq_gas_sensors

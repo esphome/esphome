@@ -1,3 +1,5 @@
+import esphome.codegen as cg
+from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
@@ -8,3 +10,10 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # `to_code` of the test build never runs, and nothing compiled here
     # references their symbols.
     manifest.auto_load = ["sensor", "voltage_sampler", "text_sensor"]
+
+    # The calibration is compiled in only when a configuration asks for it; the
+    # tests exercise it, so the build turns it on.
+    async def to_code_testing(config: ConfigType) -> None:
+        cg.add_define("USE_MQ_GAS_SENSORS_CALIBRATION")
+
+    manifest.to_code = to_code_testing

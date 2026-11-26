@@ -577,6 +577,42 @@ def test_log_mirror_define_is_absent_without_the_option(
     )
 
 
+def _has_define(name: str) -> bool:
+    return any(define.name == name for define in CORE.defines)
+
+
+def test_calibration_define_follows_the_option(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The calibration and the persisted R0 are compiled in for a `calibration:`."""
+    generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert _has_define("USE_MQ_GAS_SENSORS_CALIBRATION")
+
+
+def test_calibration_define_is_absent_with_a_fixed_r0(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A fixed `r0:` without the action leaves the calibration code out."""
+    main_cpp = generate_main(component_config_path("no_calibration.yaml"))
+
+    assert not _has_define("USE_MQ_GAS_SENSORS_CALIBRATION")
+    assert "set_preference_key" not in main_cpp
+
+
+def test_calibrate_action_compiles_the_calibration_in(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The action calls into the calibration, so it asks for the code."""
+    main_cpp = generate_main(component_config_path("action_only.yaml"))
+
+    assert _has_define("USE_MQ_GAS_SENSORS_CALIBRATION")
+    assert "start_calibration()" in main_cpp
+
+
 def test_esp32_attenuation_ranges_follow_the_variant() -> None:
     """Each variant uses its documented measuring range and `auto` the widest."""
     assert esp32_attenuation_input_max(VARIANT_ESP32, "6db") == pytest.approx(1.75)

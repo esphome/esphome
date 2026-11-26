@@ -13,8 +13,10 @@ namespace esphome::mq_gas_sensors {
 
 ESPHOME_LOG_TAG(TAG, "mq_gas_sensors");
 
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
 /// Version tag mixed into the preference key of the persisted R0 value.
 static constexpr uint32_t R0_PREFERENCE_VERSION = 0x00000001;
+#endif
 
 /// A sensor whose resistance collapses drives its analog output to its supply, and
 /// the supply rail can sit this much above the configured `vcc:` (a 5.1 V USB rail
@@ -106,6 +108,7 @@ void MQGasSensor::setup() {
   // below can request calibration synchronously, and it measures the window from
   // this timestamp.
   this->warmup_start_ = App.get_loop_component_start_time();
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   // The wiring hash is folded into the key so that the stored R0 of a different
   // supply, scaling or load resistor is never read back. Without persistence there
   // is nothing to store, and a preference slot is a limited resource on ESP8266.
@@ -113,13 +116,17 @@ void MQGasSensor::setup() {
     this->r0_pref_ = this->make_entity_preference<float>(R0_PREFERENCE_VERSION ^ this->preference_key_,
                                                          /*in_flash=*/true);
   }
+#endif
 
   if (this->r0_configured_) {
     this->log_message_(LogSeverity::LOG_SEVERITY_INFO, LOG_STR("using the R0 from the configuration (%.4f kOhm)"),
                        this->r0_);
-  } else if (this->persist_ && this->load_r0_()) {
+  }
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
+  else if (this->persist_ && this->load_r0_()) {
     this->log_message_(LogSeverity::LOG_SEVERITY_INFO, LOG_STR("restored R0 from preferences (%.4f kOhm)"), this->r0_);
   }
+#endif
   this->publish_r0_();
 
   if (this->warmup_time_ > 0) {
@@ -128,6 +135,7 @@ void MQGasSensor::setup() {
                        this->warmup_time_ / 1000);
   }
 
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   if (this->calibration_enabled_) {
     if (this->has_r0()) {
       this->log_message_(LogSeverity::LOG_SEVERITY_INFO,
@@ -143,7 +151,9 @@ void MQGasSensor::setup() {
                          LOG_STR("R0 calibration scheduled in %" PRIu32 " s - the sensor must be in clean air"),
                          delay / 1000);
     }
-  } else if (!this->has_r0()) {
+  } else
+#endif
+      if (!this->has_r0()) {
     // No R0 will ever appear in this configuration, so the component is degraded for
     // its whole life: keep the status warning up, not only the log line.
     this->r0_warning_ = LOG_STR("no R0 available - set 'r0:' or 'calibration:' in the configuration");
@@ -174,9 +184,13 @@ void MQGasSensor::setup() {
 
   // A calibration started by the R0 sensor's on_value during publish_r0_() above
   // owns the loop from here: disabling it would leave the run without samples.
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   if (!this->calibrating_) {
     this->disable_loop();
   }
+#else
+  this->disable_loop();
+#endif
 }
 
 void MQGasSensor::log_config_() {
@@ -195,7 +209,11 @@ void MQGasSensor::log_config_() {
                 "  RS/R0 in clean air: %.2f, correction factor: %.4f\n"
                 "  Warm-up: %" PRIu32 " s, auto calibration: %s",
                 this->ratio_in_clean_air_, this->correction_factor_, this->warmup_time_ / 1000,
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
                 this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
+#else
+                LOG_STR_LITERAL("not compiled in"));
+#endif
   if (this->has_r0()) {
     ESP_LOGCONFIG(TAG, "  R0: %.4f kOhm (%s)", this->r0_,
                   this->r0_configured_ ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("calibrated/restored"));
@@ -423,6 +441,7 @@ void MQGasSensor::update() {
   // These states publish no measurement, but the wiring checks above still ran:
   // they are what tells a dead input from a misconfigured one. Only the ratio and
   // the ppm below wait for R0.
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
   if (this->calibrating_) {
     // The persisted R0 is about to change: never keep a value that was computed
     // with the previous one.  The message also reaches `log_sensor:`.
@@ -448,6 +467,7 @@ void MQGasSensor::update() {
     // a valid reference: keep publishing instead of blanking the sensor until the
     // retry runs.
   }
+#endif
 
   if (this->in_warmup_()) {
     // Published on every pass, so a value computed before a restart never survives
@@ -619,6 +639,7 @@ void MQGasSensor::warn_ceiling_(float ppm) {
   }
 }
 
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
 void MQGasSensor::set_calibration(bool enabled, float ratio_in_clean_air, uint32_t delay, uint32_t duration,
                                   uint32_t samples, bool persist) {
   this->calibration_enabled_ = enabled;
@@ -856,6 +877,7 @@ void MQGasSensor::schedule_calibration_retry_() {
   this->log_message_(LogSeverity::LOG_SEVERITY_WARN, LOG_STR("retrying the calibration in %" PRIu32 " s"),
                      delay / 1000);
 }
+#endif
 
 bool MQGasSensor::in_warmup_() {
   if (this->warmup_ended_)
@@ -868,6 +890,7 @@ bool MQGasSensor::in_warmup_() {
   return false;
 }
 
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
 bool MQGasSensor::save_r0_() {
   if (!this->r0_pref_.save(&this->r0_)) {
     this->r0_warning_ = LOG_STR("could not store R0");
@@ -896,5 +919,6 @@ bool MQGasSensor::load_r0_() {
   this->r0_ = stored;
   return true;
 }
+#endif
 
 }  // namespace esphome::mq_gas_sensors
