@@ -175,10 +175,6 @@ class EthernetComponent final : public Component {
   bool is_disabled() { return this->disabled_; }
   bool is_enabled() { return !this->disabled_; }
 
-#if defined(USE_ESP32) || defined(USE_HOST)
-  // True while disabled if the driver never started or its STOP event was delivered.
-  bool is_driver_stopped() const { return this->disabled_ && this->driver_stopped_.load(std::memory_order_acquire); }
-#endif
 #ifdef USE_ESP32
   /// esp_netif handle, used by network for default-route arbitration.
   /// nullptr until the driver/netif installation has run.
@@ -269,9 +265,9 @@ class EthernetComponent final : public Component {
   // ethernet_initialized_ flag. Called from setup() when enable_on_boot_=true, or
   // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
   void ethernet_lazy_init_();
+
   bool start_driver_();
-  enum class DriverStopReason : uint8_t { DRIVER_STOP_REASON_DISABLE, DRIVER_STOP_REASON_FAILED_START };
-  bool stop_driver_(DriverStopReason reason);
+  bool stop_driver_();
   void on_driver_start_() {
     this->started_ = true;
     this->enable_loop_soon_any_context();
@@ -280,7 +276,7 @@ class EthernetComponent final : public Component {
     this->started_ = false;
     this->connected_ = false;
     this->link_up_.store(false, std::memory_order_relaxed);
-    this->driver_stopped_.store(true, std::memory_order_release);
+    this->driver_stopped_.store(1, std::memory_order_release);
     this->enable_loop_soon_any_context();
   }
 #endif
@@ -411,7 +407,7 @@ class EthernetComponent final : public Component {
   // to be called at runtime after enable_on_boot:false without re-allocating, and
   // ensures setup() skips the heavy init when enable_on_boot_ is false.
   bool ethernet_initialized_{false};
-  std::atomic<bool> driver_stopped_{true};
+  std::atomic<uint8_t> driver_stopped_{1};  // uint8_t: atomic<bool> is an out-of-line call on Xtensa
   // PHY link state, written by the event task; the connect timeout retries only with a link.
   std::atomic<bool> link_up_{false};
   // Last link state loop() saw; a rising edge restarts the connect timeout.
@@ -426,7 +422,7 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST)
   std::atomic<uint8_t> ip_state_pending_{0};
 #endif
 #endif

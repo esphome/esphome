@@ -15,7 +15,10 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 ESPHOME_LOG_TAG(TAG, "ethernet");
 
 void EthernetComponent::loop() {
-  if (this->pending_enable_ && !this->driver_stopped_.load(std::memory_order_acquire)) {
+  // A queued restart waits for STOP, which wakes the loop; until then a late DISCONNECTED or GOT_IP must not
+  // drive the state machine
+  if (this->pending_enable_ && this->driver_stopped_.load(std::memory_order_acquire) == 0) {
+    this->disable_loop();
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
@@ -97,7 +100,7 @@ void EthernetComponent::loop() {
 
   // Process the stopped connection and its automation before consuming the restart intent.
   // An on_disconnect action may cancel the pending enable or start the driver itself.
-  if (this->pending_enable_ && this->driver_stopped_.load(std::memory_order_acquire)) {
+  if (this->pending_enable_) {
     this->pending_enable_(this);
   }
 }
@@ -105,7 +108,7 @@ void EthernetComponent::loop() {
 void EthernetComponent::enable() {
   if (!this->disabled_)
     return;
-  if (!this->driver_stopped_.load(std::memory_order_acquire) || this->state_ != EthernetComponentState::STOPPED) {
+  if (this->driver_stopped_.load(std::memory_order_acquire) == 0 || this->state_ != EthernetComponentState::STOPPED) {
     this->pending_enable_ = [](EthernetComponent *component) { component->enable(); };
     this->enable_loop();
     return;
@@ -121,10 +124,12 @@ void EthernetComponent::enable() {
   this->state_ = EthernetComponentState::STOPPED;
   this->connected_ = false;
   this->started_ = false;
-  this->driver_stopped_.store(false, std::memory_order_release);
+  this->driver_stopped_.store(0, std::memory_order_relaxed);
   if (!this->start_driver_()) {
     // A failed start may leave the driver's state changed. Only STOP delivery permits another start.
-    this->stop_driver_(DriverStopReason::DRIVER_STOP_REASON_FAILED_START);
+    if (!this->stop_driver_()) {
+      ESP_LOGE(TAG, "Start cleanup failed; Ethernet restart requires reboot");
+    }
     return;
   }
   this->disabled_ = false;
@@ -139,7 +144,7 @@ void EthernetComponent::disable() {
     return;
 
   ESP_LOGD(TAG, "Disabling");
-  if (!this->stop_driver_(DriverStopReason::DRIVER_STOP_REASON_DISABLE))
+  if (!this->stop_driver_())
     return;
   this->disabled_ = true;
   // ETH_EVENT_STOP will clear started_; loop() will transition to STOPPED.

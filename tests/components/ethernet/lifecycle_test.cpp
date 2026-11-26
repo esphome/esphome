@@ -27,7 +27,7 @@ bool EthernetComponent::start_driver_() {
   ++testing::driver.starts;
   return testing::driver.start_ok;
 }
-bool EthernetComponent::stop_driver_(DriverStopReason) {
+bool EthernetComponent::stop_driver_() {
   ++testing::driver.stops;
   return testing::driver.stop_ok;
 }
@@ -60,6 +60,10 @@ class EthernetLifecycleTest : public ::testing::Test {
 
   void driver_started_() { this->ethernet_.on_driver_start_(); }
   void driver_stopped_() { this->ethernet_.on_driver_stop_(); }
+  // Disabled, and the driver never started or its STOP was delivered
+  bool stop_confirmed_() {
+    return this->ethernet_.disabled_ && this->ethernet_.driver_stopped_.load(std::memory_order_acquire) != 0;
+  }
 
   void start_connecting_() {
     this->ethernet_.enable();
@@ -96,7 +100,7 @@ TEST_F(EthernetLifecycleTest, RejectedStopLeavesConnectionEnabled) {
   EXPECT_EQ(driver.stops, 1);
   EXPECT_TRUE(this->ethernet_.is_enabled());
   EXPECT_TRUE(this->ethernet_.is_connected());
-  EXPECT_FALSE(this->ethernet_.is_driver_stopped());
+  EXPECT_FALSE(this->stop_confirmed_());
 }
 
 TEST_F(EthernetLifecycleTest, DriverStopAcknowledgementAndDisconnectPrecedeRestart) {
@@ -112,22 +116,43 @@ TEST_F(EthernetLifecycleTest, DriverStopAcknowledgementAndDisconnectPrecedeResta
   this->ethernet_.disable();
   EXPECT_TRUE(this->ethernet_.is_disabled());
   EXPECT_FALSE(this->ethernet_.is_connected());
-  EXPECT_FALSE(this->ethernet_.is_driver_stopped());
+  EXPECT_FALSE(this->stop_confirmed_());
   this->ethernet_.enable();
   this->tick_();
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(disconnects, 0);
 
   this->driver_stopped_();
-  EXPECT_TRUE(this->ethernet_.is_driver_stopped());
+  EXPECT_TRUE(this->stop_confirmed_());
   this->tick_();
   EXPECT_EQ(disconnects, 1);
   EXPECT_EQ(driver.starts, 2);
   EXPECT_TRUE(this->ethernet_.is_enabled());
-  EXPECT_FALSE(this->ethernet_.is_driver_stopped());
+  EXPECT_FALSE(this->stop_confirmed_());
   this->tick_();
   EXPECT_EQ(driver.starts, 2);
   EXPECT_EQ(disconnects, 1);
+}
+
+// A DISCONNECTED that arrives before STOP must not reconnect or fire on_disconnect while a restart is queued
+TEST_F(EthernetLifecycleTest, LateDisconnectWaitsForStopDuringQueuedRestart) {
+  this->start_connected_();
+  int disconnects = 0;
+  LambdaAction<> disconnect{[&] { ++disconnects; }};
+  Automation<> automation{this->ethernet_.get_disconnect_trigger()};
+  automation.add_action(&disconnect);
+  const int attempts = driver.connect_attempts;
+
+  this->ethernet_.disable();
+  this->ethernet_.enable();
+  this->lost_link_();
+  EXPECT_EQ(driver.connect_attempts, attempts);
+  EXPECT_EQ(disconnects, 0);
+
+  this->driver_stopped_();
+  this->tick_();
+  EXPECT_EQ(disconnects, 1);
+  EXPECT_EQ(driver.starts, 2);
 }
 
 TEST_F(EthernetLifecycleTest, EnableAfterStopEventStillWaitsForDisconnect) {
@@ -167,10 +192,10 @@ TEST_F(EthernetLifecycleTest, DisableCancelsQueuedRestart) {
 
   this->driver_started_();
   this->tick_();
-  EXPECT_FALSE(this->ethernet_.is_driver_stopped());
+  EXPECT_FALSE(this->stop_confirmed_());
   this->driver_stopped_();
   this->tick_();
-  EXPECT_TRUE(this->ethernet_.is_driver_stopped());
+  EXPECT_TRUE(this->stop_confirmed_());
   EXPECT_EQ(driver.starts, 1);
 }
 
@@ -187,7 +212,7 @@ TEST_F(EthernetLifecycleTest, DisconnectAutomationMayCancelRestart) {
 
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(driver.stops, 1);
-  EXPECT_TRUE(this->ethernet_.is_driver_stopped());
+  EXPECT_TRUE(this->stop_confirmed_());
 }
 
 TEST_F(EthernetLifecycleTest, DisconnectAutomationMayRestartExactlyOnce) {
@@ -225,7 +250,7 @@ TEST_F(EthernetLifecycleTest, RestartQueuedByDisconnectAutomationNeedsAnotherSto
   EXPECT_EQ(driver.starts, 2);
   EXPECT_EQ(driver.stops, 2);
   EXPECT_TRUE(this->ethernet_.is_disabled());
-  EXPECT_FALSE(this->ethernet_.is_driver_stopped());
+  EXPECT_FALSE(this->stop_confirmed_());
 
   this->driver_stopped_();
   this->tick_();
@@ -234,13 +259,13 @@ TEST_F(EthernetLifecycleTest, RestartQueuedByDisconnectAutomationNeedsAnotherSto
 }
 
 TEST_F(EthernetLifecycleTest, FailedStartCleansUpAndAwaitsStopBeforeRetry) {
-  EXPECT_TRUE(this->ethernet_.is_driver_stopped());
+  EXPECT_TRUE(this->stop_confirmed_());
   driver.start_ok = false;
   this->ethernet_.enable();
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(driver.stops, 1);
   EXPECT_TRUE(this->ethernet_.is_disabled());
-  EXPECT_FALSE(this->ethernet_.is_driver_stopped());
+  EXPECT_FALSE(this->stop_confirmed_());
 
   // The driver can post START before returning an error from esp_eth_start().
   this->driver_started_();
@@ -273,7 +298,7 @@ TEST_F(EthernetLifecycleTest, FailedStartWithRejectedCleanupRemainsBlocked) {
   EXPECT_EQ(driver.starts, 1);
   EXPECT_EQ(driver.stops, 1);
   EXPECT_TRUE(this->ethernet_.is_disabled());
-  EXPECT_FALSE(this->ethernet_.is_driver_stopped());
+  EXPECT_FALSE(this->stop_confirmed_());
 }
 
 TEST_F(EthernetLifecycleTest, StoppingWhileConnectingDoesNotFireDisconnectAgain) {

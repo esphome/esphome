@@ -141,7 +141,7 @@ void EthernetComponent::setup() {
       // lazy_init bailed early via ESPHL_ERROR_CHECK or mark_failed; nothing more to do.
       return;
     }
-    this->driver_stopped_.store(false, std::memory_order_release);
+    this->driver_stopped_.store(0, std::memory_order_relaxed);
     esp_err_t err = esp_eth_start(this->eth_handle_);
     ESPHL_ERROR_CHECK(err, "ETH start error");
   } else {
@@ -501,15 +501,11 @@ bool EthernetComponent::start_driver_() {
   return false;
 }
 
-bool EthernetComponent::stop_driver_(DriverStopReason reason) {
+bool EthernetComponent::stop_driver_() {
   const esp_err_t err = esp_eth_stop(this->eth_handle_);
   if (err == ESP_OK)
     return true;
-  if (reason == DriverStopReason::DRIVER_STOP_REASON_FAILED_START) {
-    ESP_LOGE(TAG, "Start cleanup failed: %s; Ethernet restart requires reboot", esp_err_to_name(err));
-  } else {
-    ESP_LOGW(TAG, "esp_eth_stop failed: %s", esp_err_to_name(err));
-  }
+  ESP_LOGW(TAG, "esp_eth_stop failed: %s", esp_err_to_name(err));
   return false;
 }
 
