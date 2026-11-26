@@ -341,10 +341,11 @@ bool MipiDsi::present_framebuffer(void *fb) {
     return false;
   }
   xSemaphoreTake(this->io_lock_, 0);
-  // Discard any notification already pending after the swap request. The next DMA completion
-  // has selected the requested buffer and the previous one is no longer being read.
+  // Discard pending notifications, then observe two DMA completions: an ISR already in flight
+  // when draw_bitmap changed the selected buffer may still have selected the previous buffer.
   xSemaphoreTake(this->frame_complete_, 0);
-  if (xSemaphoreTake(this->frame_complete_, pdMS_TO_TICKS(100)) != pdTRUE) {
+  if (xSemaphoreTake(this->frame_complete_, pdMS_TO_TICKS(100)) != pdTRUE ||
+      xSemaphoreTake(this->frame_complete_, pdMS_TO_TICKS(100)) != pdTRUE) {
     this->mark_failed(LOG_STR("Framebuffer presentation timed out"));
     return false;
   }
