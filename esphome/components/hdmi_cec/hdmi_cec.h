@@ -62,14 +62,11 @@ class Frame {
   Frame(uint8_t initiator_addr, uint8_t target_addr, std::span<const uint8_t> payload)
       : Frame(initiator_addr, target_addr, payload.data(), payload.size()) {}
 
-  void set_header(uint8_t initiator_addr, uint8_t target_addr);
   ESPHOME_ALWAYS_INLINE uint8_t initiator_addr() const { return this->data_[0] >> 4; }
   ESPHOME_ALWAYS_INLINE uint8_t destination_addr() const { return this->data_[0] & 0xf; }
   ESPHOME_ALWAYS_INLINE bool is_broadcast() const { return this->destination_addr() == BROADCAST_ADDRESS; }
   ESPHOME_ALWAYS_INLINE size_t size() const { return this->size_; }
   ESPHOME_ALWAYS_INLINE uint8_t opcode() const { return (this->size() >= 2) ? data_[1] : 0; }
-  ESPHOME_ALWAYS_INLINE uint8_t at(unsigned int i) const { return (i < size_) ? data_[i] : 0; }
-  ESPHOME_ALWAYS_INLINE uint8_t operator[](unsigned int i) const { return at(i); }
   std::span<const uint8_t> bytes() const { return {this->data_.data(), this->size_}; }
   /// The bytes after the header, starting with the opcode
   std::span<const uint8_t> payload() const { return this->bytes().subspan(1); }

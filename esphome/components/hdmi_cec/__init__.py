@@ -38,8 +38,6 @@ MAX_OSD_NAME_LENGTH = MAX_PAYLOAD_LENGTH - 1  # the opcode takes one byte
 UART_BAUD_RATE = 2083  # five UART bits per 2.4 ms CEC bit
 CONF_PROMISCUOUS_MODE = "promiscuous_mode"
 CONF_MONITOR_MODE = "monitor_mode"
-CONF_DECODE_MESSAGES = "decode_messages"
-CONF_OSD_NAME = "osd_name"
 CONF_OPCODE = "opcode"
 CONF_PHYSICAL_ADDRESS = "physical_address"
 CONF_OSD_NAME = "osd_name"
@@ -59,12 +57,6 @@ _request_message_callback_slot = cg.slot_counter("HDMI_CEC_MESSAGE_CALLBACK_COUN
 logical_address = cv.int_range(min=0, max=MAX_LOGICAL_ADDRESS)
 payload = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(max=MAX_PAYLOAD_LENGTH))
 payload_prefix = cv.All(payload, cv.Length(min=1))
-
-MessageTrigger = hdmi_cec_ns.class_(
-    "MessageTrigger",
-    automation.Trigger.template(cg.uint8, cg.uint8, cg.std_vector.template(cg.uint8)),
-)
-SendAction = hdmi_cec_ns.class_("SendAction", automation.Action)
 
 
 def _osd_name(value: object) -> str:
@@ -196,14 +188,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_promiscuous_mode(True))
     if config[CONF_MONITOR_MODE]:
         cg.add(var.set_monitor_mode(True))
-    if (physical_address := config.get(CONF_PHYSICAL_ADDRESS)) is not None:
-        cg.add(var.set_physical_address(physical_address))
+    cg.add_optional(var.set_physical_address, config.get(CONF_PHYSICAL_ADDRESS))
     if (osd_name := config.get(CONF_OSD_NAME)) is not None:
         cg.extern_progmem_array("esphome::hdmi_cec::OSD_NAME", cg.char, osd_name)
         cg.add_define("HDMI_CEC_OSD_NAME_LENGTH", len(osd_name))
-    if (uart_id := config.get(CONF_UART_ID)) is not None:
+    if CONF_UART_ID in config:
         cg.add_define("USE_HDMI_CEC_UART")
-        cg.add(var.set_uart(await cg.get_variable(uart_id)))
+    await cg.add_variable(var.set_uart, config.get(CONF_UART_ID))
 
     on_message = config.get(CONF_ON_MESSAGE, [])
     # An automation for frames addressed to us with a data prefix claims its opcode from every

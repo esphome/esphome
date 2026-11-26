@@ -85,9 +85,10 @@ void HDMICEC::dump_config() {
                 this->address_, YESNO(this->monitor_mode_), YESNO(this->promiscuous_mode_));
   LOG_PIN("  Pin: ", this->pin_);
   if (this->physical_address_ != UNSET_PHYSICAL_ADDRESS) {
-    ESP_LOGCONFIG(TAG, "  Physical address: %X.%X.%X.%X", this->physical_address_ >> 12,
-                  (this->physical_address_ >> 8) & 0xF, (this->physical_address_ >> 4) & 0xF,
-                  this->physical_address_ & 0xF);
+    const uint8_t high = this->physical_address_ >> 8;
+    const uint8_t low = this->physical_address_;
+    ESP_LOGCONFIG(TAG, "  Physical address: %X.%X.%X.%X", high_nibble(high), low_nibble(high), high_nibble(low),
+                  low_nibble(low));
   }
 #ifdef HDMI_CEC_OSD_NAME_LENGTH
   char name[HDMI_CEC_OSD_NAME_LENGTH + 1];
