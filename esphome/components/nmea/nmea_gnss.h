@@ -13,9 +13,9 @@ class NMEAGNSS final : public gnss::GNSSComponent, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
 
-  TinyGPSPlus &get_tiny_gps() { return this->tiny_gps_; }
-
  protected:
+  void handle_message_();
+
   TinyGPSPlus tiny_gps_;
 };
 

@@ -33,7 +33,7 @@ inline time_t current_utc(const GNSSData &data, uint64_t now_ms) {
   return data.utc + static_cast<time_t>(age / 1000);
 }
 
-/// Base of the gnss platforms: they fill data_ and call publish_fix_() after each new solution.
+/// Base of the gnss platforms: they fill data_ and call publish_fix_() after each parsed message.
 class GNSSComponent : public PollingComponent {
  public:
   void update() override {

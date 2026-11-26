@@ -13,9 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_SPEED,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_MEASUREMENT_ANGLE,
-    UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
-    UNIT_METER,
 )
 from esphome.types import ConfigType
 
@@ -33,13 +31,12 @@ ICON_SPEEDOMETER = "mdi:speedometer"
 
 TYPES = {
     CONF_LATITUDE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES,
+        kind=sensor.ANGLE,
         icon=ICON_LATITUDE,
         accuracy_decimals=6,
-        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_LONGITUDE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES,
+        kind=sensor.ANGLE,
         icon=ICON_LONGITUDE,
         accuracy_decimals=6,
         state_class=STATE_CLASS_MEASUREMENT_ANGLE,
@@ -52,17 +49,12 @@ TYPES = {
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_COURSE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES,
+        kind=sensor.ANGLE,
         icon=ICON_COMPASS,
         accuracy_decimals=2,
         state_class=STATE_CLASS_MEASUREMENT_ANGLE,
     ),
-    CONF_ALTITUDE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_METER,
-        icon=ICON_ALTIMETER,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
+    CONF_ALTITUDE: sensor.sensor_schema(kind=sensor.LENGTH_M, icon=ICON_ALTIMETER),
     CONF_SATELLITES: sensor.sensor_schema(
         icon=ICON_SATELLITE,
         accuracy_decimals=0,

@@ -48,8 +48,8 @@ def gnss_schema(class_: MockObjClass) -> cv.Schema:
     ).extend(cv.polling_component_schema("20s"))
 
 
-async def new_gnss(config: ConfigType, *args: object) -> MockObj:
-    """Create and register a gnss platform; extra args go to the constructor."""
-    var = cg.new_Pvariable(config[CONF_ID], *args)
+async def new_gnss(config: ConfigType) -> MockObj:
+    """Create and register a gnss platform."""
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     return var
