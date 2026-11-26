@@ -11,12 +11,29 @@ output:
     type: float
     write_action:
       - lambda: ""
+  - platform: template
+    id: out_cold
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: out_warm
+    type: float
+    write_action:
+      - lambda: ""
 
 light:
   - platform: monochromatic
     name: "Mono Light"
     id: mono_light
     output: out_mono
+  - platform: cwww
+    name: "CWWW Light"
+    id: cwww_light
+    cold_white: out_cold
+    warm_white: out_warm
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
 
 button:
   - platform: template
@@ -52,3 +69,23 @@ button:
       - light.turn_off:
           id: mono_light
           transition_length: 0s
+  - platform: template
+    name: "CT Setup"
+    on_press:
+      - light.turn_on:
+          id: cwww_light
+          brightness: 100%
+          color_temperature: 300 mireds
+          transition_length: 0s
+  - platform: template
+    name: "CT Up"
+    on_press:
+      - light.move:
+          id: cwww_light
+          attribute: COLOR_TEMPERATURE
+          direction: UP
+          duration: 2s
+  - platform: template
+    name: "CT Stop"
+    on_press:
+      - light.stop: cwww_light

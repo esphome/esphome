@@ -16,9 +16,12 @@ light:
   - platform: monochromatic
     id: move_light
     output: out_a
-  - platform: monochromatic
-    id: stop_light
-    output: out_b
+  - platform: color_temperature
+    id: ct_light
+    color_temperature: out_a
+    brightness: out_b
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
 
 script:
   - id: move_defaults
@@ -35,6 +38,13 @@ script:
           brightness_limits:
             min_brightness: 0%
             max_brightness: 80%
+  - id: move_ct
+    then:
+      - light.move:
+          id: ct_light
+          attribute: color_temperature
+          direction: UP
+          duration: 500ms
   - id: move_lambdas
     parameters:
       up: bool
@@ -48,4 +58,4 @@ script:
     then:
       - light.stop: move_light
       - light.stop:
-          id: stop_light
+          id: ct_light

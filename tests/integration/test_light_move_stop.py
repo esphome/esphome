@@ -23,6 +23,7 @@ async def test_light_move_stop(
         entities, _ = await client.list_entities_services()
         sub = await subscribe_after_initial_states(client, entities)
         mono = require_entity(entities, "mono_light", LightInfo).key
+        cwww = require_entity(entities, "cwww_light", LightInfo).key
 
         press = partial(
             press_and_wait, client, entities, sub.waiter, state_type=LightState
@@ -54,3 +55,12 @@ async def test_light_move_stop(
         state = await press("mono_stop", key=mono)
         assert state.state is True
         assert 0.01 < state.brightness < 0.95
+
+        state = await press("ct_setup", key=cwww)
+        assert state.color_temperature == pytest.approx(300.0)
+        # Up is warmer: more mireds
+        state = await press("ct_up", key=cwww)
+        assert state.color_temperature == pytest.approx(500.0)
+        await asyncio.sleep(0.5)
+        state = await press("ct_stop", key=cwww)
+        assert 300.0 < state.color_temperature < 500.0

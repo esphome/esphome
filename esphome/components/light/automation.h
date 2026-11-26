@@ -32,7 +32,7 @@ inline bool update_turned_on(bool &last, bool now) {
 /// target, the limit, as the state at once; light.stop publishes where the light got to. A move to 0% is not saved
 /// when it starts, only when it ends or stops.
 /// A move whose limit the light is at already stops a running move of brightness instead, so the light does not go on
-/// the other way.
+/// the other way; a running move of color temperature is not affected.
 /// A move that takes over a running transition holds the color temperature, or the cold and warm white channels, where
 /// they are shown, so they do not move on or jump at the stop. RGB is not held: it keeps the target of the call.
 /// Limits:
@@ -41,6 +41,11 @@ inline bool update_turned_on(bool &last, bool now) {
 /// - A light of the `homeassistant` platform shows nothing of a held move until the release: that platform drops writes
 ///   while a transition runs, and a move is one.
 void move_brightness(LightState *state, bool up, int32_t full_range_ms, float min_brightness, float max_brightness);
+/// light.move on color temperature: UP IS WARMER (more mireds), toward the light's max_mireds, and down is colder,
+/// toward its min_mireds, at a constant speed that crosses the whole range in full_range_ms; 0 or less changes at
+/// once. Only for a light that is on, in a mode with color temperature. It holds the brightness where it is shown, and
+/// stops a running move of color temperature, not of brightness, when the light is at the limit already.
+void move_color_temperature(LightState *state, bool up, int32_t full_range_ms);
 #endif
 
 template<typename... Ts> class AddressableSet final : public Action<Ts...> {

@@ -8,6 +8,7 @@
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/transformers.h"
 #include "esphome/core/hal.h"
+#include "gamma_table_fixture.h"
 
 // LightState::perform_move() and stop_move()
 
@@ -25,6 +26,26 @@ class BrightnessOutput : public LightOutput {
   void write_state(LightState *state) override {}
 };
 
+// Records the cold and warm white levels of each write
+class ColdWarmWhiteOutput : public LightOutput {
+ public:
+  explicit ColdWarmWhiteOutput(ColorMode mode) : mode_(mode) {}
+  LightTraits get_traits() override {
+    LightTraits traits;
+    traits.set_supported_color_modes({this->mode_});
+    traits.set_min_mireds(153.0f);
+    traits.set_max_mireds(500.0f);
+    return traits;
+  }
+  void write_state(LightState *state) override { state->current_values_as_cwww(&this->cold, &this->warm, false); }
+  float cold{NAN};
+  float warm{NAN};
+
+ protected:
+  ColorMode mode_;
+};
+
+// Records the RGB levels of each write
 // Makes a call of its own while a call is validated, as a log callback of a VERBOSE perform() would: before the call
 // starts its transition
 class CallingOutput : public LightOutput {
@@ -44,7 +65,6 @@ class CallingOutput : public LightOutput {
   bool calling{false};
 };
 
-// Records the RGB levels of each write
 class RgbOutput : public LightOutput {
  public:
   LightTraits get_traits() override {
@@ -161,7 +181,7 @@ void turn_on_at(LightState &state, float brightness) {
 void move_to(LightState &state, float target, uint32_t length) {
   auto call = state.make_call();
   call.set_state(true).set_brightness(target).set_transition_length(length);
-  state.perform_move(call, state.get_shown_values());
+  state.perform_move(call, state.get_shown_values(), true);
 }
 
 // Run loop() until the running transition ends
@@ -334,7 +354,7 @@ TEST(LightMove, MoveFromAnAddressableTurnOnStartsWhereItGot) {
 
   auto call = state.make_call();
   call.set_state(true).set_brightness(0.0f).set_transition_length(10000);
-  state.perform_move(call, shown);
+  state.perform_move(call, shown, true);
   EXPECT_EQ(state.current_values, shown);
   wait_a_little(state);
   EXPECT_TRUE(state.current_values.is_on());
@@ -398,6 +418,57 @@ TEST(LightMove, ShownValuesOfAReplacingAddressableTransitionFollowTheLeds) {
   }
 }
 
+TEST(LightMove, ColorTemperatureMoveKeepsColdWarmWhiteBright) {
+  for (ColorMode mode : {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE}) {
+    SCOPED_TRACE(static_cast<int>(mode));
+    ColdWarmWhiteOutput output(mode);
+    LightState state(&output);
+    state.make_call().set_state(true).set_color_temperature(153.0f).set_transition_length(0).perform();
+    state.loop();
+
+    auto call = state.make_call();
+    call.set_color_temperature(500.0f).set_transition_length(1000);
+    state.perform_move(call, state.get_shown_values(), false);
+    wait_a_little(state);
+    const float mireds = state.current_values.get_color_temperature();
+    EXPECT_GT(mireds, 153.0f);
+    EXPECT_LT(mireds, 500.0f);
+
+    // The channels of a call to the same color temperature
+    ColdWarmWhiteOutput reference_output(mode);
+    LightState reference(&reference_output);
+    reference.make_call().set_state(true).set_color_temperature(mireds).set_transition_length(0).perform();
+    reference.loop();
+    EXPECT_FLOAT_EQ(output.cold, reference_output.cold);
+    EXPECT_FLOAT_EQ(output.warm, reference_output.warm);
+
+    state.stop_move();
+    state.loop();
+    EXPECT_FLOAT_EQ(output.cold, reference_output.cold);
+    EXPECT_FLOAT_EQ(output.warm, reference_output.warm);
+    EXPECT_FLOAT_EQ(state.remote_values.get_color_temperature(), mireds);
+  }
+}
+
+TEST(LightMove, StopKeepsChannelsSetDirectly) {
+  ColdWarmWhiteOutput output(ColorMode::COLD_WARM_WHITE);
+  LightState state(&output);
+  state.make_call()
+      .set_state(true)
+      .set_brightness(0.4f)
+      .set_cold_white(1.0f)
+      .set_warm_white(0.3f)
+      .set_transition_length(0)
+      .perform();
+  state.loop();
+
+  move_to(state, 1.0f, 1000);
+  wait_a_little(state);
+  state.stop_move();
+  EXPECT_FLOAT_EQ(state.remote_values.get_cold_white(), 1.0f);
+  EXPECT_FLOAT_EQ(state.remote_values.get_warm_white(), 0.3f);
+}
+
 TEST(LightMove, MoveToZeroTurnsTheLightOffAtTheEnd) {
   BrightnessOutput output;
   LightState state(&output);
@@ -440,6 +511,28 @@ TEST(LightMove, CommandFromAListenerAtTheEndOfAMoveToZeroIsKept) {
   EXPECT_FLOAT_EQ(state.current_values.get_brightness(), 0.7f);
 }
 
+TEST(LightMove, ColorTemperatureMoveOfALightOnAtZeroLeavesItOn) {
+  ColdWarmWhiteOutput output(ColorMode::COLD_WARM_WHITE);
+  LightState state(&output);
+  state.make_call()
+      .set_state(true)
+      .set_brightness(0.0f)
+      .set_color_temperature(153.0f)
+      .set_transition_length(0)
+      .perform();
+  state.loop();
+  ASSERT_TRUE(state.current_values.is_on());
+  ASSERT_FLOAT_EQ(state.current_values.get_brightness(), 0.0f);
+
+  auto call = state.make_call();
+  call.set_color_temperature(500.0f).set_transition_length(20);
+  state.perform_move(call, state.get_shown_values(), false);
+  finish(state);
+  EXPECT_TRUE(state.current_values.is_on());
+  EXPECT_TRUE(state.remote_values.is_on());
+  EXPECT_FLOAT_EQ(state.current_values.get_color_temperature(), 500.0f);
+}
+
 TEST(LightMove, CallAfterAMoveWithoutTransitionIsNotAMove) {
   BrightnessOutput output;
   LightState state(&output);
@@ -447,7 +540,7 @@ TEST(LightMove, CallAfterAMoveWithoutTransitionIsNotAMove) {
 
   auto instant = state.make_call();
   instant.set_brightness(0.4f).set_transition_length(0);
-  state.perform_move(instant, state.get_shown_values());
+  state.perform_move(instant, state.get_shown_values(), true);
   // A move would turn the light off at the end
   state.make_call().set_state(true).set_brightness(0.0f).set_transition_length(20).perform();
   finish(state);
@@ -475,7 +568,7 @@ TEST(LightMove, CallMadeWhileTheMoveCallPerformsDoesNotTakeTheMove) {
   output.state = &state;
   move_to(state, 1.0f, 10000);
   output.state = nullptr;
-  ASSERT_TRUE(state.is_moving());
+  ASSERT_TRUE(state.is_moving(true));
   EXPECT_FLOAT_EQ(state.remote_values.get_brightness(), 1.0f);
   wait_a_little(state);
   state.stop_move();
@@ -507,6 +600,32 @@ TEST(LightMove, StopOfABrightnessMoveDoesNotReplayTheRgbOfATransition) {
   EXPECT_LT(state.current_values.get_brightness(), 0.8f);
 }
 
+// A color temperature move that starts during a move of brightness to 0% does not turn the light off at its end
+TEST(LightMove, ColorTemperatureMoveEndsOnEvenIfBrightnessMoveWasHeadedForZero) {
+  ColdWarmWhiteOutput output(ColorMode::COLD_WARM_WHITE);
+  LightState state(&output);
+  state.make_call()
+      .set_state(true)
+      .set_brightness(0.6f)
+      .set_color_temperature(153.0f)
+      .set_transition_length(0)
+      .perform();
+  state.loop();
+  move_to(state, 0.0f, 1000);
+  wait_a_little(state);
+  const float shown = state.current_values.get_brightness();
+  ASSERT_GT(shown, 0.0f);
+
+  // What light.move on color temperature does: hold the brightness, change the color temperature
+  auto call = state.make_call();
+  call.set_state(true).set_brightness(shown).set_color_temperature(500.0f).set_transition_length(20);
+  state.perform_move(call, state.get_shown_values(), false);
+  finish(state);
+  EXPECT_TRUE(state.current_values.is_on());
+  EXPECT_TRUE(state.remote_values.is_on());
+  EXPECT_FLOAT_EQ(state.current_values.get_brightness(), shown);
+}
+
 // A move to 0% whose end is applied by the next loop(), after its time is up, is stopped where it was last applied
 TEST(LightMove, StopAfterTheMoveTimeIsUpFreezesTheLastAppliedValue) {
   BrightnessOutput output;
@@ -522,15 +641,40 @@ TEST(LightMove, StopAfterTheMoveTimeIsUpFreezesTheLastAppliedValue) {
   EXPECT_FLOAT_EQ(state.current_values.get_brightness(), 1.0f);
 }
 
-TEST(LightMove, IsMovingWhileAMoveRuns) {
-  BrightnessOutput output;
+TEST(LightMove, IsMovingTellsTheAttribute) {
+  ColdWarmWhiteOutput output(ColorMode::COLD_WARM_WHITE);
   LightState state(&output);
-  turn_on_at(state, 0.6f);
-  EXPECT_FALSE(state.is_moving());
+  state.make_call()
+      .set_state(true)
+      .set_brightness(0.6f)
+      .set_color_temperature(153.0f)
+      .set_transition_length(0)
+      .perform();
+  state.loop();
+  EXPECT_FALSE(state.is_moving(true));
+  EXPECT_FALSE(state.is_moving(false));
   move_to(state, 1.0f, 1000);
-  EXPECT_TRUE(state.is_moving());
+  EXPECT_TRUE(state.is_moving(true));
+  EXPECT_FALSE(state.is_moving(false));
   state.stop_move();
-  EXPECT_FALSE(state.is_moving());
+  EXPECT_FALSE(state.is_moving(true));
+}
+
+// The color temperature of channels is derived from them when the stored one is not a number: no conversion of it
+TEST(LightMove, ShownColorTemperatureOfNotANumberComesFromTheChannels) {
+  ColdWarmWhiteOutput output(ColorMode::COLD_WARM_WHITE);
+  LightState state(&output);
+  state.set_gamma_table(&production_gamma_table());
+  LightColorValues values;
+  values.set_color_mode(ColorMode::COLD_WARM_WHITE);
+  values.set_state(true);
+  values.set_brightness(1.0f);
+  values.set_color_temperature(NAN);
+  values.set_cold_white(1.0f);
+  values.set_warm_white(0.5f);
+  const float warm = state.gamma_correct_lut(0.5f);
+  const float expected = 153.0f + warm / (1.0f + warm) * 347.0f;
+  EXPECT_NEAR(state.get_shown_color_temperature(values, 153.0f, 500.0f), expected, 0.01f);
 }
 
 // A move frozen at 0% turns the light off, as the end of a move to 0% does, not leave it on at 0%

@@ -191,7 +191,7 @@ class LightCall {
   friend class LightState;
   /// What the transition this call starts is, see LightState::perform_move(). Carried by the call, not by LightState: a
   /// call that something else makes while this one runs (a log callback) cannot take it.
-  enum MoveKind : uint8_t { MOVE_NONE, MOVE_BRIGHTNESS };
+  enum MoveKind : uint8_t { MOVE_NONE, MOVE_BRIGHTNESS, MOVE_COLOR_TEMPERATURE };
 #endif
   /// Get the currently targeted, or active if none set, color mode.
   ColorMode get_active_color_mode_();

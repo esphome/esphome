@@ -8,6 +8,7 @@ import esphome.codegen as cg
 from esphome.components.const.css_colors import CSS_COLORS
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ATTRIBUTE,
     CONF_BLUE,
     CONF_BRIGHTNESS,
     CONF_BRIGHTNESS_LIMITS,
@@ -449,7 +450,14 @@ _MOVE_BRIGHTNESS_LIMITS_SCHEMA = cv.Schema(
 
 
 def _validate_move(config: ConfigType) -> ConfigType:
-    """Fill in the brightness limits and check them."""
+    """Check the brightness limits, which only a brightness move has, and fill in their defaults."""
+    if config[CONF_ATTRIBUTE] != "BRIGHTNESS":
+        if CONF_BRIGHTNESS_LIMITS in config:
+            raise cv.Invalid(
+                f"'{CONF_BRIGHTNESS_LIMITS}' is only for a brightness move",
+                path=[CONF_BRIGHTNESS_LIMITS],
+            )
+        return config
     limits = config.setdefault(
         CONF_BRIGHTNESS_LIMITS, _MOVE_BRIGHTNESS_LIMITS_SCHEMA({})
     )
@@ -464,7 +472,10 @@ def _validate_move(config: ConfigType) -> ConfigType:
 LIGHT_MOVE_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LightState),
-        # UP is brighter. A lambda returns a bool: true is UP.
+        cv.Optional(CONF_ATTRIBUTE, default="BRIGHTNESS"): cv.one_of(
+            "BRIGHTNESS", "COLOR_TEMPERATURE", upper=True, space="_"
+        ),
+        # UP is brightness up, or color temperature warmer (more mireds). A lambda returns a bool: true is UP.
         cv.Required(CONF_DIRECTION): cv.templatable(
             cv.enum(_MOVE_DIRECTIONS, upper=True)
         ),
@@ -497,14 +508,18 @@ async def light_move_to_code(
 ) -> MockObj:
     cg.add_define("USE_LIGHT_MOVE")
     light = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
-    limits = config[CONF_BRIGHTNESS_LIMITS]
-    move = light_ns.move_brightness(
+    move_args = [
         light,
         await _called_with_args(config[CONF_DIRECTION], args, cg.bool_),
         await _called_with_args(config[CONF_DURATION], args, cg.int32),
-        limits[CONF_MIN_BRIGHTNESS],
-        limits[CONF_MAX_BRIGHTNESS],
-    )
+    ]
+    if config[CONF_ATTRIBUTE] == "BRIGHTNESS":
+        limits = config[CONF_BRIGHTNESS_LIMITS]
+        move = light_ns.move_brightness(
+            *move_args, limits[CONF_MIN_BRIGHTNESS], limits[CONF_MAX_BRIGHTNESS]
+        )
+    else:
+        move = light_ns.move_color_temperature(*move_args)
     return automation.apply_statements_action(
         action_id, template_arg, args, [f"{move};"]
     )

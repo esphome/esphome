@@ -22,7 +22,7 @@ def main_cpp(
 @pytest.mark.parametrize(
     ("fn", "statement"),
     [
-        # Defaults: 5 s for the whole range, limits 1% to 100%
+        # Defaults: brightness, 5 s for the whole range, limits 1% to 100%
         (
             "esphome__applyaction_id__fn()",
             "light::move_brightness(::move_light, true, 5000, 0.01f, 1.0f);",
@@ -30,6 +30,10 @@ def main_cpp(
         (
             "esphome__applyaction_id_2__fn()",
             "light::move_brightness(::move_light, false, 2000, 0.0f, 0.8f);",
+        ),
+        (
+            "esphome__applyaction_id_3__fn()",
+            "light::move_color_temperature(::ct_light, true, 500);",
         ),
     ],
 )
@@ -39,7 +43,7 @@ def test_move(main_cpp: str, fn: str, statement: str) -> None:
 
 def test_move_lambdas_get_the_script_args(main_cpp: str) -> None:
     start = main_cpp.index(
-        "static void esphome__applyaction_id_3__fn(const std::remove_cvref_t<bool> & up, "
+        "static void esphome__applyaction_id_4__fn(const std::remove_cvref_t<bool> & up, "
         "const std::remove_cvref_t<int> & ms) {\n"
         "  light::move_brightness(::move_light, [](bool up, int ms) -> bool {\n"
     )
@@ -57,7 +61,7 @@ def test_stop(main_cpp: str) -> None:
         "  if (!esphome__running)\n"
         "    return;\n"
         "  {\n"
-        "  ::stop_light->stop_move();\n"
+        "  ::ct_light->stop_move();\n"
         "  }\n"
     ) in main_cpp
 
@@ -77,6 +81,13 @@ def test_define_only_when_used(
     ("config", "match"),
     [
         (
+            {
+                "attribute": "COLOR_TEMPERATURE",
+                "brightness_limits": {"min_brightness": "10%"},
+            },
+            "only for a brightness move",
+        ),
+        (
             {"brightness_limits": {"min_brightness": "50%", "max_brightness": "50%"}},
             "must be below",
         ),
@@ -87,6 +98,7 @@ def test_define_only_when_used(
         ({"duration": "0s"}, "higher than 0s"),
         ({"duration": "25d"}, "must be at most"),
         ({"direction": "LEFT"}, "Unknown value 'LEFT'"),
+        ({"attribute": "RED"}, "Unknown value 'RED'"),
     ],
 )
 def test_move_rejects(config: dict[str, Any], match: str) -> None:

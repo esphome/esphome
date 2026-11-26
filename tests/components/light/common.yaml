@@ -314,6 +314,15 @@ script:
             min_brightness: 10%
             max_brightness: 90%
       - light.move:
+          id: test_cwww_light
+          attribute: color_temperature
+          direction: UP
+      - light.move:
+          id: test_color_temperature_light
+          attribute: COLOR_TEMPERATURE
+          direction: DOWN
+          duration: 3s
+      - light.move:
           id: test_addressable_transition
           direction: UP
           duration: 2s
@@ -321,7 +330,7 @@ script:
     then:
       - light.stop: test_monochromatic_light
       - light.stop:
-          id: test_addressable_transition
+          id: test_cwww_light
 
 output:
   - platform: template
