@@ -329,6 +329,7 @@ class ModemComponent : public Component {
   bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
   bool sim_waiting_{false};   // SIM checks have failed since READY; kept through resyncs until READY or disable
   bool sim_restart_pending_{false};  // restarted for its SIM and not synced yet: nothing is sent for 10 s
+  bool sim_rf_off_{false};           // ENABLING left the modem at CFUN=4, so a SIM that stays unready may need CFUN=1
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif
