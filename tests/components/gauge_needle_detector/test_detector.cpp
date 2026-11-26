@@ -17,6 +17,8 @@ constexpr float CENTER_X = WIDTH / 2.0f;
 constexpr float CENTER_Y = HEIGHT / 2.0f;
 constexpr int NEEDLE_LENGTH = 30;
 constexpr int THICK_NEEDLE = 3;
+constexpr Algorithm FILTERED_ALGORITHMS[] = {ALGORITHM_RADIAL_PROFILE, ALGORITHM_HOUGH_TRANSFORM,
+                                             ALGORITHM_TEMPLATE_MATCH, ALGORITHM_AUTO};
 
 /// Draws a needle of `thickness` pixels from the centre, so a bar wider than one
 /// pixel can be tested as well.
@@ -112,8 +114,7 @@ TEST(GaugeNeedleDetector, FilteredDetectorsFindTexturedNeedle) {
   for (const NeedleType needle_type : {NEEDLE_TYPE_LIGHT, NEEDLE_TYPE_DARK}) {
     SCOPED_TRACE(::testing::Message() << "needle type " << static_cast<int>(needle_type));
     const std::vector<uint8_t> crop = make_textured_crop(45.0f, needle_type);
-    for (const Algorithm algorithm :
-         {ALGORITHM_RADIAL_PROFILE, ALGORITHM_HOUGH_TRANSFORM, ALGORITHM_TEMPLATE_MATCH, ALGORITHM_AUTO}) {
+    for (const Algorithm algorithm : FILTERED_ALGORITHMS) {
       expect_find(crop, algorithm, needle_type, 45.0f, 8.0f);
     }
   }
@@ -124,8 +125,7 @@ TEST(GaugeNeedleDetector, FilteredDetectorsFindNeedleAtEveryAngle) {
   // radial interpolation wraps around at 0 and 360 degrees.
   for (const float angle : {0.0f, 45.0f, 90.0f, 135.0f, 180.0f, 225.0f, 270.0f, 315.0f, 350.0f}) {
     SCOPED_TRACE(::testing::Message() << "angle " << angle);
-    for (const Algorithm algorithm :
-         {ALGORITHM_RADIAL_PROFILE, ALGORITHM_HOUGH_TRANSFORM, ALGORITHM_TEMPLATE_MATCH, ALGORITHM_AUTO}) {
+    for (const Algorithm algorithm : FILTERED_ALGORITHMS) {
       expect_find(make_plain_crop(angle, 0, 255), algorithm, NEEDLE_TYPE_LIGHT, angle, 8.0f);
       expect_find(make_plain_crop(angle, 255, 0), algorithm, NEEDLE_TYPE_DARK, angle, 8.0f);
     }
@@ -133,12 +133,10 @@ TEST(GaugeNeedleDetector, FilteredDetectorsFindNeedleAtEveryAngle) {
 }
 
 TEST(GaugeNeedleDetector, FilteredDetectorsKeepThickNeedles) {
-  // A three-pixel-wide needle is as thin as a 3x3 opening leaves alone; the
-  // top-hat then subtracts it and the filtered detectors found nothing.
+  // The top-hat kernel must stay wider than the needle, or it removes the needle.
   for (const float angle : {0.0f, 90.0f}) {
     SCOPED_TRACE(::testing::Message() << "angle " << angle);
-    for (const Algorithm algorithm :
-         {ALGORITHM_RADIAL_PROFILE, ALGORITHM_HOUGH_TRANSFORM, ALGORITHM_TEMPLATE_MATCH, ALGORITHM_AUTO}) {
+    for (const Algorithm algorithm : FILTERED_ALGORITHMS) {
       expect_find(make_plain_crop(angle, 0, 255, NEEDLE_LENGTH, THICK_NEEDLE), algorithm, NEEDLE_TYPE_LIGHT, angle,
                   8.0f);
       expect_find(make_plain_crop(angle, 255, 0, NEEDLE_LENGTH, THICK_NEEDLE), algorithm, NEEDLE_TYPE_DARK, angle,
@@ -187,6 +185,10 @@ TEST(GaugeNeedleDetector, CropsOutsideTheReservationAreRejected) {
   // A large enough reservation accepts the same crop afterwards.
   ASSERT_TRUE(detector.reserve(WIDTH, HEIGHT));
   EXPECT_GT(detector.detect(crop.data(), WIDTH, HEIGHT, config).confidence, 0.0f);
+
+  // A later, smaller reservation keeps the larger one, as the buffers do not shrink.
+  ASSERT_TRUE(detector.reserve(WIDTH / 2, HEIGHT / 2));
+  EXPECT_GT(detector.detect(crop.data(), WIDTH, HEIGHT, config).confidence, 0.0f);
 }
 
 TEST(GaugeNeedleDetector, TinyCropDoesNotReportConfidence) {
@@ -224,8 +226,8 @@ TEST(GaugeNeedleDetector, LegacyConfidenceNeedsRaySupport) {
 }
 
 TEST(GaugeNeedleDetector, LegacyCountsOnlyTheExcessOverTheBackground) {
-  // The raw scan used to add the brightness of every background pixel to the
-  // score, so a blank textured crop could reach 0.58 confidence.
+  // Confidence measures how far the best ray rises above the average ray, so a
+  // textured background without a needle must stay low.
   const std::vector<uint8_t> blank = make_textured_background();
   EXPECT_LT(run(blank, ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT).confidence, 0.3f);
   EXPECT_LT(run(blank, ALGORITHM_LEGACY, NEEDLE_TYPE_DARK).confidence, 0.3f);

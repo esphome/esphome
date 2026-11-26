@@ -27,15 +27,17 @@ async def to_code(config: ConfigType) -> None:
 
 
 def enable_detectors(algorithms: Iterable[str]) -> None:
-    """Compile in the given detectors; "auto" enables all of them."""
-    # Also set here, so a consumer that calls this from its own to_code() gets
-    # the component even when it does not list it in AUTO_LOAD.
-    cg.add_define("USE_GAUGE_NEEDLE_DETECTOR")
-    enabled = set(ALGORITHM_DEFINES) if "auto" in algorithms else set(algorithms)
-    if unknown := enabled - set(ALGORITHM_DEFINES):
+    """Compile in the given detectors; "auto" enables all of them.
+
+    The caller must also list this component in AUTO_LOAD, which copies its sources.
+    """
+    requested = set(algorithms)
+    if unknown := requested - set(ALGORITHM_DEFINES) - {"auto"}:
         raise ValueError(
             f"Unknown gauge needle algorithm: {', '.join(sorted(unknown))}"
         )
+    enabled = set(ALGORITHM_DEFINES) if "auto" in requested else requested
+    cg.add_define("USE_GAUGE_NEEDLE_DETECTOR")
     for algorithm in enabled:
         cg.add_define(ALGORITHM_DEFINES[algorithm])
     # The filtered detectors share the preprocessor; the raw scan does not need it.

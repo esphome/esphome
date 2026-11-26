@@ -82,13 +82,12 @@ bool NeedleDetector::reserve(int width, int height) {
 #ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
   if (!this->preprocessor_.reserve(width, height)) {
     // The old buffers are gone, so nothing is reserved until the next success.
-    this->reserved_width_ = 0;
-    this->reserved_height_ = 0;
+    this->reserved_pixels_ = 0;
     return false;
   }
 #endif
-  this->reserved_width_ = width;
-  this->reserved_height_ = height;
+  // The buffers never shrink, so a smaller reservation keeps the larger one.
+  this->reserved_pixels_ = std::max(this->reserved_pixels_, static_cast<size_t>(width) * height);
   return true;
 }
 
@@ -97,10 +96,10 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     return {};
 
   // A crop that does not fit the reservation is rejected before any algorithm runs.
-  if (width > this->reserved_width_ || height > this->reserved_height_) {
+  if (static_cast<size_t>(width) * height > this->reserved_pixels_) {
     if (this->first_report_(REPORT_OVERSIZE)) {
-      ESP_LOGW(TAG, "%s: crop %dx%d does not fit the %dx%d reservation; call reserve() with the largest crop",
-               config.id, width, height, this->reserved_width_, this->reserved_height_);
+      ESP_LOGW(TAG, "%s: crop %dx%d exceeds the %zu reserved pixels; call reserve() with the largest crop", config.id,
+               width, height, this->reserved_pixels_);
     }
     return {};
   }
@@ -160,7 +159,9 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     target_compiled |= is_target;
     // `auto` leaves out the raw scan when a filtered detector is built: its
     // confidence comes from raw brightness, which the others would not match.
-    if (is_auto && detector->algorithm() == ALGORITHM_LEGACY && this->detector_count_ > 1)
+    // Debug still runs it, to log its result next to the others.
+    const bool excluded = is_auto && detector->algorithm() == ALGORITHM_LEGACY && this->detector_count_ > 1;
+    if (excluded && !config.debug)
       continue;
 
     const bool wants_filtered = detector->needs_filtered_image();
@@ -175,7 +176,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
                result.confidence);
     }
     // The first detector wins ties, so the built-in order decides equal scores.
-    if (is_auto ? (!have_output || result.confidence > output.confidence) : is_target) {
+    if (is_auto ? !excluded && (!have_output || result.confidence > output.confidence) : is_target) {
       output = result;
       output_algorithm = detector->algorithm();
       have_output = true;

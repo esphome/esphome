@@ -208,9 +208,8 @@ class NeedleDetector final {
   size_t detector_count_{0};
   /// Shared angle-score workspace; the detectors run one at a time.
   std::array<float, ANGLE_COUNT> scores_{};
-  /// Largest crop accepted by detect(); 0 until reserve() succeeds.
-  int reserved_width_{0};
-  int reserved_height_{0};
+  /// Most pixels a crop passed to detect() may have; 0 until reserve() succeeds.
+  size_t reserved_pixels_{0};
   /// One bit per kind of problem; each kind is logged once, for the first dial that hits it.
   static constexpr uint8_t REPORT_OVERSIZE = 1 << 0;
   static constexpr uint8_t REPORT_EMPTY_WINDOW = 1 << 1;
