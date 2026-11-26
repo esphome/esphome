@@ -1,0 +1,51 @@
+esphome:
+  name: test-move-stop-actions
+
+esp32:
+  board: esp32dev
+
+output:
+  - platform: ledc
+    id: out_a
+    pin: GPIO4
+  - platform: ledc
+    id: out_b
+    pin: GPIO5
+
+light:
+  - platform: monochromatic
+    id: move_light
+    output: out_a
+  - platform: monochromatic
+    id: stop_light
+    output: out_b
+
+script:
+  - id: move_defaults
+    then:
+      - light.move:
+          id: move_light
+          direction: UP
+  - id: move_limits
+    then:
+      - light.move:
+          id: move_light
+          direction: down
+          duration: 2s
+          brightness_limits:
+            min_brightness: 0%
+            max_brightness: 80%
+  - id: move_lambdas
+    parameters:
+      up: bool
+      ms: int
+    then:
+      - light.move:
+          id: move_light
+          direction: !lambda return up;
+          duration: !lambda return ms;
+  - id: stop_both
+    then:
+      - light.stop: move_light
+      - light.stop:
+          id: stop_light
