@@ -366,9 +366,10 @@ TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
         exit(bus.count(0x000) == 1 ? 3 : 4);
       },
       ::testing::ExitedWithCode(3), "");
-  // rebooted 20 ms after the hand-over
-  bus.on_send = [](uint32_t can_id) {
-    if (can_id == 0x000)
+  // rebooted 20 ms after the hand-over; on_send runs before the frame is taken or refused, so only a frame the
+  // driver takes counts
+  bus.on_send = [&bus](uint32_t can_id) {
+    if (can_id == 0x000 && !bus.busy)
       fprintf(stderr, "NMT frame sent\n");
   };
   EXPECT_EXIT(
