@@ -97,7 +97,9 @@ async def main():
         cli.button_command(bump.key)
         await asyncio.sleep(0.5)
     await asyncio.sleep(3)
-    res["bump_delta"] = int(state.get("bump_count", 0)) - b0
+    b1 = state.get("bump_count")
+    # a missing or NaN count gives no delta, which fails the run instead of raising before the JSON is written
+    res["bump_delta"] = None if b1 is None or math.isnan(b1) else int(b1) - b0
     o0 = (
         state.get("ovf_enqueue"),
         state.get("ovf_drain"),

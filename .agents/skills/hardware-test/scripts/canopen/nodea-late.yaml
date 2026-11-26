@@ -1,0 +1,27 @@
+# Action paths (actions2.yaml) and late responses against nodeb.yaml's slow objects, then a short soak.
+substitutions:
+  name: canopen-a-late
+packages:
+  common: !include client-common.yaml
+esphome:
+  name: ${name}
+script:
+  - id: suite
+    then:
+      - delay: 4s
+      - script.execute: phases
+      - script.wait: phases
+      - repeat:
+          count: 5
+          then:
+            - lambda: cot::phase_late(id(hub));
+            - delay: 2s
+            - lambda: cot::phase_late_read(id(hub));
+            - delay: 2s
+      - lambda: |-
+          cot::summary("before soak");
+          cot::soak_start(id(hub), 20000);
+      - delay: 22s
+      - lambda: |-
+          cot::soak_report();
+          cot::summary("final");

@@ -1,0 +1,15 @@
+# Per-run file: VL53L1X (0x29, 16 bit registers) on an Adafruit Feather HUZZAH, SDA GPIO4, SCL GPIO5.
+# Use `-s name NAME`; add `-s persist "true"` for the persist case and `-s wedge_after "1000000"` for plain reads.
+substitutions:
+  name: i2crec
+
+packages:
+  rec: !include i2crec.yaml
+
+esp8266:
+  board: huzzah
+
+sensor:
+  - platform: vl53l1x
+    name: Distance
+    update_interval: 1s

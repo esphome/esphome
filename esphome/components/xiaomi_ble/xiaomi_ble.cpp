@@ -5,20 +5,7 @@
 #include <algorithm>
 #include <cstring>
 
-// AES-CCM backend for encrypted-payload (bindkey) decryption:
-//   - ESP32 + ESP-IDF >= 6.0 -> PSA crypto (psa_aead_decrypt), hardware-backed.
-//   - every other platform   -> the portable software AES-CCM in ble_device_base, so
-//     decryption never depends on the SDK exposing mbedtls/PSA to application code.
-#ifdef USE_ESP32
-#include <esp_idf_version.h>
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-#include <psa/crypto.h>
-#define XIAOMI_CRYPTO_PSA
-#endif
-#endif
-#ifndef XIAOMI_CRYPTO_PSA
 #include "esphome/components/ble_device_base/ble_aes_ccm.h"
-#endif
 
 namespace esphome::xiaomi_ble {
 
@@ -308,37 +295,9 @@ bool decrypt_xiaomi_payload(uint8_t *raw, size_t size, const uint8_t *bindkey, u
   memcpy(vector.iv + 6, v + 2, 3);         // sensor type (2) + packet id (1)
   memcpy(vector.iv + 9, v + size - 7, 3);  // payload counter
 
-#ifdef XIAOMI_CRYPTO_PSA
-  // PSA AEAD expects ciphertext + tag concatenated
-  uint8_t ct_with_tag[sizeof(vector.ciphertext) + sizeof(vector.tag)];
-  memcpy(ct_with_tag, vector.ciphertext, vector.datasize);
-  memcpy(ct_with_tag + vector.datasize, vector.tag, vector.tagsize);
-  size_t ct_with_tag_size = vector.datasize + vector.tagsize;
-
-  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
-  psa_set_key_bits(&attributes, vector.keysize * 8);
-  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
-  psa_set_key_algorithm(&attributes, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, vector.tagsize));
-
-  mbedtls_svc_key_id_t key_id;
-  if (psa_import_key(&attributes, vector.key, vector.keysize, &key_id) != PSA_SUCCESS) {
-    ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): psa_import_key() failed.");
-    return false;
-  }
-
-  size_t plaintext_length;
-  psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, vector.tagsize),
-                                         vector.iv, vector.ivsize, vector.authdata, vector.authsize, ct_with_tag,
-                                         ct_with_tag_size, vector.plaintext, vector.datasize, &plaintext_length);
-  psa_destroy_key(key_id);
-  bool decrypt_ok = (status == PSA_SUCCESS && plaintext_length == vector.datasize);
-#else
-  // Portable software AES-CCM (ble_device_base) — no SDK mbedtls/PSA dependency.
   bool decrypt_ok = ble_device_base::aes_ccm_auth_decrypt(vector.key, vector.iv, vector.ivsize, vector.authdata,
                                                           vector.authsize, vector.ciphertext, vector.datasize,
                                                           vector.plaintext, vector.tag, vector.tagsize);
-#endif
 
   if (!decrypt_ok) {
     uint8_t mac_address[MAC_ADDRESS_SIZE] = {0};

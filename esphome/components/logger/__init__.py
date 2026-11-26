@@ -19,7 +19,6 @@ from esphome.const import (
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
-    CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -337,10 +336,6 @@ def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
 
 
 Logger = logger_ns.class_("Logger", cg.Component)
-LoggerMessageTrigger = logger_ns.class_(
-    "LoggerMessageTrigger",
-    automation.Trigger.template(cg.uint8, cg.const_char_ptr, cg.const_char_ptr),
-)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -443,7 +438,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RUNTIME_TAG_LEVELS, default=False): cv.boolean,
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoggerMessageTrigger),
                     cv.Optional(CONF_LEVEL, default="WARN"): is_log_level,
                 }
             ),
@@ -728,19 +722,19 @@ async def _late_logger_init(config: ConfigType) -> None:
     # Register at end for safe mode
     await cg.register_component(log, config)
 
+    args = [
+        (cg.uint8, "level"),
+        (cg.const_char_ptr, "tag"),
+        (cg.const_char_ptr, "message"),
+    ]
     for conf in config.get(CONF_ON_MESSAGE, []):
-        request_log_listener()  # Each on_message trigger needs a listener slot
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], log, LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL])
-        )
-        await automation.build_automation(
-            trigger,
-            [
-                (cg.uint8, "level"),
-                (cg.const_char_ptr, "tag"),
-                (cg.const_char_ptr, "message"),
-            ],
-            conf,
+        request_log_listener()  # Each on_message automation needs a listener slot
+        fn = await automation.build_trigger_callback(args, conf, args)
+        level = LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL])
+        cg.add(
+            log.add_log_callback(
+                cg.nullptr, logger_ns.on_message_callback.template(level, fn)
+            )
         )
 
 
@@ -876,6 +870,29 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "task_log_buffer_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
+
+
+async def request_tag_log_level(tag: str, level: str) -> None:
+    """Quiet a noisy library tag; call from to_code.
+
+    Skipped when `logger: logs:` sets the tag or the logger's level already drops it; never louder than
+    `initial_level`. ESP-IDF library tags need ESP-IDF Log V2 (6.1+, not ESP32-C2/S2); otherwise they log as
+    `esp-idf`.
+    """
+    if (
+        (config := CORE.config.get(DOMAIN)) is None
+        or tag in config[CONF_LOGS]
+        or LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+        <= LOG_LEVEL_SEVERITY.index(level)
+    ):
+        return
+    # Kept as a tag level, so it still holds when the level is raised at run time
+    level = min(
+        level, config.get(CONF_INITIAL_LEVEL, level), key=LOG_LEVEL_SEVERITY.index
+    )
+    cg.add_define("USE_LOGGER_RUNTIME_TAG_LEVELS")
+    log = await cg.get_variable(config[CONF_ID])
+    cg.add(log.set_log_level(tag, LOG_LEVELS[level]))
 
 
 def request_logger_level_listeners() -> None:

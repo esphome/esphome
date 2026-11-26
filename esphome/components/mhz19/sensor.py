@@ -9,12 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_TEMPERATURE,
     CONF_WARMUP_TIME,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PARTS_PER_MILLION,
 )
 from esphome.types import ConfigType
 
@@ -38,17 +33,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MHZ19Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=0
             ),
             cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.boolean,
             cv.Optional(

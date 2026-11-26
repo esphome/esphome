@@ -142,7 +142,7 @@ void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, cons
   if (index == last)
     return;
   last = index;
-  sensor->publish_state(ChargerStatusStrings::get_progmem_str(index, ChargerStatusStrings::LAST_INDEX));
+  sensor->publish_state(ChargerStatusStrings::get_progmem_str(index));
 }
 #endif
 
@@ -452,7 +452,7 @@ void NPM1300Component::dump_config() {
     const NPM1300OutputConfig &output = config.outputs[i];
     if (output.voltage == NPM1300_UNSET && output.ldo_mode == NPM1300_UNSET && output.enabled == NPM1300_UNSET)
       continue;
-    ESP_LOGCONFIG(TAG, "  %s:", LOG_STR_ARG(OutputNameStrings::get_log_str(i, OutputNameStrings::LAST_INDEX)));
+    ESP_LOGCONFIG(TAG, "  %s:", LOG_STR_ARG(OutputNameStrings::get_log_str(i)));
     if (output.voltage != NPM1300_UNSET) {
       ESP_LOGCONFIG(TAG, "    Voltage: %u mV", 1000u + output.voltage * 100u);
     }

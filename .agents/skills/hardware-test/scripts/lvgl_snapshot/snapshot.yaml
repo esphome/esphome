@@ -1,0 +1,21 @@
+# Package: LVGL screen snapshot over the serial log (esphome#23227). Add it to a config that has `lvgl:`.
+# Read the snapshot from the serial log, not the API log stream: the API drops about half of the lines.
+# Press the "snapshot" button (or call snaptest::start(tag) from a lambda), then: python unsnap.py LOG OUTPREFIX
+esphome:
+  includes:
+    - snap.hpp
+  build_flags:
+    - -DLV_USE_SNAPSHOT=1
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: snaptest::step();
+
+button:
+  - platform: template
+    name: snapshot
+    on_press:
+      - lambda: |-
+          static uint32_t tag = 0;
+          snaptest::start(++tag);

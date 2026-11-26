@@ -14,10 +14,6 @@ static constexpr size_t EPAPER_MAX_CMD_LOG_BYTES = 128;
 PROGMEM_STRING_TABLE(EPaperStateStrings, "IDLE", "UPDATE", "RESET", "RESET_END", "SHOULD_WAIT", "INITIALISE",
                      "TRANSFER_DATA", "POWER_ON", "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP", "Unknown");
 
-const LogString *EPaperBase::epaper_state_to_string_() {
-  return EPaperStateStrings::get_log_str(static_cast<uint8_t>(this->state_), EPaperStateStrings::LAST_INDEX);
-}
-
 void EPaperBase::setup() {
   if (!this->setup_check(this->init_buffer_(this->buffer_length_), LOG_STR("Failed to initialise buffer")))
     return;
@@ -72,16 +68,11 @@ void EPaperBase::reset_bounds_() {
 
 void EPaperBase::setup_pins_() const {
   for (auto *pin : this->enable_pins_) {
-    pin->setup();
-    pin->digital_write(true);
+    setup_output_pin(pin, true);
   }
-  this->dc_pin_->setup();  // OUTPUT
-  this->dc_pin_->digital_write(false);
+  setup_output_pin(this->dc_pin_, false);
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();  // OUTPUT
-    this->reset_pin_->digital_write(true);
-  }
+  setup_output_pin(this->reset_pin_, true);
 
   if (this->busy_pin_ != nullptr) {
     this->busy_pin_->setup();  // INPUT
@@ -155,7 +146,7 @@ void EPaperBase::update_effective_transform_() {
 
 void EPaperBase::update() {
   if (this->state_ != EPaperState::IDLE) {
-    ESP_LOGE(TAG, "Display already in state %s", LOG_STR_ARG(epaper_state_to_string_()));
+    ESP_LOGE(TAG, "Display already in state %s", LOG_STR_ARG(EPaperStateStrings::get_log_str(this->state_)));
     return;
   }
   this->set_state_(EPaperState::UPDATE);
@@ -184,11 +175,7 @@ void EPaperBase::loop() {
   int diff = now - this->delay_until_;
   if (diff < 0) {
     // Running the loop continuously cannot shorten a delay longer than one loop interval
-    if (-diff > static_cast<int>(App.get_loop_interval())) {
-      this->high_frequency_loop_.stop();
-    } else {
-      this->high_frequency_loop_.start();
-    }
+    this->high_frequency_loop_.set(-diff <= static_cast<int>(App.get_loop_interval()));
     return;
   }
   if (this->waiting_for_idle_) {
@@ -208,7 +195,7 @@ void EPaperBase::loop() {
         this->high_frequency_loop_.stop();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       if (now - this->waiting_for_idle_last_print_ >= 1000) {
-        ESP_LOGV(TAG, "Waiting for idle in state %s", LOG_STR_ARG(this->epaper_state_to_string_()));
+        ESP_LOGV(TAG, "Waiting for idle in state %s", LOG_STR_ARG(EPaperStateStrings::get_log_str(this->state_)));
         this->waiting_for_idle_last_print_ = millis();
       }
 #endif
@@ -223,7 +210,7 @@ void EPaperBase::loop() {
 // The busy pin never cleared: give up on this update so later ones are not refused, and make the next one full
 void EPaperBase::abandon_update_() {
   ESP_LOGE(TAG, "Display stayed busy for %u s in state %s; check the busy pin", (unsigned) this->busy_timeout_seconds_,
-           LOG_STR_ARG(this->epaper_state_to_string_()));
+           LOG_STR_ARG(EPaperStateStrings::get_log_str(this->state_)));
   this->status_set_warning(LOG_STR("Busy pin timeout"));
   if (this->state_ == EPaperState::TRANSFER_DATA)
     this->abort_transfer();
@@ -243,10 +230,10 @@ void EPaperBase::abandon_update_() {
  * Should a subclassed class need to override this, the method will need to be made virtual.
  */
 void EPaperBase::process_state_() {
-  ESP_LOGV(TAG, "Process state entered in state %s", LOG_STR_ARG(epaper_state_to_string_()));
+  ESP_LOGV(TAG, "Process state entered in state %s", LOG_STR_ARG(EPaperStateStrings::get_log_str(this->state_)));
   switch (this->state_) {
     default:
-      ESP_LOGE(TAG, "Display is in unhandled state %s", LOG_STR_ARG(epaper_state_to_string_()));
+      ESP_LOGE(TAG, "Display is in unhandled state %s", LOG_STR_ARG(EPaperStateStrings::get_log_str(this->state_)));
       this->set_state_(EPaperState::IDLE);
       break;
     case EPaperState::IDLE:
@@ -338,7 +325,7 @@ void EPaperBase::process_state_() {
 }
 
 void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
-  ESP_LOGV(TAG, "Exit state %s", LOG_STR_ARG(this->epaper_state_to_string_()));
+  ESP_LOGV(TAG, "Exit state %s", LOG_STR_ARG(EPaperStateStrings::get_log_str(this->state_)));
   this->state_ = state;
   // allow subclasses to nominate delays
   if (delay == 0)
@@ -346,15 +333,12 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   this->next_delay_ = 0;
   this->delay_until_ = millis() + delay;
   this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
-  ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", LOG_STR_ARG(this->epaper_state_to_string_()), delay,
-           TRUEFALSE(this->waiting_for_idle_));
+  ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s",
+           LOG_STR_ARG(EPaperStateStrings::get_log_str(this->state_)), delay, TRUEFALSE(this->waiting_for_idle_));
   // Each step of an update otherwise waits for the next loop iteration; loop() slows down again for long waits
-  if (state == EPaperState::IDLE) {
-    this->high_frequency_loop_.stop();
+  this->high_frequency_loop_.set(state != EPaperState::IDLE);
+  if (state == EPaperState::IDLE)
     this->disable_loop();
-  } else {
-    this->high_frequency_loop_.start();
-  }
 }
 
 void EPaperBase::start_data_() {
