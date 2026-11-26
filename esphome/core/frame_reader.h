@@ -106,33 +106,24 @@ template<LengthField F> struct FrameLengthU16LE {
   static constexpr size_t get(const uint8_t *buf) { return buf[F.offset] | (size_t(buf[F.offset + 1]) << 8); }
 };
 namespace frame_reader_detail {
-// Where the payload starts: payload_at, or right after a length field of WIDTH bytes
-template<LengthField F, size_t WIDTH> constexpr size_t payload_start() {
-  static_assert(F.payload_at == 0 || F.payload_at >= F.offset + WIDTH, "payload_at must follow the length field");
-  return F.payload_at != 0 ? F.payload_at : F.offset + WIDTH;
-}
+// A payload length read by the whole-frame rule FIELD; the payload starts at PAYLOAD_AT
+template<LengthField F, class FIELD> struct PayloadLength {
+  static_assert(F.payload_at == 0 || F.payload_at >= FIELD::KNOWN_AT, "payload_at must follow the length field");
+  static constexpr size_t KNOWN_AT = FIELD::KNOWN_AT;
+  static constexpr size_t PAYLOAD_AT = F.payload_at != 0 ? F.payload_at : KNOWN_AT;
+  // The shortest frame: an empty payload
+  static constexpr size_t MIN = PAYLOAD_AT + F.trailer;
+  static constexpr size_t get(const uint8_t *buf) { return PAYLOAD_AT + FIELD::get(buf) + F.trailer; }
+};
 }  // namespace frame_reader_detail
 
 /// Payload length: the field counts the payload, which starts at PAYLOAD_AT.
-template<LengthField F> struct PayloadLengthU8 {
-  static constexpr size_t PAYLOAD_AT = frame_reader_detail::payload_start<F, 1>();
-  static constexpr size_t KNOWN_AT = F.offset + 1;
-  static constexpr size_t get(const uint8_t *buf) { return PAYLOAD_AT + buf[F.offset] + F.trailer; }
-};
-template<LengthField F> struct PayloadLengthU16BE {
-  static constexpr size_t PAYLOAD_AT = frame_reader_detail::payload_start<F, 2>();
-  static constexpr size_t KNOWN_AT = F.offset + 2;
-  static constexpr size_t get(const uint8_t *buf) {
-    return PAYLOAD_AT + FrameLengthU16BE<LengthField{.offset = F.offset}>::get(buf) + F.trailer;
-  }
-};
-template<LengthField F> struct PayloadLengthU16LE {
-  static constexpr size_t PAYLOAD_AT = frame_reader_detail::payload_start<F, 2>();
-  static constexpr size_t KNOWN_AT = F.offset + 2;
-  static constexpr size_t get(const uint8_t *buf) {
-    return PAYLOAD_AT + FrameLengthU16LE<LengthField{.offset = F.offset}>::get(buf) + F.trailer;
-  }
-};
+template<LengthField F>
+using PayloadLengthU8 = frame_reader_detail::PayloadLength<F, FrameLengthU8<LengthField{.offset = F.offset}>>;
+template<LengthField F>
+using PayloadLengthU16BE = frame_reader_detail::PayloadLength<F, FrameLengthU16BE<LengthField{.offset = F.offset}>>;
+template<LengthField F>
+using PayloadLengthU16LE = frame_reader_detail::PayloadLength<F, FrameLengthU16LE<LengthField{.offset = F.offset}>>;
 /// A frame type that always has LEN bytes.
 template<size_t LEN> struct FrameFixedLength {
   static_assert(LEN >= 2, "A fixed length frame has at least 2 bytes");
@@ -186,6 +177,9 @@ template<class LENGTH, class... OPTIONS> struct OptionLength {
     return (OPTIONS::fits(len) && ...) ? len : 0;
   }
 };
+// The shortest frame a length rule allows, 0 when it sets none
+template<class LENGTH> constexpr size_t RULE_MIN = 0;
+template<LengthField F, class FIELD> constexpr size_t RULE_MIN<PayloadLength<F, FIELD>> = PayloadLength<F, FIELD>::MIN;
 // The length of a FrameFixedLength rule, 0 for every other rule
 template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
 template<size_t LEN> constexpr size_t FIXED_LENGTH<FrameFixedLength<LEN>> = LEN;
@@ -205,7 +199,8 @@ template<class HEADER, class LENGTH, class... OPTIONS> struct FrameFormat {
   static constexpr size_t WARN_MAX = std::max<size_t>({0, OPTIONS::WARN_MAX...});
   static constexpr size_t MIN_LEN = std::max<size_t>({Length::KNOWN_AT, HEADER_LEN, 2});
   // A shorter length is not a frame
-  static constexpr size_t SHORTEST = std::max<size_t>({MIN_LEN, OPTIONS::MIN...});
+  static constexpr size_t SHORTEST =
+      std::max<size_t>({MIN_LEN, frame_reader_detail::RULE_MIN<LENGTH>, OPTIONS::MIN...});
   static_assert(LENGTH::KNOWN_AT == 1 || LENGTH::KNOWN_AT > HEADER_LEN, "The length field must follow the header");
   static constexpr uint8_t header_byte(size_t i) { return HEADER::byte(i); }
 };

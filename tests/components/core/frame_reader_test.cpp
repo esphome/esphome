@@ -534,13 +534,12 @@ TEST(LengthFrameReaderTest, FailedCheckNeverWarnsInEitherOrder) {
 using Gapped = FrameFormat<FrameHeader<0x01>, PayloadLengthU8<LengthField{.offset = 1, .payload_at = 4, .trailer = 1}>>;
 
 TEST(LengthFrameReaderTest, PayloadAtSkipsBytesAfterTheLength) {
-  static_assert(Gapped::Length::KNOWN_AT == 2 && Gapped::SHORTEST == 2);
+  static_assert(Gapped::Length::KNOWN_AT == 2 && Gapped::SHORTEST == 5);
   LengthFrameReader<16, Gapped> reader;
-  EXPECT_EQ(feed_all(reader, {0x01, 0x02, 0x7A, 0x7B, 0x10, 0x20, 0xCC, 0x01}),
+  EXPECT_EQ(feed_all(reader, {0x01, 0x02, 0x7A, 0x7B, 0x10, 0x20, 0xCC}),
             (Frames{{0x01, 0x02, 0x7A, 0x7B, 0x10, 0x20, 0xCC}}));
   // A length over N is rejected at the length field, before the gap bytes arrive
-  LengthFrameReader<16, Gapped> fresh;
-  EXPECT_EQ(feed_all(fresh, {0x01, 0xF0, 0x01, 0x00, 0x7A, 0x7B, 0xCC}), (Frames{{0x01, 0x00, 0x7A, 0x7B, 0xCC}}));
+  EXPECT_EQ(feed_all(reader, {0x01, 0xF0, 0x01, 0x00, 0x7A, 0x7B, 0xCC}), (Frames{{0x01, 0x00, 0x7A, 0x7B, 0xCC}}));
 }
 
 }  // namespace esphome::core::testing
