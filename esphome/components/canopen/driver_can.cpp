@@ -98,7 +98,8 @@ void CANopenComponent::queue_local_(uint16_t ident, const uint8_t *data, uint8_t
     this->local_dropped_++;
     return;
   }
-  this->enable_loop();
+  // enable_loop() may log (and is meant for a component's own context): only set the flag, the next pass enables it
+  this->enable_loop_soon_any_context();
 }
 
 void CANopenComponent::deliver_local_() {
