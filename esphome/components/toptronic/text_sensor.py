@@ -14,6 +14,7 @@ from . import (
     _request_option,
     _validate_options_values_lengths,
     config_schema_polling,
+    register_sensor,
     toptronic,
 )
 
@@ -54,4 +55,4 @@ async def to_code(config: ConfigType) -> None:
         _request_option(str(sens))
         cg.add(sens.add_option(value, text))
 
-    cg.add(tt.add_sensor(sens))
+    cg.add(register_sensor(tt, sens))
