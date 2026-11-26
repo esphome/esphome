@@ -14,8 +14,7 @@ from esphome.types import ConfigType
 derivative_ns = cg.esphome_ns.namespace("derivative")
 DerivativeSensor = derivative_ns.class_("DerivativeSensor", sensor.Sensor, cg.Component)
 
-# Milliseconds in each time unit. The delta is measured in milliseconds, so the
-# multiplier handed to the component is its reciprocal.
+# Milliseconds in each time unit.
 DERIVATIVE_TIME_UNITS = {
     "ms": 1.0,
     "s": 1000.0,
@@ -28,8 +27,7 @@ CONF_TIME_UNIT = "time_unit"
 
 
 def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:
-    # The derivative is a rate: the source's unit per the configured time unit
-    # (e.g. a distance in m with time_unit "s" becomes a speed in m/s).
+    # A rate: m with time_unit "s" becomes m/s.
     return f"{uom}/{config[CONF_TIME_UNIT]}"
 
 
@@ -52,16 +50,6 @@ CONFIG_SCHEMA = (
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(DerivativeSensor),
-            cv.Optional(CONF_ICON): cv.icon,
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): sensor.validate_unit_of_measurement,
-            cv.Optional(CONF_ACCURACY_DECIMALS): sensor.validate_accuracy_decimals,
-            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-        },
-        extra=cv.ALLOW_EXTRA,
-    ),
     inherit_property_from(CONF_ICON, CONF_SENSOR),
     inherit_property_from(
         CONF_UNIT_OF_MEASUREMENT, CONF_SENSOR, transform=inherit_unit_of_measurement
@@ -74,10 +62,8 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     source = await cg.get_variable(config[CONF_SENSOR])
-    var = cg.new_Pvariable(config[CONF_ID], source)
-
+    var = cg.new_Pvariable(
+        config[CONF_ID], source, 1.0 / DERIVATIVE_TIME_UNITS[config[CONF_TIME_UNIT]]
+    )
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
-
-    time_factor = 1.0 / DERIVATIVE_TIME_UNITS[config[CONF_TIME_UNIT]]
-    cg.add(var.set_time_factor(time_factor))

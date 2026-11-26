@@ -9,47 +9,34 @@ namespace esphome::derivative {
 
 ESPHOME_LOG_TAG(TAG, "derivative");
 
-void DerivativeSensor::setup() {
-  this->source_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
-}
-
 void DerivativeSensor::dump_config() { LOG_SENSOR("", "Derivative Sensor", this); }
 
 void DerivativeSensor::process_sensor_value_(float value) {
-  // A NaN reading means the source has no valid state (a failed measurement, or a gap
-  // between samples). Drop the baseline so the next valid reading re-establishes it,
-  // instead of deriving a bogus rate across the gap.
+  // No valid reading: drop the baseline so a gap never yields a spike.
   if (std::isnan(value)) {
     this->last_value_ = NAN;
     return;
   }
 
-  // App.get_loop_component_start_time() is the time the current loop iteration started.
-  // Sensor publishes are synchronous, so a value published during this iteration shares
-  // the same timestamp as its source, giving an accurate dt down to one loop iteration.
   const uint32_t now = App.get_loop_component_start_time();
 
   if (std::isnan(this->last_value_)) {
-    // First valid reading (ever, or after a gap): only establish the baseline.
     this->last_value_ = value;
     this->last_update_ = now;
     return;
   }
 
   const uint32_t dt_ms = now - this->last_update_;
-  // Two readings in the same loop iteration: keep the older baseline so the change is
-  // counted against the next reading instead of being lost.
+  // Readings published within one component call share a timestamp: keep the older baseline.
   if (dt_ms == 0)
     return;
 
   const float old_value = this->last_value_;
-  // Update the baseline before publishing: publish_state() runs the entity's callbacks
-  // synchronously and they may feed back into this sensor.
+  // Update before publishing: callbacks may feed back into this sensor.
   this->last_value_ = value;
   this->last_update_ = now;
 
-  const float dt = dt_ms * this->time_factor_;
-  this->publish_state((value - old_value) / dt);
+  this->publish_state((value - old_value) / (dt_ms * this->time_factor_));
 }
 
 }  // namespace esphome::derivative

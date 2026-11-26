@@ -1,8 +1,7 @@
 sensor:
-  - platform: adc
+  - platform: template
     id: derivative_my_sensor
-    pin: ${pin}
-    attenuation: 12db
+    lambda: return 1.0;
   - platform: derivative
     id: derivative_sensor
     sensor: derivative_my_sensor

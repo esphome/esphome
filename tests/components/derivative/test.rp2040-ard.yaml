@@ -1,9 +1,2 @@
-sensor:
-  - platform: adc
-    id: derivative_my_sensor
-    pin: VCC
-  - platform: derivative
-    sensor: derivative_my_sensor
-    name: Derivative Sensor
-    time_unit: s
-    state_class: measurement
+packages:
+  derivative: !include common.yaml
