@@ -1,4 +1,5 @@
 #include "islandaire.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 

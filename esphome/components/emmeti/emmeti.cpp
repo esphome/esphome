@@ -1,4 +1,5 @@
 #include "emmeti.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/remote_base.h"
 
 namespace esphome::emmeti {

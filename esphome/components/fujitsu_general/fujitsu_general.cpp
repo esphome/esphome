@@ -1,4 +1,5 @@
 #include "fujitsu_general.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome::fujitsu_general {
 

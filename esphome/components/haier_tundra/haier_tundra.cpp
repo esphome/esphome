@@ -1,4 +1,5 @@
 #include "haier_tundra.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome::haier_tundra {
 

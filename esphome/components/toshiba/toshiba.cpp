@@ -1,4 +1,5 @@
 #include "toshiba.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
