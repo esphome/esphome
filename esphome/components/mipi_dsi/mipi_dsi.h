@@ -70,8 +70,9 @@ class MipiDsi final : public display::Display {
   /// Native panel buffer. Buffer zero is initially scanned out by the panel.
   void *get_framebuffer(uint8_t index) const { return index < this->num_fbs_ ? this->framebuffers_[index] : nullptr; }
   /// Present a complete native framebuffer and wait until the previous buffer is safe to reuse.
-  /// Call only from the display owner task; do not mix with ordinary drawing while using this API.
-  /// On failure, do not reuse either buffer; the display may still be reading it.
+  /// Call only from the ESPHome main loop, with an exclusive external display writer.
+  /// On failure, stop rendering and retry the same submission without modifying the buffers.
+  /// Native presentation needs an IDF version with a DMA framebuffer-completion callback.
   /// With defer=true, requires three buffers used in strict rotation, starting away from scan-out.
   /// The previous submission is fenced before the next swap; never write to either of the two
   /// most recently submitted buffers. Do not mix deferred and synchronous modes or drawing APIs.
@@ -156,7 +157,10 @@ class MipiDsi final : public display::Display {
   esp_lcd_panel_io_handle_t io_handle_{};
   SemaphoreHandle_t io_lock_{};
   SemaphoreHandle_t frame_complete_{};
-  bool present_pending_{false};
+  uint8_t pending_completions_{0};
+  bool native_owner_{false};
+  TickType_t frame_timeout_ticks_{0};
+  bool wait_frame_fence_();
   uint8_t num_fbs_{1};
   void *framebuffers_[3]{};
   uint8_t *buffer_{nullptr};
