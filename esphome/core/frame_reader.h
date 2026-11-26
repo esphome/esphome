@@ -116,19 +116,19 @@ template<LengthField F, size_t WIDTH> constexpr size_t payload_start() {
 /// Payload length: the field counts the payload, which starts at PAYLOAD_AT.
 template<LengthField F> struct PayloadLengthU8 {
   static constexpr size_t PAYLOAD_AT = frame_reader_detail::payload_start<F, 1>();
-  static constexpr size_t KNOWN_AT = PAYLOAD_AT;
+  static constexpr size_t KNOWN_AT = F.offset + 1;
   static constexpr size_t get(const uint8_t *buf) { return PAYLOAD_AT + buf[F.offset] + F.trailer; }
 };
 template<LengthField F> struct PayloadLengthU16BE {
   static constexpr size_t PAYLOAD_AT = frame_reader_detail::payload_start<F, 2>();
-  static constexpr size_t KNOWN_AT = PAYLOAD_AT;
+  static constexpr size_t KNOWN_AT = F.offset + 2;
   static constexpr size_t get(const uint8_t *buf) {
     return PAYLOAD_AT + FrameLengthU16BE<LengthField{.offset = F.offset}>::get(buf) + F.trailer;
   }
 };
 template<LengthField F> struct PayloadLengthU16LE {
   static constexpr size_t PAYLOAD_AT = frame_reader_detail::payload_start<F, 2>();
-  static constexpr size_t KNOWN_AT = PAYLOAD_AT;
+  static constexpr size_t KNOWN_AT = F.offset + 2;
   static constexpr size_t get(const uint8_t *buf) {
     return PAYLOAD_AT + FrameLengthU16LE<LengthField{.offset = F.offset}>::get(buf) + F.trailer;
   }
