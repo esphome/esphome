@@ -198,7 +198,7 @@ void MipiDsi::setup() {
   }
   this->io_lock_ = xSemaphoreCreateBinary();
   if (this->num_fbs_ > 1)
-    this->frame_complete_ = xSemaphoreCreateBinary();
+    this->frame_complete_ = xSemaphoreCreateCounting(2, 0);
   if (this->io_lock_ == nullptr || (this->num_fbs_ > 1 && this->frame_complete_ == nullptr)) {
     this->mark_failed(LOG_STR("Could not allocate display synchronization semaphores"));
     return;
@@ -325,14 +325,25 @@ void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const ui
   }
 }
 
-bool MipiDsi::present_framebuffer(void *fb) {
+bool MipiDsi::present_framebuffer(void *fb, bool defer) {
   if (this->is_failed() || this->frame_complete_ == nullptr || fb == nullptr)
     return false;
   bool valid = false;
   for (uint8_t i = 0; i < this->num_fbs_; i++)
     valid |= fb == this->framebuffers_[i];
-  if (!valid)
+  if (!valid || (defer && this->num_fbs_ != 3))
     return false;
+
+  // Fence the previous submission before publishing another buffer. In triple-buffer
+  // rotation the caller has rendered into the third buffer during this interval.
+  if (this->present_pending_) {
+    if (xSemaphoreTake(this->frame_complete_, pdMS_TO_TICKS(100)) != pdTRUE ||
+        xSemaphoreTake(this->frame_complete_, pdMS_TO_TICKS(100)) != pdTRUE) {
+      this->mark_failed(LOG_STR("Framebuffer presentation timed out"));
+      return false;
+    }
+    this->present_pending_ = false;
+  }
 
   // The native-buffer path signals color transfer completion synchronously, not scan-out completion.
   const auto err = esp_lcd_panel_draw_bitmap(this->handle_, 0, 0, this->width_, this->height_, fb);
@@ -343,7 +354,13 @@ bool MipiDsi::present_framebuffer(void *fb) {
   xSemaphoreTake(this->io_lock_, 0);
   // Discard pending notifications, then observe two DMA completions: an ISR already in flight
   // when draw_bitmap changed the selected buffer may still have selected the previous buffer.
+  // Counting semaphore retains both completions while the caller renders.
   xSemaphoreTake(this->frame_complete_, 0);
+  xSemaphoreTake(this->frame_complete_, 0);
+  if (defer) {
+    this->present_pending_ = true;
+    return true;
+  }
   if (xSemaphoreTake(this->frame_complete_, pdMS_TO_TICKS(100)) != pdTRUE ||
       xSemaphoreTake(this->frame_complete_, pdMS_TO_TICKS(100)) != pdTRUE) {
     this->mark_failed(LOG_STR("Framebuffer presentation timed out"));
