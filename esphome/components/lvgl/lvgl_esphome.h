@@ -170,7 +170,11 @@ class LvglComponent;
 
 class LvPageType : public Parented<LvglComponent> {
  public:
-  LvPageType(bool skip, lv_group_t *def_group) : skip(skip), def_group(def_group) {}
+#ifdef USE_LVGL_INPUT_GROUPS
+  LvPageType(bool skip, lv_group_t *group) : skip(skip), group(group) {}
+#else
+  LvPageType(bool skip) : skip(skip) {}
+#endif
 
   void setup(size_t index) {
     this->index = index;
@@ -182,10 +186,17 @@ class LvPageType : public Parented<LvglComponent> {
   lv_obj_t *obj{};
   size_t index{};
   bool skip;
-  lv_group_t *def_group;
-  lv_group_t *top_group;
-  lv_group_t *bottom_group;
+#ifdef USE_LVGL_INPUT_GROUPS
+  lv_group_t *group;
+#endif
 };
+
+#ifdef USE_LVGL_INPUT_GROUPS
+struct LvMsgboxGroup {
+  lv_obj_t *outer;
+  lv_group_t *group;
+};
+#endif
 
 using event_callback_t = void(lv_event_t *);
 
@@ -307,14 +318,19 @@ class LvglComponent final : public PollingComponent {
   }
 #endif
 
-  void add_input(lv_indev_t *input);
-  void set_def_group(lv_group_t *group);
-  void set_top_group(lv_group_t *group);
-  void set_bottom_group(lv_group_t *group);
+  void set_default_group(lv_group_t *group) { this->default_group_ = group; }
+#ifdef USE_LVGL_INPUT_GROUPS
+  SLOT_LIST(lv_indev_t, ungrouped_inputs_, add_ungrouped_input, LVGL_UNGROUPED_INPUT_COUNT)
+  SLOT_LIST_REQUIRES(LVGL_MSGBOX_COUNT)
+  void add_msgbox(lv_obj_t *outer, lv_group_t *group) { this->msgboxes_.push_back({outer, group}); }
+  /// Move the inputs that have no group of their own to the group of the topmost visible msgbox or the current page.
+  void update_input_group();
+  lv_group_t *get_focus_group() { return this->active_group_(); }
+#else
+  lv_group_t *get_focus_group() { return this->default_group_; }
+#endif
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
-  void set_indev_group(lv_group_t *group);
-  void restore_indev_group(lv_group_t *group);
   void show_next_page(lv_screen_load_anim_t anim, uint32_t time);
   void show_prev_page(lv_screen_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
@@ -374,6 +390,7 @@ class LvglComponent final : public PollingComponent {
 
   uint8_t *draw_buf_{};
   lv_display_t *disp_{};
+  lv_group_t *default_group_{};
   // The display's own periodic refresh timer, effectively paused while the display is busy (see
   // displays_busy_()) so LVGL neither renders nor flushes to it, without losing track of
   // invalidated areas. Other timers (indev reading, animations, ...) keep running as normal.
@@ -407,13 +424,16 @@ class LvglComponent final : public PollingComponent {
   ppa_client_handle_t ppa_client_{};
 #endif
 
-  std::vector<lv_indev_t *> inputs_{};
-  lv_group_t *def_group_;
-  lv_group_t *top_group_;
-  lv_group_t *bottom_group_;
-  std::vector<lv_obj_t *> def_objs_{};
-  std::vector<lv_obj_t *> top_layer_objs_{};
-  std::vector<lv_obj_t *> bottom_layer_objs_{};
+#ifdef USE_LVGL_INPUT_GROUPS
+  /// Return nullptr if `outer` is not the outer widget of a msgbox.
+  lv_group_t *msgbox_group_(lv_obj_t *outer);
+  lv_group_t *active_group_();
+  bool is_on_layer_(lv_obj_t *obj);
+  /// Move the top and bottom layer widgets from the group of one page to the group of another page.
+  void move_layer_objs_(lv_group_t *from, lv_group_t *to);
+
+  [[no_unique_address]] SlotList<LvMsgboxGroup, LVGL_MSGBOX_COUNT> msgboxes_;
+#endif
 };
 
 class IdleTrigger final : public Trigger<> {

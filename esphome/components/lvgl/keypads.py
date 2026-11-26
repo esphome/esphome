@@ -12,6 +12,7 @@ from .defines import (
     add_lv_use,
     literal,
 )
+from .encoders import add_ungrouped_input
 from .lvcode import lv, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t
@@ -67,7 +68,7 @@ async def keypads_to_code(var, config, default_group):
             lv_assign(group, lv_expr.group_create())
         else:
             group = default_group
-            cg.add(var.add_input(listener.get_drv()))
+            cg.add(add_ungrouped_input(var, listener.get_drv()))
         lv.indev_set_group(listener.get_drv(), group)
 
 

@@ -71,7 +71,13 @@ from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool
-from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lv_expr, lvgl_static
+from .lvcode import (
+    LvContext,
+    LvglComponent,
+    lv_event_t_ptr,
+    lv_group_create_default,
+    lvgl_static,
+)
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -424,6 +430,8 @@ async def to_code(configs):
         df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
     df.get_options()[df.CONF_DEBUG_OUTLINE] = config_0[df.CONF_DEBUG_OUTLINE]
+    if df.store_input_groups(configs):
+        cg.add_define("USE_LVGL_INPUT_GROUPS")
 
     # Create theme lambdas before any widgets.
     async with LvContext():
@@ -476,11 +484,8 @@ async def to_code(configs):
             cg.add(lv_component.set_refresh_interval(refr_time.total_milliseconds))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
-        # Build the default group for this lvgl instance. This CONF_DEFAULT_GROUP is not
-        # intended to be used in configurations
-        default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
-        cg.add(lv_component.set_def_group(default_group))
-        cg.add(lv_expr.group_set_default(default_group))
+        default_group = lv_group_create_default(config[CONF_DEFAULT_GROUP])
+        cg.add(lv_component.set_default_group(default_group))
 
         lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
@@ -492,13 +497,13 @@ async def to_code(configs):
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
-            # layers_to_code may change the lvgl default group, be careful adding widgets after this call
-            await layers_to_code(lv_component, config)
-            # add_pages will change the lvgl default group, be careful adding widgets after this call
+            # The order of the calls below is important. LVGL adds each new widget to its default group. With input
+            # groups, each page and msgbox makes its own group the default before it creates its widgets. The layers
+            # use the group of the first page. A widget created after these calls goes into the last default group.
             await add_pages(lv_component, config)
+            await layers_to_code(lv_component, config)
             await lvgl_update(lv_component, config)
-            # msgboxes_to_code will change the lvgl default group, be careful adding widgets after this call
-            await msgboxes_to_code(lv_component, config, default_group)
+            await msgboxes_to_code(lv_component, config)
             await animations_to_code(config.get(CONF_ANIMATIONS, []))
 
     async with LvContext():
@@ -662,18 +667,8 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
             cv.Optional(df.CONF_ANIMATIONS): cv.ensure_list(ANIMATION_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-            cv.Optional(df.CONF_TOP_LAYER): container_schema(
-                obj_spec,
-                extras={
-                    cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
-                },
-            ),
-            cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(
-                obj_spec,
-                extras={
-                    cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
-                },
-            ),
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
+            cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
             cv.Optional(df.CONF_THEME): theme_schema,
             cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,

@@ -443,3 +443,10 @@ def lv_variable(type, name) -> MockObj:
     var = MockObj(name, ".")
     CORE.register_variable(name, var)
     return var
+
+
+def lv_group_create_default(id_: ID) -> MockObj:
+    """Create an input group and make it the default group of LVGL. LVGL adds the next new widgets to it."""
+    group = cg.Pvariable(id_, lv_expr.group_create())
+    cg.add(lv_expr.group_set_default(group))
+    return group

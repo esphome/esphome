@@ -5,7 +5,6 @@ from esphome.const import CONF_ARGS, CONF_FORMAT
 
 CONF_IF_NAN = "if_nan"
 
-lvgl_msgboxes = {}
 
 f_regex = re.compile(
     r"""

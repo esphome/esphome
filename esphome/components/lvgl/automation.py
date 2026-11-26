@@ -22,7 +22,6 @@ from esphome.cpp_types import nullptr
 from .defines import (
     CONF_BG_OPA,
     CONF_BOTTOM_LAYER,
-    CONF_DEFAULT_GROUP,
     CONF_EDITING,
     CONF_FREEZE,
     CONF_LAYOUT,
@@ -38,8 +37,8 @@ from .defines import (
     get_options,
     get_refreshed_widgets,
     literal,
+    uses_input_groups,
 )
-from .helpers import lvgl_msgboxes
 from .layout import layout_validator
 from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
 from .lvcode import (
@@ -79,32 +78,23 @@ from .widgets import (
 # successive compilations / unit tests via ``CORE.reset()``.
 
 
-async def layers_to_code(lv_component, config):
-    if top_conf := config.get(CONF_TOP_LAYER):
-        if config.get(CONF_PAGES, ()):
-            # Build the default group for the top layer. This CONF_DEFAULT_GROUP is not
-            # intended to be used in configurations
-            default_group = cg.Pvariable(
-                top_conf[CONF_DEFAULT_GROUP], lv_expr.group_create()
-            )
-            cg.add(lv_component.set_top_group(default_group))
-            cg.add(lv_expr.group_set_default(default_group))
+def update_msgbox_input_group(widget: Widget) -> None:
+    """Move the inputs to the correct group after an action shows, hides or restacks a msgbox."""
+    if widget.msgbox_lvgl_component is not None:
+        lv_add(widget.msgbox_lvgl_component.update_input_group())
 
+
+async def layers_to_code(lv_component, config):
+    if (pages := config.get(CONF_PAGES)) and uses_input_groups():
+        # The layer widgets use the group of the current page. At boot, this is the first page.
+        lv.group_set_default((await cg.get_variable(pages[0][CONF_ID])).group)
+    if top_conf := config.get(CONF_TOP_LAYER):
         top_layer = lv_expr.display_get_layer_top(lv_component.get_disp())
         with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
             top_w = Widget(top_layer_obj, layer_spec, top_conf)
             await set_obj_properties(top_w, top_conf)
             await add_widgets(top_w, top_conf)
     if bottom_conf := config.get(CONF_BOTTOM_LAYER):
-        if config.get(CONF_PAGES, ()):
-            # Build the default group for the bottom layer. This CONF_DEFAULT_GROUP is not
-            # intended to be used in configurations
-            default_group = cg.Pvariable(
-                bottom_conf[CONF_DEFAULT_GROUP], lv_expr.group_create()
-            )
-            cg.add(lv_component.set_bottom_group(default_group))
-            cg.add(lv_expr.group_set_default(default_group))
-
         bottom_layer = lv_expr.display_get_layer_bottom(lv_component.get_disp())
         with LocalVariable("bottom_layer", lv_obj_t, bottom_layer) as bottom_layer_obj:
             bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
@@ -331,13 +321,7 @@ async def obj_enable_to_code(config, action_id, template_arg, args):
 async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
         widget.set_flag(CONF_HIDDEN, True)
-        # If this widget is actually a msgbox we have to move encoder/keypad input groups back
-        if str(widget.var) in lvgl_msgboxes:
-            lv_add(
-                lvgl_msgboxes[str(widget.var)]["lvgl"].restore_indev_group(
-                    lvgl_msgboxes[str(widget.var)]["default_group"]
-                )
-            )
+        update_msgbox_input_group(widget)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_hide, action_id, template_arg, args)
@@ -351,11 +335,7 @@ async def obj_show_to_code(config, action_id, template_arg, args):
         widget.set_flag(CONF_HIDDEN, False)
         if widget.move_to_foreground:
             lv_obj.move_foreground(widget.obj)
-        # If this widget is actually a msgbox we have to move encoder/keypad input groups to the msgbox specific group
-        if str(widget.var) in lvgl_msgboxes:
-            group = lvgl_msgboxes[str(widget.var)]["msgbox_group"]
-            lv_add(lvgl_msgboxes[str(widget.var)]["lvgl"].set_indev_group(group))
-            lv.group_focus_obj(lv.group_get_obj_by_index(group, 0))
+        update_msgbox_input_group(widget)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_show, action_id, template_arg, args)
@@ -398,6 +378,7 @@ async def obj_set_z_index_to_code(config, action_id, template_arg, args):
                 )
         else:
             lv_obj.move_to_index(widget.obj, position)
+        update_msgbox_input_group(widget)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config[CONF_ID])]
     return await action_to_code(widgets, do_set_z_index, action_id, template_arg, args)
@@ -443,10 +424,12 @@ async def widget_focus(config, action_id, template_arg, args):
         group = StaticCastExpression(
             lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
         )
-    elif group := config.get(CONF_GROUP):
-        group = await lv_global(group)
     else:
-        group = lv_expr.group_get_default()
+        lv_comp = await lvgl_parent(config)
+        if group := config.get(CONF_GROUP):
+            group = await lv_global(group)
+        else:
+            group = lv_comp.get_focus_group()
 
     async with LambdaContext(parameters=args, where=action_id) as context:
         if widget:
@@ -456,7 +439,6 @@ async def widget_focus(config, action_id, template_arg, args):
                 lv.group_set_editing(group, True)
         else:
             action = config[CONF_ACTION]
-            lv_comp = await lvgl_parent(config)
             if action == "MARK":
                 context.add(lv_comp.set_focus_mark(group))
             else:

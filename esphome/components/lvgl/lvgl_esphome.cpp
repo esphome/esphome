@@ -6,7 +6,6 @@
 
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
-#include "core/lv_group_private.h"
 #include "core/lv_obj_private.h"
 
 #include <numeric>
@@ -227,11 +226,6 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
   add_event_cb(obj, callback, event3, user_data);
 }
 
-void LvglComponent::add_input(lv_indev_t *input) { this->inputs_.push_back(input); }
-void LvglComponent::set_def_group(lv_group_t *group) { this->def_group_ = group; }
-void LvglComponent::set_top_group(lv_group_t *group) { this->top_group_ = group; }
-void LvglComponent::set_bottom_group(lv_group_t *group) { this->bottom_group_ = group; }
-
 void LvglComponent::lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value) {
   // LVGL 9.6 keeps these flags in spec_attr->user_flags, in the same bits as its deprecated lv_obj_add_flag()
   uint8_t mask;
@@ -272,83 +266,110 @@ void LvglComponent::add_page(LvPageType *page) {
 void LvglComponent::show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time) {
   if (index >= this->pages_.size())
     return;
+#ifdef USE_LVGL_INPUT_GROUPS
+  lv_group_t *previous_group = this->pages_[this->current_page_]->group;
+#endif
   this->current_page_ = index;
+#ifdef USE_LVGL_INPUT_GROUPS
+  this->move_layer_objs_(previous_group, this->pages_[index]->group);
+#endif
   if (anim == LV_SCREEN_LOAD_ANIM_NONE) {
     lv_screen_load(this->pages_[this->current_page_]->obj);
   } else {
     lv_screen_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
   }
-
-  lv_obj_t *focused_obj = nullptr;
-  if (!this->inputs_.empty()) {
-    focused_obj = lv_group_get_focused(lv_indev_get_group(this->inputs_[0]));
-  }
-
-  lv_group_t *def_group = this->pages_[this->current_page_]->def_group;
-
-  // Add all default group objects from this lvgl instance to this page's group
-  for (lv_obj_t *obj : this->def_objs_) {
-    lv_group_add_obj(def_group, obj);
-  }
-  // Add all top and bottom layer objects from this lvgl instance to this page's group
-  bool found = false;
-  for (lv_obj_t *obj : this->top_layer_objs_) {
-    lv_group_add_obj(def_group, obj);
-    if (obj == focused_obj)
-      found = true;
-  }
-  for (lv_obj_t *obj : this->bottom_layer_objs_) {
-    lv_group_add_obj(def_group, obj);
-    if (obj == focused_obj)
-      found = true;
-  }
-
-  // This preserves focus if the object was in one of the persistent layers
-  if (found)
-    lv_group_focus_obj(focused_obj);
-
-  // Set all inputs from this lvgl instance that didn't have a group definition to this page's group
-  for (lv_indev_t *indev : this->inputs_) {
-    lv_indev_set_group(indev, def_group);
-  }
+#ifdef USE_LVGL_INPUT_GROUPS
+  this->update_input_group();
+#endif
 }
 
-void LvglComponent::set_indev_group(lv_group_t *group) {
-  for (lv_indev_t *indev : this->inputs_) {
+#ifdef USE_LVGL_INPUT_GROUPS
+static bool group_contains(lv_group_t *group, lv_obj_t *obj) {
+  for (uint32_t index = 0; index != lv_group_get_obj_count(group); index++) {
+    if (lv_group_get_obj_by_index(group, index) == obj)
+      return true;
+  }
+  return false;
+}
+
+bool LvglComponent::is_on_layer_(lv_obj_t *obj) {
+  lv_obj_t *screen = lv_obj_get_screen(obj);
+  return screen == lv_display_get_layer_top(this->disp_) || screen == lv_display_get_layer_bottom(this->disp_);
+}
+
+// Event handlers run in these LVGL calls and can delete widgets. Thus no widget pointer is kept across a call,
+// except the old focus. The old focus is used only after group_contains() finds it in `to`. The loop moves
+// forward, so the layer widgets keep their order in the new group.
+void LvglComponent::move_layer_objs_(lv_group_t *from, lv_group_t *to) {
+  if (from == to)
+    return;
+  lv_obj_t *focused = lv_group_get_focused(from);
+  for (uint32_t index = 0; index < lv_group_get_obj_count(from);) {
+    lv_obj_t *obj = lv_group_get_obj_by_index(from, index);
+    if (this->is_on_layer_(obj)) {
+      lv_group_add_obj(to, obj);
+    } else {
+      index++;
+    }
+  }
+  // lv_group_focus_obj() does nothing to a frozen group, so a frozen focus on the new page does not change
+  if (focused != nullptr && group_contains(to, focused))
+    lv_group_focus_obj(focused);
+}
+
+lv_group_t *LvglComponent::msgbox_group_(lv_obj_t *outer) {
+  for (const auto &msgbox : this->msgboxes_) {
+    if (msgbox.outer == outer)
+      return msgbox.group;
+  }
+  return nullptr;
+}
+
+lv_group_t *LvglComponent::active_group_() {
+  lv_obj_t *top_layer = lv_display_get_layer_top(this->disp_);
+  // LVGL draws the last child on top, so the last visible msgbox is the topmost msgbox
+  for (uint32_t index = lv_obj_get_child_count(top_layer); index-- != 0;) {
+    lv_obj_t *child = lv_obj_get_child(top_layer, static_cast<int32_t>(index));
+    if (lv_obj_is_hidden(child))
+      continue;
+    if (lv_group_t *group = this->msgbox_group_(child))
+      return group;
+  }
+  if (!this->pages_.empty())
+    return this->pages_[this->current_page_]->group;
+  return this->default_group_;
+}
+
+void LvglComponent::update_input_group() {
+  lv_group_t *group = this->active_group_();
+  lv_group_set_default(group);
+  for (lv_indev_t *indev : this->ungrouped_inputs_)
     lv_indev_set_group(indev, group);
-  }
 }
-
-void LvglComponent::restore_indev_group(lv_group_t *group) {
-  if (this->pages_.empty()) {
-    this->set_indev_group(group);
-  } else {
-    this->set_indev_group(this->pages_[this->current_page_]->def_group);
-  }
-}
+#endif
 
 void LvglComponent::show_next_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
-  size_t start = this->current_page_;
+  size_t index = this->current_page_;
   do {
-    this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
-    if (this->current_page_ == start)
+    index = (index + 1) % this->pages_.size();
+    if (index == this->current_page_)
       return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
-  } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
-  this->show_page(this->current_page_, anim, time);
+  } while (this->pages_[index]->skip);  // skip empty pages()
+  this->show_page(index, anim, time);
 }
 
 void LvglComponent::show_prev_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
-  size_t start = this->current_page_;
+  size_t index = this->current_page_;
   do {
-    this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();
-    if (this->current_page_ == start)
+    index = (index + this->pages_.size() - 1) % this->pages_.size();
+    if (index == this->current_page_)
       return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
-  } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
-  this->show_page(this->current_page_, anim, time);
+  } while (this->pages_[index]->skip);  // skip empty pages()
+  this->show_page(index, anim, time);
 }
 
 size_t LvglComponent::get_current_page() const { return this->current_page_; }
@@ -951,23 +972,13 @@ void LvglComponent::setup() {
   });
 #endif
 
-  for (uint index = 0; index < lv_group_get_obj_count(this->def_group_); index++) {
-    this->def_objs_.push_back(lv_group_get_obj_by_index(this->def_group_, index));
-  }
-
-  if (this->top_group_ != nullptr) {
-    for (uint index = 0; index < lv_group_get_obj_count(this->top_group_); index++) {
-      this->top_layer_objs_.push_back(lv_group_get_obj_by_index(this->top_group_, index));
-    }
-  }
-
-  if (this->bottom_group_ != nullptr) {
-    for (uint index = 0; index < lv_group_get_obj_count(this->bottom_group_); index++) {
-      this->bottom_layer_objs_.push_back(lv_group_get_obj_by_index(this->bottom_group_, index));
-    }
-  }
-
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
+#ifdef USE_LVGL_INPUT_GROUPS
+  // Codegen leaves the group of the last msgbox as the default group of LVGL. Without pages, show_page() does not
+  // change it.
+  if (this->pages_.empty())
+    lv_group_set_default(this->default_group_);
+#endif
   lv_display_trigger_activity(this->disp_);
   this->update_orientation_();
 }

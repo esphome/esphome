@@ -343,6 +343,7 @@ class Widget:
             self.obj = var
         self.outer = None
         self.move_to_foreground = False
+        self.msgbox_lvgl_component = None
         # Properties for linear equations
         self.slope = None
         self.y_int = None

@@ -13,12 +13,17 @@ from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
     CONF_RIGHT_BUTTON,
+    DOMAIN,
     add_lv_use,
 )
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t, lv_key_t
 from .widgets import get_widgets
+
+add_ungrouped_input = cg.slot_list(
+    "LVGL_UNGROUPED_INPUT_COUNT", "add_ungrouped_input", DOMAIN
+)
 
 ENCODERS_CONFIG = cv.ensure_list(
     ENCODER_SCHEMA.extend(
@@ -67,7 +72,7 @@ async def encoders_to_code(var, config, default_group):
             lv_assign(group, lv_expr.group_create())
         else:
             group = default_group
-            cg.add(var.add_input(listener.get_drv()))
+            cg.add(add_ungrouped_input(var, listener.get_drv()))
         lv.indev_set_group(listener.get_drv(), group)
 
 

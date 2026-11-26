@@ -8,11 +8,11 @@ import logging
 from typing import Any
 
 from esphome import automation, codegen as cg, config_validation as cv
-from esphome.const import CONF_ITEMS
+from esphome.const import CONF_GROUP, CONF_ITEMS
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj, StaticCastExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import Expression, SafeExpType
+from esphome.types import ConfigType, Expression, SafeExpType
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ KEY_WARNINGS = "warnings"
 KEY_WIDGET_MAP = "widget_map"
 KEY_WIDGET_THEME_STYLES = "widget_theme_styles"
 KEY_DEBUG_OUTLINE_COUNT = "debug_outline_count"
+OPTION_INPUT_GROUPS = "input_groups"
 
 # Colours for the debug outline, in (red, green, blue) order. They are picked to stay
 # distinct from each other and to show up on both light and dark backgrounds.
@@ -193,6 +194,26 @@ def add_define(macro: str, value="1"):
 
 def is_defined(macro) -> bool:
     return macro in get_defines()
+
+
+def store_input_groups(configs: list[ConfigType]) -> bool:
+    """
+    Record if an LVGL instance has an encoder or keypad without a group. These inputs move to the group of
+    the visible page or msgbox. Then each page and msgbox gets its own group, and the layer widgets use the
+    group of the current page.
+    """
+    input_groups = any(
+        CONF_GROUP not in input_config
+        for config in configs
+        for input_config in (*config[CONF_ENCODERS], *config[CONF_KEYPADS])
+    )
+    get_options()[OPTION_INPUT_GROUPS] = input_groups
+    return input_groups
+
+
+def uses_input_groups() -> bool:
+    """Return what store_input_groups() recorded. LVGL's to_code() calls it before it generates widgets."""
+    return get_options().get(OPTION_INPUT_GROUPS, False)
 
 
 def literal(arg) -> MockObj:
