@@ -5,6 +5,7 @@ import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
 from esphome.components.libretiny import get_libretiny_family
 from esphome.components.libretiny.const import FAMILY_BK7238, FAMILY_RTL8720C
+from esphome.components.remote_base import CONF_TRANSMITTER_ID
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -32,7 +33,6 @@ CONF_EOT_LEVEL = "eot_level"
 CONF_NON_BLOCKING = "non_blocking"
 CONF_ON_TRANSMIT = "on_transmit"
 CONF_ON_COMPLETE = "on_complete"
-CONF_TRANSMITTER_ID = remote_base.CONF_TRANSMITTER_ID
 
 remote_transmitter_ns = cg.esphome_ns.namespace("remote_transmitter")
 RemoteTransmitterComponent = remote_transmitter_ns.class_(

@@ -1,0 +1,23 @@
+# ESP Thread Border Router board: an ESPHome OTBR on the S3 resets the H2 every second when the H2 runs anything but
+# RCP firmware. Flash this on the S3 while the H2 runs the Zigbee console coordinator: it pulses the H2 reset (GPIO7)
+# once and holds it high, and leaves GPIO8 alone (driving it high puts the H2 in download mode on every reset).
+esphome:
+  name: zbs3hold
+  on_boot:
+    priority: 800
+    then:
+      - output.turn_off: rcp_rst
+      - delay: 300ms
+      - output.turn_on: rcp_rst
+      - logger.log: "HWT rcp reset pulsed"
+esp32:
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+output:
+  - platform: gpio
+    pin: GPIO7
+    id: rcp_rst

@@ -1,0 +1,67 @@
+globals:
+  - id: pd_from_b
+    type: bool
+    initial_value: "false"
+sensor:
+  - platform: hx711
+    id: hx
+    name: Load A
+    dout_pin: {number: GPIO33, mode: {input: true, pullup: true}}
+    clk_pin: GPIO32
+    gain: 128
+    settling_time: 400ms
+    measurement_ready_timeout: 2s
+    update_interval: 2s
+    on_value: {logger.log: {format: "ENT A %.0f", args: [x]}}
+    channel_b:
+      name: Load B
+      on_value:
+        - logger.log: {format: "ENT B %.0f", args: [x]}
+        - if:
+            condition:
+              lambda: return id(pd_from_b);
+            then:
+              - lambda: 'id(pd_from_b) = false; ESP_LOGI("hxsim", "power_down from on_value");'
+              - hx711.power_down: {id: hx}
+script:
+  - id: run_all
+    then:
+      - delay: 12s
+      - logger.log: "CASE set_gain_64"
+      - hx711.set_gain: {id: hx, gain: 64}
+      - delay: 8s
+      - logger.log: "CASE set_gain_32"
+      - hx711.set_gain: {id: hx, gain: 32}
+      - delay: 8s
+      - logger.log: "CASE set_gain_128"
+      - hx711.set_gain: {id: hx, gain: 128}
+      - delay: 8s
+      - logger.log: "CASE power_down"
+      - hx711.power_down: {id: hx}
+      - delay: 6s
+      - logger.log: "CASE power_up"
+      - hx711.power_up: {id: hx}
+      - delay: 6s
+      - logger.log: "CASE stuck_busy"
+      - lambda: hxsim::chip.mode = hxsim::STUCK_BUSY;
+      - delay: 7s
+      - logger.log: "CASE recover"
+      - lambda: hxsim::chip.mode = hxsim::NORMAL;
+      - delay: 8s
+      - logger.log: "CASE dout_low"
+      - lambda: hxsim::chip.mode = hxsim::DOUT_STAYS_LOW;
+      - delay: 5s
+      - logger.log: "CASE recover2"
+      - lambda: hxsim::chip.mode = hxsim::NORMAL;
+      - delay: 8s
+      - logger.log: "CASE power_down_then_up_at_once"
+      - hx711.power_down: {id: hx}
+      - hx711.power_up: {id: hx}
+      - delay: 6s
+      - logger.log: "CASE power_down_from_on_value"
+      - lambda: id(pd_from_b) = true;
+      - delay: 6s
+      - logger.log: "CASE power_up_after_on_value"
+      - hx711.power_up: {id: hx}
+      - delay: 6s
+      - script.execute: done

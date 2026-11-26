@@ -25,7 +25,13 @@ static const bt_data SD[] = {
 #endif
 };
 
+// Zephyr 4.0 replaced BT_LE_ADV_CONN with one-time advertising, which is restarted from bt_conn_cb.recycled
+// once the connection object is free again. Older SDKs restart advertising on their own.
+#ifdef BT_LE_ADV_CONN_FAST_2
+const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN_FAST_2;
+#else
 const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
+#endif
 
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();
@@ -85,8 +91,15 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
     }
     bt_conn_unref(conn);
   });
+#ifndef BT_LE_ADV_CONN_FAST_2
   k_work_submit(&advertise_work);
+#endif
 }
+
+#ifdef BT_LE_ADV_CONN_FAST_2
+// Advertising cannot start while all connection objects are in use, so wait until one is returned to the pool
+static void recycled() { k_work_submit(&advertise_work); }
+#endif
 
 void BLEServer::set_conn_(bt_conn *conn) {
   // The disconnect may have run first; deferred callbacks are not ordered on this platform.
@@ -231,6 +244,9 @@ void BLEServer::setup() {
   static bt_conn_cb conn_callbacks = {
       .connected = connected,
       .disconnected = disconnected,
+#ifdef BT_LE_ADV_CONN_FAST_2
+      .recycled = recycled,
+#endif
 #ifdef CONFIG_BT_SMP
       .identity_resolved = identity_resolved,
       .security_changed = security_changed,

@@ -1,0 +1,145 @@
+globals:
+  - id: g_led_mask
+    type: uint32_t
+    initial_value: "0"
+  - id: g_display_text
+    type: std::string
+    initial_value: '""'
+
+# Each hub needs a UART of its own; the other gate modes, CRC types and a sniffer_only hub
+# compile in test-multi.esp32-idf.yaml, which has two UARTs.
+rs485_frame:
+  # Hub 1 — exercises on_frame: triggers + button.
+  # crc: is required (it has no default). command_format: is set explicitly so
+  # the `value:`-form button below is accepted (the button platform's _final_validate
+  # rejects `value:` against a hub with no command_format). The default frame_trigger gate
+  # mode requires an explicit gate.frame_type. A representative non-trivial command_format:
+  # 3-byte preamble, 4-byte value x 2, 1-byte pad.
+  - id: rs485_frame_hub
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum16_big_endian
+    tx:
+      gate:
+        frame_type: [0x01, 0x01]
+    command_format:
+      preamble: [0x00, 0x83, 0x01]
+      value_element_bytes: 4
+      postamble: [0x00]
+    dump_frames: true
+    frame_timeout: 50ms
+    on_frame:
+      # Decode a 32-bit little-endian bitmask once; push to multiple template sensors.
+      - frame_type: [0x01, 0x02]
+        then:
+          - lambda: |-
+              if (payload.size() < 6) return;
+              uint32_t mask = uint32_t(payload[2]) | (uint32_t(payload[3]) << 8) |
+                              (uint32_t(payload[4]) << 16) | (uint32_t(payload[5]) << 24);
+              id(g_led_mask) = mask;
+              id(led_bit0).publish_state(bool(mask & (1UL << 0)));
+              id(led_bit1).publish_state(bool(mask & (1UL << 1)));
+      # Display text decode into a static (BSS-allocated) buffer then a single
+      # std::string at publish time. static: allocated once at program start so the
+      # lambda inherits the hub's no-heap-after-setup discipline.
+      #
+      # frame_type accepts the list-of-prefixes form: the same lambda fires for both
+      # display frame types (0x01 0x03 main + 0x01 0x09 secondary) without duplicating
+      # the body. The frame_type bytes remain at payload[0..1] so the decode is identical.
+      - frame_type:
+          - [0x01, 0x03]
+          - [0x01, 0x09]
+        then:
+          - lambda: |-
+              const size_t BUF_LEN = 128;
+              static char out[BUF_LEN];
+              uint8_t olen = 0;
+              for (size_t i = 3; i < payload.size() && olen < (BUF_LEN - 1); i++) {
+                uint8_t b = payload[i] & 0x7F;  // strip blink bit
+                if (b >= 0x20 && b < 0x7F)
+                  out[olen++] = char(b);
+              }
+              id(display_text).publish_state(std::string(out, olen));
+      # Match-every-frame: write the first byte to a global for diagnostics.
+      - frame_type: []
+        then:
+          - lambda: |-
+              if (!payload.empty())
+                id(g_led_mask) = payload[0];
+      # on_frame must stay synchronous (payload is a view into the RX buffer). To defer,
+      # copy the bytes into a script parameter; the script owns its copy and may delay.
+      - frame_type: [0x01, 0x04]
+        then:
+          - script.execute:
+              id: handle_frame_later
+              data: !lambda "return std::vector<uint8_t>(payload.begin(), payload.end());"
+
+binary_sensor:
+  # User RX decoding is done entirely through on_frame: + template sensors.
+  - platform: template
+    id: led_bit0
+    name: "LED Bit 0"
+
+  - platform: template
+    id: led_bit1
+    name: "LED Bit 1"
+
+text_sensor:
+  # User text decoding via on_frame: + template text_sensor.
+  - platform: template
+    id: display_text
+    name: "Display Text"
+
+button:
+  # value: form — encodes via the hub's command_format.
+  - platform: rs485_frame
+    id: lights_toggle_button
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Toggle"
+    value: 0x00010000
+
+  # Raw-form: bypasses command_format entirely — frame_type + payload bytes go out as-is.
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Generic Probe Frame"
+    frame_type: [0x00, 0xA1]
+    payload: [0x01, 0x00, 0x55]
+
+# Exercise the rs485_frame.send_frame action against a templatable button. Covers both
+# templatable frame_type and templatable payload paths in codegen so the TemplatableValue
+# overloads are instantiated by CI compile.
+script:
+  - id: send_generic_probe
+    then:
+      - rs485_frame.send_frame:
+          id: rs485_frame_hub
+          frame_type: [0x00, 0xA2]
+          payload: !lambda |-
+            return std::vector<uint8_t>{0x42, 0x00, static_cast<uint8_t>(id(g_led_mask) & 0xFF)};
+      - rs485_frame.send_frame:
+          id: rs485_frame_hub
+          frame_type: [0x00, 0xA3]
+          payload: [0x01, 0x10]
+      - rs485_frame.send_frame:
+          id: rs485_frame_hub
+          frame_type: [0x00, 0xA4]
+          payload: []
+      - rs485_frame.send_frame:
+          id: rs485_frame_hub
+          frame_type: []
+          payload: [0x00, 0xA5]
+
+  - id: handle_frame_later
+    mode: queued
+    max_runs: 5
+    parameters:
+      data: uint8_t[]
+    then:
+      - delay: 100ms
+      - lambda: |-
+          if (!data.empty())
+            id(g_led_mask) = data[0];

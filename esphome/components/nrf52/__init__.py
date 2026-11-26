@@ -13,6 +13,7 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.zephyr import (
+    PreferenceStorage,
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
@@ -20,14 +21,22 @@ from esphome.components.zephyr import (
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
+    zephyr_enable_cdc_acm_rate_callback,
+    zephyr_require_cdc_acm,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
+)
+from esphome.components.zephyr.build_zephyr import (
+    clean_changed_build,
+    generate_cmake_lists,
+    west_build_command,
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_OVERLAY,
     KEY_SYSBUILD,
     KEY_ZEPHYR,
 )
@@ -59,35 +68,55 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
-from esphome.framework_helpers import (
-    cmake_escape,
-    get_cmake_compile_flags,
-    get_cmake_link_flags,
-    lex_cmake_build_flags,
-    quote_cmake_args,
-    run_command_ok,
-)
-from esphome.helpers import rmtree, write_file_if_changed
+from esphome.framework_helpers import run_command_ok
+from esphome.helpers import write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARD_ALIASES,
+    BOARDS_WITHOUT_ANTENNA,
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    SELF_RESET_PINS,
+)
+from .cmsis_dap import (
+    can_upload_using_cmsis_dap,
+    cmsis_dap_unique_id,
+    upload_using_cmsis_dap,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
+    CONF_DCDC,
     CONF_TRANSPORT,
     CONF_UDP,
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
+    VARIANT_FLASH_SIZE,
+    VARIANT_NRF54L15,
+    VARIANT_NRF54LM20,
+    VARIANT_NRF51822,
+    VARIANT_NRF52832,
+    VARIANT_NRF52840,
+    VARIANT_REGULATOR,
+    VARIANTS_NRF54L,
+    VARIANTS_WITHOUT_USB,
 )
 from .framework import (
     check_and_install,
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    get_nrf52_variant,
+    include_west_project,
+    set_nrf52_board,
+    set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -95,6 +124,7 @@ from .framework import (
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
+from .jlink import can_upload_using_jlink, jlink_serial_number, upload_using_jlink
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -106,6 +136,8 @@ _LOGGER = logging.getLogger(__name__)
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
 RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+# The oldest sdk-nrf version that supports an SoC; the nRF52832 boards need the board/SoC names of 2.9.2
+MIN_SDK_NRF_VERSIONS = {VARIANT_NRF52832: "2.9.2", VARIANT_NRF54LM20: "3.4.1"}
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -132,8 +164,32 @@ FAKE_BOARD_MANIFEST = """
 """
 
 
+_SOC_QUALIFIER_VARIANTS = (
+    ("nrf52832", VARIANT_NRF52832),
+    ("nrf54lm20", VARIANT_NRF54LM20),
+    ("nrf54l15", VARIANT_NRF54L15),
+)
+
+
+def _board_variant(board: str) -> str:
+    """Take the SoC from the board qualifiers, e.g. nrf54lm20dk/nrf54lm20a/cpuapp."""
+    if board == "bbc_microbit":
+        return VARIANT_NRF51822
+    qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
+    if len(qualifiers) > 1:
+        for prefix, variant in _SOC_QUALIFIER_VARIANTS:
+            if qualifiers[1].startswith(prefix):
+                return variant
+    return VARIANT_NRF52840
+
+
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
+    # West gets the Zephyr board a board without its own definition builds on
+    if (target := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(KEY_BOARD)) is not None:
+        zephyr_data()[KEY_BOARD] = target
+    set_nrf52_variant(_board_variant(zephyr_data()[KEY_BOARD]))
+    set_nrf52_board(config[CONF_BOARD])
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
@@ -149,21 +205,23 @@ def set_core_data(config: ConfigType) -> ConfigType:
 # In testing mode, fake a larger flash to allow linking grouped component
 # tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
 # which an openthread config alone fills; CI images are never flashed.
-NRF52840_FLASH_SIZE = 0x100000
 TESTING_FLASH_SIZE = 0x400000
 
 
 def _testing_mode_sections(sections: list[Section]) -> list[Section]:
-    """Move a bootloader pinned to the end of the real flash to the end of the
-    faked one, so the partition manager still sees a single gap for the app."""
+    """Move the sections that run up to the end of the real flash to the end of
+    the faked one, so the partition manager still sees a single gap for the app."""
+    flash_size = VARIANT_FLASH_SIZE.get(
+        get_nrf52_variant(), VARIANT_FLASH_SIZE[VARIANT_NRF52840]
+    )
+    start = flash_size
+    for section in sorted(sections, key=lambda s: s.address, reverse=True):
+        if section.end_address == start:
+            start = section.address
+    shift = TESTING_FLASH_SIZE - flash_size
     return [
-        Section(
-            section.name,
-            section.address + TESTING_FLASH_SIZE - NRF52840_FLASH_SIZE,
-            section.size,
-            section.region,
-        )
-        if section.end_address == NRF52840_FLASH_SIZE
+        Section(section.name, section.address + shift, section.size, section.region)
+        if section.address >= start
         else section
         for section in sections
     ]
@@ -173,13 +231,32 @@ _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
 _resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
-def set_framework(config: ConfigType) -> ConfigType:
-    if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = (
-            RECOMMENDED_PLATFORMIO_VERSION
-            if CORE.using_toolchain_platformio
-            else RECOMMENDED_SDK_NRF_VERSION
+def _check_min_sdk_version(config: ConfigType, minimum: str) -> None:
+    if CORE.using_toolchain_platformio:
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} is not supported by PlatformIO",
+            path=[CONF_TOOLCHAIN],
         )
+    if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is not None and (
+        cv.Version.parse(cv.version_number(version)) < cv.Version.parse(minimum)
+    ):
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} needs sdk-nrf {minimum} or newer",
+            path=[CONF_FRAMEWORK, CONF_VERSION],
+        )
+
+
+def set_framework(config: ConfigType) -> ConfigType:
+    minimum = MIN_SDK_NRF_VERSIONS.get(get_nrf52_variant())
+    if minimum is not None:
+        _check_min_sdk_version(config, minimum)
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        if CORE.using_toolchain_platformio:
+            default_version = RECOMMENDED_PLATFORMIO_VERSION
+        else:
+            default_version = RECOMMENDED_SDK_NRF_VERSION
+            if minimum is not None:
+                default_version = max(default_version, minimum, key=cv.Version.parse)
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
@@ -206,9 +283,13 @@ def set_framework(config: ConfigType) -> ConfigType:
 ADAFRUIT_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
+# Adafruit bootloaders that receive an image into a second bank before copying it over the app
+DUAL_BANK_BOOTLOADERS = (BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,)
 # Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
 # DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
 SERIAL_DFU_BOOTLOADERS = (*ADAFRUIT_BOOTLOADERS, BOOTLOADER_NRF)
@@ -216,6 +297,12 @@ BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
+
+
+def _resolve_board_alias(config: ConfigType) -> ConfigType:
+    if (board := BOARD_ALIASES.get(config.get(CONF_BOARD))) is not None:
+        return {**config, CONF_BOARD: board}
+    return config
 
 
 def _detect_bootloader(config: ConfigType) -> ConfigType:
@@ -248,7 +335,6 @@ nrf52_ns = cg.esphome_ns.namespace("nrf52")
 DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
-CONF_DCDC = "dcdc"
 CONF_LIBC_NANO = "libc_nano"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
@@ -276,6 +362,16 @@ def _default_self_reset_pin(config: ConfigType) -> ConfigType:
     return config
 
 
+def _default_dcdc(config: ConfigType) -> ConfigType:
+    if (
+        CONF_DCDC not in config
+        and (dcdc := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(CONF_DCDC))
+        is not None
+    ):
+        return {**config, CONF_DCDC: dcdc}
+    return config
+
+
 def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     if isinstance(value, bool):
         if not value:
@@ -285,6 +381,7 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
+    _resolve_board_alias,
     _detect_bootloader,
     set_core_data,
     cv.Schema(
@@ -325,6 +422,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _default_self_reset_pin,
+    _default_dcdc,
     _resolve_toolchain,
     set_framework,
     network.require_ipv6(PLATFORM_NRF52),
@@ -336,6 +434,9 @@ def _validate_mcumgr(config):
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         raise cv.Invalid(f"'{bootloader}' bootloader does not support DFU")
+    # The touch that enters DFU is a baud rate change on the USB CDC port
+    if (variant := get_nrf52_variant()) in VARIANTS_WITHOUT_USB:
+        raise cv.Invalid(f"'{CONF_DFU}' needs USB, which the {variant} does not have")
 
 
 def _validate_open_dfu_toolchain(config: ConfigType) -> None:
@@ -364,6 +465,15 @@ def _warn_old_framework_version(config: ConfigType) -> None:
         )
 
 
+def _warn_without_antenna(config: ConfigType) -> None:
+    if (board := config.get(CONF_BOARD)) in BOARDS_WITHOUT_ANTENNA:
+        _LOGGER.warning(
+            "The %s has no antenna of its own: connect an external 2.4 GHz antenna to its "
+            "antenna connector, or Bluetooth, Thread and Zigbee will not be received",
+            board,
+        )
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -373,6 +483,7 @@ def _final_validate(config):
             "Please use 'toolchain: sdk-nrf' instead."
         )
     _warn_old_framework_version(config)
+    _warn_without_antenna(config)
     _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
@@ -425,16 +536,39 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _preferences_storage(variant: str) -> PreferenceStorage:
+    """The storage for preferences: ZMS on the RRAM of the nRF54L, NVS on flash."""
+    return "ZMS" if variant in VARIANTS_NRF54L else "NVS"
+
+
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "NRF52")
+    variant = get_nrf52_variant()
+    cg.add_define("ESPHOME_VARIANT", variant)
+    cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
+    if variant in VARIANTS_NRF54L:
+        # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
+        include_west_project("mbedtls")
+        include_west_project("oberon-psa-crypto")
+        # The board aliases watchdog0 to wdt31 but leaves it disabled
+        zephyr_add_overlay(
+            """
+                &wdt31 {
+                    status = "okay";
+                };
+            """
+        )
+    if (
+        overlay := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(KEY_OVERLAY)
+    ) is not None:
+        zephyr_add_overlay(overlay)
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
-    if config[CONF_BOARD] == "bbc_microbit":
-        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+    if variant == VARIANT_NRF51822:
+        # nRF51822 (micro:bit v1) is a Cortex-M0 (ARMv6-M) without LDREX/STREX;
         # std::atomic RMW would need libatomic, so use k_mutex-based locking.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
     else:
@@ -452,7 +586,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_platformio_option(
             "platform_packages",
             [
-                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
+                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.framework_version}.zip",
             ],
         )
         if config[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
@@ -483,10 +617,14 @@ async def to_code(config: ConfigType) -> None:
     if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
         cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
-    zephyr_setup_preferences()
+    zephyr_setup_preferences(_preferences_storage(variant))
     zephyr_to_code(config)
+    zephyr_add_prj_conf("FPU", True)
+    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
+    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
-    if CORE.testing_mode:
+    # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
+    if CORE.testing_mode and variant not in VARIANTS_NRF54L:
         zephyr_add_overlay(
             f"""
                 &flash0 {{
@@ -497,15 +635,16 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CONF_DCDC in config:
+    framework_ver = CORE.framework_version
+    if (dcdc := config.get(CONF_DCDC)) is not None:
         if framework_ver < cv.Version(2, 9, 2):
-            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", dcdc)
         else:
+            regulator = VARIANT_REGULATOR.get(variant, "reg1")
             zephyr_add_overlay(
                 f"""
-                    &reg1 {{
-                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                    &{regulator} {{
+                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if dcdc else "NRF5X_REG_MODE_LDO"}>;
                     }};
                 """
             )
@@ -562,6 +701,7 @@ async def to_code(config: ConfigType) -> None:
     # some boards enable USB and UART by default.
     # disable it to prevent extra current consumption.
     zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False, False)
     zephyr_add_prj_conf("SERIAL", False, False)
 
     # disable stuff to make image smaller by default
@@ -580,10 +720,8 @@ async def _dfu_to_code(dfu_config):
     await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
-    zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-    zephyr_add_prj_conf("SERIAL", True)
+    zephyr_require_cdc_acm()
+    zephyr_enable_cdc_acm_rate_callback()
     await cg.register_component(var, dfu_config)
 
 
@@ -804,10 +942,50 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         set_framework(platform_config)
 
     mcumgr_device: str | None = None
+    file = getattr(args, "file", None)
 
     if get_port_type(host) == PortType.SERIAL:
-        check_permissions(host)
         bootloader = zephyr_data()[KEY_BOOTLOADER]
+        # A probe flashes the local build, so a given file goes over mcumgr
+        probe_upload = bootloader == BOOTLOADER_MCUBOOT and file is None
+        if probe_upload and (jlink_serial := jlink_serial_number(host)) is not None:
+            # The serial port of a J-Link probe, such as the one built into Nordic DKs:
+            # flash through the probe, which works whatever firmware the device runs
+            if can_upload_using_jlink():
+                _LOGGER.info(
+                    "%s belongs to J-Link %s, flashing over J-Link", host, jlink_serial
+                )
+                upload_using_jlink(jlink_serial)
+                return True
+            _LOGGER.warning(
+                "%s belongs to J-Link %s, but flashing over J-Link needs the '%s' "
+                "toolchain and the SEGGER J-Link software; uploading with mcumgr instead, "
+                "which needs firmware that accepts it",
+                host,
+                jlink_serial,
+                Toolchain.SDK_NRF,
+            )
+        if probe_upload and (dap_id := cmsis_dap_unique_id(host)) is not None:
+            # The serial port of a CMSIS-DAP probe, such as the one built into Seeed XIAO
+            # nRF54 boards: flash through the probe, which works whatever firmware runs
+            if can_upload_using_cmsis_dap():
+                _LOGGER.info(
+                    "%s belongs to CMSIS-DAP probe %s, flashing with pyOCD",
+                    host,
+                    dap_id,
+                )
+                upload_using_cmsis_dap(dap_id)
+                return True
+            _LOGGER.warning(
+                "%s belongs to CMSIS-DAP probe %s, but flashing with pyOCD needs the "
+                "'%s' toolchain at version 2.9.2 or newer and a pyOCD that knows the "
+                "chip; uploading with mcumgr instead, which needs firmware that accepts it",
+                host,
+                dap_id,
+                Toolchain.SDK_NRF,
+            )
+        # Not before the probe uploads, which do not open the port
+        check_permissions(host)
         if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         elif CORE.using_toolchain_platformio:
@@ -839,8 +1017,11 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             else:
                 check_and_install()
                 paths = get_build_paths()
-                _reset_into_bootloader(host)
-                _wait_for_port_permissions(host)
+                # Without native USB, adafruit-nrfutil resets into the bootloader through the USB serial
+                # chip's DTR line, and the port never goes away
+                if get_nrf52_variant() not in VARIANTS_WITHOUT_USB:
+                    _reset_into_bootloader(host)
+                    _wait_for_port_permissions(host)
                 dfu_cmd = [
                     str(paths["python_executable"]),
                     "-m",
@@ -853,11 +1034,16 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     host,
                     "-b",
                     "115200",
-                    "--singlebank",
                 ]
+                if bootloader not in DUAL_BANK_BOOTLOADERS:
+                    dfu_cmd.append("--singlebank")
             if not run_command_ok(dfu_cmd, env=env, stream_output=True):
                 raise EsphomeError("nRF52 serial DFU upload failed")
             return True
+
+    if host == "JLINK":
+        upload_using_jlink()
+        return True
 
     if host == "PYOCD":
         if not CORE.using_toolchain_platformio:
@@ -888,7 +1074,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
-    file = getattr(args, "file", None)
     if mcumgr_device:
         # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
         asyncio.run(_smpmgr_upload(mcumgr_device, file))
@@ -1072,38 +1257,6 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-# GCC only loads a precompiled header ahead of every other forced header, and
-# Zephyr forces two with -imacros. They hold macros only, so the C++ sources
-# of the app get them through the precompiled header.
-_PCH_CMAKE_LINES = [
-    "",
-    "# ESPHome precompiled header",
-    "get_property(esphome_options TARGET zephyr_interface",
-    "    PROPERTY INTERFACE_COMPILE_OPTIONS)",
-    "set(esphome_kept_options)",
-    "set(esphome_pch_headers)",
-    "foreach(option IN LISTS esphome_options)",
-    '  if(option MATCHES "imacros> ([^>]+)")',
-    '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
-    "    list(APPEND esphome_kept_options",
-    '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
-    "  else()",
-    '    list(APPEND esphome_kept_options "${option}")',
-    "  endif()",
-    "endforeach()",
-    "if(NOT esphome_pch_headers)",
-    '  message(FATAL_ERROR "ESPHome: the headers Zephyr forces were not found, so "',
-    '      "the precompiled header would not load (set ESPHOME_PCH_ENABLE=0)")',
-    "endif()",
-    "set_property(TARGET zephyr_interface",
-    '    PROPERTY INTERFACE_COMPILE_OPTIONS "${esphome_kept_options}")',
-    *(
-        f'list(APPEND esphome_pch_headers "${{CMAKE_CURRENT_LIST_DIR}}/../src/{header}")'
-        for header in pch.PCH_DEFAULT_HEADERS
-    ),
-    'list(TRANSFORM esphome_pch_headers REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\\\1>")',
-    "target_precompile_headers(app PRIVATE ${esphome_pch_headers})",
-]
 # Where CMake puts the .gch of the app, below its binary dir
 _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
@@ -1114,13 +1267,13 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
     The app image dir follows the SDK version, like get_elf_path;
     2.9.2+ always wraps the build in sysbuild."""
     app_dir = build_dir
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+    if CORE.framework_version >= cv.Version(2, 9, 2):
         app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
         (
-            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            str(CORE.framework_version),
             zephyr_data()[KEY_BOARD],
             # Kconfig inputs that reach autoconf.h without a .conf line
             ",".join(sorted(wanted_west_projects())),
@@ -1138,81 +1291,6 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
 
 def _pch_usable() -> bool:
     return pch.pch_usable((toolchain_tool("g++"),))
-
-
-def _generate_cmake_lists(pch_on: bool) -> bool:
-    """Write the project CMakeLists.txt, returning True if it changed."""
-    entries = lex_cmake_build_flags("nRF52")
-    compile_flags = get_cmake_compile_flags(entries)
-    link_flags = get_cmake_link_flags(entries)
-
-    # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
-    # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
-    # before find_package(Zephyr) so the modules are picked up). Only
-    # framework-agnostic libraries actually compile under Zephyr.
-    from esphome.components.zephyr.library import DEFINES_VAR, generate_zephyr_modules
-
-    module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
-    defines = [flag for flag in compile_flags if flag.startswith("-D")]
-    options = [flag for flag in compile_flags if not flag.startswith("-D")]
-
-    lines = [
-        "cmake_minimum_required(VERSION 3.20.0)",
-        "",
-        'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
-        "",
-    ]
-
-    if module_dirs:
-        modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
-        lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
-        if defines:
-            escaped = ";".join(cmake_escape(flag) for flag in defines)
-            lines += [f'set({DEFINES_VAR} "{escaped}")', ""]
-
-    lines += [
-        "find_package(Zephyr REQUIRED)",
-        "",
-        f"project({CORE.name})",
-        "",
-        'file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../src/*.cpp" "${CMAKE_CURRENT_LIST_DIR}/../src/*.c")',
-        "",
-        "target_sources(app PRIVATE ${APP_SOURCES})",
-        'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
-    ]
-
-    if defines:
-        lines += [
-            "",
-            "target_compile_options(app PRIVATE",
-            *[f"  {arg}" for arg in quote_cmake_args(defines)],
-            ")",
-        ]
-    if options:
-        # A target's own options come before the ones it inherits from zephyr_interface, and the
-        # compiler keeps the last of two opposing warning flags. Source options come after both.
-        lines += [
-            "",
-            "set_source_files_properties(${APP_SOURCES} PROPERTIES",
-            f'  COMPILE_OPTIONS "{";".join(cmake_escape(flag) for flag in options)}"',
-            ")",
-        ]
-
-    if pch_on:
-        lines += _PCH_CMAKE_LINES
-
-    if link_flags:
-        lines += [
-            "",
-            "zephyr_ld_options(",
-            *[f"  {arg}" for arg in quote_cmake_args(link_flags)],
-            ")",
-        ]
-
-    return write_file_if_changed(
-        CORE.relative_build_path("zephyr", "CMakeLists.txt"),
-        "\n".join(lines) + "\n",
-    )
 
 
 def _copy_if_exists(src: Path, dst: Path) -> None:
@@ -1288,26 +1366,6 @@ def _check_mcuboot_swap_limit(build_dir: Path, image: Path) -> None:
     _LOGGER.info("Application image: %d of %d bytes MCUboot can swap in", size, limit)
 
 
-def _west_build_command(
-    python_executable: Path, board: str, build_dir: Path, source_dir: Path
-) -> list[str]:
-    return [
-        str(python_executable),
-        "-m",
-        "west",
-        "build",
-        "--pristine=auto",
-        "-b",
-        board,
-        "-d",
-        str(build_dir),
-        str(source_dir),
-        "--",
-        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
-        "-DCMAKE_BUILD_TYPE=MinSizeRel",
-    ]
-
-
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         # The actual build is done by PlatformIO (the caller falls through to
@@ -1329,22 +1387,13 @@ def run_compile(args, config: ConfigType) -> bool:
     env = get_build_env(ccache)
 
     pch_on = _pch_usable()
-    cmake_lists_changed = _generate_cmake_lists(pch_on)
+    cmake_lists_changed = generate_cmake_lists("nRF52", pch_on)
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     source_dir = CORE.relative_build_path("zephyr")
 
-    # A missing CMake cache (dropped by zephyr's copy_files() on config
-    # change) or a changed CMakeLists.txt requires a pristine build: Zephyr
-    # caches Kconfig/devicetree state that survives a plain cmake re-run.
-    # West can't do the wipe — its pristine modes only recognize a build dir
-    # by reading ZEPHYR_BASE from the very cache that was dropped.
-    if (
-        cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
-    ) and build_dir.is_dir():
-        _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
-        rmtree(build_dir)
+    clean_changed_build(build_dir, cmake_lists_changed)
 
     # SDK 3.4.0+ no longer generates merged.hex; drop one left by an older SDK
     # build so it is never packaged or offered for download.
@@ -1355,7 +1404,7 @@ def run_compile(args, config: ConfigType) -> bool:
         pch.log_pch_in_use()
         _write_pch_checksum(build_dir, source_dir)
 
-    west_cmd = _west_build_command(
+    west_cmd = west_build_command(
         paths["python_executable"], board, build_dir, source_dir
     )
 
@@ -1368,7 +1417,7 @@ def run_compile(args, config: ConfigType) -> bool:
         raise EsphomeError("nRF52 native build failed")
 
     zephyr_dir = build_dir / "zephyr"
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     bootloader = zephyr_data()[KEY_BOOTLOADER]
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes.
@@ -1376,6 +1425,9 @@ def run_compile(args, config: ConfigType) -> bool:
     # so v7 accepts S140 7.0.1, 7.2.0 and 7.3.0 (e.g. Seeed XIAO nRF52840).
     _GENPKG_PARAMS = {
         BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
+        # S132 2.0.1 and 6.1.1, as the Adafruit Arduino BSP packages for the Feather nRF52832
+        BOOTLOADER_ADAFRUIT_NRF52_SD132_V2: ("0x0052", "0x0088"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD132_V6: ("0x0052", "0x00B7"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
     }

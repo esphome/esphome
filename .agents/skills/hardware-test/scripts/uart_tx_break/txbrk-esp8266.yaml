@@ -1,0 +1,34 @@
+# ESP8266, no wiring: hardware UART1 TX on GPIO2 (read through its own receiver), a software UART and an inverted
+# software UART; the logger stays on UART0
+esphome:
+  name: txbrk-esp8266
+esp8266:
+  board: d1_mini
+logger:
+  baud_rate: 115200
+external_components:
+  - source: {type: local, path: ext}
+    components: [txbrk]
+uart:
+  - id: hw
+    tx_pin: GPIO2
+    baud_rate: 9600
+  - id: sw
+    tx_pin: GPIO4
+    baud_rate: 9600
+  - id: swinv
+    tx_pin: {number: GPIO14, inverted: true}
+    baud_rate: 9600
+txbrk:
+  - {id: tbhw, uart_id: hw, tx_gpio: 2, label: hw_uart1, hw_uart1: true}
+  - {id: tbsw, uart_id: sw, tx_gpio: 4, label: sw}
+  - {id: tbswinv, uart_id: swinv, tx_gpio: 14, label: sw_inv}
+interval:
+  # one cycle blocks for up to 0.8 s, so the three run one after another
+  - interval: 3s
+    startup_delay: 8s
+    then:
+      - lambda: |-
+          id(tbhw).run_next(false);
+          id(tbsw).run_next(false);
+          id(tbswinv).run_next(true);

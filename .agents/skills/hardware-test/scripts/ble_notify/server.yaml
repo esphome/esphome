@@ -1,0 +1,64 @@
+# GATT server (ESP32-S3): a numeric and a text characteristic notify every 2 s; every 5th round is empty
+esphome:
+  name: ${name}
+
+esp32:
+  variant: esp32s3
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+esp32_ble:
+  name: ${name}
+
+esp32_ble_server:
+  on_connect:
+    - logger.log: {format: "SRV connected", level: INFO}
+  on_disconnect:
+    - logger.log: {format: "SRV disconnected", level: INFO}
+  services:
+    - uuid: 5ec10000-0000-1000-8000-00805f9b34fb
+      advertise: true
+      characteristics:
+        - id: numc
+          uuid: 5ec10001-0000-1000-8000-00805f9b34fb
+          read: true
+          notify: true
+          value: [0]
+        - id: txtc
+          uuid: 5ec10002-0000-1000-8000-00805f9b34fb
+          read: true
+          notify: true
+          value: "t0"
+
+globals:
+  - {id: cnt, type: int, initial_value: "0"}
+
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          int n = ++id(cnt);
+          if (n % 5 == 0) {
+            id(numc)->set_value(std::vector<uint8_t>{});
+            id(txtc)->set_value(std::vector<uint8_t>{});
+            ESP_LOGI("srv", "SRV sent %d empty", n);
+          } else if (n % 5 == 3) {
+            // uint16 format byte: 0x06, value n * 100 big endian
+            uint16_t v = n * 100;
+            id(numc)->set_value(std::vector<uint8_t>{0x06, (uint8_t) (v >> 8), (uint8_t) v});
+            std::string t = "text-" + std::to_string(n) + "-long-enough-to-matter";
+            id(txtc)->set_value(t);
+            ESP_LOGI("srv", "SRV sent %d num=%u txt=%s", n, v, t.c_str());
+          } else {
+            id(numc)->set_value(std::vector<uint8_t>{(uint8_t) n});
+            std::string t = "t" + std::to_string(n);
+            id(txtc)->set_value(t);
+            ESP_LOGI("srv", "SRV sent %d num=%d txt=%s", n, n & 0xFF, t.c_str());
+          }
+          id(numc)->notify();
+          id(txtc)->notify();

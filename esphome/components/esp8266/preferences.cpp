@@ -207,13 +207,11 @@ bool ESP8266Preferences::sync() {
     return false;
 
   ESP_LOGD(TAG, "Saving");
-  SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
-  {
-    InterruptLock lock;
-    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-    if (erase_res == SPI_FLASH_RESULT_OK) {
-      write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
-    }
+  // Interrupts stay enabled: masking them for a whole sector erase drains the WiFi SDK heap
+  SpiFlashOpResult erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+  SpiFlashOpResult write_res = SPI_FLASH_RESULT_OK;
+  if (erase_res == SPI_FLASH_RESULT_OK) {
+    write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
   }
   if (erase_res != SPI_FLASH_RESULT_OK) {
     ESP_LOGE(TAG, "Erasing failed");
@@ -230,11 +228,7 @@ bool ESP8266Preferences::sync() {
 
 bool ESP8266Preferences::reset() {
   ESP_LOGD(TAG, "Erasing storage");
-  SpiFlashOpResult erase_res;
-  {
-    InterruptLock lock;
-    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-  }
+  SpiFlashOpResult erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
   if (erase_res != SPI_FLASH_RESULT_OK) {
     ESP_LOGE(TAG, "Erasing failed");
     return false;
