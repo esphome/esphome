@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
 #include "esphome/components/microchip_atsha204a/microchip_atsha204a.h"
+#include "esphome/core/hal.h"
 
 #include <algorithm>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -35,6 +37,8 @@ class TestTransport : public Transport {
   bool power_down(bool idle, bool allow_nack) override {
     this->low_power_modes.push_back(idle);
     this->sleep_allows_nack = allow_nack;
+    if (this->on_power_down)
+      this->on_power_down();
     return this->power_down_ok;
   }
 
@@ -43,6 +47,7 @@ class TestTransport : public Transport {
   bool command_ok{true};
   bool power_down_ok{true};
   bool sleep_allows_nack{false};
+  std::function<void()> on_power_down;
   int wakes{0};
   int requests{0};
   std::vector<uint8_t> reply;
@@ -59,6 +64,16 @@ class TestChip : public ATSHA204A {
     this->transport_.reply = std::move(reply);
     this->wait_us_ = 0;
     this->loop();
+  }
+  void set_awake_age(uint32_t age_ms) { this->woke_at_ = millis() - age_ms; }
+  void advance_identity_poll() {
+    this->update();
+    this->advance({0x04, 0x11, 0x33, 0x43});
+    this->advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
+    std::vector<uint8_t> identity(MAX_RESPONSE);
+    identity[0] = MAX_RESPONSE;
+    put_le16(identity.data() + MAX_RESPONSE - 2, reverse_bits(crc16(identity.data(), MAX_RESPONSE - 2, 0)));
+    this->advance(std::move(identity));
   }
 
  protected:
@@ -81,8 +96,10 @@ TEST(ATSHA204A, ValidatesWakeAndChainsCommandWithoutWakingAgain) {
                  EXPECT_EQ(status, 0);
                  EXPECT_EQ(data.size(), 4U);
                  held_session = session;
+                 EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
                  chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, EndMode::END_MODE_SLEEP, session, true, finished);
                });
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
   chip.advance({0x04, 0x11, 0x33, 0x43});
   ASSERT_EQ(transport.commands.size(), 1U);
   EXPECT_EQ(transport.commands.front(), (std::vector<uint8_t>{0x07, 0x30, 0, 0, 0, 0x03, 0x5D}));
@@ -91,10 +108,51 @@ TEST(ATSHA204A, ValidatesWakeAndChainsCommandWithoutWakingAgain) {
   ASSERT_NE(held_session, 0U);
   ASSERT_EQ(transport.commands.size(), 2U);
   EXPECT_EQ(transport.wakes, 1);
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
   chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
   EXPECT_EQ(last_status, 0);
   EXPECT_EQ(result, (std::vector<uint8_t>{0, 0, 0, 0}));
   EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false}));
+}
+
+TEST(ATSHA204A, RejectsCommandWithoutEnoughWatchdogTime) {
+  TestTransport transport;
+  TestChip chip(transport);
+  uint32_t token = 0;
+  chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, EndMode::END_MODE_KEEP_AWAKE, 0, true,
+               [&](int, const CommandResponse &, uint32_t session) { token = session; });
+  chip.advance({0x04, 0x11, 0x33, 0x43});
+  chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
+  ASSERT_NE(token, 0U);
+
+  chip.set_awake_age(690);
+  int result = 0;
+  chip.command(Opcode::OPCODE_HMAC, 0, 0, {}, EndMode::END_MODE_SLEEP, token, true,
+               [&](int status, const CommandResponse &, uint32_t) { result = status; });
+  EXPECT_EQ(result, SESSION_LOST);
+  EXPECT_EQ(transport.commands.size(), 1U);
+  EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false}));
+}
+
+TEST(ATSHA204A, RejectsClosingSessionTokenDuringTransportCallback) {
+  TestTransport transport;
+  TestChip chip(transport);
+  uint32_t token = 0;
+  chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, EndMode::END_MODE_KEEP_AWAKE, 0, true,
+               [&](int, const CommandResponse &, uint32_t session) { token = session; });
+  chip.advance({0x04, 0x11, 0x33, 0x43});
+  chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
+  ASSERT_NE(token, 0U);
+
+  int result = 0;
+  transport.on_power_down = [&] {
+    chip.command(Opcode::OPCODE_DEV_REV, 0, 0, {}, EndMode::END_MODE_SLEEP, token, true,
+                 [&](int status, const CommandResponse &, uint32_t) { result = status; });
+  };
+  EXPECT_TRUE(chip.end_session(token));
+  EXPECT_EQ(result, SESSION_LOST);
+  EXPECT_EQ(transport.commands.size(), 1U);
 }
 
 TEST(ATSHA204A, RejectsBadResponseCrcWithoutRetryingCommand) {
@@ -153,16 +211,36 @@ TEST(ATSHA204A, PollBlockSendFailureCompletesRead) {
     });
   });
 
-  chip.update();
-  chip.advance({0x04, 0x11, 0x33, 0x43});
-  chip.advance({0x07, 0, 0, 0, 0, 0x03, 0xAD});
-  std::vector<uint8_t> identity(MAX_RESPONSE);
-  identity[0] = MAX_RESPONSE;
-  put_le16(identity.data() + MAX_RESPONSE - 2, reverse_bits(crc16(identity.data(), MAX_RESPONSE - 2, 0)));
-  chip.advance(std::move(identity));
+  chip.advance_identity_poll();
 
   EXPECT_EQ(callbacks, 1U);
   EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false}));
+}
+
+TEST(ATSHA204A, CorruptBlockResponseDisconnectsButChipErrorPreservesPresence) {
+  for (bool corrupt : {false, true}) {
+    TestTransport transport;
+    TestChip chip(transport);
+    unsigned callbacks = 0;
+    unsigned disconnects = 0;
+    chip.set_disconnect_callback([&] { disconnects++; });
+    chip.set_poll_callback([&] {
+      chip.read_block(ATSHA204A::Zone::CONFIG, 0, [&](const uint8_t *data) {
+        EXPECT_EQ(data, nullptr);
+        callbacks++;
+      });
+    });
+
+    chip.advance_identity_poll();
+    std::vector<uint8_t> status{0x04, 0x0F, 0, 0};
+    const uint16_t crc = reverse_bits(crc16(status.data(), 2, 0));
+    put_le16(status.data() + 2, corrupt ? (crc ^ 1) : crc);
+    chip.advance(std::move(status));
+
+    EXPECT_EQ(callbacks, 1U);
+    EXPECT_EQ(disconnects, corrupt ? 1U : 0U);
+    EXPECT_EQ(transport.low_power_modes, (std::vector<bool>{false}));
+  }
 }
 
 TEST(ATSHA204A, EndSessionReportsImmediateFailure) {

@@ -40,7 +40,7 @@ microchip_atsha204a:
   type: swi_uart
   uart_id: chip_uart
   wake_pin:
-    number: GPIO12
+    number: {wake_pin}
     mode:
       output: true
       open_drain: true
@@ -59,6 +59,7 @@ def _validation_errors(yaml: str, tmp_path: Path) -> list[str]:
     ("rx_pin", "uart_extra", "error"),
     [
         ("GPIO21", "", None),
+        ("GPIO21", "  rx_timeout: 0", "value must be at least 1"),
         ("GPIO21", "  tx_pin: GPIO22", "requires an RX-only UART"),
         ("GPIO34", "", "Use a non-inverted, output-capable GPIO"),
         (
@@ -89,6 +90,12 @@ def test_rmt_uart_wiring(
             "uart",
             "  tx_pin: GPIO25\n  rx_pin: GPIO26",
             None,
+        ),
+        (
+            "esp32:\n  variant: esp32",
+            "uart",
+            "  tx_pin: GPIO25\n  rx_pin: GPIO26\n  rx_timeout: 0",
+            "value must be at least 1",
         ),
         (
             "esp32:\n  variant: esp32",
@@ -139,9 +146,27 @@ def test_swi_uart_wiring(
     platform: str, bus: str, wiring: str, error: str | None, tmp_path: Path
 ) -> None:
     errors = _validation_errors(
-        SWI_UART_CONFIG.format(platform=platform, bus=bus, wiring=wiring), tmp_path
+        SWI_UART_CONFIG.format(
+            platform=platform, bus=bus, wiring=wiring, wake_pin="GPIO12"
+        ),
+        tmp_path,
     )
     if error is None:
         assert errors == []
     else:
         assert any(error in err for err in errors), errors
+
+
+def test_swi_uart_rejects_libretiny(tmp_path: Path) -> None:
+    errors = _validation_errors(
+        SWI_UART_CONFIG.format(
+            platform="bk72xx:\n  board: cb3s",
+            bus="uart",
+            wiring="  tx_pin: P11\n  rx_pin: P10",
+            wake_pin="P6",
+        ),
+        tmp_path,
+    )
+    assert any(
+        "Single-wire UART is unavailable on LibreTiny" in err for err in errors
+    ), errors

@@ -1,6 +1,7 @@
 #include "microchip_atsha204a.h"
 
 #include <algorithm>
+#include <utility>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -107,14 +108,15 @@ void ATSHA204A::update() {
 
 bool ATSHA204A::start_wake_() {
   this->state_ = State::STATE_WAKE;
+  this->high_frequency_.start();
   this->enable_loop();
+  this->woke_at_ = millis();
   this->awake_ = this->transport_->wake();
   if (!this->awake_) {
     this->handle_response_(nullptr, IO_ERROR);
     return false;
   }
   this->wait_start_ = micros();
-  this->woke_at_ = millis();
   this->wait_us_ = WAKE_DELAY_US;
   this->response_requested_ = false;
   return true;
@@ -140,31 +142,34 @@ bool ATSHA204A::send_frame_(Opcode opcode, uint8_t param1, uint16_t param2, cons
 
 void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::span<const uint8_t> data, EndMode end_mode,
                         uint32_t session, bool expect_response, ResultCallback callback) {
-  if (execution_ms(opcode) == 0 || data.size() > MAX_COMMAND - 7 ||
+  if (!callback)
+    callback = [](int status, const CommandResponse &, uint32_t) {
+      if (status != 0 && status != UNCONFIRMED) {
+        ESP_LOGW(TAG, "Command failed (status %d)", status);
+      }
+    };
+  const uint32_t execution = execution_ms(opcode);
+  if (execution == 0 || data.size() > MAX_COMMAND - 7 ||
       (!expect_response && (opcode != Opcode::OPCODE_PAUSE || end_mode != EndMode::END_MODE_SLEEP))) {
-    if (callback)
-      callback(INVALID_ARGUMENT, {}, 0);
+    callback(INVALID_ARGUMENT, {}, 0);
     return;
   }
   if (this->is_failed()) {
-    if (callback)
-      callback(IO_ERROR, {}, 0);
+    callback(IO_ERROR, {}, 0);
     return;
   }
   if (session != 0 && (this->state_ != State::STATE_HELD || session != this->session_)) {
-    if (callback)
-      callback(SESSION_LOST, {}, 0);
+    callback(SESSION_LOST, {}, 0);
     return;
   }
-  if (session != 0 && this->session_expired_(millis())) {
+  if (session != 0 &&
+      this->session_expired_(millis(), execution + this->transport_->command_io_budget_ms() + RESPONSE_TIMEOUT_MS)) {
     this->end_session(this->session_);
-    if (callback)
-      callback(SESSION_LOST, {}, 0);
+    callback(SESSION_LOST, {}, 0);
     return;
   }
   if (session == 0 && this->state_ != State::STATE_IDLE) {
-    if (callback)
-      callback(BUSY, {}, 0);
+    callback(BUSY, {}, 0);
     return;
   }
   if (session == 0) {
@@ -189,6 +194,7 @@ void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::spa
 
 void ATSHA204A::send_user_() {
   this->state_ = State::STATE_USER;
+  this->high_frequency_.start();
   const bool sent = this->send_frame_(this->user_opcode_, this->user_param1_, this->user_param2_,
                                       this->user_data_.data(), this->user_data_.size());
   std::fill(this->user_data_.begin(), this->user_data_.end(), 0);
@@ -325,8 +331,14 @@ void ATSHA204A::handle_response_(const uint8_t *packet, int status) {
     }
     case State::STATE_BLOCK: {
       auto callback = std::exchange(this->block_callback_, {});
+      const bool has_block = packet != nullptr && packet[0] == MAX_RESPONSE;
+      if (!has_block && (packet == nullptr || packet[0] != STATUS_PACKET_SIZE || status == 0)) {
+        this->finish_poll_(false);
+        callback(nullptr);
+        return;
+      }
       this->state_ = State::STATE_POLL_CALLBACK;
-      callback(packet != nullptr && packet[0] == MAX_RESPONSE ? packet + 1 : nullptr);
+      callback(has_block ? packet + 1 : nullptr);
       if (this->state_ == State::STATE_POLL_CALLBACK)
         this->finish_poll_(true);
       return;
@@ -387,6 +399,7 @@ void ATSHA204A::finish_user_(int status, const uint8_t *data, size_t size) {
   } else {
     this->state_ = State::STATE_HELD;
     this->held_at_ = millis();
+    this->high_frequency_.stop();
   }
   this->user_active_ = false;
   std::fill(this->user_data_.begin(), this->user_data_.end(), 0);
@@ -401,26 +414,27 @@ void ATSHA204A::finish_user_(int status, const uint8_t *data, size_t size) {
 }
 
 bool ATSHA204A::close_session_(bool ready_to_sleep) {
+  this->session_ = 0;
   const bool sent = ready_to_sleep && this->transport_->power_down(false, false);
+  this->awake_ = false;
+  this->closing_session_ = false;
+  this->set_idle_();
   if (!sent) {
     ESP_LOGW(TAG, "Could not put the chip to sleep while ending the session");
   }
-  this->awake_ = false;
-  this->session_ = 0;
-  this->closing_session_ = false;
-  this->set_idle_();
   return sent;
 }
 
 void ATSHA204A::set_idle_() {
-  this->state_ = State::STATE_IDLE;
   this->disable_loop();
+  this->high_frequency_.stop();
+  this->state_ = State::STATE_IDLE;
 }
 
-bool ATSHA204A::session_expired_(uint32_t now) const {
+bool ATSHA204A::session_expired_(uint32_t now, uint32_t command_budget_ms) const {
   // The loop timestamp can predate a command completed during the same tick.
   return static_cast<int32_t>(now - (this->held_at_ + SESSION_TIMEOUT_MS)) >= 0 ||
-         (this->awake_ && static_cast<int32_t>(now - (this->woke_at_ + WATCHDOG_MIN_MS)) >= 0);
+         (this->awake_ && static_cast<int32_t>(now + command_budget_ms - (this->woke_at_ + WATCHDOG_MIN_MS)) >= 0);
 }
 
 bool ATSHA204A::end_session(uint32_t session) {

@@ -6,7 +6,9 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_DATA,
     CONF_FLOW_CONTROL_PIN,
+    CONF_FREQUENCY,
     CONF_HARDWARE_UART,
+    CONF_I2C_ID,
     CONF_ID,
     CONF_INVERTED,
     CONF_MODE,
@@ -110,7 +112,10 @@ _VALIDATE_SWI_UART = uart.final_validate_device_schema(
 )
 _VALIDATE_UART_BUFFER = fv.id_declaration_match_schema(
     cv.Schema(
-        {cv.Required(CONF_RX_BUFFER_SIZE): cv.int_range(min=SWI_MIN_RX_BUFFER_SIZE)},
+        {
+            cv.Required(CONF_RX_BUFFER_SIZE): cv.int_range(min=SWI_MIN_RX_BUFFER_SIZE),
+            cv.Optional(uart.CONF_RX_TIMEOUT): cv.int_range(min=1),
+        },
         extra=cv.ALLOW_EXTRA,
     )
 )
@@ -177,6 +182,11 @@ def _final_validate(config: ConfigType) -> None:
         fv.id_declaration_match_schema(_validate_rmt_wiring)(uart_id)
         esp32_rmt.final_validate_rmt_channels(config)
     else:
+        if CORE.is_libretiny:
+            raise cv.Invalid(
+                "Single-wire UART is unavailable on LibreTiny because its receive buffer is too small",
+                [CONF_TYPE],
+            )
         _VALIDATE_SWI_UART(config)
         fv.id_declaration_match_schema(_validate_swi_uart_wiring)(uart_id)
     _VALIDATE_UART_BUFFER(uart_id)
@@ -190,7 +200,6 @@ async def to_code(config: ConfigType) -> None:
     transport_type = config[CONF_TYPE]
     if transport_type == SWI_RMT:
         cg.add_define("USE_MICROCHIP_ATSHA204A_SWI_RMT")
-        esp32_rmt.register_rmt_channel(config)
         esp32.include_builtin_idf_component("esp_driver_rmt")
         uart_config = fv.get_declaring_config(config[CONF_UART_ID], CORE.config)
         pin = uart_config[CONF_RX_PIN][CONF_NUMBER]
@@ -203,10 +212,15 @@ async def to_code(config: ConfigType) -> None:
         await uart.register_uart_device(transport, config)
     else:
         cg.add_define("USE_MICROCHIP_ATSHA204A_I2C")
-        transport = cg.new_Pvariable(config[CONF_TRANSPORT_ID])
+        bus = fv.get_declaring_config(config[CONF_I2C_ID], CORE.config)
+        transport = cg.new_Pvariable(
+            config[CONF_TRANSPORT_ID], int(bus[CONF_FREQUENCY])
+        )
         await i2c.register_i2c_device(transport, config)
     var = cg.new_Pvariable(config[CONF_ID], transport)
     await cg.register_component(var, config)
+    if transport_type == SWI_RMT:
+        esp32_rmt.register_rmt_channel(config)
 
 
 OPCODES = Opcode.options(

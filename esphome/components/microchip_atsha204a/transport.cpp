@@ -8,8 +8,6 @@
 
 #if defined(USE_MICROCHIP_ATSHA204A_SWI_UART) && defined(USE_RP2)
 #include "esphome/components/uart/uart_component_rp2.h"
-#elif defined(USE_MICROCHIP_ATSHA204A_SWI_UART) && defined(USE_LIBRETINY)
-#include "esphome/components/uart/uart_component_libretiny.h"
 #endif
 #ifdef USE_MICROCHIP_ATSHA204A_SWI_RMT
 #include "driver/gpio.h"
@@ -31,6 +29,12 @@ static constexpr size_t I2C_CHUNK_SIZE = 30;
 void I2CTransport::dump_config() {
   ESP_LOGCONFIG(TAG, "  Transport: I2C");
   LOG_I2C_DEVICE(this);
+}
+
+uint32_t I2CTransport::command_io_budget_ms() const {
+  // Up to three writes (address and word address) and three reads (address).
+  static constexpr uint32_t WIRE_BIT_MS = (MAX_COMMAND + MAX_RESPONSE + 9) * 9 * 1000;
+  return Transport::command_io_budget_ms() + (WIRE_BIT_MS + this->frequency_ - 1) / this->frequency_;
 }
 
 bool I2CTransport::wake() {
@@ -153,8 +157,6 @@ bool UARTTransport::setup() {
   const bool hardware_uart = this->parent_->available_for_write() != SIZE_MAX;
 #elif defined(USE_RP2)
   const bool hardware_uart = static_cast<uart::RP2UartComponent *>(this->parent_)->is_hw_serial();
-#elif defined(USE_LIBRETINY)
-  const bool hardware_uart = static_cast<uart::LibreTinyUARTComponent *>(this->parent_)->get_hw_serial_number() >= 0;
 #else
   constexpr bool hardware_uart = true;
 #endif
@@ -255,9 +257,9 @@ bool RMTTransport::setup() {
 
 void RMTTransport::dump_config() { ESP_LOGCONFIG(TAG, "  Transport: Single-wire RMT (UART RX on GPIO%u)", this->pin_); }
 
-bool RMTTransport::wake() { return this->transmit_(&RMT_WAKE, 1); }
+bool RMTTransport::wake() { return this->send(&RMT_WAKE, 1); }
 
-bool RMTTransport::transmit_(const uint8_t *bytes, size_t size) {
+bool RMTTransport::send(const uint8_t *bytes, size_t size) {
   // A timed-out transaction can still own the frame. Recover when the driver releases it.
   if (rmt_tx_wait_all_done(this->tx_, 0) != ESP_OK)
     return false;
@@ -279,8 +281,6 @@ bool RMTTransport::transmit_(const uint8_t *bytes, size_t size) {
   this->frame_.fill(0);
   return status == ESP_OK;
 }
-
-bool RMTTransport::send(const uint8_t *bytes, size_t size) { return this->transmit_(bytes, size); }
 
 #endif
 

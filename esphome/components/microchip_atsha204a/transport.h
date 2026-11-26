@@ -30,6 +30,7 @@ class Transport {
   virtual bool setup() = 0;
   virtual void dump_config() = 0;
   virtual bool is_single_wire() const { return false; }
+  virtual uint32_t command_io_budget_ms() const { return 40; }
   virtual bool wake() = 0;
   virtual bool command(const uint8_t *packet, size_t size) = 0;
   virtual bool request_response() = 0;
@@ -40,13 +41,18 @@ class Transport {
 #ifdef USE_MICROCHIP_ATSHA204A_I2C
 class I2CTransport : public Transport, public i2c::I2CDevice {
  public:
+  explicit I2CTransport(uint32_t frequency) : frequency_(frequency) {}
   bool setup() override { return true; }
   void dump_config() override;
+  uint32_t command_io_budget_ms() const override;
   bool wake() override;
   bool command(const uint8_t *packet, size_t size) override;
   bool request_response() override { return true; }
   Receive receive(uint8_t *packet) override;
   bool power_down(bool idle, bool allow_nack) override;
+
+ protected:
+  const uint32_t frequency_;
 };
 #endif
 
@@ -95,7 +101,6 @@ class RMTTransport : public SWITransport {
 
  protected:
   bool send(const uint8_t *bytes, size_t size) override;
-  bool transmit_(const uint8_t *bytes, size_t size);
 
   const uint8_t pin_;
   rmt_channel_handle_t tx_{};
