@@ -1,9 +1,10 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 import math
 import struct
 from typing import Any
 
 from esphome import automation, codegen as cg
+from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -20,7 +21,7 @@ from esphome.const import (
 )
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import MockObj, StaticConstAssignmentExpression
-from esphome.final_validate import FinalValidateConfig, full_config
+from esphome.final_validate import FinalValidateConfig
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -33,7 +34,6 @@ from ..defines import (
     LValidator,
     LvConstant,
     get_chart_series,
-    get_chart_series_actions,
     get_updated_widgets,
     literal,
 )
@@ -47,6 +47,8 @@ ACTION_APPEND = "lvgl.chart.series.append"
 ACTION_SET = "lvgl.chart.series.set"
 ACTION_CLEAR = "lvgl.chart.series.clear"
 ACTION_UPDATE = "lvgl.chart.series.update"
+ACTION_CHART_UPDATE = "lvgl.chart.update"
+SERIES_ACTIONS = (ACTION_APPEND, ACTION_SET, ACTION_CLEAR, ACTION_UPDATE)
 CONF_GRID_LINES = "grid_lines"
 CONF_MULTIPLIER = "multiplier"
 CONF_POINT_COUNT = "point_count"
@@ -218,24 +220,12 @@ SERIES_SCHEMA = cv.Schema(
 )
 
 
-def _record(action: str) -> Callable[[ConfigType], ConfigType]:
-    """Remember the action so validate_chart_series_actions() can check it against
-    its chart once the whole config is known."""
-
-    def validator(config: ConfigType) -> ConfigType:
-        get_chart_series_actions().append((action, config))
-        return config
-
-    return validator
-
-
 def _series_schema(
-    action: str, schema: dict, *validators: Callable[[ConfigType], ConfigType]
+    schema: dict, *validators: Callable[[ConfigType], ConfigType]
 ) -> cv.All:
     return cv.All(
         cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_chart_series_t), **schema}),
         *validators,
-        _record(action),
     )
 
 
@@ -252,7 +242,6 @@ def _index_goes_with_one_point(config: ConfigType) -> ConfigType:
 
 
 SERIES_APPEND_SCHEMA = _series_schema(
-    ACTION_APPEND,
     {
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_POINT): POINT_SCHEMA,
@@ -261,7 +250,6 @@ SERIES_APPEND_SCHEMA = _series_schema(
 )
 
 SERIES_SET_SCHEMA = _series_schema(
-    ACTION_SET,
     {
         cv.Optional(CONF_VALUES): cv.ensure_list(lv_float),
         cv.Optional(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
@@ -273,10 +261,9 @@ SERIES_SET_SCHEMA = _series_schema(
     _index_goes_with_one_point,
 )
 
-SERIES_CLEAR_SCHEMA = _series_schema(ACTION_CLEAR, {})
+SERIES_CLEAR_SCHEMA = _series_schema({})
 
 SERIES_UPDATE_SCHEMA = _series_schema(
-    ACTION_UPDATE,
     {
         cv.Optional(CONF_COLOR): lv_color,
         cv.Optional(CONF_HIDDEN): lv_bool,
@@ -410,28 +397,47 @@ def _smallest_point_counts(global_config: FinalValidateConfig) -> dict[tuple, in
     return smallest
 
 
-def _find_path(node: Any, target: ConfigType, path: list) -> list | None:
-    """The path to the object `target` (compared by identity) within `node`."""
-    if node is target:
-        return path
-    if isinstance(node, dict):
-        children = node.items()
-    elif isinstance(node, list):
-        children = enumerate(node)
-    else:
-        return None
-    for key, child in children:
-        if (found := _find_path(child, target, [*path, key])) is not None:
-            return found
-    return None
+def _action_ids(
+    global_config: FinalValidateConfig, actions: tuple[str, ...], id_path: tuple
+) -> Iterator[tuple[str, list, ID]]:
+    """Each use of one of `actions`, found by the ID at `id_path` within it, as the
+    action, the path to its config and the ID; None in `id_path` matches any list
+    index. An action that a YAML anchor repeats is found at each place it appears."""
+    for id_, path in iter_ids(global_config):
+        if len(path) <= len(id_path) or path[-len(id_path) - 1] not in actions:
+            continue
+        tail = path[-len(id_path) :]
+        if all(
+            want is None or got == want for got, want in zip(tail, id_path, strict=True)
+        ):
+            yield path[-len(id_path) - 1], path[: -len(id_path)], id_
 
 
-def validate_chart_series_actions(global_config: FinalValidateConfig) -> None:
-    """Check each lvgl.chart.series.* action against the chart its series belongs to."""
+def _error_at(path: list, message: str) -> cv.Invalid:
+    """An error at `path` from the root of the config. An action may sit outside the
+    lvgl block, and the root marker stops the lvgl block's path being put in front."""
+    return cv.Invalid(message, path=[cv.ROOT_CONFIG_PATH, *path])
+
+
+def validate_chart_update(update: ConfigType, chart_config: ConfigType) -> None:
+    """Check an lvgl.chart.update action against the chart it updates."""
+    if (error := x_axis_error(chart_config[CONF_TYPE], update)) is not None:
+        raise error
+    for axis_name, _ in AXES:
+        if (axis := update.get(axis_name)) is not None and CONF_MIN_VALUE in axis:
+            try:
+                _validate_range(axis, axis_multiplier(chart_config, axis_name))
+            except cv.Invalid as err:
+                raise cv.Invalid(err.msg, path=[axis_name]) from err
+
+
+def validate_chart_actions(global_config: FinalValidateConfig) -> None:
+    """Check each chart action against the chart it changes."""
     smallest_point_counts = _smallest_point_counts(global_config)
     errors = []
-    for action, config in get_chart_series_actions():
-        series_id = config[CONF_ID]
+    for action, path, series_id in _action_ids(
+        global_config, SERIES_ACTIONS, (CONF_ID,)
+    ):
         # A series ID is declared at <chart>/series/<index>/id
         chart_path = tuple(global_config.get_path_for_id(series_id)[:-3])
         chart_config = global_config.get_config_for_path(list(chart_path))
@@ -440,18 +446,30 @@ def validate_chart_series_actions(global_config: FinalValidateConfig) -> None:
             smallest_point_counts.get(chart_path, chart_config[CONF_POINT_COUNT]),
         )
         try:
-            validate_series_action(action, config, chart_config[CONF_TYPE], point_count)
-        except cv.Invalid as err:
-            # The action may sit outside the lvgl block, so give its full path; the
-            # root marker stops the lvgl block's path being put in front of it.
-            action_path = _find_path(global_config, config, [])
-            path = (
-                []
-                if action_path is None
-                else [cv.ROOT_CONFIG_PATH, *action_path, *err.path]
+            validate_series_action(
+                action,
+                global_config.get_config_for_path(path),
+                chart_config[CONF_TYPE],
+                point_count,
             )
+        except cv.Invalid as err:
             errors.append(
-                cv.Invalid(f"'{action}' for series '{series_id}': {err.msg}", path=path)
+                _error_at(
+                    [*path, *err.path],
+                    f"'{action}' for series '{series_id}': {err.msg}",
+                )
+            )
+    for action, path, chart_id in _action_ids(
+        global_config, (ACTION_CHART_UPDATE,), (CONF_ID, None, CONF_ID)
+    ):
+        chart_config = global_config.get_config_for_path(
+            global_config.get_path_for_id(chart_id)[:-1]
+        )
+        try:
+            validate_chart_update(global_config.get_config_for_path(path), chart_config)
+        except cv.Invalid as err:
+            errors.append(
+                _error_at([*path, *err.path], f"'{action}' for '{chart_id}': {err.msg}")
             )
     if errors:
         raise cv.MultipleInvalid(errors)
@@ -466,37 +484,6 @@ class ChartType(WidgetType):
             CHART_SCHEMA.add_extra(validate_chart),
             CHART_MODIFY_SCHEMA,
         )
-
-    def final_validate(
-        self,
-        widget: Any,
-        update_config: ConfigType,
-        widget_config: ConfigType,
-        path: list,
-    ) -> None:
-        if (error := x_axis_error(widget_config[CONF_TYPE], update_config)) is not None:
-            action_path = _find_path(full_config.get(), update_config, [])
-            raise cv.Invalid(
-                f"'lvgl.chart.update' for '{widget}': {error.msg}",
-                path=[]
-                if action_path is None
-                else [cv.ROOT_CONFIG_PATH, *action_path, *error.path],
-            )
-        for axis_name, _ in AXES:
-            if (axis := update_config.get(axis_name)) is None or (
-                CONF_MIN_VALUE not in axis
-            ):
-                continue
-            try:
-                _validate_range(axis, axis_multiplier(widget_config, axis_name))
-            except cv.Invalid as err:
-                action_path = _find_path(full_config.get(), update_config, [])
-                raise cv.Invalid(
-                    f"'lvgl.chart.update' for '{widget}': {err.msg}",
-                    path=[]
-                    if action_path is None
-                    else [cv.ROOT_CONFIG_PATH, *action_path, axis_name],
-                ) from err
 
     async def create_to_code(self, config: ConfigType, parent: MockObj) -> Widget:
         # Options and series are set here rather than in to_code(), which

@@ -822,3 +822,22 @@ def test_scatter_points_with_nan_x_leave_a_gap(
         "lvgl::chart_set_point(::gap_chart, ::gap_series, 1, "
         "static_cast<float>(NAN), 3.0f, 1.0f, 1.0f);" in main_cpp
     )
+
+
+def test_series_action_repeated_by_a_yaml_anchor_is_reported_at_each_copy(
+    tmp_path: Path,
+) -> None:
+    errors = _validation_errors(
+        tmp_path,
+        "              id: line_series\n              value: 1",
+        "          - &bad_append\n"
+        "            lvgl.chart.series.append:\n"
+        "              id: line_series\n"
+        "              point: {x: 1, y: 2}\n"
+        "          - *bad_append",
+    )
+    action = ["lvgl", 0, "widgets", 2, "button", "on_click", 0, "then"]
+    assert sorted((err.path for err in errors), key=str) == [
+        [*action, 1, APPEND, "point"],
+        [*action, 2, APPEND, "point"],
+    ]

@@ -112,7 +112,7 @@ from .widgets import (
     get_screen_active,
     set_obj_properties,
 )
-from .widgets.chart import validate_chart_series_actions
+from .widgets.chart import validate_chart_actions
 from .widgets.keyboard import attach_textareas
 from .widgets.menu import add_root_back_button_triggers, validate_menu_pages
 
@@ -337,7 +337,7 @@ def final_validation(config_list):
                 widget_conf = global_config.get_config_for_path(path[:-1])
                 widget_type.final_validate(name, conf, widget_conf, path[1:])
     validate_menu_pages(global_config)
-    validate_chart_series_actions(global_config)
+    validate_chart_actions(global_config)
 
 
 async def to_code(configs):
