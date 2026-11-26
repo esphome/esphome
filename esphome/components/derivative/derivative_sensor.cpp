@@ -37,16 +37,16 @@ void DerivativeSensor::process_sensor_value_(float value) {
   }
 
   const uint32_t dt_ms = now - this->last_update_;
+  // Two readings in the same loop iteration: keep the older baseline so the change is
+  // counted against the next reading instead of being lost.
+  if (dt_ms == 0)
+    return;
+
   const float old_value = this->last_value_;
   // Update the baseline before publishing: publish_state() runs the entity's callbacks
   // synchronously and they may feed back into this sensor.
   this->last_value_ = value;
   this->last_update_ = now;
-
-  if (dt_ms == 0) {
-    // Two readings in the same loop iteration: no time elapsed, nothing to derive.
-    return;
-  }
 
   const float dt = dt_ms * this->time_factor_;
   this->publish_state((value - old_value) / dt);

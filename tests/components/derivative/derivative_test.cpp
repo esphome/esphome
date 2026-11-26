@@ -106,9 +106,9 @@ TEST(DerivativeZeroElapsed, SameLoopTimePublishesNothing) {
   EXPECT_EQ(f.publishes, 0);
   EXPECT_FALSE(f.derivative.has_state());
 
-  // The same-instant reading becomes the new baseline: (17 - 15) over 1 s.
+  // The first baseline is kept, so the same-instant change is not lost: (17 - 10) over 1 s.
   EXPECT_TRUE(f.feed(2000, 17.0f));
-  EXPECT_FLOAT_EQ(f.last_rate, 2.0f);
+  EXPECT_FLOAT_EQ(f.last_rate, 7.0f);
 }
 
 // The loop clock is a uint32_t and wraps; the delta must be the unsigned difference, not a
