@@ -7,6 +7,7 @@ from esphome.components.logger import UART1
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_BAUD_RATE,
     CONF_DATA,
     CONF_HARDWARE_UART,
     CONF_ID,
@@ -97,7 +98,10 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(HDMICEC),
             cv.Required(CONF_PIN): pins.internal_gpio_input_pullup_pin_schema,
             cv.Required(CONF_ADDRESS): logical_address,
-            cv.Optional(CONF_PHYSICAL_ADDRESS): cv.hex_uint16_t,
+            # 0xFFFF is reserved: the bus uses it for "no physical address"
+            cv.Optional(CONF_PHYSICAL_ADDRESS): cv.All(
+                cv.hex_uint16_t, cv.Range(max=0xFFFE)
+            ),
             cv.Optional(CONF_OSD_NAME): _osd_name,
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_PROMISCUOUS_MODE, default=False): cv.boolean,
@@ -141,7 +145,7 @@ def _esp8266_uart1(hub_config: ConfigType) -> ConfigType:
             f"{DOMAIN} needs the hardware UART1 on the ESP8266: tx_pin GPIO2 and no rx_pin"
         )
     logger = fv.full_config.get().get(CONF_LOGGER, {})
-    if logger.get(CONF_HARDWARE_UART) == UART1:
+    if logger.get(CONF_HARDWARE_UART) == UART1 and logger.get(CONF_BAUD_RATE) != 0:
         raise cv.Invalid(f"{DOMAIN} needs UART1 on the ESP8266, which the logger uses")
     return hub_config
 

@@ -55,24 +55,24 @@ class Frame {
   static constexpr uint8_t BROADCAST_ADDRESS = 0xF;  // also the address of an unregistered device
 
   Frame() = default;
-  /// The payload is at most MAX_PAYLOAD_LENGTH bytes, protected in this constructor
-  Frame(uint8_t initiator_addr, uint8_t target_addr, const uint8_t *payload, unsigned int payload_size);
-  Frame(uint8_t initiator_addr, uint8_t target_addr, const std::initializer_list<uint8_t> &payload)
-      : Frame(initiator_addr, target_addr, payload.begin(), payload.size()) {}
-  Frame(uint8_t initiator_addr, uint8_t target_addr, std::span<const uint8_t> payload)
-      : Frame(initiator_addr, target_addr, payload.data(), payload.size()) {}
+  /// The payload is at most MAX_PAYLOAD_LENGTH bytes; send() checks that
+  Frame(uint8_t initiator_addr, uint8_t destination_addr, const uint8_t *payload, unsigned int payload_size);
+  Frame(uint8_t initiator_addr, uint8_t destination_addr, const std::initializer_list<uint8_t> &payload)
+      : Frame(initiator_addr, destination_addr, payload.begin(), payload.size()) {}
+  Frame(uint8_t initiator_addr, uint8_t destination_addr, std::span<const uint8_t> payload)
+      : Frame(initiator_addr, destination_addr, payload.data(), payload.size()) {}
 
   ESPHOME_ALWAYS_INLINE uint8_t initiator_addr() const { return this->data_[0] >> 4; }
   ESPHOME_ALWAYS_INLINE uint8_t destination_addr() const { return this->data_[0] & 0xf; }
   ESPHOME_ALWAYS_INLINE bool is_broadcast() const { return this->destination_addr() == BROADCAST_ADDRESS; }
   ESPHOME_ALWAYS_INLINE size_t size() const { return this->size_; }
-  ESPHOME_ALWAYS_INLINE uint8_t opcode() const { return (this->size() >= 2) ? data_[1] : 0; }
+  ESPHOME_ALWAYS_INLINE uint8_t opcode() const { return (this->size() >= 2) ? this->data_[1] : 0; }
   std::span<const uint8_t> bytes() const { return {this->data_.data(), this->size_}; }
   /// The bytes after the header, starting with the opcode
   std::span<const uint8_t> payload() const { return this->bytes().subspan(1); }
   ESPHOME_ALWAYS_INLINE void clear() { this->size_ = 0; }
   /// False when the frame is full already; the bus allows no more
-  bool push_back(uint8_t data) {
+  ESPHOME_ALWAYS_INLINE bool push_back(uint8_t data) {
     if (this->size_ == MAX_LENGTH) {
       return false;
     }

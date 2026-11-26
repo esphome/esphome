@@ -38,6 +38,9 @@ static constexpr uint8_t MAX_ATTEMPTS = 8;  // CEC allows 5, but a busy bus coun
 
 // Opcodes of the built-in replies
 static constexpr uint8_t OPCODE_FEATURE_ABORT = 0x00;
+static constexpr uint8_t OPCODE_ABORT = 0xFF;
+static constexpr uint8_t ABORT_REASON_UNRECOGNIZED_OPCODE = 0x00;
+static constexpr uint8_t ABORT_REASON_REFUSED = 0x04;
 static constexpr uint8_t OPCODE_GIVE_OSD_NAME = 0x46;
 static constexpr uint8_t OPCODE_SET_OSD_NAME = 0x47;
 static constexpr uint8_t OPCODE_GIVE_PHYSICAL_ADDRESS = 0x83;
@@ -57,7 +60,7 @@ static uint8_t device_type_of(uint8_t logical_address) {
 Frame::Frame(uint8_t initiator_addr, uint8_t destination_addr, const uint8_t *payload, unsigned int payload_size) {
   this->data_[0] = ((initiator_addr & 0xf) << 4) | (destination_addr & 0xf);
   this->size_ = 1 + payload_size;
-  std::memcpy(this->data_.begin() + 1, payload, payload_size);
+  std::memcpy(this->data_.data() + 1, payload, payload_size);
 }
 
 void HDMICEC::setup() {
@@ -110,10 +113,10 @@ void HDMICEC::loop() {
     this->reported_dropped_frames_ = dropped;
   }
 
-  if (const Frame *frame = frames_queue_.front()) {
-    // One inbound frame per pass keeps the time spent in the automations bounded
-    handle_received_message_(frame);
-    frames_queue_.pop_front();
+  // One inbound frame per pass keeps the time spent in the automations bounded
+  if (const Frame *frame = this->frames_queue_.front()) {
+    this->handle_received_message_(frame);
+    this->frames_queue_.pop_front();
   }
 
   // A frame being sent stays at the front of the queue until its attempts are over
@@ -125,23 +128,17 @@ void HDMICEC::loop() {
   }
 }
 
+// Polling frames (header only) never get here: the receive interrupt answers them with the acknowledge
 void HDMICEC::handle_received_message_(const Frame *frame) {
-  const uint8_t src_addr = frame->initiator_addr();
-  const uint8_t dest_addr = frame->destination_addr();
-  const uint8_t opcode = frame->opcode();
-
-  if (frame->size() == 1) {
-    // don't process pings. they're already dealt with by the acknowledgement mechanism
-    ESP_LOGV(TAG, "Received ping: 0x%01X -> 0x%01X", src_addr, dest_addr);
-    return;
-  }
   ESP_LOGD_HEX(TAG, frame->bytes().data(), frame->size(), Frame::MAX_LENGTH, "Received: %s");
 #ifdef HDMI_CEC_MESSAGE_CALLBACK_COUNT
-  this->message_callbacks_.call(src_addr, dest_addr, frame->payload());
+  this->message_callbacks_.call(frame->initiator_addr(), frame->destination_addr(), frame->payload());
 #endif
-
-  bool is_directly_addressed = (dest_addr == address_) && !frame->is_broadcast();
-  if (!this->monitor_mode_ && is_directly_addressed && !this->is_claimed(frame->opcode())) {
+  // Only a frame directed at us from a registered device gets a built-in reply: a broadcast is
+  // never answered (so an instance on the unregistered address 0xF answers nothing, though it may
+  // still send), and an unregistered initiator cannot be answered directly
+  if (!this->monitor_mode_ && !frame->is_broadcast() && frame->destination_addr() == this->address_ &&
+      frame->initiator_addr() != Frame::BROADCAST_ADDRESS && !this->is_claimed(frame->opcode())) {
     this->reply_builtin_(frame);
   }
 }
@@ -185,8 +182,10 @@ void HDMICEC::reply_builtin_(const Frame *frame) {
 #endif
   }
 #ifdef USE_HDMI_CEC_FEATURE_ABORT
-  // Nothing here or in an automation answers it: tell the initiator, as the bus expects
-  this->send(source, {OPCODE_FEATURE_ABORT, opcode, 0x00});  // reason: unrecognized opcode
+  // Nothing here or in an automation answers it: tell the initiator, as the bus expects. <Abort> is a
+  // test message that CEC requires to be refused
+  this->send(source, {OPCODE_FEATURE_ABORT, opcode,
+                      opcode == OPCODE_ABORT ? ABORT_REASON_REFUSED : ABORT_REASON_UNRECOGNIZED_OPCODE});
 #endif
 }
 
