@@ -1,0 +1,17 @@
+---
+esphome:
+  name: test
+  project:
+    name: esphome.test
+    version: "1.1"
+    on_update:
+      - then:
+          - lambda: ESP_LOGI("test", "updated from %s", version.c_str());
+      - then:
+          - logger.log: update before delay
+          - delay: 1ms
+
+esp32:
+  board: nodemcu-32s
+
+logger:

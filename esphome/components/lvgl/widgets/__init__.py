@@ -4,7 +4,7 @@ import sys
 from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
-from esphome.automation import register_action
+from esphome.automation import ApplyAction, register_action
 from esphome.config_validation import Schema
 from esphome.const import (
     CONF_DEFAULT,
@@ -62,19 +62,12 @@ from ..lvcode import (
     lv_add,
     lv_assign,
     lv_expr,
+    lv_global,
     lv_obj,
     lv_Pvariable,
     lvgl_static,
 )
-from ..types import (
-    LV_STATE,
-    LvCompound,
-    LvType,
-    ObjUpdateAction,
-    lv_coord_t,
-    lv_obj_t,
-    lv_obj_t_ptr,
-)
+from ..types import LV_STATE, LvCompound, LvType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
 
@@ -156,7 +149,7 @@ class WidgetType:
 
             register_action(
                 f"lvgl.{self.name}.update",
-                ObjUpdateAction,
+                ApplyAction,
                 _update_action_schema(self),
                 synchronous=True,
             )(update_to_code)
@@ -744,7 +737,7 @@ async def set_obj_properties(w: Widget, config):
                     for prop_r, value in values:
                         target.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):
-        group = await cg.get_variable(group)
+        group = await lv_global(group)
         lv.group_add_obj(group, w.obj)
     props = parts[CONF_MAIN][CONF_DEFAULT]
     for flag, value in props.items():

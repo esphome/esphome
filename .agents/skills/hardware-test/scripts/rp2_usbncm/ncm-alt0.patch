@@ -1,0 +1,194 @@
+Proposed arduino-pico fix for USB NCM when the host leaves the data interface at alt 0 (see arduino_pico.md).
+Copy libraries/lwIP_USB_NCM and libraries/tusb-ncm from the framework package into DIR/libraries, run `patch -p1`
+in DIR, and build usbncm-patched.yaml with `-s ncm_libs DIR/libraries`.
+
+--- a/libraries/lwIP_USB_NCM/src/utility/NCMEthernet.cpp
++++ b/libraries/lwIP_USB_NCM/src/utility/NCMEthernet.cpp
+@@ -25,6 +25,20 @@
+
+ #define USBD_NCM_EPSIZE 64
+
++// Longest time a send waits for the host to take a transfer block before the queued frames are dropped
++#ifndef NCMETHERNET_XMIT_WAIT_US
++#define NCMETHERNET_XMIT_WAIT_US 20000
++#endif
++
++// Re-enumerate when the host leaves the data interface disabled for this long; the wait doubles up to the maximum
++// until the host sends a frame again
++#ifndef NCMETHERNET_REENUMERATE_MS
++#define NCMETHERNET_REENUMERATE_MS 3000
++#endif
++#ifndef NCMETHERNET_REENUMERATE_MAX_MS
++#define NCMETHERNET_REENUMERATE_MAX_MS 60000
++#endif
++
+ NCMEthernet::NCMEthernet(int8_t cs, arduino::SPIClass &spi, int8_t intrpin) {
+     (void) cs;
+     (void) spi;
+@@ -93,7 +107,8 @@
+ }
+
+ bool NCMEthernet::isLinked() {
+-    return tud_mounted();
++    // The host only reads frames while it has the data interface at alternate setting 1
++    return tud_mounted() && tud_network_ncm_data_alt() == 1;
+ }
+
+ void NCMEthernet::usbInterfaceCB(int itf, uint8_t *dst, int len) {
+@@ -149,6 +164,10 @@
+
+     // in case of freertos we are in lwIP task
+     // possibly also holding USB mutex if called by NCMEthernetlwIP::_call_irq
++    if (!isLinked()) {
++        // nobody reads the frame, drop it instead of filling the queue
++        return 0;
++    }
+ #ifdef __FREERTOS
+     if (xQueueSend(this->_xmit_queue, &p, 2) != pdPASS) {
+ #else
+@@ -187,11 +206,23 @@
+     }
+
+     struct pbuf *p = nullptr;
++    uint32_t progress_us = time_us_32();
+     while (true) {
+         if (!tud_ready()) {
+             break;
+         }
++        if (!isLinked() || time_us_32() - progress_us > NCMETHERNET_XMIT_WAIT_US) {
++            // the host does not take transfer blocks (data interface disabled or not polled): drop what is queued
+ #ifdef __FREERTOS
++            while (xQueueReceive(this->_xmit_queue, &p, 0) == pdPASS) {
++#else
++            while (queue_try_remove(&this->_xmit_queue, &p)) {
++#endif
++                pbuf_free(p);
++            }
++            break;
++        }
++#ifdef __FREERTOS
+         if (xQueuePeek(this->_xmit_queue, &p, 0) != pdPASS) {
+             break;
+         }
+@@ -222,6 +253,7 @@
+             }
+ #endif
+             pbuf_free(p);
++            progress_us = time_us_32();
+         }
+         tud_task();
+     }
+@@ -247,10 +279,52 @@
+ #endif
+ }
+
++#ifndef __FREERTOS
++// Some hosts select alternate setting 0 on the data interface right after 1 and never come back.
++// Detach and attach again so the host enumerates the device from scratch.
++static alarm_id_t _reenumerate_alarm = 0;
++static bool _reenumerate_detached = false;
++static uint32_t _reenumerate_wait_ms = NCMETHERNET_REENUMERATE_MS;
++
++static int64_t _reenumerate_cb(alarm_id_t id, void *user_data) {
++    (void) id;
++    (void) user_data;
++    if (!mutex_try_enter(&USB.mutex, nullptr)) {
++        return 10000; // USB busy, try again in 10ms
++    }
++    if (!_reenumerate_detached) {
++        tud_disconnect();
++        _reenumerate_detached = true;
++        mutex_exit(&USB.mutex);
++        return 500000; // stay detached long enough for the host to notice
++    }
++    tud_connect();
++    _reenumerate_detached = false;
++    _reenumerate_alarm = 0;
++    mutex_exit(&USB.mutex);
++    return 0;
++}
++#endif
++
+ extern "C" {
+     // data transfer between tinyUSB callbacks and NCMEthernet class
+     NCMEthernet *_ncm_ethernet_instance = nullptr;
+
++#ifndef __FREERTOS
++    void tud_network_ncm_data_alt_cb(uint8_t alt) {
++        // called from tud_task() with the USB mutex held
++        if (alt == 1) {
++            if (_reenumerate_alarm > 0 && !_reenumerate_detached) {
++                cancel_alarm(_reenumerate_alarm);
++                _reenumerate_alarm = 0;
++            }
++        } else if (_reenumerate_alarm <= 0) {
++            _reenumerate_alarm = add_alarm_in_ms(_reenumerate_wait_ms, _reenumerate_cb, nullptr, true);
++            _reenumerate_wait_ms = min(_reenumerate_wait_ms * 2, (uint32_t) NCMETHERNET_REENUMERATE_MAX_MS);
++        }
++    }
++#endif
++
+     /*
+         Interface to tinyUSB.
+     */
+@@ -291,6 +365,10 @@
+
+         // tell NCMEthernetlwIP::_call_irq that we did receive a packet, so there may be even more packets.
+         _ncm_ethernet_instance->_tud_recv_cb_called = true;
++#ifndef __FREERTOS
++        // the host uses the data interface, so a later alt 0 starts the re-enumeration backoff from the beginning
++        _reenumerate_wait_ms = NCMETHERNET_REENUMERATE_MS;
++#endif
+
+         if (_ncm_ethernet_instance->_recv_pkg != nullptr) {
+             panic("_recv_pkg should be null");
+--- a/libraries/tusb-ncm/src/ncm_device.c
++++ b/libraries/tusb-ncm/src/ncm_device.c
+@@ -1 +1,25 @@
+-#include "../../../pico-sdk/lib/tinyusb/src/class/net/ncm_device.c"
++// Wrap the SDK driver's control request handler so the glue logic can follow the data interface state
++#define netd_control_xfer_cb __sdk_netd_control_xfer_cb
++#include <class/net/ncm_device.c>
++#undef netd_control_xfer_cb
++
++#if CFG_TUD_ENABLED && CFG_TUD_NCM
++#include "tusb-ncm.h"
++
++TU_ATTR_WEAK void tud_network_ncm_data_alt_cb(uint8_t alt) {
++    (void) alt;
++}
++
++uint8_t tud_network_ncm_data_alt(void) {
++    return ncm_interface.itf_data_alt;
++}
++
++bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request) {
++    bool ret = __sdk_netd_control_xfer_cb(rhport, stage, request);
++    if (ret && stage == CONTROL_STAGE_SETUP && request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
++            request->bRequest == TUSB_REQ_SET_INTERFACE) {
++        tud_network_ncm_data_alt_cb(ncm_interface.itf_data_alt);
++    }
++    return ret;
++}
++#endif
+--- a/libraries/tusb-ncm/src/tusb-ncm.h
++++ b/libraries/tusb-ncm/src/tusb-ncm.h
+@@ -1 +1,17 @@
+-// dummy
++#pragma once
++
++#include <stdint.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++// Alternate setting of the NCM data interface: 1 while the host has the data endpoints enabled, else 0
++uint8_t tud_network_ncm_data_alt(void);
++
++// Called from tud_task() after the host selects an alternate setting on the NCM data interface
++void tud_network_ncm_data_alt_cb(uint8_t alt);
++
++#ifdef __cplusplus
++}
++#endif
