@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
+    CONF_KEEPALIVE,
     CONF_KEY,
     CONF_MAX_CONNECTIONS,
     CONF_ON_CLIENT_CONNECTED,
@@ -146,6 +147,7 @@ CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
+CONF_ON_CLIENT_SYNCED = "on_client_synced"
 CONF_OUTGOING_CONNECTION = "outgoing_connection"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
@@ -155,6 +157,7 @@ DEFAULT_PORT = 6053
 DEFAULT_REBOOT_TIMEOUT = "15min"
 DEFAULT_BATCH_DELAY = "100ms"
 DEFAULT_LISTEN_BACKLOG = 4
+DEFAULT_KEEPALIVE = "60s"
 
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
@@ -457,6 +460,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(wizard.CONF_WIZARD): wizard.WIZARD_SCHEMA,
             cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
+            # Sent to the client in HelloResponse; raised for sleepy devices
+            cv.Optional(CONF_KEEPALIVE, default=DEFAULT_KEEPALIVE): cv.All(
+                # Sent in whole seconds
+                cv.positive_time_period_seconds,
+                cv.Range(min=cv.TimePeriod(seconds=60), max=cv.TimePeriod(hours=1)),
+            ),
             cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -468,6 +477,9 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_CLIENT_SYNCED): automation.validate_automation(
                 single=True
             ),
             # Connection limits to prevent memory exhaustion on resource-constrained devices
@@ -622,6 +634,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_listen_backlog(listen_backlog))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
+    keepalive = config[CONF_KEEPALIVE]
+    cg.add_define("API_KEEPALIVE_TIMEOUT_MS", keepalive.total_milliseconds)
+    if keepalive != cv.time_period(DEFAULT_KEEPALIVE):
+        cg.add_define("USE_API_KEEPALIVE_INTERVAL")
 
     actions = config.get(CONF_ACTIONS, [])
     has_user_actions = bool(actions) or config[CONF_CUSTOM_SERVICES]
@@ -715,21 +731,23 @@ async def to_code(config: ConfigType) -> None:
     if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
         await wizard.to_code(wizard_config)
 
-    if CONF_ON_CLIENT_CONNECTED in config:
-        cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
-        await automation.build_automation(
-            var.get_client_connected_trigger(),
-            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
-            config[CONF_ON_CLIENT_CONNECTED],
-        )
-
-    if CONF_ON_CLIENT_DISCONNECTED in config:
-        cg.add_define("USE_API_CLIENT_DISCONNECTED_TRIGGER")
-        await automation.build_automation(
-            var.get_client_disconnected_trigger(),
-            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
-            config[CONF_ON_CLIENT_DISCONNECTED],
-        )
+    for conf_key in (
+        CONF_ON_CLIENT_CONNECTED,
+        CONF_ON_CLIENT_DISCONNECTED,
+        CONF_ON_CLIENT_SYNCED,
+    ):
+        if (automation_conf := config.get(conf_key)) is not None:
+            # on_client_connected -> USE_API_CLIENT_CONNECTED_TRIGGER
+            cg.add_define(f"USE_API_{conf_key.removeprefix('on_').upper()}_TRIGGER")
+            await automation.build_callback_automation(
+                var,
+                f"set_{conf_key}_callback",
+                automation.owning_args(
+                    [(cg.StringRef, "client_info"), (cg.StringRef, "client_address")],
+                    automation_conf,
+                ),
+                automation_conf,
+            )
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):

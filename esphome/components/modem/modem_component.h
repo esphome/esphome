@@ -322,6 +322,7 @@ class ModemComponent : public Component {
   bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
   bool resync_{false};        // a command timed out, so CONNECTING syncs again first
   bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
+  bool sim_rf_off_{false};    // ENABLING left the modem at CFUN=4, so a SIM that stays unready may need CFUN=1
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif

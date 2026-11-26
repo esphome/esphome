@@ -1,0 +1,23 @@
+# Shared package for relay-ap.yaml and relay-sta.yaml: the relay task and a silent console, since the link is the serial port.
+esphome:
+  includes:
+    - relay.hpp
+  on_boot:
+    priority: 600
+    then:
+      - lambda: relay::start();
+esp32:
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_CONSOLE_NONE: y
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: y
+      CONFIG_BOOTLOADER_LOG_LEVEL_NONE: y
+      CONFIG_LOG_DEFAULT_LEVEL_NONE: y
+logger:
+  baud_rate: 0
+  hardware_uart: UART0
+  level: NONE
+wifi:
+  power_save_mode: none
+  reboot_timeout: 0s

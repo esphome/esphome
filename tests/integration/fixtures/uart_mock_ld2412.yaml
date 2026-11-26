@@ -165,16 +165,16 @@ script:
           delay: 300ms
           data: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
-      # Phase 3 (t=400ms): Truncated frame (header + partial data, no footer)
+      # Phase 3 (t=550ms): Truncated frame (header + partial data, no footer)
       # Starts with a valid data frame header, so the parser waits for the 23 bytes its length announces.
       - uart_mock.inject_rx:
           id: mock_uart
-          delay: 400ms
+          delay: 550ms
           data: [0xF4, 0xF3, 0xF2, 0xF1, 0x0D, 0x00, 0x02, 0xAA]
 
       # Phase 4 (t=600ms): 60 bytes of 0xFF
       # The first 15 complete the truncated frame's 23 bytes without its footer, so it is dropped
-      # with an 'Invalid length' warning; the rest cannot start a header and are dropped too.
+      # with an 'Invalid footer' warning; the rest cannot start a header and are dropped too.
       - uart_mock.inject_rx:
           id: mock_uart
           delay: 600ms

@@ -5,7 +5,11 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/components/web_server_base/captive_dns.h"
-#ifdef USE_WEBSERVER
+// The host only builds sse_chunk.cpp for unit tests, but other tests can define USE_WEBSERVER there
+#if defined(USE_WEBSERVER) && (defined(USE_ESP32) || defined(USE_ARDUINO))
+#ifdef USE_ESP32
+#include "event_source.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/entity_includes.h"
@@ -160,7 +164,7 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 
  public:
   DeferredUpdateEventSource(WebServer *ws, const String &url)
-      : AsyncEventSource(url), entities_iterator_(ListEntitiesIterator(ws, this)), web_server_(ws) {}
+      : AsyncEventSource(url), entities_iterator_(ListEntitiesIterator(this)), web_server_(ws) {}
 
   void loop();
 

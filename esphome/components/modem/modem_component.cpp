@@ -71,6 +71,9 @@ static constexpr uint32_t ATTACH_TIMEOUT_MS = 150000;
 // SIM status polls that fail before a warning, and between repeats of it
 static constexpr uint8_t SIM_WARN_AFTER = 10;
 static constexpr uint8_t SIM_WARN_EVERY = 60;
+// SIM status polls that fail at CFUN=4 before CFUN=1 is tried: some modems (SIM7070) power the SIM down at CFUN=0 and
+// only power it up again at CFUN=1
+static constexpr uint8_t SIM_FULL_POWER_AFTER = 5;
 static constexpr int RADIO_STATE_MINIMUM = 0;  // CFUN=0: radio off and the SIM powered down
 static constexpr int RADIO_STATE_RF_OFF = 4;   // CFUN=4: transmit and receive off, SIM still powered
 static constexpr int RADIO_STATE_FULL = 1;     // CFUN=1: radio on
@@ -753,12 +756,15 @@ ModemState ModemComponent::handle_state_enabling_() {
   // CFUN=4 powers the SIM up with the radio still off; a modem without it needs CFUN=1 to bring the SIM back.
   // A modem that takes CFUN=0 but not the APN there (SIM7600) accepts CFUN=4 yet leaves the SIM at "SIM failure";
   // only CFUN=1 powers it up again. The APN is still written after the SIM check, before the attach is waited for.
+  // A SIM7070 takes the APN at CFUN=0 and can still leave the SIM at "SIM failure" at CFUN=4: CONNECTING tries CFUN=1
+  // after a few polls (sim_rf_off_).
   bool sim_up;
+  this->sim_rf_off_ = false;
   if (sim_down && this->apn_pending_) {
     sim_up = this->sim_power_up_cfun1_();
   } else {
-    sim_up = this->dce_->set_radio_state(RADIO_STATE_RF_OFF) == command_result::OK ||
-             this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK;
+    this->sim_rf_off_ = this->dce_->set_radio_state(RADIO_STATE_RF_OFF) == command_result::OK;
+    sim_up = this->sim_rf_off_ || this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK;
   }
   if (!sim_up) {
     ESP_LOGW(TAG, "Failed to power the SIM up");
@@ -841,6 +847,18 @@ ModemState ModemComponent::handle_state_connecting_() {
       case SimResult::SIM_RESULT_READY:
         break;
       case SimResult::SIM_RESULT_RETRY:
+        // A SIM7070 accepts CFUN=4 but leaves the SIM powered down ("+CME ERROR: SIM failure") until CFUN=1; the
+        // radio goes on right after the SIM check anyway, so it only comes a few seconds early. A refused CFUN=1 is
+        // tried again at the next poll, after a resync, since nothing else would bring the SIM up in this attempt.
+        if (this->sim_rf_off_ && this->sim_polls_ >= SIM_FULL_POWER_AFTER) {
+          ESP_LOGD(TAG, "SIM still not ready at CFUN=4; powering it up with CFUN=1");
+          if (this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK) {
+            this->sim_rf_off_ = false;
+          } else {
+            ESP_LOGW(TAG, "Failed to turn the radio on");
+            this->request_resync_();
+          }
+        }
         return this->retry_(ModemState::MODEM_STATE_CONNECTING);
       case SimResult::SIM_RESULT_LOCKED:
         // A reboot would send nothing more, so the reboot timer is cancelled
