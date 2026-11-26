@@ -259,6 +259,7 @@ def test_client_only_codegen(
         {"nmt_startup": "pre_operational"},
         {"identity": {"vendor_id": 1}},
         {"device_name": "x"},
+        {"nmt_master": True},
     ],
 )
 def test_client_only_rejects_node_options(option: dict) -> None:
@@ -331,6 +332,25 @@ def test_sdo_client_auto(
     """A node compiles the client only if something uses it."""
     generate_main(component_config_path("node.yaml"))
     assert "USE_CANOPEN_SDO_CLIENT" not in _defines()
+
+
+def test_nmt_master_true(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """nmt_master: true compiles the NMT master without a canopen.nmt action (send_nmt() from lambdas)."""
+    generate_main(component_config_path("nmt_master_true.yaml"))
+    assert "USE_CANOPEN_NMT_MASTER" in _defines()
+    assert "-DCO_CONFIG_NMT=0x03" in CORE.build_flags
+
+
+def test_nmt_master_only_when_used(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("node.yaml"))
+    assert "USE_CANOPEN_NMT_MASTER" not in _defines()
+    assert "-DCO_CONFIG_NMT=0x03" not in CORE.build_flags
 
 
 def test_sdo_client_true(

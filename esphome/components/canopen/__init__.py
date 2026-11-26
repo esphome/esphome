@@ -44,6 +44,7 @@ CONF_ON_NMT_STATE_CHANGE = "on_nmt_state_change"
 CONF_NMT_STARTUP = "nmt_startup"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SDO_CLIENT = "sdo_client"
+CONF_NMT_MASTER = "nmt_master"
 CONF_SUBINDEX = "subindex"
 CONF_VENDOR_ID = "vendor_id"
 CONF_PRODUCT_CODE = "product_code"
@@ -213,6 +214,7 @@ NODE_OPTIONS = (
     CONF_DEVICE_NAME,
     CONF_HARDWARE_VERSION,
     CONF_SOFTWARE_VERSION,
+    CONF_NMT_MASTER,
 )
 
 
@@ -279,6 +281,9 @@ CONFIG_SCHEMA = cv.All(
             # SDO client: unset = compiled in if something uses it; true = always (e.g. for lambdas); false = never
             # (an error if something uses it). Firmware-wide: one value for all canopen hubs.
             cv.Optional(CONF_SDO_CLIENT): cv.boolean,
+            # NMT master (send_nmt()): compiled in for canopen.nmt actions; true = also without them (for lambdas).
+            # Firmware-wide.
+            cv.Optional(CONF_NMT_MASTER): cv.boolean,
             # pre_operational: until an NMT master (or set_nmt_state()) starts the node
             cv.Optional(CONF_NMT_STARTUP, default="operational"): cv.one_of(
                 "operational", "pre_operational", lower=True
@@ -377,6 +382,8 @@ async def to_code(config: ConfigType) -> None:
     # the node part of the hub (CO_CANopenInit(), CO_process()): without any hub with a node id it isn't compiled,
     # so CANopenNode's NMT, heartbeat, EMCY and SDO server aren't linked
     cg.add_define("USE_CANOPEN_NODE")
+    if config.get(CONF_NMT_MASTER):
+        enable_nmt_master()
     cg.add(var.set_heartbeat_interval(config[CONF_HEARTBEAT_INTERVAL]))
     if config[CONF_NMT_STARTUP] != "operational":
         cg.add(var.set_start_operational(False))

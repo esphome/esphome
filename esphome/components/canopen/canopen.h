@@ -183,7 +183,7 @@ class CANopenComponent : public Component {
 #endif
 
 #ifdef USE_CANOPEN_NMT_MASTER
-  // --- NMT master (nmt_master.cpp) ---
+  // --- NMT master (nmt_master.cpp; with a canopen.nmt action or nmt_master: true) ---
   // NMT command to node_id (0 = all nodes; for our own id or 0 it also applies to us, in the next processing). False
   // (logged) without node id, for an id above 127, or while the previous command still waits to be sent, or, for us or
   // all nodes, to be applied to us.
