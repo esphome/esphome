@@ -324,7 +324,7 @@ class LvglComponent final : public PollingComponent {
   SLOT_LIST_REQUIRES(LVGL_MSGBOX_COUNT)
   void add_msgbox(lv_obj_t *outer, lv_group_t *group) { this->msgboxes_.push_back({outer, group}); }
   /// Move the inputs that have no group of their own to the group of the topmost visible msgbox or the current page.
-  void update_input_group();
+  void update_input_group() { this->update_input_group_(nullptr); }
   lv_group_t *get_focus_group() { return this->active_group_(); }
 #else
   lv_group_t *get_focus_group() { return this->default_group_; }
@@ -430,7 +430,10 @@ class LvglComponent final : public PollingComponent {
   lv_group_t *active_group_();
   bool is_on_layer_(lv_obj_t *obj);
   /// Move the top and bottom layer widgets from the group of one page to the group of another page.
-  void move_layer_objs_(lv_group_t *from, lv_group_t *to);
+  /// Return the widget that had the focus in `from` if it now has the focus in `to`. Else return nullptr.
+  lv_obj_t *move_layer_objs_(lv_group_t *from, lv_group_t *to);
+  /// `moved_focus` is the focused widget that show_page() moved out of the group of the inputs, or nullptr.
+  void update_input_group_(lv_obj_t *moved_focus);
 
   [[no_unique_address]] SlotList<LvMsgboxGroup, LVGL_MSGBOX_COUNT> msgboxes_;
 #endif
