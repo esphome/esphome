@@ -132,7 +132,7 @@ void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *me
 void EthernetComponent::loop() {
   // A queued restart waits for STOP, which wakes the loop; until then a late DISCONNECTED or GOT_IP must not
   // drive the state machine
-  if (this->pending_enable_ && this->driver_stopped_.load(std::memory_order_acquire) == 0) {
+  if (this->pending_enable_ && this->driver_stopped_.load(std::memory_order_relaxed) == 0) {
     this->disable_loop();
     return;
   }
@@ -213,8 +213,7 @@ void EthernetComponent::loop() {
       break;
   }
 
-  // Process the stopped connection and its automation before consuming the restart intent.
-  // An on_disconnect action may cancel the pending enable or start the driver itself.
+  // After the state machine, so an on_disconnect action can cancel or replace the pending enable
   if (this->pending_enable_) {
     this->pending_enable_(this);
   }
@@ -223,7 +222,7 @@ void EthernetComponent::loop() {
 void EthernetComponent::enable() {
   if (!this->disabled_)
     return;
-  if (this->driver_stopped_.load(std::memory_order_acquire) == 0 || this->state_ != EthernetComponentState::STOPPED) {
+  if (!this->is_driver_stopped() || this->state_ != EthernetComponentState::STOPPED) {
     this->pending_enable_ = [](EthernetComponent *component) { component->enable(); };
     this->enable_loop();
     return;
@@ -236,11 +235,12 @@ void EthernetComponent::enable() {
     ESP_LOGE(TAG, "Cannot enable - init failed");
     return;
   }
-  this->state_ = EthernetComponentState::STOPPED;
   this->connected_ = false;
   this->started_ = false;
   this->driver_stopped_.store(0, std::memory_order_relaxed);
-  if (!this->start_driver_()) {
+  const esp_err_t err = esp_eth_start(this->eth_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_eth_start failed: %s", esp_err_to_name(err));
     // A failed start may leave the driver's state changed. Only STOP delivery permits another start.
     if (!this->stop_driver_()) {
       ESP_LOGE(TAG, "Start cleanup failed; Ethernet restart requires reboot");
@@ -629,14 +629,6 @@ void EthernetComponent::ethernet_lazy_init_() {
   this->ethernet_initialized_ = true;
 }
 
-bool EthernetComponent::start_driver_() {
-  const esp_err_t err = esp_eth_start(this->eth_handle_);
-  if (err == ESP_OK)
-    return true;
-  ESP_LOGE(TAG, "esp_eth_start failed: %s", esp_err_to_name(err));
-  return false;
-}
-
 bool EthernetComponent::stop_driver_() {
   const esp_err_t err = esp_eth_stop(this->eth_handle_);
   if (err == ESP_OK)
@@ -821,11 +813,16 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
   switch (event) {
     case ETHERNET_EVENT_START:
       event_name = "ETH started";
-      global_eth_component->on_driver_start_();
+      global_eth_component->started_ = true;
+      global_eth_component->enable_loop_soon_any_context();
       break;
     case ETHERNET_EVENT_STOP:
       event_name = "ETH stopped";
-      global_eth_component->on_driver_stop_();
+      global_eth_component->started_ = false;
+      global_eth_component->connected_ = false;
+      global_eth_component->link_up_.store(false, std::memory_order_relaxed);
+      global_eth_component->driver_stopped_.store(1, std::memory_order_release);
+      global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";

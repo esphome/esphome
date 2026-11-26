@@ -174,9 +174,6 @@ class EthernetComponent final : public Component {
   bool is_driver_stopped() const {
     return this->disabled_ && this->driver_stopped_.load(std::memory_order_acquire) != 0;
   }
-#endif
-
-#ifdef USE_ESP32
   /// esp_netif handle, used by network for default-route arbitration.
   /// nullptr until the driver/netif installation has run.
   esp_netif_t *get_esp_netif() { return this->eth_netif_; }
@@ -266,20 +263,7 @@ class EthernetComponent final : public Component {
   // ethernet_initialized_ flag. Called from setup() when enable_on_boot_=true, or
   // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
   void ethernet_lazy_init_();
-
-  bool start_driver_();
   bool stop_driver_();
-  void on_driver_start_() {
-    this->started_ = true;
-    this->enable_loop_soon_any_context();
-  }
-  void on_driver_stop_() {
-    this->started_ = false;
-    this->connected_ = false;
-    this->link_up_.store(false, std::memory_order_relaxed);
-    this->driver_stopped_.store(1, std::memory_order_release);
-    this->enable_loop_soon_any_context();
-  }
 #endif
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
@@ -349,12 +333,9 @@ class EthernetComponent final : public Component {
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
-#endif  // USE_ESP32
-
-#ifdef USE_ESP32
   // Registered by enable() on the main loop so builds without callers can discard the restart code.
   void (*pending_enable_)(EthernetComponent *){nullptr};
-#endif
+#endif  // USE_ESP32
 
 #ifdef USE_RP2
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
@@ -408,7 +389,7 @@ class EthernetComponent final : public Component {
   // to be called at runtime after enable_on_boot:false without re-allocating, and
   // ensures setup() skips the heavy init when enable_on_boot_ is false.
   bool ethernet_initialized_{false};
-  std::atomic<uint8_t> driver_stopped_{1};  // uint8_t: atomic<bool> is an out-of-line call on Xtensa
+  std::atomic<uint8_t> driver_stopped_{1};
   // PHY link state, written by the event task; the connect timeout retries only with a link.
   std::atomic<bool> link_up_{false};
   // Last link state loop() saw; a rising edge restarts the connect timeout.
