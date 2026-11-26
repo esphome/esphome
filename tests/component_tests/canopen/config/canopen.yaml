@@ -1,25 +1,5 @@
 esphome:
   name: canopen-test
-  on_boot:
-    then:
-      - canopen.sdo_read:
-          node_id: 0x20
-          index: 0x1018
-          subindex: 1
-          size: 4
-          on_value:
-            - logger.log:
-                format: "vendor id 0x%08x"
-                args: [x]
-          on_error:
-            - logger.log:
-                format: "error %u, abort 0x%08x"
-                args: ["(unsigned) result", abort_code]
-      - canopen.sdo_write:
-          node_id: 0x20
-          index: 0x2000
-          value: 1
-          size: 1
 
 esp32:
   board: esp32dev
@@ -35,14 +15,29 @@ canbus:
     rx_pin: GPIO5
 
 canopen:
-  - id: canopen_hub
+  - id: canopen_node
     canbus_id: can_bus
-    response_timeout: 200ms
+    node_id: 0x10
+    heartbeat_interval: 2s
+    identity:
+      vendor_id: 0x12345678
+      product_code: 0x2A
+    hardware_version: rev B
+    nmt_startup: pre_operational
+    on_nmt_state_change:
+      - logger.log: "nmt state"
     on_heartbeat:
-      - logger.log:
-          format: "heartbeat from node 0x%02x"
-          args: [node_id]
+      - logger.log: "heartbeat"
     on_emcy:
-      - logger.log:
-          format: "EMCY node 0x%02x: 0x%04x"
-          args: [node_id, emergency.error_code]
+      - logger.log: "emcy"
+
+script:
+  - id: sdo_test
+    then:
+      - canopen.sdo_write:
+          node_id: 0x01
+          index: 0x1017
+          value: -1
+          size: 2
+          on_error:
+            - logger.log: "error"
