@@ -111,6 +111,12 @@ class ESPVideoCamera : public camera::Camera {
   bool init_pipeline_();
   bool start_capture_();
   void stop_capture_();
+  bool schedule_uvc_capture_operation_(bool start, bool retry);
+  static void uvc_capture_task_(void *param);
+  void stop_capture_from_loop_(bool retry);
+  std::atomic<bool> uvc_capture_busy_{false};
+  bool uvc_capture_start_{false};
+  bool uvc_capture_retry_{false};
 
   uint8_t requesters_() const { return this->single_requesters_ | this->stream_requesters_; }
   bool frame_due_(uint32_t now) const { return (now - this->last_frame_ms_) >= this->min_interval_ms_; }
