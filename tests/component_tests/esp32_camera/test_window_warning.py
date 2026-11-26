@@ -46,7 +46,7 @@ esp32_camera:
         # readout is larger, but not on an SC030IOT.
         ("320X240", (100, 0, 320, 240), "the offset is preserved there only while"),
         # A VGA window is the whole SC030IOT readout, so its offset is clamped to 0.
-        ("VGA", (1, 0, 640, 480), "otherwise it is clamped as well"),
+        ("VGA", (1, 0, 640, 480), "640x480 for SC030IOT"),
         # The same frame size spelled as an alias must be checked as well.
         ("QVGA", (100, 0, 320, 240), "the offset is preserved there only while"),
         # Larger than the frame itself: no sensor can use it.
