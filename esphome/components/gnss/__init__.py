@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.types import ConfigType, SafeExpType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@randybb"]
 
@@ -48,8 +48,8 @@ def gnss_schema(class_: MockObjClass) -> cv.Schema:
     ).extend(cv.polling_component_schema("20s"))
 
 
-async def new_gnss(config: ConfigType, *args: SafeExpType) -> MockObj:
-    """Create and register a gnss platform; extra args go to the constructor."""
-    var = cg.new_Pvariable(config[CONF_ID], *args)
+async def new_gnss(config: ConfigType) -> MockObj:
+    """Create and register a gnss platform."""
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     return var
