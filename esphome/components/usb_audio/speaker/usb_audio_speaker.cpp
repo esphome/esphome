@@ -301,16 +301,14 @@ size_t USBAudioSpeaker::ring_room_() const {
 esp_err_t USBAudioSpeaker::write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding) {
   // Counted once stored, so the count never drops below the real fill: by a take on this task inside the write, else
   // on return. A take on the driver's task can come before the store. An overlapping write is counted on return.
-  portENTER_CRITICAL(&this->taken_lock_);
-  const bool tracked = this->writer_task_ == nullptr;
+  TaskHandle_t none = nullptr;
+  const bool tracked = this->writer_task_.compare_exchange_strong(none, xTaskGetCurrentTaskHandle());
   if (tracked) {
-    this->writer_task_ = xTaskGetCurrentTaskHandle();
+    // Only this task touches these until it clears writer_task_.
     this->pending_bytes_ = length;
     this->pending_padding_ = padding;
   }
-  portEXIT_CRITICAL(&this->taken_lock_);
   const esp_err_t err = this->parent_->write_speaker(data, length, timeout_ms);
-  portENTER_CRITICAL(&this->taken_lock_);
   if (tracked) {
     // 0 if a take inside the write counted them.
     length = this->pending_bytes_;
@@ -321,7 +319,6 @@ esp_err_t USBAudioSpeaker::write_(const uint8_t *data, size_t length, uint32_t t
   if (err == ESP_OK) {
     this->count_(length, padding);
   }
-  portEXIT_CRITICAL(&this->taken_lock_);
   return err;
 }
 
@@ -355,7 +352,7 @@ void USBAudioSpeaker::on_transfer_taken() {
   bool report = false;
   portENTER_CRITICAL(&this->taken_lock_);
   // Only a take on the writer's task comes after the driver stored the write.
-  if (this->pending_bytes_ != 0 && this->writer_task_ == xTaskGetCurrentTaskHandle()) {
+  if (this->writer_task_ == xTaskGetCurrentTaskHandle() && this->pending_bytes_ != 0) {
     this->count_(this->pending_bytes_, this->pending_padding_);
     this->pending_bytes_ = 0;
   }

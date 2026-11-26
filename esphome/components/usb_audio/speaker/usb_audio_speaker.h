@@ -59,7 +59,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   void pad_with_silence_();
   /// Write to the driver, counting the bytes in ring_bytes_ (and in ring_padding_ for silence padding).
   esp_err_t write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding);
-  /// Adds stored bytes to the ring count; called with taken_lock_ held.
+  /// Adds stored bytes to the ring count; adding never races a take.
   void count_(uint32_t length, bool padding);
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
@@ -88,7 +88,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t report_frames_{0};
   uint32_t pad_remaining_{0};  // Silence still to write while finishing or flushing a tail.
   // Bytes in the driver's ring buffer: added once a write has stored them, and taken off for each transfer the driver
-  // takes. ring_padding_ is the silence padding at its end. Written under taken_lock_, read without it.
+  // takes. ring_padding_ is the silence padding at its end. Taken off under taken_lock_; adding needs no lock.
   std::atomic<uint32_t> ring_bytes_{0};
   std::atomic<uint32_t> ring_padding_{0};
   // Low 32 bits of esp_timer_get_time() when the driver last took a transfer.
@@ -102,8 +102,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   int64_t report_finish_us_{0};
   // When the last transfer taken finishes playing; reset on a start, so the next one starts the chain from now.
   int64_t last_finish_us_{0};
-  // The write in progress; see write_().
-  TaskHandle_t writer_task_{nullptr};
+  // The write in progress; see write_(). The pending fields are only touched on writer_task_.
+  std::atomic<TaskHandle_t> writer_task_{nullptr};
   uint32_t pending_bytes_{0};
   bool pending_padding_{false};
   std::atomic<uint8_t> commands_{0};
