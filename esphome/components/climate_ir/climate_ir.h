@@ -6,8 +6,41 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/optional.h"
 
 namespace esphome::climate_ir {
+
+/// One entry of a PROGMEM table that maps a climate enum value to the unit's code.
+struct IRCode {
+  uint8_t value;  // a climate enum; they are all uint8_t
+  uint8_t code;
+};
+
+/// Index of the entry whose value (or, with match_code, code) is key, or -1. Reads the table from PROGMEM.
+int find_ir_code_index(const IRCode *table, size_t count, uint8_t key, bool match_code);
+
+/// The entry whose value (or, with match_code, code) is key, read from PROGMEM.
+template<size_t N>
+ESPHOME_ALWAYS_INLINE optional<IRCode> find_ir_code(const IRCode (&table)[N], uint8_t key, bool match_code) {
+  const int index = find_ir_code_index(table, N, key, match_code);
+  if (index < 0)
+    return {};
+  return IRCode{progmem_read_byte(&table[index].value), progmem_read_byte(&table[index].code)};
+}
+
+/// The code for value (or, with match_code, the value for code), or fallback when the table has no such entry.
+uint8_t lookup_ir_code(const IRCode *table, size_t count, uint8_t key, bool match_code, uint8_t fallback);
+
+/// The code for value, or fallback when the table has no such value.
+template<size_t N> uint8_t to_ir_code(const IRCode (&table)[N], uint8_t value, uint8_t fallback) {
+  return lookup_ir_code(table, N, value, false, fallback);
+}
+/// The value for code, or fallback when the table has no such code; pass the current state to keep it.
+template<typename T, size_t N> T from_ir_code(const IRCode (&table)[N], uint8_t code, T fallback) {
+  static_assert(sizeof(T) == sizeof(uint8_t), "IRCode values are one byte");
+  return static_cast<T>(lookup_ir_code(table, N, code, true, static_cast<uint8_t>(fallback)));
+}
 
 /* A base for climate which works by sending (and receiving) IR codes
 

@@ -96,7 +96,7 @@ class FramesTest : public ::testing::Test {
     std::vector<uint8_t> data;
   };
   FakeCanbus bus_;
-  TestHub hub_{&this->bus_};
+  TestHub hub_{&this->bus_, CANopenComponent::NO_NODE_ID};
   std::vector<Received> received_;
 
   static void on_frame(void *context, uint32_t can_id, const uint8_t *data, uint8_t len) {

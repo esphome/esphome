@@ -14,7 +14,7 @@ using ld24xx::CMD_FRAME_HEADER;
 static constexpr uint8_t SHORT_DATA_FRAME_FOOTER = 0x62;
 using ld24xx::HEADER_FOOTER_SIZE;
 // After the header and the two byte length
-static constexpr uint8_t LONG_PAYLOAD_POS = ld24xx::PayloadLength::KNOWN_AT;
+static constexpr uint8_t LONG_PAYLOAD_POS = ld24xx::PayloadLength::PAYLOAD_AT;
 
 static constexpr uint16_t CMD_CONFIRMATION = 0x0100;  // set in the command word of an acknowledgement
 static constexpr uint16_t CONFIG_MODE_START_CMD = 0x00FF;
