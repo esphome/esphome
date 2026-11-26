@@ -21,7 +21,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <unordered_map>
 #include <utility>
 
 namespace esphome::toptronic {
@@ -64,7 +63,7 @@ class TopTronicBase : public PollingComponent {
   void set_function_group(uint8_t function_group) { this->function_group_ = function_group; }
   void set_function_number(uint8_t function_number) { this->function_number_ = function_number; }
   void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
-  uint32_t get_id() const;  // fg | fn << 8 | datapoint << 16; hub map key
+  uint32_t get_id() const;  // fg | fn << 8 | datapoint << 16; datapoint key
   const GetRequest &get_request_data() const { return this->request_data_; }
   void cache_request_data();
   virtual SensorType type() const = 0;
@@ -180,8 +179,13 @@ class TopTronic : public Component
  public:
   TopTronic(canbus::Canbus *canbus, uint16_t device_id);
 
-  void add_sensor(TopTronicBase *sensor);
-  void add_input(TopTronicInput *input);
+  /// Read and write entities register per hub at code generation; the lists are sized from the entity count
+  SLOT_LIST(TopTronicBase, sensors_, add_sensor, TOPTRONIC_SENSOR_COUNT)
+  SLOT_LIST_REQUIRES(TOPTRONIC_INPUT_COUNT)
+  void add_input(TopTronicInput *input) {
+    input->set_hub(this);
+    this->inputs_.push_back(input);
+  }
   void register_sensor_callbacks();
   /// Sends a SET request for an input after the write guards.
   /// Returns whether the bus accepted it: paused, rate limited, rejected or failed return false.
@@ -253,8 +257,7 @@ class TopTronic : public Component
   TopTronicBase *get_sensor_(uint32_t sensor_id);
 
   canbus::Canbus *canbus_;
-  std::unordered_map<uint32_t, TopTronicBase *> sensors_;
-  std::unordered_map<uint32_t, TopTronicInput *> inputs_;
+  [[no_unique_address]] SlotList<TopTronicInput *, TOPTRONIC_INPUT_COUNT> inputs_;
   std::array<Slot, NUM_SLOTS> slots_{};
   // A pending message with no frame for this long is treated as lost
   uint32_t max_pending_age_ms_{5000};
