@@ -497,6 +497,7 @@ RP2_BOARD_PINS = {
         "SS": 17,
         "TX": 12,
     },
+    "chirp_audio_trigger": {"RX": 1, "TX": 0},
     "connectivity_2040_lte_wifi_ble": {
         "LED": 19,
         "MISO": 20,
@@ -1842,6 +1843,12 @@ BOARDS = {
     },
     "challenger_zp_2350_lora": {
         "name": "iLabs Challenger ZP 2350 LoRa",
+        "mcu": "rp2350",
+        "max_pin": 29,
+        "die": "A",
+    },
+    "chirp_audio_trigger": {
+        "name": "CHIRP Audio Trigger",
         "mcu": "rp2350",
         "max_pin": 29,
         "die": "A",

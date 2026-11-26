@@ -99,3 +99,24 @@ pairings. Facts from that run:
 - udp `packet_interface` with broadcast between a D1 mini and an ESP32 loses most hdlc acks; unicast `addresses:` still
   resets the reliability session a few times a minute (dev and PR alike). A D1 mini's API can deliver states 5 to 11 s
   late under that load.
+
+## Driver pitfalls
+
+- `aioesphomeapi`'s `execute_service` is a coroutine now: without `await` the action silently never runs.
+
+## Entity, device and area lists A/B (#23234, #23242)
+
+For changes to how entities are registered or stored. `scripts/app_lists/`: `entities.yaml` (template entities of 17
+types on the main device and two sub-devices in three areas) plus `net.yaml` (Wi-Fi, plaintext API, web_server v3,
+OTA, heap sensor), with `app-lists-d1.yaml` as the platform example (an S3 build only swaps the platform block).
+
+- `drive.py HOST OUT drive` writes the API listing (device_info with devices and areas, every entity) to
+  `OUT-list.json` and the dump_config log to `OUT-dump.txt`, then sends 15 commands and waits for each state. Diff the
+  listing of base and PR with the device name masked.
+- `web.sh HOST OUT` saves `GET /` and 8 s of `/events`; `evnorm.py OUT-events.txt` keeps the first event of each
+  entity in order with values masked. `ents.sh CAPTURE` keeps the dump_config entity lines of a serial capture.
+- Sizes: the build's RAM and Flash lines, `esphome::App` from `nm -S`, where the lists landed from `objdump -t -C
+  firmware.elf` (`.irom0.text` on ESP8266, `.flash.rodata` on ESP32).
+- The test board's first boot after flashing can join Wi-Fi and not answer ARP; a serial reset fixes it. On a weak
+  link give the drivers 15 s for each state.
+- Results: https://github.com/esphome/esphome/pull/23234 and https://github.com/esphome/esphome/pull/23242

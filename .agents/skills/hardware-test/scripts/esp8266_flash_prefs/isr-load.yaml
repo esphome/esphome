@@ -1,0 +1,129 @@
+# ESP8266 flash preferences under interrupt load (#23221) and the persistence driver's target (pers.py).
+# Jumpers on a NodeMCU: GPIO12 to GPIO14 (2 kHz esp8266_pwm into pulse_counter) and GPIO13 to GPIO4 (5 Hz into an
+# interrupt driven binary sensor). Preferences sync every second; a 5 s interval times one sync(). safe_mode is
+# disabled so quick resets in a persistence run never enter safe mode. Buttons: restart, hwdt (loop with interrupts
+# off), swdt (loop with interrupts on).
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(boots) += 1;
+          uint32_t shadow_val = id(shadow) ^ 0xA5A5A5A5u;
+          ESP_LOGI("pers", "BOOT boots=%u counter=%u shadow=%u magic=%08x reason=%s", id(boots), id(counter),
+                   shadow_val, id(magic), ESP.getResetReason().c_str());
+          if (id(magic) == 0) id(magic) = 0xC0FFEE11u;
+      - output.set_level: {id: pwm_fast, level: 50%}
+      - output.set_level: {id: pwm_slow, level: 50%}
+
+substitutions:
+  name: isr-load
+  restore_from_flash: "true"
+
+packages:
+  base: !include flash-prefs-common.yaml
+
+safe_mode:
+  disabled: true
+
+globals:
+  - id: counter
+    type: uint32_t
+    restore_value: true
+    initial_value: "0"
+  - id: shadow
+    type: uint32_t
+    restore_value: true
+    initial_value: "0xA5A5A5A5"
+  - id: boots
+    type: uint32_t
+    restore_value: true
+    initial_value: "0"
+  - id: magic
+    type: uint32_t
+    restore_value: true
+    initial_value: "0"
+  - id: edges
+    type: uint32_t
+    initial_value: "0"
+
+output:
+  - platform: esp8266_pwm
+    id: pwm_fast
+    pin: GPIO12
+    frequency: 2000Hz
+  - platform: esp8266_pwm
+    id: pwm_slow
+    pin: GPIO13
+    frequency: 5Hz
+
+sensor:
+  - platform: pulse_counter
+    pin: GPIO14
+    id: pc
+    name: pc
+    update_interval: 1s
+    count_mode:
+      rising_edge: INCREMENT
+      falling_edge: DISABLE
+    total:
+      name: pc total
+      on_raw_value:
+        - lambda: |-
+            static uint32_t last_total = 0, last_ms = 0;
+            uint32_t t = (uint32_t) x;
+            uint32_t now = millis();
+            if (last_ms != 0)
+              ESP_LOGI("pc", "d=%u dt=%u", t - last_total, now - last_ms);
+            last_total = t;
+            last_ms = now;
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO4
+    name: slow
+    use_interrupt: true
+    on_state:
+      - lambda: id(edges) += 1;
+
+button:
+  - platform: restart
+    name: restart
+  - platform: template
+    name: hwdt
+    on_press:
+      - lambda: |-
+          ESP_LOGW("pers", "HANG noirq counter=%u", id(counter));
+          delay(20);
+          noInterrupts();
+          while (true) {}
+  - platform: template
+    name: swdt
+    on_press:
+      - lambda: |-
+          ESP_LOGW("pers", "HANG irq counter=%u", id(counter));
+          delay(20);
+          while (true) {}
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          id(counter) += 1;
+          id(shadow) = id(counter) ^ 0xA5A5A5A5u;
+          ESP_LOGI("pers", "tick %u", id(counter));
+  - interval: 5s
+    then:
+      - lambda: |-
+          static auto pref = global_preferences->make_preference<uint32_t>(0x5EED1234u, true);
+          uint32_t v = millis();
+          pref.save(&v);
+          uint32_t t0 = micros();
+          global_preferences->sync();
+          ESP_LOGI("synct", "sync us=%u", micros() - t0);
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("stat", "edges=%u heap=%u maxblock=%u up=%u", id(edges), ESP.getFreeHeap(),
+                   ESP.getMaxFreeBlockSize(), millis() / 1000);

@@ -116,8 +116,7 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     for key, funcName in SETTING_MAP.items():
-        if key in config:
-            cg.add(getattr(var, funcName)(config[key]))
+        cg.add_optional(getattr(var, funcName), config.get(key))
 
     for key, funcName in SENSOR_MAP.items():
         if key in config:

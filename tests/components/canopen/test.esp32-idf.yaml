@@ -1,0 +1,10 @@
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO12
+    rx_pin: GPIO14
+
+packages:
+  canopen: !include common.yaml

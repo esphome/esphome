@@ -1,13 +1,12 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 
-#include <algorithm>
 #include <cstring>
-#include <memory>
 #include <span>
 
 #ifdef USE_SENSOR
@@ -79,72 +78,25 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
                      version[5], version[4], version[3], version[2]);
 }
 
-// Commands and their answers share this header, a little-endian byte count and this footer
+// Commands and their answers share this header, a little-endian byte count and this footer; periodic data frames have
+// their own header and footer
 static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] PROGMEM = {0xFD, 0xFC, 0xFB, 0xFA};
+static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
 
-inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
-}
+// Header (4), payload length (2, LE), payload, footer (4)
+using PayloadLength = PayloadLengthU16LE<LengthField{.offset = HEADER_FOOTER_SIZE, .trailer = HEADER_FOOTER_SIZE}>;
+using CmdFrameHeader = FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>;
+using DataFrameHeader = FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>;
+using CmdFrameFormat = FrameFormat<CmdFrameHeader, PayloadLength>;
+using DataFrameFormat = FrameFormat<DataFrameHeader, PayloadLength>;
 
-// Whole command frame length, or 0 until the count arrives; 32 bit so 0xFFFF cannot wrap to 0
-inline uint32_t cmd_frame_length(const uint8_t *buffer, uint8_t count) {
-  if (count < HEADER_FOOTER_SIZE + 2) {
-    return 0;
-  }
-  return HEADER_FOOTER_SIZE + 2 + encode_value_le<uint16_t>(&buffer[HEADER_FOOTER_SIZE]) + HEADER_FOOTER_SIZE;
-}
-
-// Drops the first `from` bytes and anything after them that does not begin a header; returns the bytes kept
-inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t count, uint8_t from, const uint8_t *data_header) {
-  for (; from < count; from++) {
-    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, count - from);
-    if (std::memcmp(&buffer[from], CMD_FRAME_HEADER, n) == 0 || std::memcmp(&buffer[from], data_header, n) == 0) {
-      std::memmove(buffer, &buffer[from], count - from);
-      return count - from;
-    }
-  }
-  return 0;
-}
-
-// Feeds one byte into a frame buffer. A frame opens with the command header or `data_header` and ends at
-// `frame_length(buffer, count)` bytes (0 while unknown); `handle_frame(len)` returns false for a footer out
-// of place. A dropped or oversized frame calls `on_drop()`. The handler may overwrite `pos`; the splitter
-// works from the count it saved.
-template<size_t N, typename LengthFn, typename HandleFn, typename DropFn>
-void feed_frame_byte(uint8_t (&buffer)[N], uint8_t &pos, uint8_t byte, const uint8_t *data_header,
-                     LengthFn frame_length, HandleFn handle_frame, DropFn on_drop) {
-  // The first byte picks the header; bytes that do not continue it are dropped
-  if (pos > 0 && pos < HEADER_FOOTER_SIZE) {
-    const uint8_t *header = buffer[0] == data_header[0] ? data_header : CMD_FRAME_HEADER;
-    if (byte != header[pos]) {
-      pos = 0;
-    }
-  }
-  if (pos == 0 && byte != data_header[0] && byte != CMD_FRAME_HEADER[0]) {
-    return;
-  }
-  buffer[pos++] = byte;
-  // Drain every whole frame left in the buffer
-  while (true) {
-    const uint32_t frame_len = frame_length(buffer, pos);
-    if (frame_len == 0 || (frame_len <= N && pos < frame_len)) {
-      return;
-    }
-    const uint8_t total = pos;
-    // Keep only what begins a header: after the frame, or after its first byte when it is dropped
-    uint8_t from = 1;
-    if (frame_len <= N && handle_frame(static_cast<uint8_t>(frame_len))) {
-      from = frame_len;
-    } else {
-      on_drop();
-    }
-    pos = drop_to_next_header(buffer, total, from, data_header);
-    if (pos == 0) {
-      return;
-    }
-  }
+// Whether a command or periodic data frame of at least HEADER_FOOTER_SIZE bytes ends in its footer
+inline bool has_footer(const uint8_t *frame, size_t len) {
+  uint8_t footer[HEADER_FOOTER_SIZE];
+  progmem_memcpy(footer, frame[0] == DataFrameFormat::FIRST ? DATA_FRAME_FOOTER : CMD_FRAME_FOOTER, sizeof(footer));
+  return std::memcmp(&frame[len - HEADER_FOOTER_SIZE], footer, sizeof(footer)) == 0;
 }
 
 }  // namespace esphome::ld24xx

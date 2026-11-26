@@ -17,6 +17,7 @@ class ZigbeeTime final : public time::RealTimeClock {
   void update() override;
   void dump_config() override;
   void set_epoch_time(uint32_t utc);
+  float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
  protected:
   void register_zb_time_();

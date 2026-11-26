@@ -149,6 +149,10 @@ message HelloResponse {
   // The name of the server (App.get_name() - device hostname)
   // max_data_length matches ESPHOME_DEVICE_NAME_MAX_LEN (validated by validate_hostname)
   string name = 4 [(max_data_length) = 31, (force) = true];
+
+  // Keepalive interval in seconds when it differs from 60; the device pings after this idle time
+  // and drops a client that has not answered within min(1.5x the interval, 300 s)
+  uint32 keepalive_interval = 5 [(field_ifdef) = "USE_API_KEEPALIVE_INTERVAL"];
 }
 
 // DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.

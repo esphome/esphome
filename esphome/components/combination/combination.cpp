@@ -21,14 +21,6 @@ void CombinationComponent::log_config_(const LogString *combo_type) {
 
 void CombinationNoParameterComponent::add_source(Sensor *sensor) { this->sensors_.push_back(sensor); }
 
-void CombinationOneParameterComponent::add_source(Sensor *sensor, std::function<float(float)> const &compute) {
-  this->sensor_sources_.push_back({sensor, compute, this});
-}
-
-void CombinationOneParameterComponent::add_source(Sensor *sensor, float value) {
-  this->add_source(sensor, std::function<float(float)>{[value](float x) -> float { return value; }});
-}
-
 void CombinationNoParameterComponent::finite_min_max_(float &min_value, float &max_value) const {
   min_value = std::numeric_limits<float>::infinity();
   max_value = -std::numeric_limits<float>::infinity();
@@ -78,7 +70,7 @@ void KalmanCombinationComponent::setup() {
     // [&source] is safe: source refers to a FixedVector element that never reallocates,
     // so the reference remains valid for the component's lifetime.
     source.sensor->add_on_state_callback([&source](float x) -> void {
-      static_cast<KalmanCombinationComponent *>(source.parent)->correct_(x, source.compute(x));
+      static_cast<KalmanCombinationComponent *>(source.parent)->correct_(x, source.compute.value(x));
     });
   }
 }
@@ -148,7 +140,7 @@ void LinearCombinationComponent::handle_new_value(float value) {
   for (const auto &source : this->sensor_sources_) {
     const float sensor_state = source.sensor->state;
     if (std::isfinite(sensor_state)) {
-      sum += sensor_state * source.compute(sensor_state);
+      sum += sensor_state * source.compute.value(sensor_state);
     }
   }
 

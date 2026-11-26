@@ -64,6 +64,38 @@ struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
 // cleanly is a warning in the log.
 static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
+namespace app_lists {
+#ifdef USE_DEVICES
+extern Device *const APP_DEVICE_LIST[];
+#endif
+#ifdef USE_AREAS
+extern Area *const APP_AREA_LIST[];
+#endif
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) extern type *const APP_##upper##_LIST[];
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+// NOLINTEND(bugprone-macro-parentheses)
+}  // namespace app_lists
+
+/// ESP8266 reads these aligned pointers from flash like RAM.
+template<typename T, size_t N> class AppList {
+ public:
+  using value_type = T *;
+  explicit AppList(T *const *list) : list_(list) {}
+  static constexpr size_t size() { return N; }
+  static constexpr bool empty() { return N == 0; }
+  T *operator[](size_t i) const { return this->list_[i]; }
+  T *const *begin() const { return this->list_; }
+  T *const *end() const { return this->list_ + N; }
+
+ private:
+  T *const *list_;
+};
+
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
@@ -98,10 +130,14 @@ class Application {
 #endif
 
 #ifdef USE_DEVICES
-  void register_device(Device *device) { this->devices_.push_back(device); }
+  template<typename D = Device> void register_device(D * /*device*/) {
+    static_assert(sizeof(D) == 0, "Devices come from the devices: list in YAML and cannot be added at run time");
+  }
 #endif
 #ifdef USE_AREAS
-  void register_area(Area *area) { this->areas_.push_back(area); }
+  template<typename A = Area> void register_area(A * /*area*/) {
+    static_assert(sizeof(A) == 0, "Areas come from the areas: list in YAML and cannot be added at run time");
+  }
 #endif
 
   Component *get_current_component() { return this->current_component_; }
@@ -111,18 +147,11 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
-// Entity register methods (generated from entity_types.h).
-// Each entity type gets two overloads:
-//   - register_<entity>(obj)                              — bare push_back
-//   - register_<entity>(obj, name, hash, fields)          — configure_entity_ + push_back
-// The 4-arg form lets codegen collapse `App.register_<entity>(obj); obj->configure_entity_(...);`
-// into a single call site, saving flash and a `main.cpp` line per entity.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
-  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
-    obj->configure_entity_(name, object_id_hash, entity_fields); \
-    this->plural##_.push_back(obj); \
+  template<typename U = type, typename... A> void register_##singular(U * /*obj*/, A... /*args*/) { \
+    static_assert(sizeof(U) == 0, \
+                  "Entities are created by code generation; creating them at run time is not supported"); \
   }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
@@ -155,12 +184,11 @@ class Application {
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
 #ifdef USE_AREAS
-    // If we have areas registered, return the name of the first one (which is the top-level area)
-    if (!this->areas_.empty() && this->areas_[0] != nullptr) {
-      return this->areas_[0]->get_name();
-    }
-#endif
+    // USE_AREAS implies at least one area
+    return this->get_areas()[0]->get_name();
+#else
     return "";
+#endif
   }
 
   /// Maximum size of the comment buffer (including null terminator)
@@ -170,6 +198,8 @@ class Application {
   void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
 
   /// Get the comment of this Application as a string
+  // Remove before 2027.6.0
+  ESPDEPRECATED("Use get_comment_string() instead. Removed in 2027.6.0", "2026.12.0")
   std::string get_comment() {
     char buffer[ESPHOME_COMMENT_SIZE_MAX];
     this->get_comment_string(buffer);
@@ -345,18 +375,20 @@ class Application {
 #ifdef USE_DEVICES
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, uint32_t device_id, bool include_internal = false) { \
-    for (auto *obj : this->entities_member##_) { \
+    for (auto *obj : this->get_##entities_member()) { \
       if (obj->get_object_id_hash() == key && obj->get_device_id() == device_id && \
           (include_internal || !obj->is_internal())) \
         return obj; \
     } \
     return nullptr; \
   }
-  const auto &get_devices() { return this->devices_; }
+  AppList<Device, ESPHOME_DEVICE_COUNT> get_devices() const {
+    return AppList<Device, ESPHOME_DEVICE_COUNT>(app_lists::APP_DEVICE_LIST);
+  }
 #else
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, bool include_internal = false) { \
-    for (auto *obj : this->entities_member##_) { \
+    for (auto *obj : this->get_##entities_member()) { \
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) \
         return obj; \
     } \
@@ -364,12 +396,14 @@ class Application {
   }
 #endif  // USE_DEVICES
 #ifdef USE_AREAS
-  const auto &get_areas() { return this->areas_; }
+  AppList<Area, ESPHOME_AREA_COUNT> get_areas() const {
+    return AppList<Area, ESPHOME_AREA_COUNT>(app_lists::APP_AREA_LIST);
+  }
 #endif
 // Entity getter methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  auto &get_##plural() const { return this->plural##_; } \
+  auto get_##plural() const { return AppList<type, count>(app_lists::APP_##upper##_LIST); } \
   GET_ENTITY_METHOD(type, singular, plural)
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
@@ -412,6 +446,20 @@ class Application {
 #endif
   friend void ::setup();
   friend void ::original_setup();
+
+  // For setup(): applies the EntityBase offset once instead of a literal per call
+  // NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) \
+  static void __attribute__((noinline)) configure_##singular(type *obj, const char *name, uint32_t object_id_hash, \
+                                                             uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
+  }
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
 
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
@@ -551,22 +599,6 @@ class Application {
 
   // StaticVectors (largest members - contain actual array data inline)
   StaticVector<Component *, ESPHOME_COMPONENT_COUNT> components_{};
-
-#ifdef USE_DEVICES
-  StaticVector<Device *, ESPHOME_DEVICE_COUNT> devices_{};
-#endif
-#ifdef USE_AREAS
-  StaticVector<Area *, ESPHOME_AREA_COUNT> areas_{};
-#endif
-// Entity StaticVector fields (generated from entity_types.h)
-// NOLINTBEGIN(bugprone-macro-parentheses)
-#define ENTITY_TYPE_(type, singular, plural, count, upper) StaticVector<type *, count> plural##_{};
-#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
-  ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.h"
-#undef ENTITY_TYPE_
-#undef ENTITY_CONTROLLER_TYPE_
-  // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
   StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
