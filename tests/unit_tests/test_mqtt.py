@@ -17,8 +17,8 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
 import pytest
 
-from esphome.components.const import CONF_SSL_FINGERPRINTS, CONF_VERIFY_SSL
-from esphome.components.mqtt import CONF_TLS
+from esphome.components.const import CONF_VERIFY_SSL
+from esphome.components.mqtt import CONF_SSL_FINGERPRINTS, CONF_TLS
 from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,

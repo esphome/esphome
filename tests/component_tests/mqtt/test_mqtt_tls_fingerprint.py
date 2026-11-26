@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.const import CONF_SSL_FINGERPRINTS
+from esphome.components.mqtt import CONF_SSL_FINGERPRINTS
 from esphome.const import CONF_PORT, PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
