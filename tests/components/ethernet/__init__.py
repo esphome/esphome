@@ -17,7 +17,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     async def to_code_testing(config: ConfigType) -> None:
         # The host driver hooks only link when Ethernet's own tests are included.
-        if any(Path(path) == TESTS_DIR for path in CORE.config[CONF_ESPHOME][CONF_INCLUDES]):
+        if any(
+            Path(path) == TESTS_DIR for path in CORE.config[CONF_ESPHOME][CONF_INCLUDES]
+        ):
             cg.add_define("USE_ETHERNET")
             cg.add_define("USE_ETHERNET_CONNECT_TRIGGER")
             cg.add_define("USE_ETHERNET_DISCONNECT_TRIGGER")
