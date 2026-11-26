@@ -831,40 +831,42 @@ TEST(PanasonicClimate, SendsAndReceivesTheRegularFanSpeeds) {
 }
 
 TEST(PanasonicClimate, SendsAndReceivesEveryMode) {
+  // PKE_20C_AUTO with only the mode bits of byte 13 changed (PKE bit 3 and power bit 0 set); fan only always sends 27 C
   struct ModeCase {
     climate::ClimateMode mode;
-    Mode raw;
+    uint8_t byte13;
+    uint8_t byte14;
   };
   static constexpr ModeCase CASES[] = {
-      {climate::CLIMATE_MODE_HEAT_COOL, Mode::AUTO}, {climate::CLIMATE_MODE_DRY, Mode::DRY},
-      {climate::CLIMATE_MODE_COOL, Mode::COOL},      {climate::CLIMATE_MODE_HEAT, Mode::HEAT},
-      {climate::CLIMATE_MODE_FAN_ONLY, Mode::FAN},
+      {climate::CLIMATE_MODE_HEAT_COOL, 0x09, 0x28}, {climate::CLIMATE_MODE_DRY, 0x29, 0x28},
+      {climate::CLIMATE_MODE_COOL, 0x39, 0x28},      {climate::CLIMATE_MODE_HEAT, 0x49, 0x28},
+      {climate::CLIMATE_MODE_FAN_ONLY, 0x69, 0x36},
   };
   for (const auto &c : CASES) {
     SCOPED_TRACE(static_cast<int>(c.mode));
+    uint8_t expected[STATE_LENGTH];
+    memcpy(expected, PKE_20C_AUTO, STATE_LENGTH);
+    expected[13] = c.byte13;
+    expected[14] = c.byte14;
+    expected[STATE_LENGTH - 1] = calc_checksum(expected, STATE_LENGTH);
+
     Fixture f;
     f.command([&c](auto &call) {
       call.set_mode(c.mode);
       call.set_target_temperature(20.0f);
       call.set_fan_mode(climate::CLIMATE_FAN_AUTO);
+      call.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
     });
-    const Frame sent = f.last_state();
-    ASSERT_EQ(sent.size(), STATE_LENGTH);
-    FrameParams out;
-    ASSERT_TRUE(decode_frame(sent.data(), out));
-    EXPECT_TRUE(out.power);
-    EXPECT_EQ(out.mode, c.raw);
+    EXPECT_EQ(f.last_state(), frame(expected));
 
-    FrameParams in;
-    in.model = Model::PKE;
-    in.power = true;
-    in.mode = c.raw;
-    in.temperature = 20;
-    uint8_t state[STATE_LENGTH];
-    encode_frame(in, state);
     Fixture g;
-    ASSERT_TRUE(g.receive(state));
+    ASSERT_TRUE(g.receive(expected));
     EXPECT_EQ(g.climate.mode, c.mode);
+    EXPECT_EQ(g.climate.preset, climate::CLIMATE_PRESET_NONE);
+    EXPECT_EQ(g.climate.fan_mode, climate::CLIMATE_FAN_AUTO);
+    // The fixed fan only temperature says nothing about the set-point
+    if (c.mode != climate::CLIMATE_MODE_FAN_ONLY)
+      EXPECT_FLOAT_EQ(g.climate.target_temperature, 20.0f);
   }
 }
 
