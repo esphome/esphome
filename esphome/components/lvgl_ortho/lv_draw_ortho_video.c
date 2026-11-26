@@ -17,7 +17,7 @@
 #ifdef CONFIG_CACHE_L2_CACHE_LINE_SIZE
 #define LINE CONFIG_CACHE_L2_CACHE_LINE_SIZE
 #else
-#define LINE 128
+enum { LINE = 128 };
 #endif
 
 esp_err_t lv_draw_ortho_video_init(lv_draw_ortho_video_t *v, lv_display_t *disp) {

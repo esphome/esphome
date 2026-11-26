@@ -1,3 +1,5 @@
+#pragma once
+
 #include "esphome/core/defines.h"
 
 #ifdef USE_LVGL_ORTHO
@@ -39,14 +41,15 @@
 #ifndef LV_DRAW_ORTHO_H
 #define LV_DRAW_ORTHO_H
 
+#include "lvgl.h"
+
 #ifdef __cplusplus
+namespace esphome::lvgl_ortho {
 extern "C" {
 #endif
 
-#include "lvgl.h"
-
 #ifndef LV_USE_DRAW_ORTHO
-#define LV_USE_DRAW_ORTHO 1
+#define LV_USE_DRAW_ORTHO (1)
 #endif
 
 #if LV_USE_DRAW_ORTHO
@@ -70,7 +73,7 @@ extern "C" {
  *  it, the second turn and the second pass over the tasks cost more than the
  *  shared drawing saves. Not measured on a board. */
 #ifndef LV_DRAW_ORTHO_PAIR_MIN_PX
-#define LV_DRAW_ORTHO_PAIR_MIN_PX 8192
+#define LV_DRAW_ORTHO_PAIR_MIN_PX (8192)
 #endif
 
 /** An image carrying this flag stores its pixels in the panel's native
@@ -310,7 +313,8 @@ void lv_draw_ortho_reset_stats(void);
 #endif /* LV_USE_DRAW_ORTHO */
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace esphome::lvgl_ortho
 #endif
 
 #endif /* LV_DRAW_ORTHO_H */

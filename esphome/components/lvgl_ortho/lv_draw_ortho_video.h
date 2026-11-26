@@ -1,3 +1,5 @@
+#pragma once
+
 #include "esphome/core/defines.h"
 
 #ifdef USE_LVGL_ORTHO
@@ -31,13 +33,14 @@
 #ifndef LV_DRAW_ORTHO_VIDEO_H
 #define LV_DRAW_ORTHO_VIDEO_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "lv_draw_ortho.h"
 #include "esp_err.h"
 #include "driver/ppa.h"
+
+#ifdef __cplusplus
+namespace esphome::lvgl_ortho {
+extern "C" {
+#endif
 
 typedef struct {
   lv_display_t *disp;
@@ -77,7 +80,8 @@ esp_err_t lv_draw_ortho_video_show(lv_draw_ortho_video_t *v, const void *frame, 
 void lv_draw_ortho_video_deinit(lv_draw_ortho_video_t *v);
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace esphome::lvgl_ortho
 #endif
 
 #endif /* LV_DRAW_ORTHO_VIDEO_H */

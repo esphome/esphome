@@ -35,7 +35,7 @@ def _bytes(value):
     if isinstance(value, int):
         return cv.int_range(min=0)(value)
     text = cv.string(value).strip().upper().replace(" ", "")
-    for suffix, scale in (
+    for suffix, multiplier in (
         ("MIB", 1 << 20),
         ("MB", 1 << 20),
         ("KIB", 1 << 10),
@@ -44,6 +44,7 @@ def _bytes(value):
     ):
         if text.endswith(suffix):
             number = text[: -len(suffix)]
+            scale = multiplier
             break
     else:
         number, scale = text, 1

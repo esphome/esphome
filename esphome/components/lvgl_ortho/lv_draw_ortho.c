@@ -43,7 +43,7 @@
 #endif
 
 /* Any id no other unit uses. LVGL's own units count up from 1. */
-#define DRAW_UNIT_ID_ORTHO 79
+enum { DRAW_UNIT_ID_ORTHO = 79 };
 
 /**
  * A quarter-turn matrix reduced to integers, pixel for pixel:
@@ -105,7 +105,7 @@ static bool g_turner_failed;
 
 /* A turner writes by DMA, and its output has to start on a cache line: the
  * ESP32-P4's PPA wants its L2's, which is at most 128 bytes. */
-#define TILE_ALIGN 128
+enum { TILE_ALIGN = 128 };
 
 /* The video window: a native rectangle of one display's frame buffer that
  * LVGL leaves to a source writing there itself. */
@@ -238,7 +238,7 @@ static void copy_straight(uint8_t *dest, int32_t dest_stride, const uint8_t *src
  * the BLOCK lines a block touches are still cached when the next native row
  * of the same block wants the pixel beside the one it just read. */
 #ifndef LV_DRAW_ORTHO_BLOCK
-#define LV_DRAW_ORTHO_BLOCK 32
+#define LV_DRAW_ORTHO_BLOCK (32)
 #endif
 
 /**
@@ -631,7 +631,7 @@ static void tile_layer(lv_layer_t *tl, lv_draw_buf_t *tb, const lv_area_t *area,
 /* Up to this many consecutive tasks are drawn through one set of tiles, so a
  * screen's worth of widgets costs one turn rather than one per widget. */
 #ifndef LV_DRAW_ORTHO_MAX_BATCH
-#define LV_DRAW_ORTHO_MAX_BATCH 64
+#define LV_DRAW_ORTHO_MAX_BATCH (64)
 #endif
 
 struct _job_t {
@@ -885,14 +885,14 @@ static void draw_tile(const job_t *jobs, int32_t n, const ortho_t *o, const lv_a
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #if CONFIG_FREERTOS_NUMBER_OF_CORES > 1
-#define ORTHO_HELPER 2
+#define ORTHO_HELPER (2)
 #endif
 #elif LV_USE_OS == LV_OS_PTHREAD
 #include <pthread.h>
-#define ORTHO_HELPER 3
+#define ORTHO_HELPER (3)
 #endif
 #ifndef ORTHO_HELPER
-#define ORTHO_HELPER 0
+#define ORTHO_HELPER (0)
 #endif
 
 /* What the other core is handed: a tile to paint. */
@@ -1470,7 +1470,7 @@ static void straight_or_cpu(lv_color_format_t cf, int32_t px, uint8_t *dst, int3
  * that for an application that knows better, and lv_draw_ortho_image_cache_drop()
  * forgets a picture whose pixels it changed in place. */
 #ifndef LV_DRAW_ORTHO_IMAGE_CACHE_SLOTS
-#define LV_DRAW_ORTHO_IMAGE_CACHE_SLOTS 16
+#define LV_DRAW_ORTHO_IMAGE_CACHE_SLOTS (16)
 #endif
 
 typedef struct {
@@ -1973,11 +1973,11 @@ static int32_t dispatch(lv_draw_unit_t *draw_unit, lv_layer_t *layer) {
  * drawn. With three buffers it is what makes the third one's copies, which
  * LVGL makes a frame early, wait for the frame that draws into it. */
 #ifndef LV_DRAW_ORTHO_SYNC_AREAS
-#define LV_DRAW_ORTHO_SYNC_AREAS 32
+#define LV_DRAW_ORTHO_SYNC_AREAS (32)
 #endif
 /* Pieces of a subtraction; past it the areas are copied unsubtracted, which
  * copies more than needed and is never wrong. */
-#define SYNC_PIECES 64
+enum { SYNC_PIECES = 64 };
 
 typedef struct {
   lv_display_t *disp;

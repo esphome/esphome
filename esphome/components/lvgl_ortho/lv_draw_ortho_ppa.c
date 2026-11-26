@@ -27,15 +27,15 @@
 #ifdef CONFIG_CACHE_L2_CACHE_LINE_SIZE
 #define LINE CONFIG_CACHE_L2_CACHE_LINE_SIZE
 #else
-#define LINE 128
+enum { LINE = 128 };
 #endif
 
 /* Two tiles of up to four parts each, every part possibly cut in pieces for
  * DIG-734, and a read-back: what can be queued at once. A full queue is
  * declined and the CPU does that turn. */
-#define PENDING 32
+enum { PENDING = 32 };
 /* cut() needs at most 7 over every size up to 1300 x 1300 (test/main.c). */
-#define MAX_PIECES 8
+enum { MAX_PIECES = 8 };
 
 static ppa_client_handle_t g_client;
 static uint32_t g_queued;        /* tickets handed out */
@@ -52,7 +52,7 @@ static bool g_stuck;
  * sleep finds it), so a wait sleeps until then instead of spinning. Nobody
  * passes a wake on: two waiting tasks (the UI and a video source) handing one
  * back and forth would spin on context switches until the PPA finished. */
-#define WAKE_MAX 4
+enum { WAKE_MAX = 4 };
 static SemaphoreHandle_t g_wake;
 static uint32_t g_sleepers;
 #endif
@@ -60,7 +60,7 @@ static uint32_t g_sleepers;
 /* The last transactions handed to the PPA, so a stall can say which one never
  * finished: nothing else on a board can. Room for every one that can be
  * pending on both engines, and the last few finished before them. */
-#define TRAIL 48
+enum { TRAIL = 48 };
 typedef struct {
   const void *in, *out;
   uint32_t ticket;
@@ -172,8 +172,8 @@ typedef struct {
  * the CPU (test/main.c). Two levels try every cut on the grid, the third only
  * the first, so a block costs at most a few thousand tests of the predicate,
  * each a handful of instructions. False if it will not cut. */
-#define SIDE 16
-#define STEP 8
+enum { SIDE = 16 };
+enum { STEP = 8 };
 static bool cut(uint32_t x, uint32_t y, uint32_t w, uint32_t h, lv_display_rotation_t rot, uint32_t bits, piece_t *out,
                 int *n, int depth) {
   if (!unsafe(w, h, rot, bits, 1.0f, 1.0f)) {
@@ -365,10 +365,10 @@ static ppa_srm_rotation_angle_t ppa_angle(lv_display_rotation_t r) {
 /* A band's rows are a multiple of this, and never fewer: under it the fixed
  * cost of a transaction is a large share of a band (the probe: 8 rows was the
  * worst of 8, 16, 32 and 64 on both boards). */
-#define STAGE_STEP 8
+enum { STAGE_STEP = 8 };
 /* A copy is a few milliseconds; one that has not finished in this long is a
  * GDMA that will not, and the rest of the picture is turned straight. */
-#define STAGE_COPY_TIMEOUT_MS 100
+enum { STAGE_COPY_TIMEOUT_MS = 100 };
 
 static bool wait(uint32_t ticket);
 

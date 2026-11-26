@@ -1,3 +1,5 @@
+#pragma once
+
 #include "esphome/core/defines.h"
 
 #ifdef USE_LVGL_ORTHO
@@ -46,13 +48,14 @@
 #ifndef LV_DRAW_ORTHO_PPA_H
 #define LV_DRAW_ORTHO_PPA_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "lv_draw_ortho.h"
 #include "esp_err.h"
 #include "driver/ppa.h"
+
+#ifdef __cplusplus
+namespace esphome::lvgl_ortho {
+extern "C" {
+#endif
 
 /** Register a PPA client and hand lv_draw_ortho's turns to it. */
 esp_err_t lv_draw_ortho_ppa_init(void);
@@ -105,7 +108,7 @@ void lv_draw_ortho_ppa_get_stage_stats(lv_draw_ortho_ppa_stage_stats_t *out, boo
 /** How long a PPA transaction may take before the PPA is taken for stuck. A
  *  whole 1280x720 turn takes 15 to 45 ms on a P4. */
 #ifndef LV_DRAW_ORTHO_PPA_TIMEOUT_MS
-#define LV_DRAW_ORTHO_PPA_TIMEOUT_MS 250
+#define LV_DRAW_ORTHO_PPA_TIMEOUT_MS (250)
 #endif
 
 /** True once a PPA transaction has not finished in time: it is not used again
@@ -138,7 +141,8 @@ bool lv_draw_ortho_ppa_dig734(uint32_t w, uint32_t h, lv_display_rotation_t rot,
                               float scale_y);
 
 #ifdef __cplusplus
-}
+}  // extern "C"
+}  // namespace esphome::lvgl_ortho
 #endif
 
 #endif /* LV_DRAW_ORTHO_PPA_H */
