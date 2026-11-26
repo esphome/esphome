@@ -10,8 +10,8 @@ from esphome.const import (
     DEVICE_CLASS_SPEED,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_SIGNAL,
+    STATE_CLASS_MEASUREMENT,
     UNIT_KILOMETER_PER_HOUR,
-    UNIT_METER,
 )
 from esphome.types import ConfigType
 
@@ -37,14 +37,15 @@ _TARGET_SCHEMA = cv.Schema(
             accuracy_decimals=0,
         ),
         cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
+            kind=sensor.LENGTH_M,
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_METER,
             icon=ICON_MAP_MARKER_DISTANCE,
             accuracy_decimals=0,
         ),
         # Negative while the target approaches
         cv.Optional(CONF_SPEED): sensor.sensor_schema(
             device_class=DEVICE_CLASS_SPEED,
+            state_class=STATE_CLASS_MEASUREMENT,
             unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
             icon=ICON_SPEEDOMETER,
             accuracy_decimals=0,
