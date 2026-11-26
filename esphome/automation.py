@@ -2497,7 +2497,7 @@ class GroupedAutomation:
     """An on_* key for build_grouped_callback_automations()."""
 
     conf_key: str
-    # Reads the value from the parent
+    # Reads the value from the parent; read again for args, so a plain read with no side effects
     watched: Callable[[MockObj], Expression] | None = None
     # (last, value) -> condition; runs on every callback and updates last
     filter: Callable[[MockObj, Expression], Expression] | None = None
