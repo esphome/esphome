@@ -330,7 +330,7 @@ void USBAudioSpeaker::on_transfer_taken() {
   bool tail = ring < size && ring > this->ring_padding_;
   if (ring >= size) {
     this->packet_frac_accum_ = accum;
-    this->ring_bytes_.fetch_sub(size);
+    uncount(this->ring_bytes_, size);
     {
       const uint32_t left = ring - size;
       uint32_t next_accum = accum;
@@ -341,7 +341,7 @@ void USBAudioSpeaker::on_transfer_taken() {
     const uint32_t padding = std::min<uint32_t>(this->ring_padding_, ring);
     const uint32_t audio = std::min(size, ring - padding);
     if (audio < size) {
-      this->ring_padding_.fetch_sub(std::min(size - audio, padding));
+      uncount(this->ring_padding_, std::min(size - audio, padding));
     }
     const int64_t now_us = esp_timer_get_time();
     this->last_taken_us_ = static_cast<uint32_t>(now_us);

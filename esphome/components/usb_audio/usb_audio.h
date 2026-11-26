@@ -35,6 +35,15 @@ enum class StreamEvent : uint8_t {
   FAILED,
 };
 
+/// Subtracts `length` from a ring count, stopping at 0 so a race between a rollback and a take never wraps it.
+/// Returns true if it had to stop there.
+inline bool uncount(std::atomic<uint32_t> &count, uint32_t length) {
+  uint32_t current = count.load();
+  while (!count.compare_exchange_weak(current, current > length ? current - length : 0)) {
+  }
+  return current < length;
+}
+
 /// A speaker or microphone platform that streams through the hub. The hub calls it on the main loop only.
 class USBAudioStream {
  public:

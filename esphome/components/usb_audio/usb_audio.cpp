@@ -246,14 +246,6 @@ esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_
   return err;
 }
 
-// Takes back a failed write's count, stopping at 0 so it never wraps; true if it had to stop there.
-static bool uncount(std::atomic<uint32_t> &count, uint32_t length) {
-  uint32_t current = count.load();
-  while (!count.compare_exchange_weak(current, current > length ? current - length : 0)) {
-  }
-  return current < length;
-}
-
 esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms,
                                            std::atomic<uint32_t> &ring_bytes, std::atomic<uint32_t> *ring_padding) {
   if (!this->enter_driver_(timeout_ms)) {
