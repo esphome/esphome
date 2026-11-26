@@ -217,8 +217,10 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, std::span<const uint8_t>
 }
 
 void HDMICEC::transmit_message_() {
+  // The edge first: an interrupt after micros() would leave it newer than now, and the difference would wrap
+  const uint32_t last_edge = atomic_get(this->last_edge_us_);
   const uint32_t now = micros();
-  const uint32_t since_last_edge = now - atomic_get(this->last_edge_us_);
+  const uint32_t since_last_edge = now - last_edge;
   if (this->transmitting_) {
     // The interrupt sees our own frame; wait for its end of message bit, or give up when the
     // bus went quiet without one
