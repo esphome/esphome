@@ -158,13 +158,10 @@ void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::spa
     callback(IO_ERROR, {}, 0);
     return;
   }
-  if (session != 0 && (this->state_ != State::STATE_HELD || session != this->session_)) {
-    callback(SESSION_LOST, {}, 0);
-    return;
-  }
   if (session != 0 &&
-      this->session_expired_(millis(), execution + this->transport_->command_io_budget_ms() + RESPONSE_TIMEOUT_MS)) {
-    this->end_session(this->session_);
+      (this->state_ != State::STATE_HELD || session != this->session_ ||
+       this->session_expired_(millis(), execution + this->transport_->command_io_budget_ms() + RESPONSE_TIMEOUT_MS))) {
+    this->end_session(session);
     callback(SESSION_LOST, {}, 0);
     return;
   }
@@ -187,10 +184,11 @@ void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::spa
   this->expect_response_ = expect_response;
   this->result_callback_ = std::move(callback);
   this->user_active_ = true;
-  if (this->awake_)
+  if (this->awake_) {
     this->send_user_();
-  else
+  } else {
     this->start_wake_();
+  }
 }
 
 void ATSHA204A::send_user_() {
