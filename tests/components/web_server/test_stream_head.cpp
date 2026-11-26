@@ -8,10 +8,12 @@
 #include <string>
 #include <vector>
 
-#include "esphome/components/web_server_idf/sse_chunk.h"
-#include "esphome/components/web_server_idf/stream_head.h"
+#include "esphome/components/web_server/sse_chunk.h"
+#include "esphome/components/web_server_base/stream_head.h"
 
-namespace esphome::web_server_idf::testing {
+namespace esphome::web_server::testing {
+
+using namespace web_server_base;  // NOLINT(google-build-using-namespace)
 
 // Collects every batch write_stream_head() sends
 struct Capture {
@@ -283,6 +285,22 @@ TEST(StallClock, AcrossMillisWraparound) {
   EXPECT_EQ(clock.elapsed(start + TIMEOUT), TIMEOUT);
 }
 
-}  // namespace esphome::web_server_idf::testing
+TEST(StallClock, StartOrExpiredStartsOnceAndExpiresAtTheTimeout) {
+  StallClock clock;
+  EXPECT_FALSE(clock.start_or_expired(1000, TIMEOUT));  // first call starts the clock
+  EXPECT_TRUE(clock.is_running());
+  EXPECT_FALSE(clock.start_or_expired(1000 + TIMEOUT - 1, TIMEOUT));  // a later call keeps the start
+  EXPECT_TRUE(clock.start_or_expired(1000 + TIMEOUT, TIMEOUT));
+  EXPECT_EQ(clock.elapsed(1000 + TIMEOUT), TIMEOUT);
+}
+
+TEST(IovecsTotal, SumsEveryElementIncludingEmptyOnes) {
+  char a[3], b[5];
+  struct iovec iov[] = {{a, sizeof(a)}, {nullptr, 0}, {b, sizeof(b)}};
+  EXPECT_EQ(iovecs_total(iov, 3), 8U);
+  EXPECT_EQ(iovecs_total(iov, 0), 0U);
+}
+
+}  // namespace esphome::web_server::testing
 
 #endif  // USE_HOST

@@ -297,7 +297,7 @@ TEST_F(SdoTest, LateWriteAckForTheSameObjectIsIgnoredByARead) {
 // e.g. from on_boot, which runs before the hub's setup()
 TEST(CanopenSdoClient, RequestBeforeSetupWaitsForIt) {
   FakeCanbus bus;
-  TestHub hub(&bus);
+  TestHub hub(&bus, CANopenComponent::NO_NODE_ID);
   std::vector<SDOReply> replies;
   auto on_reply = [](void *context, const SDOReply &reply) {
     static_cast<std::vector<SDOReply> *>(context)->push_back(reply);
@@ -315,7 +315,7 @@ TEST(CanopenSdoClient, RequestBeforeSetupWaitsForIt) {
 // its loop never runs, so requests would only time out
 TEST(CanopenSdoClient, FailedBusFailsTheHub) {
   FakeCanbus bus;
-  TestHub hub(&bus);
+  TestHub hub(&bus, CANopenComponent::NO_NODE_ID);
   std::vector<SDOReply> replies;
   auto on_reply = [](void *context, const SDOReply &reply) {
     static_cast<std::vector<SDOReply> *>(context)->push_back(reply);
