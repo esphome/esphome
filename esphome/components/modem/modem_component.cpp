@@ -75,8 +75,9 @@ static constexpr uint8_t SIM_WARN_EVERY = 60;
 // it restarts, and an ESP reboot leaves it running. The wait doubles after each restart, up to 32 min.
 static constexpr uint32_t SIM_RESTART_AFTER_MS = 60000;
 static constexpr uint8_t SIM_RESTART_MAX_BACKOFF = 5;  // 60 s << 5 = 32 min
-// A restarted modem stays silent for several seconds; ENABLING then syncs with it again
-static constexpr uint32_t MODEM_RESTART_WAIT_MS = 10000;
+// A restarted modem stays silent for 20 to 40 s; ENABLING then syncs with it again, so a longer wait is covered by
+// its probe backoff
+static constexpr uint32_t MODEM_RESTART_WAIT_MS = 20000;
 // SIM status polls that fail at CFUN=4 before CFUN=1 is tried: some modems (SIM7070) power the SIM down at CFUN=0 and
 // only power it up again at CFUN=1
 static constexpr uint8_t SIM_FULL_POWER_AFTER = 5;
@@ -870,7 +871,8 @@ ModemState ModemComponent::handle_state_connecting_() {
         if (this->sim_wait_started_ms_ == 0) {
           this->sim_wait_started_ms_ = now;
         }
-        if (this->sim_restart_due_(now)) {
+        // After a timed out SIM query, a late reply could be taken for the restart's: CONNECTING syncs first
+        if (!this->resync_ && this->sim_restart_due_(now)) {
           return this->restart_for_sim_(now);
         }
         // A SIM7070 accepts CFUN=4 but leaves the SIM powered down ("+CME ERROR: SIM failure") until CFUN=1; the
@@ -1202,7 +1204,7 @@ ModemState ModemComponent::restart_for_sim_(uint32_t now) {
   }
   this->sim_wait_started_ms_ = now;  // also when run_task_() ends the wait for the restart
   // The restart can cut its own OK short, so only an ERROR means it did not happen
-  const bool refused = this->at_("AT+CFUN=1,1") == command_result::FAIL;
+  const bool refused = this->at_reply_("AT+CFUN=1,1") == command_result::FAIL;
   ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; %s (AT+CFUN=1,1)", waited_s,
            refused ? LOG_STR_LITERAL("the modem refused a restart") : LOG_STR_LITERAL("restarting the modem"));
   if (refused) {
