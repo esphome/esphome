@@ -40,12 +40,12 @@ enum { MAX_PIECES = 8 };
 
 static ppa_client_handle_t g_client;
 static uint32_t g_queued;        /* tickets handed out */
-static volatile uint32_t g_done; /* counted by the PPA's interrupt */
+static uint32_t g_done; /* published by the PPA interrupt, read atomically */
 /* Fills run on the PPA's other engine (blend), with a client and a count of
  * their own: the two engines finish in no order relative to each other. */
 static ppa_client_handle_t g_fill_client;
 static uint32_t g_fill_queued;
-static volatile uint32_t g_fill_done;
+static uint32_t g_fill_done;
 static bool g_stuck;
 #if defined(ESP_PLATFORM)
 /* Given by the PPA's interrupt when a transaction of either engine finishes,
@@ -270,13 +270,24 @@ static bool wake_sleepers(void) {
 #endif
 }
 
+/* The renderer submits on one task; completion is published from an ISR.
+ * Only the completion counters are shared. Use lock-free 32-bit atomics on P4
+ * rather than volatile, which does not provide inter-core synchronization. */
+static uint32_t completed(const uint32_t *counter) { return __atomic_load_n(counter, __ATOMIC_ACQUIRE); }
+
 static bool on_done(ppa_client_handle_t client, ppa_event_data_t *event, void *user) {
+  (void) client;
   (void) event;
   (void) user;
-  if (client == g_fill_client)
-    g_fill_done++;
-  else
-    g_done++;
+  __atomic_add_fetch(&g_done, 1, __ATOMIC_RELEASE);
+  return wake_sleepers();
+}
+
+static bool on_fill_done(ppa_client_handle_t client, ppa_event_data_t *event, void *user) {
+  (void) client;
+  (void) event;
+  (void) user;
+  __atomic_add_fetch(&g_fill_done, 1, __ATOMIC_RELEASE);
   return wake_sleepers();
 }
 
@@ -305,19 +316,22 @@ static uint32_t pause_for_ppa(uint32_t max_us) {
 }
 
 /* Until `*done` reaches `ticket`, bounded the same way for both engines. */
-static bool wait_on(volatile uint32_t *done, uint32_t ticket) {
+static bool wait_on(const uint32_t *done, uint32_t ticket) {
   const uint32_t limit = LV_DRAW_ORTHO_PPA_TIMEOUT_MS * 1000u;
-  uint32_t seen = *done, idle_us = 0;
-  while ((int32_t) (*done - ticket) < 0) {
+  uint32_t seen = completed(done), idle_us = 0;
+  while ((int32_t) (completed(done) - ticket) < 0) {
     if (g_stuck)
       esp_system_abort("lvgl_ortho: PPA transaction still outstanding");
     idle_us += pause_for_ppa(limit - LV_MIN(idle_us, limit));
-    if (*done != seen) {
-      seen = *done;
+    const uint32_t current = completed(done);
+    if ((int32_t) (current - ticket) >= 0)
+      return true;
+    if (current != seen) {
+      seen = current;
       idle_us = 0;
     } else if (idle_us >= limit) {
       g_stuck_engine = done == &g_fill_done ? 2 : 1;
-      g_stuck_done = *done;
+      g_stuck_done = current;
       g_stuck_queued = done == &g_fill_done ? g_fill_queued : g_queued;
       g_stuck = true;
       // No public cancellation fence guarantees that DMA has stopped touching the buffers.
@@ -378,7 +392,7 @@ static bool wait(uint32_t ticket);
 static uint8_t *g_stage[2];
 static size_t g_stage_bytes;
 static async_memcpy_handle_t g_copier;
-static volatile uint32_t g_copied; /* counted by the copy's interrupt */
+static uint32_t g_copied; /* published by the GDMA interrupt, read atomically */
 static uint32_t g_copies;          /* copies asked for */
 /* The last ticket that reads each band: nothing is copied into a band before
  * it has finished, across pictures too. */
@@ -407,7 +421,7 @@ static bool on_copied(async_memcpy_handle_t mcp, async_memcpy_event_t *event, vo
   (void) mcp;
   (void) event;
   (void) user;
-  g_copied++;
+  __atomic_add_fetch(&g_copied, 1, __ATOMIC_RELEASE);
   return wake_sleepers();
 }
 
@@ -427,7 +441,7 @@ static bool copy_rows(const lv_draw_ortho_pic_t *src, uint32_t row, uint32_t row
 static bool copies_done(void) {
   const uint32_t limit = STAGE_COPY_TIMEOUT_MS * 1000u;
   uint32_t idle_us = 0;
-  while ((int32_t) (g_copied - g_copies) < 0) {
+  while ((int32_t) (completed(&g_copied) - g_copies) < 0) {
     if (idle_us >= limit) {
       // A staged copy may still access a borrowed tile or the caller\'s source.
       esp_system_abort("lvgl_ortho: GDMA completion timeout");
@@ -470,7 +484,7 @@ static bool queue_rows(const lv_draw_ortho_pic_t *src, const lv_area_t *block, c
                        uint32_t size, uint32_t row, const void *from, uint32_t from_h, uint32_t from_row,
                        const piece_t *pieces, int n) {
   const uint32_t bw = (uint32_t) lv_area_get_width(block), bh = (uint32_t) lv_area_get_height(block);
-  if (g_queued - g_done + (uint32_t) n > PENDING && !wait(g_queued - (PENDING - (uint32_t) n)))
+  if (g_queued - completed(&g_done) + (uint32_t) n > PENDING && !wait(g_queued - (PENDING - (uint32_t) n)))
     return false;
   ppa_srm_oper_config_t op;
   lv_memzero(&op, sizeof(op));
@@ -608,7 +622,8 @@ static esp_err_t install_copier(void) {
   if (g_wake == NULL && (g_wake = xSemaphoreCreateCounting(WAKE_MAX, 0)) == NULL)
     return ESP_ERR_NO_MEM;
 #endif
-  g_copied = g_copies = 0;
+  g_copies = 0;
+  __atomic_store_n(&g_copied, 0, __ATOMIC_RELEASE);
   return ESP_OK;
 }
 
@@ -769,7 +784,7 @@ static uint32_t turn(const lv_draw_ortho_pic_t *src, const lv_area_t *block, con
   int n = 0;
   if (!cut(0, 0, bw, bh, rot, px * 8, pieces, &n, 0))
     return 0;
-  if (g_queued - g_done + (uint32_t) n > PENDING)
+  if (g_queued - completed(&g_done) + (uint32_t) n > PENDING)
     return 0;
 
   /* Write back and drop the output rows first. The CPU has drawn right up to
@@ -911,20 +926,22 @@ static esp_err_t ensure_client(void) {
     g_client = NULL;
     return err;
   }
-  g_queued = g_done = 0;
+  g_queued = 0;
+  __atomic_store_n(&g_done, 0, __ATOMIC_RELEASE);
   g_trail_n = 0;
   /* The fill client: optional, the turns work without it. */
   lv_memzero(&cfg, sizeof(cfg));
   cfg.oper_type = PPA_OPERATION_FILL;
   cfg.max_pending_trans_num = 1;
   if (ppa_register_client(&cfg, &g_fill_client) == ESP_OK) {
-    ppa_event_callbacks_t fcbs = {.on_trans_done = on_done};
+    ppa_event_callbacks_t fcbs = {.on_trans_done = on_fill_done};
     if (ppa_client_register_event_callbacks(g_fill_client, &fcbs) != ESP_OK) {
       ppa_unregister_client(g_fill_client);
       g_fill_client = NULL;
     }
   }
-  g_fill_queued = g_fill_done = 0;
+  g_fill_queued = 0;
+  __atomic_store_n(&g_fill_done, 0, __ATOMIC_RELEASE);
   return ESP_OK;
 }
 
@@ -1031,12 +1048,8 @@ void lv_draw_ortho_ppa_deinit(void) {
     ppa_unregister_client(g_client);
     g_client = NULL;
   }
-#if defined(ESP_PLATFORM)
-  if (g_client == NULL && g_fill_client == NULL && g_wake) {
-    vSemaphoreDelete(g_wake);
-    g_wake = NULL;
-  }
-#endif
+  // Keep the shared wake semaphore for the component lifetime: a completion ISR
+  // can publish its counter before it finishes signaling this semaphore.
 }
 
 static void say_one(const trail_t *t, const char *what, lv_draw_ortho_ppa_line_cb_t line, void *user) {
