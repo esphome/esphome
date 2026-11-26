@@ -156,7 +156,13 @@ class EthernetComponent final : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
   void on_powerdown() override { powerdown(); }
-  bool is_connected() { return !this->disabled_ && this->state_ == EthernetComponentState::CONNECTED; }
+  bool is_connected() {
+#if defined(USE_ESP32) || defined(USE_HOST)
+    if (this->disabled_)
+      return false;
+#endif
+    return this->state_ == EthernetComponentState::CONNECTED;
+  }
 
   // Per-interface lifecycle (parallels WiFiComponent::enable/disable/is_disabled).
   // enable_on_boot defaults to true; when false, setup() runs all the driver/netif
