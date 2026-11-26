@@ -34,7 +34,7 @@ class Transport {
   virtual bool command(const uint8_t *packet, size_t size) = 0;
   virtual bool request_response() = 0;
   virtual Receive receive(uint8_t *packet) = 0;
-  virtual bool power_down(bool idle, bool allow_nack = false) = 0;
+  virtual bool power_down(bool idle, bool allow_nack) = 0;
 };
 
 #ifdef USE_MICROCHIP_ATSHA204A_I2C

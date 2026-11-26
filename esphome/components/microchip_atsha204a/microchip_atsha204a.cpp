@@ -343,7 +343,7 @@ void ATSHA204A::handle_response_(const uint8_t *packet, int status) {
 }
 
 void ATSHA204A::finish_poll_(bool present) {
-  const bool slept = !this->awake_ || this->transport_->power_down(false);
+  const bool slept = !this->awake_ || this->transport_->power_down(false, false);
   this->awake_ = false;
   this->block_callback_ = {};
   if (!present || !slept) {
@@ -371,12 +371,12 @@ void ATSHA204A::publish_presence_(bool present) {
 
 void ATSHA204A::finish_user_(int status, const uint8_t *data, size_t size) {
   if (status < 0 || this->user_end_ == EndMode::END_MODE_SLEEP) {
-    if (this->awake_ && !this->transport_->power_down(false) && status == 0)
+    if (this->awake_ && !this->transport_->power_down(false, false) && status == 0)
       status = IO_ERROR;
     this->awake_ = false;
     this->session_ = 0;
   } else if (this->awake_ && this->user_end_ == EndMode::END_MODE_IDLE) {
-    if (!this->transport_->power_down(true)) {
+    if (!this->transport_->power_down(true, false)) {
       status = IO_ERROR;
       this->session_ = 0;
     }
@@ -401,7 +401,7 @@ void ATSHA204A::finish_user_(int status, const uint8_t *data, size_t size) {
 }
 
 bool ATSHA204A::close_session_(bool ready_to_sleep) {
-  const bool sent = ready_to_sleep && this->transport_->power_down(false);
+  const bool sent = ready_to_sleep && this->transport_->power_down(false, false);
   if (!sent) {
     ESP_LOGW(TAG, "Could not put the chip to sleep while ending the session");
   }
