@@ -1,18 +1,15 @@
 #pragma once
 
 #include <list>
-#include <vector>
+#include <utility>
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/time.h"
-
-#ifdef USE_NEXTION_WAVEFORM
-#include "esphome/core/helpers.h"
-#endif  // USE_NEXTION_WAVEFORM
 
 #include "nextion_base.h"
 #include "nextion_component.h"
@@ -1049,17 +1046,17 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void register_touch_component(NextionComponentBase *obj) { this->touch_.push_back(obj); }
-  void register_switch_component(NextionComponentBase *obj) { this->switchtype_.push_back(obj); }
-  void register_binarysensor_component(NextionComponentBase *obj) { this->binarysensortype_.push_back(obj); }
-  void register_sensor_component(NextionComponentBase *obj) { this->sensortype_.push_back(obj); }
-  void register_textsensor_component(NextionComponentBase *obj) { this->textsensortype_.push_back(obj); }
+  SLOT_LIST(NextionComponentBase, touch_, register_touch_component, NEXTION_TOUCH_COUNT)
+  SLOT_LIST(NextionComponentBase, switchtype_, register_switch_component, NEXTION_SWITCH_COUNT)
+  SLOT_LIST(NextionComponentBase, binarysensortype_, register_binarysensor_component, NEXTION_BINARY_SENSOR_COUNT)
+  SLOT_LIST(NextionComponentBase, sensortype_, register_sensor_component, NEXTION_SENSOR_COUNT)
+  SLOT_LIST(NextionComponentBase, textsensortype_, register_textsensor_component, NEXTION_TEXT_SENSOR_COUNT)
 
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }
   void update() override;
   void loop() override;
-  void set_writer(const nextion_writer_t &writer);
+  void set_writer(nextion_writer_t writer) { this->writer_ = std::move(writer); }
 
   // This function has been deprecated
   void set_wait_for_ack(bool wait_for_ack);
@@ -1145,7 +1142,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
    * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
    * the display properly processes the uploaded file command.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
@@ -1621,8 +1618,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @param bool url successful True: Transfer completed successfully, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_end_(bool successful);
 
@@ -1630,11 +1627,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   bool check_connect_();
 
-  std::vector<NextionComponentBase *> touch_;
-  std::vector<NextionComponentBase *> switchtype_;
-  std::vector<NextionComponentBase *> sensortype_;
-  std::vector<NextionComponentBase *> textsensortype_;
-  std::vector<NextionComponentBase *> binarysensortype_;
   CallbackManager<void()> setup_callback_{};
   CallbackManager<void()> sleep_callback_{};
   CallbackManager<void()> wake_callback_{};

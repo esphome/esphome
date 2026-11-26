@@ -1,4 +1,5 @@
 #include "ds248x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -14,7 +15,8 @@ void DS248xComponent::setup() {
     this->sleep_pin_->setup();
     this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
     this->sleep_pin_->digital_write(true);  // Wake up
-    delay(1);                               // DS2482-101 Datasheet: tOSCWUP = 100μs (using 10x margin)
+    // tSWUP max: 2ms on DS2484, 100us on DS2482-101. delay(2) can return after just over 1ms on a 1ms tick.
+    delayMicroseconds(2000);
   }
 
   // Probe device
@@ -60,6 +62,9 @@ void DS248xComponent::dump_config() {
 
 // Datasheet command durations are sub-2ms; allow a little margin before forcing recovery.
 static constexpr uint32_t BUSY_TIMEOUT_MS = 5;
+// Limits retries while the chip stays unreachable, so a sensor update does not retry once per byte.
+// Not applied during setup, so a recovery pending from one bus does not make its sibling buses fail setup.
+static constexpr uint32_t RECOVERY_RETRY_MS = 1000;
 
 bool DS248xComponent::set_read_pointer_(uint8_t ptr) { return this->write_byte(DS248X_COMMAND_SETREADPTR, ptr); }
 
@@ -72,13 +77,18 @@ bool DS248xComponent::wait_busy_() {
     delayMicroseconds(100);
   } while (millis() - start < BUSY_TIMEOUT_MS);
   ESP_LOGW(TAG, "DS248x busy timeout");
-  bool recovered = this->device_reset_() && this->device_configure_();
-  this->current_channel_ = -1;
-  if (!recovered) {
+  if (!this->recover_()) {
     ESP_LOGE(TAG, "DS248x recovery failed after busy timeout");
-    this->mark_failed();
   }
   return false;
+}
+
+bool DS248xComponent::recover_() {
+  this->last_recovery_ms_ = millis();
+  this->current_channel_ = -1;
+  // Without a successful configure the chip runs with its reset defaults, so keep retrying until it succeeds
+  this->needs_recovery_ = !(this->device_reset_() && this->device_configure_());
+  return this->status_comm_result(!this->needs_recovery_);
 }
 
 bool DS248xComponent::device_reset_() {
@@ -189,6 +199,11 @@ static constexpr uint8_t CHANNEL_WRITE_CODES[8] = {0xF0, 0xE1, 0xD2, 0xC3, 0xB4,
 static constexpr uint8_t CHANNEL_READ_CODES[8] = {0xB8, 0xB1, 0xAA, 0xA3, 0x9C, 0x95, 0x8E, 0x87};
 
 bool DS248xComponent::select_channel(uint8_t channel) {
+  if (this->needs_recovery_) {
+    bool backoff = App.is_setup_complete() && millis() - this->last_recovery_ms_ < RECOVERY_RETRY_MS;
+    if (backoff || !this->recover_())
+      return false;
+  }
   if (this->channel_count_ <= 1)
     return true;
   if (channel >= this->channel_count_)
@@ -214,11 +229,9 @@ bool DS248xComponent::select_channel(uint8_t channel) {
     return false;
   }
 
-  if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
-    return false;
-
+  // The channel is switched now, so cache it even if restoring the read pointer fails
   this->current_channel_ = channel;
-  return true;
+  return this->set_read_pointer_(DS248X_POINTER_STATUS);
 }
 
 // --- 1-Wire Bus Operations ---

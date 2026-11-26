@@ -1,0 +1,15 @@
+# M5Stack Atom Lite with the SIM7080G unit on GPIO32/GPIO26.
+substitutions:
+  name: sim7080-atom
+  rx: GPIO32
+  tx: GPIO26
+  model: SIM7080
+
+esphome:
+  name: ${name}
+
+esp32:
+  board: m5stack-atom
+
+packages:
+  common: !include fallback-common.yaml

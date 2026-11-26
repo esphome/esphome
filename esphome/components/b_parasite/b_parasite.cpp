@@ -6,7 +6,7 @@ namespace esphome::b_parasite {
 
 ESPHOME_LOG_TAG(TAG, "b_parasite");
 
-void BParasite::dump_config() {
+void BParasite::dump_child_config() {
   ESP_LOGCONFIG(TAG, "b_parasite");
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

@@ -527,6 +527,8 @@ void ImprovBLEComponent::request_advertising_() {
   if (this->advertising_requested_)
     return;
   this->advertising_requested_ = true;
+  // Passive scanners only see the advertising packet
+  esp32_ble::global_ble->advertising_set_priority_uuid(ESPBTUUID::from_raw(improv::SERVICE_UUID));
   esp32_ble::global_ble->advertising_start();
 }
 
@@ -534,6 +536,7 @@ void ImprovBLEComponent::release_advertising_() {
   if (!this->advertising_requested_)
     return;
   this->advertising_requested_ = false;
+  esp32_ble::global_ble->advertising_clear_priority_uuid();
   esp32_ble::global_ble->advertising_stop();
 }
 

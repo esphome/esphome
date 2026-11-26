@@ -1,10 +1,9 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
-
-#include <functional>
 
 namespace esphome::combination {
 
@@ -25,6 +24,7 @@ class CombinationNoParameterComponent : public CombinationComponent {
   /// @brief Adds a callback to each source sensor
   void setup() override;
 
+  void set_sensor_storage(std::span<Sensor *> storage) { this->sensors_.init(storage); }
   void add_source(Sensor *sensor);
 
   /// @brief Computes the combination
@@ -35,27 +35,31 @@ class CombinationNoParameterComponent : public CombinationComponent {
   void log_source_sensors() override;
 
  protected:
-  std::vector<Sensor *> sensors_;
+  /// Smallest and largest finite source state; infinity and -infinity when there is none
+  void finite_min_max_(float &min_value, float &max_value) const;
+
+  StaticFixedVector<Sensor *> sensors_;
 };
 
-// Base class for opertions that require one parameter to compute the combination
+// Base class for operations that require one parameter to compute the combination
 class CombinationOneParameterComponent : public CombinationComponent {
  public:
-  void set_source_count(size_t count) { this->sensor_sources_.init(count); }
-  void add_source(Sensor *sensor, std::function<float(float)> const &compute);
-  void add_source(Sensor *sensor, float value);
+  struct SensorSource {
+    sensor::Sensor *sensor;
+    TemplatableFn<float, float> compute;
+    CombinationOneParameterComponent *parent;
+  };
+
+  void set_source_storage(std::span<SensorSource> storage) { this->sensor_sources_.init(storage); }
+  void add_source(Sensor *sensor, TemplatableFn<float, float> compute) {
+    this->sensor_sources_.push_back({sensor, compute, this});
+  }
 
   /// @brief Logs all source sensors' names in sensor_sources_
   void log_source_sensors() override;
 
  protected:
-  struct SensorSource {
-    sensor::Sensor *sensor;
-    std::function<float(float)> compute;
-    CombinationOneParameterComponent *parent;
-  };
-
-  FixedVector<SensorSource> sensor_sources_;
+  StaticFixedVector<SensorSource> sensor_sources_;
 };
 
 class KalmanCombinationComponent final : public CombinationOneParameterComponent {

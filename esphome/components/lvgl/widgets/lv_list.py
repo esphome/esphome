@@ -52,7 +52,7 @@ from ..schemas import (
     remap_property,
 )
 from ..trigger import add_trigger
-from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t
+from ..types import LV_EVENT, LvType, lv_obj_t
 from . import (
     Widget,
     WidgetType,
@@ -189,7 +189,7 @@ LIST_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_list_t)})
 
 @automation.register_action(
     "lvgl.list.add_text",
-    ObjUpdateAction,
+    automation.ApplyAction,
     LIST_ID_SCHEMA.extend(
         {
             cv.Required(CONF_TEXT): lv_text,
@@ -243,7 +243,7 @@ _UNSUPPORTED_DYNAMIC_KEYS = SWIPE_TRIGGERS + (CONF_ON_BOOT, CONF_ALIGN_TO)
 
 
 def _check_no_unsupported_triggers(w_type_name: str, w_conf: dict) -> None:
-    # These triggers currently aren't supporte for dynamic widgets
+    # These triggers currently aren't supported for dynamic widgets
     for key in _UNSUPPORTED_DYNAMIC_KEYS:
         if key in w_conf:
             raise cv.Invalid(
@@ -336,7 +336,7 @@ def _register_dynamic_widget_style_uses(w_conf: dict) -> None:
 
 @automation.register_action(
     "lvgl.list.add",
-    ObjUpdateAction,
+    automation.ApplyAction,
     list_add_schema,
     synchronous=True,
 )
@@ -473,7 +473,7 @@ LIST_REMOVE_SCHEMA = LIST_ID_SCHEMA.extend(
 
 @automation.register_action(
     "lvgl.list.remove",
-    ObjUpdateAction,
+    automation.ApplyAction,
     LIST_REMOVE_SCHEMA,
     synchronous=True,
 )
@@ -504,7 +504,7 @@ async def list_remove_to_code(config, action_id, template_arg, args):
 
 @automation.register_action(
     "lvgl.list.clear",
-    ObjUpdateAction,
+    automation.ApplyAction,
     LIST_ID_SCHEMA,
     synchronous=True,
 )

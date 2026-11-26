@@ -8,7 +8,12 @@ import re
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_SDKCONFIG_OPTIONS,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+)
 
 # Importing the I/O expanders registers their pin schemas with
 # pins.PIN_SCHEMA_REGISTRY so that models whose defaults reference expander-backed
@@ -21,9 +26,11 @@ from esphome.const import (
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_WIDTH,
+    KEY_ESP32,
     KEY_VARIANT,
     PlatformFramework,
 )
+from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -215,6 +222,26 @@ def test_code_generation(
     assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" not in main_cpp
     assert "custom_id->set_rotation(display::DISPLAY_ROTATION_180_DEGREES);" in main_cpp
     # assert "backlight_id = new light::LightState(mipi_dsi_dsibacklight_id);" in main_cpp
+
+
+def test_isr_cache_safe(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """The DSI interrupts run while flash is written, so the panel does not miss a frame."""
+    generate_main(component_fixture_path("mipi_dsi.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_LCD_DSI_ISR_CACHE_SAFE") is True
+
+
+def test_isr_cache_safe_not_set_when_executing_from_psram(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """Code run from PSRAM does not wait for the flash, so the option is not needed."""
+    generate_main(component_fixture_path("execute_from_psram.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_LCD_DSI_ISR_CACHE_SAFE" not in sdkconfig
 
 
 def test_unsupported_variant_reported_before_requirements(

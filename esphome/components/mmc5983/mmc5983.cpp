@@ -16,12 +16,12 @@ constexpr uint8_t IC3_ADDR = 0x0c;
 constexpr uint8_t PRODUCT_ID_ADDR = 0x2f;
 constexpr uint8_t MMC5983_PRODUCT_ID = 0x30;
 
-float convert_data_to_millitesla(uint8_t data_17_10, uint8_t data_9_2, uint8_t data_1_0) {
+float convert_data_to_microtesla(uint8_t data_17_10, uint8_t data_9_2, uint8_t data_1_0) {
   int32_t counts = (data_17_10 << 10) | (data_9_2 << 2) | data_1_0;
   counts -= 131072;  // "Null Field Output" from datasheet.
 
-  // Sensitivity is 16384 counts/gauss, which is 163840 counts/mT.
-  return counts / 163840.0f;
+  // Sensitivity is 16384 counts/gauss, which is 163.84 counts/µT.
+  return counts / 163.84f;
 }
 }  // namespace
 
@@ -55,9 +55,9 @@ void MMC5983Component::update() {
   //   data[4]: Zout[17:10]
   //   data[5]: Zout[9:2]
   //   data[6]: { Xout[1], Xout[0], Yout[1], Yout[0], Zout[1], Zout[0], 0, 0 }
-  PUBLISH_STATE(this->x_sensor_, convert_data_to_millitesla(data[0], data[1], (data[6] & 0b11000000) >> 6));
-  PUBLISH_STATE(this->y_sensor_, convert_data_to_millitesla(data[2], data[3], (data[6] & 0b00110000) >> 4));
-  PUBLISH_STATE(this->z_sensor_, convert_data_to_millitesla(data[4], data[5], (data[6] & 0b00001100) >> 2));
+  PUBLISH_STATE(this->x_sensor_, convert_data_to_microtesla(data[0], data[1], (data[6] & 0b11000000) >> 6));
+  PUBLISH_STATE(this->y_sensor_, convert_data_to_microtesla(data[2], data[3], (data[6] & 0b00110000) >> 4));
+  PUBLISH_STATE(this->z_sensor_, convert_data_to_microtesla(data[4], data[5], (data[6] & 0b00001100) >> 2));
 }
 
 void MMC5983Component::setup() {

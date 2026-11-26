@@ -1,0 +1,37 @@
+# Lights on the C6 devkit: the on-board WS2812 on GPIO8, a monochromatic LEDC light on GPIO4, a binary light on GPIO5.
+output:
+  - platform: ledc
+    pin: GPIO4
+    id: mono_out
+  - platform: gpio
+    pin: GPIO5
+    id: bin_out
+light:
+  - platform: esp32_rmt_led_strip
+    id: led
+    name: "Led"
+    pin: GPIO8
+    num_leds: 1
+    chipset: ws2812
+    rgb_order: GRB
+    on_state:
+      - logger.log:
+          format: "HWT LED on=%d br=%.3f r=%.3f g=%.3f b=%.3f"
+          args: [id(led).current_values.is_on(), id(led).current_values.get_brightness(), id(led).current_values.get_red(), id(led).current_values.get_green(), id(led).current_values.get_blue()]
+  - platform: monochromatic
+    id: mono
+    name: "Mono"
+    output: mono_out
+    default_transition_length: 0s
+    on_state:
+      - logger.log:
+          format: "HWT MONO on=%d br=%.3f"
+          args: [id(mono).current_values.is_on(), id(mono).current_values.get_brightness()]
+  - platform: binary
+    id: binl
+    name: "Bin"
+    output: bin_out
+    on_state:
+      - logger.log:
+          format: "HWT BIN on=%d"
+          args: [id(binl).current_values.is_on()]

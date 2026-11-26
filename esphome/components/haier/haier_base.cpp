@@ -28,8 +28,8 @@ PROGMEM_STRING_TABLE(ProtocolPhaseStrings, "SENDING_INIT_1", "SENDING_INIT_2", "
 const LogString *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
   static_assert(ProtocolPhaseStrings::COUNT == ((int) ProtocolPhases::NUM_PROTOCOL_PHASES) + 1,
                 "ProtocolPhaseStrings must match the enum ProtocolPhases, with UNKNOWN last");
-  // UNKNOWN (-1) wraps past the table and reads as the last entry, "UNKNOWN"
-  return ProtocolPhaseStrings::get_log_str(static_cast<uint8_t>(phase), ProtocolPhaseStrings::LAST_INDEX);
+  // UNKNOWN (-1) is out of range and falls back to the last entry, "UNKNOWN"
+  return ProtocolPhaseStrings::get_log_str(phase);
 }
 
 bool check_timeout(std::chrono::steady_clock::time_point now, std::chrono::steady_clock::time_point tpoint,
@@ -247,13 +247,13 @@ void HaierClimateBase::loop() {
       (this->reset_protocol_request_ && (!this->haier_protocol_.is_waiting_for_answer()))) {
     this->last_valid_status_timestamp_ = now;
     if (this->protocol_phase_ >= ProtocolPhases::IDLE) {
-      // No status too long, reseting protocol
+      // No status too long, resetting protocol
       // No need to reset protocol if we didn't pass initialization phase
       if (this->reset_protocol_request_) {
         this->reset_protocol_request_ = false;
         ESP_LOGW(TAG, "Protocol reset requested");
       } else {
-        ESP_LOGW(TAG, "Communication timeout, reseting protocol");
+        ESP_LOGW(TAG, "Communication timeout, resetting protocol");
       }
       this->process_protocol_reset();
       return;
@@ -352,7 +352,7 @@ void HaierClimateBase::control(const ClimateCall &call) {
   ESP_LOGD("Control", "Control call");
   if (!this->valid_connection()) {
     ESP_LOGW(TAG, "Can't send control packet, first poll answer not received");
-    return;  // cancel the control, we cant do it without a poll answer.
+    return;  // cancel the control, we can't do it without a poll answer.
   }
   if (this->current_hvac_settings_.valid) {
     ESP_LOGW(TAG, "New settings come faster then processed!");
