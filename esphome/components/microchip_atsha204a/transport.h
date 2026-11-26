@@ -106,6 +106,7 @@ class RMTTransport : public SWITransport {
   rmt_channel_handle_t tx_{};
   rmt_encoder_handle_t encoder_{};
   std::array<uint8_t, 1 + MAX_COMMAND> frame_{};
+  bool tx_enabled_{};
 };
 #endif
 

@@ -83,12 +83,10 @@ bool I2CTransport::power_down(bool idle, bool allow_nack) {
 #endif
 
 #if defined(USE_MICROCHIP_ATSHA204A_SWI_UART) || defined(USE_MICROCHIP_ATSHA204A_SWI_RMT)
-static constexpr uint8_t decode_byte(const uint8_t *tokens) {
+static uint8_t decode_byte(const uint8_t *tokens) {
   uint8_t value = 0;
-  for (unsigned bit = 0; bit < 8; bit++) {
-    if (tokens[bit] == 0x7F || tokens[bit] == 0x7E)
-      value |= 1U << bit;
-  }
+  for (unsigned bit = 0; bit < 8; bit++)
+    value |= static_cast<uint8_t>((tokens[bit] == 0x7F || tokens[bit] == 0x7E) << bit);
   return value;
 }
 
@@ -98,8 +96,6 @@ static constexpr uint8_t SWI_IDLE = 0xBB;
 static constexpr uint8_t SWI_SLEEP = 0xCC;
 static constexpr uint32_t SWI_WAKE_US = 80;
 static constexpr uint32_t SWI_TURNAROUND_US = 100;
-static constexpr uint8_t TRANSMIT_ECHO[] = {0x7D, 0x7D, 0x7D, 0x7F, 0x7D, 0x7D, 0x7D, 0x7E};
-static_assert(decode_byte(TRANSMIT_ECHO) == SWI_TRANSMIT);
 
 void SWITransport::wait_to_send_() {
   if (this->received_packet_) {
@@ -244,15 +240,12 @@ bool RMTTransport::setup() {
   encoder.min_chunk_size = RMT_SYMBOLS_PER_BYTE;
 
   // The UART bus has already enabled input. Add open-drain output on the same GPIO.
-  if (gpio_od_enable(gpio) != ESP_OK || rmt_new_tx_channel(&tx, &this->tx_) != ESP_OK ||
-      rmt_new_simple_encoder(&encoder, &this->encoder_) != ESP_OK || rmt_enable(this->tx_) != ESP_OK) {
-    if (this->encoder_ != nullptr)
-      rmt_del_encoder(this->encoder_);
-    if (this->tx_ != nullptr)
-      rmt_del_channel(this->tx_);
+  if (gpio_od_enable(gpio) != ESP_OK || rmt_new_tx_channel(&tx, &this->tx_) != ESP_OK)
     return false;
-  }
-  return true;
+  if (rmt_new_simple_encoder(&encoder, &this->encoder_) == ESP_OK)
+    return true;
+  rmt_del_channel(this->tx_);
+  return false;
 }
 
 void RMTTransport::dump_config() { ESP_LOGCONFIG(TAG, "  Transport: Single-wire RMT (UART RX on GPIO%u)", this->pin_); }
@@ -260,26 +253,26 @@ void RMTTransport::dump_config() { ESP_LOGCONFIG(TAG, "  Transport: Single-wire 
 bool RMTTransport::wake() { return this->send(&RMT_WAKE, 1); }
 
 bool RMTTransport::send(const uint8_t *bytes, size_t size) {
-  // A timed-out transaction can still own the frame. Recover when the driver releases it.
-  if (rmt_tx_wait_all_done(this->tx_, 0) != ESP_OK)
+  // Recycle the descriptor from any aborted transmission before replacing its frame.
+  if (rmt_tx_wait_all_done(this->tx_, 0) != ESP_OK || (!this->tx_enabled_ && rmt_enable(this->tx_) != ESP_OK))
     return false;
-
   std::copy_n(bytes, size, this->frame_.begin());
-  rmt_transmit_config_t config{};
-  config.flags.eot_level = true;
-  const auto status = rmt_transmit(this->tx_, this->encoder_, this->frame_.data(), size, &config);
-  if (status == ESP_OK) {
-    // A maximum-length frame takes about 27 ms.
-    const auto wait_status = rmt_tx_wait_all_done(this->tx_, 40);
-    if (wait_status != ESP_OK) {
-      ESP_LOGW(TAG, "RMT transmit did not complete: %s", esp_err_to_name(wait_status));
-      return false;
-    }
-  } else {
-    ESP_LOGW(TAG, "RMT transmit failed: %s", esp_err_to_name(status));
+  const rmt_transmit_config_t config{.flags = {.eot_level = true}};
+  auto status = rmt_transmit(this->tx_, this->encoder_, this->frame_.data(), size, &config);
+  if (status == ESP_OK)
+    status = rmt_tx_wait_all_done(this->tx_, 40);  // The longest frame takes about 27 ms.
+  auto disabled = rmt_disable(this->tx_);
+  if (disabled == ESP_ERR_INVALID_STATE) {  // The TX interrupt can briefly still own the channel state.
+    delayMicroseconds(10);
+    disabled = rmt_disable(this->tx_);
   }
-  this->frame_.fill(0);
-  return status == ESP_OK;
+  this->tx_enabled_ = disabled != ESP_OK;
+  if (!this->tx_enabled_)
+    this->frame_.fill(0);
+  if (status != ESP_OK || disabled != ESP_OK) {
+    ESP_LOGW(TAG, "RMT transmit failed: %s (disable: %s)", esp_err_to_name(status), esp_err_to_name(disabled));
+  }
+  return status == ESP_OK && disabled == ESP_OK;
 }
 
 #endif
