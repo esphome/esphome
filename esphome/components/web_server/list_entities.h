@@ -11,18 +11,12 @@ class JsonBuilder;
 namespace esphome::web_server {
 
 // The /events session the iterator lists entities to
-#ifdef USE_ESP32
 class AsyncEventSourceResponse;
-using EventSession = AsyncEventSourceResponse;
-#elif defined(USE_ARDUINO)
-class DeferredUpdateEventSource;
-using EventSession = DeferredUpdateEventSource;
-#endif
 class WebServer;
 
 class ListEntitiesIterator final : public ComponentIterator {
  public:
-  explicit ListEntitiesIterator(EventSession *session) : session_(session) {}
+  explicit ListEntitiesIterator(AsyncEventSourceResponse *session) : session_(session) {}
 
 // Entity overrides (generated from entity_types.h).
 // Implementations live in list_entities.cpp.
@@ -39,7 +33,7 @@ class ListEntitiesIterator final : public ComponentIterator {
   // Same type as message_generator_t, which this header cannot include
   void send_all_(void *source, void (*generator)(WebServer *, void *, json::JsonBuilder &));
 
-  EventSession *session_;
+  AsyncEventSourceResponse *session_;
 };
 
 }  // namespace esphome::web_server

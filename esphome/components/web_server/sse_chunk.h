@@ -13,28 +13,28 @@ namespace esphome::web_server {
 // The chunk header and the final CRLF (the chunk terminator) do not count toward the
 // chunk length; everything between them does.
 
-// The chunk terminator is also the only piece of a null message (no data line, no blank line)
-using web_server_base::CHUNK_END;
-using web_server_base::CHUNK_END_LEN;
+// The chunk header comes from web_server_base; the terminator is also the only piece of a null message (no data
+// line, no blank line)
 using web_server_base::CHUNK_HDR_LEN;
 using web_server_base::write_chunk_header;
+// A PROGMEM copy that shadows web_server_base::CHUNK_END, whose constexpr array sits in RAM on ESP8266
+extern const char CHUNK_END[];
+using web_server_base::CHUNK_END_LEN;
 // Between two data lines: the end of one and the prefix of the next
-constexpr char SSE_SEP[] = "\r\ndata: ";
-constexpr size_t SSE_SEP_LEN = sizeof(SSE_SEP) - 1;
+extern const char SSE_SEP[];
+constexpr size_t SSE_SEP_LEN = 8;
 // End of the last data line, the blank line ending the event, and the chunk terminator
-constexpr char SSE_SUFFIX[] = "\r\n\r\n\r\n";
-constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
+extern const char SSE_SUFFIX[];
+constexpr size_t SSE_SUFFIX_LEN = 6;
 
 // Status, Content-Type and headers of the /events response head
-constexpr char SSE_STATUS[] = "200 OK";
-constexpr char SSE_CONTENT_TYPE[] = "text/event-stream";
-constexpr web_server_base::HttpHeader SSE_HEADERS[] = {
-    {"Transfer-Encoding", "chunked"},
-    {"Cache-Control", "no-cache"},
-    {"Connection", "keep-alive"},
-};
+// In flash on ESP8266; the stream helpers read them with the _P functions
+extern const char SSE_STATUS[];
+extern const char SSE_CONTENT_TYPE[];
+constexpr size_t SSE_HEADERS_COUNT = 3;
+extern const web_server_base::HttpHeader SSE_HEADERS[SSE_HEADERS_COUNT];
 // Hand-framed first chunk holding an empty event (one blank line), as httpd_resp_send_chunk() sent it before
-constexpr char SSE_FIRST_CHUNK[] = "2\r\n\r\n\r\n";
+extern const char SSE_FIRST_CHUNK[];
 
 // Receives one piece of the chunk; ctx is whatever the caller passed to for_each_chunk_piece()
 using ChunkPieceSink = void (*)(void *ctx, const char *piece, size_t len);
@@ -47,5 +47,16 @@ void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSin
 // Writes the chunk header placeholder, the retry/id/event lines and, with_data, the first
 // "data: " into buf. Returns the prefix length; size - 1 or more means the event name did not fit.
 size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id, uint32_t reconnect, bool with_data);
+
+// Copies the prefix and the message's pieces to dst; returns the bytes written
+size_t copy_chunk(uint8_t *dst, const char *prefix, size_t prefix_len, const char *message, size_t message_len);
+
+// Tail capacity for need bytes: cap when they fit, else max / 2, then max; 0 when need > max
+size_t tail_queue_cap(size_t need, size_t cap, size_t max);
+
+// Moves the unsent bytes [sent, len) of src to the front of dst (dst may be src) and copies the chunk after them.
+// Returns the new length.
+size_t queue_chunk(uint8_t *dst, const uint8_t *src, size_t len, size_t sent, const char *prefix, size_t prefix_len,
+                   const char *message, size_t message_len);
 
 }  // namespace esphome::web_server
