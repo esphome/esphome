@@ -61,6 +61,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   esp_err_t write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding);
   /// Adds stored bytes to the ring count; adding never races a take.
   void count_(uint32_t length, bool padding);
+  bool settle_stale_count_();
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
   bool transfers_in_flight_() const;
@@ -93,6 +94,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   std::atomic<uint32_t> ring_padding_{0};
   // Low 32 bits of esp_timer_get_time() when the driver last took a transfer.
   std::atomic<uint32_t> last_taken_us_{0};
+  // Low 32 bits of esp_timer_get_time() at the driver's last transfer event, a take or a park.
+  std::atomic<uint32_t> last_event_us_{0};
   // on_transfer_taken() runs on the USB driver's task, which must not block, and inside writes, so its state is
   // guarded by a spinlock and the reports it collects are delivered from loop(). Reset while the stream is stopped.
   portMUX_TYPE taken_lock_ = portMUX_INITIALIZER_UNLOCKED;

@@ -53,7 +53,10 @@ void USBAudioSpeaker::loop() {
   if (commands & COMMAND_STOP) {
     this->stop_();
   }
-  if ((commands & COMMAND_START) && this->state_ == speaker::STATE_STOPPED) {
+  if ((commands & COMMAND_START) && this->state_ == speaker::STATE_STOPPED && this->writes_in_flight_ != 0) {
+    // A write from before the stop may still count its bytes; reset only once it has.
+    this->request_(COMMAND_START, 0);
+  } else if ((commands & COMMAND_START) && this->state_ == speaker::STATE_STOPPED) {
     // Suspending flushed the driver's ring buffer, and resuming restarts its packet sizing.
     portENTER_CRITICAL(&this->taken_lock_);
     this->ring_bytes_ = 0;
@@ -63,8 +66,9 @@ void USBAudioSpeaker::loop() {
     this->unreported_frames_ = 0;
     this->report_frames_pending_ = 0;
     this->last_finish_us_ = 0;
-    // The idle window for a tail flush starts now, not at the last take of the previous stream.
+    // The idle windows for a tail flush and a stale count start now, not at the previous stream's last transfer.
     this->last_taken_us_ = static_cast<uint32_t>(esp_timer_get_time());
+    this->last_event_us_ = this->last_taken_us_.load();
     portEXIT_CRITICAL(&this->taken_lock_);
     this->state_ = speaker::STATE_STARTING;
     // Answers through on_stream_state() now or once the device connects.
@@ -82,11 +86,12 @@ void USBAudioSpeaker::loop() {
   if (this->finishing_ && this->pad_remaining_ > 0) {
     this->pad_with_silence_();
   }
+  const bool settling = this->settle_stale_count_();
   // has_buffered_data_() turns false once the driver has taken the last whole transfer and it has had time to play.
   if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_()) {
     this->stop_();
   }
-  if (!this->finishing_ && !this->flush_tail_()) {
+  if (!this->finishing_ && !this->flush_tail_() && !settling) {
     this->disable_loop();
   }
 }
@@ -117,6 +122,33 @@ uint32_t USBAudioSpeaker::audio_tail_bytes_() {
   const uint32_t next = this->next_transfer_bytes_(accum);
   portEXIT_CRITICAL(&this->taken_lock_);
   return ring < next ? next - ring : 0;
+}
+
+// A take on the driver's task that used a still pending write counts as a park; if the driver then parks every
+// transfer, no later event corrects it. With no write and no transfer event for longer than one is in flight, the
+// driver holds less than its next transfer, so a whole transfer or more is stale: report it as played and drop it.
+// Returns true while such a count may still settle, so loop() keeps running.
+bool USBAudioSpeaker::settle_stale_count_() {
+  if (this->state_ != speaker::STATE_RUNNING || this->ring_bytes_ < this->transfer_bytes_) {
+    return false;
+  }
+  portENTER_CRITICAL(&this->taken_lock_);
+  // Under the lock, so a write that starts meanwhile and counts inside it is seen: it sets the event time first.
+  const uint32_t event_us = this->last_event_us_;
+  if (this->writes_in_flight_ != 0 || static_cast<uint32_t>(esp_timer_get_time()) - event_us < this->in_flight_us_) {
+    portEXIT_CRITICAL(&this->taken_lock_);
+    return true;
+  }
+  const uint32_t ring = this->ring_bytes_;
+  const uint32_t audio = ring - std::min<uint32_t>(this->ring_padding_, ring);
+  this->ring_bytes_ = 0;
+  this->ring_padding_ = 0;
+  this->report_frames_pending_ += this->unreported_frames_ + this->usb_stream_info_.bytes_to_frames(audio);
+  this->unreported_frames_ = 0;
+  this->report_finish_us_ = esp_timer_get_time();
+  portEXIT_CRITICAL(&this->taken_lock_);
+  this->deliver_reports_();
+  return false;
 }
 
 // Pads an audio tail to a whole transfer once the bus has gone idle, so the driver takes it and the frames get
@@ -285,7 +317,8 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     }
   }
   this->writes_in_flight_.fetch_sub(1);
-  if (this->audio_tail_bytes_() > 0) {
+  // A tail to flush, or a count loop() may have to settle once the bus idles.
+  if (this->audio_tail_bytes_() > 0 || this->ring_bytes_ >= this->transfer_bytes_) {
     this->enable_loop_soon_any_context();
   }
   return written;
@@ -350,6 +383,7 @@ void USBAudioSpeaker::pad_with_silence_() {
 
 void USBAudioSpeaker::on_transfer_taken() {
   bool report = false;
+  this->last_event_us_ = static_cast<uint32_t>(esp_timer_get_time());
   portENTER_CRITICAL(&this->taken_lock_);
   // Only a take on the writer's task comes after the driver stored the write; no write, no task lookup.
   const TaskHandle_t writer = this->writer_task_;
