@@ -1,0 +1,34 @@
+# ESP32-C3 DUT on the relay's test network with a static address and its own AP always on with nobody on it.
+substitutions:
+  name: otarelay-c3
+esphome:
+  name: ${name}
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+wifi:
+  power_save_mode: none
+  post_connect_roaming: false
+  reboot_timeout: 0s
+  networks:
+    - ssid: otarelay-main
+  manual_ip:
+    static_ip: 192.168.5.50
+    gateway: 192.168.5.1
+    subnet: 255.255.255.0
+  ap:
+    ssid: otarelay-c3-ap
+    password: !secret ap_password
+    ap_mode: ALWAYS_ON
+  on_connect:
+    - lambda: ESP_LOGI("test", "WIFIEV connected");
+  on_disconnect:
+    - lambda: ESP_LOGI("test", "WIFIEV disconnected");
+web_server:
+  port: 80
+packages:
+  events: !include ota-events.yaml

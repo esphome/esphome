@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <functional>
 #include <iterator>
 #include <string>
@@ -7,7 +6,6 @@
 
 namespace esphome::ld2450::testing {
 
-using ::testing::_;
 using ::testing::NiceMock;
 
 namespace {
@@ -20,14 +18,6 @@ constexpr uint32_t NOT_LOST = 0xFFFFFFFFu;
 class LD2450LinkTest : public ::testing::TestWithParam<uint32_t> {
  protected:
   void SetUp() override {
-    ON_CALL(this->mock_uart_, available()).WillByDefault([this]() { return this->rx_.size(); });
-    ON_CALL(this->mock_uart_, read_array(_, _)).WillByDefault([this](uint8_t *data, size_t len) {
-      if (this->rx_.size() < len)
-        return false;
-      std::copy(this->rx_.begin(), this->rx_.begin() + len, data);
-      this->rx_.erase(this->rx_.begin(), this->rx_.begin() + len);
-      return true;
-    });
     this->ld2450_.set_uart_parent(&this->mock_uart_);
     this->ld2450_.set_link_timeout(LINK_TIMEOUT_MS);
     // As setup() leaves them, without its boot restart
@@ -41,8 +31,7 @@ class LD2450LinkTest : public ::testing::TestWithParam<uint32_t> {
   /// One pass of the main loop at t0_ + `at`, with `bytes` arriving at the UART first.
   void pass_(uint32_t at, const std::vector<uint8_t> &bytes = {}) {
     LoopBlockingGuard clock{nullptr, nullptr, this->t0_ + at};
-    this->rx_.insert(this->rx_.end(), bytes.begin(), bytes.end());
-    this->ld2450_.loop();
+    this->ld2450_.feed(bytes);
   }
   void frame_(uint32_t at) { this->pass_(at, make_periodic_frame()); }
   /// Call `action` with the loop clock at t0_ + `at`.
@@ -74,7 +63,6 @@ class LD2450LinkTest : public ::testing::TestWithParam<uint32_t> {
   const uint32_t t0_ = GetParam();
   NiceMock<MockUARTComponent> mock_uart_;
   TestableLD2450 ld2450_;
-  std::vector<uint8_t> rx_;
 };
 
 INSTANTIATE_TEST_SUITE_P(ClockStart, LD2450LinkTest, ::testing::Values(10000u, 0xFFFFF000u),
@@ -101,11 +89,11 @@ TEST_P(LD2450LinkTest, AckFramesDoNotKeepTheLinkAlive) {
 
 TEST_P(LD2450LinkTest, InvalidInputIsCountedButDoesNotKeepTheLinkAlive) {
   this->frame_(0);
-  EXPECT_FALSE(this->ld2450_.bytes_since_frame_);
+  EXPECT_FALSE(this->ld2450_.bytes_since_frame_());
   EXPECT_EQ(this->ld2450_.invalid_frames_, 0u);
   // Bytes that never start a header are skipped by the parser, so only the frames with a bad footer are counted
   this->pass_(300, {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC});
-  EXPECT_TRUE(this->ld2450_.bytes_since_frame_);
+  EXPECT_TRUE(this->ld2450_.bytes_since_frame_());
   EXPECT_EQ(this->ld2450_.invalid_frames_, 0u);
   auto bad_footer = make_periodic_frame();
   bad_footer[bad_footer.size() - 1] = 0xAB;
@@ -114,7 +102,7 @@ TEST_P(LD2450LinkTest, InvalidInputIsCountedButDoesNotKeepTheLinkAlive) {
   EXPECT_EQ(this->ld2450_.invalid_frames_, 2u);
   EXPECT_EQ(this->lost_at_(501, 2 * LINK_TIMEOUT_MS), LINK_TIMEOUT_MS);
   this->frame_(LINK_TIMEOUT_MS + 100);
-  EXPECT_FALSE(this->ld2450_.bytes_since_frame_);
+  EXPECT_FALSE(this->ld2450_.bytes_since_frame_());
   EXPECT_EQ(this->ld2450_.invalid_frames_, 0u);
 }
 
