@@ -10,9 +10,12 @@ import pytest
 
 from esphome.components.zephyr import (
     zephyr_framework_type,
+    zephyr_manifest,
     zephyr_set_core_data,
     zephyr_variant,
-    zephyr_variant_family,
+    zephyr_variant_family_module,
+    zephyr_variant_family_name,
+    zephyr_variant_name,
 )
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 from esphome.components.zephyr.variants import (
@@ -147,37 +150,47 @@ def test_set_variant_core_data(
     resolved = ZephyrVariantResolved(variant, manifest, cv.Version(4, 5, 0))
     set_variant_core_data(resolved, config, bootloader="mcuboot")
 
-    assert zephyr_variant() == "chip1"
-    assert zephyr_variant_family() == family
+    assert zephyr_variant_name() == "chip1"
+    assert zephyr_variant_family_name() == family
     assert zephyr_framework_type() == manifest.framework_type
+    assert zephyr_manifest() is manifest
+    assert zephyr_variant() is variant
+    assert zephyr_variant_family_module() is variant.family_module
     assert CORE.data["zephyr"][CONF_BOARD] == "chip1_dk"
     assert CORE.data["zephyr"][KEY_BOOTLOADER] == "mcuboot"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "zephyr"
     assert CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] == cv.Version(4, 5, 0)
 
 
+_LOOKUPS: tuple[Callable[[], object], ...] = (
+    zephyr_variant_name,
+    zephyr_variant_family_name,
+    zephyr_framework_type,
+    zephyr_manifest,
+    zephyr_variant,
+    zephyr_variant_family_module,
+)
+
+
 def test_no_variant_on_nrf52_or_other_platforms() -> None:
     """nrf52 sets up Zephyr data without a variant; other platforms have none."""
-    lookups = (zephyr_variant, zephyr_variant_family, zephyr_framework_type)
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: PLATFORM_ESP32,
         KEY_TARGET_FRAMEWORK: "esp-idf",
     }
-    assert [lookup() for lookup in lookups] == [None, None, None]
+    assert [lookup() for lookup in _LOOKUPS] == [None] * len(_LOOKUPS)
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: PLATFORM_NRF52,
         KEY_TARGET_FRAMEWORK: "zephyr",
     }
     zephyr_set_core_data(_config())
-    assert [lookup() for lookup in lookups] == [None, None, None]
+    assert [lookup() for lookup in _LOOKUPS] == [None] * len(_LOOKUPS)
 
 
 @pytest.mark.parametrize("platform", [None, PLATFORM_ESP32, PLATFORM_STM32])
-@pytest.mark.parametrize(
-    "lookup", [zephyr_variant, zephyr_variant_family, zephyr_framework_type]
-)
+@pytest.mark.parametrize("lookup", _LOOKUPS)
 def test_variant_read_before_the_platform_schema_is_rejected(
-    lookup: Callable[[], str | None], platform: str | None
+    lookup: Callable[[], object], platform: str | None
 ) -> None:
     """Until the platform schema sets the target framework, even esp32 may be Zephyr."""
     CORE.data[KEY_CORE] = {} if platform is None else {KEY_TARGET_PLATFORM: platform}
@@ -185,11 +198,9 @@ def test_variant_read_before_the_platform_schema_is_rejected(
         lookup()
 
 
-@pytest.mark.parametrize(
-    "lookup", [zephyr_variant, zephyr_variant_family, zephyr_framework_type]
-)
+@pytest.mark.parametrize("lookup", _LOOKUPS)
 def test_variant_read_on_zephyr_without_zephyr_data_is_rejected(
-    lookup: Callable[[], str | None],
+    lookup: Callable[[], object],
 ) -> None:
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: PLATFORM_STM32,
