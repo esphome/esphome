@@ -72,7 +72,10 @@ class MipiDsi final : public display::Display {
   /// Present a complete native framebuffer and wait until the previous buffer is safe to reuse.
   /// Call only from the display owner task; do not mix with ordinary drawing while using this API.
   /// On failure, do not reuse either buffer; the display may still be reading it.
-  bool present_framebuffer(void *fb);
+  /// With defer=true, requires three buffers used in strict rotation, starting away from scan-out.
+  /// The previous submission is fenced before the next swap; never write to either of the two
+  /// most recently submitted buffers. Do not mix deferred and synchronous modes or drawing APIs.
+  bool present_framebuffer(void *fb, bool defer = false);
 
   void smark_failed(const LogString *message, esp_err_t err);
 
@@ -153,6 +156,7 @@ class MipiDsi final : public display::Display {
   esp_lcd_panel_io_handle_t io_handle_{};
   SemaphoreHandle_t io_lock_{};
   SemaphoreHandle_t frame_complete_{};
+  bool present_pending_{false};
   uint8_t num_fbs_{1};
   void *framebuffers_[3]{};
   uint8_t *buffer_{nullptr};
