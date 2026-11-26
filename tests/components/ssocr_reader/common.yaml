@@ -1,6 +1,6 @@
 camera_decoder:
   id: ssocr_decoder
-  output_type: GRAYSCALE
+  output_type: ${ssocr_output_type}
 
 ssocr_reader:
   id: ssocr_reader_1

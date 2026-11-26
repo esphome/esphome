@@ -1,0 +1,32 @@
+# I2C bus for camera sensor
+psram:
+
+i2c:
+  - id: i2c_camera_bus
+    sda: 4
+    scl: 5
+    frequency: 400kHz
+
+esp32_camera:
+  id: test_camera
+  name: ESP32 Camera
+  data_pins:
+    - number: 11
+    - number: 9
+    - number: 8
+    - number: 10
+    - number: 12
+    - number: 18
+    - number: 17
+    - number: 16
+  vsync_pin: 6
+  href_pin: 7
+  pixel_clock_pin: 13
+  external_clock:
+    pin: 15
+    frequency: 20MHz
+  i2c_id: i2c_camera_bus
+  resolution: 640x480
+  jpeg_quality: 10
+  frame_buffer_location: PSRAM
+  pixel_format: JPEG

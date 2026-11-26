@@ -23,10 +23,18 @@ namespace esphome::ssocr_reader {
 /// connected API clients receive the frames the reader asks for.
 class SSOCRReader final : public PollingComponent, public camera::CameraListener {
  public:
-  /// The camera, decoder, frame size and crop buffer never change, so they are constructor parameters.
+  /// Everything but the threshold and the digit count is required and never changes.
   SSOCRReader(camera::Camera *camera, camera::Decoder *decoder, uint16_t frame_width, uint16_t frame_height,
-              uint8_t *crop)
-      : camera_(camera), decoder_(decoder), crop_(crop), img_width_(frame_width), img_height_(frame_height) {}
+              uint8_t *crop, uint16_t crop_x, uint16_t crop_y, uint16_t crop_width, uint16_t crop_height)
+      : camera_(camera),
+        decoder_(decoder),
+        crop_(crop),
+        img_width_(frame_width),
+        img_height_(frame_height),
+        crop_x_(crop_x),
+        crop_y_(crop_y),
+        crop_w_(crop_width),
+        crop_h_(crop_height) {}
 
   void setup() override;
   void update() override;
@@ -35,12 +43,6 @@ class SSOCRReader final : public PollingComponent, public camera::CameraListener
   void dump_config() override;
 
   void set_threshold_level(uint8_t level) { this->ocr_.set_threshold_level(level); }
-  void set_crop(uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
-    this->crop_x_ = x;
-    this->crop_y_ = y;
-    this->crop_w_ = width;
-    this->crop_h_ = height;
-  }
   void set_digit_count(uint8_t count) { this->digit_count_ = count; }
 
   SUB_SENSOR(value)

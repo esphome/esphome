@@ -1,14 +1,16 @@
 """Tests for the frame, decoder and crop checks of ssocr_reader's final validation."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from typing import Any
 
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components import camera_decoder, esp32_camera, ssocr_reader
+from esphome.config import Config
 from esphome.const import CONF_RESOLUTION, CONF_ROTATION
 from esphome.core import ID
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CAMERA_ID = ID("cam")
@@ -27,7 +29,9 @@ def _config(**crop: int) -> ConfigType:
 
 
 @pytest.fixture
-def declared(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
+def declared(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[Callable[..., None]]:
     """Make the camera and decoder configs the final validation looks up settable."""
 
     def declare(
@@ -35,7 +39,10 @@ def declared(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
         jpeg_quality: int = 0,
         output_type: str = "PIXEL_FORMAT_GRAYSCALE",
         rotation: int = 0,
+        psram: bool = False,
     ) -> None:
+        if psram:
+            full_config["psram"] = {"disabled": False}
         configs: dict[ID, dict[str, Any]] = {
             CAMERA_ID: {
                 CONF_RESOLUTION: "640X480",
@@ -51,7 +58,10 @@ def declared(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
             ssocr_reader.fv, "get_declaring_config", lambda id_: configs[id_]
         )
 
-    return declare
+    full_config = Config()
+    token = fv.full_config.set(full_config)
+    yield declare
+    fv.full_config.reset(token)
 
 
 def test_accepts_a_crop_inside_the_frame(declared: Callable[..., None]) -> None:
@@ -108,3 +118,39 @@ def test_a_quarter_turn_swaps_the_frame_dimensions(
     ] == (480, 640)
     with pytest.raises(cv.Invalid, match="does not fit"):
         ssocr_reader._final_validate(_config(w=600, h=40))
+
+
+@pytest.mark.parametrize(
+    ("output_type", "rgb888"),
+    [("PIXEL_FORMAT_GRAYSCALE", False), ("PIXEL_FORMAT_RGB888", True)],
+)
+def test_records_whether_the_decoder_outputs_rgb888(
+    declared: Callable[..., None], output_type: str, rgb888: bool
+) -> None:
+    declared(output_type=output_type)
+
+    config = ssocr_reader._final_validate(_config())
+
+    assert config[ssocr_reader._KEY_DECODER_RGB888] is rgb888
+
+
+@pytest.mark.parametrize(
+    ("psram", "height", "warns"),
+    [
+        pytest.param(False, 300, True, id="large-crop-without-psram"),
+        pytest.param(True, 300, False, id="large-crop-with-psram"),
+        pytest.param(False, 40, False, id="small-crop-without-psram"),
+    ],
+)
+def test_warns_about_a_large_crop_without_psram(
+    declared: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+    psram: bool,
+    height: int,
+    warns: bool,
+) -> None:
+    declared(psram=psram)
+
+    ssocr_reader._final_validate(_config(w=200, h=height))
+
+    assert ("uses internal RAM" in caplog.text) is warns

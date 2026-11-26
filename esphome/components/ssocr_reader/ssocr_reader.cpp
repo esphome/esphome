@@ -1,7 +1,9 @@
 #include "ssocr_reader.h"
 
-#include "esphome/components/camera_decoder/jpeg_grayscale.h"
 #include "esphome/core/log.h"
+#ifdef USE_SSOCR_READER_RGB888
+#include "esphome/components/camera_decoder/jpeg_grayscale.h"
+#endif
 
 #include <cinttypes>
 #include <cstring>
@@ -104,10 +106,15 @@ bool SSOCRReader::crop_frame_(camera::Buffer &decoded, const camera::CameraImage
     return false;
 
   const bool source_is_gray = spec.format == camera::PIXEL_FORMAT_GRAYSCALE;
+#ifdef USE_SSOCR_READER_RGB888
   if (!source_is_gray && spec.format != camera::PIXEL_FORMAT_RGB888)
     return false;
-
   const size_t source_bpp = source_is_gray ? 1 : camera_decoder::RGB888_BYTES_PER_PIXEL;
+#else
+  if (!source_is_gray)
+    return false;
+  constexpr size_t source_bpp = 1;
+#endif
   const size_t source_stride = source_bpp * spec.width;
   // The width and height come from the decoder; make sure the buffer really holds that many pixels.
   if (spec.height > decoded.get_data_length() / source_stride)
@@ -118,16 +125,18 @@ bool SSOCRReader::crop_frame_(camera::Buffer &decoded, const camera::CameraImage
   for (int y = 0; y < this->crop_h_; y++) {
     const uint8_t *row = source_row + static_cast<size_t>(y) * source_stride;
     uint8_t *dst = this->crop_ + static_cast<size_t>(y) * this->crop_w_;
-    if (source_is_gray) {
-      std::memcpy(dst, row, this->crop_w_);
+#ifdef USE_SSOCR_READER_RGB888
+    if (!source_is_gray) {
+      for (int x = 0; x < this->crop_w_; x++) {
+        const uint8_t *pixel = row + static_cast<size_t>(x) * source_bpp;
+        dst[x] = static_cast<uint8_t>((pixel[0] * camera_decoder::LUMA_RED + pixel[1] * camera_decoder::LUMA_GREEN +
+                                       pixel[2] * camera_decoder::LUMA_BLUE) >>
+                                      8);
+      }
       continue;
     }
-    for (int x = 0; x < this->crop_w_; x++) {
-      const uint8_t *pixel = row + static_cast<size_t>(x) * source_bpp;
-      dst[x] = static_cast<uint8_t>((pixel[0] * camera_decoder::LUMA_RED + pixel[1] * camera_decoder::LUMA_GREEN +
-                                     pixel[2] * camera_decoder::LUMA_BLUE) >>
-                                    8);
-    }
+#endif
+    std::memcpy(dst, row, this->crop_w_);
   }
   return true;
 }

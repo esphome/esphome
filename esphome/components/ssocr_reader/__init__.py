@@ -1,5 +1,7 @@
 """Reads seven-segment displays out of esp32_camera frames."""
 
+import logging
+
 import esphome.codegen as cg
 from esphome.components import camera, camera_decoder, esp32_camera
 import esphome.config_validation as cv
@@ -21,6 +23,11 @@ CONF_CROP_H = "crop_h"
 CONF_THRESHOLD_LEVEL = "threshold_level"
 CONF_DIGIT_COUNT = "digit_count"
 
+_LOGGER = logging.getLogger(__name__)
+
+# Without PSRAM the crop buffer is static internal RAM, so a larger one is worth a warning.
+LARGE_CROP_WITHOUT_PSRAM = 32 * 1024
+
 ssocr_reader_ns = cg.esphome_ns.namespace("ssocr_reader")
 SSOCRReader = ssocr_reader_ns.class_("SSOCRReader", cg.PollingComponent)
 
@@ -41,6 +48,7 @@ CONFIG_SCHEMA = cv.Schema(
 # Frame size resolved in final_validate and read back by to_code, so codegen
 # never has to guess it from substitutions.
 _KEY_CAMERA_FRAME = "_ssocr_camera_frame"
+_KEY_DECODER_RGB888 = "_ssocr_decoder_rgb888"
 
 
 def _enum_name(value: object) -> str:
@@ -99,7 +107,17 @@ def _final_validate(config: ConfigType) -> ConfigType:
             path=[CONF_CROP_W],
         )
 
+    crop_size = config[CONF_CROP_W] * config[CONF_CROP_H]
+    psram = fv.full_config.get().get("psram", {"disabled": True})
+    if psram.get("disabled") and crop_size > LARGE_CROP_WITHOUT_PSRAM:
+        _LOGGER.warning(
+            "The %d byte crop buffer of ssocr_reader uses internal RAM. Add psram: "
+            "or reduce the crop if the build runs out of memory",
+            crop_size,
+        )
+
     config[_KEY_CAMERA_FRAME] = (width, height)
+    config[_KEY_DECODER_RGB888] = output_format == "PIXEL_FORMAT_RGB888"
     return config
 
 
@@ -114,18 +132,21 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_ID], cg.uint8, config[CONF_CROP_W] * config[CONF_CROP_H], psram=True
     )
     var = cg.new_Pvariable(
-        config[CONF_ID], cam, decoder, frame_width, frame_height, crop
+        config[CONF_ID],
+        cam,
+        decoder,
+        frame_width,
+        frame_height,
+        crop,
+        config[CONF_CROP_X],
+        config[CONF_CROP_Y],
+        config[CONF_CROP_W],
+        config[CONF_CROP_H],
     )
     await cg.register_component(var, config)
     cg.add_define("USE_SSOCR_READER")
+    if config[_KEY_DECODER_RGB888]:
+        cg.add_define("USE_SSOCR_READER_RGB888")
 
     cg.add(var.set_threshold_level(config[CONF_THRESHOLD_LEVEL]))
-    cg.add(
-        var.set_crop(
-            config[CONF_CROP_X],
-            config[CONF_CROP_Y],
-            config[CONF_CROP_W],
-            config[CONF_CROP_H],
-        )
-    )
     cg.add(var.set_digit_count(config[CONF_DIGIT_COUNT]))
