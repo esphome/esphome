@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_LVGL_ORTHO
+
 /*
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 youkorr
@@ -1088,3 +1092,5 @@ void lv_draw_ortho_ppa_describe_stall(lv_draw_ortho_ppa_line_cb_t line, void *us
   if (last_done)
     say_one(last_done, "last finished", line, user);
 }
+
+#endif  // USE_LVGL_ORTHO

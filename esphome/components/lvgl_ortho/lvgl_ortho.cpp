@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_LVGL_ORTHO
+
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 youkorr
 // Part of ppa-alternative: https://github.com/youkorr/ppa-alternative-
@@ -5,7 +9,6 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "esphome/core/version.h"
 
 #include <cstring>
 
@@ -15,8 +18,7 @@
 #include "lv_draw_ortho_ppa.h"
 #include "esp_heap_caps.h"
 
-namespace esphome {
-namespace lvgl_ortho {
+namespace esphome::lvgl_ortho {
 
 static const char *const TAG = "lvgl_ortho";
 
@@ -27,7 +29,7 @@ static constexpr uint32_t REPORT_MS = 10000;
 
 // One display, one instance: LVGL's callbacks carry no pointer of ours, and
 // the display's user data is ESPHome lvgl's.
-static LvglOrtho *g_self = nullptr;
+LvglOrtho *LvglOrtho::instance_ = nullptr;
 
 // lv_area_intersect() and lv_area_is_equal() are in LVGL 9's PRIVATE headers
 // (lv_area_private.h), which a component outside LVGL cannot count on.
@@ -90,7 +92,7 @@ void LvglOrtho::setup() {
   // rows follow each other -- and the panel's own frame buffers have none.
   this->stride_ = (uint32_t) this->width_ * 2;
 
-  g_self = this;
+  instance_ = this;
   lv_draw_ortho_init();
   if (this->ppa_) {
     const esp_err_t err = lv_draw_ortho_ppa_init();
@@ -146,10 +148,10 @@ void LvglOrtho::setup() {
     lv_display_set_buffers_with_stride(this->disp_, this->buf_, nullptr, size, this->stride_,
                                        LV_DISPLAY_RENDER_MODE_DIRECT);
   }
-  lv_display_set_flush_cb(this->disp_, flush_cb_);
+  lv_display_set_flush_cb(this->disp_, flush_cb);
   // Counted against the screens shown: a refresh that draws without being
   // shown is a picture turned for nothing.
-  lv_display_add_event_cb(this->disp_, render_start_cb_, LV_EVENT_RENDER_START, nullptr);
+  lv_display_add_event_cb(this->disp_, render_start_cb, LV_EVENT_RENDER_START, this);
   lv_display_set_rotation(this->disp_, lv_rotation(this->degrees_));
   lv_display_set_matrix_rotation(this->disp_, true);
   if (this->degrees_ != 0 && !lv_display_get_matrix_rotation(this->disp_)) {
@@ -190,68 +192,11 @@ void LvglOrtho::setup() {
                               "by the PPA"
                             : "left to LVGL (could not be taken)");
   } else {
-    ESP_LOGI(TAG, "...into a buffer of its own, copied to the display. For no copy at all, use youkorr/lvgl_9.5's "
-                  "mipi_dsi with framebuffers: 3");
+    ESP_LOGI(TAG, "Rendering into a dedicated buffer, copied to the display");
   }
 }
 
-bool LvglOrtho::use_panel_buffers_() {
-#ifdef USE_LVGL_ORTHO_NATIVE_DSI
-  if (this->native_dsi_ != nullptr) {
-    auto *panel = this->native_dsi_;
-    if (panel->is_failed() || panel->get_num_framebuffers() != 3 || panel->get_native_width() != this->width_ ||
-        panel->get_native_height() != this->height_)
-      return false;
-    void *fb0 = panel->get_framebuffer(0);
-    void *fb1 = panel->get_framebuffer(1);
-    void *fb2 = panel->get_framebuffer(2);
-    if (fb0 == nullptr || fb1 == nullptr || fb2 == nullptr)
-      return false;
-    const size_t size = (size_t) this->stride_ * this->height_;
-    // Buffer zero starts in scan-out. Start rendering into buffer one instead.
-    lv_display_set_buffers_with_stride(this->disp_, fb1, fb2, size, this->stride_, LV_DISPLAY_RENDER_MODE_DIRECT);
-    lv_draw_buf_init(&this->third_, this->width_, this->height_, lv_display_get_color_format(this->disp_),
-                     this->stride_, fb0, size);
-    lv_display_set_3rd_draw_buffer(this->disp_, &this->third_);
-    this->panel_fbs_ = 3;
-    ESP_LOGI(TAG, "Native DSI framebuffer API (PR #23332), three buffers, deferred fence");
-    return true;
-  }
-#endif
-#if LVGL_ORTHO_FAST_PRESENT
-  // The panel's own scan-out buffers, as youkorr/lvgl_9.5's mipi_dsi
-  // publishes them. LVGL renders straight into one while the panel shows
-  // another, and a flush only swaps the pointer the panel reads -- in the
-  // panel's orientation, which is the half Espressif's presenter refuses
-  // (its DOUBLE_DIRECT mode rejects any rotation).
-  const auto &fp = mipi_dsi::g_fast_present;
-  if (fp.num_fbs < 2 || fp.present == nullptr || fp.fb[0] == nullptr || fp.fb[1] == nullptr)
-    return false;
-  if (fp.w != this->width_ || fp.h != this->height_) {
-    ESP_LOGE(TAG, "The panel's frame buffers are %dx%d and the display %dx%d; copying instead", fp.w, fp.h,
-             (int) this->width_, (int) this->height_);
-    return false;
-  }
-  const size_t size = (size_t) this->stride_ * this->height_;
-  lv_display_set_buffers_with_stride(this->disp_, fp.fb[0], fp.fb[1], size, this->stride_,
-                                     LV_DISPLAY_RENDER_MODE_DIRECT);
-  this->panel_fbs_ = 2;
-  if (fp.num_fbs >= 3 && fp.fb[2] != nullptr) {
-    // Three: the buffer LVGL draws into was last shown two swaps ago, so it
-    // is never the one on the glass, nor the one waiting for the next frame.
-    lv_draw_buf_init(&this->third_, this->width_, this->height_, lv_display_get_color_format(this->disp_),
-                     this->stride_, fp.fb[2], size);
-    lv_display_set_3rd_draw_buffer(this->disp_, &this->third_);
-    this->panel_fbs_ = 3;
-  } else {
-    ESP_LOGW(TAG, "Two frame buffers: LVGL may draw into the one just swapped out before the panel has left it "
-                  "(a tear for one frame). framebuffers: 3 on mipi_dsi removes it");
-  }
-  return true;
-#else
-  return false;
-#endif
-}
+bool LvglOrtho::use_panel_buffers_() { return false; }
 
 void LvglOrtho::dump_config() {
   ESP_LOGCONFIG(TAG, "LVGL ortho:");
@@ -283,53 +228,23 @@ void LvglOrtho::dump_config() {
   }
 }
 
-void LvglOrtho::render_start_cb_(lv_event_t *e) {
-  (void) e;
-  if (g_self != nullptr)
-    g_self->renders_++;
+void LvglOrtho::render_start_cb(lv_event_t *e) {
+  auto *self = static_cast<LvglOrtho *>(lv_event_get_user_data(e));
+  if (self != nullptr) {
+    self->renders_++;
+  }
 }
 
-void LvglOrtho::flush_cb_(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
-  (void) px_map;  // the buffer is ours and already in the panel's orientation
-#ifdef USE_LVGL_ORTHO_NATIVE_DSI
-  if (g_self != nullptr && g_self->native_dsi_ != nullptr && g_self->panel_fbs_ > 0) {
-    if (lv_display_flush_is_last(disp) && !g_self->native_present_failed_) {
-      const uint32_t start = micros();
-      if (!g_self->native_dsi_->present_framebuffer(px_map, true)) {
-        g_self->native_present_failed_ = true;
-        g_self->ready_ = false;
-        ESP_LOGE(TAG, "Native framebuffer presentation failed; stopping LVGL refreshes");
-        lv_display_enable_invalidation(disp, false);
-      } else {
-        g_self->native_present_us_ += micros() - start;
-        g_self->native_present_count_++;
-        g_self->presents_++;
-      }
-    }
-    lv_display_flush_ready(disp);
-    return;
-  }
-#endif
-#if LVGL_ORTHO_FAST_PRESENT
-  if (g_self != nullptr && g_self->panel_fbs_ > 0) {
-    // LVGL drew into one of the panel's own buffers. Once the whole frame is
-    // drawn, the panel is told to show it: a pointer swap, no pixel moves.
+void LvglOrtho::flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t * /*px_map*/) {
+  // The buffer is ours and already in the panel's orientation.
+  if (instance_ != nullptr) {
     if (lv_display_flush_is_last(disp)) {
-      const auto &fp = mipi_dsi::g_fast_present;
-      fp.present(fp.instance, px_map);
-      g_self->presents_++;
+      instance_->presents_++;
     }
-    lv_display_flush_ready(disp);
-    return;
-  }
-#endif
-  if (g_self != nullptr) {
-    if (lv_display_flush_is_last(disp))
-      g_self->presents_++;
     // In direct mode LVGL hands over the area as the UI sees it.
     lv_area_t native;
     lv_draw_ortho_native_area(disp, area, &native);
-    g_self->copy_native_(native);
+    instance_->copy_native_(native);
   }
   lv_display_flush_ready(disp);
 }
@@ -341,11 +256,8 @@ void LvglOrtho::flush_cb_(lv_display_t *disp, const lv_area_t *area, uint8_t *px
 // of its own that is sent on update() -- never, under LVGL. The screen stays
 // black and each frame costs half a second.
 static void draw_block(display::Display *d, int x, int y, int w, int h, const uint8_t *px) {
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 11, 0)
   d->draw_pixels_at(x, y, w, h, px, display::COLOR_BITNESS_565, false);
-#else
-  d->draw_pixels_at(x, y, w, h, px, display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false);
-#endif
+
 }
 
 void LvglOrtho::copy_native_(const lv_area_t &in) {
@@ -522,13 +434,6 @@ void LvglOrtho::loop() {
           "Last %.0fs: %.1f video frames/s (%.1f ms each), %.1f screens/s shown, %.0f panel rows/s copied (%.1f ms/s)",
           s, this->video_frames_ / s, this->video_frames_ ? this->video_us_ / 1000.0f / this->video_frames_ : 0.0f,
           this->presents_ / s, this->flush_rows_ / s, this->flush_us_ / 1000.0f / s);
-#ifdef USE_LVGL_ORTHO_NATIVE_DSI
-      if (this->native_present_count_ > 0) {
-        ESP_LOGI(TAG, "  native DSI present: %.2f ms/frame, %.1f ms/s, %u successful presents",
-                 this->native_present_us_ / 1000.0f / this->native_present_count_,
-                 this->native_present_us_ / 1000.0f / s, (unsigned) this->native_present_count_);
-      }
-#endif
       // How much of the turning the PPA did, and how often the CPU had to
       // wait for it: near 100% and few waits is the PPA working for nothing.
       const lv_draw_ortho_stats_t *st = lv_draw_ortho_get_stats();
@@ -595,12 +500,10 @@ void LvglOrtho::loop() {
       lv_draw_ortho_reset_stats();
     }
     this->last_report_ = now;
-#ifdef USE_LVGL_ORTHO_NATIVE_DSI
-    this->native_present_us_ = this->native_present_count_ = 0;
-#endif
     this->video_us_ = this->video_frames_ = this->flush_us_ = this->flush_rows_ = this->presents_ = this->renders_ = 0;
   }
 }
 
-}  // namespace lvgl_ortho
-}  // namespace esphome
+}  // namespace esphome::lvgl_ortho
+
+#endif  // USE_LVGL_ORTHO

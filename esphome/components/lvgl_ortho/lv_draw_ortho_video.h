@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_LVGL_ORTHO
+
 /*
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 youkorr
@@ -77,3 +81,5 @@ void lv_draw_ortho_video_deinit(lv_draw_ortho_video_t *v);
 #endif
 
 #endif /* LV_DRAW_ORTHO_VIDEO_H */
+
+#endif  // USE_LVGL_ORTHO

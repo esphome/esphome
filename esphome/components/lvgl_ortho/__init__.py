@@ -22,8 +22,9 @@ from esphome.const import CONF_DISPLAY_ID, CONF_ID, CONF_ROTATION
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
-DEPENDENCIES = ["lvgl"]
 CODEOWNERS = ["@youkorr"]
+DEPENDENCIES = ["esp32", "lvgl", "psram"]
+DOMAIN = "lvgl_ortho"
 
 lvgl_ortho_ns = cg.esphome_ns.namespace("lvgl_ortho")
 LvglOrtho = lvgl_ortho_ns.class_("LvglOrtho", cg.Component)
@@ -63,8 +64,6 @@ CONFIG_SCHEMA = cv.All(
             # The PPA turns each tile while the CPU draws the next; false
             # leaves the turning to the CPU, to compare the two on a board.
             cv.Optional("ppa", default=True): cv.boolean,
-            # Experimental adapter for ESPHome PR #23332, not the legacy fast-present ABI.
-            cv.Optional("native_dsi", default=False): cv.one_of(False),
             # Off by default: it takes up to three more tiles of internal RAM
             # and the other core's time. Compare with lvgl_bench first.
             cv.Optional("cores", default=1): cv.int_range(min=1, max=2),
@@ -116,63 +115,25 @@ def _final_validate(config):
         )
     if _the_display(full, config) is None:
         raise cv.Invalid(f"lvgl_ortho: no display found; give {CONF_DISPLAY_ID}:")
-    if config["native_dsi"]:
-        target = _the_display(full, config)
-        matches = [d for d in full.get("display", []) if d.get(CONF_ID) == target]
-        if len(matches) != 1 or matches[0].get("platform") != "mipi_dsi":
-            raise cv.Invalid("native_dsi requires a mipi_dsi display")
-        if matches[0].get("framebuffers", 1) != 3:
-            raise cv.Invalid("native_dsi requires framebuffers: 3")
-        if str(matches[0].get("color_depth", "16")).removesuffix("bit") != "16":
-            raise cv.Invalid("native_dsi requires color_depth: 16")
+    displays = blocks[0].get("displays", [])
+    if len(displays) != 1 or _the_display(full, config) != displays[0]:
+        raise cv.Invalid("lvgl_ortho requires exactly one matching LVGL display")
+    if blocks[0].get("byte_order") != "little_endian":
+        raise cv.Invalid("lvgl_ortho requires little_endian RGB565")
     return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-# LVGL hands every draw task a matrix only with these on, and lv_draw_ortho
-# reads it -- the library and this component must be built with them alike.
-MATRIX_DEFINES = ("LV_USE_FLOAT", "LV_USE_MATRIX", "LV_DRAW_TRANSFORM_USE_MATRIX")
-
-
-def _force_matrix_defines():
-    """Set the three defines and write lv_conf.h again.
-
-    Done AFTER the lvgl component's own to_code, because that is where it
-    decides them: youkorr/lvgl_9.5 sets LV_USE_FLOAT and LV_USE_MATRIX to 0
-    whenever no Lottie or SVG widget is used, and writes lv_conf.h on the next
-    line, so nothing done earlier survives. Rewriting with lvgl's own
-    generator keeps every other define exactly as lvgl chose it.
-    """
-    from esphome.components import lvgl as lv
-    from esphome.components.lvgl import defines as df
-    from esphome.core import CORE
-    from esphome.helpers import write_file_if_changed
-
-    # ESPHome's lvgl calls it _get_data, youkorr/lvgl_9.5 get_data.
-    get = getattr(df, "get_data", None) or df._get_data
-    defines = get(df.KEY_LV_DEFINES, {})
-    for name in MATRIX_DEFINES:
-        defines[name] = "1"
-    write_file_if_changed(
-        CORE.relative_src_path(lv.LV_CONF_FILENAME), lv.generate_lv_conf_h()
-    )
-
-
 @coroutine_with_priority(CoroPriority.FINAL)
 async def to_code(config):
     from esphome.core import CORE
-
-    _force_matrix_defines()
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     disp = await cg.get_variable(_the_display(CORE.config, config))
     cg.add(var.set_display(disp))
-    if config["native_dsi"]:
-        cg.add_define("USE_LVGL_ORTHO_NATIVE_DSI")
-        cg.add(var.set_native_dsi(disp))
     cg.add(var.set_rotation(config[CONF_ROTATION]))
     cg.add(var.set_ppa(config["ppa"]))
     cg.add(var.set_cores(config["cores"]))

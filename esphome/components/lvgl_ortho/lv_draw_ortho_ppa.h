@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_LVGL_ORTHO
+
 /*
  * SPDX-License-Identifier: MIT
  * Copyright (c) 2026 youkorr
@@ -138,3 +142,5 @@ bool lv_draw_ortho_ppa_dig734(uint32_t w, uint32_t h, lv_display_rotation_t rot,
 #endif
 
 #endif /* LV_DRAW_ORTHO_PPA_H */
+
+#endif  // USE_LVGL_ORTHO

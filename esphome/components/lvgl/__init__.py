@@ -568,6 +568,13 @@ async def to_code(configs):
     for fmt in lv_image_formats:
         df.add_define(f"LV_DRAW_SW_SUPPORT_{fmt}", "1")
 
+    if "lvgl_ortho" in CORE.config:
+        df.add_define("LV_USE_FLOAT", "1")
+        df.add_define("LV_USE_MATRIX", "1")
+        df.add_define("LV_DRAW_TRANSFORM_USE_MATRIX", "1")
+        # The orthogonal renderer owns PPA scheduling.
+        df.add_define("LV_USE_PPA", "0")
+
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
         clean_build(clear_pio_cache=False)
