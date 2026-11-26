@@ -179,7 +179,7 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
-// Indexed by node type - 1 (types 1-49); last entry is the unknown fallback.
+// Indexed by node type - 1 (types 1-49); type 0 wraps to a huge index and falls back to UNKNOWN too
 PROGMEM_STRING_TABLE(NodeTypeStrings, "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", "CLIMA", "UCBAT", "UC", "UCRH", "UCVOC",
                      "UCCO2", "VLV", "VLVRH", "VLVVOC", "VLVCO2", "BOX", "SWITCH", "ACTUAT", "UCBATRH", "PWMIN", "IAV",
                      "IAVRH", "IAVVOC", "IAVCO2", "BOILER", "TRONIC", "VLVCO2RH", "UCSUN", "UCVENT", "EAV", "EAVRH",
@@ -189,15 +189,11 @@ PROGMEM_STRING_TABLE(NodeTypeStrings, "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", 
 static_assert(NodeTypeStrings::LAST_INDEX == 49);
 
 const LogString *node_type_name(uint8_t type) {
-  const bool bs = (type & NODE_TYPE_BS) != 0;
-  const uint8_t base_type = type & ~NODE_TYPE_BS;
-
-  if (bs && base_type == 10)
-    return LOG_STR("BSRH");
-  if (bs && base_type == 12)
-    return LOG_STR("BSCO2");
-
-  return NodeTypeStrings::get_log_str(static_cast<uint8_t>(base_type - 1), NodeTypeStrings::LAST_INDEX);
+  uint8_t base_type = type & ~NODE_TYPE_BS;
+  // A box sensor reports the UC type it is built on; BSRH and BSCO2 are types 35 and 37
+  if ((type & NODE_TYPE_BS) && (base_type == 10 || base_type == 12))
+    base_type += 25;
+  return NodeTypeStrings::get_log_str(base_type - 1);
 }
 
 void DucoDiscovery::setup() {
