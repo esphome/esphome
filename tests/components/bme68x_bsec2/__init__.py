@@ -27,8 +27,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_build_flag(f"-I{shared}")
         cg.add_define("USE_BSEC2")
         cg.add_define("USE_SENSOR")
-        cg.add_define("ESPHOME_ENTITY_SENSOR_COUNT", 0)
         cg.add_define("USE_TEXT_SENSOR")
-        cg.add_define("ESPHOME_ENTITY_TEXT_SENSOR_COUNT", 0)
 
     manifest.to_code = to_code_testing

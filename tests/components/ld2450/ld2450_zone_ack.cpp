@@ -63,13 +63,12 @@ TEST_F(LD2450ZoneAckTest, CmdFooterBytesInZonePayloadDoNotTruncateAck) {
     std::vector<uint8_t> coords(24, 0);
     std::memcpy(coords.data() + zone * 8, COORDINATES, sizeof(COORDINATES));
     const auto frame = make_zone_ack(coords);
-    std::memset(this->ld2450_.buffer_data_, 0xEE, MAX_LINE_LENGTH);
 
     const size_t split = 12 + zone * 8 + 4;
     this->ld2450_.feed(std::vector<uint8_t>(frame.begin(), frame.begin() + split));
-    EXPECT_EQ(this->ld2450_.buffer_pos_, split) << "zone " << static_cast<int>(zone);
+    EXPECT_EQ(this->ld2450_.reader_.length(), split) << "zone " << static_cast<int>(zone);
     this->ld2450_.feed(std::vector<uint8_t>(frame.begin() + split, frame.end()));
-    EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+    EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
     for (uint8_t i = 0; i < MAX_ZONES; i++) {
       if (i == zone) {
         expect_zone(this->ld2450_, i, 772, 258, 1500, 3000);
@@ -83,7 +82,7 @@ TEST_F(LD2450ZoneAckTest, CmdFooterBytesInZonePayloadDoNotTruncateAck) {
 TEST_F(LD2450ZoneAckTest, CompleteZoneAckWithoutEmbeddedFooter) {
   this->set_all_zones_(100, 200, 300, 400);
   this->ld2450_.feed(make_zone_ack({}));
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   this->expect_all_zones_(0, 0, 0, 0);
 }
 
@@ -93,7 +92,7 @@ TEST_F(LD2450ZoneAckTest, FailedZoneQueryAckDoesNotWaitForCoordinates) {
   frame[6] = 0xC1;
   frame[8] = 0x01;
   this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   this->expect_all_zones_(100, 200, 300, 400);
 }
 
@@ -108,7 +107,7 @@ TEST_F(LD2450ZoneAckTest, ValidZoneAckWithEmbeddedFooterAndHeaderIsNotResynced) 
   ASSERT_TRUE(std::equal(frame.begin(), frame.begin() + 36, stream.begin()));
 
   this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   expect_zone(this->ld2450_, 0, 772, 258, -771, -1285);
   expect_zone(this->ld2450_, 1, 30, 449, 0, 1);
   expect_zone(this->ld2450_, 2, 100, 200, 1500, 3000);
@@ -117,7 +116,7 @@ TEST_F(LD2450ZoneAckTest, ValidZoneAckWithEmbeddedFooterAndHeaderIsNotResynced) 
 TEST_F(LD2450ZoneAckTest, TruncatedZoneAckThenCompleteZoneAckRecovers) {
   this->ld2450_.feed(make_truncated_zone_ack());
   this->ld2450_.feed(make_complete_zone_ack());
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   expect_zone(this->ld2450_, 0, 100, 200, 1500, 3000);
 }
 
@@ -131,7 +130,7 @@ TEST_F(LD2450ZoneAckTest, TruncatedZoneAckThenPeriodicFrameIsParsed) {
 
   // The truncated ACK is not decoded; the periodic frame is recovered through the data header.
   EXPECT_EQ(frames, 1);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   expect_zone(this->ld2450_, 0, 100, 200, 300, 400);
 }
 
@@ -139,7 +138,7 @@ TEST_F(LD2450ZoneAckTest, TruncatedZoneAckThenShortAckThenCompleteZoneAckRecover
   this->ld2450_.feed(make_truncated_zone_ack());
   this->ld2450_.feed(make_disable_conf_ack());
   this->ld2450_.feed(make_complete_zone_ack());
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   expect_zone(this->ld2450_, 0, 100, 200, 1500, 3000);
 }
 
@@ -150,10 +149,9 @@ TEST_F(LD2450ZoneAckTest, ShortAckInRetainedSuffixIsDispatchedOnResync) {
   // Ten bytes of the next zone ACK bring the buffer to 40 bytes without a footer.
   this->ld2450_.feed(std::vector<uint8_t>(complete.begin(), complete.begin() + 10));
   // The short ACK was replayed and consumed; only the new zone ACK prefix remains.
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 10);
-  EXPECT_EQ(this->ld2450_.buffer_data_[6], 0xC1);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 10u);
   this->ld2450_.feed(std::vector<uint8_t>(complete.begin() + 10, complete.end()));
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   expect_zone(this->ld2450_, 0, 100, 200, 1500, 3000);
 }
 
@@ -166,21 +164,20 @@ TEST_F(LD2450ZoneAckTest, MultipleCompleteFramesInRetainedSuffixAreDrained) {
   const auto enable_ack = make_ack_frame();
   stream.insert(stream.end(), enable_ack.begin(), enable_ack.end());
   this->ld2450_.feed(stream);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 39);  // the C1 header still claims the buffer
+  EXPECT_EQ(this->ld2450_.reader_.length(), 39u);  // the C1 header still claims the buffer
   // The 40th byte triggers the resync; both buffered ACKs are drained, leaving only this byte.
   const auto complete = make_complete_zone_ack();
   this->ld2450_.feed({complete[0]});
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 1);
-  EXPECT_EQ(this->ld2450_.buffer_data_[0], 0xFD);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 1u);
   this->ld2450_.feed(std::vector<uint8_t>(complete.begin() + 1, complete.end()));
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   expect_zone(this->ld2450_, 0, 100, 200, 1500, 3000);
 }
 
 TEST_F(LD2450ZoneAckTest, PeriodicFooterBytesInZonePayloadDoNotEndTheAck) {
   // Zone 0 x1 is -13227 (0xCC55 little endian): its bytes 55 CC are the periodic frame footer
   this->ld2450_.feed(make_zone_ack({0x55, 0xCC, 0xC8, 0x00, 0xDC, 0x05, 0xB8, 0x0B}));
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
   expect_zone(this->ld2450_, 0, -13227, 200, 1500, 3000);
 }
 

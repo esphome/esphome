@@ -329,8 +329,14 @@ light:
     output: light_test_binary
     restore_mode: RESTORE_AND_ON
     resume_effect: true
+    write_on_setup: true
+    setup_priority: 790
     effects:
       - strobe:
+    on_turn_on:
+      - logger.log: Binary light turned on
+    on_turn_off:
+      - logger.log: Binary light turned off
     on_state:
       - logger.log: Binary light state changed
   # Test restore_state: all (shorthand for {} -- restore everything, no overrides)
@@ -373,6 +379,13 @@ light:
     gamma_correct: 2.8
     transition_state_publish_interval: 200ms
     default_transition_length: 2s
+    # Actions that wait keep their Automation object
+    on_turn_on:
+      - delay: 1s
+      - logger.log: Monochromatic light turned on a second ago
+    on_turn_off:
+      - delay: 1s
+      - logger.log: Monochromatic light turned off a second ago
     initial_state:
       state: true
       effect: My Flicker

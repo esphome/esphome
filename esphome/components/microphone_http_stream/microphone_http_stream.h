@@ -8,7 +8,8 @@
 #include "esphome/components/microphone/microphone_source.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/web_server_base/web_server_base.h"
-#include "esphome/components/web_server_idf/sse_chunk.h"
+#include "esphome/components/web_server_base/chunk.h"
+#include "esphome/components/web_server_base/stream_head.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -51,7 +52,7 @@ struct ClientSlot {
   uint32_t last_audio_ms{0};  // Main loop time; 0 until the first send pass starts the audio timeout
   uint16_t chunk_len{0};
   uint16_t chunk_sent{0};  // Bytes of chunk_header + data + CHUNK_END already accepted by the socket
-  char chunk_header[web_server_idf::CHUNK_HDR_LEN];
+  char chunk_header[web_server_base::CHUNK_HDR_LEN];
   std::atomic<StopReason> stop_reason{StopReason::STOP_REASON_NONE};  // Not NONE once the stream must stop
   std::atomic<StreamState> state{StreamState::STREAM_STATE_IDLE};
   std::atomic<uint8_t> writers{0};  // Audio callbacks currently using this slot

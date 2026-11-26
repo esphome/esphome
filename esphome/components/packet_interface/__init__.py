@@ -72,7 +72,7 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
     Without a config, as tooling that lists dependencies calls it, everything a layer could load.
     """
     if config is None:
-        return ["binary_sensor", "xxtea"]
+        return ["binary_sensor", "lzss", "xxtea"]
     loads: set[str] = set()
     for interface in config:
         loads |= stack_auto_load(interface)
