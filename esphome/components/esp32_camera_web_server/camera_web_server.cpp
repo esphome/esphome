@@ -81,8 +81,10 @@ void CameraWebServer::on_shutdown() {
   this->image_ = nullptr;
   httpd_stop(this->httpd_);
   this->httpd_ = nullptr;
-  vSemaphoreDelete(this->semaphore_);
-  this->semaphore_ = nullptr;
+  if (this->semaphore_ != nullptr) {
+    vSemaphoreDelete(this->semaphore_);
+    this->semaphore_ = nullptr;
+  }
 }
 
 void CameraWebServer::dump_config() {

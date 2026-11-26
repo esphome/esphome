@@ -58,8 +58,8 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
   uint8_t seq_{0};
   // Start byte, seq, cmd, payload length, payload, checksum (2), end byte
   using PayloadLength = PayloadLengthU8<LengthField{.offset = 3, .trailer = 3}>;
-  LengthFrameReader<SHELLY_DIMMER_BUFFER_SIZE, FrameFormat<FrameHeader<SHELLY_DIMMER_PROTO_START_BYTE>, PayloadLength>>
-      reader_;
+  using Frame = FrameFormat<FrameHeader<SHELLY_DIMMER_PROTO_START_BYTE>, PayloadLength>;
+  LengthFrameReader<SHELLY_DIMMER_BUFFER_SIZE, Frame> reader_;
 
   // Firmware version.
   uint8_t version_major_;

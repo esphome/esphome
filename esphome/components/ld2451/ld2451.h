@@ -19,8 +19,8 @@ static constexpr uint8_t MAX_FRAME_LENGTH = PAYLOAD_OFFSET + 2 + MAX_TARGETS * T
 
 /// Warns about a data frame with more targets than MAX_TARGETS, which is skipped
 void warn_too_many_targets(size_t len);
-using DataFrame =
-    FrameFormat<ld24xx::DataFrameHeader, WarnIfLonger<ld24xx::PayloadLength, MAX_FRAME_LENGTH, warn_too_many_targets>>;
+using DataFrame = FrameFormat<ld24xx::DataFrameHeader, ld24xx::PayloadLength,
+                              WarnIfLongerThan<MAX_FRAME_LENGTH, warn_too_many_targets>>;
 
 class LD2451Component final : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR
