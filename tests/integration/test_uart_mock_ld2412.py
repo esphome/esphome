@@ -241,8 +241,8 @@ async def test_uart_mock_ld2412(
         )
 
         # Verify the truncated frame was dropped with a warning
-        assert any("Invalid length" in line for line in waiter.lines), (
-            "Expected 'Invalid length' warning in logs"
+        assert any("Invalid footer" in line for line in waiter.lines), (
+            "Expected 'Invalid footer' warning in logs"
         )
 
         # Verify LD2412 sent setup commands (TX logging)
@@ -600,7 +600,7 @@ async def test_uart_mock_ld2412_truncated_answer(
 
         try:
             _, gate_0_state, gate_5_state = await asyncio.gather(
-                waiter.wait_for("Invalid length", timeout=5.0),
+                waiter.wait_for("Invalid footer", timeout=5.0),
                 gate_0_read,
                 gate_5_read,
             )
