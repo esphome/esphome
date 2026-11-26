@@ -542,4 +542,35 @@ TEST(LengthFrameReaderTest, PayloadAtSkipsBytesAfterTheLength) {
   EXPECT_EQ(feed_all(reader, {0x01, 0xF0, 0x01, 0x00, 0x7A, 0x7B, 0xCC}), (Frames{{0x01, 0x00, 0x7A, 0x7B, 0xCC}}));
 }
 
+static size_t &late_checks() {
+  static size_t count = 0;
+  return count;
+}
+// The check reads byte 3, past the length field: the frame is valid when it is 5A
+static bool fourth_byte_5a(const uint8_t *buf) {
+  late_checks()++;
+  return buf[3] == 0x5A;
+}
+// A5, payload length at 1, then type, 5A and the rest of the payload; the length is known at 2 but checked at 4, as on
+// the mr60 sensors
+using LateChecked =
+    FrameFormat<FrameHeader<0xA5>, PayloadLengthU8<LengthField{.offset = 1}>, CheckFirstBytes<4, fourth_byte_5a>>;
+
+TEST(LengthFrameReaderTest, CheckFirstBytesWaitsPastTheLengthField) {
+  static_assert(LateChecked::Length::KNOWN_AT == 4);
+  late_checks() = 0;
+  LengthFrameReader<16, LateChecked> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01}), Frames{});
+  EXPECT_EQ(late_checks(), 0u);
+  EXPECT_EQ(feed_all(reader, {0x5A, 0x42}), (Frames{{0xA5, 0x03, 0x01, 0x5A, 0x42}}));
+  EXPECT_EQ(late_checks(), 1u);
+}
+
+TEST(LengthFrameReaderTest, LateCheckFailureFindsTheNextFrame) {
+  LengthFrameReader<16, LateChecked> reader;
+  // The first header fails its check at byte 4; the reader finds the frame starting at the next A5
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01, 0x00, 0xA5, 0x03, 0x01, 0x5A, 0x42}),
+            (Frames{{0xA5, 0x03, 0x01, 0x5A, 0x42}}));
+}
+
 }  // namespace esphome::core::testing
