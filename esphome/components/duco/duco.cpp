@@ -196,7 +196,7 @@ const LogString *node_type_name(uint8_t type) {
   return NodeTypeStrings::get_log_str(base_type - 1);
 }
 
-// Indexed by network type - 1 (types 1-4); last entry is the unknown fallback.
+// Indexed by network type (types 0-3); last entry is the unknown fallback.
 PROGMEM_STRING_TABLE(NetworkTypeStrings, "-", "Wired", "RF", "Virtual", "unknown");
 
 static_assert(NetworkTypeStrings::LAST_INDEX == 4);
