@@ -192,6 +192,10 @@ template<class HEADER, class LENGTH, class... OPTIONS> struct FrameFormat {
                 "FrameFormat options are FrameMinLength, CheckFirstBytes and WarnIfLongerThan");
   static_assert(((OPTIONS::CHECK_AT == 0 || OPTIONS::CHECK_AT >= LENGTH::KNOWN_AT) && ...),
                 "CheckFirstBytes must cover the length field");
+  // Checks run only once the largest CHECK_AT is in, so a shorter one would reject late
+  static_assert((0 + ... + (OPTIONS::CHECK_AT != 0)) <= 1, "A FrameFormat takes at most one CheckFirstBytes");
+  // Only the shortest limit would ever warn
+  static_assert((0 + ... + (OPTIONS::WARN_MAX != 0)) <= 1, "A FrameFormat takes at most one WarnIfLongerThan");
   using Length = frame_reader_detail::OptionLength<LENGTH, OPTIONS...>;
   static constexpr size_t HEADER_LEN = HEADER::LEN;
   static constexpr uint8_t FIRST = HEADER::byte(0);
