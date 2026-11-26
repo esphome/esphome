@@ -31,7 +31,11 @@ TEXT_SENSORS = {
     CONF_ERROR: (DucoTextReading.DUCO_TEXT_READING_ERROR, 1, "60s"),
     CONF_UPTIME: (DucoTextReading.DUCO_TEXT_READING_UPTIME, 1, "60s"),
     CONF_NODE_TYPE: (DucoTextReading.DUCO_TEXT_READING_NODE_TYPE, 1, "300s"),
-    CONF_NODE_NETWORK_TYPE: (DucoTextReading.DUCO_TEXT_READING_NODE_NETWORK_TYPE, 1, "300s"),
+    CONF_NODE_NETWORK_TYPE: (
+        DucoTextReading.DUCO_TEXT_READING_NODE_NETWORK_TYPE,
+        1,
+        "300s",
+    ),
 }
 
 

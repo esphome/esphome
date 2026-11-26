@@ -201,9 +201,7 @@ PROGMEM_STRING_TABLE(NetworkTypeStrings, "-", "Wired", "RF", "Virtual", "unknown
 
 static_assert(NetworkTypeStrings::LAST_INDEX == 4);
 
-const LogString *network_type_name(uint8_t type) {
-  return NetworkTypeStrings::get_log_str(type);
-}
+const LogString *network_type_name(uint8_t type) { return NetworkTypeStrings::get_log_str(type); }
 
 void DucoDiscovery::setup() {
   // Give the box time to start before walking its node addresses
@@ -250,7 +248,8 @@ void DucoDiscovery::dump_config() {
     const uint8_t type = this->node_types_[node];
     if (type != 0) {
       const uint8_t network_type = this->network_types_[node];
-      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s) network: %s", node, type & ~NODE_TYPE_BS, LOG_STR_ARG(node_type_name(type)), LOG_STR_ARG(network_type_name(network_type)));
+      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s) network: %s", node, type & ~NODE_TYPE_BS,
+                    LOG_STR_ARG(node_type_name(type)), LOG_STR_ARG(network_type_name(network_type)));
     }
   }
   if (this->next_node_ < NODE_COUNT) {
