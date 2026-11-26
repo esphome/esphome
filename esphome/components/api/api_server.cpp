@@ -259,9 +259,10 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Save client info before closing socket and removal for the trigger
-  char peername_buf[socket::SOCKADDR_STR_LEN];
-  std::string client_name(client->get_name());
-  std::string client_peername(client->get_peername_to(peername_buf));
+  char client_name[CLIENT_INFO_NAME_MAX_LEN];
+  memcpy(client_name, client->get_name(), sizeof(client_name));
+  char peername[socket::SOCKADDR_STR_LEN];
+  client->get_peername_to(peername);
 #endif
 
   // Read before the swap-and-reset below destroys the connection
@@ -304,7 +305,7 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Fire trigger after client is removed so api.connected reflects the true state
-  this->client_disconnected_trigger_.trigger(client_name, client_peername);
+  this->client_disconnected_callback_.call(StringRef(client_name), StringRef(peername));
 #endif
 }
 
@@ -942,6 +943,16 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
     }
   }
   ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %" PRIu32, action_call_id);
+}
+void APIServer::send_action_response_json_(uint32_t action_call_id, bool success, StringRef error_message,
+                                           void (*build)(void *ctx, JsonObject root), void *ctx, bool with_data) {
+  if (!with_data) {
+    this->send_action_response(action_call_id, success, error_message);
+    return;
+  }
+  const auto json = json::build_json([build, ctx](JsonObject root) { build(ctx, root); });
+  this->send_action_response(action_call_id, success, error_message, reinterpret_cast<const uint8_t *>(json.data()),
+                             json.size());
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

@@ -1,0 +1,6 @@
+substitutions:
+  name: virtual-uart-pico
+rp2040:
+  board: rpipicow
+packages:
+  common: !include vu-common.yaml

@@ -12,13 +12,21 @@ external_components:
       type: local
       path: EXTERNAL_COMPONENT_PATH
 
+# Both output pin tests share this build; the test names its scenario in LD2412_SCENARIO
+globals:
+  - id: ld2412_scenario
+    type: std::string
+    initial_value: 'getenv("LD2412_SCENARIO") ?: ""'
+
 # Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
 # The actual UART bus used is the uart_mock component below
 uart:
   baud_rate: 115200
   port: /dev/null
 
-# Answers the basic configuration query with gates 3 to 9, a 10 second timeout and a low output pin level
+# Answers the basic configuration query with gates 3 to 9, a 10 second timeout and a low output pin level.
+# out_pin_level_held_back answers only the second query, and only inside configuration mode, so the
+# select must hold its write back and ask again the way a real module expects
 uart_mock:
   id: mock_uart
   baud_rate: 256000
@@ -27,7 +35,22 @@ uart_mock:
         - lambda: |-
             // The length and command word arrive as one write of their own
             static const std::vector<uint8_t> BASIC_CONF_QUERY = {0x02, 0x00, 0x12, 0x00};
+            static const std::vector<uint8_t> ENABLE_CONF = {0x04, 0x00, 0xFF, 0x00};
+            static const std::vector<uint8_t> DISABLE_CONF = {0x02, 0x00, 0xFE, 0x00};
+            static bool config_mode = false;
+            static int queries = 0;
+            if (data == ENABLE_CONF) {
+              config_mode = true;
+              return;
+            }
+            if (data == DISABLE_CONF) {
+              config_mode = false;
+              return;
+            }
             if (data != BASIC_CONF_QUERY) {
+              return;
+            }
+            if (id(ld2412_scenario) == "out_pin_level_held_back" && (!config_mode || ++queries != 2)) {
               return;
             }
             id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{

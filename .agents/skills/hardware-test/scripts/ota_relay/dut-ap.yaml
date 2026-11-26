@@ -1,0 +1,22 @@
+# ESP8266 DUT that never finds its network and keeps retrying while its fallback AP serves uploads.
+substitutions:
+  name: otarelay-dut
+esphome:
+  name: ${name}
+esp8266:
+  board: d1_mini
+logger:
+  level: DEBUG
+wifi:
+  networks:
+    - ssid: hwtest-no-such-network
+      password: nosuchpassword
+  ap:
+    ssid: otarelay-dut-ap
+    password: !secret ap_password
+    ap_timeout: 15s
+captive_portal:
+web_server:
+  port: 80
+packages:
+  events: !include ota-events.yaml

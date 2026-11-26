@@ -2,10 +2,11 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
+#ifdef USE_VBUS_DATAGRAM
+#include "esphome/core/helpers.h"
+#endif
 
 namespace esphome::vbus {
-
-using message_parser_t = std::function<float(std::vector<uint8_t> &)>;
 
 class VBus;
 
@@ -33,6 +34,11 @@ class VBus final : public uart::UARTDevice, public Component {
   void loop() override;
 
   void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
+#ifdef USE_VBUS_DATAGRAM
+  template<typename F> void add_on_datagram_callback(F &&callback) {
+    this->datagram_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
  protected:
   int state_{0};
@@ -46,6 +52,9 @@ class VBus final : public uart::UARTDevice, public Component {
   uint8_t fbytes_[6];
   int fbcount_;
   std::vector<VBusListener *> listeners_{};
+#ifdef USE_VBUS_DATAGRAM
+  CallbackManager<void(uint16_t, uint16_t, uint16_t, uint16_t, uint32_t)> datagram_callback_;
+#endif
 };
 
 }  // namespace esphome::vbus

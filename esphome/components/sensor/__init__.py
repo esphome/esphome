@@ -113,6 +113,8 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
     ICON_CHEMICAL_WEAPON,
+    ICON_MAGNET,
+    ICON_RADIATOR,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
@@ -131,9 +133,11 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_METER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MICROTESLA,
     UNIT_MILLIMETER,
     UNIT_MINUTE,
     UNIT_OHM,
+    UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
     UNIT_SECOND,
@@ -305,10 +309,8 @@ def sensor_entity_category(value):
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
-# Triggers
-ValueRangeTrigger = sensor_ns.class_(
-    "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
-)
+# Automations
+ValueRangeBase = sensor_ns.class_("ValueRangeBase", automation.FiringComponent)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
@@ -408,7 +410,7 @@ _SENSOR_SCHEMA = (
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeBase),
                     cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
                     cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
                 },
@@ -425,8 +427,8 @@ _SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 class SensorKind:
     """Values `sensor_schema(kind=...)` sets; unset fields are left to the caller.
 
-    `state_class` is always set (measurement by default). `accuracy_decimals` is only a
-    default, as sensors differ; the caller's value wins. Passing any other field the kind
+    `state_class` (measurement unless the kind says otherwise) and `accuracy_decimals` are
+    defaults, as sensors differ; the caller's value wins. Passing any other field the kind
     sets is an error. A plain class, not a NamedTuple, which costs more to import.
     """
 
@@ -462,6 +464,12 @@ CARBON_DIOXIDE = SensorKind(
     UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE, accuracy_decimals=0
 )
 MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decimals=0)
+VOC_PPB = SensorKind(
+    UNIT_PARTS_PER_BILLION,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    icon=ICON_RADIATOR,
+    accuracy_decimals=0,
+)
 
 
 def _particulate(device_class: str) -> SensorKind:
@@ -519,6 +527,7 @@ PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
 ANGLE = SensorKind(UNIT_DEGREES)
 LENGTH_M = SensorKind(UNIT_METER, accuracy_decimals=2)
 RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
+MAGNETIC_FIELD = SensorKind(UNIT_MICROTESLA, icon=ICON_MAGNET)
 
 
 def _kind_value(kind: SensorKind, name: str, value: Any) -> Any:
@@ -549,8 +558,9 @@ def sensor_schema(
             kind, "unit_of_measurement", unit_of_measurement
         )
         device_class = _kind_value(kind, "device_class", device_class)
-        state_class = _kind_value(kind, "state_class", state_class)
         icon = _kind_value(kind, "icon", icon)
+        if state_class is cv.UNDEFINED:
+            state_class = kind.state_class
         if accuracy_decimals is cv.UNDEFINED:
             accuracy_decimals = kind.accuracy_decimals
 
@@ -1188,11 +1198,7 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = await automation.new_value_range_trigger(
-            conf[CONF_TRIGGER_ID], var, conf
-        )
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_value_range_automation(conf, ValueRangeBase, var)
 
 
 @setup_entity("sensor")

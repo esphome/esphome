@@ -1,0 +1,7 @@
+# Add to a proxy built from a tree with the temporary notify counters (see ndrop.hpp)
+esphome:
+  includes: [ndrop.hpp]
+interval:
+  - interval: 100ms
+    then:
+      - lambda: ndrop::poll();
