@@ -24,12 +24,14 @@ template<typename... Ts> class CommandAction final : public Action<Ts...> {
   void play(const Ts &...x) override {
     this->data_.template visit<MAX_COMMAND>(
         [&](const uint8_t *data, size_t size) {
+          ATSHA204A::ResultCallback callback;
+          if (this->result_callback_.fn_ != nullptr)
+            callback = [this](int status, const CommandResponse &response, uint32_t session) {
+              this->result_callback_.call(status, response, session);
+            };
           this->parent_->command(this->opcode_, this->param1_.value(x...), this->param2_.value(x...), {data, size},
                                  this->end_mode_, this->session_.value(x...), this->expect_response_,
-                                 [this](int status, const CommandResponse &response, uint32_t session) {
-                                   if (this->result_callback_.fn_ != nullptr)
-                                     this->result_callback_.call(status, response, session);
-                                 });
+                                 std::move(callback));
         },
         x...);
   }

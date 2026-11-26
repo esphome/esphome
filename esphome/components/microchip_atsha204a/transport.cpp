@@ -138,9 +138,9 @@ bool RMTTransport::setup() {
 
 void RMTTransport::dump_config() { ESP_LOGCONFIG(TAG, "  Transport: Single-wire RMT (UART RX on GPIO%u)", this->pin_); }
 
-bool RMTTransport::wake() { return this->transmit_(&RMT_WAKE, 1); }
+bool RMTTransport::wake() { return this->send(&RMT_WAKE, 1); }
 
-bool RMTTransport::transmit_(const uint8_t *bytes, size_t size) {
+bool RMTTransport::send(const uint8_t *bytes, size_t size) {
   // A timed-out transaction can still own the frame. Recover when the driver releases it.
   if (rmt_tx_wait_all_done(this->tx_, 0) != ESP_OK)
     return false;
@@ -162,8 +162,6 @@ bool RMTTransport::transmit_(const uint8_t *bytes, size_t size) {
   this->frame_.fill(0);
   return status == ESP_OK;
 }
-
-bool RMTTransport::send(const uint8_t *bytes, size_t size) { return this->transmit_(bytes, size); }
 
 #endif
 

@@ -73,7 +73,10 @@ _VALIDATE_RMT_UART = uart.final_validate_device_schema(
 )
 _VALIDATE_UART_BUFFER = fv.id_declaration_match_schema(
     cv.Schema(
-        {cv.Required(CONF_RX_BUFFER_SIZE): cv.int_range(min=SWI_MIN_RX_BUFFER_SIZE)},
+        {
+            cv.Required(CONF_RX_BUFFER_SIZE): cv.int_range(min=SWI_MIN_RX_BUFFER_SIZE),
+            cv.Optional(uart.CONF_RX_TIMEOUT): cv.int_range(min=1),
+        },
         extra=cv.ALLOW_EXTRA,
     )
 )
@@ -110,7 +113,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_MICROCHIP_ATSHA204A_SWI_RMT")
-    esp32_rmt.register_rmt_channel(config)
     esp32.include_builtin_idf_component("esp_driver_rmt")
     uart_config = fv.get_declaring_config(config[CONF_UART_ID], CORE.config)
     pin = uart_config[CONF_RX_PIN][CONF_NUMBER]
@@ -118,6 +120,7 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(transport, config)
     var = cg.new_Pvariable(config[CONF_ID], transport)
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
 
 OPCODES = Opcode.options(

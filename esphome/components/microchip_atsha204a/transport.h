@@ -58,7 +58,6 @@ class RMTTransport : public SWITransport {
 
  protected:
   bool send(const uint8_t *bytes, size_t size) override;
-  bool transmit_(const uint8_t *bytes, size_t size);
 
   const uint8_t pin_;
   rmt_channel_handle_t tx_{};
