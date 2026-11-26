@@ -162,7 +162,7 @@ def test_set_variant_core_data(
     assert CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] == cv.Version(4, 5, 0)
 
 
-_LOOKUPS = (
+_LOOKUPS: tuple[Callable[[], object], ...] = (
     zephyr_variant_name,
     zephyr_variant_family_name,
     zephyr_framework_type,
