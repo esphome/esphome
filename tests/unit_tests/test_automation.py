@@ -2192,6 +2192,13 @@ async def test_grouped_automations_build_in_entry_order_across_lists(
             {"watched": lambda parent: parent.speed, "filter": CHANGE_TRIGGER.changed},
             "on_x: this filter needs args or last_type",
         ),
+        (
+            {
+                "watched": lambda parent: parent.name,
+                "args": [(cg.std_string.operator("const").operator("ref"), "x")],
+            },
+            "on_x: the arg type must be a value type",
+        ),
     ],
 )
 def test_grouped_automation_rejects_a_missing_value(

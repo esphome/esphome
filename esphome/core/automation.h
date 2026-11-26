@@ -8,6 +8,7 @@
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include <algorithm>
+#include <cmath>
 #include <concepts>
 #include <cstring>
 #include <functional>
@@ -848,9 +849,11 @@ inline bool left(bool &last, bool now) {
   return result;
 }
 
-/// Codegen use only: whether `now` differs from `last`. Stores `now` in `last`.
+/// Codegen use only: whether `now` differs from `last`; NaN counts as equal to NaN. Stores `now` in `last`.
 template<typename T> bool changed(T &last, std::type_identity_t<T> now) {
-  const bool result = now != last;
+  bool result = now != last;
+  if constexpr (std::is_floating_point_v<T>)
+    result = result && !(std::isnan(now) && std::isnan(last));
   last = now;
   return result;
 }

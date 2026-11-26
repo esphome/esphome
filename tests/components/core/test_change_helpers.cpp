@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cmath>
+
 #include "esphome/core/automation.h"
 
 namespace esphome::core::testing {
@@ -75,6 +77,14 @@ TEST(ChangeHelpers, ChangedConvertsTheWatchedValueToTheCopysType) {
   EXPECT_TRUE(internal::change_trigger::changed(last, watched));
   EXPECT_EQ(last, 3);
   EXPECT_FALSE(internal::change_trigger::changed(last, watched));
+}
+
+TEST(ChangeHelpers, ChangedTreatsNanAsUnchanged) {
+  float last = 0.0f;
+  EXPECT_TRUE(internal::change_trigger::changed(last, NAN));
+  EXPECT_FALSE(internal::change_trigger::changed(last, NAN));
+  EXPECT_TRUE(internal::change_trigger::changed(last, 1.0f));
+  EXPECT_FALSE(internal::change_trigger::changed(last, 1.0f));
 }
 
 }  // namespace esphome::core::testing
