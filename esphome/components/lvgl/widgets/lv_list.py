@@ -31,6 +31,7 @@ from ..defines import (
     add_lv_use,
     get_list_triggers,
     literal,
+    uses_input_groups,
 )
 from ..lv_validation import lv_int, lv_text, padding
 from ..lvcode import (
@@ -42,6 +43,7 @@ from ..lvcode import (
     lv_add,
     lv_expr,
     lv_obj,
+    lvgl_static,
 )
 from ..schemas import (
     ALL_STYLES,
@@ -350,6 +352,10 @@ async def list_add_to_code(config, action_id, template_arg, args):
         index = None
         if (idx := config.get(CONF_INDEX)) is not None:
             index = await lv_int.process(idx)
+        # LVGL adds a new focusable widget to its default group. That is the group of the shown page or msgbox,
+        # which can be different from the group of the list.
+        if input_groups := uses_input_groups():
+            lv_add(lvgl_static.set_default_group_for(w.obj))
         await _build_dynamic_widget(
             w_type_name,
             w_conf,
@@ -359,6 +365,8 @@ async def list_add_to_code(config, action_id, template_arg, args):
             top_level=True,
             index=index,
         )
+        if input_groups:
+            lv_add(lvgl_static.restore_default_group(w.obj))
 
     return await action_to_code(widgets, do_add, action_id, template_arg, args)
 

@@ -326,6 +326,11 @@ class LvglComponent final : public PollingComponent {
   /// Move the inputs that have no group of their own to the group of the topmost visible msgbox or the current page.
   void update_input_group() { this->update_input_group_(nullptr); }
   lv_group_t *get_focus_group() { return this->active_group_(); }
+  /// Make the group of the page or msgbox that shows `parent` the default group of LVGL.
+  /// Then the list entries that an action adds to `parent` go into that group.
+  static void set_default_group_for(lv_obj_t *parent) { lv_group_set_default(for_obj(parent)->get_group_for_(parent)); }
+  /// Make the group of the inputs the default group of LVGL again. Use it after set_default_group_for().
+  static void restore_default_group(lv_obj_t *parent) { lv_group_set_default(for_obj(parent)->active_group_()); }
 #else
   lv_group_t *get_focus_group() { return this->default_group_; }
 #endif
@@ -425,9 +430,14 @@ class LvglComponent final : public PollingComponent {
 #endif
 
 #ifdef USE_LVGL_INPUT_GROUPS
+  static LvglComponent *for_obj(lv_obj_t *obj) {
+    return static_cast<LvglComponent *>(lv_display_get_user_data(lv_obj_get_display(obj)));
+  }
   /// Return nullptr if `outer` is not the outer widget of a msgbox.
   lv_group_t *msgbox_group_(lv_obj_t *outer);
   lv_group_t *active_group_();
+  /// Return the group of the msgbox or page that shows `obj`. A layer widget is in the group of the current page.
+  lv_group_t *get_group_for_(lv_obj_t *obj);
   bool is_on_layer_(lv_obj_t *obj);
   /// Move the top and bottom layer widgets from the group of one page to the group of another page.
   /// Return the widget that had the focus in `from` if it now has the focus in `to`. Else return nullptr.

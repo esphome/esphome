@@ -359,6 +359,23 @@ lv_group_t *LvglComponent::active_group_() {
   return this->default_group_;
 }
 
+lv_group_t *LvglComponent::get_group_for_(lv_obj_t *obj) {
+  for (lv_obj_t *ancestor = obj; ancestor != nullptr; ancestor = lv_obj_get_parent(ancestor)) {
+    if (lv_group_t *group = this->msgbox_group_(ancestor))
+      return group;
+  }
+  if (this->pages_.empty())
+    return this->default_group_;
+  lv_obj_t *screen = lv_obj_get_screen(obj);
+  for (LvPageType *page : this->pages_) {
+    if (page->obj == screen)
+      return page->group;
+  }
+  if (this->is_on_layer_(obj))
+    return this->pages_[this->current_page_]->group;
+  return this->default_group_;
+}
+
 void LvglComponent::update_input_group_(lv_obj_t *moved_focus) {
   lv_group_t *group = this->active_group_();
   lv_group_set_default(group);
@@ -920,6 +937,9 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
       update_when_display_idle_(update_when_display_idle),
       rotation_type_(rotation_type) {
   this->disp_ = lv_display_create(240, 240);
+  // Set this here, not in setup(). An action that runs before setup(), such as on_boot, finds this component
+  // through the display of a widget.
+  lv_display_set_user_data(this->disp_, this);
 }
 
 void LvglComponent::set_resolution_() const {
@@ -983,7 +1003,6 @@ void LvglComponent::setup() {
   this->set_resolution_();
   lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_DEFAULT);
   lv_display_set_flush_cb(this->disp_, static_flush_cb);
-  lv_display_set_user_data(this->disp_, this);
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
   lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
