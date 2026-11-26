@@ -26,6 +26,9 @@ static constexpr uint8_t NODE_TYPE_BS = 0x80;
 /// The name of a node type byte.
 const LogString *node_type_name(uint8_t type);
 
+/// The netork type of a node
+const LogString *network_type_name(uint8_t type);
+
 /// A received message; data points into the receive buffer and is valid only during the callback.
 struct DucoMessage {
   uint8_t id;
@@ -104,6 +107,7 @@ class DucoDiscovery : public DucoDevice {
   static constexpr uint8_t NODE_COUNT = 0x45;
 
   std::array<uint8_t, NODE_COUNT> node_types_{};  // node type bytes, 0 when no node answered at that address
+  std::array<uint8_t, NODE_COUNT> network_types_{};
   uint8_t next_node_{0};
   uint8_t attempts_{0};
 };

@@ -196,6 +196,15 @@ const LogString *node_type_name(uint8_t type) {
   return NodeTypeStrings::get_log_str(base_type - 1);
 }
 
+// Indexed by network type - 1 (types 1-4); last entry is the unknown fallback.
+PROGMEM_STRING_TABLE(NetworkTypeStrings, "-", "Wired", "RF", "Virtual", "unknown");
+
+static_assert(NetworkTypeStrings::LAST_INDEX == 4);
+
+const LogString *network_type_name(uint8_t type) {
+  return NetworkTypeStrings::get_log_str(type);
+}
+
 void DucoDiscovery::setup() {
   // Give the box time to start before walking its node addresses
   this->set_timeout(DISCOVERY_START_ID, DISCOVERY_START_MS, [this]() {
@@ -228,6 +237,7 @@ void DucoDiscovery::receive_response(const DucoMessage &message) {
     if (message.data[0] != 0) {
       ESP_LOGV(TAG, "Found node %u: type %u", this->next_node_, message.data[0]);
       this->node_types_[this->next_node_] = node_type_byte(message);
+      this->network_types_[this->next_node_] = message.size >= 2 ? message.data[1] : 0;
     }
     this->next_node_++;
     this->attempts_ = 0;
@@ -239,7 +249,8 @@ void DucoDiscovery::dump_config() {
   for (uint8_t node = 0; node < NODE_COUNT; node++) {
     const uint8_t type = this->node_types_[node];
     if (type != 0) {
-      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s)", node, type & ~NODE_TYPE_BS, LOG_STR_ARG(node_type_name(type)));
+      const uint8_t network_type = this->network_types_[node];
+      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s) network: %s", node, type & ~NODE_TYPE_BS, LOG_STR_ARG(node_type_name(type)), LOG_STR_ARG(network_type_name(network_type)));
     }
   }
   if (this->next_node_ < NODE_COUNT) {
