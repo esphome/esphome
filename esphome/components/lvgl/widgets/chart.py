@@ -353,7 +353,7 @@ def validate_chart(config: ConfigType) -> ConfigType:
 
 
 def validate_series_action(
-    action: str, config: ConfigType, chart_type: str, point_count: int
+    config: ConfigType, chart_type: str, point_count: int
 ) -> None:
     """Check a series action's data against its chart's type and point count."""
     is_scatter = chart_type == "LV_CHART_TYPE_SCATTER"
@@ -430,7 +430,6 @@ def validate_chart_actions(global_config: FinalValidateConfig) -> None:
         )
         try:
             validate_series_action(
-                action,
                 global_config.get_config_for_path(path),
                 chart_config[CONF_TYPE],
                 chart_config[CONF_POINT_COUNT],

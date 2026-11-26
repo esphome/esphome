@@ -223,7 +223,7 @@ def test_series_axis_is_not_case_sensitive() -> None:
 )
 def test_series_action_must_match_chart(chart_type: str, payload: dict) -> None:
     with pytest.raises(Invalid):
-        validate_series_action(SET, payload, chart_type, 10)
+        validate_series_action(payload, chart_type, 10)
 
 
 @pytest.mark.parametrize(
@@ -236,7 +236,7 @@ def test_series_action_must_match_chart(chart_type: str, payload: dict) -> None:
     ],
 )
 def test_series_action_matching_chart(chart_type: str, payload: dict) -> None:
-    validate_series_action(SET, payload, chart_type, 10)
+    validate_series_action(payload, chart_type, 10)
 
 
 def test_scatter_codegen_uses_paired_lvgl_apis(
