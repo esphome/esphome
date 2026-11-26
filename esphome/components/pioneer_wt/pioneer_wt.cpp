@@ -19,8 +19,6 @@ static constexpr uint8_t MAX_ATTEMPTS = 4;
 static constexpr uint32_t STATUS_REFRESH_MS = 5 * 60 * 1000;
 // Until the first full status has arrived, ask again this often.
 static constexpr uint32_t STATUS_RETRY_MS = 30 * 1000;
-// A frame arrives in one burst; after a pause this long a partly received frame is dropped.
-static constexpr uint32_t RX_GAP_MS = 100;
 static constexpr float MIN_TEMPERATURE_C = 16.0f;
 static constexpr float MAX_TEMPERATURE_C = 31.0f;
 
@@ -68,22 +66,17 @@ climate::ClimateTraits PioneerWT::traits() {
 
 void PioneerWT::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  if (const size_t count = this->available()) {
-    this->last_rx_ = now;
-    this->read_available(
-        [this](uint8_t byte) {
-          if (const size_t len = this->reader_.feed(byte))
-            this->handle_frame_(this->reader_.frame(), len);
-        },
-        count);
-    if (this->reader_.take_checksum_error()) {
+  auto handle = [this](const uint8_t *frame, size_t len) {
+    if (!checksum_valid(frame, len)) {
       ESP_LOGD(TAG, "Dropped a frame with a wrong checksum");
+      return false;
     }
-  } else if (this->reader_.partial() && now - this->last_rx_ >= RX_GAP_MS) {
-    // Only on an idle pass: after a slow loop the rest of the frame may already be buffered.
-    this->reader_.reset();
-  }
-  if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)
+    this->handle_frame_(frame, len);
+    return true;
+  };
+  this->read_frames(this->reader_, handle, now, this->last_rx_);
+  // A frame still coming in may be the reply; wait for it before resending
+  if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS && !this->reader_.receiving())
     this->send_pending_();
   // The target temperature only arrives in a full status, so it tells whether one has been received.
   const uint32_t status_interval = std::isnan(this->target_temperature) ? STATUS_RETRY_MS : STATUS_REFRESH_MS;
@@ -334,6 +327,8 @@ void PioneerWT::write_frame_(uint8_t flags, uint8_t type, uint8_t seq, uint8_t a
   uint8_t frame[HEADER_SIZE + 2 + MAX_BODY_SIZE];
   const size_t total = build_frame(frame, flags, type, seq, ack, class_1, class_2, body, len);
   ESP_LOGVV_HEX(TAG, frame, total, sizeof(frame), "TX %s");
+  // Kept bytes of an earlier frame must not merge into the reply
+  this->reader_.drop_kept();
   this->write_array(frame, total);
 }
 

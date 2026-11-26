@@ -1,4 +1,5 @@
-# on_state with the fan as trigger argument, plus the edge and set triggers.
+# on_state with the fan as trigger argument, plus the edge and set triggers,
+# one of them with two automations.
 fan:
   - platform: template
     name: Fan Triggers
@@ -17,6 +18,9 @@ fan:
       - logger.log: Fan turned on
     on_turn_off:
       - logger.log: Fan turned off
+      # A deferring action needs Automation objects
+      - delay: 1s
+      - logger.log: Fan still off
     on_direction_set:
       - logger.log:
           format: "Direction %d"
@@ -26,9 +30,14 @@ fan:
           format: "Oscillating %d"
           args: ["x"]
     on_speed_set:
-      - logger.log:
-          format: "Speed %d"
-          args: ["x"]
+      - then:
+          - logger.log:
+              format: "Speed %d"
+              args: ["x"]
+      - then:
+          - logger.log:
+              format: "Speed again %d"
+              args: ["x"]
     on_preset_set:
       - logger.log:
           format: "Preset %s"

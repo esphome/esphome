@@ -1,16 +1,20 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::pioneer_wt {
 
 // Frame layout: A5 01 | flags | type | seq | ack | 00 | len | crc_hi crc_lo | class class | body
 static constexpr size_t HEADER_SIZE = 10;
+static constexpr uint8_t FRAME_START_1 = 0xA5;
+static constexpr uint8_t FRAME_START_2 = 0x01;
 // The length byte counts the whole frame.
+static constexpr size_t LEN_POS = 7;
+static constexpr size_t CRC_POS = 8;
 static constexpr size_t MAX_FRAME_SIZE = 255;
 
 static constexpr uint8_t FLAG_NO_ACK = 0x00;
@@ -45,28 +49,15 @@ static constexpr uint8_t SWING_OFF = 0x08;
 /// CRC-16/XMODEM over a whole frame, skipping the two checksum bytes at offset 8.
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
-/// Collects bytes from the serial line into complete frames with a valid checksum.
-class PacketReader final {
- public:
-  /// Feeds one byte. Returns the frame length once a complete, valid frame is in frame().
-  size_t feed(uint8_t byte);
-  const uint8_t *frame() const { return this->buf_.data(); }
-  /// True while part of a frame has been collected.
-  bool partial() const { return this->pos_ != 0; }
-  /// Drops a partly collected frame, so the next byte can start a new one.
-  void reset() { this->pos_ = 0; }
-  /// True once after a complete frame was dropped for a wrong checksum.
-  bool take_checksum_error() {
-    const bool error = this->checksum_error_;
-    this->checksum_error_ = false;
-    return error;
-  }
+// A5 01, ..., whole-frame length at 7, CRC (2) at 8, body
+using PacketReader =
+    LengthFrameReader<MAX_FRAME_SIZE,
+                      FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>,
+                                  FrameLengthU8<LengthField{.offset = LEN_POS}>, FrameMinLength<HEADER_SIZE>>>;
 
- protected:
-  std::array<uint8_t, MAX_FRAME_SIZE> buf_{};
-  uint8_t pos_{0};
-  bool checksum_error_{false};
-};
+inline bool checksum_valid(const uint8_t *frame, size_t len) {
+  return frame_crc(frame, len) == encode_uint16(frame[CRC_POS], frame[CRC_POS + 1]);
+}
 
 /// Walks the attribute list in a status body. Stops at the first ID whose size is unknown.
 class AttributeReader final {

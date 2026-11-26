@@ -40,8 +40,12 @@ Frame command(uint8_t seq, const Frame &attrs) {
 size_t feed_all(PacketReader &reader, const Frame &bytes) {
   size_t last = 0;
   for (uint8_t b : bytes) {
-    if (size_t len = reader.feed(b))
+    reader.feed(b, [&last](const uint8_t *frame, size_t len) {
+      if (!checksum_valid(frame, len))
+        return false;
       last = len;
+      return true;
+    });
   }
   return last;
 }
@@ -82,9 +86,8 @@ TEST(PioneerWTProtocol, ReaderDropsBadChecksum) {
   PacketReader reader;
   Frame frame = from_hex(PRESENCE_CHECK);
   frame[9] ^= 0x01;
+  EXPECT_FALSE(checksum_valid(frame.data(), frame.size()));
   EXPECT_EQ(feed_all(reader, frame), 0u);
-  EXPECT_TRUE(reader.take_checksum_error());
-  EXPECT_FALSE(reader.take_checksum_error());
   // The next good frame is still accepted.
   EXPECT_EQ(feed_all(reader, from_hex(PRESENCE_CHECK)), 12u);
 }
@@ -339,14 +342,28 @@ TEST_F(PioneerWTTest, WarningStaysUntilAcknowledgement) {
   EXPECT_FALSE(this->sut_.status_has_warning());
 }
 
-TEST_F(PioneerWTTest, DropsPartialFrameAfterPause) {
+TEST_F(PioneerWTTest, FindsFrameBehindCutOffHeaderAfterPause) {
   this->start_();
-  // A cut-off header that claims 255 bytes would otherwise swallow the frames that follow.
+  // A cut-off header claiming 255 bytes is kept; the frame landing inside it is found on the next idle pass
   this->uart_.push_rx_hex("a5010121000000ff");
   this->loop_at_(1100);
-  this->loop_at_(1300);  // idle pass after the gap
+  this->loop_at_(1400);  // idle pass: searched and kept
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->loop_at_(2000);
+  this->loop_at_(2300);  // idle pass after the gap
+  EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
+}
+
+TEST_F(PioneerWTTest, FindsFrameHeldBackByCorruptLength) {
+  this->start_();
+  // A header that claims 255 bytes, then a complete frame that is held back behind it until the pause
+  Frame bytes = from_hex("a5010121000000ff");
+  const Frame check = from_hex(PRESENCE_CHECK);
+  bytes.insert(bytes.end(), check.begin(), check.end());
+  this->uart_.push_rx(bytes);
+  this->loop_at_(1100);
+  EXPECT_TRUE(this->uart_.tx.empty());
+  this->loop_at_(1400);  // idle pass after the gap
   EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
 }
 
