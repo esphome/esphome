@@ -175,6 +175,13 @@ class EthernetComponent final : public Component {
   bool is_disabled() { return this->disabled_; }
   bool is_enabled() { return !this->disabled_; }
 
+#if defined(USE_ESP32) || defined(USE_HOST)
+  // True while disabled if the driver never started or its STOP event was delivered.
+  bool is_driver_stopped() const {
+    return this->disabled_ && this->driver_stopped_.load(std::memory_order_acquire) != 0;
+  }
+#endif
+
 #ifdef USE_ESP32
   /// esp_netif handle, used by network for default-route arbitration.
   /// nullptr until the driver/netif installation has run.
