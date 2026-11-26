@@ -144,11 +144,11 @@ static bool header_is_sane(const tsdb_header_t &header) {
 }
 
 static bool partition_is_blank(const esp_partition_t *partition) {
-  static constexpr size_t chunk = 256;
-  uint8_t buffer[chunk];
-  for (uint32_t offset = 0; offset < partition->size; offset += chunk) {
+  static constexpr size_t CHUNK = 256;
+  uint8_t buffer[CHUNK];
+  for (uint32_t offset = 0; offset < partition->size; offset += CHUNK) {
     const size_t remaining = static_cast<size_t>(partition->size) - offset;
-    const size_t length = remaining < chunk ? remaining : chunk;
+    const size_t length = remaining < CHUNK ? remaining : CHUNK;
     const esp_err_t err = esp_partition_read(partition, offset, buffer, length);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "partition read at offset %" PRIu32 " failed: %s", offset, esp_err_to_name(err));
