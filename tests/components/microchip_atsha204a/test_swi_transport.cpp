@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "esphome/components/microchip_atsha204a/transport.h"
+#include "esphome/components/microchip_atsha204a/microchip_atsha204a.h"
 #include "esphome/components/uart/uart_virtual.h"
 
 namespace esphome::microchip_atsha204a::testing {
@@ -78,6 +78,52 @@ TEST(ATSHA204ASWI, RejectsBadEchoAndOutOfRangePacketLengths) {
     ASSERT_TRUE(bus.inject_rx(tokens.data(), tokens.size()));
     EXPECT_EQ(transport.receive(received.data()), Receive::RECEIVE_INVALID_LENGTH);
   }
+}
+
+TEST(ATSHA204ASWI, DefersSleepWhenCorruptCountMakesReplyLookComplete) {
+  class Chip : public ATSHA204A {
+   public:
+    using ATSHA204A::ATSHA204A;
+    void advance() {
+      this->wait_us_ = 0;
+      this->loop();
+    }
+    void expire_response_window() { this->response_start_ -= 30000; }
+  };
+
+  SwiTestBus bus;
+  SwiTestTransport transport;
+  transport.set_uart_parent(&bus);
+  Chip chip(&transport);
+  int last_status = BUSY;
+  chip.command(Opcode::OPCODE_RANDOM, 0, 0, {}, EndMode::END_MODE_SLEEP, 0, true,
+               [&](int status, const CommandResponse &, uint32_t) { last_status = status; });
+  chip.advance();
+
+  std::vector<uint8_t> wake;
+  for (uint8_t byte : {0x88, 0x04, 0x11, 0x33, 0x43})
+    append_tokens(wake, byte);
+  ASSERT_TRUE(bus.inject_rx(wake.data(), wake.size()));
+  chip.advance();
+  chip.advance();
+  ASSERT_EQ(bus.transmitted, (std::vector<uint8_t>{0x88}));
+
+  std::vector<uint8_t> reply;
+  append_tokens(reply, 0x88);
+  append_tokens(reply, 4);  // Corrupted count of a 35-byte reply.
+  for (size_t i = 1; i < MAX_RESPONSE; ++i)
+    append_tokens(reply, 0);
+  constexpr size_t first_fragment = (1 + 4) * 8;
+  ASSERT_TRUE(bus.inject_rx(reply.data(), first_fragment));
+  chip.advance();
+  EXPECT_EQ(bus.transmitted, (std::vector<uint8_t>{0x88}));
+  EXPECT_EQ(last_status, BUSY);
+
+  ASSERT_TRUE(bus.inject_rx(reply.data() + first_fragment, reply.size() - first_fragment));
+  chip.expire_response_window();
+  chip.advance();
+  EXPECT_EQ(last_status, BAD_CRC);
+  EXPECT_EQ(bus.transmitted, (std::vector<uint8_t>{0xCC}));
 }
 
 }  // namespace esphome::microchip_atsha204a::testing

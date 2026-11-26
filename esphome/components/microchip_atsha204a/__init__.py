@@ -116,7 +116,7 @@ _VALIDATE_UART_BUFFER = fv.id_declaration_match_schema(
     cv.Schema(
         {
             cv.Required(CONF_RX_BUFFER_SIZE): cv.int_range(min=SWI_MIN_RX_BUFFER_SIZE),
-            cv.Optional(uart.CONF_RX_TIMEOUT): cv.int_range(min=1),
+            cv.Optional(uart.CONF_RX_TIMEOUT): cv.int_range(min=1, max=32),
         },
         extra=cv.ALLOW_EXTRA,
     )

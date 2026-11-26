@@ -150,6 +150,7 @@ void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::spa
   const uint32_t execution = execution_ms(opcode);
   if (execution == 0 || data.size() > MAX_COMMAND - 7 ||
       (!expect_response && (opcode != Opcode::OPCODE_PAUSE || end_mode != EndMode::END_MODE_SLEEP))) {
+    this->end_session(session);
     callback(INVALID_ARGUMENT, {}, 0);
     return;
   }
@@ -186,11 +187,10 @@ void ATSHA204A::command(Opcode opcode, uint8_t param1, uint16_t param2, std::spa
   this->expect_response_ = expect_response;
   this->result_callback_ = std::move(callback);
   this->user_active_ = true;
-  if (this->awake_) {
+  if (this->awake_)
     this->send_user_();
-  } else {
+  else
     this->start_wake_();
-  }
 }
 
 void ATSHA204A::send_user_() {
@@ -250,7 +250,7 @@ void ATSHA204A::loop() {
       return;
     case Receive::RECEIVE_IO_ERROR:
     case Receive::RECEIVE_INVALID_LENGTH:
-      // The chip can still be transmitting. Allow the full reply window before sending Sleep.
+      // The chip can still be transmitting after a framing or CRC error.
       if (!this->transport_->is_single_wire() || micros() - this->response_start_ >= RESPONSE_TIMEOUT_MS * 1000)
         this->handle_response_(nullptr, result == Receive::RECEIVE_IO_ERROR ? IO_ERROR : BAD_LENGTH);
       return;
@@ -259,7 +259,8 @@ void ATSHA204A::loop() {
   }
   const size_t crc_offset = packet[0] - 2;
   if (packet_crc(packet, crc_offset) != encode_value_le<uint16_t>(packet + crc_offset)) {
-    this->handle_response_(nullptr, BAD_CRC);
+    if (!this->transport_->is_single_wire() || micros() - this->response_start_ >= RESPONSE_TIMEOUT_MS * 1000)
+      this->handle_response_(nullptr, BAD_CRC);
     return;
   }
   this->handle_response_(packet, packet[0] == STATUS_PACKET_SIZE ? packet[1] : 0);
