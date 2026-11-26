@@ -218,7 +218,8 @@ TEST(CanopenNmtMaster, SecondCommandForUsBeforeProcessing) {
   EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
 }
 
-// A reset_node to all nodes reboots us (safe_reboot() exits on the host) only once its frame is sent, or after 100 ms.
+// A reset_node to all nodes reboots us (safe_reboot() exits on the host) only 20 ms after its frame is handed to the
+// driver (the controller may still hold it), or after 100 ms.
 // Each case runs in a death test's child: a reboot too early would end the test binary.
 TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
   FakeCanbus bus;
@@ -240,7 +241,18 @@ TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
         exit(bus.count(0x000) == 0 ? 3 : 4);
       },
       ::testing::ExitedWithCode(3), "");
-  // rebooted right after the frame is sent
+  // handed to the driver: not rebooted yet
+  EXPECT_EXIT(
+      {
+        wait();
+        bus.busy = false;
+        hub.loop();
+        advance_loop_clock(19);
+        hub.loop();
+        exit(bus.count(0x000) == 1 ? 3 : 4);
+      },
+      ::testing::ExitedWithCode(3), "");
+  // rebooted 20 ms after the hand-over
   bus.on_send = [](uint32_t can_id) {
     if (can_id == 0x000)
       fprintf(stderr, "NMT frame sent\n");
@@ -249,6 +261,8 @@ TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
       {
         wait();
         bus.busy = false;
+        hub.loop();
+        advance_loop_clock(20);
         hub.loop();
         exit(4);
       },

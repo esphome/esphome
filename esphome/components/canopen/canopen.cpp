@@ -16,6 +16,10 @@ ESPHOME_LOG_TAG(TAG, "canopen");
 #ifdef USE_CANOPEN_NODE
 // an NMT reset node waits at most this long for queued frames (e.g. our own broadcast reset_node) to be sent
 static constexpr uint32_t RESET_FLUSH_TIMEOUT_MS = 100;
+// ... and, once CANopenNode's queue is empty, this long for the CAN controller to put them on the bus: the canbus API
+// only says a frame was accepted, not sent. NMT frames have the highest priority (COB-ID 0), so only the frames
+// already in the controller's queue go first (about 1 ms each at 125 kbit/s).
+static constexpr uint32_t RESET_TX_GRACE_MS = 20;
 #endif
 
 // indexed by the state's position in NMT_STATES; the last entry for other values
@@ -222,18 +226,25 @@ void CANopenComponent::process_node_() {
   uint32_t dt = now - this->last_us_;
   this->last_us_ = now;
   CO_NMT_reset_cmd_t reset = CO_process(this->co_, false, dt, nullptr);
+  const uint32_t now_ms = App.get_loop_component_start_time();
   if (reset == CO_RESET_APP && !this->reset_pending_) {
     ESP_LOGW(TAG, "NMT reset node");
     this->reset_pending_ = true;
-    this->reset_ms_ = App.get_loop_component_start_time();
+    this->reset_ms_ = now_ms;
   } else if (reset == CO_RESET_COMM) {
     ESP_LOGW(TAG, "NMT reset communication (not implemented)");
   }
-  // the reboot waits for the queued frames (loop() flushes them before it processes the node): a reset_node to all
-  // nodes from us would otherwise reboot us before its frame is sent
-  if (this->reset_pending_ && (this->co_->CANmodule->CANtxCount == 0 ||
-                               App.get_loop_component_start_time() - this->reset_ms_ >= RESET_FLUSH_TIMEOUT_MS))
-    App.safe_reboot();
+  // The reboot waits for the queued frames (loop() flushes them before it processes the node), then for the controller
+  // to send them: a reset_node to all nodes from us would otherwise reboot us before its frame is on the bus.
+  if (this->reset_pending_) {
+    if (!this->reset_flushed_ && this->co_->CANmodule->CANtxCount == 0) {
+      this->reset_flushed_ = true;
+      this->reset_flushed_ms_ = now_ms;
+    }
+    if ((this->reset_flushed_ && now_ms - this->reset_flushed_ms_ >= RESET_TX_GRACE_MS) ||
+        now_ms - this->reset_ms_ >= RESET_FLUSH_TIMEOUT_MS)
+      App.safe_reboot();
+  }
   // CANopenNode's state change callback has no context pointer, so the state is compared here
   NMTState state = to_nmt_state(CO_NMT_getInternalState(this->co_->NMT));
   if (state != this->nmt_state_) {
