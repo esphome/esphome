@@ -200,12 +200,14 @@ void TopTronicSelect::control(size_t index) {
 #endif
 
 void TopTronic::register_sensor_callbacks() {
-  const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
   for (auto *sensor : this->sensors_) {
     sensor->cache_request_data();
-    sensor->add_on_update_callback([this, sensor, can_id]() -> void {
+    // Two captured pointers stay in the callback's inline storage
+    sensor->add_on_update_callback([this, sensor]() -> void {
       if (this->paused_)
         return;
+      const uint32_t can_id =
+          build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
       const auto &data = sensor->get_request_data();
       this->canbus_->send_data(can_id, true, false, data.data(), data.size());
       ESP_LOGD_HEX(TAG, data.data(), data.size(), GET_REQUEST_LEN, "[GET] dev 0x%04X Data: %s", this->device_id_);
