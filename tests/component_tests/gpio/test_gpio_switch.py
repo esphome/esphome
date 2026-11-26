@@ -30,4 +30,16 @@ def test_gpio_switch_interlock_with_only_itself_has_no_table(
     )
 
     assert "sw_self->set_interlock(" not in main_cpp
-    assert "sw_self->set_interlock_wait_time(0);" in main_cpp
+
+
+def test_gpio_switch_interlock_wait_time_only_when_set(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """A zero wait time is the C++ default, so only a non-zero one emits the setter."""
+    main_cpp = generate_main(
+        "tests/component_tests/gpio/test_gpio_switch_interlock.yaml"
+    )
+
+    assert "sw_a->set_interlock_wait_time(50);" in main_cpp
+    for sw in ("sw_b", "sw_c", "sw_self"):
+        assert f"{sw}->set_interlock_wait_time(" not in main_cpp

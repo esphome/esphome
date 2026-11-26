@@ -11,10 +11,10 @@ namespace esphome::binary_sensor {
 ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 void Filter::output(bool value) {
-  if (this->next_ == nullptr) {
-    this->parent_->send_state_internal(value);
+  if (this->link_.is_owner()) {
+    this->link_.owner()->send_state_internal(value);
   } else {
-    this->next_->input(value);
+    this->link_.next()->input(value);
   }
 }
 
@@ -32,19 +32,15 @@ void Filter::input(bool value) {
   }
 }
 
-void TimeoutFilter::input(bool value) {
-  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
-  // Every input re-arms the timeout, including repeats, so this filter must not de-dup
-  this->output(value);
+optional<bool> delay_output(Filter *filter, uint32_t delay, bool value) {
+  App.scheduler.set_timeout(filter, delay, [filter, value]() { filter->output(value); });
+  return {};
 }
 
-optional<bool> DelayedOnOffFilter::new_value(bool value) {
-  if (value) {
-    App.scheduler.set_timeout(this, this->on_delay_.value(), [this]() { this->output(true); });
-  } else {
-    App.scheduler.set_timeout(this, this->off_delay_.value(), [this]() { this->output(false); });
-  }
-  return {};
+void TimeoutFilter::input(bool value) {
+  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->chain_owner_()->invalidate_state(); });
+  // Every input re-arms the timeout, including repeats, so this filter must not de-dup
+  this->output(value);
 }
 
 optional<bool> DelayedOnFilter::new_value(bool value) {
@@ -114,10 +110,6 @@ void AutorepeatFilterBase::next_value_(bool val) {
   App.scheduler.set_timeout(&this->active_timing_, val ? timing.time_on : timing.time_off,
                             [this, val]() { this->next_value_(!val); });
 }
-
-LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
-
-optional<bool> LambdaFilter::new_value(bool value) { return this->f_(value); }
 
 void SettleFilter::reset() {
   Filter::reset();

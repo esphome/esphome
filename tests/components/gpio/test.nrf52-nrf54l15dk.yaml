@@ -1,0 +1,35 @@
+# nRF54L15 DK: LED0 on port 2, which the nRF52840 does not have
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: P1.13
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: gpio_button0
+    use_interrupt: true
+    interrupt_type: ANY
+
+  - platform: gpio
+    pin:
+      number: P0.04
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    id: gpio_button3
+
+output:
+  - platform: gpio
+    pin: P2.09
+    id: gpio_led0
+
+switch:
+  - platform: gpio
+    pin: P1.10
+    id: gpio_led1
+
+  - platform: gpio
+    pin: P1.14
+    id: gpio_led3

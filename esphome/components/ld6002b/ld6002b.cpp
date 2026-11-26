@@ -18,10 +18,7 @@ void LD6002BComponent::setup() {
   this->LD600XComponent::setup();
   if (this->is_failed())
     return;
-  if (this->wakeup_pin_ != nullptr) {
-    this->wakeup_pin_->setup();
-    this->wakeup_pin_->digital_write(true);
-  }
+  setup_output_pin(this->wakeup_pin_, true);
 }
 
 void LD6002BComponent::setup_model() {

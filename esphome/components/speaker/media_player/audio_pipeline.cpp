@@ -335,11 +335,7 @@ void AudioPipeline::read_task(void *params) {
           this_pipeline->raw_file_ring_buffer_ = temp_ring_buffer;
         }
 
-        if (temp_ring_buffer == nullptr) {
-          err = ESP_ERR_NO_MEM;
-        } else {
-          err = reader->add_sink(temp_ring_buffer);
-        }
+        err = temp_ring_buffer == nullptr ? ESP_ERR_NO_MEM : reader->add_sink(temp_ring_buffer);
       }
 
       if (err != ESP_OK) {

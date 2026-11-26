@@ -504,6 +504,8 @@ void BedJetHub::dump_config() {
   for (auto *child : this->children_) {
     ESP_LOGCONFIG(TAG, "    - %s", child->describe().c_str());
   }
+  for (auto *child : this->children_)
+    child->dump_child_config();
 }
 
 void BedJetHub::dispatch_state_(bool is_ready) {
@@ -545,11 +547,6 @@ void BedJetHub::dispatch_status_() {
       this->parent()->set_enabled(true);
     }
   }
-}
-
-void BedJetHub::register_child(BedJetClient *obj) {
-  this->children_.push_back(obj);
-  obj->set_parent(this);
 }
 
 }  // namespace esphome::bedjet

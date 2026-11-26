@@ -145,10 +145,8 @@ void INA219Component::dump_config() {
 void INA219Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
-    if (!this->read_byte_16(INA219_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA219_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)))
       return;
-    }
     raw_bus_voltage >>= 3;
     float bus_voltage_v = int16_t(raw_bus_voltage) * 0.004f;
     this->bus_voltage_sensor_->publish_state(bus_voltage_v);
@@ -156,30 +154,24 @@ void INA219Component::update() {
 
   if (this->shunt_voltage_sensor_ != nullptr) {
     uint16_t raw_shunt_voltage;
-    if (!this->read_byte_16(INA219_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA219_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)))
       return;
-    }
     float shunt_voltage_mv = int16_t(raw_shunt_voltage) * 0.01f;
     this->shunt_voltage_sensor_->publish_state(shunt_voltage_mv / 1000.0f);
   }
 
   if (this->current_sensor_ != nullptr) {
     uint16_t raw_current;
-    if (!this->read_byte_16(INA219_REGISTER_CURRENT, &raw_current)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA219_REGISTER_CURRENT, &raw_current)))
       return;
-    }
     float current_ma = int16_t(raw_current) * (this->calibration_lsb_ / 1000.0f);
     this->current_sensor_->publish_state(current_ma / 1000.0f);
   }
 
   if (this->power_sensor_ != nullptr) {
     uint16_t raw_power;
-    if (!this->read_byte_16(INA219_REGISTER_POWER, &raw_power)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_byte_16(INA219_REGISTER_POWER, &raw_power)))
       return;
-    }
     float power_mw = int16_t(raw_power) * (this->calibration_lsb_ * 20.0f / 1000.0f);
     this->power_sensor_->publish_state(power_mw / 1000.0f);
   }

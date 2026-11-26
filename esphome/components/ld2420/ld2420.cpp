@@ -183,6 +183,18 @@ void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Select:");
   LOG_SELECT("  ", "Operating Mode", this->operating_mode_select_);
 #endif
+#ifdef USE_BINARY_SENSOR
+  ESP_LOGCONFIG(TAG, "Binary Sensor:");
+  LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
+#endif
+#ifdef USE_SENSOR
+  ESP_LOGCONFIG(TAG, "Sensor:");
+  LOG_SENSOR_WITH_DEDUP("  ", "Distance", this->distance_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  ESP_LOGCONFIG(TAG, "Text Sensor:");
+  LOG_TEXT_SENSOR("  ", "Firmware", this->fw_version_text_sensor_);
+#endif
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   }
@@ -199,10 +211,8 @@ void LD2420Component::setup() {
   this->init_gate_config_numbers();
 #endif
   this->get_firmware_version_();
-#ifdef LD2420_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    listener->on_fw_version(this->firmware_ver_);
-  }
+#ifdef USE_TEXT_SENSOR
+  PUBLISH_STATE(this->fw_version_text_sensor_, this->firmware_ver_);
 #endif
 
   for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
@@ -461,18 +471,13 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
     }
   }
 
-  // Resonable refresh rate for home assistant database size health
+  // Reasonable refresh rate for home assistant database size health
   const int32_t current_millis = App.get_loop_component_start_time();
   if (current_millis - this->last_periodic_millis < REFRESH_RATE_MS) {
     return;
   }
   this->last_periodic_millis = current_millis;
-#ifdef LD2420_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    listener->on_distance(this->get_distance_());
-    listener->on_presence(this->get_presence_());
-  }
-#endif
+  this->publish_states_();
 
   if (this->current_operating_mode == OP_CALIBRATE_MODE) {
     this->auto_calibrate_sensitivity();
@@ -481,6 +486,18 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
       this->report_gate_data();
     }
   }
+}
+
+// The distance goes out before the presence, so a presence automation reads the new distance
+void LD2420Component::publish_states_() {
+#ifdef USE_SENSOR
+  this->distance_sensor_.publish_state_if_not_dup(this->get_distance_());
+#endif
+#ifdef USE_BINARY_SENSOR
+  if (this->presence_binary_sensor_ != nullptr && this->presence_binary_sensor_->state != this->get_presence_()) {
+    this->presence_binary_sensor_->publish_state(this->get_presence_());
+  }
+#endif
 }
 
 void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
@@ -512,21 +529,13 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   }
 
   if (this->get_mode_() == CMD_SYSTEM_MODE_SIMPLE) {
-    // Resonable refresh rate for home assistant database size health
+    // Reasonable refresh rate for home assistant database size health
     const int32_t current_millis = App.get_loop_component_start_time();
     if (current_millis - this->last_normal_periodic_millis < REFRESH_RATE_MS) {
       return;
     }
     this->last_normal_periodic_millis = current_millis;
-#ifdef LD2420_LISTENER_COUNT
-    // Every listener gets the distance before any presence callback can run an automation
-    for (auto *listener : this->listeners_) {
-      listener->on_distance(this->get_distance_());
-    }
-    for (auto *listener : this->listeners_) {
-      listener->on_presence(this->get_presence_());
-    }
-#endif
+    this->publish_states_();
   }
 }
 
@@ -719,7 +728,7 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
 
 void LD2420Component::handle_cmd_error(uint16_t error) {
   if (error < ErrMessages::COUNT) {
-    ESP_LOGE(TAG, "Command failed: %s", LOG_STR_ARG(ErrMessages::get_log_str(error, ErrMessages::LAST_INDEX)));
+    ESP_LOGE(TAG, "Command failed: %s", LOG_STR_ARG(ErrMessages::get_log_str(error)));
   } else {
     // The error word comes from the device reply frame; unknown codes must not index the table
     ESP_LOGE(TAG, "Command failed: error 0x%04X", error);

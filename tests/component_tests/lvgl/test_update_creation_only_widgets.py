@@ -24,7 +24,7 @@ def main_cpp(request: pytest.FixtureRequest) -> str:
         CORE.config_path = config_path
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
-        return CORE.cpp_main_section
+        return CORE.cpp_global_section + CORE.cpp_main_section
     finally:
         CORE.config_path = original_path
         CORE.reset()

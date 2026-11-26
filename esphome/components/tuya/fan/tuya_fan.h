@@ -23,6 +23,7 @@ class TuyaFan final : public Component, public fan::Fan {
   void set_boolean_(uint8_t datapoint_id, bool value);
   void set_enum_(uint8_t datapoint_id, uint8_t value);
   void set_integer_(uint8_t datapoint_id, uint32_t value);
+  void set_string_(uint8_t datapoint_id, const char *value);
 
   void control(const fan::FanCall &call) override;
 
