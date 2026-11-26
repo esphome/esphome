@@ -849,7 +849,7 @@ inline bool left(bool &last, bool now) {
 }
 
 /// Codegen use only: whether `now` differs from `last`. Stores `now` in `last`.
-template<typename T> bool changed(T &last, T now) {
+template<typename T> bool changed(T &last, std::type_identity_t<T> now) {
   const bool result = now != last;
   last = now;
   return result;

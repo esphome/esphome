@@ -68,4 +68,13 @@ TEST(ChangeHelpers, ChangedComparesWholeStrings) {
   EXPECT_TRUE(internal::change_trigger::changed(last, "eco"));
 }
 
+// The copy's type decides; a watched value of another type converts to it
+TEST(ChangeHelpers, ChangedConvertsTheWatchedValueToTheCopysType) {
+  uint8_t last = 0;
+  const int watched = 3;
+  EXPECT_TRUE(internal::change_trigger::changed(last, watched));
+  EXPECT_EQ(last, 3);
+  EXPECT_FALSE(internal::change_trigger::changed(last, watched));
+}
+
 }  // namespace esphome::core::testing
