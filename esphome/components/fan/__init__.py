@@ -37,17 +37,8 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import (
-    BinOpExpression,
-    CallExpression,
-    Expression,
-    MockObj,
-    StaticCastExpression,
-    TemplateArgsType,
-    UnaryOpExpression,
-    VariableDeclarationExpression,
-)
-from esphome.types import ConfigType
+from esphome.cpp_generator import Expression, MockObj, StaticCastExpression
+from esphome.types import SafeExpType
 
 DOMAIN = "fan"
 IS_PLATFORM_COMPONENT = True
@@ -191,95 +182,44 @@ def set_preset_modes(var: MockObj, preset_modes: list[str]) -> None:
         cg.add(var.set_supported_preset_modes_static(table, len(preset_modes)))
 
 
-def _changed(last: MockObj, value: MockObj) -> Expression:
-    return fan_ns.update_changed(last, value)
+def _copy(type_: SafeExpType, value: Callable[[MockObj], Expression]):
+    """Forward a copy, as the actions take x by reference and may change the fan."""
+    return lambda fan: StaticCastExpression(type_, value(fan))
 
 
-def _turned_on(last: MockObj, value: MockObj) -> Expression:
-    return BinOpExpression(_changed(last, value), "&&", value)
+def _set_automation(
+    conf_key: str, type_: SafeExpType, value: Callable[[MockObj], Expression]
+) -> automation.GroupedAutomation:
+    return automation.GroupedAutomation(
+        conf_key,
+        value,
+        automation.CHANGE_TRIGGER.changed,
+        args=[(type_, "x")],
+        forwarded=_copy(type_, value),
+    )
 
 
-def _turned_off(last: MockObj, value: MockObj) -> Expression:
-    return BinOpExpression(_changed(last, value), "&&", UnaryOpExpression("!", value))
-
-
-# key, automation args, watched fan value, type of the last value kept, filter that also updates it.
-# The last values start at zero, as the fan's own values do.
-_CHANGE_TRIGGERS: tuple[
-    tuple[
-        str,
-        TemplateArgsType,
-        Callable[[MockObj], MockObj],
-        MockObj,
-        Callable[[MockObj, MockObj], Expression],
-    ],
-    ...,
-] = (
-    (CONF_ON_TURN_ON, [], lambda fan: fan.state, cg.bool_, _turned_on),
-    (CONF_ON_TURN_OFF, [], lambda fan: fan.state, cg.bool_, _turned_off),
-    (
-        CONF_ON_DIRECTION_SET,
-        [(FanDirection, "x")],
-        lambda fan: fan.direction,
-        FanDirection,
-        _changed,
+# Run in this order, each key's automations in config order. The last values start at zero, as the fan's own do.
+_CHANGE_AUTOMATIONS = (
+    automation.GroupedAutomation(
+        CONF_ON_TURN_ON, lambda fan: fan.state, automation.CHANGE_TRIGGER.entered
     ),
-    (
-        CONF_ON_OSCILLATING_SET,
-        [(cg.bool_, "x")],
-        lambda fan: fan.oscillating,
-        cg.bool_,
-        _changed,
+    automation.GroupedAutomation(
+        CONF_ON_TURN_OFF, lambda fan: fan.state, automation.CHANGE_TRIGGER.left
     ),
-    (CONF_ON_SPEED_SET, [(cg.int_, "x")], lambda fan: fan.speed, cg.int_, _changed),
-    (
+    _set_automation(CONF_ON_DIRECTION_SET, FanDirection, lambda fan: fan.direction),
+    _set_automation(CONF_ON_OSCILLATING_SET, cg.bool_, lambda fan: fan.oscillating),
+    _set_automation(CONF_ON_SPEED_SET, cg.int_, lambda fan: fan.speed),
+    automation.GroupedAutomation(
         CONF_ON_PRESET_SET,
-        [(cg.StringRef, "x")],
-        lambda fan: fan.get_preset_mode(),
-        cg.const_char_ptr,
-        fan_ns.update_preset_changed,
+        # Compared as text through a 4-byte pointer copy; the automation gets the StringRef
+        lambda fan: fan.get_preset_mode().c_str(),
+        automation.CHANGE_TRIGGER.changed,
+        last_type=cg.const_char_ptr,
+        args=[(cg.StringRef, "x")],
+        forwarded=_copy(cg.StringRef, lambda fan: fan.get_preset_mode()),
     ),
 )
-
-
-async def _build_change_triggers(var: MockObj, config: ConfigType) -> None:
-    """Register one state callback that runs the change triggers; each keeps its last value in a global."""
-    fan = automation.parent_ref(var)
-    callbacks: list[MockObj] = []
-    for conf_key, args, watched, last_type, check in _CHANGE_TRIGGERS:
-        value = watched(fan)
-        for index, conf in enumerate(config.get(conf_key, [])):
-            last_id = cg.unique_global_id(
-                f"esphome__{var}__{conf_key}_{index}__last", last_type
-            )
-            last = cg.MockObj(last_id)
-            CORE.register_variable(last_id, last)
-            cg.add_global(
-                VariableDeclarationExpression(last_type, "", last, static=True)
-            )
-            # A copy, as the actions take x by reference and may change the fan
-            forward = [StaticCastExpression(type_, value) for type_, _ in args]
-            callbacks.append(
-                await automation.build_trigger_callback(
-                    args,
-                    conf,
-                    params=[],
-                    forward=forward,
-                    when=str(check(last, value)),
-                )
-            )
-    if len(callbacks) > 1:
-        callbacks = [
-            cg.shared_static_function(
-                f"esphome__{var}__change_fn",
-                cg.void,
-                [],
-                [cg.statement(CallExpression(callback)) for callback in callbacks],
-                share=False,
-            )
-        ]
-    for callback in callbacks:
-        cg.add(var.add_on_state_callback(callback))
 
 
 @setup_entity("fan")
@@ -325,7 +265,9 @@ async def setup_fan_core_(var, config):
         await automation.build_parent_callback_automation(
             var, "add_on_state_callback", (Fan.operator("ptr"), "x"), conf
         )
-    await _build_change_triggers(var, config)
+    await automation.build_grouped_callback_automations(
+        var, config, "add_on_state_callback", _CHANGE_AUTOMATIONS
+    )
 
 
 async def register_fan(var, config):

@@ -8,56 +8,52 @@ import re
 
 import pytest
 
+_GROUP = "esphome__fan_a__on_state_callback"
+
 # (last value static, its type, the filter, the x forwarded to the actions or None), in YAML order
 _AUTOMATIONS = (
     (
-        "esphome__fan_a__on_turn_on_0__last",
+        "fan_a_on_turn_on_0_last",
         "bool",
-        (
-            "(fan::update_changed(esphome__fan_a__on_turn_on_0__last, ::fan_a->state)"
-            " && ::fan_a->state)"
-        ),
+        "esphome::change_trigger::entered(fan_a_on_turn_on_0_last, ::fan_a->state)",
         None,
     ),
     (
-        "esphome__fan_a__on_turn_off_0__last",
+        "fan_a_on_turn_off_0_last",
         "bool",
-        (
-            "(fan::update_changed(esphome__fan_a__on_turn_off_0__last, ::fan_a->state)"
-            " && (!::fan_a->state))"
-        ),
+        "esphome::change_trigger::left(fan_a_on_turn_off_0_last, ::fan_a->state)",
         None,
     ),
     (
-        "esphome__fan_a__on_direction_set_0__last",
+        "fan_a_on_direction_set_0_last",
         "fan::FanDirection",
-        "fan::update_changed(esphome__fan_a__on_direction_set_0__last, ::fan_a->direction)",
+        "esphome::change_trigger::changed(fan_a_on_direction_set_0_last, ::fan_a->direction)",
         "static_cast<fan::FanDirection>(::fan_a->direction)",
     ),
     (
-        "esphome__fan_a__on_oscillating_set_0__last",
+        "fan_a_on_oscillating_set_0_last",
         "bool",
-        "fan::update_changed(esphome__fan_a__on_oscillating_set_0__last, ::fan_a->oscillating)",
+        "esphome::change_trigger::changed(fan_a_on_oscillating_set_0_last, ::fan_a->oscillating)",
         "static_cast<bool>(::fan_a->oscillating)",
     ),
     (
-        "esphome__fan_a__on_speed_set_0__last",
+        "fan_a_on_speed_set_0_last",
         "int",
-        "fan::update_changed(esphome__fan_a__on_speed_set_0__last, ::fan_a->speed)",
+        "esphome::change_trigger::changed(fan_a_on_speed_set_0_last, ::fan_a->speed)",
         "static_cast<int>(::fan_a->speed)",
     ),
     (
-        "esphome__fan_a__on_speed_set_1__last",
+        "fan_a_on_speed_set_1_last",
         "int",
-        "fan::update_changed(esphome__fan_a__on_speed_set_1__last, ::fan_a->speed)",
+        "esphome::change_trigger::changed(fan_a_on_speed_set_1_last, ::fan_a->speed)",
         "static_cast<int>(::fan_a->speed)",
     ),
     (
-        "esphome__fan_a__on_preset_set_0__last",
+        "fan_a_on_preset_set_0_last",
         "const char *",
         (
-            "fan::update_preset_changed(esphome__fan_a__on_preset_set_0__last,"
-            " ::fan_a->get_preset_mode())"
+            "esphome::change_trigger::changed(fan_a_on_preset_set_0_last,"
+            " ::fan_a->get_preset_mode().c_str())"
         ),
         "static_cast<StringRef>(::fan_a->get_preset_mode())",
     ),
@@ -83,50 +79,38 @@ def _body(main_cpp: str, function: str) -> str:
     return match.group(1)
 
 
-def _function_filtering(main_cpp: str, check: str) -> str:
-    """The one automation function whose filter is ``check``."""
-    functions = re.findall(
-        rf"^static void (\w+)\(\) {{\n  if \(!\({re.escape(check)}\)\)\n    return;$",
-        main_cpp,
-        re.MULTILINE,
+def _runs(main_cpp: str) -> list[tuple[str, str]]:
+    """Each (filter, automation function) of the group function, in order."""
+    return re.findall(
+        r"^  if \((.*)\)\n    (\w+)\(\);$", _body(main_cpp, _GROUP), re.MULTILINE
     )
-    assert len(functions) == 1, check
-    return functions[0]
 
 
 def test_each_automation_has_its_own_last_value(main_cpp: str) -> None:
-    names = [last for last, _, _, _ in _AUTOMATIONS]
-    assert len(set(names)) == len(names)
+    body = _body(main_cpp, _GROUP)
     for last, type_, _, _ in _AUTOMATIONS:
-        assert main_cpp.count(f"static {type_} {last};") == 1
-    assert len(
-        re.findall(r"^static .* esphome__fan_a__\w+__last;$", main_cpp, re.MULTILINE)
-    ) == (len(_AUTOMATIONS))
+        assert body.count(f"static {type_} {last};") == 1
+    assert len(re.findall(r"^  static .* \w+_last;$", body, re.MULTILINE)) == len(
+        _AUTOMATIONS
+    )
 
 
-def test_each_filter_watches_its_own_field(main_cpp: str) -> None:
-    for _, _, check, _ in _AUTOMATIONS:
-        _function_filtering(main_cpp, check)
+def test_filters_run_the_automations_in_yaml_order(main_cpp: str) -> None:
+    assert [check for check, _ in _runs(main_cpp)] == [
+        check for _, _, check, _ in _AUTOMATIONS
+    ]
 
 
 def test_actions_get_a_copy_of_the_value(main_cpp: str) -> None:
-    for _, _, check, forward in _AUTOMATIONS:
-        body = _body(main_cpp, _function_filtering(main_cpp, check))
-        call = body.splitlines()[-1]
+    for (_, _, _, forward), (_, function) in zip(
+        _AUTOMATIONS, _runs(main_cpp), strict=True
+    ):
         if forward is None:
-            assert call.endswith("();"), call
-        else:
-            assert call.endswith(f"({forward});"), call
-
-
-def test_change_function_runs_the_automations_in_yaml_order(main_cpp: str) -> None:
-    expected = [_function_filtering(main_cpp, check) for _, _, check, _ in _AUTOMATIONS]
-    calls = re.findall(
-        r"^\s*(\w+)\(\);$", _body(main_cpp, "esphome__fan_a__change_fn"), re.MULTILINE
-    )
-    assert calls == expected
+            continue
+        call = _body(main_cpp, function).splitlines()[-1]
+        assert call.endswith(f"({forward});"), call
 
 
 def test_one_registration_on_the_state_callback(main_cpp: str) -> None:
     assert main_cpp.count("fan_a->add_on_state_callback(") == 1
-    assert "fan_a->add_on_state_callback(esphome__fan_a__change_fn);" in main_cpp
+    assert f"fan_a->add_on_state_callback({_GROUP});" in main_cpp
