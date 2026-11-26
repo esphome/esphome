@@ -57,8 +57,6 @@ class USBAudioSpeaker : public speaker::Speaker,
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
   /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
   void pad_with_silence_();
-  /// Write to the driver, counting the bytes in ring_bytes_ (and in ring_padding_ for silence padding).
-  esp_err_t write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding);
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
   bool transfers_in_flight_() const;

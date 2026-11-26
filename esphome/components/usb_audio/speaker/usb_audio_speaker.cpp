@@ -268,7 +268,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       continue;
     }
     const uint32_t timeout_ms = budget_ms > 0 ? budget_ms - elapsed : 0;
-    const esp_err_t err = this->write_(data + written, chunk, timeout_ms, false);
+    const esp_err_t err = this->parent_->write_speaker(data + written, chunk, timeout_ms, this->ring_bytes_, nullptr);
     now = millis();
     if (err == ESP_OK) {
       written += chunk;
@@ -298,11 +298,6 @@ size_t USBAudioSpeaker::ring_room_() const {
   return room - room % this->frame_bytes_;
 }
 
-esp_err_t USBAudioSpeaker::write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding) {
-  return this->parent_->write_speaker(data, length, timeout_ms, this->ring_bytes_,
-                                      padding ? &this->ring_padding_ : nullptr);
-}
-
 void USBAudioSpeaker::pad_with_silence_() {
   if (this->state_ != speaker::STATE_RUNNING) {
     this->pad_remaining_ = 0;
@@ -313,7 +308,8 @@ void USBAudioSpeaker::pad_with_silence_() {
   const size_t piece = sizeof(SILENCE) - sizeof(SILENCE) % this->usb_stream_info_.frames_to_bytes(1);
   while (this->pad_remaining_ > 0) {
     const size_t chunk = std::min<size_t>({this->pad_remaining_, piece, this->ring_room_()});
-    if (chunk == 0 || this->write_(SILENCE, chunk, 0, true) != ESP_OK) {
+    if (chunk == 0 ||
+        this->parent_->write_speaker(SILENCE, chunk, 0, this->ring_bytes_, &this->ring_padding_) != ESP_OK) {
       // A full buffer; the rest is written on a later loop().
       break;
     }
