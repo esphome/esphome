@@ -47,4 +47,27 @@ TEST(RGBWWLightOutput, BoolConstantBrightnessSetter) {
   }
 }
 
+// write_state hands each channel its own level and relative brightness.
+TEST(RGBWWLightOutput, WritesRelativeBrightness) {
+  RecordingOutput red, green, blue, cold, warm;
+  RGBWWLightOutput output;
+  output.set_red(&red);
+  output.set_green(&green);
+  output.set_blue(&blue);
+  output.set_cold_white(&cold);
+  output.set_warm_white(&warm);
+  output.set_constant_brightness(light::ConstantBrightness::CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY);
+  output.set_white_relative_brightness(0.62f, 1.0f);
+  light::LightState state(&output);
+  set_values(state);
+  output.write_state(&state);
+
+  float expected_cold, expected_warm;
+  state.current_values_as_cwww(&expected_cold, &expected_warm,
+                               light::ConstantBrightness::CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY, 0.62f, 1.0f);
+  EXPECT_FLOAT_EQ(cold.level, expected_cold);
+  EXPECT_FLOAT_EQ(warm.level, expected_warm);
+  EXPECT_NE(cold.level, warm.level);
+}
+
 }  // namespace esphome::rgbww::testing

@@ -31,6 +31,7 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     constant_brightness: color_temperature_priority
+    cold_to_warm_ratio: 0.708
   - platform: cwww
     name: Plain Light
     output_id: plain_output
@@ -42,6 +43,15 @@ light:
     cold_white: out_cold
     warm_white: out_warm
     constant_brightness: true
+    # Equal channels need no weighting
+    cold_to_warm_ratio: 1.0
+  - platform: cwww
+    name: Disabled Weighted Light
+    output_id: disabled_output
+    cold_white: out_cold
+    warm_white: out_warm
+    constant_brightness: false
+    cold_to_warm_ratio: 0.5
   - platform: rgbww
     name: RGBWW Light
     output_id: rgbww_output
@@ -51,3 +61,4 @@ light:
     cold_white: out_cold
     warm_white: out_warm
     constant_brightness: true
+    cold_to_warm_ratio: 1.3

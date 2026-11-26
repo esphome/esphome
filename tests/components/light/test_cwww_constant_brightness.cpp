@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 #include <utility>
 
 #include "esphome/components/light/light_call.h"
@@ -69,6 +70,11 @@ class CwwwLight {
     this->state.current_values_as_cwww(&cold, &warm, mode);
     return {cold, warm};
   }
+  std::pair<float, float> cwww(ConstantBrightness mode, float cold_relative, float warm_relative) {
+    float cold, warm;
+    this->state.current_values_as_cwww(&cold, &warm, mode, cold_relative, warm_relative);
+    return {cold, warm};
+  }
   std::pair<float, float> cwww(bool constant_brightness) {
     float cold, warm;
     this->state.current_values_as_cwww(&cold, &warm, constant_brightness);
@@ -113,6 +119,8 @@ TEST(CwwwConstantBrightness, RgbwwForwardsMode) {
     float red, green, blue, cold, warm;
     light.state.current_values_as_rgbww(&red, &green, &blue, &cold, &warm, mode);
     EXPECT_EQ(std::make_pair(cold, warm), light.cwww(mode));
+    light.state.current_values_as_rgbww(&red, &green, &blue, &cold, &warm, mode, 0.62f, 1.0f);
+    EXPECT_EQ(std::make_pair(cold, warm), light.cwww(mode, 0.62f, 1.0f));
   }
 }
 
@@ -190,6 +198,97 @@ TEST(CwwwConstantBrightness, PriorityTransitionMidpoint) {
   EXPECT_NEAR(cold, std::pow(0.5f, 2.8f), 1e-3f);
   EXPECT_FLOAT_EQ(cold, warm);
   EXPECT_FLOAT_EQ(cold, 2.0f * light.cwww(MODE_ENABLED).first);
+}
+
+// Equal relative brightnesses are the overload without them, in every mode.
+TEST(CwwwConstantBrightness, EqualRelativeBrightnessChangesNothing) {
+  CwwwLight light(2.8);
+  for (float brightness : {0.1f, 0.9f, 1.0f}) {
+    for (float mireds : {153.0f, 240.0f, 326.5f, 500.0f}) {
+      light.set(true, brightness, mireds);
+      for (auto mode : {MODE_DISABLED, MODE_ENABLED, MODE_PRIORITY})
+        EXPECT_EQ(light.cwww(mode, 1.0f, 1.0f), light.cwww(mode));
+    }
+  }
+}
+
+// Without constant brightness the light is split, not the duty: the weighted light of the two channels follows
+// the color temperature, the stronger-needed channel is at the brightness, and both are full where the light balances.
+TEST(CwwwConstantBrightness, RelativeBrightnessSplitsLightWhenDisabled) {
+  constexpr float cold_relative = 0.71f;
+  constexpr float warm_relative = 1.0f;
+  for (double gamma : {0.0, 2.8}) {
+    CwwwLight light(gamma);
+    const float balanced = cold_relative / (cold_relative + warm_relative);
+
+    // Both channels are full where their light balances, at full brightness.
+    light.set(true, 1.0f, mireds_for(balanced));
+    auto [cold, warm] = light.cwww(MODE_DISABLED, cold_relative, warm_relative);
+    EXPECT_NEAR(cold, 1.0f, 1e-3f) << gamma;
+    EXPECT_NEAR(warm, 1.0f, 1e-3f) << gamma;
+
+    for (float cold_fraction : {0.0f, 0.2f, 0.5f, 0.75f, 1.0f}) {
+      light.set(true, 1.0f, mireds_for(cold_fraction));
+      std::tie(cold, warm) = light.cwww(MODE_DISABLED, cold_relative, warm_relative);
+      // The color temperature is the real mix of the light
+      EXPECT_NEAR(cold_relative * cold / (cold_relative * cold + warm_relative * warm), cold_fraction, 1e-3f)
+          << gamma << " " << cold_fraction;
+      // The stronger-needed channel is at full brightness, the other below
+      EXPECT_NEAR(std::max(cold, warm), 1.0f, 1e-3f) << gamma << " " << cold_fraction;
+
+      // Half brightness scales both channels, keeping the mix
+      light.set(true, 0.5f, mireds_for(cold_fraction));
+      auto [half_cold, half_warm] = light.cwww(MODE_DISABLED, cold_relative, warm_relative);
+      EXPECT_NEAR(std::max(half_cold, half_warm), light.state.gamma_correct_lut(0.5f), 1e-3f)
+          << gamma << " " << cold_fraction;
+      if (cold + warm > 0.01f)
+        EXPECT_NEAR(half_cold / (half_cold + half_warm), cold / (cold + warm), 1e-3f) << gamma << " " << cold_fraction;
+    }
+  }
+}
+
+// At a low brightness the quantised gamma table is not lut(a) * lut(b), so the brightness is gamma-corrected on its
+// own: where the light balances, the channels still get equal duties at the extremes of the ratio (a table's step is a
+// few percent here; scaling the brightness into the table instead boosted one channel about 100x).
+TEST(CwwwConstantBrightness, RelativeBrightnessStaysBalancedAtLowBrightnessWhenDisabled) {
+  CwwwLight light(2.8);
+  for (auto [cold_relative, warm_relative] : {std::pair{0.01f, 1.0f}, std::pair{1.0f, 0.01f}}) {
+    const float balanced = cold_relative / (cold_relative + warm_relative);
+    for (float brightness : {0.02f, 0.05f, 0.1f, 0.5f}) {
+      light.set(true, brightness, mireds_for(balanced));
+      auto [cold, warm] = light.cwww(MODE_DISABLED, cold_relative, warm_relative);
+      EXPECT_GT(cold, 0.0f) << cold_relative << " " << brightness;
+      EXPECT_NEAR(cold / warm, 1.0f, 0.1f) << cold_relative << " " << brightness;
+    }
+  }
+}
+
+// A cold strip giving 0.71 of the warm strip's light: the modes balance the light, not the output level.
+TEST(CwwwConstantBrightness, RelativeBrightnessBalancesLight) {
+  constexpr float cold_relative = 0.71f;
+  constexpr float warm_relative = 1.0f;
+  CwwwLight light(0);
+
+  // Priority at full brightness drives both channels fully where their light balances.
+  light.set(true, 1.0f, mireds_for(cold_relative / (cold_relative + warm_relative)));
+  auto [cold, warm] = light.cwww(MODE_PRIORITY, cold_relative, warm_relative);
+  EXPECT_NEAR(cold, 1.0f, 1e-5f);
+  EXPECT_NEAR(warm, 1.0f, 1e-5f);
+
+  for (float cold_fraction : {0.0f, 0.2f, 0.5f, 0.75f, 1.0f}) {
+    // Priority keeps the light constant while the cold strip alone can still give it.
+    light.set(true, 0.4f, mireds_for(cold_fraction));
+    std::tie(cold, warm) = light.cwww(MODE_PRIORITY, cold_relative, warm_relative);
+    EXPECT_NEAR(cold_relative * cold + warm_relative * warm, 0.4f * (cold_relative + warm_relative), 1e-5f)
+        << cold_fraction;
+
+    // Enabled keeps the light at what the weaker strip gives alone, without driving a channel past full.
+    light.set(true, 1.0f, mireds_for(cold_fraction));
+    std::tie(cold, warm) = light.cwww(MODE_ENABLED, cold_relative, warm_relative);
+    EXPECT_NEAR(cold_relative * cold + warm_relative * warm, cold_relative, 1e-5f) << cold_fraction;
+    EXPECT_LE(cold, 1.0f);
+    EXPECT_LE(warm, 1.0f);
+  }
 }
 
 }  // namespace esphome::light::testing

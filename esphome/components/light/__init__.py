@@ -621,12 +621,29 @@ validate_constant_brightness = cv.All(
     # Always passes; lists all three values for the schema dumper, which keeps one Any branch
     cv.one_of(*CONSTANT_BRIGHTNESS_MODES),
 )
+
+CONF_COLD_TO_WARM_RATIO = "cold_to_warm_ratio"
+
+
+def _normalised_relative_brightness(config: ConfigType) -> tuple[float, float] | None:
+    """Return the channels' light at full output with the stronger at 1.0, or None for a ratio of 1."""
+    ratio = config[CONF_COLD_TO_WARM_RATIO]
+    if ratio == 1.0:
+        return None
+    # Only the ratio matters; normalising keeps the device's values within 1 / 100 .. 1
+    return min(ratio, 1.0), min(1.0 / ratio, 1.0)
+
+
 # The constant_brightness keys shared by the cwww and rgbww platforms
 CONSTANT_BRIGHTNESS_SCHEMA = cv.Schema(
     {
         cv.Optional(
             CONF_CONSTANT_BRIGHTNESS, default=False
         ): validate_constant_brightness,
+        # The range bounds the ratio and rejects NaN and infinity
+        cv.Optional(CONF_COLD_TO_WARM_RATIO, default=1.0): cv.float_range(
+            min=0.01, max=100.0
+        ),
     }
 )
 
@@ -636,6 +653,9 @@ def constant_brightness_to_code(var: MockObj, config: ConfigType) -> None:
     if mode == CONSTANT_BRIGHTNESS_COLOR_TEMPERATURE_PRIORITY:
         cg.add_define("USE_LIGHT_COLOR_TEMPERATURE_PRIORITY")
     cg.add(var.set_constant_brightness(CONSTANT_BRIGHTNESS_MODES[mode]))
+    if (relative := _normalised_relative_brightness(config)) is not None:
+        cg.add_define("USE_LIGHT_WHITE_RELATIVE_BRIGHTNESS")
+        cg.add(var.set_white_relative_brightness(*relative))
 
 
 def validate_color_temperature_channels(value):
