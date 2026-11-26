@@ -100,8 +100,8 @@ static size_t RMT_ENCODER_FUNC_ATTR encode_swi(const void *data, size_t size, si
     // At 2 MHz each symbol duration is in half microseconds. Both tokens last 39 us.
     for (unsigned bit = 0; bit < 8; bit++) {
       const bool one = (byte & (1U << bit)) != 0;
-      *symbols++ = {.duration0 = 9, .level0 = 0, .duration1 = 12, .level1 = 1};
-      *symbols++ = {.duration0 = 9, .level0 = static_cast<uint16_t>(one), .duration1 = 48, .level1 = 1};
+      *symbols++ = {.duration0 = 9, .level0 = 0, .duration1 = 9, .level1 = 1};
+      *symbols++ = {.duration0 = 9, .level0 = static_cast<uint16_t>(one), .duration1 = 51, .level1 = 1};
     }
     free -= RMT_SYMBOLS_PER_BYTE;
   }

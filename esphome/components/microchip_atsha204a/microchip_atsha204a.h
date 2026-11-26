@@ -75,7 +75,7 @@ class ATSHA204A : public PollingComponent {
   void publish_presence_(bool present);
   void finish_user_(int status, const uint8_t *data = nullptr, size_t size = 0);
   bool close_session_(bool ready_to_sleep);
-  bool session_expired_(uint32_t now, uint32_t command_budget_ms = 0) const;
+  bool session_expired_(uint32_t now, uint32_t command_budget_ms) const;
 
   Transport *const transport_;
   HighFrequencyLoopRequester high_frequency_;
