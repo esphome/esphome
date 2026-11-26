@@ -47,8 +47,7 @@ void log_dropped_message(const char *tag, int line, const LogString *what);
 #define API_LOG_MSG_DROPPED(tag, what)
 #endif
 
-// Keepalive timeout in milliseconds
-static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
+static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = API_KEEPALIVE_TIMEOUT_MS;
 // Deferred batch size cap during initial state/info sync
 static constexpr size_t MAX_INITIAL_BATCH_SIZE = 34;
 // Verify MAX_MESSAGES_PER_BATCH (defined in api_frame_helper.h) can hold the initial batch
@@ -296,7 +295,11 @@ class APIConnection final : public APIServerConnectionBase {
     this->flags_.state_subscription = true;
     // Start initial state iterator only if no iterator is active
     // If list_entities is running, we'll start initial_state when it completes
-    if (this->active_iterator_ == ActiveIterator::NONE) {
+    if (this->active_iterator_ == ActiveIterator::NONE
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+        || this->active_iterator_ == ActiveIterator::CLIENT_SYNCED_PENDING
+#endif
+    ) {
       this->begin_iterator_(ActiveIterator::INITIAL_STATE);
     }
   }
@@ -441,6 +444,7 @@ class APIConnection final : public APIServerConnectionBase {
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   void process_state_subscriptions_();
+  bool send_state_subscription_(const char *entity_id, const char *attribute, bool once);
 #endif
 
   // Non-template buffer management for send_message
@@ -642,7 +646,15 @@ class APIConnection final : public APIServerConnectionBase {
   // Group 2: Iterator union (saves ~16 bytes vs separate iterators)
   // These iterators are never active simultaneously - list_entities runs to completion
   // before initial_state begins, so we use a union with explicit construction/destruction.
-  enum class ActiveIterator : uint8_t { NONE, LIST_ENTITIES, INITIAL_STATE };
+  enum class ActiveIterator : uint8_t {
+    NONE,
+    LIST_ENTITIES,
+    INITIAL_STATE,
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+    // Initial states sent, on_client_synced not fired yet; uses no iterator storage
+    CLIENT_SYNCED_PENDING,
+#endif
+  };
 
   union IteratorUnion {
     ListEntitiesIterator list_entities;
@@ -802,8 +814,9 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Helper function to schedule a high priority message at the front of the batch
-  // Out-of-line: callers (on_shutdown, check_keepalive_) are cold paths
+  // Out-of-line: callers (send_shutdown_disconnect_, check_keepalive_) are cold paths
   bool schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size);
+  void send_shutdown_disconnect_();
 
   // Helper function to log client messages with name and peername
   void log_client_(int level, const LogString *message);

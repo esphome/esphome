@@ -1,0 +1,28 @@
+esphome:
+  name: test-write-on-setup
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+output:
+  - platform: ledc
+    id: backlight_pwm
+    pin: GPIO22
+    setup_priority: 1300
+
+light:
+  - platform: monochromatic
+    id: backlight
+    output: backlight_pwm
+    write_on_setup: true
+    setup_priority: 1299
+  - platform: esp32_rmt_led_strip
+    id: strip
+    pin: GPIO13
+    num_leds: 10
+    chipset: WS2812
+    rgb_order: GRB
+    write_on_setup: true
+    setup_priority: 1300

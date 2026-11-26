@@ -51,6 +51,13 @@ async def test_action_to_code_survives_interleaved_suspended_contexts(
     CORE.add_job(define_later_ids)
     CORE.flush_tasks()
 
-    text = "\n".join(str(s) for s in CORE.main_statements)
+    text = "\n".join(
+        str(s)
+        for s in [
+            *CORE.global_statements,
+            *CORE.global_statements_after_includes,
+            *CORE.main_statements,
+        ]
+    )
     assert "action_a_marker(later_var_a)" in text
     assert "action_b_marker(later_var_b)" in text

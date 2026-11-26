@@ -1,0 +1,15 @@
+packages:
+  tx_break: !include tx_break.yaml
+
+# UART1 on its second pair of pins (the board allows PA01/PA00 or PA03/PA02)
+uart:
+  - id: uart_id
+    tx_pin: PA03
+    rx_pin: PA02
+    baud_rate: 9600
+
+switch:
+  - platform: uart
+    name: "UART Switch"
+    uart_id: uart_id
+    data: [0x01, 0x02, 0x03]

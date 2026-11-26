@@ -222,6 +222,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(
         var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
     )
+    cg.add(
+        var.set_buffer(
+            light.static_led_buffer(
+                config[CONF_OUTPUT_ID],
+                config[CONF_NUM_LEDS],
+                len(config[CONF_CHANNEL_COLORS]),
+            )
+        )
+    )
 
     cg.add(var.set_pio(config[CONF_PIO]))
 

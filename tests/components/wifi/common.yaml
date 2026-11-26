@@ -33,6 +33,16 @@ esphome:
           then:
             - logger.log: "WiFi is enabled!"
       - wifi.roam
+      # Runtime credentials keep resolving to the RAM setters, never the flash one
+      - lambda: |-
+          wifi::WiFiAP sta;
+          std::string ssid = "RuntimeSSID";
+          sta.set_ssid(ssid);
+          char password[16] = "runtime_pass";
+          sta.set_password(password);
+          const char *ssid_ptr = ssid.c_str();
+          sta.set_ssid(ssid_ptr);
+          sta.set_password(StringRef(password));
 
 wifi:
   networks:

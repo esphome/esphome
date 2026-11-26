@@ -27,7 +27,7 @@ class BangBangClimate final : public climate::Climate, public Component {
 
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-  void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
+  void set_normal_config(const BangBangClimateTargetTempConfig &normal_config) { this->normal_config_ = normal_config; }
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
 
   Trigger<> *get_idle_trigger();

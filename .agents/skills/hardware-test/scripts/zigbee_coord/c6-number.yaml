@@ -1,0 +1,5 @@
+# Number descriptor and restore flow (runnumber.sh); c6-copy.yaml adds a copy number for runcopy.sh.
+packages:
+  base: !include c6base.yaml
+  sw: !include sw.yaml
+  number: !include number.yaml
