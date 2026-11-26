@@ -235,7 +235,8 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
         // buffer the ACK emptied would otherwise look unchanged after an idle pause and the stream would be closed.
         if (space_after + sent > space_before) {
           this->last_ack_ms_ = now;
-          this->space_after_write_ = space_before - sent;
+          // add_iovecs() adds in several calls, so with ACKs between them it can queue more than space_before
+          this->space_after_write_ = sent < space_before ? space_before - sent : 0;
         } else {
           this->space_after_write_ = space_after;
         }
