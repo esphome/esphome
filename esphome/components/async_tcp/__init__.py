@@ -44,7 +44,7 @@ async def to_code(config: ConfigType) -> None:
         # https://github.com/esphome-libs/ESPAsyncTCP, published as ESP8266AsyncTCP so the
         # archived ESP32Async/ESPAsyncTCP that ESPAsyncWebServer depends on can be ignored
         CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP"])
-        cg.add_library("esphome/ESP8266AsyncTCP", "2.2.1")
+        cg.add_library("esphome/ESP8266AsyncTCP", "2.2.2")
     elif CORE.is_rp2:
         # https://github.com/esphome-libs/RPAsyncTCP, a fork of ayushsharma82/RPAsyncTCP
         # 1.3.2 that counts queued bytes before lwIP can send and ACK them, so
