@@ -103,8 +103,7 @@ class USBAudioComponent : public Component {
   // Safe from any task. While the worker holds the driver for a control transfer, these wait for it within timeout_ms
   // and return ESP_ERR_TIMEOUT if it is still busy, instead of blocking on the driver's interface lock for seconds.
   esp_err_t read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms);
-  /// Adds `length` to `ring_bytes` (and `ring_padding`, when given) only once the write is inside the driver, and
-  /// takes it back if the write fails.
+  /// Counts `length` in `ring_bytes` (and `ring_padding`, if given) for a successful write.
   esp_err_t write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms, std::atomic<uint32_t> &ring_bytes,
                           std::atomic<uint32_t> *ring_padding);
 
