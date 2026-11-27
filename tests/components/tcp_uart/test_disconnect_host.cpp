@@ -6,8 +6,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "common.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/tcp_uart/tcp_uart.h"
 
 #ifdef USE_HOST
 
@@ -20,7 +20,7 @@ class TcpUartDisconnectUnderTest : public TcpUart {
     this->set_port(1);
     this->link_.begin("disconnect_test");
   }
-  socket::TcpClientLink &link() { return this->link_; }
+  Link &link() { return this->link_; }
 };
 
 class TcpUartDisconnect : public ::testing::Test {
@@ -35,12 +35,7 @@ class TcpUartDisconnect : public ::testing::Test {
     this->uart_.link().close();
   }
   // Hands the UART a fresh session, as an accept or a reconnect would.
-  void connect_peer() {
-    int fds[2];
-    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-    this->peer_fd_ = fds[1];
-    this->uart_.link().adopt(std::make_unique<socket::Socket>(fds[0]));
-  }
+  void connect_peer() { adopt_socket_pair(this->uart_.link(), &this->peer_fd_); }
   void close_peer() {
     if (this->peer_fd_ >= 0) {
       ::close(this->peer_fd_);

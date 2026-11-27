@@ -542,9 +542,9 @@ _TRANSIENT_GH_ERROR_RE = re.compile(
     r"|temporary failure"
 )
 
-# Same retry policy as git network commands in esphome/git.py: 3 attempts
-# with 2s/4s backoff.
-_GH_MAX_ATTEMPTS = 3
+# Same retry policy as esphome/net_retry.py's NETWORK_MAX_ATTEMPTS: 5 attempts
+# with 2s/4s/8s/16s backoff.
+_GH_MAX_ATTEMPTS = 5
 
 
 def run_gh_command(

@@ -1678,15 +1678,15 @@ class TestDownloadFromMirrors:
 
     def test_transient_failure_exhausts_sweeps(self, tmp_path: Path) -> None:
         """A persistent transient error gives up after the configured number
-        of passes, with 2s/4s backoff, and still lists the attempted URL."""
+        of passes, with doubling backoff, and still lists the attempted URL."""
         with (
             patch("requests.get", side_effect=req.ConnectionError("down")) as mock_get,
             patch("esphome.framework_helpers.time.sleep") as mock_sleep,
             pytest.raises(EsphomeError, match="all mirrors") as ei,
         ):
             download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
-        assert mock_get.call_count == 3
-        assert mock_sleep.call_args_list == [call(2), call(4)]
+        assert mock_get.call_count == 5
+        assert mock_sleep.call_args_list == [call(2), call(4), call(8), call(16)]
         assert "https://mirror1.com/f" in str(ei.value)
 
     def test_mixed_permanent_and_transient_retries_sweep(self, tmp_path: Path) -> None:

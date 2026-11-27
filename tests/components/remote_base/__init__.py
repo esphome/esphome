@@ -28,6 +28,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "cardin_s438",
             "toto",
             "pronto",
+            "denon",
         ):
             request_protocol(protocol)
         # receiver_dumpers_test.cpp registers dumpers by hand

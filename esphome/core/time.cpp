@@ -25,7 +25,6 @@ static constexpr int EPOCH_YEAR = 1970;
 static constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
 static constexpr int DAYS_PER_YEAR = 365;
 static constexpr int32_t DAYS_FROM_YEAR_0 = 719528;  // 0000-01-01 to 1970-01-01
-static constexpr int SECONDS_PER_DAY = 86400;
 
 int32_t days_to_year_start(int year) {
   return DAYS_PER_YEAR * (year - EPOCH_YEAR) + (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
@@ -76,10 +75,7 @@ void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   out_tm->tm_min = remaining_secs % 60;
   out_tm->tm_hour = remaining_secs / 60;
 
-  // Day of week (Jan 1, 1970 was Thursday = 4)
-  out_tm->tm_wday = (days + 4) % 7;
-  if (out_tm->tm_wday < 0)
-    out_tm->tm_wday += 7;
+  out_tm->tm_wday = days_to_weekday(days);
 
   // Calculate year (updates days to day-of-year)
   int year = days_to_year(days);
@@ -387,9 +383,7 @@ bool ESPTime::recalc_timestamp_utc_(bool use_day_of_year) {
   if (use_day_of_year) {
     res += this->day_of_year - 1;
   } else {
-    for (int i = 1; i < this->month; i++)
-      res += days_in_month(i, this->year);
-    res += this->day_of_month - 1;
+    res += internal::days_before_month(this->year, this->month) + this->day_of_month - 1;
   }
 
   res *= 24;

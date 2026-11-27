@@ -7,7 +7,7 @@ tzlocal==5.4.5    # from time
 tzdata>=2026.6  # from time
 pyserial==3.5
 platformio==6.2.0
-esptool==5.6.0
+esptool==5.7.0
 click==8.5.1
 aioesphomeapi==46.31.0
 aiohappyeyeballs==2.7.1  # Happy Eyeballs for requests downloads; already pulled in by aioesphomeapi
