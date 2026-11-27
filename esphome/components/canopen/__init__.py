@@ -145,12 +145,13 @@ async def _final_build_flags() -> None:
     # heartbeat consumer, which links in its code even without monitored nodes
     if "node_monitor" not in _get_data().enabled:
         cg.add_build_flag("-DCO_CONFIG_HB_CONS=0")
-        for hub in _hub_configs():
-            if CONF_ON_NODE_EVENT in hub:
-                _LOGGER.warning(
-                    "canopen %s: on_node_event never fires, no node is monitored (heartbeat_clients)",
-                    hub[CONF_ID],
-                )
+    # each hub has its own consumer, so another hub's heartbeat_clients don't help
+    for hub in _hub_configs():
+        if CONF_ON_NODE_EVENT in hub and not hub.get(CONF_HEARTBEAT_CLIENTS):
+            _LOGGER.warning(
+                "canopen %s: on_node_event never fires, this hub monitors no node (heartbeat_clients)",
+                hub[CONF_ID],
+            )
 
 
 def enable_nmt_master() -> None:

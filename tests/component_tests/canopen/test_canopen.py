@@ -158,7 +158,12 @@ def test_node_monitor_only_when_used(
 
 
 @pytest.mark.parametrize(
-    ("yaml", "warned"), [("node_event_unmonitored.yaml", True), ("canopen.yaml", False)]
+    ("yaml", "warned"),
+    [
+        ("node_event_unmonitored.yaml", True),
+        ("node_event_other_hub_monitors.yaml", True),
+        ("canopen.yaml", False),
+    ],
 )
 def test_node_event_without_monitored_nodes(
     generate_main: Callable[[str | Path], str],
@@ -167,7 +172,7 @@ def test_node_event_without_monitored_nodes(
     yaml: str,
     warned: bool,
 ) -> None:
-    """on_node_event with no node monitored (no heartbeat_clients, no component monitoring one) is warned about."""
+    """on_node_event on a hub that monitors no node is warned about, even when another hub monitors one."""
     with caplog.at_level(logging.WARNING):
         generate_main(component_config_path(yaml))
     assert ("on_node_event never fires" in caplog.text) == warned
