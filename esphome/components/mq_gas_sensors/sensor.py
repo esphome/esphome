@@ -10,7 +10,12 @@ import logging
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.const import CONF_VOLTAGE, STATE_CLASS_MEASUREMENT, UNIT_PARTS_PER_MILLION
+from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
+    CONF_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PARTS_PER_MILLION,
+)
 from esphome.types import ConfigType
 
 from . import (
@@ -82,6 +87,11 @@ def _validate_config(config: ConfigType) -> ConfigType:
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
 
+    # The MQ-131 range is 0.01 - 1 ppm, which one decimal cannot show.
+    config.setdefault(
+        CONF_ACCURACY_DECIMALS, 3 if config[CONF_SENSOR_TYPE] == "MQ131" else 1
+    )
+
     return config
 
 
@@ -89,7 +99,6 @@ CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         MQGasSensor,
         unit_of_measurement=UNIT_PARTS_PER_MILLION,
-        accuracy_decimals=1,
         state_class=STATE_CLASS_MEASUREMENT,
         icon="mdi:molecule",
     )

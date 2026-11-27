@@ -1,13 +1,19 @@
 """Tests for the MQ gas sensors code generation."""
 
 from collections.abc import Callable
+import math
 from pathlib import Path
 
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 from esphome.components.mq_gas_sensors.coefficients import SENSOR_TYPES, resolve_sensor
 from esphome.components.mq_gas_sensors.sensor import CONFIG_SCHEMA
+from esphome.const import PlatformFramework
+from tests.component_tests.types import SetCoreConfigCallable
+
+ESP32_PLATFORM_DATA = {KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32}
 
 
 def test_voltage_source_is_a_constructor_argument(
@@ -136,7 +142,7 @@ def test_empty_gas_is_rejected() -> None:
 
 def test_published_clean_air_ratios() -> None:
     """A placeholder ratio would make the datasheet values wrong."""
-    assert resolve_sensor("MQ131", "O3").ratio_in_clean_air == pytest.approx(15.0)
+    assert resolve_sensor("MQ131", "O3").ratio_in_clean_air == pytest.approx(1.0)
     assert resolve_sensor("MQ135", "NH3").ratio_in_clean_air == pytest.approx(3.6)
     # No published value: the type has no clean-air anchor of its own.
     assert resolve_sensor("MQ137", "NH3").ratio_in_clean_air == 0.0
@@ -150,11 +156,53 @@ def test_sample_limits_follow_the_main_loop() -> None:
         CONFIG_SCHEMA({**base, "r0": 10.0, "sample_count": 17})
 
 
-def test_mq131_clean_air_is_far_below_the_ceiling() -> None:
-    """The ozone curve reports clean air near its bottom, not at its 1 ppm top."""
+def test_mq131_ozone_rises_with_the_sensor_resistance() -> None:
+    """RS of the MQ-131 grows with ozone, and the range is 0.01 - 1 ppm."""
     resolved = resolve_sensor("MQ131", "O3")
-
-    # The datasheet range is 10 - 1000 ppb (0.01 - 1 ppm); the exponential fit gives
-    # 0.12 ppm at the clean-air ratio of 15.
-    assert resolved.method == "exponential"
+    assert resolved.method == "linear"
     assert resolved.max_ppm == pytest.approx(1.0)
+
+    def ppm(ratio: float) -> float:
+        return 10 ** ((math.log10(ratio) - resolved.b) / resolved.a)
+
+    # The reference fit gives ppb; clean air is near the bottom of the range.
+    assert ppm(1.0) == pytest.approx(10 ** (0.4708 / 0.41195) / 1000, rel=1e-4)
+    assert 0.01 < ppm(1.0) < ppm(3.0) < 1.0
+
+
+@pytest.mark.parametrize(
+    ("gas", "mg_per_l_a", "molar_mass"),
+    [
+        ("ALCOHOL", 0.3934, 46.07),
+        ("BENZENE", 4.8387, 78.11),
+        ("CO", 521853.0, 28.01),
+        ("HEXANE", 7585.3, 86.18),
+        ("LPG", 44771.0, 51.11),
+    ],
+)
+def test_mq3_curves_are_converted_to_ppm(
+    gas: str, mg_per_l_a: float, molar_mass: float
+) -> None:
+    """The MQ-3 fits give mg/L: every gas has to be scaled to ppm."""
+    resolved = resolve_sensor("MQ3", gas)
+
+    assert resolved.a == pytest.approx(mg_per_l_a * 24450 / molar_mass)
+
+
+@pytest.mark.parametrize(("sensor_type", "expected"), [("MQ-131", 3), ("MQ-8", 1)])
+def test_default_accuracy_follows_the_range(
+    set_core_config: SetCoreConfigCallable, sensor_type: str, expected: int
+) -> None:
+    """One decimal cannot show a range that ends at 1 ppm."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {
+        "id": "mq",
+        "name": "MQ",
+        "sensor_type": sensor_type,
+        "voltage": "mq8_adc",
+        "r0": 10.0,
+    }
+
+    assert CONFIG_SCHEMA(dict(base))["accuracy_decimals"] == expected
+    config = CONFIG_SCHEMA({**base, "name": "MQ set", "accuracy_decimals": 2})
+    assert config["accuracy_decimals"] == 2
