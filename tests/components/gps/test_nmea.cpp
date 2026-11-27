@@ -84,6 +84,15 @@ TEST(GPSNmea, RmcWithoutFixSetsNothing) {
   EXPECT_EQ(data.valid, 0);
 }
 
+TEST(GPSNmea, LeapDayAndLeapSecond) {
+  GPSData data;
+  ASSERT_TRUE(parse(with_checksum("$GNRMC,235960.00,A,4807.038,N,01131.000,E,0.0,,290228,,,A,V"), data));
+  EXPECT_EQ(data.day, 29);
+  EXPECT_EQ(data.month, 2);
+  EXPECT_EQ(data.year, 2028);
+  EXPECT_EQ(data.second, 60);
+}
+
 TEST(GPSNmea, RmcFixWithoutCourse) {
   GPSData data;
   ASSERT_TRUE(parse(with_checksum("$GNRMC,235959.00,A,4807.038,N,01131.000,E,0.010,,311226,,,A,V"), data));
@@ -97,10 +106,12 @@ TEST(GPSNmea, RmcFixWithoutCourse) {
 
 TEST(GPSNmea, RejectedLines) {
   static constexpr const char *LINES[] = {
-      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*48",  // wrong checksum
-      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",     // no checksum
-      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*4",   // short checksum
-      "GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47",   // no start
+      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*48",   // wrong checksum
+      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",      // no checksum
+      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*4",    // short checksum
+      "GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47",    // no start
+      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*470",  // long checksum
+      "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47x",  // junk after checksum
       "",
   };
   for (const char *line : LINES) {
@@ -112,18 +123,27 @@ TEST(GPSNmea, RejectedLines) {
 
 TEST(GPSNmea, RejectedSentences) {
   static constexpr const char *BODIES[] = {
-      "$GPGGA,123519,48A7.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",      // letter in latitude
-      "$GPGGA,123519,4860.000,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",      // 60 minutes
-      "$GPGGA,123519,9100.000,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",      // latitude over 90
-      "$GPGGA,123519,4807.038,X,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",      // bad hemisphere
-      "$GPGGA,123519,4807.038,N,,E,1,08,0.9,545.4,M,46.9,M,,",               // latitude without longitude
-      "$GPGGA,126019,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",      // 60 minutes past the hour
-      "$GPGGA,123519,4807.038,N,01131.000,E,1,300,0.9,545.4,M,46.9,M,,",     // satellites over 255
-      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,360.1,230394,003.1,W",   // course over 360
-      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,231394,003.1,W",   // month 13
-      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,2303945,003.1,W",  // long date
-      "$GPGSV,3,1,11,03,03,111,00,04,15,270,00,06,01,010,00,13,06,292,00",   // not handled
-      "$PUBX,00,123519,4807.038,N,01131.000,E,545.4,G3",                     // proprietary
+      "$GPGGA,123519,48A7.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",         // letter in latitude
+      "$GPGGA,123519,4860.000,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",         // 60 minutes
+      "$GPGGA,123519,9100.000,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",         // latitude over 90
+      "$GPGGA,123519,4807.038,X,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",         // bad hemisphere
+      "$GPGGA,123519,4807.038,N,,E,1,08,0.9,545.4,M,46.9,M,,",                  // latitude without longitude
+      "$GPGGA,126019,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",         // 60 minutes past the hour
+      "$GPGGA,123519,4807.038,N,01131.000,E,1,300,0.9,545.4,M,46.9,M,,",        // satellites over 255
+      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,360.1,230394,003.1,W",      // course over 360
+      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,231394,003.1,W",      // month 13
+      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,2303945,003.1,W",     // long date
+      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,310226,003.1,W",      // 31 February
+      "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,290225,003.1,W",      // 29 February 2025
+      "$GPRMC,123519,AX,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W",     // bad status
+      "$GPRMC,123519,A,4807.038",                                               // missing hemisphere
+      "$GPRMC,123519,A,,,01131.000,E,022.4,084.4,230394,003.1,W",               // longitude without latitude
+      "$GPRMC,123519.bad,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W",  // bad time fraction
+      "$GPRMC,123519.,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W",     // empty time fraction
+      "$GPGGA,123519,4807.038,N,01131.000,E,1.5,08,0.9,545.4,M,46.9,M,,",       // fractional quality
+      "$GPGGA,123519,4807.038,N,01131.000,E,1,8.9,0.9,545.4,M,46.9,M,,",        // fractional satellites
+      "$GPGSV,3,1,11,03,03,111,00,04,15,270,00,06,01,010,00,13,06,292,00",      // not handled
+      "$PUBX,00,123519,4807.038,N,01131.000,E,545.4,G3",                        // proprietary
   };
   for (const char *body : BODIES) {
     GPSData data;

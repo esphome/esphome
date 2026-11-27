@@ -16,8 +16,8 @@ void GPSTime::on_update(const GPSData &data) {
   val.minute = data.minute;
   val.second = data.second;
   val.recalc_timestamp_utc(false);
-  this->synchronize_epoch_(val.timestamp);
   this->sync_pending_ = false;
+  this->synchronize_epoch_(val.timestamp);
 }
 
 }  // namespace esphome::gps

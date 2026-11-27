@@ -31,8 +31,11 @@ void GPS::update() {
 
 void GPS::loop() {
   this->read_available([this](uint8_t c) {
-    if (char *line = this->line_reader_.feed(c))
+    if (char *line = this->line_reader_.feed(c)) {
       this->handle_line_(line);
+    } else if (this->line_reader_.overflowed()) {
+      ESP_LOGV(TAG, "Line over %u characters dropped", static_cast<unsigned>(NMEA_MAX_LINE));
+    }
   });
 }
 

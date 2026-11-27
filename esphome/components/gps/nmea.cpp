@@ -1,6 +1,7 @@
 #include "nmea.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/time.h"
 
 #include <cstring>
 #include <limits>
@@ -36,8 +37,17 @@ class Fields {
 
 bool is_digit(char c) { return c >= '0' && c <= '9'; }
 
-/// Parse [-]digits[.digits] scaled by 10^decimals; decimals past that are dropped.
+bool all_digits(const char *s) {
+  for (; *s != '\0'; s++) {
+    if (!is_digit(*s))
+      return false;
+  }
+  return true;
+}
+
+/// Parse [-]digits[.digits] scaled by 10^decimals; decimals past that are dropped. With decimals 0, no fraction.
 bool parse_decimal(const char *s, uint8_t decimals, int32_t &out) {
+  const bool integer = decimals == 0;
   const bool negative = *s == '-';
   if (negative)
     s++;
@@ -45,7 +55,7 @@ bool parse_decimal(const char *s, uint8_t decimals, int32_t &out) {
   bool any_digit = false;
   bool fraction = false;
   for (; *s != '\0'; s++) {
-    if (*s == '.' && !fraction) {
+    if (*s == '.' && !fraction && !integer) {
       fraction = true;
       continue;
     }
@@ -105,7 +115,7 @@ bool parse_coordinate(const char *s, const char *hemisphere, char positive, char
   if (degrees > max_degrees || !parse_decimal(s + int_len - 2, 7, minutes_e7) || minutes_e7 >= 60 * E7)
     return false;
   const int32_t value = degrees * E7 + (minutes_e7 + 30) / 60;
-  if (value > max_degrees * E7 || hemisphere[1] != '\0')
+  if (value > max_degrees * E7 || strlen(hemisphere) != 1)
     return false;
   if (hemisphere[0] == positive) {
     out = value;
@@ -120,22 +130,23 @@ bool parse_coordinate(const char *s, const char *hemisphere, char positive, char
 /// Parse hhmmss[.ss]; the fraction is ignored.
 bool parse_time(const char *s, GPSData &data) {
   return parse_two_digits(s, 23, data.hour) && parse_two_digits(s + 2, 59, data.minute) &&
-         parse_two_digits(s + 4, 60, data.second) && (s[6] == '\0' || s[6] == '.');
+         parse_two_digits(s + 4, 60, data.second) &&
+         (s[6] == '\0' || (s[6] == '.' && s[7] != '\0' && all_digits(s + 7)));
 }
 
 /// Parse ddmmyy.
 bool parse_date(const char *s, GPSData &data) {
   uint8_t year;
   if (strlen(s) != 6 || !parse_two_digits(s, 31, data.day) || !parse_two_digits(s + 2, 12, data.month) ||
-      !parse_two_digits(s + 4, 99, year) || data.day == 0 || data.month == 0)
+      !parse_two_digits(s + 4, 99, year) || data.month == 0)
     return false;
   data.year = 2000 + year;
-  return true;
+  return data.day != 0 && data.day <= days_in_month(data.month, data.year);
 }
 
-/// Parse the location fields starting at index first, when they are present.
+/// Parse the four location fields starting at index first, when they are present; all empty means no location.
 bool parse_location(const Fields &f, size_t first, GPSData &data) {
-  if (*f[first] == '\0')
+  if (*f[first] == '\0' && *f[first + 1] == '\0' && *f[first + 2] == '\0' && *f[first + 3] == '\0')
     return true;
   if (!parse_coordinate(f[first], f[first + 1], 'N', 'S', 90, data.latitude_e7) ||
       !parse_coordinate(f[first + 2], f[first + 3], 'E', 'W', 180, data.longitude_e7))
@@ -176,8 +187,10 @@ bool parse_gga(const Fields &f, GPSData &data) {
 // $--RMC,time,status,lat,N,lon,E,speed,course,date,variation,E[,mode[,nav status]]*hh
 bool parse_rmc(const Fields &f, GPSData &data) {
   // Without a fix the time and date can come from the receiver's own clock, which may be wrong
-  if (f[2][0] != 'A')
+  if (*f[2] == '\0' || strcmp(f[2], "V") == 0)
     return true;
+  if (strcmp(f[2], "A") != 0)
+    return false;
   return parse_optional(f[1], GPS_FIELD_TIME, data, [&data](const char *s) { return parse_time(s, data); }) &&
          parse_location(f, 3, data) &&
          parse_optional(f[7], GPS_FIELD_SPEED, data,
@@ -196,7 +209,7 @@ bool parse_nmea_sentence(char *line, GPSData &data) {
     return false;
   char *star = strchr(start, '*');
   uint8_t checksum;
-  if (star == nullptr || !parse_hex(star + 1, &checksum, 1))
+  if (star == nullptr || strlen(star + 1) != 2 || !parse_hex(star + 1, &checksum, 1))
     return false;
   if (xor_bytes(reinterpret_cast<const uint8_t *>(start + 1), star - start - 1) != checksum) {
     ESP_LOGV(TAG, "Bad checksum: %s", start);
