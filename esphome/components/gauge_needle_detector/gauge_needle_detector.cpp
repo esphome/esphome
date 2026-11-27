@@ -115,7 +115,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
     window.start_r = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
     window.end_r = static_cast<int>(radius * config.max_scan_radius);
-    // The window never changes for a given config, so report it once per dial.
+    // Reported once per detector; the message names the first dial that hits it.
     if (!window.valid()) {
       if (this->first_report_(REPORT_EMPTY_WINDOW)) {
         ESP_LOGW(TAG, "%s: empty scan window (deadzone %d px, scan radius %d px); no needle can be found", config.id,
