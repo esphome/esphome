@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER_ID,
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
+    CONF_INVERTED,
     CONF_LAMBDA,
     CONF_MODE,
     CONF_NUMBER,
@@ -86,6 +87,7 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+ZephyrUARTComponent = uart_ns.class_("ZephyrUARTComponent", UARTComponent, cg.Component)
 # Base of UARTs without a wire (uart_virtual.h)
 VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
@@ -95,7 +97,33 @@ NATIVE_UART_CLASSES = (
     str(ESP8266UartComponent),
     str(RP2UartComponent),
     str(LibreTinyUARTComponent),
+    str(ZephyrUARTComponent),
 )
+
+# Baud rates the nRF UARTE has a BAUDRATE register setting for
+NRF52_BAUD_RATES = (
+    1200,
+    2400,
+    4800,
+    9600,
+    14400,
+    19200,
+    28800,
+    31250,
+    38400,
+    56000,
+    57600,
+    76800,
+    115200,
+    230400,
+    250000,
+    460800,
+    921600,
+    1000000,
+)
+# UARTE1 shares no registers with the console UART (UARTE0), SPIM2 or the TWIMs.
+# CONFIG_UART_1_NRF_PARITY_BIT below must match this node.
+NRF52_UART_NODE = "uart1"
 
 HOST_BAUD_RATES = [
     50,
@@ -196,6 +224,41 @@ def validate_rx_buffer_size(config):
     return config
 
 
+def validate_nrf52_config(config: ConfigType) -> ConfigType:
+    if not CORE.is_nrf52:
+        return config
+    from esphome.components.nrf52.const import VARIANT_NRF52840
+    from esphome.components.nrf52.framework import get_nrf52_variant
+
+    if get_nrf52_variant() != VARIANT_NRF52840:
+        raise cv.Invalid("A hardware UART is supported only on the nRF52840")
+    if config[CONF_BAUD_RATE] not in NRF52_BAUD_RATES:
+        raise cv.Invalid(
+            f"The nRF52 UART supports only these baud rates: {', '.join(map(str, NRF52_BAUD_RATES))}",
+            path=[CONF_BAUD_RATE],
+        )
+    if config[CONF_DATA_BITS] != 8:
+        raise cv.Invalid(
+            "The nRF52 UART supports only 8 data bits", path=[CONF_DATA_BITS]
+        )
+    if config[CONF_PARITY] not in ("NONE", "EVEN"):
+        raise cv.Invalid(
+            "The nRF52 UART supports only NONE or EVEN parity", path=[CONF_PARITY]
+        )
+    if config[CONF_STOP_BITS] != 1:
+        raise cv.Invalid(
+            "The nRF52 UART supports only 1 stop bit", path=[CONF_STOP_BITS]
+        )
+    for key in (CONF_TX_PIN, CONF_RX_PIN):
+        if (pin := config.get(key)) is None:
+            continue
+        if pin.get(CONF_INVERTED):
+            raise cv.Invalid("The nRF52 UART cannot invert a pin", path=[key])
+        if pin[CONF_MODE].get(CONF_OPEN_DRAIN):
+            raise cv.Invalid("The nRF52 UART cannot drive a pin open drain", path=[key])
+    return config
+
+
 def _uart_declare_type(value):
     if CORE.is_esp8266:
         return cv.declare_id(ESP8266UartComponent)(value)
@@ -207,6 +270,8 @@ def _uart_declare_type(value):
         return cv.declare_id(LibreTinyUARTComponent)(value)
     if CORE.is_host:
         return cv.declare_id(HostUartComponent)(value)
+    if CORE.using_zephyr:
+        return cv.declare_id(ZephyrUARTComponent)(value)
     raise NotImplementedError
 
 
@@ -345,6 +410,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
     validate_host_config,
     validate_rx_buffer_size,
+    validate_nrf52_config,
 )
 
 
@@ -375,6 +441,63 @@ def _libretiny_hardware_uart(config: ConfigType) -> "HardwareUart | None":
 def _final_validate(config: ConfigType) -> None:
     if CORE.is_libretiny:
         _validate_libretiny_pins(config)
+    if CORE.is_nrf52:
+        others = [
+            other
+            for other in fv.full_config.get().get(DOMAIN, [])
+            if other[CONF_ID] != config[CONF_ID]
+            and (CONF_TX_PIN in other or CONF_RX_PIN in other)
+        ]
+        if others:
+            raise cv.Invalid(
+                f"Only one hardware UART is supported on the nRF52; {others[0][CONF_ID]} already uses it"
+            )
+
+
+def _add_nrf52_uart_overlay(config: ConfigType) -> None:
+    """Route UARTE1 to the configured pins."""
+    from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
+
+    zephyr_add_prj_conf("SERIAL", True)
+    zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
+    zephyr_add_prj_conf("RING_BUFFER", True)
+    if config[CONF_PARITY] != "NONE":
+        zephyr_add_prj_conf("UART_1_NRF_PARITY_BIT", True)
+    groups = []
+    for signal, key in (("UART_TX", CONF_TX_PIN), ("UART_RX", CONF_RX_PIN)):
+        if (pin := config.get(key)) is None:
+            continue
+        number = pin[CONF_NUMBER]
+        bias = ""
+        if pin[CONF_MODE].get(CONF_PULLUP):
+            bias = "bias-pull-up;"
+        elif pin[CONF_MODE].get(CONF_PULLDOWN):
+            bias = "bias-pull-down;"
+        groups.append((f"<NRF_PSEL({signal}, {number // 32}, {number % 32})>", bias))
+
+    def group_block(low_power: bool) -> str:
+        return "".join(
+            f"group{index} {{ psels = {psel}; {bias}{' low-power-enable;' if low_power else ''} }};"
+            for index, (psel, bias) in enumerate(groups, start=1)
+        )
+
+    node = NRF52_UART_NODE
+    zephyr_add_overlay(
+        f"""
+            &pinctrl {{
+                {node}_esphome_default: {node}_esphome_default {{ {group_block(False)} }};
+                {node}_esphome_sleep: {node}_esphome_sleep {{ {group_block(True)} }};
+            }};
+            &{node} {{
+                compatible = "nordic,nrf-uarte";
+                status = "okay";
+                current-speed = <{config[CONF_BAUD_RATE]}>;
+                pinctrl-0 = <&{node}_esphome_default>;
+                pinctrl-1 = <&{node}_esphome_sleep>;
+                pinctrl-names = "default", "sleep";
+            }};
+        """
+    )
 
 
 def _validate_libretiny_pins(config: ConfigType) -> None:
@@ -530,6 +653,14 @@ async def to_code(config):
         if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
             enable_serial1()
             cg.add_define("USE_ESP8266_UART_SERIAL1")
+
+    if CORE.is_nrf52:
+        _add_nrf52_uart_overlay(config)
+        cg.add(
+            var.set_device(
+                cg.RawExpression(f"DEVICE_DT_GET(DT_NODELABEL({NRF52_UART_NODE}))")
+            )
+        )
 
     if CORE.is_libretiny and (uart := _libretiny_hardware_uart(config)) is not None:
         cg.add(var.set_hardware_port(uart.port))
@@ -829,6 +960,7 @@ _platform_filter = filter_source_files_from_platform(
         "uart_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "uart_component_host.cpp": {PlatformFramework.HOST_NATIVE},
         "uart_component_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
+        "uart_component_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
         "uart_component_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
