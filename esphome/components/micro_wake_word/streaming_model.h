@@ -57,6 +57,14 @@ class StreamingModel {
   /// @brief Disable the model. The next performing_streaming_inference call will unload it.
   virtual void disable() { this->enabled_ = false; }
 
+  /// @brief Selects the class to detect in a model whose output has several. Set before the model is loaded.
+  void set_output_index(uint8_t output_index) { this->output_index_ = output_index; }
+
+  /// @brief For a model without internal state: keep the latest input window and run the model on it every
+  /// `interval` feature slices. 0, or at least the window length, runs it on consecutive windows. A streaming
+  /// model keeps its own history and must not use this. Set before the model is loaded.
+  void set_inference_interval(uint8_t interval) { this->inference_interval_ = interval; }
+
   /// @brief Return true if the model is enabled.
   bool is_enabled() const { return this->enabled_; }
 
@@ -79,15 +87,23 @@ class StreamingModel {
   /// @return The required arena size rounded up to 16-byte alignment, or 0 on failure.
   size_t probe_arena_size_();
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
-  bool register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver);
+  bool register_streaming_ops_(tflite::MicroMutableOpResolver<21> &op_resolver);
+  /// @brief Adds a feature slice to the model's input; true when the input is ready for an inference.
+  bool add_features_(const int8_t features[PREPROCESSOR_FEATURE_SIZE]);
 
-  tflite::MicroMutableOpResolver<20> streaming_op_resolver_;
+  tflite::MicroMutableOpResolver<21> streaming_op_resolver_;
 
   bool loaded_{false};
   bool enabled_{true};
   bool tensor_arena_size_probed_{false};
   bool unprocessed_probability_status_{false};
   uint8_t current_stride_step_{0};
+  uint8_t output_index_{0};
+  uint8_t inference_interval_{0};
+  uint8_t window_slices_{0};           // slices held by the sliding input window
+  uint8_t slices_since_inference_{0};  // only counted with a sliding input window
+  // Only for a model run more often than once per window; the interpreter may reuse its input tensor.
+  RAMUniquePtr<int8_t[]> window_;
   int16_t ignore_windows_{-MIN_SLICES_BEFORE_DETECTION};
 
   uint8_t default_probability_cutoff_;
