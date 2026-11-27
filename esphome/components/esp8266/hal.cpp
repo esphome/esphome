@@ -83,8 +83,9 @@ void HOT delay(uint32_t ms) {
   const uint32_t start = micros();
   const uint32_t total_us = ms * 1000;
   uint32_t elapsed;
+  // >> 10 avoids a software divide; it undercounts by 2.4%, so a long wait takes one more short suspend
   while ((elapsed = micros() - start) < total_us)
-    esp_delay((total_us - elapsed + 999) / 1000);
+    esp_delay(((total_us - elapsed) >> 10) + 1);
 }
 
 void arch_restart() {
