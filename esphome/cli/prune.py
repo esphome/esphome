@@ -31,14 +31,37 @@ def _recommended_arduino8266_frameworks() -> set[str]:
     return {framework_release(RECOMMENDED_ARDUINO_FRAMEWORK_VERSION).tag}
 
 
+def _recommended_sdk_nrf_versions() -> set[str]:
+    """Install names of the nRF Connect SDK versions used when none is set.
+
+    Some SoCs need a newer SDK than the recommended one and default to that.
+    """
+    from esphome.components.nrf52 import (
+        MIN_SDK_NRF_VERSIONS,
+        RECOMMENDED_SDK_NRF_VERSION,
+    )
+    from esphome.core import Version
+
+    recommended = Version.parse(RECOMMENDED_SDK_NRF_VERSION)
+    versions = {recommended} | {
+        max(recommended, Version.parse(minimum))
+        for minimum in MIN_SDK_NRF_VERSIONS.values()
+    }
+    return {f"v{ver.major}.{ver.minor}.{ver.patch}" for ver in versions}
+
+
 def command_prune(args: argparse.Namespace) -> int | None:
     from esphome.arduino8266.prune import prune_arduino8266_installs
+    from esphome.components.nrf52.prune import prune_sdk_nrf_installs
     from esphome.espidf.prune import prune_idf_installs
 
     try:
         removed = prune_idf_installs(_recommended_idf_versions(), dry_run=args.dry_run)
         removed += prune_arduino8266_installs(
             _recommended_arduino8266_frameworks(), dry_run=args.dry_run
+        )
+        removed += prune_sdk_nrf_installs(
+            _recommended_sdk_nrf_versions(), dry_run=args.dry_run
         )
     except OSError as err:
         _LOGGER.error("Error pruning installs: %s", err)

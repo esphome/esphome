@@ -2837,9 +2837,9 @@ def parse_args(argv):
 
     parser_prune = subparsers.add_parser(
         "prune",
-        help="Remove the installed ESP-IDF and ESP8266 Arduino versions other "
-        "than the recommended ones, along with the toolchains and Python "
-        "environments those do not use.",
+        help="Remove the installed ESP-IDF, ESP8266 Arduino and nRF Connect SDK "
+        "versions other than the recommended ones, along with the toolchains "
+        "and Python environments those do not use.",
     )
     parser_prune.add_argument(
         "--dry-run",
