@@ -175,6 +175,13 @@ static size_t int_to_bytes(int64_t v, TypeName type, uint8_t *out) {
 
 // Rounds before narrowing, so a scaled 21.5 does not become 21.4
 bool TopTronicInput::send_set_(float value, TypeName type) {
+  // llroundf() is unspecified outside int64_t, and the largest S64 value rounds up to 2^63 as a float, so
+  // saturate first. -2^63 is exact as a float.
+  constexpr float limit = static_cast<float>(INT64_MAX);
+  if (value >= limit)
+    return this->send_set_raw_(INT64_MAX, type);
+  if (value <= -limit)
+    return this->send_set_raw_(INT64_MIN, type);
   return this->send_set_raw_(static_cast<int64_t>(llroundf(value)), type);
 }
 

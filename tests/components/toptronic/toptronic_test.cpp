@@ -369,6 +369,32 @@ TEST_F(TopTronicTest, LongSetRequestIsSplitAndReassembles) {
             (std::vector<uint8_t>{0x46, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x80, 0x00, 0x00, 0x00}));
 }
 
+TEST_F(TopTronicTest, S64SetSaturatesInsteadOfOverflowing) {
+  this->hub_.set_write_min_interval_ms(0);
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(TypeName::TYPE_NAME_S64);
+  this->hub_.add_input(&number);
+  const auto written = [this](TopTronicNumber &input, float value) {
+    this->bus_.sent.clear();
+    input.control(value);
+    std::vector<uint8_t> message;
+    for (const auto &frame : this->bus_.sent) {
+      message =
+          this->hub_.feed(frame.can_id, std::vector<uint8_t>(frame.data, frame.data + frame.can_data_length_code));
+    }
+    return message;
+  };
+  // The configured maximum INT64_MAX reaches control() as the float 2^63
+  EXPECT_EQ(
+      written(number, static_cast<float>(INT64_MAX)),
+      (std::vector<uint8_t>{0x46, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}));
+  EXPECT_EQ(written(number, -1e30f),
+            (std::vector<uint8_t>{0x46, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x80, 0, 0, 0, 0, 0, 0, 0}));
+}
+
 TEST_F(TopTronicTest, RepeatedSetIsRateLimited) {
   this->set_now_(1000);
   TopTronicNumber number;
