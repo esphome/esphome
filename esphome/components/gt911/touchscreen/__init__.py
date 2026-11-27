@@ -7,7 +7,6 @@ from esphome.types import ConfigType
 
 from .. import gt911_ns
 
-GT911ButtonListener = gt911_ns.class_("GT911ButtonListener")
 GT911Touchscreen = gt911_ns.class_(
     "GT911Touchscreen",
     touchscreen.Touchscreen,
