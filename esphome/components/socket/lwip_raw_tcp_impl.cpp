@@ -124,6 +124,10 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
 
 int LWIPRawCommon::close() {
   LWIP_LOCK();
+  return this->close_pcb_();
+}
+
+int LWIPRawCommon::close_pcb_() {
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -156,6 +160,10 @@ int LWIPRawCommon::shutdown(int how) {
     errno = EINVAL;
     return -1;
   }
+  // lwIP closes the pcb for both directions and frees it at once when received bytes are unread (it sends a RST),
+  // so forget it as close() does; a later close() must not touch freed memory
+  if (shut_rx && shut_tx)
+    return this->close_pcb_();
   LWIP_LOG("tcp_shutdown(%p shut_rx=%d shut_tx=%d)", this->pcb_, shut_rx ? 1 : 0, shut_tx ? 1 : 0);
   err_t err = tcp_shutdown(this->pcb_, shut_rx, shut_tx);
   if (err != ERR_OK) {
