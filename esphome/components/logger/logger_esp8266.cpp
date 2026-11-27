@@ -13,11 +13,19 @@ namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
 
+#ifdef USE_LOGGER_CONSOLE
+// The receive buffer size begin() allocates; protected, so reached through a derived class
+struct SerialRxSize : HardwareSerial {
+  static constexpr size_t HardwareSerial::*MEMBER = &SerialRxSize::_rx_size;
+};
+#endif
+
 void Logger::pre_setup() {
 #if defined(USE_ESP8266_LOGGER_SERIAL)
   this->hw_serial_ = &Serial;
 #ifdef USE_LOGGER_CONSOLE
-  Serial.setRxBufferSize(ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE);
+  // setRxBufferSize() would link in 185 B of resize code that never runs before begin()
+  Serial.*SerialRxSize::MEMBER = ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE;
   Serial.begin(this->baud_rate_);
 #else
   // Nothing reads without a console user; TX only skips the core's 256 B RX buffer and RX interrupt
