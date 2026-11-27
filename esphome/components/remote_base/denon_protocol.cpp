@@ -12,56 +12,44 @@ static constexpr uint32_t BIT_ZERO_SPACE_US = 789;
 static constexpr uint32_t BIT_ONE_SPACE_US = 1841;
 static constexpr uint32_t FRAME_GAP_US = 43572;
 
+// Each frame is 15 bits sent least significant first: 5 address, 8 command, 2 trailing bits; then a stop mark
+static constexpr uint8_t FRAME_BITS = 15;
 static constexpr uint8_t ADDRESS_BITS = 5;
-static constexpr uint8_t COMMAND_BITS = 8;
-// Each frame: address and command (both least significant bit first), two trailing bits, stop mark
-static constexpr uint8_t FRAME_ITEMS = ADDRESS_BITS + COMMAND_BITS + 2 + 1;
+static constexpr uint8_t TRAILER_SHIFT = 13;
+// The second frame inverts the command and the trailing bits
+static constexpr uint16_t SECOND_FRAME_MASK = 0x7FE0;
 
-static void encode_bits(RemoteTransmitData *dst, uint32_t value, uint8_t nbits) {
-  for (uint8_t i = 0; i < nbits; i++) {
-    dst->item(BIT_MARK_US, (value >> i) & 1 ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+static void encode_frame(RemoteTransmitData *dst, uint16_t frame) {
+  for (uint8_t i = 0; i < FRAME_BITS; i++) {
+    dst->item(BIT_MARK_US, (frame >> i) & 1 ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
   }
-}
-
-static void encode_frame(RemoteTransmitData *dst, uint8_t address, uint8_t command, uint8_t trailer) {
-  encode_bits(dst, address, ADDRESS_BITS);
-  encode_bits(dst, command, COMMAND_BITS);
-  encode_bits(dst, trailer, 2);
   dst->mark(BIT_MARK_US);
 }
 
 void DenonProtocol::encode(RemoteTransmitData *dst, const DenonData &data) {
   dst->set_carrier_frequency(CARRIER_FREQUENCY);
-  dst->reserve(FRAME_ITEMS * 4u);
-  encode_frame(dst, data.address, data.command, 0b00);
+  dst->reserve(2 * (2 * FRAME_BITS + 1) + 1);
+  const uint16_t frame = data.address | (data.command << ADDRESS_BITS);
+  encode_frame(dst, frame);
   dst->space(FRAME_GAP_US);
-  // The second frame inverts the command and the trailing bits
-  encode_frame(dst, data.address, ~data.command, 0b11);
-}
-
-static bool decode_bits(RemoteReceiveData &src, uint8_t nbits, uint32_t &out) {
-  out = 0;
-  for (uint8_t i = 0; i < nbits; i++) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      out |= 1UL << i;
-    } else if (!src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      return false;
-    }
-  }
-  return true;
+  encode_frame(dst, frame ^ SECOND_FRAME_MASK);
 }
 
 optional<DenonData> DenonProtocol::decode(RemoteReceiveData src) {
-  uint32_t address, command, trailer;
-  if (!decode_bits(src, ADDRESS_BITS, address) || !decode_bits(src, COMMAND_BITS, command) ||
-      !decode_bits(src, 2, trailer) || !src.expect_mark(BIT_MARK_US))
-    return {};
+  uint16_t frame = 0;
+  for (uint8_t i = 0; i < FRAME_BITS; i++) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
+      frame |= 1U << i;
+    } else if (!src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
+      return {};
+    }
+  }
   // Only the first frame of a pair ends in 00; the inverted second frame ends in 11
-  if (trailer != 0b00)
+  if (!src.expect_mark(BIT_MARK_US) || (frame >> TRAILER_SHIFT) != 0)
     return {};
   return DenonData{
-      .address = static_cast<uint8_t>(address),
-      .command = static_cast<uint8_t>(command),
+      .address = static_cast<uint8_t>(frame & ((1U << ADDRESS_BITS) - 1)),
+      .command = static_cast<uint8_t>(frame >> ADDRESS_BITS),
   };
 }
 

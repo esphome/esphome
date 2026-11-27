@@ -32,37 +32,26 @@ optional<DenonData> decode(const RawTimings &timings) {
 }  // namespace
 
 // Device code and function number from Denon's IR code tables, with the frame from Denon's Pronto code
-TEST(DenonProtocolTest, EncodesDenonsPublishedFrames) {
+TEST(DenonProtocolTest, MatchesDenonsPublishedFrames) {
   struct Case {
-    uint8_t address;
-    uint8_t command;
+    DenonData data;
     uint16_t frame;
   };
-  for (const Case &c : {Case{2, 121, 0x2278}, Case{4, 129, 0x1204}, Case{2, 241, 0x223C}}) {
+  for (const Case &c : {Case{{2, 121}, 0x2278}, Case{{4, 129}, 0x1204}, Case{{2, 241}, 0x223C}}) {
+    SCOPED_TRACE(::testing::Message() << int(c.data.address) << "/" << int(c.data.command));
     RemoteTransmitData tx;
-    DenonProtocol().encode(&tx, DenonData{.address = c.address, .command = c.command});
-    EXPECT_EQ(tx.get_data(), reference_pair(c.frame)) << int(c.address) << "/" << int(c.command);
+    DenonProtocol().encode(&tx, c.data);
+    EXPECT_EQ(tx.get_data(), reference_pair(c.frame));
+    // The first frame alone and the whole pair both decode once
+    for (const RawTimings &timings : {reference_frame(c.frame), reference_pair(c.frame)}) {
+      auto decoded = decode(timings);
+      ASSERT_TRUE(decoded.has_value());
+      if (!decoded.has_value()) {
+        return;
+      }
+      EXPECT_EQ(*decoded, c.data);
+    }
   }
-}
-
-TEST(DenonProtocolTest, DecodesTheFirstFrame) {
-  auto decoded = decode(reference_frame(0x1204));
-  ASSERT_TRUE(decoded.has_value());
-  if (!decoded.has_value()) {
-    return;
-  }
-  EXPECT_EQ(decoded->address, 4);
-  EXPECT_EQ(decoded->command, 129);
-}
-
-TEST(DenonProtocolTest, DecodesThePairOnce) {
-  auto decoded = decode(reference_pair(0x2278));
-  ASSERT_TRUE(decoded.has_value());
-  if (!decoded.has_value()) {
-    return;
-  }
-  EXPECT_EQ(decoded->address, 2);
-  EXPECT_EQ(decoded->command, 121);
 }
 
 TEST(DenonProtocolTest, IgnoresTheInvertedFrame) { EXPECT_FALSE(decode(reference_frame(0x2278 ^ 0x3FF)).has_value()); }
@@ -70,15 +59,15 @@ TEST(DenonProtocolTest, IgnoresTheInvertedFrame) { EXPECT_FALSE(decode(reference
 TEST(DenonProtocolTest, RoundTrips) {
   for (const uint8_t address : {0, 1, 2, 17, 31}) {
     for (const uint8_t command : {0, 1, 0x80, 0xA5, 0xFF}) {
+      const DenonData data{.address = address, .command = command};
       RemoteTransmitData tx;
-      DenonProtocol().encode(&tx, DenonData{.address = address, .command = command});
+      DenonProtocol().encode(&tx, data);
       auto decoded = decode(tx.get_data());
       ASSERT_TRUE(decoded.has_value()) << int(address) << "/" << int(command);
       if (!decoded.has_value()) {
         return;
       }
-      EXPECT_EQ(decoded->address, address);
-      EXPECT_EQ(decoded->command, command);
+      EXPECT_EQ(*decoded, data);
     }
   }
 }
