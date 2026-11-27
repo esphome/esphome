@@ -15,6 +15,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
+    AFTER_ALL_JOBS,
     AssignmentExpression,
     BinOpExpression,
     MockObj,
@@ -63,10 +64,6 @@ def _get_source_pool() -> ComponentSourcePool:
 
 _REGISTERED_COMPONENTS_DOMAIN = "registered_components"
 
-# Below every finite priority, so the job runs only once every other job,
-# including FINAL ones and to_code tasks pushed down by waiting, is done.
-_AFTER_ALL_JOBS = float("-inf")
-
 
 @dataclass
 class _RegisteredComponents:
@@ -84,7 +81,7 @@ def _get_registered_components() -> _RegisteredComponents:
     return CORE.data[_REGISTERED_COMPONENTS_DOMAIN]
 
 
-@coroutine_with_priority(_AFTER_ALL_JOBS)
+@coroutine_with_priority(AFTER_ALL_JOBS)
 async def add_component_counts() -> None:
     """Emit ESPHOME_COMPONENT_COUNT and ESPHOME_LOOPING_COMPONENT_COUNT from the
     components actually registered; declared but unregistered ids take no slot."""

@@ -2,6 +2,7 @@ import pytest
 
 from esphome import codegen as cg
 from esphome.core import CORE, ID, EsphomeError, app_lists
+from esphome.coroutine import FakeAwaitable
 from tests.testing_helpers import get_define_value
 
 
@@ -194,7 +195,47 @@ def test_late_variable_never_defined_is_rejected() -> None:
     cg.LatePvariable(
         ID("late_never", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
     )
-    with pytest.raises(
-        EsphomeError, match="late_never was declared with LatePvariable"
-    ):
+    with pytest.raises(EsphomeError, match="late_never has no static address"):
+        CORE.flush_tasks()
+
+
+def test_late_variable_defined_by_a_builder_that_waited_below_final() -> None:
+    """The list and the never-defined check run after all jobs, so a slow builder still counts."""
+    late = cg.LatePvariable(
+        ID("late_slow", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+
+    async def slow_builder() -> None:
+        # Each yield lowers the task's priority by one; 1500 puts it below FINAL
+        for _ in range(1500):
+            await FakeAwaitable(iter([None]))
+        late.define(cg.esphome_ns.class_("SlowSensor"))
+
+    app_lists.schedule_emit()
+    CORE.add_job(slow_builder)
+    CORE.flush_tasks()
+    assert _global_lines()[-1].endswith(
+        "PROGMEM = {reinterpret_cast<SlowSensor *>(esphome__late_slow__pstorage)};"
+    )
+
+
+def test_late_variable_defined_twice_is_rejected() -> None:
+    late = cg.LatePvariable(
+        ID("late_twice", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    late.define(cg.esphome_ns.class_("First"))
+    with pytest.raises(EsphomeError, match="late_twice was already defined"):
+        late.define(cg.esphome_ns.class_("Second"))
+
+
+def test_listed_late_variable_never_defined_is_rejected() -> None:
+    late = cg.LatePvariable(
+        ID("late_listed", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+    app_lists.schedule_emit()
+    with pytest.raises(EsphomeError, match="late_listed has no static address"):
         CORE.flush_tasks()
