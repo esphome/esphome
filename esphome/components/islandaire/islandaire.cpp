@@ -1,4 +1,5 @@
 #include "islandaire.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -51,6 +52,24 @@ static constexpr uint32_t CARRIER_FREQUENCY = 38000;
 static constexpr remote_base::BitTimings BIT_TIMINGS{
     .bit_mark = BIT_MARK, .one_space = ONE_SPACE, .zero_space = ZERO_SPACE};
 
+using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT, MODE_HEAT},
+    {climate::CLIMATE_MODE_COOL, MODE_COOL},
+    {climate::CLIMATE_MODE_FAN_ONLY, MODE_FAN},
+};
+// The second low code is only received
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, FAN_AUTO},
+    {climate::CLIMATE_FAN_LOW, FAN_LOW},
+    {climate::CLIMATE_FAN_HIGH, FAN_HIGH},
+    {climate::CLIMATE_FAN_LOW, FAN_LOW_ALT},
+};
+
 void IslandaireClimate::setup() {
   ClimateIR::setup();
   // The base class default assumes Celsius
@@ -78,18 +97,7 @@ void IslandaireClimate::transmit_state() {
 
   remote_state[5] = this->mode == climate::CLIMATE_MODE_OFF ? POWER_OFF : POWER_ON;
 
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_HEAT:
-      remote_state[6] = MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state[6] = MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-    default:
-      remote_state[6] = MODE_COOL;
-      break;
-  }
+  remote_state[6] = to_ir_code(MODES, this->mode, MODE_COOL);
 
   // Whole degrees within the unit's range, stored as well so the published state matches what was sent
   const auto temperature =
@@ -97,18 +105,7 @@ void IslandaireClimate::transmit_state() {
   this->target_temperature = temperature;
   remote_state[7] = temperature;
 
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
-    case climate::CLIMATE_FAN_LOW:
-      remote_state[8] = FAN_LOW;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      remote_state[8] = FAN_HIGH;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      remote_state[8] = FAN_AUTO;
-      break;
-  }
+  remote_state[8] = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), FAN_AUTO);
 
   remote_state[STATE_LENGTH - 1] = sum_bytes(remote_state, STATE_LENGTH - 1);
 
@@ -157,40 +154,18 @@ bool IslandaireClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   if ((remote_state[5] & POWER_MASK) == 0) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (const auto entry = find_ir_code(MODES, remote_state[6], true)) {
+    this->mode = static_cast<climate::ClimateMode>(entry->value);
   } else {
-    switch (remote_state[6]) {
-      case MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      default:
-        ESP_LOGV(TAG, "Unknown mode 0x%02X", remote_state[6]);
-        return false;
-    }
+    ESP_LOGV(TAG, "Unknown mode 0x%02X", remote_state[6]);
+    return false;
   }
 
   const uint8_t temp_f = remote_state[7];
   if (temp_f >= TEMP_MIN && temp_f <= TEMP_MAX)
     this->target_temperature = temp_f;
 
-  switch (remote_state[8] & ~FAN_TIMER_FLAG) {
-    case FAN_HIGH:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case FAN_LOW:
-    case FAN_LOW_ALT:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case FAN_AUTO:
-    default:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-  }
+  this->fan_mode = from_ir_code(FANS, remote_state[8] & ~FAN_TIMER_FLAG, climate::CLIMATE_FAN_AUTO);
 
   this->publish_state();
   return true;

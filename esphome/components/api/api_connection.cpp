@@ -13,6 +13,7 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#include <algorithm>
 #include <cerrno>
 #include <cinttypes>
 #include <cstring>
@@ -76,7 +77,10 @@ namespace esphome::api {
 static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 10;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
-static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
+// Ping answer grace: 1.5x keepalive, at most 5 min so a vanished client frees its slot
+static constexpr uint32_t KEEPALIVE_PONG_GRACE_MS = 300000;
+static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
+    KEEPALIVE_TIMEOUT_MS + std::min<uint32_t>((KEEPALIVE_TIMEOUT_MS * 3) / 2, KEEPALIVE_PONG_GRACE_MS);
 // Timeout for completing the handshake (Noise transport + HelloRequest).
 // A stalled handshake from a buggy client or network glitch holds a connection
 // slot, which can prevent legitimate clients from reconnecting. Also hardens
@@ -86,6 +90,8 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
+// A shorter keepalive would ping a client still in its handshake
+static_assert(KEEPALIVE_TIMEOUT_MS >= HANDSHAKE_TIMEOUT_MS);
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
@@ -382,7 +388,6 @@ void APIConnection::loop() {
 void APIConnection::check_keepalive_(uint32_t now) {
   // Caller guarantees: now - last_traffic_ > KEEPALIVE_TIMEOUT_MS
   if (this->flags_.sent_ping) {
-    // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
       this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
@@ -1992,6 +1997,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
+#ifdef USE_API_KEEPALIVE_INTERVAL
+  resp.keepalive_interval = KEEPALIVE_TIMEOUT_MS / 1000;
+#endif
 
 #ifdef USE_PROVISIONING
   if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {

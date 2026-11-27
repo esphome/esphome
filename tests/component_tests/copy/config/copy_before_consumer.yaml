@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: test
+  password: testtest
+
+sensor:
+  - platform: template
+    id: source
+    name: Source
+    lambda: return 1.0;
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:flash
+  - platform: copy
+    id: middle
+    source_id: source
+    name: Middle
+  # Same as consumer_before_copy.yaml with the two copies swapped.
+  - platform: copy
+    id: consumer
+    source_id: middle
+    name: Consumer

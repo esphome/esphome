@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: test
+  password: testtest
+
+sensor:
+  - platform: template
+    id: power
+    lambda: return 1.0;
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    icon: mdi:flash
+  - platform: copy
+    id: copied
+    source_id: power
+    name: Copied
+  # Same as derivative_before_copy.yaml with the two entries swapped.
+  - platform: derivative
+    id: rate
+    sensor: copied
+    name: Rate
+    time_unit: h
