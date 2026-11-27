@@ -106,6 +106,8 @@ _SHA1_FINGERPRINT_RE = re.compile(
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
         return ["async_tcp", "json"]
+    if CORE.is_esp32:
+        return ["watchdog", "json"]
     return ["json"]
 
 

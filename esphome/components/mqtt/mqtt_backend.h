@@ -75,6 +75,7 @@ class MQTTBackend {
   virtual bool link_open() const { return this->connected(); }
   virtual void connect() = 0;
   virtual void disconnect() = 0;
+  virtual void disable() { this->disconnect(); }
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;
   /// Whether another SUBSCRIBE fits the inbound queue.
   virtual bool can_subscribe() const { return true; }

@@ -979,7 +979,7 @@ bool MQTTClientComponent::teardown() {
   // A disconnect drops a message the broker has not confirmed; the core's teardown timeout bounds the wait
   if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() && !this->mqtt_backend_.publish_acknowledged())
     return false;
-  this->mqtt_backend_.disconnect();
+  this->mqtt_backend_.disable();
   // Wait for the broker to close after DISCONNECT, so a reboot does not cut it off
   return !this->mqtt_backend_.link_open();
 }

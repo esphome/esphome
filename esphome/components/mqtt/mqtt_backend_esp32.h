@@ -7,6 +7,7 @@
 #include <atomic>
 #include <string>
 #include <cstring>
+#include <atomic>
 #include <mqtt_client.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -186,9 +187,6 @@ class MQTTBackendESP32 final : public MQTTBackend {
         esp_mqtt_client_start(handler_.get());
       }
     } else {
-      // Settings may have changed since the client was created (a new broker or credentials); the client copies them
-      const esp_mqtt_client_config_t mqtt_cfg = this->build_config_();
-      esp_mqtt_set_config(this->handler_.get(), &mqtt_cfg);
       // Only acts in WAIT_RECONNECT; otherwise the state machine retries after DISCONNECTED
       esp_mqtt_client_reconnect(this->handler_.get());
     }
@@ -202,6 +200,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     if (is_initialized_)
       esp_mqtt_client_disconnect(handler_.get());
   }
+  void disable() final;
 
   bool subscribe(const char *topic, uint8_t qos) final {
     // Stray SUBACKs for resent SUBSCRIBEs of an earlier connection give no credit once they outnumber
@@ -270,7 +269,6 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // for a scenario that never occurs in practice.
 
  protected:
-  esp_mqtt_client_config_t build_config_() const;
   bool initialize_();
   void mqtt_event_handler_(const Event &event);
   void handle_disconnected_();
@@ -307,6 +305,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // Link state seen by the MQTT task, so loop() can catch a dropped DISCONNECTED
   std::atomic<LinkState> task_link_state_{LinkState::LINK_STATE_DISCONNECTED};
 
+  esp_mqtt_client_config_t mqtt_cfg_{};
+
   std::string host_;
   uint16_t port_;
   /// SUBSCRIBEs sent on this connection
@@ -341,6 +341,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   TaskHandle_t task_handle_{nullptr};
+  TaskHandle_t teardown_task_handle_{nullptr};
+  std::atomic<bool> task_shutdown_requested_{false};
   // Only the task writes, so no atomic read-modify-write is needed
   void count_lost_subscribe_() {
     this->subscribes_lost_.store(this->subscribes_lost_.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
