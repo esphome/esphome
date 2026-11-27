@@ -44,10 +44,9 @@ async def test_uart_mock_duco(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """All entities read the box; mode and comfort temperature changes are written."""
+    """Test Duco entity reads and mode, comfort temperature and setpoint writes."""
     waiter = LineWaiter()
     states: dict[int, EntityState] = {}
-    updates: list[EntityState] = []
 
     async def wait_for(condition, what: str) -> None:
         try:
@@ -99,7 +98,6 @@ async def test_uart_mock_duco(
 
         def on_state(state: EntityState) -> None:
             states[state.key] = state
-            updates.append(state)
 
         client.subscribe_states(on_state)
 
