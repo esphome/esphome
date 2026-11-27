@@ -210,19 +210,6 @@ def test_prune_is_not_held_back_by_an_optional_listing(core_dir: Path) -> None:
     assert toolchain.is_dir()
 
 
-def test_prune_removes_the_nrf52_platform(core_dir: Path) -> None:
-    """Its toolchain shares a name with the one LibreTiny uses, which stays."""
-    nrf52 = _platform(
-        core_dir, "nordicnrf52", ["framework-zephyr", "toolchain-gccarmnoneeabi"]
-    )
-    _platform(core_dir, "libretiny", ["toolchain-gccarmnoneeabi"])
-    zephyr = _package(core_dir, "framework-zephyr")
-    toolchain = _package(core_dir, "toolchain-gccarmnoneeabi")
-
-    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [zephyr, nrf52]
-    assert toolchain.is_dir()
-
-
 _LIBRETINY = "https://github.com/libretiny-eu"
 
 
@@ -236,6 +223,53 @@ def _libretiny_package(
         location.mkdir(exist_ok=True)
         (location / ".piopm").write_text(record, encoding="utf-8")
     return package
+
+
+def test_prune_removes_the_nrf52_platform(core_dir: Path) -> None:
+    """Its toolchain shares a name with the one LibreTiny and RP2 list, which stays."""
+    nrf52 = _platform(
+        core_dir, "nordicnrf52", ["framework-zephyr", "toolchain-gccarmnoneeabi"]
+    )
+    _platform(core_dir, "libretiny", ["toolchain-gccarmnoneeabi"])
+    _platform(core_dir, "raspberrypi", ["toolchain-gccarmnoneeabi"])
+    zephyr = _package(core_dir, "framework-zephyr")
+    toolchain = _package(core_dir, "toolchain-gccarmnoneeabi")
+    # The nRF52 one, moved aside when LibreTiny installed its own
+    nrf52_toolchain = _libretiny_package(
+        core_dir,
+        "toolchain-gccarmnoneeabi@src-0001",
+        _record("https://example.com/toolchain-sdk-ng/v0.17.4-0.zip"),
+        cloned=False,
+    )
+    # Nothing says where this one came from
+    unknown = _package(core_dir, "toolchain-gccarmnoneeabi@src-0002")
+
+    removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
+
+    assert removed == [zephyr, nrf52_toolchain, nrf52]
+    assert toolchain.is_dir()
+    assert unknown.is_dir()
+
+
+def test_prune_keeps_a_replaced_copy_a_remaining_platform_installs(
+    core_dir: Path,
+) -> None:
+    url = "https://example.com/tool-cmake-4.zip"
+    nrf52 = _platform(core_dir, "nordicnrf52", ["tool-cmake"])
+    other = core_dir / "platforms" / "other"
+    other.mkdir()
+    (other / "platform.json").write_text(
+        json.dumps({"packages": {"tool-cmake": {"version": url}}}), encoding="utf-8"
+    )
+    copy = _libretiny_package(
+        core_dir, "tool-cmake@src-0001", _record(url), cloned=False
+    )
+    old = _libretiny_package(
+        core_dir, "tool-cmake@src-0002", _record(f"{url}.old"), cloned=False
+    )
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [old, nrf52]
+    assert copy.is_dir()
 
 
 def test_prune_removes_libretiny_packages_in_a_version_no_longer_used(
@@ -305,7 +339,7 @@ def test_prune_keeps_libretiny_packages_when_its_versions_are_unreadable(
 
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
     assert copy.is_dir()
-    assert "Keeping all replaced LibreTiny packages" in caplog.text
+    assert "Keeping all replaced packages" in caplog.text
 
 
 def _libretiny_with_an_old_copy(core_dir: Path, package: str) -> Path:
@@ -587,6 +621,9 @@ def test_prune_leaves_a_symlinked_platform_and_what_it_uses(core_dir: Path) -> N
     except OSError:
         pytest.skip("symlinks not available")
     package = _package(core_dir, "framework-espidf")
+    copy = _libretiny_package(
+        core_dir, "framework-espidf@src-0001", _record("https://example.com/idf.zip")
+    )
     old_gcc = _package(core_dir, "old-gcc")
     tools = core_dir / "tools"
     tools.mkdir()
@@ -594,6 +631,7 @@ def test_prune_leaves_a_symlinked_platform_and_what_it_uses(core_dir: Path) -> N
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [old_gcc, old]
     assert link.is_symlink()
     assert package.is_dir()
+    assert copy.is_dir()
     assert tools.is_dir()
 
 

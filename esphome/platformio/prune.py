@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 import sys
+from typing import NamedTuple
 
 from esphome.build_helpers.prune import (
     installed_name,
@@ -28,9 +29,9 @@ RASPBERRYPI = "raspberrypi"
 LIBRETINY = "libretiny"
 # The platforms whose PlatformIO toolchain is deprecated
 DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266, NORDICNRF52)
-# A package installed from a URL that a newer install replaced is moved aside
-# to "<name>@src-<hash>". LibreTiny's chip families build with different
-# versions of one package at once, so such a copy may still be in use.
+# A package installed from a URL is moved aside to "<name>@src-<hash>" when
+# another install takes its name. LibreTiny's chip families build with
+# different versions of one package at once, so such a copy may still be in use.
 _REPLACED_MARK = "@src-"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
 # downloads and records, directly in PlatformIO's core directory
@@ -78,16 +79,28 @@ def _espressif32_python_environments(core_dir: Path) -> list[Path]:
     return removed + doomed
 
 
-def _packages(platform: Path) -> dict[str, bool] | None:
-    """The packages a platform lists and whether it marks each one optional.
+class _Listed(NamedTuple):
+    """How a platform lists a package."""
 
-    None if they cannot be read.
-    """
+    optional: bool
+    # The URL the package is installed from, None if it comes by version
+    url: str | None
+
+
+def _packages(platform: Path) -> dict[str, _Listed] | None:
+    """The packages a platform lists, None if they cannot be read."""
     manifest = platform / "platform.json"
     try:
         packages = json.loads(manifest.read_text(encoding="utf-8"))["packages"]
         return {
-            name: bool(package.get("optional")) for name, package in packages.items()
+            name: _Listed(
+                bool(package.get("optional")),
+                version
+                if isinstance(version := package.get("version"), str)
+                and "://" in version
+                else None,
+            )
+            for name, package in packages.items()
         }
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as err:
         _LOGGER.debug("Could not read the packages of %s: %s", manifest, err)
@@ -109,31 +122,37 @@ def _installed_from(install: Path) -> str | None:
     return None
 
 
-def _unused_libretiny_packages(
-    platforms: list[Path], packages_dir: Path, shared: Collection[str]
+def _unused_replaced_packages(
+    packages_dir: Path,
+    names: Collection[str],
+    uris: Collection[str],
+    libretiny: list[Path],
+    shared: Collection[str],
 ) -> list[Path]:
-    """Replaced copies of LibreTiny packages in a version it no longer builds with.
+    """Replaced copies of packages that no platform that stays installs.
 
-    ``platforms`` are the LibreTiny platforms that stay, and ``shared`` the
-    packages that PlatformIO itself or another platform that stays lists.
+    ``names`` are the packages a removed platform lists and ``uris`` what the
+    platforms that stay list a URL for. ``libretiny`` are the LibreTiny
+    platforms that stay: copies of their packages in a version they no longer
+    build with go too, except of the ``shared`` ones, which PlatformIO itself
+    or another platform that stays lists.
     """
     from esphome.components.libretiny.prune import package_uris
 
-    names: set[str] = set()
-    uris: set[str] = set()
-    for platform in platforms:
+    names = set(names)
+    uris = set(uris)
+    for platform in libretiny:
         listed = _packages(platform)
         used = package_uris(platform)
         if listed is None or used is None:
             _LOGGER.warning(
-                "Keeping all replaced LibreTiny packages, could not tell which "
-                "versions %s builds with",
+                "Keeping all replaced packages, could not tell which versions "
+                "%s builds with",
                 platform,
             )
             return []
-        names |= listed.keys()
+        names |= listed.keys() - set(shared)
         uris |= used
-    names -= set(shared)
     return [
         package
         for package in subdirs(packages_dir)
@@ -157,7 +176,8 @@ def prune_platformio_installs(
     are the replaced LibreTiny packages in a version it no longer builds
     with. An install whose source is not recorded is kept.
 
-    A package that PlatformIO itself or a remaining platform needs is kept.
+    A package that PlatformIO itself or a remaining platform needs is kept,
+    but not a replaced copy of it that only a removed platform installed.
     PlatformIO's download cache is cleared. Returns what was removed (what
     would be removed on a dry run). Does nothing when PlatformIO is not
     installed.
@@ -207,8 +227,14 @@ def prune_platformio_installs(
             owners.setdefault(package, set()).add(_name(platform))
     for package in core_packages:
         owners.pop(package, None)
+    # A replaced copy of one of these may be a removed platform's own, even
+    # when the package itself stays. The nRF52 and LibreTiny toolchains share
+    # a name this way.
+    replaced = set(owners)
     # Package name -> the platforms that stay and list it
     listed_by: dict[str, set[str]] = {}
+    # What the platforms that stay list a URL for
+    uris: set[str] = set()
     all_read = True
     for platform in kept:
         if (packages := _packages(platform)) is None:
@@ -220,9 +246,13 @@ def prune_platformio_installs(
             owners = {}
             break
         name = _name(platform)
-        for package, optional in packages.items():
+        for package, listed in packages.items():
             listed_by.setdefault(package, set()).add(name)
-            if not optional or name in platforms:
+            if listed.url is not None:
+                uris.add(PackageSpec(listed.url).uri)
+            if name in platforms:
+                replaced.discard(package)
+            if not listed.optional or name in platforms:
                 owners.pop(package, None)
             elif package in owners:
                 # Optional here: kept if only this platform's own removed
@@ -246,7 +276,9 @@ def prune_platformio_installs(
         libretiny = [platform for platform in kept if _name(platform) == LIBRETINY]
         removed += [
             package
-            for package in _unused_libretiny_packages(libretiny, packages_dir, shared)
+            for package in _unused_replaced_packages(
+                packages_dir, replaced, uris, libretiny, shared
+            )
             if package not in removed
         ]
     # The downloads PlatformIO keeps of what it installed; `esphome clean`
