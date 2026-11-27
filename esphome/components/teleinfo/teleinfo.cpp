@@ -119,7 +119,7 @@ void TeleInfo::loop() {
        */
       while ((buf_finger = static_cast<uint8_t *>(memchr(buf_finger, (int) 0xa, buf_end - buf_finger)))) {
         /*
-         * Make sure timesamp is nullified between each tag as some tags don't
+         * Make sure timestamp is nullified between each tag as some tags don't
          * have a timestamp
          */
         timestamp_[0] = '\0';
@@ -184,7 +184,11 @@ void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
     element->publish_val(val);
   }
 }
-void TeleInfo::dump_config() { ESP_LOGCONFIG(TAG, "TeleInfo:"); }
+void TeleInfo::dump_config() {
+  ESP_LOGCONFIG(TAG, "TeleInfo:");
+  for (auto *listener : this->teleinfo_listeners_)
+    listener->dump_child_config();
+}
 TeleInfo::TeleInfo(bool historical_mode) {
   if (historical_mode) {
     /*

@@ -1429,8 +1429,6 @@ void Nextion::check_pending_waveform_() {
 }
 #endif  // USE_NEXTION_WAVEFORM
 
-void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
-
 bool Nextion::is_updating() { return this->connection_state_.is_updating_; }
 
 }  // namespace esphome::nextion

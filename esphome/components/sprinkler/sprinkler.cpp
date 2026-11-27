@@ -19,11 +19,7 @@ void SprinklerControllerNumber::setup() {
   } else {
     this->pref_ = this->make_entity_preference<float>();
     if (!this->pref_.load(&value)) {
-      if (!std::isnan(this->initial_value_)) {
-        value = this->initial_value_;
-      } else {
-        value = this->traits.get_min_value();
-      }
+      value = !std::isnan(this->initial_value_) ? this->initial_value_ : this->traits.get_min_value();
     }
   }
   this->publish_state(value);
@@ -288,8 +284,6 @@ SprinklerValveRunRequest::SprinklerValveRunRequest(size_t valve_number, uint32_t
 
 bool SprinklerValveRunRequest::has_valve_operator() { return !(this->valve_op_ == nullptr); }
 
-void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
-
 void SprinklerValveRunRequest::set_valve(size_t valve_number) {
   this->valve_number_ = valve_number;
   this->run_duration_ = 0;
@@ -321,12 +315,13 @@ optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
 
 SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this->valve_op_; }
 
-Sprinkler::Sprinkler() : Sprinkler("") {}
 // The `name` is stored for dump_config logging; the scheduler keys each timer by its SprinklerTimerIndex
-Sprinkler::Sprinkler(const char *name)
+Sprinkler::Sprinkler(const char *name, std::span<SprinklerValve> valves)
     : name_(name),
       timer_{{{false, 0, 0, [this]() { this->sm_timer_callback_(); }},
-              {false, 0, 0, [this]() { this->valve_selection_callback_(); }}}} {}
+              {false, 0, 0, [this]() { this->valve_selection_callback_(); }}}} {
+  this->valve_.init(valves);
+}
 
 void Sprinkler::setup() {
   this->all_valves_off_(true);
@@ -350,8 +345,9 @@ void Sprinkler::loop() {
 
 void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw) {
   auto new_valve_number = this->number_of_valves();
-  this->valve_.resize(new_valve_number + 1);
-  SprinklerValve *new_valve = &this->valve_[new_valve_number];
+  SprinklerValve *new_valve = this->valve_.emplace_back();
+  if (new_valve == nullptr)
+    return;
 
   new_valve->controller_switch = valve_sw;
   new_valve->controller_switch->set_state_lambda([this, new_valve_number]() -> optional<bool> {
@@ -380,8 +376,6 @@ void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControll
     new_valve->enable_switch = enable_sw;
   }
 }
-
-void Sprinkler::add_controller(Sprinkler *other_controller) { this->other_controllers_.push_back(other_controller); }
 
 void Sprinkler::set_controller_main_switch(SprinklerControllerSwitch *controller_switch) {
   this->controller_sw_ = controller_switch;
@@ -1505,16 +1499,13 @@ void Sprinkler::log_multiplier_zero_warning_(const LogString *method_name) {
 PROGMEM_STRING_TABLE(SprinklerRequestOriginStrings, "USER", "CYCLE", "QUEUE", "UNKNOWN");
 
 const LogString *Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
-  return SprinklerRequestOriginStrings::get_log_str(static_cast<uint8_t>(origin),
-                                                    SprinklerRequestOriginStrings::LAST_INDEX);
+  return SprinklerRequestOriginStrings::get_log_str(origin);
 }
 
 // Sprinkler state strings indexed by SprinklerState enum (0-4): IDLE, STARTING, ACTIVE, STOPPING, BYPASS
 PROGMEM_STRING_TABLE(SprinklerStateStrings, "IDLE", "STARTING", "ACTIVE", "STOPPING", "BYPASS", "UNKNOWN");
 
-const LogString *Sprinkler::state_as_str_(SprinklerState state) {
-  return SprinklerStateStrings::get_log_str(static_cast<uint8_t>(state), SprinklerStateStrings::LAST_INDEX);
-}
+const LogString *Sprinkler::state_as_str_(SprinklerState state) { return SprinklerStateStrings::get_log_str(state); }
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {

@@ -33,14 +33,9 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
-    CONF_ZIGBEE_BINARY_SENSOR,
-    CONF_ZIGBEE_ID,
-    CONF_ZIGBEE_NUMBER,
-    CONF_ZIGBEE_SENSOR,
-    CONF_ZIGBEE_SWITCH,
     UNIT_CELSIUS,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, app_lists, coroutine_with_priority
 from esphome.core.config import (
     DEVICE_CLASS_MAX_LENGTH,
     ICON_MAX_LENGTH,
@@ -55,7 +50,7 @@ from esphome.cpp_generator import (
     add,
     get_variable,
 )
-from esphome.cpp_types import TEMPERATURE_UNITS, App
+from esphome.cpp_types import TEMPERATURE_UNITS
 import esphome.final_validate as fv
 from esphome.helpers import (
     cpp_string_escape,
@@ -93,11 +88,8 @@ _KEY_INTERNAL = "_entity_internal"
 _KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
 _KEY_ENTITY_CATEGORY = "_entity_category"
 
-# Private config key for the App.register_<method> entry point.
-# When set, finalize_entity_strings() emits a single combined call
-# `App.register_<method>(var, name, hash, packed)` instead of separate
-# `App.register_<method>(var)` and `var->configure_entity_(...)` calls.
-_KEY_REGISTER_METHOD = "_entity_register_method"
+_APPLICATION = MockObj("esphome::Application", "::")
+_KEY_APP_LIST = "_entity_app_list"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)
 _MAX_DEVICE_CLASSES = 0xFF  # 255
@@ -319,14 +311,8 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
 
 
 def queue_entity_register(method_name: str, config: ConfigType) -> None:
-    """Defer ``App.register_<method_name>(var)`` emission to ``finalize_entity_strings``.
-
-    When the deferred call is emitted, it is folded with ``configure_entity_`` into
-    a single ``App.register_<method_name>(var, name, hash, packed)`` call site,
-    which removes one statement and one method dispatch per entity from the
-    generated ``main.cpp``.
-    """
-    config[_KEY_REGISTER_METHOD] = method_name
+    """Add the entity to the ``App`` list of ``method_name`` in ``finalize_entity_strings``."""
+    config[_KEY_APP_LIST] = method_name
 
 
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
@@ -335,9 +321,8 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
 
-    If queue_entity_register() was called for this entity, emits one combined call
-    ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
-    standalone ``var->configure_entity_(name, hash, packed)``.
+    Emits ``Application::configure_<entity>(var, ...)`` and adds the entity to its ``App`` list
+    when queue_entity_register() was called for it, otherwise ``var->configure_entity_(...)``.
     """
     entity_name = RawExpression(
         f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
@@ -359,9 +344,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
-    register_method = config.get(_KEY_REGISTER_METHOD)
-    if register_method is not None:
-        expr = getattr(App, f"register_{register_method}")(
+    if (app_list := config.get(_KEY_APP_LIST)) is not None:
+        app_lists.add_entity(app_list, var)
+        expr = getattr(_APPLICATION, f"configure_{app_list}")(
             var, entity_name, object_id_hash, packed
         )
     else:
@@ -665,6 +650,9 @@ class SubEntities:
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
     """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
     If a property is already set, it will not be inherited.
+    The parent's own inheritance chain is followed, so inheriting from a parent that
+    inherits the property itself does not depend on which component is final-validated
+    first (see resolve_inherited_property).
     Keyword arguments:
     property_to_inherit -- the name or path of the property to inherit, e.g. CONF_ICON or [CONF_SENSOR, 0, CONF_ICON]
                            (the parent must exist, otherwise nothing is done).
@@ -691,14 +679,15 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
             # Get config for the parent entity
             parent_id = _walk_config(config, parent_id_property)
-            parent_config = fv.get_declaring_config(parent_id, fconf)
+            # Resolve the value through the parent's own inherit_property_from chain, so the
+            # property is inherited even when the parent has not been final-validated yet.
+            value = resolve_inherited_property(parent_id, property)
 
             # If parent sensor has the property set, inherit it
-            if property in parent_config:
+            if value is not None and value is not UNRESOLVED_PROPERTY:
                 this_config = _walk_config(
                     fv.get_declaring_config(config[CONF_ID], fconf), property_path
                 )
-                value = parent_config[property]
                 if transform:
                     value = transform(value, config)
                 this_config[property] = value
@@ -846,7 +835,9 @@ def convert_visual_temperatures(
     that needs ``full_config`` is left for final validation, which runs this again with it."""
     if (unit := entity_temperature_unit(config, full_config)) is None:
         return config
-    visual = config[CONF_VISUAL]
+    # A platform entry that only holds nested entities has no visual section of its own
+    if (visual := config.get(CONF_VISUAL)) is None:
+        return config
     convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
     section = visual if delta_section is None else visual.get(delta_section)
     if section is not None:
@@ -1094,7 +1085,6 @@ def mqtt_component_class(name: str) -> MockObjClass:
 ZIGBEE_MAX_EP_NUMBER = 239
 
 _zigbee_ns = cg.esphome_ns.namespace("zigbee")
-_ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
 ZIGBEE_REPORT = _zigbee_ns.enum("ZigbeeReportT").options(
     "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
 )
@@ -1120,7 +1110,6 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
             ),
             cv.Optional(CONF_ENDPOINT): cv.All(
                 cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
                 cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
             ),
             cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
@@ -1146,39 +1135,13 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
 
 
 ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
-
-# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
-# unit test checks each class against the owning declaration in zigbee_zephyr.
-_ZIGBEE_ENTITY_CLASSES = {
-    "binary_sensor": (
-        CONF_ZIGBEE_BINARY_SENSOR,
-        "ZigbeeBinarySensor",
-        ["generic", "device_class"],
-    ),
-    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
-    "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
-    "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
-}
-
-
-def _zigbee_entity_schema(platform: str) -> cv.Schema:
-    conf_key, class_name, cluster_options = _ZIGBEE_ENTITY_CLASSES[platform]
-    return zigbee_base_entity_schema(cluster_options).extend(
-        {
-            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
-                _ZigbeeComponent
-            ),
-            cv.OnlyWith(conf_key, ["nrf52", "zigbee"]): cv.declare_id(
-                _zigbee_ns.class_(class_name, cg.Component)
-            ),
-        }
-    )
-
-
-ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
-ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
-ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
-ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
+ZIGBEE_BINARY_SENSOR_SCHEMA = zigbee_base_entity_schema(["generic", "device_class"])
+ZIGBEE_SENSOR_SCHEMA = zigbee_base_entity_schema(
+    ["generic", "device_class", "power_config"]
+)
+ZIGBEE_SWITCH_SCHEMA = zigbee_base_entity_schema(["generic", "on_off"])
+ZIGBEE_NUMBER_SCHEMA = zigbee_base_entity_schema(["generic"])
+ZIGBEE_LIGHT_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA
 
 
 def lazy_load_validator(

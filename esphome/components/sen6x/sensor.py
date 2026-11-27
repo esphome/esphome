@@ -37,25 +37,15 @@ from esphome.const import (
     CONF_TEMPERATURE_COMPENSATION,
     CONF_TIME_CONSTANT,
     CONF_TYPE,
+    CONF_VALUE,
     CONF_VOC,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
     ICON_COUNTER,
     ICON_MOLECULE_CO2,
     ICON_RADIATOR,
     ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -144,31 +134,18 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
             cv.Optional(CONF_TYPE): cv.enum(SEN6X_TYPES, upper=True),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM1, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM25, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_4_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                kind=sensor.MASS_CONCENTRATION,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=2,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM10, accuracy_decimals=2
             ),
             cv.Optional(CONF_PMC_0_5): _PMC_SCHEMA,
             cv.Optional(CONF_PMC_1_0): _PMC_SCHEMA,
@@ -176,18 +153,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PMC_4_0): _PMC_SCHEMA,
             cv.Optional(CONF_PMC_10_0): _PMC_SCHEMA,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Optional(CONF_VOC_INDEX): _gas_index_schema(
                 index_offset=100,
@@ -200,11 +169,7 @@ CONFIG_SCHEMA = cv.All(
                 std_initial=None,
             ),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ).extend(
                 {
                     cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION): cv.boolean,
@@ -338,11 +303,12 @@ async def to_code(config: ConfigType) -> None:
         )
 
 
-SEN6X_ACTION_SCHEMA = maybe_simple_id(
+SEN6X_ID_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
     }
 )
+SEN6X_ACTION_SCHEMA = maybe_simple_id(SEN6X_ID_SCHEMA)
 
 
 for _name, _call in (
@@ -354,3 +320,17 @@ for _name, _call in (
     automation.register_apply_action(
         _name, SEN6X_ACTION_SCHEMA, automation.ApplyCall(_call)
     )
+
+
+SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA = SEN6X_ID_SCHEMA.extend(
+    {
+        cv.Required(CONF_VALUE): cv.templatable(cv.float_range(min=0, max=40000)),
+    }
+)
+
+
+automation.register_apply_action(
+    "sen6x.perform_forced_co2_recalibration",
+    SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA,
+    automation.ApplyField(CONF_VALUE, "perform_forced_co2_recalibration", cg.float_),
+)

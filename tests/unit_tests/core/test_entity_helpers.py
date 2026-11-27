@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from esphome import final_validate as fv
+from esphome import cpp_generator, final_validate as fv
 import esphome.codegen as cg
 from esphome.components import (
     button,
@@ -21,6 +21,7 @@ from esphome.components import (
     select,
     sensor,
     switch,
+    text,
     text_sensor,
 )
 from esphome.config import Config
@@ -37,6 +38,7 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_SOURCE_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WEB_SERVER,
 )
@@ -1357,8 +1359,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     """The cheap class handles must stay string-equal to the integrations'
     own declarations, or use_id/declare_id resolution silently drifts."""
     from esphome.components import mqtt, web_server
-    from esphome.components.zigbee import zigbee_zephyr
-    from esphome.components.zigbee.const import ZigbeeComponent
 
     mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
     assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
@@ -1368,15 +1368,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert str(entity_helpers._WebServer) == str(web_server.WebServer)
     assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
-
-    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    for (
-        _conf_key,
-        class_name,
-        _cluster_options,
-    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
-        owning = getattr(zigbee_zephyr, class_name)
-        assert str(owning) == f"zigbee::{class_name}"
 
 
 @cache
@@ -1428,6 +1419,14 @@ def test_datetime_time_handle_matches_time_component() -> None:
     from esphome.components import datetime, time
 
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
+
+
+def test_zigbee_endpoint_needs_only_zigbee() -> None:
+    """nRF52 builds load zigbee without esp32."""
+    with patch.object(CORE, "loaded_integrations", {"zigbee"}):
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17}) == {
+            "endpoint": 17
+        }
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:
@@ -1550,6 +1549,15 @@ def test_convert_visual_temperatures(
     convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
 
 
+def test_convert_visual_temperatures_without_a_visual_section() -> None:
+    """A platform entry that only holds nested entities has no visual section and is left alone."""
+    nested = {"visual": {"min_temperature": (50.0, "°F")}}
+    config = {"zone_1": nested}
+
+    assert convert_visual_temperatures(config, ("step",)) is config
+    assert nested["visual"]["min_temperature"] == (50.0, "°F")
+
+
 @pytest.mark.asyncio
 async def test_setup_entity_integrations_registers_mqtt_and_web_server(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1602,7 +1610,7 @@ def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str
         emitted.append((name, params, "\n".join(body)))
         return RawExpression(name)
 
-    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    monkeypatch.setattr(cpp_generator, "static_function", fake_static_function)
     CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
     return emitted
 
@@ -2037,6 +2045,12 @@ async def test_sub_entities_apply_without_parent_shares_equal_functions(
             "entity->publish_state(index);",
         ),
         (
+            text.sub_texts,
+            text.ApplyText,
+            "text::Text * entity, const std::string & value",
+            "entity->publish_state(value);",
+        ),
+        (
             output.sub_binary_outputs,
             output.ApplyBinaryOutput,
             "output::BinaryOutput * entity, uint16_t index, bool state",
@@ -2061,6 +2075,39 @@ def test_domain_apply_entities(
     assert apply_entity.cls is cls
     assert ", ".join(f"{type_} {arg}" for type_, arg in apply_entity.params) == params
     assert apply_entity.publish == publish
+
+
+@pytest.mark.asyncio
+async def test_sub_texts_apply_through_new_text(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """sub_texts forwards the generated function through new_text to ApplyText."""
+    registered: list[tuple[str, dict[str, Any]]] = []
+
+    async def fake_register_text(
+        var: MockObj, config: ConfigType, **kwargs: Any
+    ) -> None:
+        registered.append((str(var), kwargs))
+
+    monkeypatch.setattr(text, "register_text", fake_register_text)
+    conf = {CONF_ID: ID("pin_txt", is_declaration=True, type=text.ApplyText)}
+    var = await text.sub_texts({"pin": conf}, parent=_HUB)(
+        "pin", None, apply="set_pin(value)", publish="after", max_length=8
+    )
+
+    assert str(var.base.type) == "text::ApplyText<esphome__pin_txt__fn>"
+    assert registered == [
+        (str(var), {"min_length": 0, "max_length": 8, "pattern": None})
+    ]
+    assert apply_functions == [
+        (
+            "esphome__pin_txt__fn",
+            "text::Text * entity, const std::string & value",
+            "::hub->set_pin(value);\nentity->publish_state(value);",
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -2267,6 +2314,21 @@ def test_resolve_inherited_property_follows_the_inherit_chain(
         )
     finally:
         fv.full_config.reset(token)
+
+
+def test_inherit_property_from_follows_the_parent_chain() -> None:
+    """A consumer inherits the unit from a copy before the copy's own validation has run."""
+    config = _copy_chain_config("s0")
+    consumer_id = ID("consumer", is_declaration=True)
+    consumer = {CONF_ID: consumer_id, CONF_SOURCE_ID: ID("s1")}
+    config["sensor"].append(consumer)
+    config.declare_ids.append((consumer_id, ["sensor", 2, CONF_ID]))
+    token = fv.full_config.set(config)
+    try:
+        inherit_property_from(CONF_UNIT_OF_MEASUREMENT, CONF_SOURCE_ID)(consumer)
+    finally:
+        fv.full_config.reset(token)
+    assert consumer[CONF_UNIT_OF_MEASUREMENT] == "°C"
 
 
 def _declare(config: Config, path: list[str | int], entry: ConfigType) -> None:

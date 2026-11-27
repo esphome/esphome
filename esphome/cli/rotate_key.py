@@ -1,0 +1,291 @@
+"""``esphome rotate-key``."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+import sys
+
+from esphome import espota2
+from esphome.components.noise import (
+    decode_encryption_key,
+    generate_encryption_key,
+    static_encryption_key,
+    validate_encryption_key,
+)
+from esphome.config_validation import Invalid
+from esphome.const import CONF_API, CONF_PASSWORD, CONF_PORT
+from esphome.core import CORE, EsphomeError
+from esphome.espota2 import ProbeResult
+from esphome.log import AnsiFore, color
+from esphome.ota_key_edit import rotation_edits
+from esphome.types import ConfigType
+from esphome.upload_targets import PortType, get_port_type
+from esphome.util import (
+    ESPHOME_COMMAND,
+    read_secret_line,
+    run_external_process,
+    safe_input,
+    safe_print,
+)
+from esphome.yaml_edit import RestoreError, Snapshot, apply_line_edits, restore_files
+
+PRECHECK_TIMEOUT = 15.0
+# What to do when the device does not accept the key in the yaml before anything is written
+PRECHECK_ADVICE = {
+    ProbeResult.UNREACHABLE: (
+        "The device could not be reached; check that it is online, then try again."
+    ),
+    ProbeResult.REJECTED: (
+        "The device runs a different key than the yaml. Install the current "
+        "configuration first with 'esphome run', which also tries old_key; when "
+        "neither key works, present the device's key with --prompt-ota-key."
+    ),
+    ProbeResult.NOT_OFFERED: (
+        "The device does not offer encryption: it runs a firmware older than "
+        "ESPHome 2026.9.0 or without a key. Install the current configuration "
+        "first, then rotate."
+    ),
+    ProbeResult.DEVICE_ERROR: (
+        "The device answered with an error (see the warning above); fix that first."
+    ),
+}
+# Why the device did not confirm the new key after the upload
+CONFIRM_FAILURE = {
+    ProbeResult.REJECTED: "The device still answers with the previous key.",
+    ProbeResult.NOT_OFFERED: "The device came back without encryption.",
+    ProbeResult.DEVICE_ERROR: "The device answered with an error (see the warning above).",
+    ProbeResult.UNREACHABLE: "The device did not come back to confirm the new key.",
+}
+
+
+def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | None:
+    """Write a new key, build with it, upload with the current one, confirm."""
+    from esphome.__main__ import (
+        Purpose,
+        _app_ota_image,
+        _esphome_ota_conf,
+        _resolve_network_devices,
+        choose_upload_log_host,
+    )
+
+    def fail(message: str) -> int:
+        safe_print(color(AnsiFore.BOLD_RED, message))
+        return 1
+
+    # Validation replaces the raw config's list entries in place, losing their
+    # source lines; the snapshot taken before it keeps them
+    if (user_config := getattr(config, "user_config", None)) is not None:
+        CORE.raw_config = user_config
+    ota_conf = _esphome_ota_conf(config)
+    if ota_conf is None:
+        return fail("rotate-key needs the esphome OTA platform in the configuration")
+    old_key = static_encryption_key(ota_conf)
+    if old_key is None:
+        return fail(
+            "rotate-key needs 'encryption:' under the esphome OTA platform with a "
+            "key in the yaml; a key provisioned at runtime is rotated from Home "
+            "Assistant"
+        )
+    if CORE.is_host:
+        return fail("rotate-key is for devices updated over the air")
+    old_key = str(old_key)
+    remote_port = int(ota_conf[CONF_PORT])
+
+    if args.prompt_new_key:
+        new_key = read_secret_line("New OTA encryption key: ")
+    else:
+        new_key = generate_encryption_key()
+    try:
+        validate_encryption_key(new_key)
+    except Invalid as err:
+        return fail(f"Invalid new key: {err}")
+    # Two base64 spellings can decode to the same bytes
+    if decode_encryption_key(new_key) == decode_encryption_key(old_key):
+        return fail("The new key is the same as the current one")
+
+    try:
+        # The previous key stays in the config as old_key so an install still
+        # reaches the device if it ends up running either key
+        edits = rotation_edits(old_key, new_key)
+    except EsphomeError as err:
+        return fail(str(err))
+    # With the recommended shape the ota inherits the api key, so rotating
+    # it changes what Home Assistant connects with
+    if str(static_encryption_key(config.get(CONF_API) or {})) == old_key:
+        safe_print(
+            color(
+                AnsiFore.BOLD_YELLOW,
+                "The api encryption key changes too; Home Assistant will ask for "
+                "the new key after the install.",
+            )
+        )
+        if not args.yes:
+            if not sys.stdin.isatty():
+                return fail("Confirm with --yes when there is no terminal")
+            if safe_input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
+                return 1
+
+    devices = choose_upload_log_host(
+        default=args.device, check_default=None, purpose=Purpose.UPLOADING
+    )
+    if get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL):
+        return fail(
+            "rotate-key works over the air; on a serial connection change the "
+            "key in the yaml and run 'esphome run' instead"
+        )
+    network_devices = _resolve_network_devices(devices, config, args)
+
+    safe_print("Checking that the device accepts the current key...")
+    found = espota2.probe_ota_key(
+        network_devices,
+        remote_port,
+        old_key,
+        timeout=PRECHECK_TIMEOUT,
+        retry_rejected=False,
+    )
+    if found is not ProbeResult.ACCEPTED:
+        return fail(PRECHECK_ADVICE[found])
+
+    # Both keys are shown only when a file could not be put back
+    keys = f"Previous key: {old_key}\nNew key: {new_key}"
+    try:
+        originals = apply_line_edits(edits)
+    except RestoreError as err:
+        safe_print(keys)
+        return fail(str(err))
+    except EsphomeError as err:
+        return fail(str(err))
+    except KeyboardInterrupt as err:
+        if notes := getattr(err, "__notes__", None):  # a rollback that failed too
+            safe_print(keys)
+            return fail("Interrupted; " + "; ".join(notes))
+        return fail("Interrupted before the upload")
+    except BaseException as err:
+        if notes := getattr(err, "__notes__", None):
+            safe_print(color(AnsiFore.BOLD_RED, "; ".join(notes)))
+            safe_print(keys)
+        raise
+    uploaded = False
+    try:
+        safe_print(
+            "Wrote the new key to "
+            + ", ".join(color(AnsiFore.CYAN, str(p)) for p in originals)
+        )
+        # Global options go before the subcommand; the compile parser is strict
+        cli_args = ["--dashboard"] if args.dashboard else []
+        if args.toolchain:
+            cli_args += ["--toolchain", str(args.toolchain)]
+        for key, value in args.substitution or []:
+            cli_args += ["-s", key, value]
+        cli_args += ["compile", str(CORE.config_path)]
+        if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
+            return fail("Compiling with the new key failed")
+
+        def image_sent() -> None:
+            # The device accepted the session and may commit from here on;
+            # the edited config reaches it on either key
+            nonlocal uploaded
+            uploaded = True
+
+        rc, _ = espota2.run_ota(
+            network_devices,
+            remote_port,
+            ota_conf.get(CONF_PASSWORD),
+            _app_ota_image(args),
+            noise_psk=old_key,
+            plaintext_fallback=False,
+            on_upload_start=image_sent,
+        )
+        if rc != 0:
+            return fail(
+                "Uploading with the current key failed. The configuration keeps "
+                "the new key with the previous one as old_key, so the next "
+                "install reaches the device whichever key it runs."
+                if uploaded
+                else "The upload failed before the image was sent (see the error "
+                "above); nothing changed on the device."
+            )
+        # A successful upload sent the image even if the callback did not run
+        uploaded = True
+        safe_print("Waiting for the device to come back with the new key...")
+        found = espota2.probe_ota_key(network_devices, remote_port, new_key)
+        if found is not ProbeResult.ACCEPTED:
+            return fail(
+                CONFIRM_FAILURE[found]
+                + " The configuration keeps the new key, with the previous one as "
+                "old_key, so the next install reaches the device either way."
+            )
+    except KeyboardInterrupt:
+        return fail(
+            "Interrupted; the device's key was not confirmed"
+            if uploaded
+            else "Interrupted before the upload"
+        )
+    finally:
+        # Before the upload nothing changed on the device; after it the device
+        # most likely runs the new key, and old_key covers the other case
+        if uploaded:
+            safe_print(f"New OTA encryption key: {color(AnsiFore.CYAN, new_key)}")
+        else:
+            _restore(originals, keys)
+
+    safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
+    return 0
+
+
+def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
+    """Put the previous key back, and drop the images a build made with the
+    new key; both keys are shown when a step fails."""
+    files = ", ".join(str(p) for p in originals)
+    try:
+        restore_files(originals)
+    except (EsphomeError, KeyboardInterrupt) as err:
+        # An interrupted restore carries its report as a note
+        why = str(err) or "; ".join(getattr(err, "__notes__", ()))
+        safe_print(color(AnsiFore.BOLD_RED, why or f"Interrupted restoring {files}"))
+        safe_print(keys)
+    except BaseException as err:
+        if notes := getattr(err, "__notes__", None):
+            safe_print(color(AnsiFore.BOLD_RED, "; ".join(notes)))
+        safe_print(keys)
+        raise
+    else:
+        safe_print(color(AnsiFore.BOLD_YELLOW, f"Restored the previous key in {files}"))
+    finally:
+        _drop_images(keys)
+
+
+def _drop_images(keys: str) -> None:
+    """Delete the images a build made with the new key."""
+    build_dir = CORE.firmware_bin.parent
+    failed: list[str] = []
+    images: list[Path] = []
+    try:
+        # The serial and BOOTSEL uploads also take the elf and the signed bin
+        suffixes = (".bin", ".uf2", ".elf", ".signed")
+        images = [p for s in suffixes for p in build_dir.glob(f"*{s}")]
+        for image in images:  # every one is tried, whatever the others did
+            try:
+                image.unlink()
+            except OSError as err:
+                failed.append(f"{image}: {err}")
+    except (OSError, KeyboardInterrupt) as err:
+        failed.append(f"{build_dir}: {str(err) or 'interrupted'}")
+    if failed:
+        safe_print(
+            color(
+                AnsiFore.BOLD_RED,
+                "Could not remove images that may hold the new key: "
+                + "; ".join(failed),
+            )
+        )
+        safe_print(keys)
+    elif images:
+        safe_print(
+            color(
+                AnsiFore.BOLD_YELLOW,
+                f"Removed the images in {build_dir}, which may hold the new key; "
+                "compile again before the next upload.",
+            )
+        )

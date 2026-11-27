@@ -25,6 +25,7 @@
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 
 #include <array>
@@ -134,11 +135,10 @@ class LD2412Component final : public Component, public uart::UARTDevice {
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
-  void handle_periodic_data_();
-  void handle_ack_data_();
-  bool handle_frame_(uint8_t frame_len);
+  bool handle_periodic_data_(const uint8_t *frame, uint8_t len);
+  bool handle_ack_data_(const uint8_t *frame, uint8_t len);
+  bool handle_frame_(const uint8_t *frame, uint8_t len);
   void basic_conf_timeout_();
-  void readline_(int readch);
   void query_parameters_();
   void get_version_();
   void get_mac_();
@@ -160,6 +160,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void gate_query_timeout_(bool motion);
 #endif
 
+  uint32_t last_rx_{0};
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
   // Basic configuration as last reported by the module; resent for entities that are not configured
@@ -168,8 +169,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   uint8_t min_gate_ = 1;
   uint8_t max_gate_ = TOTAL_GATES;
   uint8_t out_pin_level_ = 1;
-  uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
-  uint8_t buffer_data_[MAX_LINE_LENGTH];
+  LengthFrameReader<MAX_LINE_LENGTH, ld24xx::CmdFrameFormat, ld24xx::DataFrameFormat> reader_;
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};

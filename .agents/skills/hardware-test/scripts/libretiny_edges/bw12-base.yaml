@@ -1,0 +1,82 @@
+# Package: BW12 heartbeat, pull-toggle edge generator, BS binary sensor on ${bs_pin}, meas lines every 10 s
+esphome:
+  name: ${name}
+  friendly_name: BW12 ISR Test
+  platformio_options:
+    upload_speed: 115200
+    build_flags:
+      - -Wl,--wrap=digitalRead
+  includes:
+    - bwdbg.hpp
+
+rtl87xx:
+  board: bw12
+  framework:
+    version: recommended
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+  logs:
+    sensor: WARN
+    binary_sensor: WARN
+    pulse_counter: WARN
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+
+captive_portal:
+
+output:
+  - platform: gpio
+    pin: PA05
+    id: heartbeat_output
+
+globals:
+  - id: bs_changes
+    type: uint32_t
+    initial_value: "0"
+
+interval:
+  - interval: 1s
+    then:
+      - output.turn_on: heartbeat_output
+      - delay: 100ms
+      - output.turn_off: heartbeat_output
+  - interval: 50ms
+    then:
+      - lambda: bwdbg::tick();
+  - interval: 10s
+    then:
+      - lambda: |-
+          static uint32_t lg = 0, lc = 0;
+          uint32_t g = bwdbg::gen_rise + bwdbg::gen_fall, c = id(bs_changes);
+          ESP_LOGI("meas", "BS changes %u gen_edges %u state %d", c - lc, g - lg, id(bs).state);
+          lg = g; lc = c;
+          bwdbg::report();
+
+binary_sensor:
+  - platform: gpio
+    id: bs
+    name: BS
+    pin:
+      number: ${bs_pin}
+      mode: INPUT
+    use_interrupt: true
+    interrupt_type: ANY
+    trigger_on_initial_state: true
+    on_state:
+      - lambda: id(bs_changes) += 1;
+
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 60s

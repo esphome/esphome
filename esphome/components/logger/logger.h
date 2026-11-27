@@ -39,12 +39,14 @@
 struct device;
 #endif
 
+// ESP32 UART or USB Serial/JTAG console
+#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#define USE_LOGGER_WAIT_TX_DONE
+#endif
+
 namespace esphome::logger {
 
 /** Lightweight callback for receiving log messages without virtual dispatch overhead.
- *
- * Replaces the former LogListener virtual interface to eliminate per-implementer
- * vtable sub-tables and thunk code (~39 bytes saved per class that used LogListener).
  *
  * Usage:
  *   // In your component's setup():
@@ -73,7 +75,7 @@ struct LogCallback {
  *    public:
  *     void setup() override {
  *       if (logger::global_logger != nullptr)
- *         logger::global_logger->add_logger_level_listener(this);
+ *         logger::global_logger->add_level_listener(this);
  *     }
  *     void on_log_level_change(uint8_t level) override {
  *       // Handle log level change
@@ -127,6 +129,9 @@ enum UARTSelection : uint8_t {
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
 };
+
+// The port chosen by hardware_uart, fixed at build time
+static constexpr UARTSelection CONFIGURED_UART_SELECTION = ESPHOME_LOGGER_UART_SELECTION;
 #endif  // USE_ESP32 || USE_ESP8266 || USE_RP2 || USE_LIBRETINY || USE_ZEPHYR
 
 /**
@@ -138,7 +143,7 @@ enum UARTSelection : uint8_t {
  * - On ESP32: Uses task-specific recursion guards
  *   * Main task: Uses a dedicated boolean member variable for efficiency
  *   * Other tasks: Uses pthread TLS with a dynamically allocated key for task-specific state
- * - On other platforms: Uses a simple global recursion guard
+ * - On single-task platforms: Uses the main task guard alone
  *
  * We use pthread TLS via pthread_key_create to create a unique key for storing
  * task-specific recursion state, which:
@@ -149,29 +154,64 @@ enum UARTSelection : uint8_t {
 class Logger final : public Component {
  public:
   explicit Logger(uint32_t baud_rate);
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_ZEPHYR_CDC_LOOP)
   void loop() override;
 #endif
 #if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void setup() override;
 #endif
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_WAIT_TX_DONE)
+  void on_powerdown() override;
+#endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
-  uint32_t get_baud_rate() const { return baud_rate_; }
+  uint32_t get_baud_rate() const { return this->baud_rate_; }
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
-  Stream *get_hw_serial() const { return hw_serial_; }
+  Stream *get_hw_serial() const { return this->hw_serial_; }
 #endif
 #ifdef USE_ESP32
-  uart_port_t get_uart_num() const { return uart_num_; }
-  void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
+  /// UART_NUM_0 when logging to USB
+  constexpr uart_port_t get_uart_num() const {
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+    return UART_NUM_0;
+#else
+    return static_cast<uart_port_t>(CONFIGURED_UART_SELECTION);
 #endif
-#ifdef USE_HOST
-  void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
+  }
+#endif
+#if defined(USE_ESP32) || defined(USE_HOST)
+  void create_pthread_key() { pthread_key_create(&this->log_recursion_key_, nullptr); }
 #endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
-  UARTSelection get_uart() const { return this->uart_; }
+#ifdef USE_LIBRETINY
+  // DEFAULT resolves to the board's default port
+  constexpr UARTSelection get_uart() const {
+    return CONFIGURED_UART_SELECTION == UART_SELECTION_DEFAULT ? static_cast<UARTSelection>(LT_UART_DEFAULT_SERIAL + 1)
+                                                               : CONFIGURED_UART_SELECTION;
+  }
+#else
+  constexpr UARTSelection get_uart() const { return CONFIGURED_UART_SELECTION; }
+#endif
+#endif
+#ifdef USE_LOGGER_CONSOLE
+  // Raw bytes on the console port, without log framing; request with logger.request_console()
+  // console_write() returns the bytes written: a UART write blocks until all are queued, but a USB write can stop
+  // short when the host is not reading (USB Serial/JTAG gives up after 20 ms)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+  size_t console_write(const uint8_t *data, size_t len) { return this->hw_serial_->write(data, len); }
+  bool console_read(uint8_t &byte) {
+    int c = this->hw_serial_->read();
+    if (c < 0)
+      return false;
+    byte = c;
+    return true;
+  }
+#elif defined(USE_ESP32)
+  size_t console_write(const uint8_t *data, size_t len);
+  /// Non-blocking read of one byte; false if none is waiting.
+  bool console_read(uint8_t &byte);
+#endif
 #endif
 
   /// Set the default log level for this logger.
@@ -220,6 +260,12 @@ class Logger final : public Component {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
+  // Copies a line with no '%' without formatting; false means the caller must format it
+  bool log_str_(uint8_t level, const char *tag, int line, const char *msg);  // NOLINT
+#ifdef USE_ESP8266
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg);
+#endif
 
  protected:
   // RAII guard for recursion flags - sets flag on construction, clears on destruction
@@ -242,14 +288,22 @@ class Logger final : public Component {
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
                                     const char *thread_name);
 #endif
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef USE_LOGGER_ZEPHYR_CDC_LOOP
   void cdc_loop_();
 #endif
   void process_messages_();
-#if defined(USE_HOST) || defined(USE_ZEPHYR)
-  void write_msg_(const char *msg, uint16_t len);
+#ifdef USE_LOGGER_WAIT_TX_DONE
+  void wait_tx_done_();
+#endif
+  // msg already ends in a newline
+#if defined(USE_ESP8266)
+  void write_msg_(const char *msg, uint16_t len);  // Defined in logger_esp8266.cpp
+#elif defined(USE_ARDUINO) && !defined(USE_ESP32)
+  inline void HOT write_msg_(const char *msg, uint16_t len) { this->hw_serial_->write(msg, len); }
+#elif defined(USE_ESP32)
+  inline void write_msg_(const char *msg, uint16_t len);  // Defined in logger_esp32.h
 #else
-  inline void write_msg_(const char *msg, uint16_t len);  // Defined in platform-specific logger_*.h
+  void write_msg_(const char *msg, uint16_t len);
 #endif
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
@@ -286,7 +340,7 @@ class Logger final : public Component {
   }
 
   // Helper to write log buffer to console if logging is enabled
-  inline void HOT write_log_buffer_to_console_(LogBuffer &buf) {
+  inline void HOT ESPHOME_ALWAYS_INLINE write_log_buffer_to_console_(LogBuffer &buf) {
     if (this->baud_rate_ > 0)
       this->write_to_console_(buf);
   }
@@ -315,9 +369,23 @@ class Logger final : public Component {
     this->write_log_buffer_to_console_(buf);
   }
 
+  inline void send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf);
+
+  // True on the task that runs the main loop, and always on single-task platforms
+  inline bool HOT is_main_task_() const {
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+    return xTaskGetCurrentTaskHandle() == this->main_task_;
+#elif defined(USE_ZEPHYR)
+    return k_current_get() == this->main_task_;
+#elif defined(USE_HOST)
+    return pthread_equal(pthread_self(), this->main_thread_);
+#else
+    return true;
+#endif
+  }
+
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Helper to format a pre-formatted message from the task log buffer and notify listeners
-  // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
   inline void HOT format_buffered_message_and_notify_(uint8_t level, const char *tag, uint16_t line,
                                                       const char *thread_name, const char *text, uint16_t text_length,
                                                       LogBuffer &buf) {
@@ -359,15 +427,8 @@ class Logger final : public Component {
 #ifdef USE_HOST
   pthread_t main_thread_{};  // Main thread for pthread_equal() comparison
 #endif
-#ifdef USE_ESP32
-  // Task-specific recursion guards:
-  // - Main task uses a dedicated member variable for efficiency
-  // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
-  pthread_key_t log_recursion_key_;  // 4 bytes
-  uart_port_t uart_num_;             // 4 bytes (enum defaults to int size)
-#endif
-#ifdef USE_HOST
-  // Thread-specific recursion guards using pthread TLS
+#if defined(USE_ESP32) || defined(USE_HOST)
+  // Non-main task recursion guard (pthread TLS)
   pthread_key_t log_recursion_key_;
 #endif
 
@@ -392,22 +453,9 @@ class Logger final : public Component {
   bool boot_log_done_{false};     // Set on first replay; stops further capture
 #endif
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
-  UARTSelection uart_{UART_SELECTION_UART0};  // Must match cpp_default_uart in __init__.py
-#endif
-#ifdef USE_LIBRETINY
-  UARTSelection uart_{UART_SELECTION_DEFAULT};  // Must match cpp_default_uart in __init__.py
-#endif
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  bool main_task_recursion_guard_{false};
+  bool main_task_recursion_guard_{false};  // Guards tx_buffer_ on the main loop
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
-#endif
-  // The guard that protects tx_buffer_ on the main loop, for callers that run on any platform
-  bool &main_loop_recursion_guard_() { return this->main_task_recursion_guard_; }
-#else
-  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
-  bool &main_loop_recursion_guard_() { return this->global_recursion_guard_; }
 #endif
 
   // Large buffers placed last to keep frequently-accessed member offsets small
@@ -477,9 +525,9 @@ class Logger final : public Component {
   class NonMainTaskRecursionGuard {
    public:
     explicit NonMainTaskRecursionGuard(pthread_key_t key) : key_(key) {
-      pthread_setspecific(key_, reinterpret_cast<void *>(1));
+      pthread_setspecific(this->key_, reinterpret_cast<void *>(1));
     }
-    ~NonMainTaskRecursionGuard() { pthread_setspecific(key_, nullptr); }
+    ~NonMainTaskRecursionGuard() { pthread_setspecific(this->key_, nullptr); }
     NonMainTaskRecursionGuard(const NonMainTaskRecursionGuard &) = delete;
     NonMainTaskRecursionGuard &operator=(const NonMainTaskRecursionGuard &) = delete;
     NonMainTaskRecursionGuard(NonMainTaskRecursionGuard &&) = delete;
@@ -490,68 +538,43 @@ class Logger final : public Component {
   };
 
   // Check if non-main task is already in recursion (via TLS)
-  inline bool HOT is_non_main_task_recursive_() const { return pthread_getspecific(log_recursion_key_) != nullptr; }
+  inline bool HOT is_non_main_task_recursive_() const {
+    return pthread_getspecific(this->log_recursion_key_) != nullptr;
+  }
 
   // Create RAII guard for non-main task recursion
-  inline NonMainTaskRecursionGuard make_non_main_task_guard_() { return NonMainTaskRecursionGuard(log_recursion_key_); }
-
-#elif defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
-  // - Main task uses dedicated boolean (same as ESP32)
-  // - Non-main tasks share a single recursion guard
-  // This is safe because:
-  // - Recursion from logging within logging is the main concern
-  // - Cross-task "recursion" is prevented by the buffer mutex anyway
-  // - Missing a recursive call from another task is acceptable (falls back to direct output)
-  //
-  // Zephyr use __thread as TLS
-
-  // Check if non-main task is already in recursion
-  inline bool HOT is_non_main_task_recursive_() const { return non_main_task_recursion_guard_; }
-
-  // Create RAII guard for non-main task recursion (uses shared boolean for all non-main tasks)
-  inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
-#endif
-
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
-  // Disable loop when task buffer is empty
-  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
-  inline void disable_loop_when_buffer_empty_() {
-    // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
-    // concurrently. If that happens between our check and disable_loop(), the enable request
-    // will be processed on the next main loop iteration since:
-    // - disable_loop() takes effect immediately
-    // - enable_loop_soon_any_context() sets a pending flag that's checked at loop start
-    this->disable_loop();
+  inline NonMainTaskRecursionGuard make_non_main_task_guard_() {
+    return NonMainTaskRecursionGuard(this->log_recursion_key_);
   }
+
+#elif defined(USE_LIBRETINY)
+  // No FreeRTOS TLS on LibreTiny: all non-main tasks share one guard
+  inline bool HOT is_non_main_task_recursive_() const { return this->non_main_task_recursion_guard_; }
+  inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(this->non_main_task_recursion_guard_); }
+
+#elif defined(USE_ZEPHYR)
+  // Thread-local guard (__thread)
+  inline bool HOT is_non_main_task_recursive_() const { return non_main_task_recursion_guard; }
+  inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard); }
 #endif
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
- public:
-  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
-    parent->add_log_callback(this,
-                             [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
-                               auto *trigger = static_cast<LoggerMessageTrigger *>(self);
-                               if (level <= trigger->level_) {
+/// Log callback of an on_message automation: calls FN(level, tag, message) for lines at LEVEL or more severe.
+template<uint8_t LEVEL, auto FN>
+void on_message_callback(void * /*instance*/, uint8_t level, const char *tag, const char *message,
+                         size_t /*message_len*/) {
+  if (level > LEVEL)
+    return;
 #ifdef USE_ESP8266
-                                 // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
-                                 // the trigger so an automation that suspends (delay) still sees a valid tag.
-                                 ESPHOME_strncpy_P(trigger->ram_tag_, tag, MAX_TAG_LENGTH);
-                                 tag = trigger->ram_tag_;
+  // User lambdas may strcmp the tag, which may be in PROGMEM. Each automation has its own copy so one
+  // that suspends (delay) still sees a valid tag.
+  static char ram_tag[MAX_TAG_LENGTH + 1];
+  buf_append_str_p(ram_tag, sizeof(ram_tag), 0, tag);
+  tag = ram_tag;
 #endif
-                                 trigger->trigger(level, tag, message);
-                               }
-                             });
-  }
-
- protected:
-  uint8_t level_;
-#ifdef USE_ESP8266
-  char ram_tag_[MAX_TAG_LENGTH + 1]{};
-#endif
-};
+  FN(level, tag, message);
+}
 
 #ifdef USE_CRASH_HANDLER
 /// Whether a crash record from before this boot is waiting to be reported
@@ -563,14 +586,7 @@ void log_crash_to_client();
 
 }  // namespace esphome::logger
 
-// Platform-specific inline implementations of write_msg_()
-// Must be included after the Logger class definition is complete
-#if defined(USE_ESP32)
+// ESP32 inline write_msg_(), included after the Logger class definition is complete
+#ifdef USE_ESP32
 #include "logger_esp32.h"
-#elif defined(USE_ESP8266)
-#include "logger_esp8266.h"
-#elif defined(USE_RP2)
-#include "logger_rp2.h"
-#elif defined(USE_LIBRETINY)
-#include "logger_libretiny.h"
 #endif

@@ -13,3 +13,12 @@ through the normal receive path and `on_frame`.
   build.
 - ESPHome's own `canbus.send` does not set the self flag, so its frames are not received in this setup.
 - Results: https://github.com/esphome/esphome/pull/21795#issuecomment-6491777381
+
+## ESP32-C3 and extra frame shapes (#21950)
+
+The C3 works the same way: `variant: esp32c3`, TX GPIO5 and RX GPIO6, `TX_PAD = GPIO_NUM_5` in `canself.hpp`, and
+the logger on USB_SERIAL_JTAG. `canx.hpp` adds a classic frame with DLC 12 (`TWAI_MSG_FLAG_DLC_NON_COMP`), the
+`send_data` overloads (standard, extended, remote, empty, a 10-byte payload that must be clamped, a vector) and a
+`twai_get_status_info_v2` dump before and after (`canx::tx_status(id(can0), "before")`). The `get()` that reads the
+private handle is a friend found only by argument-dependent lookup: call `get(canself::Handle{})`, never
+`canself::get(...)`.

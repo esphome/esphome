@@ -1,0 +1,31 @@
+# Free internal heap at boot and every 10 s, plus a 20 lines/s log burst, on the USB Serial/JTAG console.
+esphome:
+  name: ${name}
+  includes: [../bt_proxy_ab/heaplog.hpp]
+  on_boot:
+    priority: 800
+    then:
+      - lambda: heaplog::log();
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+globals:
+  - id: seq
+    type: uint32_t
+    initial_value: "0"
+
+interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          ESP_LOGI("burst", "SEQ %u", (unsigned) id(seq)++);
+          ESP_LOGI("burst", "plain line without arguments");
+  - interval: 10s
+    then:
+      - lambda: heaplog::log();

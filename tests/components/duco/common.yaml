@@ -15,6 +15,22 @@ duco:
 text_sensor:
   - platform: duco
     name: Serial Number
+  - platform: duco
+    serial_number:
+      - name: Serial Number Node 2
+        address: 2
+    version:
+      - name: Version Node 2
+        address: 2
+    error:
+      - name: Error Node 2
+        address: 2
+    uptime:
+      - name: Uptime Node 2
+        address: 2
+    node_type:
+      - name: Node 2 Type
+        address: 2
 
 select:
   - platform: duco
@@ -56,3 +72,11 @@ number:
   - platform: duco
     name: Comfort Temperature
     update_interval: 10s
+  - platform: duco
+    comfort_temperature:
+      - name: Comfort Temperature Zone 1
+        address: 0x13
+        update_interval: 10s
+      - name: Comfort Temperature Zone 2
+        address: 0x14
+        update_interval: 10s

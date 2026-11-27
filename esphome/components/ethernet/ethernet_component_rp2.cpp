@@ -18,7 +18,7 @@ ESPHOME_LOG_TAG(TAG, "ethernet");
 
 void EthernetComponent::setup() {
   // Configure SPI pins
-#if !defined(USE_ETHERNET_W6300)
+#if !defined(USE_ETHERNET_W6300) && defined(USE_ETHERNET_SPI)
   SPI.setRX(this->miso_pin_);
   SPI.setTX(this->mosi_pin_);
   SPI.setSCK(this->clk_pin_);
@@ -27,6 +27,7 @@ void EthernetComponent::setup() {
   // SPI pin config is skipped; Wiznet6300lwIPFixed (needsSPI()=false)
   // prevents LwipIntfDev::begin() from calling SPI.begin().
 
+#ifdef USE_ETHERNET_SPI
   // Toggle reset pin if configured
   if (this->reset_pin_ >= 0) {
     rp2::RP2GPIOPin reset_pin;
@@ -39,8 +40,9 @@ void EthernetComponent::setup() {
     // W5100S needs 150ms for PLL lock; W5500/ENC28J60 need ~10ms
     delay(RESET_DELAY_MS);  // NOLINT
   }
+#endif
 
-  // Create the SPI Ethernet device instance
+  // Create the Ethernet device instance
 #if defined(USE_ETHERNET_W5500)
   this->eth_ = new Wiznet5500lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_W5100)
@@ -51,6 +53,8 @@ void EthernetComponent::setup() {
   this->eth_ = new Wiznet6300lwIPFixed(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_ENC28J60)
   this->eth_ = new ENC28J60lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_USB)
+  this->eth_ = new NCMEthernetlwIP();  // NOLINT
 #endif
 
   // Set hostname before begin() so the LWIP netif gets it
@@ -157,6 +161,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
         this->connect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(true);
       } else if (now - this->connect_begin_ > 15000) {
         ESP_LOGW(TAG, "Connecting failed; reconnecting");
         this->start_connect_();
@@ -169,6 +174,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
@@ -176,6 +182,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else {
         this->finish_connect_();
       }
@@ -194,6 +201,8 @@ void EthernetComponent::dump_config() {
   const char *type_str = "W6300";
 #elif defined(USE_ETHERNET_ENC28J60)
   const char *type_str = "ENC28J60";
+#elif defined(USE_ETHERNET_USB)
+  const char *type_str = "USB";
 #else
   const char *type_str = "Unknown";
 #endif
@@ -206,7 +215,7 @@ void EthernetComponent::dump_config() {
                 "  IRQ Pin: %d\n"
                 "  Reset Pin: %d",
                 type_str, YESNO(this->is_connected()), this->interrupt_pin_, this->reset_pin_);
-#else
+#elif defined(USE_ETHERNET_SPI)
   ESP_LOGCONFIG(TAG,
                 "Ethernet:\n"
                 "  Type: %s\n"
@@ -219,6 +228,12 @@ void EthernetComponent::dump_config() {
                 "  Reset Pin: %d",
                 type_str, YESNO(this->is_connected()), this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_,
                 this->interrupt_pin_, this->reset_pin_);
+#else
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Type: %s\n"
+                "  Connected: %s",
+                type_str, YESNO(this->is_connected()));
 #endif
   this->dump_connect_params_();
 }
@@ -260,8 +275,8 @@ eth_duplex_t EthernetComponent::get_duplex_mode() {
 }
 
 eth_speed_t EthernetComponent::get_link_speed() {
-#ifdef USE_ETHERNET_ENC28J60
-  // ENC28J60 is 10Mbps only
+#if defined(USE_ETHERNET_ENC28J60) || defined(USE_ETHERNET_USB)
+  // ENC28J60 is 10Mbps only. USB is either 12 or 1.5Mbps depending on negotiation.
   return ETH_SPEED_10M;
 #else
   // W5100 and W5500 are 100Mbps
@@ -271,9 +286,12 @@ eth_speed_t EthernetComponent::get_link_speed() {
 
 bool EthernetComponent::powerdown() {
   ESP_LOGI(TAG, "Powering down ethernet");
+#ifndef USE_ETHERNET_USB
+  // NCM end() disconnects USB; TinyUSB then panics on the next transfer before the reboot
   if (this->eth_ != nullptr) {
     this->eth_->end();
   }
+#endif
   this->connected_ = false;
   this->started_ = false;
   return true;

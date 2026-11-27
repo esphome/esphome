@@ -2,6 +2,7 @@
 
 #include "lvgl_esphome.h"
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 
 #include <algorithm>
 #include <array>
@@ -413,10 +414,10 @@ class LvColorPickerType : public LvCompound {
   }
 
   void update_text_() const {
-    // "#" + 3x "%02X" + null
-    char buf[8];
-    snprintf(buf, sizeof(buf), "#%02X%02X%02X", static_cast<unsigned>(this->state_.r),
-             static_cast<unsigned>(this->state_.g), static_cast<unsigned>(this->state_.b));
+    // "#" + RRGGBB + null
+    char buf[8] = "#";
+    const uint8_t rgb[] = {this->state_.r, this->state_.g, this->state_.b};
+    format_hex_pretty_to(buf + 1, sizeof(buf) - 1, rgb, sizeof(rgb), 0);
     lv_label_set_text(this->color_text_, buf);
   }
 

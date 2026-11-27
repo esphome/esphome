@@ -83,6 +83,8 @@ class WizardData:
 
     # The entities that components gave a role, and the role, in the order they were registered
     roles: list[tuple[ID, str]] = field(default_factory=list)
+    # The entity ID buffer of each input, by input ID, created on first use
+    buffers: dict[str, cg.MockObj] = field(default_factory=dict)
 
 
 def _get_data() -> WizardData:
@@ -257,13 +259,82 @@ WIZARD_DOMAIN_LIMITED_PLATFORMS = (
 )
 
 
+def _wizard_input_size(conf: ConfigType) -> int:
+    return conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
+
+
+def _wizard_input_buffer(conf: ConfigType) -> cg.MockObj:
+    """The buffer an input's entity ID is written to, declared once by whichever caller comes first."""
+    input_id = _wizard_input_id(conf)
+    data = _get_data()
+    if (buffer := data.buffers.get(input_id.id)) is None:
+        owner = ID(input_id.id, type=WizardInput)
+        buffer = cg.static_buffer(owner, cg.char, _wizard_input_size(conf))
+        data.buffers[input_id.id] = buffer
+    return buffer
+
+
+def _linked_inputs(api_config: ConfigType) -> dict[str, ConfigType]:
+    """The inputs linked to a homeassistant entity, by the entity's ID."""
+    if (wizard := api_config.get(CONF_WIZARD)) is None:
+        return {}
+    return {
+        conf[CONF_ENTITY].id: conf
+        for conf in _wizard_inputs(wizard)
+        if CONF_ENTITY in conf
+    }
+
+
+def wizard_input_buffer(entity_id: ID) -> cg.MockObj | None:
+    """The buffer holding the entity ID of a linked wizard input, or None if the entity is not one."""
+    conf = _linked_inputs(CORE.config.get(API_DOMAIN, {})).get(entity_id.id)
+    return None if conf is None else _wizard_input_buffer(conf)
+
+
+# The C++ base class of each kind of entity a wizard page can show, and the platform an API client
+# knows it by. An entity key is only unique within its platform, so the wizard sends both.
+WIZARD_ENTITY_PLATFORMS: dict[str, str] = {
+    "alarm_control_panel::AlarmControlPanel": "alarm_control_panel",
+    "binary_sensor::BinarySensor": "binary_sensor",
+    "button::Button": "button",
+    "climate::Climate": "climate",
+    "cover::Cover": "cover",
+    "datetime::DateEntity": "date",
+    "datetime::DateTimeEntity": "datetime",
+    "datetime::TimeEntity": "time",
+    "event::Event": "event",
+    "fan::Fan": "fan",
+    "infrared::Infrared": "infrared",
+    "light::LightState": "light",
+    "lock::Lock": "lock",
+    "number::Number": "number",
+    "radio_frequency::RadioFrequency": "radio_frequency",
+    "select::Select": "select",
+    "sensor::Sensor": "sensor",
+    "switch_::Switch": "switch",
+    "text::Text": "text",
+    "text_sensor::TextSensor": "text_sensor",
+    "update::UpdateEntity": "update",
+    "valve::Valve": "valve",
+    "water_heater::WaterHeater": "water_heater",
+}
+
+
+def _wizard_entity_platform(
+    config: fv.FinalValidateConfig, entity_id: ID
+) -> str | None:
+    """The platform of an entity, from the C++ class it is declared with, as some entities are not
+    declared under their platform (the sensors of gps:, for example)."""
+    declared: ID = config.get_config_for_path(config.get_path_for_id(entity_id))
+    for cls in (declared.type, *declared.type.parents):
+        if (platform := WIZARD_ENTITY_PLATFORMS.get(str(cls))) is not None:
+            return platform
+    return None
+
+
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
     """The IDs of the entities that are linked inputs of the wizard in the given api config."""
-    if (wizard := api_config.get(CONF_WIZARD)) is None:
-        return set()
-    return {
-        conf[CONF_ENTITY].id for conf in _wizard_inputs(wizard) if CONF_ENTITY in conf
-    }
+    return set(_linked_inputs(api_config))
 
 
 def _wizard_input_declaration(
@@ -346,7 +417,8 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
 
 
 def _validate_wizard_entity_exposed(value: ID) -> ID:
-    """Reject entities that are internal, as they are not exposed over the API, or have no name.
+    """Reject entities that are internal, as they are not exposed over the API, have no name, or
+    are of a platform the wizard does not know.
 
     The key a client knows an entity by is a hash of its name. Without a name of its own, the
     device works the name out at runtime from its friendly name, which can add the MAC address,
@@ -362,6 +434,10 @@ def _validate_wizard_entity_exposed(value: ID) -> ID:
         raise cv.Invalid(
             f"Entity '{value.id}' has no name of its own, so its key is not known "
             "when the wizard is built. Give it a name to use it in the wizard"
+        )
+    if _wizard_entity_platform(fv.full_config.get(), value) is None:
+        raise cv.Invalid(
+            f"Entity '{value.id}' is not of a platform the wizard can show"
         )
     return value
 
@@ -431,7 +507,10 @@ def _entity_document(
 ) -> ConfigType:
     """An entity of the device that the page shows, keyed as ListEntitiesResponse keys it."""
     _, declaration = _wizard_input_declaration(config, conf[CONF_ID])
-    document: ConfigType = {"key": fnv1_hash_object_id(declaration[CONF_NAME])}
+    document: ConfigType = {
+        "key": fnv1_hash_object_id(declaration[CONF_NAME]),
+        "platform": _wizard_entity_platform(config, conf[CONF_ID]),
+    }
     if (device := declaration.get(CONF_DEVICE_ID)) is not None:
         document["device_id"] = fnv1a_32bit_hash(device.id)
     if description := conf.get(CONF_DESCRIPTION):
@@ -461,7 +540,8 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
 
         {"version": 1,
          "pages": [{"title": "...", "description": "...",
-           "entities": [{"key": 123, "device_id": 456, "description": "...", "role": "..."}],
+           "entities": [{"key": 123, "platform": "sensor", "device_id": 456,
+                         "description": "...", "role": "..."}],
            "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
              "entity_filters": [{"integration": "...", "domain": ["..."],
                                  "device_class": ["..."], "supported_features": ["..."]}]}]}]}
@@ -472,6 +552,10 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
     - An entity key is the key ListEntitiesResponse sends for the entity: the FNV-1 hash of the
       object id made from its name (entity_helpers). device_id is the hash of the ESPHome id of
       the device it belongs to (esphome/core/config.py), and is left out for the main device.
+    - An entity platform is the platform of the entity: sensor, switch and so on, or date, time or
+      datetime for an entity of the datetime component. A key is only unique within its platform
+      and device, so a client matches an entity by platform, device_id and key together. A client
+      that does not know platform ignores it, so the version stays 1.
     - An entity role is a stable name, always <component>.<name>, that the component of the entity
       gives it with register_entity_role, so Home Assistant can recognise the entity. The user
       cannot set or change it, and no two entities of a wizard share one. A client that does not
@@ -530,14 +614,13 @@ async def to_code(wizard: ConfigType) -> None:
     entries: list[cg.RawExpression] = []
     for conf in _wizard_inputs(wizard):
         input_id = _wizard_input_id(conf)
-        size = conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
-        buffer = cg.static_buffer(ID(input_id.id, type=WizardInput), cg.char, size)
+        # A linked entity takes its buffer from wizard_input_buffer()
+        buffer = _wizard_input_buffer(conf)
         if CONF_ID in conf:
             cg.new_Pvariable(input_id, buffer)
-        else:
-            cg.add((await cg.get_variable(input_id)).set_entity_id(buffer))
         key = fnv1_hash(input_id.id)
         if conf[CONF_MULTIPLE]:
+            size = _wizard_input_size(conf)
             entries.append(cg.RawExpression(f"{{{key}u, {buffer}, {size}}}"))
         else:
             entries.append(cg.RawExpression(f"{{{key}u, {buffer}}}"))

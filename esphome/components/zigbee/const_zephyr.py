@@ -1,14 +1,4 @@
-# These schema keys live in esphome.const so entity base
-# schemas can use them without importing this package.
-from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
-    CONF_ZIGBEE_BINARY_SENSOR,
-    CONF_ZIGBEE_ID,
-    CONF_ZIGBEE_NUMBER,
-    CONF_ZIGBEE_SENSOR,
-    CONF_ZIGBEE_SWITCH,
-)
-
-CONF_MAX_EP_NUMBER_ZEPHYR = 8
+MAX_EP_NUMBER_ZEPHYR = 8
 CONF_IEEE802154_VENDOR_OUI = "ieee802154_vendor_oui"
 
 # Keys for CORE.data storage

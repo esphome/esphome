@@ -107,10 +107,8 @@ void SGP30Component::read_iaq_baseline_() {
     }
     this->set_timeout(50, [this]() {
       uint16_t raw_data[2];
-      if (!this->read_data(raw_data, 2)) {
-        this->status_set_warning();
+      if (!this->status_comm_result(this->read_data(raw_data, 2)))
         return;
-      }
 
       uint16_t eco2baseline = (raw_data[0]);
       uint16_t tvocbaseline = (raw_data[1]);
@@ -139,7 +137,6 @@ void SGP30Component::read_iaq_baseline_() {
           }
         }
       }
-      this->status_clear_warning();
     });
   } else {
     ESP_LOGD(TAG, "Baseline reading not available for: %.0fs",
@@ -165,18 +162,7 @@ void SGP30Component::send_env_data_() {
     ESP_LOGD(TAG, "External compensation data received: Temperature %0.2f°C", temperature);
   }
 
-  float absolute_humidity;
-  if (temperature < 0) {
-    absolute_humidity =
-        216.67f *
-        ((humidity * 0.061121f * std::exp((23.036f - temperature / 333.7f) * (temperature / (279.82f + temperature)))) /
-         (273.15f + temperature));
-  } else {
-    absolute_humidity =
-        216.67f *
-        ((humidity * 0.061121f * std::exp((18.678f - temperature / 234.5f) * (temperature / (257.14f + temperature)))) /
-         (273.15f + temperature));
-  }
+  const float absolute_humidity = compensation_absolute_humidity(temperature, humidity);
   uint8_t data[4] = {
       SGP30_CMD_SET_ABSOLUTE_HUMIDITY & 0xFF,
       uint8_t(std::floor(absolute_humidity)),                                          // humidity_full
@@ -237,17 +223,13 @@ void SGP30Component::dump_config() {
 }
 
 void SGP30Component::update() {
-  if (!this->write_command(SGP30_CMD_MEASURE_IAQ)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_command(SGP30_CMD_MEASURE_IAQ)))
     return;
-  }
   this->seconds_since_last_store_ += this->update_interval_ / 1000;
   this->set_timeout(50, [this]() {
     uint16_t raw_data[2];
-    if (!this->read_data(raw_data, 2)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(raw_data, 2)))
       return;
-    }
 
     float eco2 = (raw_data[0]);
     float tvoc = (raw_data[1]);
@@ -256,7 +238,6 @@ void SGP30Component::update() {
     PUBLISH_STATE(this->eco2_sensor_, eco2);
     PUBLISH_STATE(this->tvoc_sensor_, tvoc);
 
-    this->status_clear_warning();
     this->send_env_data_();
     this->read_iaq_baseline_();
   });
