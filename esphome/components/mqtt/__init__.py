@@ -690,7 +690,7 @@ async def to_code(config):
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
     elif CORE.is_esp8266:
         # https://github.com/esphome-libs/async-mqtt-client, with BearSSL support
-        cg.add_library("esphome/AsyncMqttClient-esphome", "2.2.2")
+        cg.add_library("esphome/AsyncMqttClient-esphome", "2.3.0")
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)

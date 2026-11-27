@@ -57,8 +57,8 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   // False as soon as DISCONNECT is sent, so a closing link is never reused
   bool connected() const final { return this->mqtt_client_.connected() && !this->mqtt_client_.disconnecting(); }
   bool link_open() const final { return this->mqtt_client_.connected(); }
-  // Closes without DISCONNECT, so the broker publishes the Last Will
-  void close_now() { this->mqtt_client_.disconnect(true); }
+  // Resets the link without DISCONNECT, skipping queued output, so the broker publishes the Last Will
+  void close_now() { this->mqtt_client_.abort(); }
   void connect() final { mqtt_client_.connect(); }
   // Sends DISCONNECT, then the library waits for the broker to close (or closes after 5 s)
   void disconnect() final { this->mqtt_client_.disconnect(false); }

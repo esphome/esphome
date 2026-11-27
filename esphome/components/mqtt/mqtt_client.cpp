@@ -990,7 +990,7 @@ void MQTTClientComponent::on_powerdown() {
   // the next boot takes the session over
   if (this->mqtt_backend_.link_open()) {
     this->mqtt_backend_.close_now();
-    delay(20);  // NOLINT: once per reboot or deep sleep, lets the FIN leave before the reset
+    delay(100);  // NOLINT: once per reboot or deep sleep, lets the reset leave before the restart
   }
 }
 #endif
