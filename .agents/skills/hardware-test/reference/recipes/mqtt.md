@@ -161,3 +161,12 @@ per connection.
 - `interval:` fires once right at boot, so an `interval: 95s` reboot guard boot loops; use `on_boot` plus `delay`.
 - `mqtt:` is not available on RP2040 and RP2350.
 - A run script that stops a shared broker spoils every other run on it; give each concurrent run its own broker port.
+
+## Disconnect to automation latency on LibreTiny (#23104)
+
+`scripts/mqtt/disconnect_latency/latency-common.yaml` with `lat.hpp` adds a second AsyncMqttClient `onDisconnect`
+callback that stores `micros()`, so `on_disconnect` can log how long it waited for the main loop (`lat_us`), and
+the task each automation runs in (`ctx`). Drive disconnects from the broker side (TCP reset, close and
+refuse, close soon after CONNACK) and read the ONDISCONNECT lines; host serial timestamps are too coarse for this
+(pyserial reads with a 0.2 s timeout). On dev the automation runs inside the callback, before the hook, so
+`lat_us` reads 4294967295.

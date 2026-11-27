@@ -1,0 +1,24 @@
+esphome:
+  name: test-light-trigger-order
+
+esp32:
+  board: esp32dev
+
+logger:
+
+output:
+  - platform: ledc
+    id: out_a
+    pin: GPIO4
+
+light:
+  - platform: monochromatic
+    id: lamp
+    output: out_a
+    on_state:
+      - lambda: id(off_automation).stop();
+    on_turn_off:
+      - automation_id: off_automation
+        then:
+          - delay: 1s
+          - logger.log: off a second ago

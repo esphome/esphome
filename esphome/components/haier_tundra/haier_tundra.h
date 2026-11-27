@@ -116,10 +116,8 @@ class HaierTundra final : public climate_ir::ClimateIR {
   uint8_t horizontal_swing_();
   uint8_t health_();
   uint8_t power_();
-  uint8_t fan_speed_();
   uint8_t quiet_();
   uint8_t turbo_();
-  uint8_t operation_mode_();
 
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
@@ -127,8 +125,6 @@ class HaierTundra final : public climate_ir::ClimateIR {
 
   float get_temperature_(uint8_t temp);
   climate::ClimateSwingMode get_swing_mode_(uint8_t swing_v, uint8_t swing_h);
-  climate::ClimateMode get_operation_mode_(uint8_t power, uint8_t mode);
-  climate::ClimateFanMode get_fan_speed_(uint8_t fan);
 
   Unit unit_;
   bool health_mode_{false};

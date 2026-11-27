@@ -9,17 +9,16 @@
 namespace esphome::rotary_encoder {
 
 /// All possible restore modes for the rotary encoder
-enum RotaryEncoderRestoreMode {
+enum RotaryEncoderRestoreMode : uint8_t {
   ROTARY_ENCODER_RESTORE_DEFAULT_ZERO,  /// try to restore counter, otherwise set to zero
   ROTARY_ENCODER_ALWAYS_ZERO,           /// do not restore counter, always set to zero
 };
 
-/// All possible resolutions for the rotary encoder
-enum RotaryEncoderResolution {
-  ROTARY_ENCODER_1_PULSE_PER_CYCLE =
-      0x4400,  /// increment counter by 1 with every A-B cycle, slow response but accurate
-  ROTARY_ENCODER_2_PULSES_PER_CYCLE = 0x2200,  /// increment counter by 2 with every A-B cycle
-  ROTARY_ENCODER_4_PULSES_PER_CYCLE = 0x1100,  /// increment counter by 4 with every A-B cycle, most inaccurate
+/// All possible resolutions for the rotary encoder; masks over the high byte of a state table entry
+enum RotaryEncoderResolution : uint8_t {
+  ROTARY_ENCODER_1_PULSE_PER_CYCLE = 0x44,   /// increment counter by 1 with every A-B cycle, slow response but accurate
+  ROTARY_ENCODER_2_PULSES_PER_CYCLE = 0x22,  /// increment counter by 2 with every A-B cycle
+  ROTARY_ENCODER_4_PULSES_PER_CYCLE = 0x11,  /// increment counter by 4 with every A-B cycle, most inaccurate
 };
 
 struct RotaryEncoderSensorStore {
@@ -27,10 +26,10 @@ struct RotaryEncoderSensorStore {
   ISRInternalGPIOPin pin_b;
 
   volatile int32_t counter{0};
-  RotaryEncoderResolution resolution{ROTARY_ENCODER_1_PULSE_PER_CYCLE};
   int32_t min_value{INT32_MIN};
   int32_t max_value{INT32_MAX};
   int32_t last_read{0};
+  RotaryEncoderResolution resolution{ROTARY_ENCODER_1_PULSE_PER_CYCLE};
   uint8_t state{0};
   bool first_read{true};
 
@@ -94,8 +93,8 @@ class RotaryEncoderSensor final : public sensor::Sensor, public Component {
   InternalGPIOPin *pin_a_;
   InternalGPIOPin *pin_b_;
   GPIOPin *pin_i_{nullptr};  /// Index pin, if this is not nullptr, the counter will reset to 0 once this pin is HIGH.
-  bool publish_initial_value_;
   ESPPreferenceObject rtc_;
+  bool publish_initial_value_;
   RotaryEncoderRestoreMode restore_mode_{ROTARY_ENCODER_RESTORE_DEFAULT_ZERO};
 
   RotaryEncoderSensorStore store_{};

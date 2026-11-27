@@ -1,6 +1,12 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_BORDER_ROUTER
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.network import (
+    INTERFACE_ETHERNET,
+    INTERFACE_WIFI_AP,
+    INTERFACE_WIFI_STA,
+    configured_interfaces,
+)
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -249,11 +255,21 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
         # The mdns console CLI is never used by ESPHome
         add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_CONSOLE_CLI", False)
-        if CONF_WIFI not in CORE.config:
-            # Without WiFi the predefined STA/AP interface handlers are dead
-            # code; disabling them lets mdns build without the WiFi stack.
-            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_STA", False)
-            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_AP", False)
+        # Each predefined interface takes one of the MDNS_MAX_INTERFACES slots that size
+        # static arrays; keep only those the config brings up (without WiFi, mdns then
+        # builds without the WiFi stack)
+        interfaces = configured_interfaces()
+        add_idf_sdkconfig_option(
+            "CONFIG_MDNS_PREDEF_NETIF_STA", INTERFACE_WIFI_STA in interfaces
+        )
+        add_idf_sdkconfig_option(
+            "CONFIG_MDNS_PREDEF_NETIF_AP", INTERFACE_WIFI_AP in interfaces
+        )
+        add_idf_sdkconfig_option(
+            "CONFIG_MDNS_PREDEF_NETIF_ETH", INTERFACE_ETHERNET in interfaces
+        )
+        # mdns 1.15.0 reads a second slot in mdns_priv_pcb_check_for_duplicates(), so keep two
+        add_idf_sdkconfig_option("CONFIG_MDNS_MAX_INTERFACES", max(2, len(interfaces)))
 
     cg.add_define("USE_MDNS")
 
