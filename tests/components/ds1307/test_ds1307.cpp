@@ -2,15 +2,20 @@
 
 #include <array>
 #include <ctime>
+#include <string>
 
 #include "esphome/components/ds1307/ds1307.h"
+#include "esphome/components/logger/logger.h"
 #include "esphome/core/time.h"
 
 namespace esphome::ds1307::testing {
 
 static constexpr uint8_t ADDRESS = 0x68;
 static constexpr uint8_t SECONDS_REG = 0x00;
+static constexpr uint8_t HOURS_REG = 0x02;
 static constexpr uint8_t CONTROL_REG = 0x07;
+static constexpr uint8_t HOURS_12H = 0x40;
+static constexpr uint8_t HOURS_PM = 0x20;
 static constexpr uint8_t CLOCK_HALT_BIT = 0x80;
 static constexpr uint8_t CONTROL_OUT_SQWE_RS = 0x93;  // OUT, SQWE and both rate select bits set
 
@@ -127,6 +132,39 @@ TEST_F(DS1307Test, WriteTimeKeepsTheControlRegister) {
   this->rtc_.setup();
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.registers[CONTROL_REG], CONTROL_OUT_SQWE_RS);
+}
+
+// Another library may have left the chip in 12-hour mode. The date is 2018, which is_valid() rejects, so the time
+// is only logged and never set on the host.
+TEST_F(DS1307Test, TwelveHourModeDecodes) {
+  static constexpr struct {
+    uint8_t hours_reg;
+    const char *logged;
+  } CASES[] = {
+      {HOURS_12H | HOURS_PM | 0x03, "2018-06-15 15:20:00"},  // 3 PM
+      {HOURS_12H | 0x12, "2018-06-15 00:20:00"},             // 12 AM
+      {HOURS_12H | HOURS_PM | 0x12, "2018-06-15 12:20:00"},  // 12 PM
+      {HOURS_12H | 0x11, "2018-06-15 11:20:00"},             // 11 AM
+  };
+  this->rtc_.setup();
+  for (const auto &c : CASES) {
+    auto &reg = this->bus_.registers;
+    reg[SECONDS_REG] = 0x00;
+    reg[0x01] = 0x20;
+    reg[HOURS_REG] = c.hours_reg;
+    reg[0x03] = 6;  // Friday
+    reg[0x04] = 0x15;
+    reg[0x05] = 0x06;
+    reg[0x06] = 0x18;
+    const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+    logger::global_logger->set_baud_rate(115200);
+    ::testing::internal::CaptureStdout();
+    this->rtc_.read_time();
+    const std::string log = ::testing::internal::GetCapturedStdout();
+    logger::global_logger->set_baud_rate(baud_rate);
+    EXPECT_NE(log.find(c.logged), std::string::npos) << log;
+  }
+  EXPECT_EQ(this->syncs_, 0u);
 }
 
 }  // namespace esphome::ds1307::testing
