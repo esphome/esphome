@@ -6,11 +6,48 @@
 // UTC calendar math for ESPTime and the time component's timezone code, so neither needs libc's gmtime()
 namespace esphome::internal {
 
+static constexpr int32_t SECONDS_PER_DAY = 86400;
+
+/// Clocks before this year (and epoch) are taken as not set yet
+static constexpr int MIN_VALID_YEAR = 2019;
+static constexpr time_t MIN_VALID_EPOCH = 1546300800;  // 2019-01-01 00:00:00 UTC
+
 /// Check if a year is a leap year
 bool is_leap_year(int year);
 
 /// Get the number of days in a month (1-12)
 int days_in_month(int year, int month);
+
+/// Days in the year before the first of a month (1-12)
+inline int days_before_month(int year, int month) {
+  int days = 0;
+  for (int m = 1; m < month; m++)
+    days += days_in_month(year, m);
+  return days;
+}
+
+/// A month (1-12) and day of month (1-31)
+struct MonthDay {
+  int month;
+  int day;
+};
+
+/// Month and day of a day of the year (0 = Jan 1); yday must be within the year
+inline MonthDay yday_to_month_day(int year, int yday) {
+  int month = 1;
+  int dim;
+  while (yday >= (dim = days_in_month(year, month))) {
+    yday -= dim;
+    month++;
+  }
+  return {month, yday + 1};
+}
+
+/// Day of the week (0 = Sunday) of a day counted from the epoch, which may be negative
+constexpr int days_to_weekday(int32_t days) {
+  const int wday = (days + 4) % 7;  // Jan 1, 1970 was a Thursday
+  return wday < 0 ? wday + 7 : wday;
+}
 
 /// Days from the epoch (Jan 1 1970) to Jan 1 of the given year
 int32_t days_to_year_start(int year);
