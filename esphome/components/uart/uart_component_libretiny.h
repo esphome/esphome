@@ -49,6 +49,7 @@ class LibreTinyUARTComponent final : public UARTComponent, public Component {
 #endif
 
   HardwareSerial *serial_{nullptr};
+  uint32_t port_baud_rate_{0};  // the rate the hardware port runs at, for the wait before a change
   int8_t hardware_idx_{-1};
 #ifdef USE_UART_TX_BREAK
   bool tx_break_{false};

@@ -99,6 +99,7 @@ void LibreTinyUARTComponent::open_hardware_port_([[maybe_unused]] pin_size_t tx_
     return;
   // LN882x: the port needs its SDK handle, at boot and after an end()
   libretiny::ensure_serial_handle(this->hardware_idx_);
+  this->port_baud_rate_ = this->baud_rate_;
 #ifdef USE_UART_LIBRETINY_PIN_ROUTING
   // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen). setPins()
   // replaces a left-out pin (PIN_INVALID) with the port's default, so default-pin ports start as before.
@@ -174,22 +175,32 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
   if (this->tx_break_)
     return;
 #endif
-  // Only a started hardware port can change its settings: LibreTiny's SoftwareSerial ignores a second begin(), and
-  // a failed setup() leaves serial_ on the logger's port.
+  // Only a hardware port this component has started can change its settings: LibreTiny's SoftwareSerial ignores a
+  // second begin(), and before or after a failed setup() the port may be the logger's.
   SerialClass *hardware = hardware_serial(this->hardware_idx_);
-  if (hardware == nullptr || !*hardware) {
+  if (hardware == nullptr || this->serial_ != hardware || !*hardware) {
     ESP_LOGW(TAG, "Only a started hardware UART can load new settings");
     return;
   }
-  // Bytes still in the TX FIFO would otherwise go out at the new settings
+  // Bytes still to be sent would otherwise go out at the new settings. flush() returns once the FIFO is empty, and
+  // on BK72xx it waits for the other port too, so this waits for the FIFO of this port, then one more character.
+#ifdef USE_BK72XX
+  while (!uart_is_tx_fifo_empty(this->hardware_idx_ - 1)) {
+  }
+#else
   hardware->flush();
+#endif
+  // start bit, up to 8 data bits, parity and 2 stop bits
+  delayMicroseconds(12 * 1000000 / this->port_baud_rate_ + 1);
+  this->port_baud_rate_ = this->baud_rate_;
 #if defined(USE_LN882X)
   // The LN882x core keeps 8N1. Its configure() zeroes the port while its RX interrupt is live, which a byte arriving
-  // then turns into an endless interrupt loop, so only the baud rate is set.
+  // then turns into an endless interrupt loop, so only the baud rate is set. The warning comes after the change: a
+  // log automation could close the port.
+  serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
   if (this->get_config() != SERIAL_8N1) {
     ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
   }
-  serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
 #elif defined(USE_BK72XX)
   // The BK72xx configure() registers the port with the SDK again on every call, and each call grows the SDK's device
   // table on the heap.
