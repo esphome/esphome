@@ -117,6 +117,14 @@ TEST(TuyaLowPowerProductInfo, Parse) {
   EXPECT_FALSE(info.parse(reinterpret_cast<const uint8_t *>(typed_p.data()), typed_p.size()));
   EXPECT_FALSE(info.parse(nullptr, 0));
   EXPECT_EQ(info.pid[0], '\0');
+  // A string value that equals a key name is not that key
+  const std::string value_like_key = R"({"p":"v","v":"1.0.0"})";
+  EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(value_like_key.data()), value_like_key.size()));
+  EXPECT_STREQ(info.version.data(), "1.0.0");
+  // An oversized wake pulse is clamped to 200 ms, not ignored
+  const std::string long_pulse = R"({"p":"abc","v":"1","mwkpt":3000})";
+  EXPECT_TRUE(info.parse(reinterpret_cast<const uint8_t *>(long_pulse.data()), long_pulse.size()));
+  EXPECT_EQ(info.mcu_wake_pulse_ms, 200u);
   // A product field holds at most 48 characters.
   const std::string max_p = R"({"p":")" + std::string(48, 'a') + R"(","v":"1"})";
   const std::string long_p = R"({"p":")" + std::string(49, 'a') + R"(","v":"1"})";

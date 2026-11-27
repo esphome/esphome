@@ -414,7 +414,6 @@
 #define USE_TOSHIBA_RAS_25J2KVSG_ND
 #define USE_TOUCHSCREEN
 #define USE_TUYA_DUMP_PUBLISHER
-#define USE_TUYA_LOW_POWER
 #define USE_UART_DEBUGGER
 #define USE_UART_HARDWARE
 #define USE_UART_TX_BREAK
@@ -519,6 +518,8 @@
 #define USE_WIFI_WPA2_EAP
 // Kept in the Arduino block so clang-tidy sees both scan storage paths
 #define USE_WIFI_MULTI_SSID
+// Likewise, so clang-tidy sees both the standard and the low_power Tuya protocol
+#define USE_TUYA_LOW_POWER
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)

@@ -30,7 +30,7 @@ struct TuyaLowPowerProductInfo {
       while (i < len && (s[i] == ' ' || s[i] == '\t'))
         ++i;
       if (i >= len || s[i] != ':')
-        return len;
+        continue;  // A string value equal to the key, not the key itself
       ++i;
       while (i < len && (s[i] == ' ' || s[i] == '\t'))
         ++i;
@@ -65,7 +65,7 @@ struct TuyaLowPowerProductInfo {
     while (i < len && std::isdigit(static_cast<unsigned char>(s[i]))) {
       n = 10 * n + static_cast<unsigned>(s[i++] - '0');
       if (n > 255)
-        return false;
+        n = 256;  // Saturated: parse() clamps the value
     }
     value = static_cast<int>(n);
     return true;

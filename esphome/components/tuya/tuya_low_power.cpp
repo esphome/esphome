@@ -89,12 +89,17 @@ void TuyaUART::loop_low_power_() {
   }
   this->poll_low_power_product_probe_();
   this->poll_low_power_product_recovery_();
-  switch (this->lp_session_.update(App.get_loop_component_start_time())) {
+  // The state counts as known only once the command that asked for it (CMD02) has its ACK too
+  const auto event = this->lp_wire_.active() ? TuyaLowPowerSession::Event::EVENT_NONE
+                                             : this->lp_session_.update(App.get_loop_component_start_time());
+  switch (event) {
     case TuyaLowPowerSession::Event::EVENT_SYNCHRONIZED:
+      this->status_clear_warning();
       this->finish_low_power_sync_();
       break;
     case TuyaLowPowerSession::Event::EVENT_TIMED_OUT:
       ESP_LOGW(LP_TAG, "Status or write report timeout; requesting the MCU state again");
+      this->status_set_warning(LOG_STR("MCU status timeout"));
       this->lp_network_status_ = 0xFF;
       break;
     default:
@@ -128,9 +133,18 @@ void TuyaUART::handle_low_power_frame_(uint8_t command, uint8_t version, const u
     ESP_LOGW(LP_TAG, "Discarding overdue MCU ACK CMD 0x%02X; recovery required", command);
     return;
   }
+  // A malformed report confirms nothing
+  if (command == 0x07 && !valid_datapoints(buffer, len)) {
+    ESP_LOGW(LP_TAG, "Rejecting malformed CMD07 report");
+    return;
+  }
   // The answer may be another command than the request: CMD07 confirms a version-3 write (CMD06).
-  if (this->lp_wire_.complete(command, len))
+  const bool answered = this->lp_wire_.complete(command, len);
+  if (answered)
     this->expected_response_.reset();
+  // A CMD02 nobody asked for must not advance the version-3 working-mode handshake
+  if (command == 0x02 && !answered)
+    return;
   this->handle_low_power_command_(command, version, buffer, len);
   // During a recovery a frame shows that the MCU is awake: ask for the product info now, not at the next retry.
   const uint32_t now = App.get_loop_component_start_time();
@@ -337,7 +351,8 @@ void TuyaUART::send_low_power_direct_(uint8_t command, const uint8_t *data, size
 }
 
 void TuyaUART::send_low_power_network_() {
-  if (!this->lp_session_.has_product())
+  // Not during a write or status series, nor in quarantine: the 1 s interval and the next product info resend it
+  if (!this->lp_session_.has_product() || this->lp_session_.busy() || this->lp_wire_.faulted())
     return;
   // The MCU reports only to a module "connected to the cloud" (0x04): sent whenever the network is up.
   uint8_t status = 0x02;
@@ -488,10 +503,8 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
       return;
 
     case 0x07: {  // Status report of a version-3 MCU
-      if (!this->lp_v3_ || !valid_datapoints(data, len)) {
-        ESP_LOGW(LP_TAG, "Rejecting malformed CMD07 report");
+      if (!this->lp_v3_)
         return;
-      }
       this->lp_session_.observe_report(App.get_loop_component_start_time());
       if (!this->lp_v3_pushes_ && this->lp_session_.synchronized() &&
           App.get_loop_component_start_time() - this->lp_v3_last_poll_ms_ > 3000) {
@@ -499,9 +512,11 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
         ESP_LOGI(LP_TAG, "MCU reports changes on its own; status polling stopped");
       }
       this->handle_datapoints_(data, len);
-      // A version-3 MCU sends one complete report, so that report is the full status.
-      if (!this->lp_session_.synchronized()) {
+      // A version-3 MCU sends one complete report, so that report is the full status; one that comes before the
+      // working-mode handshake or during quarantine only updates the datapoints.
+      if (!this->lp_session_.synchronized() && this->lp_v3_mode_acked_ && !this->lp_wire_.faulted()) {
         this->lp_session_.mark_synchronized();
+        this->status_clear_warning();
         this->finish_low_power_sync_();
       }
       return;
