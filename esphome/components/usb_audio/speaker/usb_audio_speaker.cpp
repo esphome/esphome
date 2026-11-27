@@ -144,16 +144,17 @@ uint32_t USBAudioSpeaker::audio_tail_bytes_() {
 // come for the in-flight time, the driver holds less than a transfer, so replay takes until that is counted.
 // True while waiting for the bus to idle.
 bool USBAudioSpeaker::settle_stale_count_() {
-  if (this->state_ != speaker::STATE_RUNNING || this->ring_bytes_ == 0) {
+  // Relaxed outside the lock: a stale read only delays the check under it, and play() wakes loop() after counting.
+  constexpr auto relaxed = std::memory_order_relaxed;
+  if (this->state_ != speaker::STATE_RUNNING || this->ring_bytes_.load(relaxed) == 0) {
     return false;
   }
-  auto busy = [this]() { return this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_); };
-  if (busy()) {
+  if (this->writes_in_flight_.load(relaxed) != 0 || this->within_in_flight_(this->last_event_us_.load(relaxed))) {
     return true;
   }
   portENTER_CRITICAL(&this->taken_lock_);
   // Again under the lock, so a take inside a write that just started has already set the event time.
-  if (busy()) {
+  if (this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_)) {
     portEXIT_CRITICAL(&this->taken_lock_);
     return true;
   }
