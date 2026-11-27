@@ -31,6 +31,7 @@ static constexpr ReadingLayout READINGS[] PROGMEM = {
     {FUNCTION_NODE_DATA, 6, DucoValueFormat::DUCO_VALUE_FORMAT_UINT16, 100, 0, 10000},  // humidity
     {FUNCTION_PARAMETER, 3, DucoValueFormat::DUCO_VALUE_FORMAT_UINT8, 1, 0, 255},       // filter remaining
     {FUNCTION_NODE, 2, DucoValueFormat::DUCO_VALUE_FORMAT_UINT8, 1, 0, 255},            // flow level
+    {FUNCTION_NODE, 5, DucoValueFormat::DUCO_VALUE_FORMAT_UINT8, 1, 0, 100},            // sensor flow request
     {FUNCTION_NODE, 12, DucoValueFormat::DUCO_VALUE_FORMAT_UINT16, 1, 0, 65535},        // time remaining
     {FUNCTION_PARAMETER, 3, DucoValueFormat::DUCO_VALUE_FORMAT_INT16, 10, -999, 1000},  // box temperature
     {FUNCTION_PARAMETER, 3, DucoValueFormat::DUCO_VALUE_FORMAT_UINT8, 1, 0, 100},       // bypass
