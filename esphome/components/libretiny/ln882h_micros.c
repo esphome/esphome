@@ -19,25 +19,27 @@ void __real_vApplicationTickHook(void);  // NOLINT(readability-identifier-naming
 static uint32_t last_count;
 static uint32_t now_us;
 
-__attribute__((constructor)) static void start_us_timer(void) {
-  tim_init_t_def init = {0};
-  init.tim_mode = TIM_FREE_RUNNING_MODE;
-  init.tim_load_value = US_TIMER_MASK;
-  init.tim_div = (uint8_t) (hal_clock_get_apb0_clk() / 1000000 - 1);
+// Before any C++ static constructor that might read micros()
+__attribute__((constructor(101))) static void start_us_timer(void) {
+  tim_init_t_def init = {
+      .tim_mode = TIM_FREE_RUNNING_MODE,
+      .tim_load_value = US_TIMER_MASK,
+      .tim_div = (uint8_t) (hal_clock_get_apb0_clk() / 1000000 - 1),
+  };
   hal_tim_init(US_TIMER, &init);
   hal_tim_en(US_TIMER, HAL_ENABLE);
   last_count = timer_timercurrentvalueregister_getf(US_TIMER);
 }
 
 LN882H_RAM_TEXT unsigned long __wrap_micros(void) {  // NOLINT(readability-identifier-naming)
-  uint32_t primask;
-  __asm volatile("mrs %0, primask\n cpsid i" : "=r"(primask)::"memory");
+  const uint32_t primask = __get_PRIMASK();
+  __disable_irq();
   const uint32_t count = timer_timercurrentvalueregister_getf(US_TIMER);
   // The timer counts down
   now_us += (last_count - count) & US_TIMER_MASK;
   last_count = count;
   const uint32_t us = now_us;
-  __asm volatile("msr primask, %0" ::"r"(primask) : "memory");
+  __set_PRIMASK(primask);
   return us;
 }
 
