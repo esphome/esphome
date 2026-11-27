@@ -1,4 +1,6 @@
 #include "sx126x_test_helpers.h"
+#include <algorithm>
+#include <vector>
 
 namespace esphome::sx126x::testing {
 
@@ -10,7 +12,7 @@ static std::vector<uint8_t> set_frequency_command() {
   return {RADIO_SET_RFFREQUENCY, FREQUENCY_WORD[0], FREQUENCY_WORD[1], FREQUENCY_WORD[2], FREQUENCY_WORD[3]};
 }
 
-class TransmitListener : public SX126xTransmitListener {
+class RetuneTransmitListener : public SX126xTransmitListener {
  public:
   void on_transmit_complete(SX126xError result) override { this->results.push_back(result); }
   std::vector<SX126xError> results;
@@ -52,7 +54,7 @@ INSTANTIATE_TEST_SUITE_P(ReceiveOrSleep, SX126xRetune, ::testing::Bool());
 
 TEST(SX126xRetune, IgnoredWhileSending) {
   RadioHardware hw;
-  TransmitListener listener;
+  RetuneTransmitListener listener;
   hw.configure(true, true);
   hw.auto_complete = false;
   ASSERT_EQ(hw.radio.start_transmit_async(&listener, hw.packet, 1234), SX126xError::SX126X_ERROR_NONE);

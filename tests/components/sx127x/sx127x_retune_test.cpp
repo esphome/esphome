@@ -1,4 +1,5 @@
 #include "sx127x_test_helpers.h"
+#include <tuple>
 
 namespace esphome::sx127x::testing {
 
