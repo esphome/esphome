@@ -235,7 +235,8 @@ void DucoDiscovery::receive_response(const DucoMessage &message) {
       ESP_LOGV(TAG, "Found node %u: type %u", this->next_node_, message.data[0]);
       const uint8_t type = message.data[0] <= NODE_TYPE_MASK ? message.data[0] : NODE_TYPE_MASK;
       const uint8_t network = node_network_type(message);
-      this->node_types_[this->next_node_] = type | ((network <= NETWORK_TYPE_VIRTUAL ? network : 0) << NETWORK_TYPE_SHIFT);
+      this->node_types_[this->next_node_] =
+          type | ((network <= NETWORK_TYPE_VIRTUAL ? network : 0) << NETWORK_TYPE_SHIFT);
     }
     this->next_node_++;
     this->attempts_ = 0;

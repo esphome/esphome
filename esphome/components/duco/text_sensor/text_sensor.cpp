@@ -123,8 +123,7 @@ void DucoTextSensor::receive_response(const DucoMessage &message) {
       break;
     case DucoTextReading::DUCO_TEXT_READING_NODE_TYPE:
       if (message.size >= 1)
-        this->publish_state(
-            reinterpret_cast<ProgmemStr>(node_type_name(message.data[0], node_network_type(message))));
+        this->publish_state(reinterpret_cast<ProgmemStr>(node_type_name(message.data[0], node_network_type(message))));
       break;
     case DucoTextReading::DUCO_TEXT_READING_NODE_NETWORK_TYPE:
       if (message.size >= 2)

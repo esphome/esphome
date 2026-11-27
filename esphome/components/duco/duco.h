@@ -36,9 +36,7 @@ struct DucoMessage {
 };
 
 /// The network type of a node answer; a one-byte answer has no network type.
-inline uint8_t node_network_type(const DucoMessage &message) {
-  return message.size >= 2 ? message.data[1] : 0;
-}
+inline uint8_t node_network_type(const DucoMessage &message) { return message.size >= 2 ? message.data[1] : 0; }
 
 class DucoDevice;
 
