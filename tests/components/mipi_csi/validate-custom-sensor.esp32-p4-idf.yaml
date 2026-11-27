@@ -1,0 +1,7 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+  mipi_csi: !include common.yaml
+
+# A sensor whose driver comes from another IDF component, one digit from a built-in name
+mipi_csi:
+  sensor: SC2356

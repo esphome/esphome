@@ -4,11 +4,20 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.const import (
+    CONF_BANDWIDTH,
     CONF_BITRATE,
     CONF_CRC_ENABLE,
+    CONF_DEVIATION,
     CONF_MODULATION,
     CONF_ON_PACKET,
+    CONF_PA_POWER,
+    CONF_PA_RAMP,
+    CONF_PAYLOAD_LENGTH,
+    CONF_PREAMBLE_SIZE,
     CONF_RST_PIN,
+    CONF_RX_START,
+    CONF_SHAPING,
+    CONF_SYNC_VALUE,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY
@@ -22,26 +31,17 @@ DEPENDENCIES = ["spi"]
 
 CONF_SX126X_ID = "sx126x_id"
 
-CONF_BANDWIDTH = "bandwidth"
 CONF_CODING_RATE = "coding_rate"
 CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
 CONF_CRC_SIZE = "crc_size"
 CONF_CRC_POLYNOMIAL = "crc_polynomial"
 CONF_CRC_INITIAL = "crc_initial"
-CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
 CONF_HW_VERSION = "hw_version"
-CONF_PA_POWER = "pa_power"
-CONF_PA_RAMP = "pa_ramp"
-CONF_PAYLOAD_LENGTH = "payload_length"
 CONF_PREAMBLE_DETECT = "preamble_detect"
-CONF_PREAMBLE_SIZE = "preamble_size"
-CONF_RX_START = "rx_start"
 CONF_RF_SWITCH = "rf_switch"
-CONF_SHAPING = "shaping"
 CONF_SPREADING_FACTOR = "spreading_factor"
-CONF_SYNC_VALUE = "sync_value"
 CONF_TCXO_VOLTAGE = "tcxo_voltage"
 CONF_TCXO_DELAY = "tcxo_delay"
 CONF_WHITENING_ENABLE = "whitening_enable"

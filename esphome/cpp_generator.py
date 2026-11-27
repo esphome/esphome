@@ -824,6 +824,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         pointer_type = id_.type
         storage_name = _pstorage_name(actual_type, id_.id)
 
+        address = f"reinterpret_cast<{pointer_type} *>({storage_name})"
         # Declare aligned byte array for the object storage
         CORE.add_global(
             RawStatement(
@@ -837,22 +838,26 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
                 f"static {pointer_type}",
                 "*const ",
                 id_,
-                MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
+                MockObj(address),
             )
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
         CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
+        CORE.data.setdefault(_STATIC_POINTER_ADDRESSES, {})[id_.id] = address
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
         CORE.add(AssignmentExpression(None, None, id_, rhs))
+        if (address := static_pointer_address(rhs)) is not None:
+            CORE.data[_STATIC_POINTER_ADDRESSES][id_.id] = address
 
     CORE.register_variable(id_, obj)
     return obj
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
+_STATIC_POINTER_ADDRESSES = "static_pointer_addresses"
 
 
 def is_static_pointer(obj: SafeExpType) -> bool:
@@ -864,6 +869,13 @@ def is_static_pointer(obj: SafeExpType) -> bool:
     return isinstance(obj, MockObj) and str(obj.base) in CORE.data.get(
         _STATIC_POINTER_IDS, ()
     )
+
+
+def static_pointer_address(obj: SafeExpType) -> str | None:
+    """Constant address expression of a static Pvariable or an alias of one, else None."""
+    if not isinstance(obj, MockObj):
+        return None
+    return CORE.data.get(_STATIC_POINTER_ADDRESSES, {}).get(str(obj.base))
 
 
 def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":

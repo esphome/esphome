@@ -1,0 +1,23 @@
+# Recorder build against the patched lwIP_USB_NCM and tusb-ncm copies (ncm-alt0.patch applied to copies of both
+# library folders under ${ncm_libs}); logs every change of the data interface alt setting as NCMLINK.
+# usbncm-hammer.yaml adds a re-enumeration timer on top.
+esphome:
+  includes:
+    - ncm_alt.hpp
+  platformio_options:
+    lib_extra_dirs:
+      - ${ncm_libs}
+packages:
+  rec: !include usbncm-rec.yaml
+interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          static int last_alt = -1, last_mnt = -1;
+          int alt = tud_network_ncm_data_alt();
+          int mnt = tud_mounted() ? 1 : 0;
+          if (alt != last_alt || mnt != last_mnt) {
+            ESP_LOGW("ncmlink", "NCMLINK alt=%d mounted=%d at %u ms", alt, mnt, (unsigned) millis());
+            last_alt = alt;
+            last_mnt = mnt;
+          }

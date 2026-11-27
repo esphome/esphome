@@ -16,7 +16,7 @@ MMC5983Component = mmc5983_ns.class_(
 )
 
 field_strength_schema = sensor.sensor_schema(
-    kind=sensor.MAGNETIC_FIELD, accuracy_decimals=4
+    kind=sensor.MAGNETIC_FIELD, accuracy_decimals=2
 )
 
 CONFIG_SCHEMA = (

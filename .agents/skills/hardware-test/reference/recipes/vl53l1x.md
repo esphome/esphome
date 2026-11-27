@@ -17,3 +17,18 @@
   periods, 0x0066 signal rate in 9.7 fixed point, 0x007F ROI centre, 0x0080 ROI size) every 20 s. Add a `vl53l1x`
   sensor with `on_raw_value` logging, since sensor state lines are VERBOSE only.
 - A fixed target reads with an IQR of 1 to 3 mm, so a PR versus base difference above that is real.
+
+## Speed sensor timeline (#23108)
+
+`scripts/vl53l1x/timeline.yaml` runs a scripted timeline on an ESP8266 (steady, alternating valid and NaN ranges by
+rewriting the range status threshold registers, an XSHUT reset with setup() again, three update intervals) and
+logs every range, speed and phase with the loop timestamp. `timeline_ana.py CAPTURE` checks that every speed equals
+the range change over the time since the previous valid range, that no speed follows a NaN, and that the first
+valid range after a NaN publishes none.
+
+- At about 2.7 m the return is about 0.5 Mcps: with the default `signal_rate_limit` of 1.0 every frame is raw status
+  4 (signal fail); `signal_rate_limit: 0.25` gives valid frames with an sd of about 11 mm.
+- Per-frame logging of long lines at 115200 limits a fast loop to about 26 lines/s; throttle the log before
+  measuring a frame rate.
+- ESP8266 A/B size builds: give both configs names of the same length and last character. RAM and flash move by a
+  few bytes with the name (a name ending in `0` shares a `"0"` literal).

@@ -17,7 +17,13 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESTINATION
 import esphome.config_validation as cv
-from esphome.const import CONF_ENCRYPTION, CONF_FRAGMENTATION, CONF_KEY, CONF_TYPE
+from esphome.const import (
+    CONF_COMPRESSION,
+    CONF_ENCRYPTION,
+    CONF_FRAGMENTATION,
+    CONF_KEY,
+    CONF_TYPE,
+)
 from esphome.cpp_generator import Expression, MockObj
 from esphome.types import ConfigType
 
@@ -166,9 +172,11 @@ ADDRESSING = LayerKind(CONF_ADDRESSING, "basic")
 ENCRYPTION = LayerKind(CONF_ENCRYPTION, "xxtea", shorthand=CONF_KEY)
 RELIABILITY = LayerKind(CONF_RELIABILITY, "hdlc")
 FRAGMENTATION = LayerKind(CONF_FRAGMENTATION, "basic")
+COMPRESSION = LayerKind(CONF_COMPRESSION, "lzss")
 SESSION = LayerKind(CONF_SESSION, "basic")
-# The kinds stacked above the link, or above each port of an addressing layer, from the bottom up
-STACK_ORDER = (ENCRYPTION, RELIABILITY, FRAGMENTATION, SESSION)
+# The kinds stacked above the link, or above each port of an addressing layer, from the bottom up. Compression is
+# above encryption, as encrypted data does not compress, and above fragmentation, so a whole packet is compressed.
+STACK_ORDER = (ENCRYPTION, RELIABILITY, FRAGMENTATION, COMPRESSION, SESSION)
 
 
 def stack_schema() -> dict:
@@ -238,6 +246,21 @@ def check_packet_sizes(config: ConfigType, size: int) -> int:
             )
         capacity = layer_type.send_capacity(layer)
     return size
+
+
+def check_broadcast_link(config: ConfigType) -> None:
+    """On a link that every device hears, layers that keep state for one peer need an addressing layer."""
+    if CONF_ADDRESSING in config:
+        return
+    for kind in STACK_ORDER:
+        if (layer := config.get(kind.key)) is not None and kind.get_type(
+            layer
+        ).single_peer(layer):
+            raise cv.Invalid(
+                f"This '{kind.key}' works between two devices only, but every device hears this link, so it needs "
+                f"'{CONF_ADDRESSING}' with a '{CONF_DESTINATION}'",
+                path=[kind.key],
+            )
 
 
 def stack_auto_load(config: ConfigType) -> set[str]:

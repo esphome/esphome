@@ -57,6 +57,23 @@ When posting results:
   (`scripts/improv/openap32.yaml`).
 - Scan replies list the neighbours' SSIDs; filter them out of anything you post.
 
+## USB Serial/JTAG RX ring heap check (#23171)
+
+`scripts/improv/usj-heap-common.yaml` (with `usj-heap-c3.yaml` and `usj-heap-s3.yaml`) logs the free internal heap
+and largest block from an `on_boot` priority 800 lambda and every 10 s, plus a 20 lines/s `SEQ` burst, with
+`logger: hardware_uart: USB_SERIAL_JTAG` and no `improv_serial`. Reset from the host and capture each boot for about
+36 s; compare the boot values of five boots per build.
+
+- The `on_boot` priority 800 value is the same to the byte on every boot of one image (a second value 132 B lower
+  shows up now and then on every build), far cleaner than a reading 30 s in. A 512 B to 65 B ring saved 444 B on the
+  S3 (ESP-IDF rounds 65 up to 68) but 312 B on the C3, both the same on every boot.
+- `usjstress.py PORT OUT SECONDS` writes text lines and random bytes into the console while capturing it; host
+  writes into a console nobody reads (about 41 KB) never timed out. `burstchk.py RAW...` then checks every `SEQ`
+  number per boot for gaps, duplicates and broken lines; it also serves the log burst check in the logger console
+  stack section below.
+- Opening a C3 or S3 USB Serial/JTAG port with DTR and RTS low resets the chip once (`rst:0x15
+  USB_UART_CHIP_RESET`); start host writes 10 s after opening.
+
 ## Logger console stack (#22596, #22597)
 
 - Log burst during Improv: an interval that logs 10 numbered `SEQ <n>` lines plus 10 lines without arguments per
