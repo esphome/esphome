@@ -1,0 +1,47 @@
+# Shared by the lvgl_input_groups_* fixtures, which include it with includes_path set to this directory.
+# A fixture adds its displays, LVGL instances and a report script that logs lines read by lvgl_input_utils.py.
+# The input action drives the binary sensor whose name is `button`.
+esphome:
+  includes:
+    - ${includes_path}/lvgl_input_groups.h
+  on_boot:
+    # Runs after every setup(), when all input groups exist
+    - priority: -100
+      then:
+        - lambda: |-
+            for (uint32_t index = 0; index != lv_group_get_count(); index++) {
+              lv_group_set_focus_cb(lv_group_by_index(index),
+                                    [](lv_group_t *) { ESP_LOGI("focus", "focus moved"); });
+            }
+
+host:
+
+api:
+  actions:
+    - action: report
+      then:
+        - script.execute: report
+    - action: input
+      variables:
+        button: string
+        pressed: bool
+      then:
+        - lambda: |-
+            for (auto *sensor : App.get_binary_sensors()) {
+              if (sensor->name_equals(StringRef(button)))
+                sensor->publish_state(pressed);
+            }
+
+logger:
+  level: DEBUG
+
+binary_sensor:
+  - platform: template
+    id: encoder_left
+    name: encoder_left
+  - platform: template
+    id: encoder_right
+    name: encoder_right
+  - platform: template
+    id: encoder_enter
+    name: encoder_enter

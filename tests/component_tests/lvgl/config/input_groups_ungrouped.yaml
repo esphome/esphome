@@ -1,0 +1,54 @@
+esphome:
+  name: test-input-groups-ungrouped
+
+host:
+  mac_address: "62:23:45:AF:B3:DF"
+
+display:
+  - platform: snapshot
+    id: paged_display
+    dimensions:
+      width: 100
+      height: 100
+  - platform: snapshot
+    id: plain_display
+    dimensions:
+      width: 100
+      height: 100
+
+binary_sensor:
+  - platform: template
+    id: encoder_left
+  - platform: template
+    id: encoder_right
+  - platform: template
+    id: keypad_next
+  - platform: template
+    id: encoder_enter
+
+lvgl:
+  - id: paged_lvgl
+    displays: paged_display
+    encoders:
+      id: paged_encoder
+      enter_button: encoder_enter
+      sensor:
+        left_button: encoder_left
+        right_button: encoder_right
+    msgboxes:
+      - id: paged_msgbox
+        title: Paged
+    pages:
+      - id: paged_page
+        widgets:
+          - button:
+              id: paged_button
+
+  - id: plain_lvgl
+    displays: plain_display
+    keypads:
+      - id: plain_keypad
+        next: keypad_next
+    widgets:
+      - button:
+          id: plain_button

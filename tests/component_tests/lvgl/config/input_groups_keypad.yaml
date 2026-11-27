@@ -1,0 +1,32 @@
+esphome:
+  name: test-input-groups-keypad
+
+host:
+  mac_address: "62:23:45:AF:B3:E0"
+
+display:
+  - platform: snapshot
+    id: keypad_display
+    dimensions:
+      width: 100
+      height: 100
+
+binary_sensor:
+  - platform: template
+    id: keypad_next
+
+lvgl:
+  id: keypad_lvgl
+  displays: keypad_display
+  keypads:
+    - id: page_keypad
+      next: keypad_next
+  pages:
+    - id: keypad_page_a
+      widgets:
+        - button:
+            id: keypad_a_button
+    - id: keypad_page_b
+      widgets:
+        - button:
+            id: keypad_b_button

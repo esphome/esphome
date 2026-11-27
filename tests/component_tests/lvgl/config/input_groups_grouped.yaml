@@ -1,0 +1,42 @@
+esphome:
+  name: test-input-groups-grouped
+
+host:
+  mac_address: "62:23:45:AF:B3:DE"
+
+display:
+  - platform: snapshot
+    id: grouped_display
+    dimensions:
+      width: 100
+      height: 100
+
+binary_sensor:
+  - platform: template
+    id: encoder_left
+  - platform: template
+    id: encoder_right
+  - platform: template
+    id: keypad_next
+  - platform: template
+    id: encoder_enter
+
+lvgl:
+  displays: grouped_display
+  encoders:
+    group: encoder_group
+    enter_button: encoder_enter
+    sensor:
+      left_button: encoder_left
+      right_button: encoder_right
+  keypads:
+    - group: keypad_group
+      next: keypad_next
+  msgboxes:
+    - id: grouped_msgbox
+      title: Grouped
+  pages:
+    - id: grouped_page
+      widgets:
+        - button:
+            id: grouped_button

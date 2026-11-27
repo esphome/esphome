@@ -1,10 +1,44 @@
 display:
   - platform: mipi_dsi
     model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C
+
+binary_sensor:
+  - platform: template
+    id: keypad_next
+  - platform: template
+    id: keypad_enter
+
+# Each input has its own group, so this build has no page or msgbox input groups
 lvgl:
   byte_order: little_endian
   check_args: true
   rotation: 90
+  keypads:
+    - group: keypad_group
+      enter: keypad_enter
+      next: keypad_next
+  top_layer:
+    widgets:
+      - button:
+          group: keypad_group
+          align: bottom_right
+  msgboxes:
+    - id: grouped_msgbox
+      title: Grouped
+  pages:
+    - id: grouped_page_a
+      widgets:
+        - button:
+            id: grouped_button
+            group: keypad_group
+            on_click:
+              - lvgl.widget.focus: next
+              - lvgl.widget.show: grouped_msgbox
+              - lvgl.page.next:
+    - id: grouped_page_b
+      widgets:
+        - button:
+            group: keypad_group
 
 psram:
 
