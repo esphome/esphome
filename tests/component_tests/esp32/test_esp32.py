@@ -38,6 +38,7 @@ from esphome.components.esp32 import (
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
     idf_version,
+    require_fatfs,
     require_idf_version,
 )
 from esphome.components.esp32.boards import BOARDS, STANDARD_BOARDS
@@ -736,6 +737,20 @@ def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
     """An explicit CONFIG_NVS_ENCRYPTION=n keeps nvs_sec_provider excluded."""
     generate_main(component_config_path("exclusion_stays_nvs_sdkconfig_off.yaml"))
     assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+
+def test_require_fatfs_reincludes_only_fatfs() -> None:
+    """require_fatfs() sets the flag and takes only fatfs off the default exclusions."""
+    CORE.data[KEY_ESP32] = {
+        KEY_EXCLUDE_COMPONENTS: set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+    }
+
+    require_fatfs()
+
+    assert CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] is True
+    assert CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] == set(
+        DEFAULT_EXCLUDED_IDF_COMPONENTS
+    ) - {"fatfs"}
 
 
 _BUNDLE_OPTIONS = (
