@@ -1,0 +1,21 @@
+packages:
+  modbus_tcp_uart: !include common.yaml
+
+wifi: !remove
+
+tcp_uart:
+  - id: debug_inbound
+    role: server
+    port: 1503
+
+modbus_tcp_uart:
+  - id: debug_uart
+    tcp_uart_id: debug_inbound
+    role: server
+    debug:
+
+# A user ID that equals the generated name of the served-units array must not collide with it.
+sensor:
+  - platform: template
+    id: answer_units
+    name: Units name taken
