@@ -113,7 +113,7 @@ void ESP32Camera::setup() {
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   if (!this->start_framebuffer_task_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to create the framebuffer task"));
     return;
   }
 }
@@ -423,7 +423,7 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
       break;
   }
 }
-bool ESP32Camera::set_jpeg_quality(uint8_t quality) {
+bool ESP32Camera::set_jpeg_quality(int quality) {
   // 0 is only the configuration value for "no conversion", it is no quality to apply
 #ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
   const bool in_use = true;
@@ -431,7 +431,7 @@ bool ESP32Camera::set_jpeg_quality(uint8_t quality) {
   const bool in_use = this->config_.pixel_format == PIXFORMAT_JPEG;
 #endif
   if (quality == 0 ? in_use : (quality < JPEG_QUALITY_MIN || quality > JPEG_QUALITY_MAX)) {
-    ESP_LOGE(TAG, "JPEG quality %u is not valid, use %u to %u", quality, JPEG_QUALITY_MIN, JPEG_QUALITY_MAX);
+    ESP_LOGE(TAG, "JPEG quality %d is not valid, use %u to %u", quality, JPEG_QUALITY_MIN, JPEG_QUALITY_MAX);
     return false;
   }
   this->config_.jpeg_quality = quality;
@@ -564,7 +564,6 @@ bool ESP32Camera::start_framebuffer_task_() {
                               nullptr,                      // handle
                               1                             // core
                               ) != pdPASS) {
-    ESP_LOGE(TAG, "Failed to create the framebuffer task");
     this->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPED);
     this->init_error_ = ESP_ERR_NO_MEM;
     return false;
@@ -634,7 +633,7 @@ void ESP32Camera::restart_driver_step_() {
   this->update_camera_parameters();
   // A failed task start counts as a failed restart: the next update_camera_parameters() tries again
   if (!this->start_framebuffer_task_()) {
-    this->status_set_error();
+    this->status_set_error(LOG_STR("Failed to create the framebuffer task"));
     return;
   }
   this->status_clear_error();
