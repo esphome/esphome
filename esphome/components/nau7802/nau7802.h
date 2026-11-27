@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -94,23 +93,6 @@ class NAU7802Sensor final : public sensor::Sensor, public PollingComponent, publ
   int32_t read_value_(uint8_t start_reg, size_t size);
   bool is_data_ready_();
   void set_calibration_failure_(bool failed);
-};
-
-template<typename... Ts>
-class NAU7802CalbrateExternalOffsetAction final : public Action<Ts...>, public Parented<NAU7802Sensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_external_offset(); }
-};
-
-template<typename... Ts>
-class NAU7802CalbrateInternalOffsetAction final : public Action<Ts...>, public Parented<NAU7802Sensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_internal_offset(); }
-};
-
-template<typename... Ts> class NAU7802CalbrateGainAction final : public Action<Ts...>, public Parented<NAU7802Sensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_gain(); }
 };
 
 }  // namespace esphome::nau7802

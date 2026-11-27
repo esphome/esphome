@@ -4,7 +4,7 @@
 
 namespace esphome::rotary_encoder {
 
-static const char *const TAG = "rotary_encoder";
+ESPHOME_LOG_TAG(TAG, "rotary_encoder");
 
 // based on https://github.com/jkDesignDE/MechInputs/blob/master/QEIx4.cpp
 static const uint8_t STATE_LUT_MASK = 0x1C;  // clears upper counter increment/decrement bits and pin states
@@ -91,14 +91,15 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
 
   int8_t rotation_dir = 0;
   uint16_t new_state = STATE_LOOKUP_TABLE[input_state];
-  if ((new_state & arg->resolution & STATE_HAS_INCREMENTED) != 0) {
+  const uint8_t counted = (new_state >> 8) & arg->resolution;
+  if ((counted & (STATE_HAS_INCREMENTED >> 8)) != 0) {
     if (arg->counter < arg->max_value) {
       auto x = arg->counter + 1;
       arg->counter = x;
     }
     rotation_dir = 1;
   }
-  if ((new_state & arg->resolution & STATE_HAS_DECREMENTED) != 0) {
+  if ((counted & (STATE_HAS_DECREMENTED >> 8)) != 0) {
     if (arg->counter > arg->min_value) {
       auto x = arg->counter - 1;
       arg->counter = x;
@@ -220,7 +221,7 @@ void RotaryEncoderSensor::loop() {
   }
 
   if (this->pin_i_ != nullptr && this->pin_i_->digital_read()) {
-    this->store_.counter = 0;
+    this->store_.counter = std::clamp<int32_t>(0, this->store_.min_value, this->store_.max_value);
   }
   int counter = this->store_.counter;
   if (this->store_.last_read != counter || this->publish_initial_value_) {
@@ -233,12 +234,5 @@ void RotaryEncoderSensor::loop() {
     this->publish_initial_value_ = false;
   }
 }
-
-void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
-  this->restore_mode_ = restore_mode;
-}
-void RotaryEncoderSensor::set_resolution(RotaryEncoderResolution mode) { this->store_.resolution = mode; }
-void RotaryEncoderSensor::set_min_value(int32_t min_value) { this->store_.min_value = min_value; }
-void RotaryEncoderSensor::set_max_value(int32_t max_value) { this->store_.max_value = max_value; }
 
 }  // namespace esphome::rotary_encoder

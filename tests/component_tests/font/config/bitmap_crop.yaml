@@ -1,0 +1,14 @@
+esphome:
+  name: test
+
+host:
+
+font:
+  - file: ../cell6x8.bdf
+    id: cell
+    size: 8
+    glyphs: " Xx|"
+  - file: ../NotoSans-Regular.ttf
+    id: noto
+    size: 12
+    glyphs: " AB"

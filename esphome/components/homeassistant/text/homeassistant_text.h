@@ -1,0 +1,26 @@
+#pragma once
+
+#include "esphome/components/text/text.h"
+#include "esphome/core/optional.h"
+#include "esphome/core/string_ref.h"
+
+namespace esphome::homeassistant {
+
+class HomeassistantText final : public text::Text {
+ public:
+  void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
+
+  void subscribe();
+  void dump_config();
+
+ protected:
+  void state_changed_(StringRef state);
+  optional<int> parse_length_(const char *name, StringRef value);
+  void mode_retrieved_(StringRef mode);
+
+  void control(const std::string &value) override;
+
+  const char *entity_id_{nullptr};
+};
+
+}  // namespace esphome::homeassistant

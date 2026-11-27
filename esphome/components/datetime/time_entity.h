@@ -13,14 +13,12 @@
 namespace esphome::datetime {
 
 #define LOG_DATETIME_TIME(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 class TimeCall;
 class TimeEntity;
-class OnTimeTrigger;
 
 struct TimeEntityRestoreState {
   uint8_t hour;
@@ -56,7 +54,7 @@ class TimeEntity : public DateTimeBase {
  protected:
   friend class TimeCall;
   friend struct TimeEntityRestoreState;
-  friend class OnTimeTrigger;
+  friend class OnTimeBase;
 
   virtual void control(const TimeCall &call) = 0;
 };
@@ -98,23 +96,13 @@ class TimeCall {
   optional<uint8_t> second_;
 };
 
-template<typename... Ts> class TimeSetAction final : public Action<Ts...>, public Parented<TimeEntity> {
- public:
-  TEMPLATABLE_VALUE(ESPTime, time)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-
-    if (this->time_.has_value()) {
-      call.set_time(this->time_.value(x...));
-    }
-    call.perform();
-  }
-};
+inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
 
 #ifdef USE_TIME
-class OnTimeTrigger final : public Trigger<>, public Component, public Parented<TimeEntity> {
+/// Runs fire() when the clock reaches the entity's time, for on_time.
+class OnTimeBase : public FiringComponent<>, public Parented<TimeEntity> {
  public:
+  explicit OnTimeBase(TimeEntity *parent) : Parented(parent) {}
   void loop() override;
 
  protected:

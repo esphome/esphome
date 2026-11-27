@@ -18,6 +18,9 @@
 
 namespace esphome::speaker {
 
+/// Volumes below this are treated as zero
+static constexpr float SILENT_VOLUME_THRESHOLD = 0.001f;
+
 enum State : uint8_t {
   STATE_STOPPED = 0,
   STATE_STARTING,
@@ -65,14 +68,16 @@ class Speaker {
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
-  // Volume control is handled by a configured audio dac component. Individual speaker components can
-  // override and implement in software if an audio dac isn't available.
+  // Volume and mute are independent: changing one never alters the other's stored state. Volume control is
+  // handled by the configured audio dac components, every one of them getting the same volume and mute. Individual
+  // speaker components can override and implement in software if an audio dac isn't available.
   virtual void set_volume(float volume) {
     this->volume_ = volume;
 #ifdef USE_AUDIO_DAC
-    if (this->audio_dac_ != nullptr) {
-      this->audio_dac_->set_volume(volume);
+    for (auto *audio_dac : this->audio_dacs_) {
+      audio_dac->set_volume(volume);
     }
+    this->apply_audio_dac_mute_();
 #endif
   };
   virtual float get_volume() { return this->volume_; }
@@ -80,19 +85,20 @@ class Speaker {
   virtual void set_mute_state(bool mute_state) {
     this->mute_state_ = mute_state;
 #ifdef USE_AUDIO_DAC
-    if (this->audio_dac_) {
-      if (mute_state) {
-        this->audio_dac_->set_mute_on();
-      } else {
-        this->audio_dac_->set_mute_off();
-      }
-    }
+    this->apply_audio_dac_mute_();
 #endif
   }
   virtual bool get_mute_state() { return this->mute_state_; }
 
 #ifdef USE_AUDIO_DAC
-  void set_audio_dac(audio_dac::AudioDac *audio_dac) { this->audio_dac_ = audio_dac; }
+  /// Sets a single audio dac (nullptr for none), replacing any list; keeps its own copy of the pointer.
+  void set_audio_dac(audio_dac::AudioDac *audio_dac) {
+    this->audio_dacs_.assign_copy(&audio_dac, audio_dac != nullptr ? 1 : 0);
+  }
+  /// Codegen only: the table must outlive this speaker. Every DAC listed is fed by this speaker's audio output.
+  void set_audio_dacs(audio_dac::AudioDac *const *audio_dacs, size_t count) {
+    this->audio_dacs_.assign_static(audio_dacs, count);
+  }
 #endif
 
   void set_audio_stream_info(const audio::AudioStreamInfo &audio_stream_info) {
@@ -110,13 +116,42 @@ class Speaker {
   }
 
  protected:
-  State state_{STATE_STOPPED};
-  audio::AudioStreamInfo audio_stream_info_;
-  float volume_{1.0f};
-  bool mute_state_{false};
+  /// @brief Whether the output should be silent: muted, or the volume is effectively zero.
+  /// Volume steps from media players can leave a positive value near float epsilon instead of exactly zero.
+  bool is_silent_() const { return this->mute_state_ || this->volume_ < SILENT_VOLUME_THRESHOLD; }
 
 #ifdef USE_AUDIO_DAC
-  audio_dac::AudioDac *audio_dac_{nullptr};
+  /// @brief Whether volume and mute are handled in hardware by at least one audio dac.
+  bool has_audio_dac_() const { return !this->audio_dacs_.empty(); }
+
+  /// @brief Uses the audio dacs' mute as the silence mechanism, since a dac's minimum volume is often audible.
+  void apply_audio_dac_mute_() {
+    const bool silent = this->is_silent_();
+    for (auto *audio_dac : this->audio_dacs_) {
+      if (silent) {
+        audio_dac->set_mute_on();
+      } else {
+        audio_dac->set_mute_off();
+      }
+    }
+  }
+
+  /// @brief Tells every audio dac that its audio clocks are running; call from the main loop.
+  void notify_audio_dacs_started_() {
+    for (auto *audio_dac : this->audio_dacs_) {
+      audio_dac->on_audio_started();
+    }
+  }
+#endif
+
+  State state_{STATE_STOPPED};
+  bool mute_state_{false};
+  audio::AudioStreamInfo audio_stream_info_;
+  float volume_{1.0f};
+
+#ifdef USE_AUDIO_DAC
+  // all audio dacs fed by this speaker's audio output (eg two amplifiers on one I2S bus); empty without an audio dac
+  ConstVector<audio_dac::AudioDac *, true> audio_dacs_;
 #endif
 
   CallbackManager<void(uint32_t, int64_t)> audio_output_callback_{};

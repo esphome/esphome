@@ -10,4 +10,10 @@ sensor:
           - senseair.abc_get_period: senseair0
           - senseair.abc_enable: senseair0
           - senseair.abc_disable: senseair0
+          - senseair.abc_set_period:
+              id: senseair0
+              hours: 360
+          - senseair.abc_set_period:
+              id: senseair0
+              hours: !lambda "return 180;"
     update_interval: 15s

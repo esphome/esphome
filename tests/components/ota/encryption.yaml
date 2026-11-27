@@ -1,0 +1,9 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome
+    port: 3288
+    encryption:
+      key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="

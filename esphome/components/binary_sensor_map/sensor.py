@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_VALUE,
     ICON_CHECK_CIRCLE_OUTLINE,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["binary_sensor"]
 
@@ -82,7 +83,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

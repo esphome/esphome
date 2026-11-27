@@ -1,0 +1,5 @@
+substitutions:
+  mics_pin: GPIO34
+
+packages:
+  mics_5524: !include common.yaml

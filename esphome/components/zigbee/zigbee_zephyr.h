@@ -70,11 +70,10 @@ class ZigbeeComponent final : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
-    // endpoints are enumerated from 1
-    this->callbacks_[endpoint - 1] = std::move(cb);
-  }
+  // Each switch, number and time entity adds its handler, matched by endpoint, in codegen
+  HUB_PUBLISHER_RETURNING(bool, zcl_device, zb_uint8_t, zb_bufid_t)
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req, zb_zcl_attr_addr_info_t *attr_addr_info);
   void factory_reset();
@@ -86,17 +85,18 @@ class ZigbeeComponent final : public Component {
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
   void on_join_(bool factory_new);
+  void on_start_();
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
   void dump_reporting_();
-  std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
   CallbackManager<void(bool)> join_cb_;
-  bool force_report_{false};
+  LazyCallbackManager<void()> start_cb_;
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
   uint32_t radio_sleep_time_{};
   uint32_t radio_sleep_remainder_{};
+  bool force_report_{false};
   bool sleepy_{};
 };
 

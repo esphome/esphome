@@ -29,17 +29,15 @@ from esphome.const import (
     CONF_FULL_SPECTRUM,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_INFRARED,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     CONF_POWER_SAVE_MODE,
     CONF_VISIBLE,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_6,
     STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -71,11 +69,6 @@ GAINS = {
 }
 
 
-def validate_integration_time(value):
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(INTEGRATION_TIMES, int=True)(value)
-
-
 TSL2591Component = tsl2591_ns.class_(
     "TSL2591Component", cg.PollingComponent, i2c.I2CDevice
 )
@@ -100,21 +93,16 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CALCULATED_LUX): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                icon=ICON_BRIGHTNESS_6,
-                accuracy_decimals=4,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_6, accuracy_decimals=4
             ),
             cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
                 icon=ICON_BRIGHTNESS_6,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="100ms"
-            ): validate_integration_time,
+            cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): cv.time_period_enum(
+                INTEGRATION_TIMES
+            ),
             cv.Optional(CONF_NAME, default="TLS2591"): cv.string,
             cv.Optional(CONF_GAIN, default="AUTO"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_POWER_SAVE_MODE, default=True): cv.boolean,
@@ -131,35 +119,15 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    if CONF_FULL_SPECTRUM in config:
-        conf = config[CONF_FULL_SPECTRUM]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_full_spectrum_sensor(sens))
-
-    if CONF_INFRARED in config:
-        conf = config[CONF_INFRARED]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_infrared_sensor(sens))
-
-    if CONF_VISIBLE in config:
-        conf = config[CONF_VISIBLE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_visible_sensor(sens))
-
-    if CONF_CALCULATED_LUX in config:
-        conf = config[CONF_CALCULATED_LUX]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_calculated_lux_sensor(sens))
-
-    if CONF_ACTUAL_GAIN in config:
-        conf = config[CONF_ACTUAL_GAIN]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_actual_gain_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FULL_SPECTRUM, var.set_full_spectrum_sensor)
+    await sensors(CONF_INFRARED, var.set_infrared_sensor)
+    await sensors(CONF_VISIBLE, var.set_visible_sensor)
+    await sensors(CONF_CALCULATED_LUX, var.set_calculated_lux_sensor)
+    await sensors(CONF_ACTUAL_GAIN, var.set_actual_gain_sensor)
 
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))

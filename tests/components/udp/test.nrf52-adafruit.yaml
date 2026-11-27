@@ -1,0 +1,5 @@
+packages:
+  udp_ipv6: !include common-ipv6.yaml
+
+openthread:
+  tlv: 0E080000000000010000

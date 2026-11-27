@@ -1,6 +1,8 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  detectApiProto,
+  detectMergeBranch,
   detectNewPlatforms,
   detectNewComponents,
   detectPRSize,
@@ -35,6 +37,122 @@ const API_DATA = {
 
 const WITH_SCHEMA = 'CONFIG_SCHEMA = cv.Schema({})';
 const WITHOUT_SCHEMA = 'CODEOWNERS = ["@esphome/core"]';
+
+// ---------------------------------------------------------------------------
+// detectMergeBranch
+// ---------------------------------------------------------------------------
+
+// Builds a fresh context for detectMergeBranch tests instead of mutating the
+// shared CONTEXT fixture above (which other describe blocks rely on).
+function makeMergeContext(baseRef, { stack, defaultBranch = 'dev' } = {}) {
+  const pull_request = { number: 1, base: { ref: baseRef } };
+  if (stack !== undefined) {
+    pull_request.stack = stack;
+  }
+  return {
+    repo: { owner: 'esphome', repo: 'esphome' },
+    payload: { pull_request, repository: { default_branch: defaultBranch } }
+  };
+}
+
+// A GitHub API mock exposing only rest.pulls.get, with a call counter so
+// tests can assert whether the API fallback was actually invoked.
+function makeStackGithub({ stack = null, error = null } = {}) {
+  const state = { calls: 0 };
+  const github = {
+    rest: {
+      pulls: {
+        get: async () => {
+          state.calls++;
+          if (error) throw error;
+          return { data: { stack } };
+        }
+      }
+    }
+  };
+  return { github, state };
+}
+
+const STACK_INFO = { base: { ref: 'dev' }, id: 71540, number: 17978, position: 3, size: 3 };
+
+describe('detectMergeBranch', () => {
+  it('base ref release adds merging-to-release only and never checks the stack', async () => {
+    const { github, state } = makeStackGithub({ stack: STACK_INFO });
+    const context = makeMergeContext('release', { stack: STACK_INFO });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['merging-to-release']);
+    assert.equal(state.calls, 0);
+  });
+
+  it('base ref beta adds merging-to-beta only and never checks the stack', async () => {
+    const { github, state } = makeStackGithub({ stack: STACK_INFO });
+    const context = makeMergeContext('beta', { stack: STACK_INFO });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['merging-to-beta']);
+    assert.equal(state.calls, 0);
+  });
+
+  it('stack present on the webhook payload adds stacked-pr without calling the API', async () => {
+    const { github, state } = makeStackGithub();
+    const context = makeMergeContext('feature-branch', { stack: STACK_INFO });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['stacked-pr']);
+    assert.equal(state.calls, 0);
+  });
+
+  it('stack absent from payload falls back to the API and adds stacked-pr', async () => {
+    const { github, state } = makeStackGithub({ stack: STACK_INFO });
+    const context = makeMergeContext('feature-branch');
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['stacked-pr']);
+    assert.equal(state.calls, 1);
+  });
+
+  it('bottom of a stack (base ref dev, stack present) still adds stacked-pr', async () => {
+    const { github, state } = makeStackGithub();
+    const context = makeMergeContext('dev', { stack: STACK_INFO });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['stacked-pr']);
+    assert.equal(state.calls, 0);
+  });
+
+  it('not stacked, base ref not dev adds chained-pr', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('feature-branch');
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
+  });
+
+  it('not stacked, base ref dev adds no labels', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('dev');
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), []);
+  });
+
+  it('a failed stack lookup falls back to not-stacked, so a feature-branch base adds chained-pr', async () => {
+    const { github, state } = makeStackGithub({ error: new Error('API unavailable') });
+    const context = makeMergeContext('feature-branch');
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
+    assert.equal(state.calls, 1);
+  });
+
+  it('base ref matches default branch adds no labels', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('other', { defaultBranch: 'other' });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), []);
+  });
+
+  it('base ref dev when the default branch is main adds chained-pr', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('dev', { defaultBranch: 'main' });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
+  });
+
+});
 
 // ---------------------------------------------------------------------------
 // detectNewPlatforms
@@ -259,6 +377,27 @@ describe('detectRequirements', () => {
 });
 
 // ---------------------------------------------------------------------------
+// detectApiProto
+// ---------------------------------------------------------------------------
+
+describe('detectApiProto', () => {
+  it('labels a PR that changes api.proto', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api.proto', 'esphome/components/api/api_pb2.cpp']);
+    assert.deepEqual(Array.from(labels), ['api.proto']);
+  });
+
+  it('labels a PR that changes only api_options.proto', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api_options.proto']);
+    assert.deepEqual(Array.from(labels), ['api.proto']);
+  });
+
+  it('ignores the generated protocol files and other components', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api_pb2.cpp', 'esphome/components/uart/api.proto']);
+    assert.equal(labels.size, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // MANAGED_LABELS
 // ---------------------------------------------------------------------------
 
@@ -269,6 +408,10 @@ describe('MANAGED_LABELS', () => {
 
   it('includes needs-developer-docs so the workflow syncs it', () => {
     assert.ok(MANAGED_LABELS.includes('needs-developer-docs'));
+  });
+
+  it('includes api.proto so the workflow removes it when the file drops out of the diff', () => {
+    assert.ok(MANAGED_LABELS.includes('api.proto'));
   });
 });
 

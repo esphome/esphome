@@ -1,5 +1,5 @@
 from esphome import automation, codegen as cg, config_validation as cv
-from esphome.automation import Trigger, build_automation
+from esphome.automation import ApplyAction, Trigger, build_automation
 from esphome.config_validation import COMPONENT_SCHEMA
 from esphome.const import (
     CONF_ACCELERATION,
@@ -15,11 +15,10 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj, TemplateArguments
 
-from ..const import CONF_LOOP
+from ..const import CONF_LOOP, CONF_ON_STOP
 from .defines import (
     CONF_AUTO_START,
     CONF_LVGL_ID,
-    CONF_ON_STOP,
     CONF_WIDGETS,
     LValidator,
     add_define,
@@ -33,15 +32,16 @@ from .lv_validation import (
     lv_positive_float,
     lv_zero_to_one_float,
 )
-from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent, lv_add
+from .lvcode import LambdaContext, LvglComponent, context_action, lv_add, lv_global
 from .schemas import STYLE_PROPS
-from .types import LvAnimation, LvglAction, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
+from .types import LvAnimation, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
 from .widgets import get_widgets
 
 LvAnimationTimingRoundTrip = lvgl_ns.class_("LvAnimationTimingRoundTrip")
 LvAnimationTimingEaseInOut = lvgl_ns.class_("LvAnimationTimingEaseInOut")
 
 CONF_BOUNCE = "bounce"
+CONF_PAUSE = "pause"
 
 
 def timing_class(name, extras=None):
@@ -60,10 +60,28 @@ TIMING_SCHEMA = cv.maybe_simple_value(
     cv.typed_schema(
         dict(
             [
-                timing_class("round_trip"),
+                timing_class(
+                    "round_trip",
+                    {
+                        cv.Optional(CONF_PAUSE, default=0.0): cv.All(
+                            cv.percentage,
+                            cv.float_range(
+                                min=0.0, max=1.0, min_included=True, max_included=False
+                            ),
+                        )
+                    },
+                ),
                 timing_class(
                     "ease_in_out",
-                    {cv.Optional(CONF_WEIGHT, default=2.0): lv_positive_float},
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
+                ),
+                timing_class(
+                    "ease_in",
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
+                ),
+                timing_class(
+                    "ease_out",
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
                 ),
                 timing_class(
                     "gravity",
@@ -237,7 +255,7 @@ async def add_animation_triggers(config):
 
 @automation.register_action(
     "lvgl.animation.start",
-    LvglAction,
+    ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.ensure_list(cv.use_id(LvAnimation)),
@@ -253,9 +271,9 @@ async def add_animation_triggers(config):
 async def start_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]
     loop = config.get(CONF_LOOP)
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+    async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
-            anim_var = await cg.get_variable(animation)
+            anim_var = await lv_global(animation)
             if loop is not None:
                 context.add(anim_var.set_loop(loop))
             if (duration := config.get(CONF_DURATION)) is not None:
@@ -267,14 +285,12 @@ async def start_animation(config, action_id, template_arg, args):
                     anim_var.set_start_delay(await lv_milliseconds.process(start_delay))
                 )
             context.add(anim_var.start())
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, config[CONF_LVGL_ID])
-    return var
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
     "lvgl.animation.stop",
-    LvglAction,
+    ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.ensure_list(cv.use_id(LvAnimation)),
@@ -286,10 +302,8 @@ async def start_animation(config, action_id, template_arg, args):
 )
 async def stop_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+    async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
-            anim_var = await cg.get_variable(animation)
+            anim_var = await lv_global(animation)
             context.add(anim_var.stop())
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, config[CONF_LVGL_ID])
-    return var
+    return await context_action(context, action_id, template_arg, args)

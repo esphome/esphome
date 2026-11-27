@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
@@ -9,53 +8,44 @@ from esphome.const import (
     CONF_MODE,
     CONF_MQTT_ID,
     CONF_ON_VALUE,
-    CONF_TRIGGER_ID,
     CONF_VALUE,
-    CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mauritskorse"]
+DOMAIN = "text"
 IS_PLATFORM_COMPONENT = True
 
 text_ns = cg.esphome_ns.namespace("text")
 Text = text_ns.class_("Text", cg.EntityBase)
 TextPtr = Text.operator("ptr")
-
-# Triggers
-TextStateTrigger = text_ns.class_(
-    "TextStateTrigger", automation.Trigger.template(cg.std_string)
-)
-
-# Actions
-TextSetAction = text_ns.class_("TextSetAction", automation.Action)
+ApplyText = text_ns.class_("ApplyText", Text)
 
 # Conditions
 TextMode = text_ns.enum("TextMode")
 
-TEXT_MODES = {
-    "TEXT": TextMode.TEXT_MODE_TEXT,
-    "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
-}
+TEXT_MODES = TextMode.options("TEXT", "PASSWORD", prefix="TEXT_MODE_")
 
 _TEXT_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextComponent),
-            cv.GenerateID(): cv.declare_id(Text),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextStateTrigger),
-                }
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTTextComponent")
             ),
+            cv.GenerateID(): cv.declare_id(Text),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
             cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
         }
     )
@@ -90,13 +80,13 @@ def text_schema(
 
 @setup_entity("text")
 async def setup_text_core_(
-    var,
-    config,
+    var: MockObj,
+    config: ConfigType,
     *,
     min_length: int | None,
     max_length: int | None,
     pattern: str | None,
-):
+) -> None:
     cg.add(var.traits.set_min_length(min_length))
     cg.add(var.traits.set_max_length(max_length))
     if pattern is not None:
@@ -105,25 +95,21 @@ async def setup_text_core_(
     cg.add(var.traits.set_mode(config[CONF_MODE]))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(cg.std_string, "x")], conf
+        )
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_text(
-    var,
-    config,
+    var: MockObj,
+    config: ConfigType,
     *,
     min_length: int | None = 0,
     max_length: int | None = 255,
     pattern: str | None = None,
-):
+) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("text", config)
@@ -134,21 +120,33 @@ async def register_text(
 
 
 async def new_text(
-    config,
-    *,
+    config: ConfigType,
+    *args,
     min_length: int | None = 0,
     max_length: int | None = 255,
     pattern: str | None = None,
-):
-    var = cg.new_Pvariable(config[CONF_ID])
+) -> MockObj:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_text(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
     )
     return var
 
 
+APPLY_ENTITY = ApplyEntity(
+    ApplyText,
+    ((TextPtr, "entity"), (cg.std_string.operator("const").operator("ref"), "value")),
+    "entity->publish_state(value);",
+)
+
+
+def sub_texts(config: ConfigType, *, parent: MockObj | ID | None = None) -> SubEntities:
+    """Return a SubEntities bound to new_text; ``apply`` statements can use ``entity`` and ``value``."""
+    return SubEntities(new_text, config, parent, APPLY_ENTITY)
+
+
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(text_ns.using)
 
 
@@ -159,19 +157,13 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "text.set",
-    TextSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.std_string),
+    call="make_call",
 )
-async def text_set_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)
-    cg.add(var.set_value(template_))
-    return var

@@ -1,19 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
+import importlib
 import ipaddress
 import logging
 import os
 from pathlib import Path
-import platform
 import re
-import shutil
 import stat
 import sys
-import tempfile
+from types import ModuleType
 from typing import TYPE_CHECKING, TextIO
-from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
 
@@ -34,35 +32,48 @@ SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
 
-IS_MACOS = platform.system() == "Darwin"
-IS_WINDOWS = platform.system() == "Windows"
-IS_LINUX = platform.system() == "Linux"
+# cv.boolean's closed spelling tables, shared with the strict env-knob
+# parser (build_helpers.ccache.parse_enable_env)
+TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
+FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
+# cv.boolean's spelling tables plus the 1/0 env convention
+TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
+FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
+
+IS_MACOS = sys.platform == "darwin"
+IS_WINDOWS = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
 
 # FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
 FNV1_OFFSET_BASIS = 2166136261
 FNV1_PRIME = 16777619
 
 
-def ensure_unique_string(preferred_string, current_strings):
-    test_string = preferred_string
-    current_strings_set = set(current_strings)
-
-    tries = 1
-
-    while test_string in current_strings_set:
+def unique_name(name: str, taken: Callable[[str], bool]) -> str:
+    """``name``, or ``name_2``, ``name_3``, ... for the first that is not ``taken``."""
+    candidate, tries = name, 1
+    while taken(candidate):
         tries += 1
-        test_string = f"{preferred_string}_{tries}"
+        candidate = f"{name}_{tries}"
+    return candidate
 
-    return test_string
+
+def ensure_unique_string(preferred_string, current_strings):
+    return unique_name(preferred_string, set(current_strings).__contains__)
+
+
+def _fnv1_hash(values: Iterable[int]) -> int:
+    """FNV-1 32-bit hash (multiply then XOR) over a sequence of integer values."""
+    hash_value = FNV1_OFFSET_BASIS
+    for value in values:
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
+        hash_value ^= value
+    return hash_value
 
 
 def fnv1_hash(string: str) -> int:
-    """FNV-1 32-bit hash function (multiply then XOR)."""
-    hash_value = FNV1_OFFSET_BASIS
-    for char in string:
-        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
-        hash_value ^= ord(char)
-    return hash_value
+    """FNV-1 32-bit hash function (multiply then XOR) over code points."""
+    return _fnv1_hash(map(ord, string))
 
 
 def fnv1a_32bit_hash(string: str) -> int:
@@ -90,9 +101,19 @@ def fnv1_hash_object_id(name: str) -> int:
     """Compute FNV-1 hash of name with snake_case + sanitize transformations.
 
     IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
-    Used for pre-computing entity object_id hashes at code generation time.
+    If you modify this function, update the C++ version and tests in both places.
     """
     return fnv1_hash(sanitize(snake_case(name)))
+
+
+def fnv1_hash_name(name: str) -> int:
+    """Compute FNV-1 hash of the raw entity name (UTF-8 bytes, no transformations).
+
+    2026.8 beta firmware stored preferences under keys derived from this hash;
+    a future key migration must reconstruct those keys to recover that data
+    (see https://github.com/esphome/backlog/issues/85).
+    """
+    return _fnv1_hash(name.encode("utf-8"))
 
 
 def strip_accents(value: str) -> str:
@@ -148,6 +169,21 @@ def indent(text, padding="  "):
     return "\n".join(indent_list(text, padding))
 
 
+def format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a short string like "1d 2h" or "42s".
+
+    Uses the two largest non-zero units, with unit suffixes matching the YAML
+    time period shorthand (d, h, min, s).
+    """
+    remainder = max(0, int(seconds))
+    parts = []
+    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
+        value, remainder = divmod(remainder, length)
+        if value:
+            parts.append(f"{value}{suffix}")
+    return " ".join(parts[:2]) if parts else "0s"
+
+
 # From https://stackoverflow.com/a/14945195/8924614
 def cpp_string_escape(string, encoding="utf-8"):
     def _should_escape(byte: int) -> bool:
@@ -164,6 +200,21 @@ def cpp_string_escape(string, encoding="utf-8"):
         else:
             result += chr(character)
     return f'"{result}"'
+
+
+def cpp_u16string_escape(string: str) -> str:
+    """Escape a string as a C++ u"..." literal, which the compiler encodes as UTF-16."""
+    result = ""
+    for character in string:
+        code = ord(character)
+        if code >= 127:
+            # Surrogate escapes are ill-formed in C++; the compiler splits astral code points
+            result += f"\\U{code:08X}"
+        elif code < 32 or character in ("\\", '"'):
+            result += f"\\{code:03o}"
+        else:
+            result += character
+    return f'u"{result}"'
 
 
 def run_system_command(*args):
@@ -246,6 +297,9 @@ def resolve_ip_address(
         hosts = host
     else:
         if not is_ip_address(host):
+            # Deferred: upload/logs with an IP target never parse a URL.
+            from urllib.parse import urlparse
+
             url = urlparse(host)
             if url.scheme != "":
                 host = url.hostname
@@ -322,6 +376,24 @@ def resolve_ip_address(
     return res
 
 
+def format_ip_url(family: int, sockaddr: tuple, port: int, path: str) -> str:
+    """Build an ``http://host:port/path`` URL for a resolved address.
+
+    ``family``/``sockaddr`` come from a :func:`resolve_ip_address` entry. IPv6
+    literals must be wrapped in brackets in URLs; link-local addresses need a
+    percent-encoded zone index per RFC 6874.
+    """
+    import socket
+
+    ip = sockaddr[0]
+    if family == socket.AF_INET6:
+        scope = sockaddr[3] if len(sockaddr) >= 4 else 0
+        host_part = f"[{ip}%25{scope}]" if scope else f"[{ip}]"
+    else:
+        host_part = ip
+    return f"http://{host_part}:{port}{path}"
+
+
 def sort_ip_addresses(address_list: list[str]) -> list[str]:
     """Takes a list of IP addresses in string form, e.g. from mDNS or MQTT,
     and sorts them into the best order to actually try connecting to them.
@@ -346,13 +418,24 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
     return [socket.getnameinfo(r[4], socket.NI_NUMERICHOST)[0] for r in res]
 
 
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs usable by this process (affinity-aware
+    on Python 3.13+); 1 when the count is undeterminable."""
+    count = (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+    return count or 1
+
+
 def get_bool_env(var, default=False):
+    """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
+    anything else falls through to ``bool(value)``."""
     value = os.getenv(var, default)
     if isinstance(value, str):
         value = value.lower()
-        if value in ["1", "true"]:
+        if value in TRUTHY_ENV_STRINGS:
             return True
-        if value in ["0", "false"]:
+        if value in FALSY_ENV_STRINGS:
             return False
     return bool(value)
 
@@ -389,21 +472,55 @@ def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) ->
         env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
 
 
-def rmtree(path: Path | str) -> None:
-    """Remove a directory tree, handling read-only files on Windows.
+# Deletion attempts when a directory keeps being repopulated mid-delete
+RMTREE_MAX_ATTEMPTS = 3
 
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail. This handles that by removing the
-    read-only flag and retrying.
+
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, tolerating common filesystem races.
+
+    Read-only files (e.g. git pack files on Windows) get the read-only flag
+    removed and are retried. Paths that are already gone, whether the target
+    itself or entries vanishing mid-delete, are treated as removed.
+    Directories repopulated mid-delete (e.g. Finder recreating .DS_Store on
+    macOS) are retried a few times.
     """
 
-    def _onexc(func, path, exc):
+    import errno
+    import shutil
+    import time
+
+    def _onexc(func: Callable[..., object], path: str | Path, exc: OSError) -> None:
+        if isinstance(exc, FileNotFoundError):
+            _LOGGER.debug("rmtree: %s already gone", path)
+            return
         if os.access(path, os.W_OK):
             raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    shutil.rmtree(path, onexc=_onexc)
+    last_err: OSError | None = None
+    for attempt in range(RMTREE_MAX_ATTEMPTS - 1):
+        try:
+            shutil.rmtree(path, onexc=_onexc)
+            return
+        except OSError as err:
+            if err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                raise
+            _LOGGER.debug(
+                "rmtree: %s repopulated mid-delete (attempt %d): %s",
+                path,
+                attempt + 1,
+                err,
+            )
+            last_err = err
+            # Give the racing writer (e.g. Finder) time to settle
+            time.sleep(0.05 * (attempt + 1))
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except OSError as err:
+        # Keep the earlier races visible in the traceback
+        raise err from last_err
 
 
 def walk_files(path: Path):
@@ -434,6 +551,11 @@ def _write_file(
 
     Automatically creates all parent directories.
     """
+    # Deferred: a cache-hit upload/logs run never writes a file; keep the
+    # tempfile/shutil chain (bz2, lzma, random) off that path.
+    import shutil
+    import tempfile
+
     data = text
     if isinstance(text, str):
         data = text.encode()
@@ -490,6 +612,16 @@ def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
         raise EsphomeError(f"Could not write file at {path}") from err
 
 
+def path_define_flag(name: str, path: Path) -> str:
+    """A ``-D<name>="<path>"`` build flag that every build's shell lexer decodes
+    to the same single argument (ESP-IDF and Zephyr then quote each token for
+    CMake), even when the path holds spaces or shell characters."""
+    # forward slashes for Windows, then escape what shlex would not pass
+    # through literally
+    escaped = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(path).as_posix())
+    return f'-D{name}=\\"{escaped}\\"'
+
+
 def write_file_if_changed(path: Path, text: str) -> bool:
     """Write text to the given path, but not if the contents match already.
 
@@ -497,7 +629,18 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     """
     src_content = None
     if path.is_file():
-        src_content = read_file(path)
+        try:
+            src_content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as err:
+            # Replace a damaged file rather than abort the regeneration that
+            # fixes it; an OSError may hide an intact file, so it still raises
+            _LOGGER.warning("Replacing damaged file %s: %s", path, err)
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+        except OSError as err:
+            from esphome.core import EsphomeError
+
+            raise EsphomeError(f"Error reading file {path}: {err}") from err
     if src_content == text:
         return False
     write_file(path, text)
@@ -509,6 +652,8 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
 
     Returns True if file was copied, False if files already matched.
     """
+    import shutil
+
     if file_compare(src, dst):
         return False
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -593,26 +738,23 @@ def add_class_to_obj(value, cls):
         # If already is instance, do not add
         return value
 
-    try:
-        orig_cls = value.__class__
-        key = (orig_cls, cls)
-        new_cls = _CLASS_LOOKUP.get(key)
-        if new_cls is None:
-            new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
-            _CLASS_LOOKUP[key] = new_cls
-        value.__class__ = new_cls
-        return value
-    except TypeError:
-        # Non heap type, look in overloads dict
-        for type_, func in _TYPE_OVERLOADS.items():
-            # Use type() here, we only need to trigger if it's the exact type,
-            # as otherwise we don't need to overload the class
-            if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
-                return add_class_to_obj(func(value), cls)
-        raise
+    # The built-in types refuse a __class__ change, so copy them into a heap
+    # subtype first. Matching the exact type, as a subclass is already a heap type.
+    if (overload := _TYPE_OVERLOADS.get(type(value))) is not None:
+        value = overload(value)
+
+    # Any other non heap type raises TypeError here
+    orig_cls = value.__class__
+    key = (orig_cls, cls)
+    new_cls = _CLASS_LOOKUP.get(key)
+    if new_cls is None:
+        new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
+        _CLASS_LOOKUP[key] = new_cls
+    value.__class__ = new_cls
+    return value
 
 
-def snake_case(value):
+def snake_case(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_snake_case`."""
     return value.replace(" ", "_").lower()
 
@@ -620,7 +762,7 @@ def snake_case(value):
 _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 
 
-def sanitize(value):
+def sanitize(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
 
@@ -661,16 +803,27 @@ class ProgressBar:
         sys.stderr.flush()
 
     def done(self) -> None:
-        if not self.enabled:
+        # No frame drawn, or the 100% frame already ended its own line
+        if not self.enabled or self.last_progress is None or self.last_progress == 100:
             return
         sys.stderr.write("\n")
         sys.stderr.flush()
+
+    def interrupt(self) -> None:
+        """End a mid-row frame so the next write starts on its own row.
+
+        The next ``update()`` redraws the bar; a finished bar stays done.
+        """
+        if self.last_progress == 100:
+            return
+        self.done()
+        self.last_progress = None
 
 
 def docs_url(path: str) -> str:
     """Return the URL to the documentation for a given path."""
     # Local import to avoid circular import
-    from esphome.config_validation import Version
+    from esphome.core import Version
 
     version = Version.parse(ESPHOME_VERSION)
     if version.is_beta:
@@ -682,3 +835,11 @@ def docs_url(path: str) -> str:
 
     path = path.removeprefix("/")
     return docs_format.format(path=path)
+
+
+def zstd_module() -> ModuleType:
+    """The zstd module: the standard library one from Python 3.14, otherwise the backport."""
+    try:
+        return importlib.import_module("compression.zstd")
+    except ImportError:
+        return importlib.import_module("backports.zstd")

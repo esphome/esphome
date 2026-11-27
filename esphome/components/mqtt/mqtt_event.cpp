@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.event";
+ESPHOME_LOG_TAG(TAG, "mqtt.event");
 
 using namespace esphome::event;
 
@@ -28,17 +28,16 @@ void MQTTEventComponent::setup() {
 }
 
 void MQTTEventComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Event '%s': ", this->event_->get_name().c_str());
-  ESP_LOGCONFIG(TAG, "Event Types: ");
-  for (const char *event_type : this->event_->get_event_types()) {
-    ESP_LOGCONFIG(TAG, "- %s", event_type);
-  }
   LOG_MQTT_COMPONENT(true, true);
+  ESP_LOGCONFIG(TAG, "  Event Types:");
+  for (const char *event_type : this->event_->get_event_types()) {
+    ESP_LOGCONFIG(TAG, "    - %s", event_type);
+  }
 }
 
 bool MQTTEventComponent::publish_event_(const std::string &event_type) {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  return this->publish_json(this->get_state_topic_to_(topic_buf), [event_type](JsonObject root) {
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [&event_type](JsonObject root) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_EVENT_TYPE] = event_type;
   });

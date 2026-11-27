@@ -1,21 +1,27 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.components.const import CONF_ON_STATE_CHANGE
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
     CONF_ON_ERROR,
     CONF_OTA,
     CONF_PLATFORM,
-    CONF_TRIGGER_ID,
     PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "ota"
 
 
 def AUTO_LOAD() -> list[str]:
@@ -33,23 +39,33 @@ CONF_ON_ABORT = "on_abort"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
-CONF_ON_STATE_CHANGE = "on_state_change"
 
 
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
 OTAState = ota_ns.enum("OTAState")
-OTAAbortTrigger = ota_ns.class_("OTAAbortTrigger", automation.Trigger.template())
-OTAEndTrigger = ota_ns.class_("OTAEndTrigger", automation.Trigger.template())
-OTAErrorTrigger = ota_ns.class_("OTAErrorTrigger", automation.Trigger.template())
-OTAProgressTrigger = ota_ns.class_("OTAProgressTrigger", automation.Trigger.template())
-OTAStartTrigger = ota_ns.class_("OTAStartTrigger", automation.Trigger.template())
-OTAStateChangeTrigger = ota_ns.class_(
-    "OTAStateChangeTrigger", automation.Trigger.template()
-)
+
+_request_state_callback_slot = cg.slot_counter("OTA_STATE_CALLBACK_COUNT")
+
+# Callback parameters, shared by every key and every OTA component
+_STATE_CALLBACK_PARAMS: TemplateArgsType = [
+    (OTAState, "state"),
+    (cg.float_, "progress"),
+    (cg.uint8, "error"),
+    (OTAComponent.operator("ptr"), "component"),
+]
+# conf key: (automation args, forwarded expressions, state filter)
+_STATE_AUTOMATIONS: dict[str, tuple[TemplateArgsType, list[str], MockObj | None]] = {
+    CONF_ON_STATE_CHANGE: ([(OTAState, "state")], ["state"], None),
+    CONF_ON_ABORT: ([], [], ota_ns.OTA_ABORT),
+    CONF_ON_BEGIN: ([], [], ota_ns.OTA_STARTED),
+    CONF_ON_PROGRESS: ([(cg.float_, "x")], ["progress"], ota_ns.OTA_IN_PROGRESS),
+    CONF_ON_END: ([], [], ota_ns.OTA_COMPLETED),
+    CONF_ON_ERROR: ([(cg.uint8, "x")], ["error"], ota_ns.OTA_ERROR),
+}
 
 
-def _ota_final_validate(config):
+def _ota_final_validate(config: ConfigType) -> None:
     if len(config) < 1:
         raise cv.Invalid(
             f"At least one platform must be specified for '{CONF_OTA}'; add '{CONF_PLATFORM}: {CONF_ESPHOME}' for original OTA functionality"
@@ -59,43 +75,12 @@ def _ota_final_validate(config):
 FINAL_VALIDATE_SCHEMA = _ota_final_validate
 
 BASE_OTA_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStateChangeTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ABORT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAAbortTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStartTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_END): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAEndTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAErrorTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAProgressTrigger),
-            }
-        ),
-    }
+    {cv.Optional(key): automation.validate_automation({}) for key in _STATE_AUTOMATIONS}
 )
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_OTA")
     CORE.add_job(final_step)
 
@@ -103,35 +88,32 @@ async def to_code(config):
         cg.add_library("Updater", None)
 
 
-async def ota_to_code(var, config):
+async def ota_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.past_safe_mode()
     use_state_callback = False
-    for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(OTAState, "state")], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_ABORT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_BEGIN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_PROGRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
-        use_state_callback = True
+    for key, (args, forward, state) in _STATE_AUTOMATIONS.items():
+        # Checked per callback, as each trigger did, so one that marks it failed stops the rest
+        when = "component == {parent} && !component->is_failed()"
+        if state is not None:
+            when += f" && state == {state}"
+        for conf in config.get(key, []):
+            _request_state_callback_slot()
+            callback = await automation.build_trigger_callback(
+                args, conf, _STATE_CALLBACK_PARAMS, forward, when, var
+            )
+            cg.add(MockObj(f"{OTAComponent}::add_state_callback")(callback))
+            use_state_callback = True
     if use_state_callback:
-        request_ota_state_listeners()
+        request_ota_component_state_listeners()
+
+
+GLOBAL_LISTENER_COUNT_DEFINE = "ESPHOME_OTA_GLOBAL_LISTENER_COUNT"
+_request_global_listener_slot = cg.slot_counter(GLOBAL_LISTENER_COUNT_DEFINE)
+
+
+def request_ota_component_state_listeners() -> None:
+    """Compile in OTAComponent::add_state_listener() without a global listener slot."""
+    CORE.data[OTA_STATE_LISTENER_KEY] = True
 
 
 def request_ota_state_listeners() -> None:
@@ -140,18 +122,24 @@ def request_ota_state_listeners() -> None:
     Components that need to be notified about OTA state changes (start, progress,
     complete, error) should call this function during their code generation.
     This enables the add_state_listener() API on OTAComponent.
+    Each call also reserves one add_global_state_listener() slot, so call it once
+    per instance that registers.
     """
     CORE.data[OTA_STATE_LISTENER_KEY] = True
+    _request_global_listener_slot()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def final_step():
+async def final_step() -> None:
     """Final code generation step to configure optional OTA features."""
     if CORE.data.get(OTA_STATE_LISTENER_KEY, False):
         cg.add_define("USE_OTA_STATE_LISTENER")
+        # Not a hub, so cg.slot_list would not emit the zero count
+        if cg.get_slot_count(GLOBAL_LISTENER_COUNT_DEFINE) == 0:
+            cg.add_define(GLOBAL_LISTENER_COUNT_DEFINE, 0)
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_backend_source_files = filter_source_files_from_platform(
     {
         "ota_backend_esp_idf.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -167,3 +155,19 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "ota_backend_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
+
+
+# USE_OTA_SIGNED_VERIFICATION_MULTI_KEY is set only on ESP32/IDF;
+# USE_OTA_PARTITIONS is set by the esphome OTA platform when
+# allow_partition_access is enabled.
+_filter_define_source_files = filter_source_files_from_defines(
+    {
+        "ota_signature_esp_idf.cpp": "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY",
+        "ota_bootloader_esp_idf.cpp": "USE_OTA_PARTITIONS",
+        "ota_partitions_esp_idf.cpp": "USE_OTA_PARTITIONS",
+    }
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _filter_backend_source_files() + _filter_define_source_files()

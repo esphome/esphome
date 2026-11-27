@@ -4,16 +4,19 @@
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/web_server_base.h"
-#ifdef USE_WEBSERVER
+#include "esphome/components/web_server_base/captive_dns.h"
+// The host only builds sse_chunk.cpp for unit tests, but other tests can define USE_WEBSERVER there
+#if defined(USE_WEBSERVER) && (defined(USE_ESP32) || defined(USE_ARDUINO))
+#include "event_source.h"
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
 
 #include <functional>
-#include <list>
 #include <map>
 #include <string>
 #include <utility>
@@ -36,12 +39,12 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 
 namespace esphome::web_server {
 
-// Type for parameter names that can be stored in flash on ESP8266
-#ifdef USE_ESP8266
-using ParamNameType = const __FlashStringHelper *;
-#else
-using ParamNameType = const char *;
-#endif
+// Every platform cuts a log event here: nothing a browser log view needs is longer, and it bounds
+// the tail a stalled client keeps.
+constexpr size_t LOG_EVENT_MAX_LEN = 512;
+
+// Parameter names live in flash on ESP8266
+using ParamNameType = ProgmemStr;
 
 // All platforms need to defer actions to main loop thread.
 // Multi-core platforms need this for thread safety.
@@ -58,13 +61,16 @@ struct EntityMatchResult {
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
+  // User-provided so GCC stores the defaults instead of copying a constant, which is RAM on ESP8266
+  UrlMatch() {}      // NOLINT(modernize-use-equals-default)
   StringRef domain;  ///< Domain within URL, for example "sensor"
   StringRef id;      ///< Entity name/id within URL, for example "Temperature"
   StringRef method;  ///< Method within URL, for example "turn_on"
 #ifdef USE_DEVICES
   StringRef device_name;  ///< Device name within URL, empty for main device
 #endif
-  bool valid{false};  ///< Whether this match is valid
+  bool valid{false};             ///< Whether this match is valid
+  bool include_internal{false};  ///< Whether internal entities may match, the web server's include_internal
 
   // Helper methods for string comparisons
   bool domain_equals(const char *str) const { return this->domain == str; }
@@ -76,7 +82,7 @@ struct UrlMatch {
   bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
 #endif
 
-  /// Match entity by name
+  /// Match entity by name; internal entities match only if include_internal is set
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
 };
@@ -95,92 +101,6 @@ struct SortingGroup {
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
-/*
-  In order to defer updates in arduino mode, we need to create one AsyncEventSource per incoming request to /events.
-  This is because only minimal changes were made to the ESPAsyncWebServer lib_dep, it was undesirable to put deferred
-  update logic into that library. We need one deferred queue per connection so instead of one AsyncEventSource with
-  multiple clients, we have multiple event sources with one client each. This is slightly awkward which is why it's
-  implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
-  can be forgotten.
-*/
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-using message_generator_t = json::SerializationBuffer<>(WebServer *, void *);
-
-class DeferredUpdateEventSourceList;
-class DeferredUpdateEventSource final : public AsyncEventSource {
-  friend class DeferredUpdateEventSourceList;
-
-  /*
-    This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
-    that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-    the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
-    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two
-    pointers per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors
-    publishing because of dedup) would take up only 0.8 kB.
-  */
-  struct DeferredEvent {
-    friend class DeferredUpdateEventSource;
-
-   protected:
-    void *source_;
-    message_generator_t *message_generator_;
-
-   public:
-    DeferredEvent(void *source, message_generator_t *message_generator)
-        : source_(source), message_generator_(message_generator) {}
-    bool operator==(const DeferredEvent &test) const {
-      return (source_ == test.source_ && message_generator_ == test.message_generator_);
-    }
-  };
-  static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
-                "DeferredEvent should have no padding");
-
- protected:
-  // surface a couple methods from the base class
-  using AsyncEventSource::handleRequest;
-  using AsyncEventSource::send;
-
-  ListEntitiesIterator entities_iterator_;
-  // vector is used very specifically for its zero memory overhead even though items are popped from the front (memory
-  // footprint is more important than speed here)
-  std::vector<DeferredEvent> deferred_queue_;
-  WebServer *web_server_;
-  uint16_t consecutive_send_failures_{0};
-  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
-
-  // helper for allowing only unique entries in the queue
-  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
-
-  void process_deferred_queue_();
-
- public:
-  DeferredUpdateEventSource(WebServer *ws, const String &url)
-      : AsyncEventSource(url), entities_iterator_(ListEntitiesIterator(ws, this)), web_server_(ws) {}
-
-  void loop();
-
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
-                        uint32_t reconnect = 0);
-};
-
-class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
- protected:
-  void on_client_connect_(DeferredUpdateEventSource *source);
-  void on_client_disconnect_(DeferredUpdateEventSource *source);
-
- public:
-  /// Returns true if there are event sources remaining (including pending cleanup).
-  bool loop();
-
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
-                        uint32_t reconnect = 0);
-
-  void add_new_client(WebServer *ws, AsyncWebServerRequest *request);
-};
-#endif
-
 /** This class allows users to create a web server with their ESP nodes.
  *
  * Behind the scenes it's using AsyncWebServer to set up the server. It exposes 3 things:
@@ -190,11 +110,7 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
  * can be found under https://esphome.io/web-api/.
  */
-class WebServer final : public Controller, public Component, public AsyncWebHandler {
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  friend class DeferredUpdateEventSourceList;
-#endif
-
+class WebServer final : public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base);
 
@@ -204,14 +120,14 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_url The url to the web server stylesheet.
    */
-  void set_css_url(const char *css_url);
+  void set_css_url(const char *css_url) { this->css_url_ = css_url; }
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
-  void set_js_url(const char *js_url);
+  void set_js_url(const char *js_url) { this->js_url_ = js_url; }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -219,7 +135,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_include Local path to web server script.
    */
-  void set_css_include(const char *css_include);
+  void set_css_include(const char *css_include) { this->css_include_ = css_include; }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
@@ -227,7 +143,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param js_include Local path to web server script.
    */
-  void set_js_include(const char *js_include);
+  void set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
   /** Determine whether internal components should be displayed on the web server.
@@ -241,22 +157,6 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    * @param expose_log.
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
-
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  /** Set the origins that browsers are allowed to make cross-origin requests from.
-   *
-   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
-   * are always allowed. Requests whose `Origin` matches the address the device is served on
-   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
-   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
-   * the requesting page's `Origin` header (e.g. "https://example.com").
-   *
-   * This list is also used to authorize Private Network Access requests when that feature is enabled.
-   *
-   * @param origins The list of allowed origins.
-   */
-  void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
-#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -275,6 +175,14 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
+
+#ifdef USE_WEBSERVER_CAPTIVE
+  /// AP mode: DNS answers every name with the AP address and unknown URLs redirect to the interface.
+  /// wifi calls start before setup(), so it may touch nothing but dns_ (enable_loop is a no-op then).
+  void start_captive();
+  void end_captive();
+  bool is_captive() const { return this->dns_.is_running(); }
+#endif
 
   /// Return the webserver configuration as JSON.
   json::SerializationBuffer<> get_config_json();
@@ -295,22 +203,22 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 
 #ifdef USE_SENSOR
-  void on_sensor_update(sensor::Sensor *obj) override;
+  void on_sensor_update(sensor::Sensor *obj);
   /// Handle a sensor request under '/sensor/<id>'.
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> sensor_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> sensor_all_json_generator(WebServer *web_server, void *source);
+  static void sensor_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void sensor_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_SWITCH
-  void on_switch_update(switch_::Switch *obj) override;
+  void on_switch_update(switch_::Switch *obj);
 
   /// Handle a switch request under '/switch/<id>/</turn_on/turn_off/toggle>'.
   void handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> switch_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> switch_all_json_generator(WebServer *web_server, void *source);
+  static void switch_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void switch_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_BUTTON
@@ -318,193 +226,198 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   // Buttons are stateless, so there is no button_state_json_generator
-  static json::SerializationBuffer<> button_all_json_generator(WebServer *web_server, void *source);
+  static void button_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj);
 
   /// Handle a binary sensor request under '/binary_sensor/<id>'.
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> binary_sensor_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> binary_sensor_all_json_generator(WebServer *web_server, void *source);
+  static void binary_sensor_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void binary_sensor_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_FAN
-  void on_fan_update(fan::Fan *obj) override;
+  void on_fan_update(fan::Fan *obj);
 
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> fan_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> fan_all_json_generator(WebServer *web_server, void *source);
+  static void fan_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void fan_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_LIGHT
-  void on_light_update(light::LightState *obj) override;
+  void on_light_update(light::LightState *obj);
 
   /// Handle a light request under '/light/<id>/</turn_on/turn_off/toggle>'.
   void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> light_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> light_all_json_generator(WebServer *web_server, void *source);
+  static void light_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void light_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj);
 
   /// Handle a text sensor request under '/text_sensor/<id>'.
   void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> text_sensor_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> text_sensor_all_json_generator(WebServer *web_server, void *source);
+  static void text_sensor_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void text_sensor_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_COVER
-  void on_cover_update(cover::Cover *obj) override;
+  void on_cover_update(cover::Cover *obj);
 
   /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
   void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> cover_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> cover_all_json_generator(WebServer *web_server, void *source);
+  static void cover_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void cover_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_NUMBER
-  void on_number_update(number::Number *obj) override;
+  void on_number_update(number::Number *obj);
   /// Handle a number request under '/number/<id>'.
   void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> number_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> number_all_json_generator(WebServer *web_server, void *source);
+  static void number_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void number_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_DATETIME_DATE
-  void on_date_update(datetime::DateEntity *obj) override;
+  void on_date_update(datetime::DateEntity *obj);
   /// Handle a date request under '/date/<id>'.
   void handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> date_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> date_all_json_generator(WebServer *web_server, void *source);
+  static void date_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void date_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_DATETIME_TIME
-  void on_time_update(datetime::TimeEntity *obj) override;
+  void on_time_update(datetime::TimeEntity *obj);
   /// Handle a time request under '/time/<id>'.
   void handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> time_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> time_all_json_generator(WebServer *web_server, void *source);
+  static void time_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void time_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  void on_datetime_update(datetime::DateTimeEntity *obj);
   /// Handle a datetime request under '/datetime/<id>'.
   void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> datetime_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> datetime_all_json_generator(WebServer *web_server, void *source);
+  static void datetime_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void datetime_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_TEXT
-  void on_text_update(text::Text *obj) override;
+  void on_text_update(text::Text *obj);
   /// Handle a text input request under '/text/<id>'.
   void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> text_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> text_all_json_generator(WebServer *web_server, void *source);
+  static void text_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void text_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj) override;
+  void on_select_update(select::Select *obj);
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> select_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> select_all_json_generator(WebServer *web_server, void *source);
+  static void select_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void select_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::Climate *obj) override;
+  void on_climate_update(climate::Climate *obj);
   /// Handle a climate request under '/climate/<id>'.
   void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> climate_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> climate_all_json_generator(WebServer *web_server, void *source);
+  static void climate_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void climate_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_LOCK
-  void on_lock_update(lock::Lock *obj) override;
+  void on_lock_update(lock::Lock *obj);
 
   /// Handle a lock request under '/lock/<id>/</lock/unlock/open>'.
   void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> lock_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> lock_all_json_generator(WebServer *web_server, void *source);
+  static void lock_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void lock_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_VALVE
-  void on_valve_update(valve::Valve *obj) override;
+  void on_valve_update(valve::Valve *obj);
 
   /// Handle a valve request under '/valve/<id>/<open/close/stop/set>'.
   void handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> valve_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> valve_all_json_generator(WebServer *web_server, void *source);
+  static void valve_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void valve_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
 
   /// Handle a alarm_control_panel request under '/alarm_control_panel/<id>'.
   void handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> alarm_control_panel_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> alarm_control_panel_all_json_generator(WebServer *web_server, void *source);
+  static void alarm_control_panel_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void alarm_control_panel_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_WATER_HEATER
-  void on_water_heater_update(water_heater::WaterHeater *obj) override;
+  void on_water_heater_update(water_heater::WaterHeater *obj);
 
   /// Handle a water_heater request under '/water_heater/<id>/<mode/set>'.
   void handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> water_heater_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> water_heater_all_json_generator(WebServer *web_server, void *source);
+  static void water_heater_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void water_heater_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_INFRARED
   /// Handle an infrared request under '/infrared/<id>/transmit'.
   void handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> infrared_all_json_generator(WebServer *web_server, void *source);
+  static void infrared_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 #ifdef USE_RADIO_FREQUENCY
   /// Handle a radio frequency request under '/radio_frequency/<id>/transmit'.
   void handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> radio_frequency_all_json_generator(WebServer *web_server, void *source);
+  static void radio_frequency_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  // Not exposed over HTTP; the stub only satisfies ControllerContract
+  void on_media_player_update(media_player::MediaPlayer *) {}
 #endif
 
 #ifdef USE_EVENT
-  void on_event(event::Event *obj) override;
+  void on_event(event::Event *obj);
 
-  static json::SerializationBuffer<> event_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> event_all_json_generator(WebServer *web_server, void *source);
+  static void event_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void event_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 
   /// Handle a event request under '/event<id>'.
   void handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match);
 #endif
 
 #ifdef USE_UPDATE
-  void on_update(update::UpdateEntity *obj) override;
+  void on_update(update::UpdateEntity *obj);
 
   /// Handle a update request under '/update/<id>'.
   void handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::SerializationBuffer<> update_state_json_generator(WebServer *web_server, void *source);
-  static json::SerializationBuffer<> update_all_json_generator(WebServer *web_server, void *source);
+  static void update_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void update_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
   /// Override the web handler's canHandle method.
@@ -518,13 +431,23 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   void add_entity_config(EntityBase *entity, float weight, uint64_t group);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
-  std::map<EntityBase *, SortingComponents> sorting_entitys_;
+  std::map<EntityBase *, SortingComponents> sorting_entities_;
   std::map<uint64_t, SortingGroup> sorting_groups_;
 #endif
 
   bool include_internal_{false};
 
  protected:
+  // Declared here so it packs into the padding after include_internal_
+  bool expose_log_{true};
+
+  // Out of line so the per-domain update callbacks stay small
+  // source stays the concrete entity pointer, since the generators cast it back to that type
+  template<typename T> void send_state_event_(T *obj, message_generator_t *generator) {
+    this->send_state_event_(obj, static_cast<const EntityBase *>(obj), generator);
+  }
+  void send_state_event_(void *source, const EntityBase *entity, message_generator_t *generator);
+
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 
 #ifdef USE_LIGHT
@@ -592,10 +515,10 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   }
 
   web_server_base::WebServerBase *base_;
-#ifdef USE_ESP32
-  AsyncEventSource events_{"/events", this};
-#elif USE_ARDUINO
-  DeferredUpdateEventSourceList events_;
+  AsyncEventSource events_;
+#ifdef USE_WEBSERVER_CAPTIVE
+  void handle_not_found_(AsyncWebServerRequest *request);
+  web_server_base::CaptiveDNS dns_;
 #endif
 
 #if USE_WEBSERVER_VERSION == 1
@@ -608,93 +531,86 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool expose_log_{true};
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
-  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
-  FixedVector<const char *> allowed_origins_;
-#endif
-
-  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
-  /// request was sent to) and requests without an Origin header are always allowed; any other
-  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
-  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR
-  json::SerializationBuffer<> sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_config);
+  void sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_SWITCH
-  json::SerializationBuffer<> switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config);
+  void switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_BUTTON
-  json::SerializationBuffer<> button_json_(button::Button *obj, JsonDetail start_config);
+  void button_json_(button::Button *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_BINARY_SENSOR
-  json::SerializationBuffer<> binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value,
-                                                  JsonDetail start_config);
+  void binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config,
+                           json::JsonBuilder &builder);
 #endif
 #ifdef USE_FAN
-  json::SerializationBuffer<> fan_json_(fan::Fan *obj, JsonDetail start_config);
+  void fan_json_(fan::Fan *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_LIGHT
-  json::SerializationBuffer<> light_json_(light::LightState *obj, JsonDetail start_config);
+  void light_json_(light::LightState *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_TEXT_SENSOR
-  json::SerializationBuffer<> text_sensor_json_(text_sensor::TextSensor *obj, const std::string &value,
-                                                JsonDetail start_config);
+  void text_sensor_json_(text_sensor::TextSensor *obj, const std::string &value, JsonDetail start_config,
+                         json::JsonBuilder &builder);
 #endif
 #ifdef USE_COVER
-  json::SerializationBuffer<> cover_json_(cover::Cover *obj, JsonDetail start_config);
+  void cover_json_(cover::Cover *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_NUMBER
-  json::SerializationBuffer<> number_json_(number::Number *obj, float value, JsonDetail start_config);
+  void number_json_(number::Number *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_DATETIME_DATE
-  json::SerializationBuffer<> date_json_(datetime::DateEntity *obj, JsonDetail start_config);
+  void date_json_(datetime::DateEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_DATETIME_TIME
-  json::SerializationBuffer<> time_json_(datetime::TimeEntity *obj, JsonDetail start_config);
+  void time_json_(datetime::TimeEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_DATETIME_DATETIME
-  json::SerializationBuffer<> datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_config);
+  void datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_TEXT
-  json::SerializationBuffer<> text_json_(text::Text *obj, const std::string &value, JsonDetail start_config);
+  void text_json_(text::Text *obj, const std::string &value, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_SELECT
-  json::SerializationBuffer<> select_json_(select::Select *obj, StringRef value, JsonDetail start_config);
+  void select_json_(select::Select *obj, StringRef value, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_CLIMATE
-  json::SerializationBuffer<> climate_json_(climate::Climate *obj, JsonDetail start_config);
+  void climate_json_(climate::Climate *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_LOCK
-  json::SerializationBuffer<> lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
+  void lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_VALVE
-  json::SerializationBuffer<> valve_json_(valve::Valve *obj, JsonDetail start_config);
+  void valve_json_(valve::Valve *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  json::SerializationBuffer<> alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel *obj,
-                                                        alarm_control_panel::AlarmControlPanelState value,
-                                                        JsonDetail start_config);
+  void alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel *obj,
+                                 alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config,
+                                 json::JsonBuilder &builder);
 #endif
 #ifdef USE_EVENT
-  json::SerializationBuffer<> event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config);
+  void event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_WATER_HEATER
-  json::SerializationBuffer<> water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
+  void water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_INFRARED
-  json::SerializationBuffer<> infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
+  void infrared_json_(infrared::Infrared *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_RADIO_FREQUENCY
-  json::SerializationBuffer<> radio_frequency_json_(radio_frequency::RadioFrequency *obj, JsonDetail start_config);
+  void radio_frequency_json_(radio_frequency::RadioFrequency *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_UPDATE
-  json::SerializationBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);
+  void update_json_(update::UpdateEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 };
+
+#ifdef USE_WEBSERVER_CAPTIVE
+extern WebServer *global_web_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 }  // namespace esphome::web_server
 #endif

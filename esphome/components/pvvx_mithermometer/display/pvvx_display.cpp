@@ -1,16 +1,20 @@
-#include "pvvx_display.h"
-#include "esphome/components/esp32_ble/ble_uuid.h"
-#include "esphome/core/log.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
+#include "pvvx_display.h"
+#include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::pvvx_mithermometer {
 
-static const char *const TAG = "display.pvvx_mithermometer";
+ESPHOME_LOG_TAG(TAG, "display.pvvx_mithermometer");
+
+static constexpr uint32_t DISCONNECT_TIMEOUT_ID = 0;
 
 void PVVXDisplay::dump_config() {
-  char service_buf[esp32_ble::UUID_STR_LEN];
-  char char_buf[esp32_ble::UUID_STR_LEN];
+  char service_buf[ble_device_base::UUID_STR_LEN];
+  char char_buf[ble_device_base::UUID_STR_LEN];
   ESP_LOGCONFIG(TAG,
                 "PVVX MiThermometer display:\n"
                 "  MAC address           : %s\n"
@@ -38,7 +42,7 @@ void PVVXDisplay::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
     case ESP_GATTC_DISCONNECT_EVT:
       ESP_LOGV(TAG, "[%s] Disconnected", this->parent_->address_str());
       this->connection_established_ = false;
-      this->cancel_timeout("disconnect");
+      this->cancel_timeout(DISCONNECT_TIMEOUT_ID);
       this->char_handle_ = 0;
       break;
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -108,12 +112,9 @@ void PVVXDisplay::display() {
            this->parent_->address_str(), this->bignum_, this->smallnum_, this->cfg_, this->validity_period_);
   uint8_t blk[8] = {};
   blk[0] = 0x22;
-  blk[1] = this->bignum_ & 0xff;
-  blk[2] = (this->bignum_ >> 8) & 0xff;
-  blk[3] = this->smallnum_ & 0xff;
-  blk[4] = (this->smallnum_ >> 8) & 0xff;
-  blk[5] = this->validity_period_ & 0xff;
-  blk[6] = (this->validity_period_ >> 8) & 0xff;
+  put_le16(blk + 1, this->bignum_);
+  put_le16(blk + 3, this->smallnum_);
+  put_le16(blk + 5, this->validity_period_);
   blk[7] = this->cfg_;
   this->send_to_setup_char_(blk, sizeof(blk));
 }
@@ -146,8 +147,8 @@ void PVVXDisplay::send_to_setup_char_(uint8_t *blk, size_t size) {
 void PVVXDisplay::delayed_disconnect_() {
   if (this->disconnect_delay_ms_ == 0)
     return;
-  this->cancel_timeout("disconnect");
-  this->set_timeout("disconnect", this->disconnect_delay_ms_, [this]() { this->parent_->set_enabled(false); });
+  this->cancel_timeout(DISCONNECT_TIMEOUT_ID);
+  this->set_timeout(DISCONNECT_TIMEOUT_ID, this->disconnect_delay_ms_, [this]() { this->parent_->set_enabled(false); });
 }
 
 void PVVXDisplay::sync_time_and_display_() {
@@ -178,14 +179,11 @@ void PVVXDisplay::sync_time_() {
   uint8_t blk[5] = {};
   ESP_LOGD(TAG, "[%s] Sync time with timestamp %" PRIu64 ".", this->parent_->address_str(), time.timestamp);
   blk[0] = 0x23;
-  blk[1] = time.timestamp & 0xff;
-  blk[2] = (time.timestamp >> 8) & 0xff;
-  blk[3] = (time.timestamp >> 16) & 0xff;
-  blk[4] = (time.timestamp >> 24) & 0xff;
+  put_le32(blk + 1, time.timestamp);
   this->send_to_setup_char_(blk, sizeof(blk));
 }
 #endif
 
 }  // namespace esphome::pvvx_mithermometer
 
-#endif
+#endif  // USE_ESP32

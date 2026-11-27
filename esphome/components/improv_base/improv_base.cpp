@@ -4,10 +4,30 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::improv_base {
 
-#if defined(USE_ESP32_IMPROV_NEXT_URL) || defined(USE_IMPROV_SERIAL_NEXT_URL)
+#if defined(USE_IMPROV_NEXT_URL) || defined(USE_WEBSERVER)
+ESPHOME_LOG_TAG(TAG, "improv_base");
+#endif
+
+#ifdef USE_WEBSERVER
+void ImprovBase::add_webserver_url_(improv::RpcResponseBuilder &builder, const network::IPAddress &ip) {
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ip.str_to(ip_buf);
+  // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
+  char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
+  size_t len = buf_append_printf(webserver_url, sizeof(webserver_url), 0, "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
+  if (!builder.add_string(webserver_url, len)) {
+    ESP_LOGW(TAG, "Response full; URL dropped");
+  }
+}
+#endif
+
+#ifdef USE_IMPROV_NEXT_URL
+
 static constexpr const char DEVICE_NAME_PLACEHOLDER[] = "{{device_name}}";
 static constexpr size_t DEVICE_NAME_PLACEHOLDER_LEN = sizeof(DEVICE_NAME_PLACEHOLDER) - 1;
 static constexpr const char IP_ADDRESS_PLACEHOLDER[] = "{{ip_address}}";
@@ -61,6 +81,21 @@ size_t ImprovBase::get_formatted_next_url_(char *buffer, size_t buffer_size) {
   }
   *out = '\0';
   return out - buffer;
+}
+
+void ImprovBase::add_next_url_(improv::RpcResponseBuilder &builder, size_t max_len) {
+  // The builder rejects strings above 254 bytes, so anything longer than this
+  // buffer could never be sent anyway
+  char url_buffer[256] = {};
+  size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+  if (len == 0) {
+    return;
+  }
+  // max_len is the transport's budget for this entry; skipping an over-long URL
+  // here keeps the rest of the response sendable instead of oversizing the frame
+  if (len > max_len || !builder.add_string(url_buffer, len)) {
+    ESP_LOGW(TAG, "Next URL too long; skipping");
+  }
 }
 #endif
 

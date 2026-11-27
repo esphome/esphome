@@ -4,8 +4,16 @@ from esphome.components import runtime_image
 from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import CONF_TRANSPARENCY, add_metadata
+from esphome.components.runtime_image import IMAGE_FORMATS
 import esphome.config_validation as cv
-from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_ON_ERROR, CONF_TYPE, CONF_URL
+from esphome.const import (
+    CONF_BUFFER_SIZE,
+    CONF_FORMAT,
+    CONF_ID,
+    CONF_ON_ERROR,
+    CONF_TYPE,
+    CONF_URL,
+)
 from esphome.core import Lambda
 from esphome.types import ConfigType
 
@@ -14,6 +22,8 @@ DEPENDENCIES = ["http_request"]
 CODEOWNERS = ["@guillempages", "@clydebarrow"]
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
+CONF_ON_DOWNLOAD_STARTED = "on_download_started"
+CONF_ON_DOWNLOAD_PROGRESS = "on_download_progress"
 CONF_UPDATE = "update"
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
@@ -22,15 +32,6 @@ OnlineImage = online_image_ns.class_(
     "OnlineImage", cg.PollingComponent, runtime_image.RuntimeImage
 )
 
-# Actions
-SetUrlAction = online_image_ns.class_(
-    "OnlineImageSetUrlAction", automation.Action, cg.Parented.template(OnlineImage)
-)
-ReleaseImageAction = online_image_ns.class_(
-    "OnlineImageReleaseAction", automation.Action, cg.Parented.template(OnlineImage)
-)
-
-
 ONLINE_IMAGE_SCHEMA = (
     runtime_image.runtime_image_schema(OnlineImage)
     .extend(
@@ -38,11 +39,16 @@ ONLINE_IMAGE_SCHEMA = (
             # Online Image specific options
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Required(CONF_URL): cv.url,
+            # AUTO (Content-Type detection) is online_image specific; not in the shared registry
+            cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, "AUTO", upper=True),
             cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
+            cv.Optional(runtime_image.CONF_DOUBLE_BUFFER, default=False): cv.boolean,
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
+            cv.Optional(CONF_ON_DOWNLOAD_STARTED): automation.validate_automation({}),
             cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DOWNLOAD_PROGRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
         }
     )
@@ -80,31 +86,31 @@ RELEASE_IMAGE_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "online_image.set_url", SetUrlAction, SET_URL_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "online_image.set_url",
+    SET_URL_SCHEMA,
+    automation.ApplyField(CONF_URL, "set_url", cg.std_string),
+    automation.ApplyField(CONF_UPDATE, "update_if", cg.bool_),
 )
-@automation.register_action(
-    "online_image.release",
-    ReleaseImageAction,
-    RELEASE_IMAGE_SCHEMA,
-    synchronous=True,
-)
-async def online_image_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    if CONF_URL in config:
-        template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
-        cg.add(var.set_url(template_))
-    if CONF_UPDATE in config:
-        template_ = await cg.templatable(config[CONF_UPDATE], args, cg.bool_)
-        cg.add(var.set_update(template_))
-    return var
+automation.register_apply_action(
+    "online_image.release",
+    RELEASE_IMAGE_SCHEMA,
+    automation.ApplyCall("release()"),
+)
 
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
+        CONF_ON_DOWNLOAD_STARTED, "add_on_download_started_callback"
+    ),
+    automation.CallbackAutomation(
         CONF_ON_DOWNLOAD_FINISHED, "add_on_finished_callback", [(bool, "cached")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DOWNLOAD_PROGRESS,
+        "add_on_progress_callback",
+        [(float, "progress"), (cg.size_t, "bytes_read")],
     ),
     automation.CallbackAutomation(CONF_ON_ERROR, "add_on_error_callback"),
 )
@@ -136,6 +142,8 @@ async def setup_online_image(config: ConfigType) -> None:
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
+    if settings.double_buffer:
+        cg.add(var.set_double_buffer(True))
 
     for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
         if isinstance(value, Lambda):

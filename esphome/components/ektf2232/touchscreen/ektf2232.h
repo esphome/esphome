@@ -22,7 +22,6 @@ class EKTF2232Touchscreen final : public Touchscreen, public i2c::I2CDevice {
   bool get_power_state();
 
  protected:
-  void hard_reset_();
   bool soft_reset_();
   void update_touches() override;
 

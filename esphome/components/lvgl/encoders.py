@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
+from esphome.components.rotary_encoder import DOMAIN as ROTARY_ENCODER_DOMAIN
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
@@ -27,7 +28,7 @@ ENCODERS_CONFIG = cv.ensure_list(
             cv.Required(CONF_SENSOR): cv.Any(
                 cv.All(
                     cv.use_id(RotaryEncoderSensor),
-                    cv.requires_component("rotary_encoder"),
+                    cv.requires_component(ROTARY_ENCODER_DOMAIN),
                 ),
                 cv.Schema(
                     {
@@ -49,7 +50,7 @@ def get_default_group(config):
 
 async def encoders_to_code(var, config, default_group):
     for enc_conf in config[CONF_ENCODERS]:
-        add_lv_use("KEY_LISTENER", "ROTARY_ENCODER")
+        add_lv_use("KEY_LISTENER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(
@@ -63,6 +64,7 @@ async def encoders_to_code(var, config, default_group):
                 b_sensor = await cg.get_variable(sensor_config[CONF_RIGHT_BUTTON])
                 cg.add(listener.add_button(b_sensor, lv_key_t.LV_KEY_RIGHT))
             else:
+                add_lv_use("ROTARY_ENCODER")
                 sensor_config = await cg.get_variable(sensor_config)
                 lv_add(listener.set_sensor(sensor_config))
         b_sensor = await cg.get_variable(enc_conf[CONF_ENTER_BUTTON])

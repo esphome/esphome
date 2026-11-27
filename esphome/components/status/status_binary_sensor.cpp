@@ -12,7 +12,7 @@
 
 namespace esphome::status {
 
-static const char *const TAG = "status";
+ESPHOME_LOG_TAG(TAG, "status");
 
 void StatusBinarySensor::update() {
   bool status = network::is_connected();

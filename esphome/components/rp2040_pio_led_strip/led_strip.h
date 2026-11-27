@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/light/addressable_light.h"
+#include "esphome/components/light/channel_colors.h"
 #include "esphome/components/light/light_output.h"
 
 #include <hardware/dma.h>
@@ -14,46 +15,8 @@
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
 #include <pico/sem.h>
-#include <map>
 
 namespace esphome::rp2040_pio_led_strip {
-
-enum RGBOrder : uint8_t {
-  ORDER_RGB,
-  ORDER_RBG,
-  ORDER_GRB,
-  ORDER_GBR,
-  ORDER_BGR,
-  ORDER_BRG,
-};
-
-enum Chipset : uint8_t {
-  CHIPSET_WS2812,
-  CHIPSET_WS2812B,
-  CHIPSET_SK6812,
-  CHIPSET_SM16703,
-  CHIPSET_APA102,
-  CHIPSET_CUSTOM = 0xFF,
-};
-
-inline const char *rgb_order_to_string(RGBOrder order) {
-  switch (order) {
-    case ORDER_RGB:
-      return "RGB";
-    case ORDER_RBG:
-      return "RBG";
-    case ORDER_GRB:
-      return "GRB";
-    case ORDER_GBR:
-      return "GBR";
-    case ORDER_BGR:
-      return "BGR";
-    case ORDER_BRG:
-      return "BRG";
-    default:
-      return "UNKNOWN";
-  }
-}
 
 using init_fn = void (*)(PIO pio, uint sm, uint offset, uint pin, float freq);
 
@@ -64,15 +27,15 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   float get_setup_priority() const override;
 
   int32_t size() const override { return this->num_leds_; }
-  light::LightTraits get_traits() override {
-    auto traits = light::LightTraits();
-    this->is_rgbw_ ? traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE})
-                   : traits.set_supported_color_modes({light::ColorMode::RGB});
-    return traits;
-  }
+  light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_num_leds(uint32_t num_leds) { this->num_leds_ = num_leds; }
-  void set_is_rgbw(bool is_rgbw) { this->is_rgbw_ = is_rgbw; }
+  void set_channel_colors(light::ChannelColors channel_colors) {
+    this->internal_accessor_.channel_colors = channel_colors;
+  }
+
+  /// Call after set_num_leds() and set_channel_colors().
+  void set_buffer(uint8_t *buffer) { this->internal_accessor_.set_buffer(buffer, this->num_leds_); }
 
   void set_max_refresh_rate(float interval_us) { this->max_refresh_rate_ = interval_us; }
 
@@ -80,50 +43,40 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   void set_program(const pio_program_t *program) { this->program_ = program; }
   void set_init_function(init_fn init) { this->init_ = init; }
 
-  void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
-  void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++) {
-      this->effect_data_[i] = 0;
-    }
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_leds_); }
 
   void dump_config() override;
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override;
-
-  size_t get_buffer_size_() const { return this->num_leds_ * (3 + this->is_rgbw_); }
+  size_t get_buffer_size_() const { return this->num_leds_ * this->internal_accessor_.channel_colors.bytes_per_led(); }
 
   static void dma_write_complete_handler();
 
-  uint8_t *buf_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
 
   uint8_t pin_;
   uint32_t num_leds_;
-  bool is_rgbw_;
 
   pio_hw_t *pio_;
   uint sm_;
   uint dma_chan_;
   dma_channel_config dma_config_;
 
-  RGBOrder rgb_order_{ORDER_RGB};
-  Chipset chipset_{CHIPSET_CUSTOM};
-
-  uint32_t last_refresh_{0};
   float max_refresh_rate_;
 
   const pio_program_t *program_;
   init_fn init_;
 
  private:
-  inline static int num_instance[2];
-  inline static std::map<Chipset, bool> conf_count;
-  inline static std::map<Chipset, int> chipset_offsets;
-  inline static bool dma_chan_active[12];
-  inline static struct semaphore dma_write_complete_sem[12];
+  // Programs loaded into each PIO; strips with the same timings share one program pointer
+  struct LoadedPrograms {
+    const pio_program_t *program[NUM_PIO_STATE_MACHINES];
+    uint8_t offset[NUM_PIO_STATE_MACHINES];
+    uint8_t strips;
+  };
+  inline static LoadedPrograms loaded_programs[2];
+  inline static bool dma_chan_active[NUM_DMA_CHANNELS];
+  inline static struct semaphore dma_write_complete_sem[NUM_DMA_CHANNELS];
 };
 
 }  // namespace esphome::rp2040_pio_led_strip

@@ -1,0 +1,17 @@
+ethernet:
+  type: W5500
+  clk_pin: 19
+  mosi_pin: 21
+  miso_pin: 17
+  cs_pin: 18
+  interrupt_pin: 36
+  reset_pin: 12
+  clock_speed: 10Mhz
+
+logger:
+  hardware_uart: UART0
+
+# Exercises the per-interface webserver URL collection at compile time
+web_server:
+
+improv_serial:

@@ -1,0 +1,8 @@
+packages:
+  espectre: !include common.yaml
+
+text:
+  - platform: espectre
+    espectre_id: espectre_hub
+    traffic_generator_target_mac:
+      name: CSI Traffic Target MAC

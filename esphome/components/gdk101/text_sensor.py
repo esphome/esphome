@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_VERSION, ENTITY_CATEGORY_DIAGNOSTIC, ICON_CHIP
+from esphome.types import ConfigType
 
 from . import CONF_GDK101_ID, GDK101Component
 
@@ -17,7 +18,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_GDK101_ID])
     var = await text_sensor.new_text_sensor(config[CONF_VERSION])
     cg.add(hub.set_fw_version_text_sensor(var))

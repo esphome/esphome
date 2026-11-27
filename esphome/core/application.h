@@ -64,10 +64,42 @@ struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
 // cleanly is a warning in the log.
 static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
+namespace app_lists {
+#ifdef USE_DEVICES
+extern Device *const APP_DEVICE_LIST[];
+#endif
+#ifdef USE_AREAS
+extern Area *const APP_AREA_LIST[];
+#endif
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) extern type *const APP_##upper##_LIST[];
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+// NOLINTEND(bugprone-macro-parentheses)
+}  // namespace app_lists
+
+/// ESP8266 reads these aligned pointers from flash like RAM.
+template<typename T, size_t N> class AppList {
+ public:
+  using value_type = T *;
+  explicit AppList(T *const *list) : list_(list) {}
+  static constexpr size_t size() { return N; }
+  static constexpr bool empty() { return N == 0; }
+  T *operator[](size_t i) const { return this->list_[i]; }
+  T *const *begin() const { return this->list_; }
+  T *const *end() const { return this->list_ + N; }
+
+ private:
+  T *const *list_;
+};
+
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -87,7 +119,7 @@ class Application {
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 #else
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
   void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -98,10 +130,14 @@ class Application {
 #endif
 
 #ifdef USE_DEVICES
-  void register_device(Device *device) { this->devices_.push_back(device); }
+  template<typename D = Device> void register_device(D * /*device*/) {
+    static_assert(sizeof(D) == 0, "Devices come from the devices: list in YAML and cannot be added at run time");
+  }
 #endif
 #ifdef USE_AREAS
-  void register_area(Area *area) { this->areas_.push_back(area); }
+  template<typename A = Area> void register_area(A * /*area*/) {
+    static_assert(sizeof(A) == 0, "Areas come from the areas: list in YAML and cannot be added at run time");
+  }
 #endif
 
   Component *get_current_component() { return this->current_component_; }
@@ -111,18 +147,11 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
-// Entity register methods (generated from entity_types.h).
-// Each entity type gets two overloads:
-//   - register_<entity>(obj)                              — bare push_back
-//   - register_<entity>(obj, name, hash, fields)          — configure_entity_ + push_back
-// The 4-arg form lets codegen collapse `App.register_<entity>(obj); obj->configure_entity_(...);`
-// into a single call site, saving flash and a `main.cpp` line per entity.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
-  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
-    obj->configure_entity_(name, object_id_hash, entity_fields); \
-    this->plural##_.push_back(obj); \
+  template<typename U = type, typename... A> void register_##singular(U * /*obj*/, A... /*args*/) { \
+    static_assert(sizeof(U) == 0, \
+                  "Entities are created by code generation; creating them at run time is not supported"); \
   }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
@@ -155,12 +184,11 @@ class Application {
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
 #ifdef USE_AREAS
-    // If we have areas registered, return the name of the first one (which is the top-level area)
-    if (!this->areas_.empty() && this->areas_[0] != nullptr) {
-      return this->areas_[0]->get_name();
-    }
-#endif
+    // USE_AREAS implies at least one area
+    return this->get_areas()[0]->get_name();
+#else
     return "";
+#endif
   }
 
   /// Maximum size of the comment buffer (including null terminator)
@@ -170,6 +198,8 @@ class Application {
   void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
 
   /// Get the comment of this Application as a string
+  // Remove before 2027.6.0
+  ESPDEPRECATED("Use get_comment_string() instead. Removed in 2027.6.0", "2026.12.0")
   std::string get_comment() {
     char buffer[ESPHOME_COMMENT_SIZE_MAX];
     this->get_comment_string(buffer);
@@ -208,8 +238,8 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
-   * Note: This method is not called by ESPHome core code. It is only used by lambda functions
-   * in YAML configurations or by external components.
+   * Sleep per wake is capped at 2 * WDT_FEED_INTERVAL_MS (except host, ESP8266, and ESP32
+   * with watchdog_timeout: 0s); raise the platform watchdog timeout to sleep longer.
    *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
@@ -232,12 +262,14 @@ class Application {
   ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
   ///   - ESP8266 HW WDT (~6 s):               ~60x
   ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
+  /// Important: if these are modified align validate_loop_interval in config.py
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
   // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
 #elif defined(USE_ESP32)
+#ifdef USE_ESP32_TASK_WDT
   // Auto-scale to 1/5 of the configured ESP32 task WDT timeout so the safety
   // margin stays constant when the user raises esp32.watchdog_timeout (default
   // 5 s → 1000 ms feed; 10 s → 2000 ms; 60 s → 12000 ms). The esp32 component
@@ -251,6 +283,10 @@ class Application {
   static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
                 "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
+#else
+  // No task watchdog to feed; the rate limit never fires.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = std::numeric_limits<uint32_t>::max();
+#endif
 #elif defined(USE_ESP8266)
   // ESP8266 needs a tighter feed cadence than the other targets: the soft WDT
   // is ~1.6 s and the HW WDT ~6 s, but a single long iteration (mDNS reply,
@@ -266,7 +302,15 @@ class Application {
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
+#if defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT) && !defined(USE_STATUS_LED)
+  // watchdog_timeout: 0s leaves no watchdog to feed, and no status LED needs the call
+  void feed_wdt() {}
+#else
   void feed_wdt();
+#endif
+  /// Feed from code that may run off the loop task (a long download or image decode): on ESP32 only a task the
+  /// watchdog watches feeds it. With watchdog_timeout: 0s only the loop task calls through, to run the status LED.
+  void feed_wdt_if_watched();
 
 #ifdef USE_STATUS_LED
   /// Dispatch interval for the status LED update. Deliberately shorter than
@@ -301,6 +345,9 @@ class Application {
 
   void safe_reboot();
 
+  /// Run the safe shutdown hooks, give components up to timeout_ms to tear down, then run the powerdown hooks.
+  void safe_shutdown(uint32_t timeout_ms);
+
   void run_safe_shutdown_hooks();
 
   void run_powerdown_hooks();
@@ -328,18 +375,20 @@ class Application {
 #ifdef USE_DEVICES
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, uint32_t device_id, bool include_internal = false) { \
-    for (auto *obj : this->entities_member##_) { \
+    for (auto *obj : this->get_##entities_member()) { \
       if (obj->get_object_id_hash() == key && obj->get_device_id() == device_id && \
           (include_internal || !obj->is_internal())) \
         return obj; \
     } \
     return nullptr; \
   }
-  const auto &get_devices() { return this->devices_; }
+  AppList<Device, ESPHOME_DEVICE_COUNT> get_devices() const {
+    return AppList<Device, ESPHOME_DEVICE_COUNT>(app_lists::APP_DEVICE_LIST);
+  }
 #else
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, bool include_internal = false) { \
-    for (auto *obj : this->entities_member##_) { \
+    for (auto *obj : this->get_##entities_member()) { \
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) \
         return obj; \
     } \
@@ -347,12 +396,14 @@ class Application {
   }
 #endif  // USE_DEVICES
 #ifdef USE_AREAS
-  const auto &get_areas() { return this->areas_; }
+  AppList<Area, ESPHOME_AREA_COUNT> get_areas() const {
+    return AppList<Area, ESPHOME_AREA_COUNT>(app_lists::APP_AREA_LIST);
+  }
 #endif
 // Entity getter methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  auto &get_##plural() const { return this->plural##_; } \
+  auto get_##plural() const { return AppList<type, count>(app_lists::APP_##upper##_LIST); } \
   GET_ENTITY_METHOD(type, singular, plural)
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
@@ -389,11 +440,26 @@ class Application {
   friend Component;
   friend class Scheduler;
   friend class LoopBlockingGuard;
+  friend class UnavoidableBlockingScope;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
   friend void ::setup();
   friend void ::original_setup();
+
+  // For setup(): applies the EntityBase offset once instead of a literal per call
+  // NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) \
+  static void __attribute__((noinline)) configure_##singular(type *obj, const char *name, uint32_t object_id_hash, \
+                                                             uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
+  }
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
 
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
@@ -425,19 +491,18 @@ class Application {
   void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_() {
-    // FixedVector capacity was pre-initialized by codegen with the exact count
+    // Capacity was pre-initialized by codegen with the exact count
     // of components that override loop(), computed at C++ compile time.
 
-    // Add all components with loop override that aren't already LOOP_DONE
-    // Some components (like logger) may call disable_loop() during initialization
-    // before setup runs, so we need to respect their LOOP_DONE state
+    // Add all components with loop override that aren't already LOOP_DONE or FAILED
+    // Some components (like logger) may call disable_loop() during initialization,
+    // and some call mark_failed() from their constructor, before setup runs
     this->add_looping_components_by_state_(false);
     this->looping_components_active_end_ = this->looping_components_.size();
-    // Then add any components that are already LOOP_DONE to the inactive section
-    // This handles components that called disable_loop() during initialization
+    // Then add any components that are already LOOP_DONE or FAILED to the inactive section
     this->add_looping_components_by_state_(true);
   }
-  void add_looping_components_by_state_(bool match_loop_done);
+  void add_looping_components_by_state_(bool inactive);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()
   // Components should not call these directly - use this->disable_loop() or this->enable_loop()
@@ -505,7 +570,7 @@ class Application {
   // - When a component is enabled, it's swapped with the first inactive component
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
-  FixedVector<Component *> looping_components_{};
+  StaticFixedVector<Component *> looping_components_{};
 
   // StringRef members (8 bytes each: pointer + size)
   StringRef name_;
@@ -528,28 +593,12 @@ class Application {
 
   // 1-byte members (grouped together to minimize padding)
   uint8_t app_state_{0};
-  bool name_add_mac_suffix_;
+  bool name_add_mac_suffix_{false};
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
   // StaticVectors (largest members - contain actual array data inline)
   StaticVector<Component *, ESPHOME_COMPONENT_COUNT> components_{};
-
-#ifdef USE_DEVICES
-  StaticVector<Device *, ESPHOME_DEVICE_COUNT> devices_{};
-#endif
-#ifdef USE_AREAS
-  StaticVector<Area *, ESPHOME_AREA_COUNT> areas_{};
-#endif
-// Entity StaticVector fields (generated from entity_types.h)
-// NOLINTBEGIN(bugprone-macro-parentheses)
-#define ENTITY_TYPE_(type, singular, plural, count, upper) StaticVector<type *, count> plural##_{};
-#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
-  ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.h"
-#undef ENTITY_TYPE_
-#undef ENTITY_CONTROLLER_TYPE_
-  // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
   StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
@@ -631,6 +680,38 @@ class LoopBlockingGuard {
   static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
 };
 
+/// Leaves a stretch of the current loop pass out of the blocking warning.
+///
+/// Only for work that cannot be made shorter or split across passes: radio
+/// bring-up, a first network connect, a key generation. Work that could be
+/// cached, deferred, polled or turned into a state machine stays outside, so
+/// the warning keeps finding it.
+///
+/// Affects only work timed by LoopBlockingGuard: loop() and scheduler
+/// callbacks, not setup(). Main loop task only. The watchdog is not fed, so
+/// pair long work with watchdog::WatchdogManager. Scopes may nest.
+/// Afterwards App.get_loop_component_start_time() can be earlier than a
+/// millis() read taken before the scope; time the work with millis() at both ends.
+///
+///   UnavoidableBlockingScope scope;
+///   this->generate_key_();
+class UnavoidableBlockingScope {
+ public:
+  UnavoidableBlockingScope() : started_(MillisInternal::get()), pass_start_(App.get_loop_component_start_time()) {}
+  ~UnavoidableBlockingScope() {
+    // Move the pass start seen at entry forward by the time spent here, clamped to now
+    const uint32_t now = MillisInternal::get();
+    const uint32_t moved = this->pass_start_ + (now - this->started_);
+    App.set_loop_component_start_time_(static_cast<int32_t>(now - moved) < 0 ? now : moved);
+  }
+  UnavoidableBlockingScope(const UnavoidableBlockingScope &) = delete;
+  UnavoidableBlockingScope &operator=(const UnavoidableBlockingScope &) = delete;
+
+ private:
+  uint32_t started_;
+  uint32_t pass_start_;
+};
+
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
@@ -672,8 +753,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
   // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
   // subsequent Socket::ready() checks in this iter observe the published state
-  // without a per-call memw. Wake is independent (xTaskNotifyGive/
-  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // without a per-call memw. Wake is independent (esphome_main_task_notify/
+  // esphome_main_task_wait), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
   // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
   // instead.
   std::atomic_thread_fence(std::memory_order_acquire);
@@ -750,6 +831,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifdef USE_RUNTIME_STATS
     loop_tail_start_us = micros();
 #endif
+    // process scheduler items added in component phase
+    this->scheduler.process_to_add();
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
     // phase_guard destructor clears in_loop_ at scope exit
@@ -775,8 +858,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   }
 #endif
 
-  // Compute sleep: bounded by time-until-next-component-phase and the
-  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // Compute sleep: bounded by time-until-next-component-phase if there are
+  // components with loop enabled and the scheduler's next deadline. When a scheduler timer fires it re-enters
   // loop(), Phase A services it, and the component phase stays gated by
   // loop_interval_. When a background producer calls wake_loop_threadsafe()
   // it sets the wake_request flag and wakes select() / the task notification;
@@ -795,16 +878,47 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint32_t delay_time = 0;
   if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
-    const uint32_t until_phase =
+#ifdef ESPHOME_SUSPEND_LOOP
+    const bool has_loop_work =
+        this->looping_components_active_end_ > 0 || this->dump_config_at_ < this->components_.size();
+    uint32_t until_phase = std::numeric_limits<uint32_t>::max();
+    if (has_loop_work) {
+      until_phase = (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+    }
+#else
+    uint32_t until_phase =
         (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+#endif
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  esphome::internal::wakeable_delay(delay_time);
+  // Cap the sleep so the WDT feed and status-LED dispatch rate limits still get
+  // exercised even when loop_interval is raised or the scheduler and component
+  // phases are gated out for a long sleep. Waking every 2*WDT_FEED_INTERVAL_MS
+  // clears the feed rate limit on every wake, so the WDT is fed at least that
+  // often -- well inside every platform's timeout.
+#if defined(USE_ESP8266)
+  // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
+  // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
+  static constexpr uint32_t MAX_SLEEP_BASE = 0x68D7A3;
+#elif defined(USE_HOST) || (defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT))
+  // No watchdog to feed (host, or ESP32 with watchdog_timeout: 0s), so nothing caps the sleep; with
+  // suspend_loop an ESP32 may sleep until a wake notification arrives.
+  static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
+#else
+  static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;
+#endif
+  uint32_t max_sleep = MAX_SLEEP_BASE;
+#ifdef USE_STATUS_LED
+  if ((this->app_state_ & STATUS_LED_MASK) != 0) {
+    max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
+  }
+#endif
 
+  esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }

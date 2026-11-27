@@ -4,7 +4,14 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_COMPONENT_ID, CONF_ID, CONF_PAGE_ID, CONF_STATE
 
-from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from .. import (
+    CONF_NEXTION_ID,
+    CONF_PUBLISH_STATE,
+    CONF_SEND_TO_NEXTION,
+    nextion_ns,
+    register_binarysensor_component,
+    register_touch_component,
+)
 from ..base_component import (
     CONF_COMPONENT_NAME,
     CONF_VARIABLE_NAME,
@@ -16,10 +23,6 @@ CODEOWNERS = ["@senexcrenshaw"]
 
 NextionBinarySensor = nextion_ns.class_(
     "NextionBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent
-)
-
-NextionPublishBoolAction = nextion_ns.class_(
-    "NextionPublishBoolAction", automation.Action
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -48,18 +51,17 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     if config.keys() >= {CONF_PAGE_ID, CONF_COMPONENT_ID}:
-        cg.add(hub.register_touch_component(var))
+        cg.add(register_touch_component(hub, var))
         cg.add(var.set_component_id(config[CONF_COMPONENT_ID]))
         cg.add(var.set_page_id(config[CONF_PAGE_ID]))
 
     if CONF_COMPONENT_NAME in config or CONF_VARIABLE_NAME in config:
         await setup_component_core_(var, config, ".val")
-        cg.add(hub.register_binarysensor_component(var))
+        cg.add(register_binarysensor_component(hub, var))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "binary_sensor.nextion.publish",
-    NextionPublishBoolAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(NextionBinarySensor),
@@ -70,19 +72,12 @@ async def to_code(config):
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "set_state({}, {}, {})",
+        (
+            (CONF_STATE, cg.bool_),
+            (CONF_PUBLISH_STATE, cg.bool_),
+            (CONF_SEND_TO_NEXTION, cg.bool_),
+        ),
+    ),
 )
-async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-
-    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, cg.bool_)
-    cg.add(var.set_publish_state(template_))
-
-    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, cg.bool_)
-    cg.add(var.set_send_to_nextion(template_))
-
-    return var

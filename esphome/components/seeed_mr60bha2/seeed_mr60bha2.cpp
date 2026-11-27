@@ -1,5 +1,6 @@
 #include "seeed_mr60bha2.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -7,7 +8,7 @@
 
 namespace esphome::seeed_mr60bha2 {
 
-static const char *const TAG = "seeed_mr60bha2";
+ESPHOME_LOG_TAG(TAG, "seeed_mr60bha2");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t MR60BHA2_MAX_LOG_BYTES = 64;
@@ -27,46 +28,6 @@ void MR60BHA2Component::dump_config() {
 #endif
 }
 
-// main loop
-void MR60BHA2Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->rx_message_.push_back(buf[i]);
-      if (!this->validate_message_()) {
-        this->rx_message_.clear();
-      }
-    }
-  }
-}
-
-/**
- * @brief Calculate the checksum for a byte array.
- *
- * This function calculates the checksum for the provided byte array using an
- * XOR-based checksum algorithm.
- *
- * @param data The byte array to calculate the checksum for.
- * @param len The length of the byte array.
- * @return The calculated checksum.
- */
-static uint8_t calculate_checksum(const uint8_t *data, size_t len) {
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < len; i++) {
-    checksum ^= data[i];
-  }
-  checksum = ~checksum;
-  return checksum;
-}
-
 /**
  * @brief Validate the checksum of a byte array.
  *
@@ -79,89 +40,71 @@ static uint8_t calculate_checksum(const uint8_t *data, size_t len) {
  * @return True if the checksum is valid, false otherwise.
  */
 static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_checksum) {
-  return calculate_checksum(data, len) == expected_checksum;
+  return static_cast<uint8_t>(~xor_bytes(data, len)) == expected_checksum;
 }
 
-bool MR60BHA2Component::validate_message_() {
-  size_t at = this->rx_message_.size() - 1;
-  auto *data = &this->rx_message_[0];
-  uint8_t new_byte = data[at];
+static bool is_known_type(uint16_t type) {
+  return type == BREATH_RATE_TYPE_BUFFER || type == HEART_RATE_TYPE_BUFFER || type == DISTANCE_TYPE_BUFFER ||
+         type == PEOPLE_EXIST_TYPE_BUFFER || type == PRINT_CLOUD_BUFFER;
+}
 
-  if (at == 0) {
-    return new_byte == FRAME_HEADER_BUFFER;
-  }
-
-  if (at <= 2) {
-    return true;
-  }
-  uint16_t frame_id = encode_uint16(data[1], data[2]);
-
-  if (at <= 4) {
-    return true;
-  }
-
-  uint16_t length = encode_uint16(data[3], data[4]);
-
-  if (at <= 6) {
-    return true;
-  }
-
-  uint16_t frame_type = encode_uint16(data[5], data[6]);
-
-  if (frame_type != BREATH_RATE_TYPE_BUFFER && frame_type != HEART_RATE_TYPE_BUFFER &&
-      frame_type != DISTANCE_TYPE_BUFFER && frame_type != PEOPLE_EXIST_TYPE_BUFFER &&
-      frame_type != PRINT_CLOUD_BUFFER) {
+// An unknown type or a bad header checksum fails, so the header is dropped at once
+bool header_valid(const uint8_t *frame) {
+  if (!is_known_type(encode_uint16(frame[5], frame[6])))
+    return false;
+  constexpr size_t cksum_pos = PayloadLength::PAYLOAD_AT - 1;
+  if (!validate_checksum(frame, cksum_pos, frame[cksum_pos])) {
+    ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", frame[cksum_pos]);
+    ESP_LOGV_HEX(TAG, frame, PayloadLength::PAYLOAD_AT, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
     return false;
   }
+  return true;
+}
 
-  uint8_t header_checksum = new_byte;
+void warn_too_long(size_t len) {
+  ESP_LOGW(TAG, "Skipped a %u byte frame, longer than the %u byte buffer", static_cast<unsigned>(len),
+           static_cast<unsigned>(FRAME_MAX_SIZE));
+}
 
-  if (at == 7) {
-    if (!validate_checksum(data, 7, header_checksum)) {
-      ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", header_checksum);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
-#endif
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8));
+// The reader checks the type and the header; the data checksum is checked here
+static bool frame_valid(const uint8_t *frame, size_t len) {
+  if (!validate_checksum(frame + PayloadLength::PAYLOAD_AT, len - FRAME_OVERHEAD, frame[len - 1])) {
+    ESP_LOGE(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", frame[len - 1]);
+    ESP_LOGV_HEX(TAG, frame, len - 1, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
+    return false;
+  }
+  return true;
+}
+
+void MR60BHA2Component::loop() {
+  auto handler = [this](const uint8_t *frame, size_t len) {
+    if (!frame_valid(frame, len))
       return false;
-    }
+    this->handle_frame_(frame, len);
     return true;
-  }
+  };
+  this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_);
+}
 
-  // Wait until all data is read
-  if (at - 8 < length) {
-    return true;
-  }
-
-  uint8_t data_checksum = new_byte;
-  if (at == 8 + length) {
-    if (!validate_checksum(data + 8, length, data_checksum)) {
-      ESP_LOGE(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", data_checksum);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
-#endif
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8 + length));
-      return false;
-    }
-  }
-
-  const uint8_t *frame_data = data + 8;
+void MR60BHA2Component::handle_frame_(const uint8_t *frame, size_t len) {
+  const uint16_t frame_id = encode_uint16(frame[1], frame[2]);
+  const uint16_t frame_type = encode_uint16(frame[5], frame[6]);
+  const uint8_t *frame_data = frame + PayloadLength::PAYLOAD_AT;
+  const size_t length = len - FRAME_OVERHEAD;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf1[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
   char hex_buf2[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
 #endif
   ESP_LOGV(TAG, "Received Frame: ID: 0x%04x, Type: 0x%04x, Data: [%s] Raw Data: [%s]", frame_id, frame_type,
            format_hex_pretty_to(hex_buf1, sizeof(hex_buf1), frame_data, length),
-           format_hex_pretty_to(hex_buf2, sizeof(hex_buf2), this->rx_message_.data(), this->rx_message_.size()));
-  this->process_frame_(frame_id, frame_type, data + 8, length);
-
-  // Return false to reset rx buffer
-  return false;
+           format_hex_pretty_to(hex_buf2, sizeof(hex_buf2), frame, len));
+  this->process_frame_(frame_id, frame_type, frame_data, length);
 }
 
 void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, const uint8_t *data, size_t length) {
   switch (frame_type) {
     case BREATH_RATE_TYPE_BUFFER:
+#ifdef USE_SENSOR
       if (this->breath_rate_sensor_ != nullptr && length >= 4) {
         uint32_t current_breath_rate_int = encode_uint32(data[3], data[2], data[1], data[0]);
         if (current_breath_rate_int != 0) {
@@ -170,24 +113,26 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
           this->breath_rate_sensor_->publish_state(breath_rate_float);
         }
       }
+#endif
       break;
     case PEOPLE_EXIST_TYPE_BUFFER:
+#ifdef USE_BINARY_SENSOR
       if (this->has_target_binary_sensor_ != nullptr && length >= 2) {
         uint16_t has_target_int = encode_uint16(data[1], data[0]);
         this->has_target_binary_sensor_->publish_state(has_target_int);
+#ifdef USE_SENSOR
         if (has_target_int == 0) {
-          if (this->breath_rate_sensor_ != nullptr)
-            this->breath_rate_sensor_->publish_state(0.0);
-          if (this->heart_rate_sensor_ != nullptr)
-            this->heart_rate_sensor_->publish_state(0.0);
-          if (this->distance_sensor_ != nullptr)
-            this->distance_sensor_->publish_state(0.0);
-          if (this->num_targets_sensor_ != nullptr)
-            this->num_targets_sensor_->publish_state(0);
+          PUBLISH_STATE(this->breath_rate_sensor_, 0.0);
+          PUBLISH_STATE(this->heart_rate_sensor_, 0.0);
+          PUBLISH_STATE(this->distance_sensor_, 0.0);
+          PUBLISH_STATE(this->num_targets_sensor_, 0);
         }
+#endif
       }
+#endif
       break;
     case HEART_RATE_TYPE_BUFFER:
+#ifdef USE_SENSOR
       if (this->heart_rate_sensor_ != nullptr && length >= 4) {
         uint32_t current_heart_rate_int = encode_uint32(data[3], data[2], data[1], data[0]);
         if (current_heart_rate_int != 0) {
@@ -196,8 +141,10 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
           this->heart_rate_sensor_->publish_state(heart_rate_float);
         }
       }
+#endif
       break;
     case DISTANCE_TYPE_BUFFER:
+#ifdef USE_SENSOR
       if (length >= 1 && data[0] != 0) {
         if (this->distance_sensor_ != nullptr && length >= 8) {
           uint32_t current_distance_int = encode_uint32(data[7], data[6], data[5], data[4]);
@@ -206,12 +153,15 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
           this->distance_sensor_->publish_state(distance_float);
         }
       }
+#endif
       break;
     case PRINT_CLOUD_BUFFER:
+#ifdef USE_SENSOR
       if (this->num_targets_sensor_ != nullptr && length >= 4) {
         uint32_t current_num_targets_int = encode_uint32(data[3], data[2], data[1], data[0]);
         this->num_targets_sensor_->publish_state(current_num_targets_int);
       }
+#endif
       break;
     default:
       break;

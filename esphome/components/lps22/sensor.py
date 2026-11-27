@@ -1,17 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_PRESSURE,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
-)
+from esphome.const import CONF_PRESSURE, CONF_TEMPERATURE, ICON_THERMOMETER
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@nagisa"]
 DEPENDENCIES = ["i2c"]
@@ -25,17 +16,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(LPS22Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PRESSURE, accuracy_decimals=2
             ),
         }
     )
@@ -44,15 +28,9 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
-
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_PRESSURE, var.set_pressure_sensor)

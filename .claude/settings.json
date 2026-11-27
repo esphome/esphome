@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-.}\"; [ -x \"$d/venv/bin/python\" ] || { mkdir -p \"$d/.temp\"; env -u VIRTUAL_ENV \"$d/script/setup\" >\"$d/.temp/setup.log\" 2>&1 || echo '{\"systemMessage\":\"script/setup failed; see .temp/setup.log\"}'; }",
+            "statusMessage": "Setting up dev environment (script/setup)...",
+            "timeout": 900
+          }
+        ]
+      }
+    ]
+  }
+}

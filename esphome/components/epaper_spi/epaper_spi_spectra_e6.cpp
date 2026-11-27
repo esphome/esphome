@@ -4,7 +4,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.6c";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.6c");
 
 // Native hardware color codes for this panel's 4-bit color values.
 enum E6Color : uint8_t {
@@ -18,6 +18,17 @@ enum E6Color : uint8_t {
 
 uint8_t EPaperSpectraE6::color_to_native(Color color) {
   return color_to_bwyrgb<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE);
+}
+
+// The controller needs time to come out of reset before the init sequence is sent
+static constexpr uint16_t RESET_SETTLE_MS = 50;
+
+bool EPaperSpectraE6::reset() {
+  if (!EPaperBase::reset()) {
+    return false;
+  }
+  this->next_delay_ = RESET_SETTLE_MS;
+  return true;
 }
 
 void EPaperSpectraE6::power_on() {

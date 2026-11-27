@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -53,8 +52,9 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.cpp_generator import TemplateArguments
+from esphome.cpp_generator import MockObjClass, TemplateArguments
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN, models
 
@@ -110,7 +110,7 @@ DISPLAY_PIXEL_MODES = {
 }
 
 
-def denominator(config):
+def denominator(config: ConfigType) -> int:
     """
     Calculate the best denominator for a buffer size fraction.
     The denominator should be a number between 2 and 16 that divides the display height evenly,
@@ -132,7 +132,7 @@ def denominator(config):
         return next(x for x in range(2, 17) if frac >= 1 / x)
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.All | cv.Schema:
     model = MODELS[config[CONF_MODEL]]
     bus_mode = config[CONF_BUS_MODE]
     transform = model.transform_schema()
@@ -197,9 +197,7 @@ def model_schema(config):
             {
                 cv.GenerateID(): cv.declare_id(MipiSpi),
                 cv_dimensions(CONF_DIMENSIONS): dimension_schema(1),
-                model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
-                    pins.gpio_output_pin_schema
-                ),
+                **display.enable_pin_schema(model, config),
                 model.option(CONF_COLOR_ORDER, MODE_BGR): cv.enum(
                     COLOR_ORDERS, upper=True
                 ),
@@ -224,13 +222,9 @@ def model_schema(config):
         )
         .extend({model.option(x): cv.boolean for x in other_options})
     )
-    if brightness := model.get_default(CONF_BRIGHTNESS):
+    if model.get_default(CONF_BRIGHTNESS, None) is not None or model.name == "CUSTOM":
         schema = schema.extend(
-            {
-                cv.Optional(CONF_BRIGHTNESS, default=brightness): cv.int_range(
-                    0, 0xFF, min_included=True, max_included=True
-                ),
-            }
+            {model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t}
         )
     if bus_mode != TYPE_SINGLE:
         return cv.All(schema, cv.only_on_esp32)
@@ -238,7 +232,7 @@ def model_schema(config):
 
 
 @model_schema_extractor(MODELS, model_schema, extra={CONF_BUS_MODE: TYPE_SINGLE})
-def customise_schema(config):
+def customise_schema(config: ConfigType) -> ConfigType:
     """
     Create a customised config schema for a specific model and validate the configuration.
     :param config: The configuration dictionary to validate
@@ -305,7 +299,7 @@ def customise_schema(config):
 CONFIG_SCHEMA = customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
     model = MODELS[config[CONF_MODEL]]
 
@@ -341,7 +335,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def get_instance(config):
+def get_instance(config: ConfigType) -> tuple[MockObjClass, list]:
     """
     Get the type of MipiSpi instance to create based on the configuration,
     and the template arguments.
@@ -394,32 +388,24 @@ def get_instance(config):
     return MipiSpi, templateargs
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL]]
     var_id = config[CONF_ID]
     init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
-    cg.add(var.set_init_sequence(init_sequence))
+    table = cg.shared_progmem_array("mipi_spi_init_sequence", cg.uint8, init_sequence)
+    cg.add(var.set_init_sequence(table, len(init_sequence)))
     cg.add(var.set_model(config[CONF_MODEL]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
 
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
-
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc_pin = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc_pin))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
 
     if config.get(CONF_INVERT_COLORS):
         cg.add(var.set_invert_colors(True))
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)

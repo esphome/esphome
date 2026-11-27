@@ -1,0 +1,35 @@
+esphome:
+  name: host-pref-key-stability
+
+host:
+api:
+logger:
+
+switch:
+  - platform: template
+    id: test_switch_restore
+    name: Test Switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+number:
+  - platform: template
+    id: test_number_restore
+    name: Test Number
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    min_value: 0
+    max_value: 100
+    step: 0.5
+
+text:
+  - platform: template
+    id: test_text_restore
+    name: Test Text
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: fallback
+    min_length: 0
+    max_length: 20

@@ -28,6 +28,7 @@ import pytest
 from esphome.helpers import fnv1_hash_object_id
 
 from .entity_utils import compute_object_id, verify_all_entities
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Host platform default MAC: 98:35:69:ab:f6:79 -> suffix "abf679"
@@ -78,14 +79,8 @@ async def test_object_id_api_verification(
     4. Generic verification - all entities can have object_id computed from API data
     """
     async with run_compiled(yaml_config), api_client_connected() as client:
-        # Get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-
         # Device name should include MAC suffix (hyphen separator)
-        assert device_info.name == f"object-id-test-{MAC_SUFFIX}", (
-            f"Device name mismatch: got '{device_info.name}'"
-        )
+        device_info = await assert_device_name(client, f"object-id-test-{MAC_SUFFIX}")
         # Friendly name should include MAC suffix (space separator)
         expected_friendly_name = f"Test Device {MAC_SUFFIX}"
         assert device_info.friendly_name == expected_friendly_name, (

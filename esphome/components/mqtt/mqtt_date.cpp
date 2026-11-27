@@ -10,14 +10,14 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.datetime";
+ESPHOME_LOG_TAG(TAG, "mqtt.datetime");
 
 using namespace esphome::datetime;
 
 MQTTDateComponent::MQTTDateComponent(DateEntity *date) : date_(date) {}
 
 void MQTTDateComponent::setup() {
-  this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
+  this->subscribe_json(this->command_topic_source_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->date_->make_call();
     if (root[ESPHOME_F("year")].is<uint16_t>()) {
       call.set_year(root[ESPHOME_F("year")]);
@@ -34,16 +34,18 @@ void MQTTDateComponent::setup() {
       [this]() { this->publish_state(this->date_->year, this->date_->month, this->date_->day); });
 }
 
-void MQTTDateComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Date '%s':", this->date_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTDateComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTDateComponent, "date")
 const EntityBase *MQTTDateComponent::get_entity() const { return this->date_; }
 
 void MQTTDateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // Nothing extra to add here
+  // Home Assistant sends and expects ISO "YYYY-MM-DD", while state and command payloads here are JSON
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  root[MQTT_VALUE_TEMPLATE] =
+      ESPHOME_F("{{ '%04d-%02d-%02d' | format(value_json.year, value_json.month, value_json.day) }}");
+  root[MQTT_COMMAND_TEMPLATE] =
+      ESPHOME_F("{\"year\":{{ value.year }},\"month\":{{ value.month }},\"day\":{{ value.day }}}");
 }
 bool MQTTDateComponent::send_initial_state() {
   if (this->date_->has_state()) {

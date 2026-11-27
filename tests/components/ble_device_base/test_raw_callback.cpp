@@ -13,17 +13,12 @@ namespace esphome::ble_device_base::testing {
 //
 // The in-tree emit site (BK72xxBLETracker::on_scan_report) compiles against
 // the Beken SDK and cannot run host-side, so the guard-and-fire semantics are
-// pinned here through a minimal host BLEHub implementation instead.
+// pinned here through a minimal host hub carrying only the slot under test.
 namespace {
 
-class FakeHub : public BLEHub {
+class FakeHub {
  public:
-  void register_listener(ESPBTDeviceListener *listener) override {}
-  void set_raw_advertisement_callback(RawAdvertisementCallback callback) override { this->callback_ = callback; }
-  HubCapabilities get_capabilities() const override { return {false, false, false}; }
-  void get_adapter_mac(uint8_t out[6]) override {}
-  bool scan_running() override { return false; }
-  bool scan_active() override { return false; }
+  void set_raw_advertisement_callback(RawAdvertisementCallback callback) { this->callback_ = callback; }
 
   /// The emit path every tracker implements: fire only when a subscriber is set.
   void emit(const RawAdvertisement &adv) {
@@ -46,13 +41,13 @@ struct CapturingSubscriber {
   }
 };
 
-// Device AA:BB:CC:DD:EE:FF — controller order delivers FF first.
-const uint8_t MAC_LSB_FIRST[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+// Device AA:BB:CC:DD:EE:FF, packed the way the API speaks it.
+constexpr uint64_t TEST_ADDRESS = 0xAABBCCDDEEFFULL;
 const uint8_t ADV_DATA[4] = {0x02, 0x01, 0x06, 0x00};
 
 RawAdvertisement make_test_adv() {
   return RawAdvertisement{
-      .mac = MAC_LSB_FIRST, .data = ADV_DATA, .data_len = sizeof(ADV_DATA), .rssi = -63, .addr_type = 1};
+      .address = TEST_ADDRESS, .data = ADV_DATA, .data_len = sizeof(ADV_DATA), .rssi = -63, .addr_type = 1};
 }
 
 }  // namespace
@@ -70,7 +65,7 @@ TEST(RawAdvertisementCallback, SubscriberSeesFieldsUnchanged) {
   hub.emit(make_test_adv());
 
   ASSERT_EQ(subscriber.calls, 1);
-  EXPECT_EQ(subscriber.last.mac, MAC_LSB_FIRST);
+  EXPECT_EQ(subscriber.last.address, TEST_ADDRESS);
   EXPECT_EQ(subscriber.last.data, ADV_DATA);
   EXPECT_EQ(subscriber.last.data_len, sizeof(ADV_DATA));
   EXPECT_EQ(subscriber.last.rssi, -63);

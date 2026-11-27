@@ -5,28 +5,16 @@ from esphome.const import (
     CONF_ACTIVE_POWER,
     CONF_CURRENT,
     CONF_FREQUENCY,
-    CONF_ID,
     CONF_PHASE_A,
     CONF_PHASE_B,
     CONF_PHASE_C,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_FREQUENCY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_DEGREES,
-    UNIT_HERTZ,
     UNIT_MINUTE,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -36,7 +24,6 @@ CONF_TOTAL_GENERATION_TIME = "total_generation_time"
 CONF_TODAY_GENERATION_TIME = "today_generation_time"
 CONF_PV1 = "pv1"
 CONF_PV2 = "pv2"
-UNIT_KILOWATT_HOURS = "kWh"
 UNIT_HOURS = "h"
 UNIT_KOHM = "kΩ"
 UNIT_MILLIAMPERE = "mA"
@@ -63,43 +50,15 @@ HavellsSolar = havells_solar_ns.class_(
 )
 
 PHASE_SENSORS = {
-    CONF_VOLTAGE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
-    CONF_CURRENT: sensor.sensor_schema(
-        unit_of_measurement=UNIT_AMPERE,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_CURRENT,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
+    CONF_VOLTAGE: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=2),
+    CONF_CURRENT: sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=2),
 }
 PV_SENSORS = {
-    CONF_VOLTAGE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
-    CONF_CURRENT: sensor.sensor_schema(
-        unit_of_measurement=UNIT_AMPERE,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_CURRENT,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
-    CONF_ACTIVE_POWER: sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
+    CONF_VOLTAGE: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=2),
+    CONF_CURRENT: sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=2),
+    CONF_ACTIVE_POWER: sensor.sensor_schema(kind=sensor.POWER, accuracy_decimals=0),
     CONF_VOLTAGE_SAMPLED_BY_SECONDARY_CPU: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.VOLTAGE, accuracy_decimals=0
     ),
     CONF_INSULATION_OF_P_TO_GROUND: sensor.sensor_schema(
         unit_of_measurement=UNIT_KOHM,
@@ -125,35 +84,19 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PV1): PV_SCHEMA,
             cv.Optional(CONF_PV2): PV_SCHEMA,
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HERTZ,
-                icon=ICON_CURRENT_AC,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_FREQUENCY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.FREQUENCY, icon=ICON_CURRENT_AC, accuracy_decimals=2
             ),
             cv.Optional(CONF_ACTIVE_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=0
             ),
             cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_REACTIVE_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.REACTIVE_POWER, accuracy_decimals=2
             ),
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
+                kind=sensor.ENERGY_KWH, accuracy_decimals=2
             ),
             cv.Optional(CONF_TOTAL_ENERGY_PRODUCTION): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
+                kind=sensor.ENERGY_KWH, accuracy_decimals=0
             ),
             cv.Optional(CONF_TOTAL_GENERATION_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HOURS,
@@ -166,20 +109,13 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_INVERTER_MODULE_TEMP): sensor.sensor_schema(
-                unit_of_measurement=UNIT_DEGREES,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=0
             ),
             cv.Optional(CONF_INVERTER_INNER_TEMP): sensor.sensor_schema(
-                unit_of_measurement=UNIT_DEGREES,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=0
             ),
             cv.Optional(CONF_INVERTER_BUS_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=0
             ),
             cv.Optional(CONF_INSULATION_OF_PV_N_TO_GROUND): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KOHM,
@@ -217,77 +153,34 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("havells_solar", role="client")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("havells_solar", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await modbus.new_modbus_client_component(config)
 
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
-        cg.add(var.set_frequency_sensor(sens))
-
-    if CONF_ACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_ACTIVE_POWER])
-        cg.add(var.set_active_power_sensor(sens))
-
-    if CONF_REACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_REACTIVE_POWER])
-        cg.add(var.set_reactive_power_sensor(sens))
-
-    if CONF_ENERGY_PRODUCTION_DAY in config:
-        sens = await sensor.new_sensor(config[CONF_ENERGY_PRODUCTION_DAY])
-        cg.add(var.set_today_production_sensor(sens))
-
-    if CONF_TOTAL_ENERGY_PRODUCTION in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_ENERGY_PRODUCTION])
-        cg.add(var.set_total_energy_production_sensor(sens))
-
-    if CONF_TOTAL_GENERATION_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_GENERATION_TIME])
-        cg.add(var.set_total_generation_time_sensor(sens))
-
-    if CONF_TODAY_GENERATION_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_TODAY_GENERATION_TIME])
-        cg.add(var.set_today_generation_time_sensor(sens))
-
-    if CONF_INVERTER_MODULE_TEMP in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_MODULE_TEMP])
-        cg.add(var.set_inverter_module_temp_sensor(sens))
-
-    if CONF_INVERTER_INNER_TEMP in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_INNER_TEMP])
-        cg.add(var.set_inverter_inner_temp_sensor(sens))
-
-    if CONF_INVERTER_BUS_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_BUS_VOLTAGE])
-        cg.add(var.set_inverter_bus_voltage_sensor(sens))
-
-    if CONF_INSULATION_OF_PV_N_TO_GROUND in config:
-        sens = await sensor.new_sensor(config[CONF_INSULATION_OF_PV_N_TO_GROUND])
-        cg.add(var.set_insulation_pv_n_to_ground_sensor(sens))
-
-    if CONF_GFCI_VALUE in config:
-        sens = await sensor.new_sensor(config[CONF_GFCI_VALUE])
-        cg.add(var.set_gfci_value_sensor(sens))
-
-    if CONF_DCI_OF_R in config:
-        sens = await sensor.new_sensor(config[CONF_DCI_OF_R])
-        cg.add(var.set_dci_of_r_sensor(sens))
-
-    if CONF_DCI_OF_S in config:
-        sens = await sensor.new_sensor(config[CONF_DCI_OF_S])
-        cg.add(var.set_dci_of_s_sensor(sens))
-
-    if CONF_DCI_OF_T in config:
-        sens = await sensor.new_sensor(config[CONF_DCI_OF_T])
-        cg.add(var.set_dci_of_t_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
+    await sensors(CONF_ACTIVE_POWER, var.set_active_power_sensor)
+    await sensors(CONF_REACTIVE_POWER, var.set_reactive_power_sensor)
+    await sensors(CONF_ENERGY_PRODUCTION_DAY, var.set_today_production_sensor)
+    await sensors(CONF_TOTAL_ENERGY_PRODUCTION, var.set_total_energy_production_sensor)
+    await sensors(CONF_TOTAL_GENERATION_TIME, var.set_total_generation_time_sensor)
+    await sensors(CONF_TODAY_GENERATION_TIME, var.set_today_generation_time_sensor)
+    await sensors(CONF_INVERTER_MODULE_TEMP, var.set_inverter_module_temp_sensor)
+    await sensors(CONF_INVERTER_INNER_TEMP, var.set_inverter_inner_temp_sensor)
+    await sensors(CONF_INVERTER_BUS_VOLTAGE, var.set_inverter_bus_voltage_sensor)
+    await sensors(
+        CONF_INSULATION_OF_PV_N_TO_GROUND, var.set_insulation_pv_n_to_ground_sensor
+    )
+    await sensors(CONF_GFCI_VALUE, var.set_gfci_value_sensor)
+    await sensors(CONF_DCI_OF_R, var.set_dci_of_r_sensor)
+    await sensors(CONF_DCI_OF_S, var.set_dci_of_s_sensor)
+    await sensors(CONF_DCI_OF_T, var.set_dci_of_t_sensor)
 
     for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
         if phase not in config:

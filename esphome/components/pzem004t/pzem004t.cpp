@@ -1,16 +1,15 @@
 #include "pzem004t.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cinttypes>
 
 namespace esphome::pzem004t {
 
-static const char *const TAG = "pzem004t";
+ESPHOME_LOG_TAG(TAG, "pzem004t");
 
 void PZEM004T::setup() {
-  // Clear UART buffer
-  while (this->available())
-    this->read();
+  this->discard_available();
   // Set module address
   this->write_state_(SET_ADDRESS);
 }
@@ -18,8 +17,7 @@ void PZEM004T::setup() {
 void PZEM004T::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_read_ > 500 && this->available() < 7) {
-    while (this->available())
-      this->read();
+    this->discard_available();
     this->last_read_ = now;
   }
 
@@ -34,9 +32,7 @@ void PZEM004T::loop() {
     // 1-5: data
     // 6: checksum (sum of other bytes)
     // see https://github.com/olehs/PZEM004T
-    uint8_t sum = 0;
-    for (int i = 0; i < 6; i++)
-      sum += resp[i];
+    const uint8_t sum = sum_bytes(resp.data(), 6);
 
     if (sum != resp[6]) {
       ESP_LOGV(TAG, "PZEM004T invalid checksum! 0x%02X != 0x%02X", sum, resp[6]);
@@ -49,36 +45,32 @@ void PZEM004T::loop() {
         break;
       }
       case 0xA0: {  // Voltage Response
-        uint16_t int_voltage = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
+        uint16_t int_voltage = encode_uint16(resp[1], resp[2]);
         float voltage = int_voltage + (resp[3] / 10.0f);
-        if (this->voltage_sensor_ != nullptr)
-          this->voltage_sensor_->publish_state(voltage);
+        PUBLISH_STATE(this->voltage_sensor_, voltage);
         ESP_LOGD(TAG, "Got Voltage %.1f V", voltage);
         this->write_state_(READ_CURRENT);
         break;
       }
       case 0xA1: {  // Current Response
-        uint16_t int_current = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
+        uint16_t int_current = encode_uint16(resp[1], resp[2]);
         float current = int_current + (resp[3] / 100.0f);
-        if (this->current_sensor_ != nullptr)
-          this->current_sensor_->publish_state(current);
+        PUBLISH_STATE(this->current_sensor_, current);
         ESP_LOGD(TAG, "Got Current %.2f A", current);
         this->write_state_(READ_POWER);
         break;
       }
       case 0xA2: {  // Active Power Response
-        uint16_t power = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
-        if (this->power_sensor_ != nullptr)
-          this->power_sensor_->publish_state(power);
+        uint16_t power = encode_uint16(resp[1], resp[2]);
+        PUBLISH_STATE(this->power_sensor_, power);
         ESP_LOGD(TAG, "Got Power %u W", power);
         this->write_state_(READ_ENERGY);
         break;
       }
 
       case 0xA3: {  // Energy Response
-        uint32_t energy = (uint32_t(resp[1]) << 16) | (uint32_t(resp[2]) << 8) | (uint32_t(resp[3]));
-        if (this->energy_sensor_ != nullptr)
-          this->energy_sensor_->publish_state(energy);
+        uint32_t energy = encode_uint24(resp[1], resp[2], resp[3]);
+        PUBLISH_STATE(this->energy_sensor_, energy);
         ESP_LOGD(TAG, "Got Energy %" PRIu32 " Wh", energy);
         this->write_state_(DONE);
         break;
@@ -111,9 +103,7 @@ void PZEM004T::write_state_(PZEM004T::PZEM004TReadState state) {
   data[3] = 1;
   data[4] = 1;
   data[5] = 0;
-  data[6] = 0;
-  for (int i = 0; i < 6; i++)
-    data[6] += data[i];
+  data[6] = sum_bytes(data.data(), 6);
 
   this->write_array(data);
   this->read_state_ = state;

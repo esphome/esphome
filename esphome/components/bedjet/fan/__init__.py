@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import fan
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import BEDJET_CLIENT_SCHEMA, bedjet_ns, register_bedjet_child
 
@@ -16,7 +17,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await fan.new_fan(config)
     await cg.register_component(var, config)
     await register_bedjet_child(var, config)

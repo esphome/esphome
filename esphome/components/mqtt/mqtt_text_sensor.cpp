@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.text_sensor";
+ESPHOME_LOG_TAG(TAG, "mqtt.text_sensor");
 
 using namespace esphome::text_sensor;
 
@@ -20,10 +20,7 @@ void MQTTTextSensor::setup() {
   this->sensor_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
 }
 
-void MQTTTextSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Text Sensor '%s':", this->sensor_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false);
-}
+void MQTTTextSensor::dump_config() { LOG_MQTT_COMPONENT(true, false); }
 
 bool MQTTTextSensor::publish_state(const std::string &value) {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];

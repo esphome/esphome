@@ -4,7 +4,7 @@
 
 namespace esphome::waveshare_epaper {
 
-static const char *const TAG = "waveshare_2.13v3";
+ESPHOME_LOG_TAG(TAG, "waveshare_2.13v3");
 
 static const uint8_t PARTIAL_LUT[] = {
     0x32,  // cmd

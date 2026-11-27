@@ -4,10 +4,34 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin_arc {
 
-static const char *const TAG = "daikin.climate";
+ESPHOME_LOG_TAG(TAG, "daikin.climate");
+
+using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// Codes include the ON bit so the OFF entry never matches a running unit; an unlisted received code is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_OFF, DAIKIN_MODE_OFF},
+    {climate::CLIMATE_MODE_COOL, DAIKIN_MODE_ON | DAIKIN_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, DAIKIN_MODE_ON | DAIKIN_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, DAIKIN_MODE_ON | DAIKIN_MODE_HEAT},
+    {climate::CLIMATE_MODE_HEAT_COOL, DAIKIN_MODE_ON | DAIKIN_MODE_AUTO},
+    {climate::CLIMATE_MODE_FAN_ONLY, DAIKIN_MODE_ON | DAIKIN_MODE_FAN},
+};
+// Fan speeds 2 and 4 and silent are only received
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, DAIKIN_FAN_AUTO}, {climate::CLIMATE_FAN_LOW, DAIKIN_FAN_1},
+    {climate::CLIMATE_FAN_MEDIUM, DAIKIN_FAN_3},  {climate::CLIMATE_FAN_HIGH, DAIKIN_FAN_5},
+    {climate::CLIMATE_FAN_LOW, DAIKIN_FAN_2},     {climate::CLIMATE_FAN_LOW, DAIKIN_FAN_SILENT},
+    {climate::CLIMATE_FAN_HIGH, DAIKIN_FAN_4},
+};
 
 void DaikinArcClimate::setup() {
   climate_ir::ClimateIR::setup();
@@ -22,7 +46,10 @@ void DaikinArcClimate::setup() {
 }
 
 void DaikinArcClimate::transmit_query_() {
-  uint8_t remote_header[8] = {0x11, 0xDA, 0x27, 0x00, 0x84, 0x87, 0x20, 0x00};
+  // In flash: an initialized local array is copied from a RAM constant on ESP8266
+  static constexpr uint8_t REMOTE_HEADER_TEMPLATE[8] PROGMEM = {0x11, 0xDA, 0x27, 0x00, 0x84, 0x87, 0x20, 0x00};
+  uint8_t remote_header[sizeof(REMOTE_HEADER_TEMPLATE)];
+  progmem_memcpy(remote_header, REMOTE_HEADER_TEMPLATE, sizeof(remote_header));
 
   // Calculate checksum
   for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {
@@ -39,13 +66,7 @@ void DaikinArcClimate::transmit_query_() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (uint8_t i : remote_header) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = i & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_header, sizeof(remote_header));
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -55,11 +76,13 @@ void DaikinArcClimate::transmit_query_() {
 void DaikinArcClimate::transmit_state() {
   // 0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
   // 0x42, 0x49, 0x05, 0xA2,
-  uint8_t remote_header[20] = {0x11, 0xDA, 0x27, 0x00, 0x02, 0xd0, 0x02, 0x03, 0x80, 0x03, 0x82, 0x30, 0x41, 0x1f, 0x82,
-                               0xf4,
-                               /*                                                      とつど */
-                               /*                                                       0x13 */
-                               0x00, 0x24, 0x00, 0x00};
+  static constexpr uint8_t REMOTE_HEADER_TEMPLATE[20] PROGMEM = {
+      0x11, 0xDA, 0x27, 0x00, 0x02, 0xd0, 0x02, 0x03, 0x80, 0x03, 0x82, 0x30, 0x41, 0x1f, 0x82, 0xf4,
+      /*                                                      とつど */
+      /*                                                       0x13 */
+      0x00, 0x24, 0x00, 0x00};
+  uint8_t remote_header[sizeof(REMOTE_HEADER_TEMPLATE)];
+  progmem_memcpy(remote_header, REMOTE_HEADER_TEMPLATE, sizeof(remote_header));
 
   // 05    0 [1:3]MODE   1 [OFF TMR] [ON TMR] Power
   // 06-07 TEMP
@@ -73,7 +96,7 @@ void DaikinArcClimate::transmit_state() {
   // 16    [0:3] 8  00 [6:7] SENSOR WIND = 11 / NORMAL = 00
   // 17    24
 
-  uint8_t remote_state[19] = {
+  static constexpr uint8_t REMOTE_STATE_TEMPLATE[DAIKIN_STATE_FRAME_SIZE] PROGMEM = {
       0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x0a, 0xC4,
       /*                               MODE  TEMP  HUMD  FANH  FANL
          パワフル音声応答     */
@@ -86,8 +109,10 @@ void DaikinArcClimate::transmit_state() {
       /* ON 0x83           */
       /* OF 0x80           */
   };
+  uint8_t remote_state[sizeof(REMOTE_STATE_TEMPLATE)];
+  progmem_memcpy(remote_state, REMOTE_STATE_TEMPLATE, sizeof(remote_state));
 
-  remote_state[5] = this->operation_mode_() | 0x08;
+  remote_state[5] = to_ir_code(MODES, this->mode, DAIKIN_MODE_OFF) | 0x08;
   remote_state[6] = this->temperature_();
   remote_state[7] = this->humidity_();
   if (remote_state[7] != this->last_humidity_ && this->mode != climate::CLIMATE_MODE_OFF) {
@@ -95,9 +120,7 @@ void DaikinArcClimate::transmit_state() {
     remote_header[9] |= 0x10;
     this->last_humidity_ = remote_state[7];
   }
-  uint16_t fan_speed = this->fan_speed_();
-  remote_state[8] = fan_speed >> 8;
-  remote_state[9] = fan_speed & 0xff;
+  put_be16(remote_state + 8, this->fan_speed_());
 
   // Calculate checksum
   for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {
@@ -119,75 +142,22 @@ void DaikinArcClimate::transmit_state() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (uint8_t i : remote_header) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = i & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_header, sizeof(remote_header));
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
 
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (uint8_t i : remote_state) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BIT_MARK);
-      bool bit = i & mask;
-      data->space(bit ? DAIKIN_ONE_SPACE : DAIKIN_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state, sizeof(remote_state));
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
   transmit.perform();
 }
 
-uint8_t DaikinArcClimate::operation_mode_() {
-  uint8_t operating_mode = DAIKIN_MODE_ON;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      operating_mode |= DAIKIN_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      operating_mode |= DAIKIN_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      operating_mode |= DAIKIN_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      operating_mode |= DAIKIN_MODE_AUTO;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      operating_mode |= DAIKIN_MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      operating_mode = DAIKIN_MODE_OFF;
-      break;
-  }
-
-  return operating_mode;
-}
-
 uint16_t DaikinArcClimate::fan_speed_() {
-  uint16_t fan_speed;
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_LOW:
-      fan_speed = DAIKIN_FAN_1 << 8;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = DAIKIN_FAN_3 << 8;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      fan_speed = DAIKIN_FAN_5 << 8;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      fan_speed = DAIKIN_FAN_AUTO << 8;
-  }
+  uint16_t fan_speed = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), DAIKIN_FAN_AUTO) << 8;
 
   // If swing is enabled switch first 4 bits to 1111
   switch (this->swing_mode) {
@@ -246,10 +216,7 @@ climate::ClimateTraits DaikinArcClimate::traits() {
 }
 
 bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DAIKIN_STATE_FRAME_SIZE - 1);
   if (frame[DAIKIN_STATE_FRAME_SIZE - 1] != checksum) {
     ESP_LOGI(TAG, "checksum error");
     return false;
@@ -263,26 +230,10 @@ bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
   ESP_LOGD(TAG, "FRAME %s", buf);
 
   uint8_t mode = frame[5];
-  if (mode & DAIKIN_MODE_ON) {
-    switch (mode & 0xF0) {
-      case DAIKIN_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case DAIKIN_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case DAIKIN_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case DAIKIN_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case DAIKIN_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-    }
-  } else {
+  if (!(mode & DAIKIN_MODE_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else {
+    this->mode = from_ir_code(MODES, mode & (0xF0 | DAIKIN_MODE_ON), this->mode);
   }
   uint8_t temperature = frame[6];
   if (!(temperature & 0xC0)) {
@@ -301,23 +252,8 @@ bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
   } else {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
-  switch (fan_mode & 0xF0) {
-    case DAIKIN_FAN_1:
-    case DAIKIN_FAN_2:
-    case DAIKIN_FAN_SILENT:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case DAIKIN_FAN_3:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case DAIKIN_FAN_4:
-    case DAIKIN_FAN_5:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case DAIKIN_FAN_AUTO:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-  }
+  if (const auto entry = find_ir_code(FANS, fan_mode & 0xF0, true))
+    this->fan_mode = static_cast<climate::ClimateFanMode>(entry->value);
   /*
   05    0 [1:3]MODE   1 [OFF TMR] [ON TMR] Power
   06-07 TEMP
@@ -342,7 +278,7 @@ bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
 }
 
 bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE] = {};
+  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE];
 
   bool valid_daikin_frame = false;
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
@@ -421,16 +357,11 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   for (uint8_t pos = 0; pos < DAIKIN_STATE_FRAME_SIZE; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ZERO_SPACE)) {
-        ESP_LOGI(TAG, "non daikin_arc expect item pos: %d", pos);
-        return false;
-      }
+    if (!data.expect_bytes<DAIKIN_BIT_TIMINGS>(&state_frame[pos], 1)) {
+      ESP_LOGI(TAG, "non daikin_arc expect item pos: %d", pos);
+      return false;
     }
-    state_frame[pos] = byte;
+    const uint8_t byte = state_frame[pos];
     if (pos == 0) {
       // frame header
       if (byte != 0x11) {

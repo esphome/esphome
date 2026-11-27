@@ -4,17 +4,19 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_STATE
 
-from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from .. import (
+    CONF_NEXTION_ID,
+    CONF_PUBLISH_STATE,
+    CONF_SEND_TO_NEXTION,
+    nextion_ns,
+    register_textsensor_component,
+)
 from ..base_component import CONFIG_TEXT_COMPONENT_SCHEMA, setup_component_core_
 
 CODEOWNERS = ["@senexcrenshaw"]
 
 NextionTextSensor = nextion_ns.class_(
     "NextionTextSensor", text_sensor.TextSensor, cg.PollingComponent
-)
-
-NextionPublishTextAction = nextion_ns.class_(
-    "NextionPublishTextAction", automation.Action
 )
 
 CONFIG_SCHEMA = (
@@ -30,14 +32,13 @@ async def to_code(config):
     await text_sensor.register_text_sensor(var, config)
     await cg.register_component(var, config)
 
-    cg.add(hub.register_textsensor_component(var))
+    cg.add(register_textsensor_component(hub, var))
 
     await setup_component_core_(var, config, ".txt")
 
 
-@automation.register_action(
+automation.register_apply_action(
     "text_sensor.nextion.publish",
-    NextionPublishTextAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(NextionTextSensor),
@@ -48,19 +49,12 @@ async def to_code(config):
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "set_state({}, {}, {})",
+        (
+            (CONF_STATE, cg.std_string),
+            (CONF_PUBLISH_STATE, cg.bool_),
+            (CONF_SEND_TO_NEXTION, cg.bool_),
+        ),
+    ),
 )
-async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.const_char_ptr)
-    cg.add(var.set_state(template_))
-
-    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, cg.bool_)
-    cg.add(var.set_publish_state(template_))
-
-    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, cg.bool_)
-    cg.add(var.set_send_to_nextion(template_))
-
-    return var

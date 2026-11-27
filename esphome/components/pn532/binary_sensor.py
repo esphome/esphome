@@ -1,15 +1,18 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_UID
 from esphome.core import HexInt
+from esphome.types import ConfigType
 
-from . import CONF_PN532_ID, PN532, pn532_ns
+from . import CONF_PN532_ID, PN532, pn532_ns, register_tag
 
 DEPENDENCIES = ["pn532"]
 
 
-def validate_uid(value):
+def validate_uid(value: Any) -> str:
     value = cv.string_strict(value)
     for x in value.split("-"):
         if len(x) != 2:
@@ -39,10 +42,10 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(PN532BinarySensor).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     hub = await cg.get_variable(config[CONF_PN532_ID])
-    cg.add(hub.register_tag(var))
+    cg.add(register_tag(hub, var))
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split("-")]
     cg.add(var.set_uid(addr))

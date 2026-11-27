@@ -13,7 +13,7 @@
 
 namespace esphome::rp2040_pwm {
 
-static const char *const TAG = "rp2040_pwm";
+ESPHOME_LOG_TAG(TAG, "rp2040_pwm");
 
 void RP2040PWM::setup() { this->setup_pwm_(); }
 

@@ -1,0 +1,27 @@
+esphome:
+  name: sched-verbose-log
+
+host:
+api:
+logger:
+  level: VERBOSE
+  on_message:
+    # The scheduler logs each new interval at VERBOSE. This automation then
+    # calls back into the scheduler (the delay is a scheduler timeout).
+    level: VERBOSE
+    then:
+      - delay: 1ms
+
+globals:
+  - id: fire_count
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: |-
+          id(fire_count) += 1;
+          if (id(fire_count) == 5) {
+            ESP_LOGI("test", "INTERVAL_5_FIRES_REACHED");
+          }

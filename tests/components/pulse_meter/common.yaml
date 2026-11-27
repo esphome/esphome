@@ -9,5 +9,8 @@ sensor:
       - pulse_meter.set_total_pulses:
           id: pulse_meter_sensor
           value: 12345
+      - pulse_meter.set_total_pulses:
+          id: pulse_meter_sensor
+          value: !lambda return (uint32_t) x;
     total:
       name: Pulse Meter Total

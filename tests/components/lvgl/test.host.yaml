@@ -1,5 +1,5 @@
 display:
-  - platform: sdl
+  - platform: snapshot
     id: sdl0
     auto_clear_enabled: false
     dimensions:
@@ -10,11 +10,6 @@ display:
     dimensions:
       width: 480
       height: 480
-
-touchscreen:
-  - platform: sdl
-    display: sdl0
-    sdl_id: sdl0
 
 lvgl:
   - id: lvgl_0
@@ -39,7 +34,11 @@ lvgl:
         timing:
           - round_trip
           - type: ease_in_out
-            weight: 3
+            weight: 0.5
+          - type: ease_in
+            weight: 0.3
+          - type: ease_out
+            weight: 0.7
         on_start:
           - logger.log: anim started
         on_stop:
@@ -55,6 +54,12 @@ lvgl:
 
   - id: lvgl_1
     displays: sdl1
+    encoders:
+      group: host_encoder_group
+      enter_button: host_enter_button
+      sensor:
+        left_button: host_left_button
+        right_button: host_right_button
     on_idle:
       timeout: 8s
       then:
@@ -80,6 +85,19 @@ lvgl:
               - lvgl.animation.start:
                   id: anim_slide
                   lvgl_id: lvgl_0
+      # Sliders only and no complex gradients, so the wheel's gradient set-up must still build
+      - color_picker:
+          id: host_hue_picker
+          width: 200
+          sliders: hue
+
+binary_sensor:
+  - platform: template
+    id: host_enter_button
+  - platform: template
+    id: host_left_button
+  - platform: template
+    id: host_right_button
 
 font:
   - file: "gfonts://Roboto"

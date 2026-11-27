@@ -1,14 +1,18 @@
 #ifdef USE_ESP32
 
 #include "uart_component_esp_idf.h"
+#include <algorithm>
 #include <cinttypes>
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
+#include "esp_clk_tree.h"
+#include "hal/uart_ll.h"
 #include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/soc_caps.h"
 #include "soc/uart_pins.h"
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
@@ -21,7 +25,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.idf";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 /// Check if a pin number matches one of the default UART0 GPIO pins.
 /// These pins may have residual IOMUX state from the ROM bootloader that
@@ -35,6 +39,45 @@ static const char *const TAG = "uart.idf";
 /// causing TX data to loop back into RX on the same pin.
 static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
+
+// Hardware FIFO size of a UART: 128 bytes, 16 on the LP UART.
+static constexpr size_t hw_fifo_len(uart_port_t uart_num) {
+#if (SOC_UART_LP_NUM >= 1)
+  return (uart_num < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN;
+#else
+  return SOC_UART_FIFO_LEN;
+#endif
+}
+
+// RX thresholds stay this many bytes below the hardware FIFO size.
+static constexpr uint8_t RX_FIFO_HEADROOM = 6;
+static constexpr size_t max_rx_threshold(uart_port_t uart_num) { return hw_fifo_len(uart_num) - RX_FIFO_HEADROOM; }
+
+// clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
+static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
+
+static const LogString *clock_source_to_str(uart_sclk_t clock_source) {
+  switch (clock_source) {
+#if SOC_UART_SUPPORT_APB_CLK
+    case UART_SCLK_APB:
+      return LOG_STR("APB");
+#endif
+#if SOC_UART_SUPPORT_XTAL_CLK
+    case UART_SCLK_XTAL:
+      return LOG_STR("XTAL");
+#endif
+#if SOC_UART_SUPPORT_RTC_CLK
+    case UART_SCLK_RTC:
+      return LOG_STR("RTC");
+#endif
+#if SOC_UART_SUPPORT_REF_TICK
+    case UART_SCLK_REF_TICK:
+      return LOG_STR("REF_TICK");
+#endif
+    default:
+      return clock_source == UART_SCLK_DEFAULT ? LOG_STR("DEFAULT") : LOG_STR("UNKNOWN");
+  }
 }
 
 uart_config_t IDFUARTComponent::get_config_() {
@@ -70,8 +113,25 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-  uart_config.source_clk = UART_SCLK_DEFAULT;
-  uart_config.rx_flow_ctrl_thresh = 122;
+  uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
+  uart_config.rx_flow_ctrl_thresh = max_rx_threshold(this->uart_num_);
+#if (SOC_UART_LP_NUM >= 1)
+  // lp_source_clk shares source_clk's storage, and an HP clock there trips a HAL assert in uart_param_config().
+  // XTAL_D2 is the more precise clock; below the lowest rate its divider reaches, the default clock takes over.
+  if (this->uart_num_ >= SOC_UART_HP_NUM) {
+#if defined(USE_ESP32_VARIANT_ESP32C5) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32P4)
+    uint32_t xtal_d2_freq = 0;
+    esp_clk_tree_src_get_freq_hz(static_cast<soc_module_clk_t>(LP_UART_SCLK_XTAL_D2),
+                                 ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &xtal_d2_freq);
+    // Compare in the divider's 1/16 steps: an integer part of UART_CLKDIV_V with a fraction does not run (4883 baud)
+    const bool xtal_d2_fits = (xtal_d2_freq << 4) / this->baud_rate_ <= (UART_CLKDIV_V << 4);
+    uart_config.lp_source_clk = xtal_d2_fits ? LP_UART_SCLK_XTAL_D2 : LP_UART_SCLK_DEFAULT;
+#else
+    // Other LP UARTs, such as the ESP32-S31's, have no XTAL_D2 but a prescaler, so the default clock fits.
+    uart_config.lp_source_clk = LP_UART_SCLK_DEFAULT;
+#endif
+  }
+#endif
 
   return uart_config;
 }
@@ -109,15 +169,16 @@ void IDFUARTComponent::setup() {
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
 
-#if (SOC_UART_LP_NUM >= 1)
-  size_t fifo_len = ((this->uart_num_ < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN);
-#else
-  size_t fifo_len = SOC_UART_FIFO_LEN;
-#endif
-  if (this->rx_buffer_size_ <= fifo_len) {
+  size_t fifo_len = hw_fifo_len(this->uart_num_);
+  if (this->rx_pin_ == nullptr) {
+    // Nothing arrives without an RX pin; ESP-IDF still requires more than the hardware FIFO
+    this->rx_buffer_size_ = fifo_len + 1;
+  } else if (this->rx_buffer_size_ <= fifo_len) {
     ESP_LOGW(TAG, "rx_buffer_size is too small, must be greater than %zu", fifo_len);
     this->rx_buffer_size_ = fifo_len * 2;
   }
+  // Above the FIFO size the RX full interrupt never fires; on the LP UART even the 10 ms default can pass it.
+  this->rx_full_threshold_ = std::min(this->rx_full_threshold_, max_rx_threshold(this->uart_num_));
 
   this->load_settings(false);
 }
@@ -135,11 +196,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
   err = uart_driver_install(this->uart_num_,        // UART number
                             this->rx_buffer_size_,  // RX ring buffer size
-                            0,  // TX ring buffer size. If zero, driver will not use a TX buffer and TX function will
-                                // block task until all data has been sent out
-                            0,  // event queue size/depth
-                            nullptr,  // event queue
-                            0         // Flags used to allocate the interrupt
+                            this->tx_buffer_size_,  // TX ring buffer size; 0 makes uart_write_bytes() block until
+                                                    // the FIFO has taken everything
+                            0,                      // event queue size/depth
+                            nullptr,                // event queue
+                            0                       // Flags used to allocate the interrupt
   );
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
@@ -160,6 +221,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+  this->last_good_framing_ = this->framing_();
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
@@ -189,18 +251,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     setup_pin_if_needed(this->tx_pin_);
   }
 
-  uint32_t invert = 0;
-  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_TXD_INV;
-  }
-  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_RXD_INV;
-  }
-  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_RTS_INV;
-  }
-
-  err = uart_set_line_inverse(this->uart_num_, invert);
+  // Must precede uart_set_pin() so an inverted TX line never shows the wrong idle
+  // level; apply_line_settings_() repeats it later for the reset registers.
+  err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
     this->mark_failed();
@@ -214,28 +267,14 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
+  if (this->apply_line_settings_() != ESP_OK) {
     this->mark_failed();
     return;
   }
-
-  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
-  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
-  err = uart_set_mode(this->uart_num_, mode);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
+#ifdef USE_GPIO_HOLD
+  // Release held pins so the UART peripheral can drive them
+  this->set_pins_hold_(false);
+#endif
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // Register ISR callback to wake the main loop when UART data arrives.
@@ -250,6 +289,118 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 }
 
+uint32_t IDFUARTComponent::line_inversion_mask_() {
+  uint32_t invert = 0;
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_TXD_INV;
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RXD_INV;
+  }
+  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RTS_INV;
+  }
+#ifdef USE_UART_TX_BREAK
+  // the idle level of an inverted TX signal is the break level; in the mask, so a settings reload applies it again
+  if (this->tx_break_)
+    invert ^= UART_SIGNAL_TXD_INV;
+#endif
+  return invert;
+}
+
+#ifdef USE_UART_TX_BREAK
+bool IDFUARTComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr || this->is_failed())
+    return false;
+  const bool previous = this->tx_break_;
+  this->tx_break_ = enable;
+  if (uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_()) == ESP_OK)
+    return true;
+  // not applied: a settings reload must not apply it later
+  this->tx_break_ = previous;
+  return false;
+}
+#endif
+
+esp_err_t IDFUARTComponent::apply_line_settings_() {
+  // uart_param_config() resets these; call after every use of it.
+  esp_err_t err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
+  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
+  err = uart_set_mode(this->uart_num_, mode);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  return ESP_OK;
+}
+
+void IDFUARTComponent::set_framing_(const Framing &framing) {
+  this->baud_rate_ = framing.baud_rate;
+  this->data_bits_ = framing.data_bits;
+  this->stop_bits_ = framing.stop_bits;
+  this->parity_ = framing.parity;
+  this->rx_full_threshold_ = framing.rx_full_threshold;
+}
+
+esp_err_t IDFUARTComponent::apply_settings_live() {
+  if (this->is_failed()) {
+    return ESP_ERR_INVALID_STATE;
+  }
+  // No driver yet: nothing to reconfigure in place.
+  if (!uart_is_driver_installed(this->uart_num_)) {
+    this->load_settings(false);
+    return this->is_failed() ? ESP_FAIL : ESP_OK;
+  }
+  // Keeps the driver ring buffers; flushes both hardware FIFOs (in-flight bytes lost).
+  uart_config_t uart_config = this->get_config_();
+  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    // Failure leaves the registers reset; put back the last accepted framing so the
+    // getters still describe the hardware.
+    if (this->last_good_framing_.baud_rate == 0) {
+      ESP_LOGE(TAG, "uart_param_config (live) failed: %s; no previous framing to restore", esp_err_to_name(err));
+      this->mark_failed();
+      return err;
+    }
+    ESP_LOGW(TAG, "uart_param_config (live) failed: %s; restoring %" PRIu32 " baud", esp_err_to_name(err),
+             this->last_good_framing_.baud_rate);
+    this->set_framing_(this->last_good_framing_);
+    uart_config = this->get_config_();
+    esp_err_t restore_err = uart_param_config(this->uart_num_, &uart_config);
+    if (restore_err != ESP_OK) {
+      ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure: %s", esp_err_to_name(restore_err));
+      this->mark_failed();
+      return err;
+    }
+    // Previous framing is live again; report the refusal (line-setting errors log).
+    this->apply_line_settings_();
+    return err;
+  }
+  this->last_good_framing_ = this->framing_();
+  // The new framing is live; a line-setting failure here only logs.
+  this->apply_line_settings_();
+  return ESP_OK;
+}
+
 void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
   LOG_PIN("  TX Pin: ", this->tx_pin_);
@@ -262,6 +413,9 @@ void IDFUARTComponent::dump_config() {
                   "  RX Timeout: %u",
                   this->rx_buffer_size_, this->rx_full_threshold_, this->rx_timeout_);
   }
+  if (this->tx_buffer_size_ > 0) {
+    ESP_LOGCONFIG(TAG, "  TX Buffer Size: %zu", this->tx_buffer_size_);
+  }
   if (this->flush_timeout_ms_ > 0) {
     ESP_LOGCONFIG(TAG, "  Flush Timeout: %" PRIu32 " ms", this->flush_timeout_ms_);
   }
@@ -269,17 +423,20 @@ void IDFUARTComponent::dump_config() {
                 "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
-                "  Stop bits: %u"
+                "  Stop bits: %u\n"
+                "  Clock Source: %s"
 #ifdef USE_UART_WAKE_LOOP_ON_RX
                 "\n  Wake on data RX: ENABLED"
 #endif
                 ,
-                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_,
+                LOG_STR_ARG(clock_source_to_str(static_cast<uart_sclk_t>(this->clock_source_))));
   this->check_logger_conflict();
 }
 
 void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
   if (this->is_ready()) {
+    rx_full_threshold = std::min(rx_full_threshold, max_rx_threshold(this->uart_num_));
     esp_err_t err = uart_set_rx_full_threshold(this->uart_num_, rx_full_threshold);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
@@ -298,6 +455,18 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
     }
   }
   this->rx_timeout_ = rx_timeout;
+}
+
+size_t IDFUARTComponent::available_for_write() {
+  if (this->uart_num_ == UART_NUM_MAX || !uart_is_driver_installed(this->uart_num_))
+    return 0;
+  if (this->tx_buffer_size_ == 0) {
+    return uart_ll_get_txfifo_len(UART_LL_GET_HW(this->uart_num_));
+  }
+  // The driver's figure already deducts its ring item headers, so a write of this size fits
+  size_t free = 0;
+  uart_get_tx_buffer_free_size(this->uart_num_, &free);
+  return free;
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
@@ -392,6 +561,30 @@ void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback(uart_port_t uart_num, uart
   }
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
+
+void IDFUARTComponent::on_shutdown() {
+  if (this->uart_num_ == UART_NUM_MAX || !uart_is_driver_installed(this->uart_num_))
+    return;
+  uart_wait_tx_done(this->uart_num_, pdMS_TO_TICKS(100));
+  // Keep the peripheral quiet across a soft reset so ROM output does not reach the attached device (#15472)
+  esp_err_t err = uart_driver_delete(this->uart_num_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
+  }
+#ifdef USE_GPIO_HOLD
+  // Hold the pins again so they keep their state through the reset
+  this->set_pins_hold_(true);
+#endif
+}
+
+#ifdef USE_GPIO_HOLD
+void IDFUARTComponent::set_pins_hold_(bool hold) {
+  for (auto *pin : {this->tx_pin_, this->rx_pin_, this->flow_control_pin_}) {
+    if (pin != nullptr)
+      pin->set_hold(hold);
+  }
+}
+#endif
 
 }  // namespace esphome::uart
 #endif  // USE_ESP32

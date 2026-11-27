@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import ina2xx_base, spi
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ina2xx_base"]
 CODEOWNERS = ["@latonita"]
@@ -27,7 +28,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ina2xx_base.setup_ina2xx(var, config)
     await spi.register_spi_device(var, config)

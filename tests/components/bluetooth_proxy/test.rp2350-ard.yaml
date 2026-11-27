@@ -1,0 +1,9 @@
+# Pico 2 W build of the full proxy: links the rp2350 framework archive, so
+# the pool --wrap overrides and their per-architecture layout asserts are
+# exercised for this chip too (see test.rp2040-ard.yaml for the slot shape).
+packages:
+  common: !include common.yaml
+
+rp2_ble_tracker:
+
+bluetooth_proxy:

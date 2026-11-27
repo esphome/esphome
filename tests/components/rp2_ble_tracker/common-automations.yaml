@@ -1,0 +1,54 @@
+esphome:
+  on_boot:
+    then:
+      - rp2_ble_tracker.start_scan
+      - rp2_ble_tracker.start_scan:
+          continuous: true
+      # Lambda arm of the templatable value — different codegen instantiation.
+      - rp2_ble_tracker.start_scan:
+          continuous: !lambda return false;
+      - rp2_ble_tracker.stop_scan
+      - rp2_ble_tracker.stop_scan: ble_tracker
+
+rp2_ble_tracker:
+  on_ble_advertise:
+    - mac_address: AC:37:43:77:5F:4C
+      then:
+        - lambda: |-
+            char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+            ESP_LOGD("main", "The device address is %s", x.address_str_to(addr));
+    - mac_address:
+        - AC:37:43:77:5F:4C
+        - AC:37:43:77:5F:4D
+      then:
+        - lambda: |-
+            char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+            ESP_LOGD("main", "The device address is %s", x.address_str_to(addr));
+  on_ble_service_data_advertise:
+    - service_uuid: ABCD
+      # mac_address exercises the UUID triggers' set_address() codegen branch.
+      mac_address: AC:37:43:77:5F:4C
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Length of service data is %zu", x.size());
+    - service_uuid: ABCDABCD
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "32-bit service data is %zu", x.size());
+    - service_uuid: ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "128-bit service data is %zu", x.size());
+  on_ble_manufacturer_data_advertise:
+    - manufacturer_id: ABCD
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Length of manufacturer data is %zu", x.size());
+    - manufacturer_id: ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "128-bit manufacturer data is %zu", x.size());
+  on_scan_end:
+    - then:
+        - lambda: |-
+            ESP_LOGD("main", "Scan ended");

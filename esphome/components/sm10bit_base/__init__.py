@@ -2,8 +2,11 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Cossid"]
+DOMAIN = "sm10bit_base"
 MULTI_CONF = True
 
 CONF_MAX_POWER_COLOR_CHANNELS = "max_power_color_channels"
@@ -26,15 +29,13 @@ SM10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def register_sm10bit_base(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def register_sm10bit_base(config: ConfigType) -> MockObj:
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
+        await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
+        config[CONF_MAX_POWER_COLOR_CHANNELS],
+        config[CONF_MAX_POWER_WHITE_CHANNELS],
+    )
     await cg.register_component(var, config)
-
-    data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data))
-    clock = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_clock_pin(clock))
-    cg.add(var.set_max_power_color_channels(config[CONF_MAX_POWER_COLOR_CHANNELS]))
-    cg.add(var.set_max_power_white_channels(config[CONF_MAX_POWER_WHITE_CHANNELS]))
-
     return var

@@ -1,16 +1,17 @@
 #include "bl0942.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
+#include <cstring>
 
 // Datasheet: https://www.belling.com.cn/media/file_object/bel_product/BL0942/datasheet/BL0942_V1.06_en.pdf
 
 namespace esphome::bl0942 {
 
-static const char *const TAG = "bl0942";
+ESPHOME_LOG_TAG(TAG, "bl0942");
 
 static const uint8_t BL0942_READ_COMMAND = 0x58;
 static const uint8_t BL0942_FULL_PACKET = 0xAA;
-static const uint8_t BL0942_PACKET_HEADER = 0x55;
 
 static const uint8_t BL0942_WRITE_COMMAND = 0xA8;
 
@@ -40,43 +41,30 @@ static const uint32_t BL0942_REG_MODE_DEFAULT =
 static const uint32_t BL0942_REG_SOFT_RESET_MAGIC = 0x5a5a5a;
 static const uint32_t BL0942_REG_USR_WRPROT_MAGIC = 0x55;
 
-// 23-byte packet, 11 bits per byte, 2400 baud: about 105ms
-static const uint32_t PKT_TIMEOUT_MS = 200;
-
+// A packet arrives over several passes of the loop: 23 bytes of 11 bits take about 53 ms at
+// 4800 baud. Take the bytes as they come, and act on a packet only once it is whole.
 void BL0942::loop() {
-  DataPacket buffer;
-  size_t avail = this->available();
-
-  if (!avail) {
-    return;
-  }
-  if (avail < sizeof(buffer)) {
-    if (!this->rx_start_.has_value()) {
-      this->rx_start_ = millis();
-    } else if (millis() - *this->rx_start_ > PKT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%zu bytes)", avail);
-      this->read_array((uint8_t *) &buffer, avail);
-      this->rx_start_.reset();
+  this->read_available([this](uint8_t c) {
+    const uint8_t *frame = this->reader_.feed(c);
+    if (frame == nullptr)
+      return;
+    // The little-endian fields can only be read from a packet which is not const
+    DataPacket packet;
+    memcpy(&packet, frame, sizeof(packet));
+    if (this->validate_checksum_(&packet)) {
+      this->received_package_(&packet);
+    } else {
+      // What looked like the header may have been noise, with the packet starting after it
+      this->reader_.resync();
     }
-    return;
-  }
-
-  if (this->read_array((uint8_t *) &buffer, sizeof(buffer))) {
-    if (this->validate_checksum_(&buffer)) {
-      this->received_package_(&buffer);
-    }
-  }
-  this->rx_start_.reset();
+  });
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
-  uint8_t checksum = BL0942_READ_COMMAND | this->address_;
   // Whole package but checksum
-  uint8_t *raw = (uint8_t *) data;
-  for (uint32_t i = 0; i < sizeof(*data) - 1; i++) {
-    checksum += raw[i];
-  }
-  checksum ^= 0xFF;
+  const uint8_t checksum =
+      sum_bytes(reinterpret_cast<const uint8_t *>(data), sizeof(*data) - 1, BL0942_READ_COMMAND | this->address_) ^
+      0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "BL0942 invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }
@@ -92,30 +80,25 @@ void BL0942::write_reg_(uint8_t reg, uint32_t val) {
   pkt[2] = (val & 0xff);
   pkt[3] = (val >> 8) & 0xff;
   pkt[4] = (val >> 16) & 0xff;
-  pkt[5] = (pkt[0] + pkt[1] + pkt[2] + pkt[3] + pkt[4]) ^ 0xff;
+  pkt[5] = sum_bytes(pkt, 5) ^ 0xFF;
   this->write_array(pkt, 6);
   delay(1);
 }
 
 int BL0942::read_reg_(uint8_t reg) {
-  union {
-    uint8_t b[4];
-    uint32_le_t le32;
-  } resp;
+  uint8_t resp[4];
 
   this->write_byte(BL0942_READ_COMMAND | this->address_);
   this->write_byte(reg);
   this->flush();
-  if (this->read_array(resp.b, 4) &&
-      resp.b[3] ==
-          (uint8_t) ((BL0942_READ_COMMAND + this->address_ + reg + resp.b[0] + resp.b[1] + resp.b[2]) ^ 0xff)) {
-    resp.b[3] = 0;
-    return resp.le32;
-  }
+  if (this->read_array(resp, 4) && resp[3] == (sum_bytes(resp, 3, BL0942_READ_COMMAND + this->address_ + reg) ^ 0xFF))
+    return encode_uint24(resp[2], resp[1], resp[0]);
   return -1;
 }
 
 void BL0942::update() {
+  // Part of a packet which never completed is noise by now, and must not swallow the start of the answer
+  this->reader_.reset();
   this->write_byte(BL0942_READ_COMMAND | this->address_);
   this->write_byte(BL0942_FULL_PACKET);
 }
@@ -154,12 +137,6 @@ void BL0942::setup() {
 }
 
 void BL0942::received_package_(DataPacket *data) {
-  // Bad header
-  if (data->frame_header != BL0942_PACKET_HEADER) {
-    ESP_LOGI(TAG, "Invalid data. Header mismatch: %d", data->frame_header);
-    return;
-  }
-
   // cf_cnt wraps at 24 bits; total_increasing on the energy sensor handles the
   // wrap (and any spurious chip resets) downstream.
   uint32_t cf_cnt = (uint24_t) data->cf_cnt;
@@ -170,21 +147,11 @@ void BL0942::received_package_(DataPacket *data) {
   float total_energy_consumption = cf_cnt / energy_reference_;
   float frequency = data->frequency != 0 ? 1000000.0f / data->frequency : NAN;
 
-  if (voltage_sensor_ != nullptr) {
-    voltage_sensor_->publish_state(v_rms);
-  }
-  if (current_sensor_ != nullptr) {
-    current_sensor_->publish_state(i_rms);
-  }
-  if (power_sensor_ != nullptr) {
-    power_sensor_->publish_state(watt);
-  }
-  if (energy_sensor_ != nullptr) {
-    energy_sensor_->publish_state(total_energy_consumption);
-  }
-  if (frequency_sensor_ != nullptr) {
-    frequency_sensor_->publish_state(frequency);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, v_rms);
+  PUBLISH_STATE(this->current_sensor_, i_rms);
+  PUBLISH_STATE(this->power_sensor_, watt);
+  PUBLISH_STATE(this->energy_sensor_, total_energy_consumption);
+  PUBLISH_STATE(this->frequency_sensor_, frequency);
   this->status_clear_warning();
   ESP_LOGV(TAG, "BL0942: U %fV, I %fA, P %fW, Cnt %" PRId32 ", ∫P %fkWh, frequency %fHz, status 0x%08X", v_rms, i_rms,
            watt, cf_cnt, total_energy_consumption, frequency, data->status);

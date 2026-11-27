@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/light/addressable_light.h"
+#include "esphome/components/light/channel_colors.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/core/color.h"
 #include "esphome/core/component.h"
@@ -15,14 +16,15 @@
 
 namespace esphome::esp32_rmt_led_strip {
 
-enum RGBOrder : uint8_t {
-  ORDER_RGB,
-  ORDER_RBG,
-  ORDER_GRB,
-  ORDER_GBR,
-  ORDER_BGR,
-  ORDER_BRG,
-};
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+// A copy of the color data
+using RmtBuffer = uint8_t;
+static constexpr size_t rmt_buffer_size(size_t color_bytes) { return color_bytes; }
+#else
+// 1 symbol per bit + 1 for reset
+using RmtBuffer = rmt_symbol_word_t;
+static constexpr size_t rmt_buffer_size(size_t color_bytes) { return color_bytes * 8 + 1; }
+#endif
 
 struct LedParams {
   rmt_symbol_word_t bit0;
@@ -33,27 +35,23 @@ struct LedParams {
 class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
  public:
   void setup() override;
+  void loop() override;
   void write_state(light::LightState *state) override;
   float get_setup_priority() const override;
 
   int32_t size() const override { return this->num_leds_; }
-  light::LightTraits get_traits() override {
-    auto traits = light::LightTraits();
-    if (this->is_rgbw_ || this->is_wrgb_) {
-      traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
-    } else {
-      traits.set_supported_color_modes({light::ColorMode::RGB});
-    }
-    return traits;
-  }
+  light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->invert_out_ = inverted; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
-  void set_is_rgbw(bool is_rgbw) { this->is_rgbw_ = is_rgbw; }
-  void set_is_wrgb(bool is_wrgb) { this->is_wrgb_ = is_wrgb; }
+  void set_channel_colors(light::ChannelColors channel_colors) {
+    this->internal_accessor_.channel_colors = channel_colors;
+  }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
-  void set_use_psram(bool use_psram) { this->use_psram_ = use_psram; }
+  /// Buffers from cg.static_buffer(..., psram=...), nullptr if a PSRAM allocation failed. Call after
+  /// set_num_leds() and set_channel_colors().
+  void set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf);
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
@@ -61,44 +59,32 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   void set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high, uint32_t bit1_low,
                       uint32_t reset_time_high, uint32_t reset_time_low);
 
-  void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void set_rmt_symbols(uint32_t rmt_symbols) { this->rmt_symbols_ = rmt_symbols; }
 
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_leds_); }
 
   void dump_config() override;
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override;
+  size_t get_buffer_size_() const { return this->num_leds_ * this->internal_accessor_.channel_colors.bytes_per_led(); }
 
-  size_t get_buffer_size_() const { return this->num_leds_ * (this->is_rgbw_ || this->is_wrgb_ ? 4 : 3); }
-
-  uint8_t *buf_{nullptr};
-  uint8_t *effect_data_{nullptr};
-  LedParams params_;
+  // Small members first so they fill the tail padding of AddressableLight
+  uint16_t num_leds_;
+  uint8_t pin_;
+  bool use_dma_{false};
+  bool invert_out_{false};
+  // An enabled channel holds a power management lock, so it is disabled while the strip is idle
+  bool channel_enabled_{false};
+  light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-  uint8_t *rmt_buf_{nullptr};
-#else
-  rmt_symbol_word_t *rmt_buf_{nullptr};
-#endif
+  RmtBuffer *rmt_buf_{nullptr};
+  LedParams params_;
   uint32_t rmt_symbols_{48};
-  uint8_t pin_;
-  uint16_t num_leds_;
-  bool is_rgbw_{false};
-  bool is_wrgb_{false};
-  bool use_dma_{false};
-  bool use_psram_{false};
-  bool invert_out_{false};
-
-  RGBOrder rgb_order_{ORDER_RGB};
-
   uint32_t last_refresh_{0};
-  optional<uint32_t> max_refresh_rate_{};
+  uint32_t max_refresh_rate_{0};
+  // Worst-case wire time of one frame plus the reset gap, computed in setup()
+  uint32_t frame_time_us_{0};
 };
 
 }  // namespace esphome::esp32_rmt_led_strip

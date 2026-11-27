@@ -42,7 +42,7 @@ from ..defines import (
 )
 from ..lv_validation import lv_color, lv_float, lv_int, padding, pixels, size
 from ..lvcode import lv, lv_add
-from ..types import LvCompound, LvType, ObjUpdateAction
+from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets
 
 CONF_CHART = "chart"
@@ -266,7 +266,7 @@ chart_spec = ChartType()
 
 @automation.register_action(
     "lvgl.chart.add_point",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_chart_t),
@@ -304,6 +304,4 @@ async def chart_add_point_to_code(config, action_id, template_arg, args):
             )
         )
 
-    return await action_to_code(
-        widgets, do_add_point, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_add_point, action_id, template_arg, args)

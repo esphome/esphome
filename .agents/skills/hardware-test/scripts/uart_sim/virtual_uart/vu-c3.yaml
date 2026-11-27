@@ -1,0 +1,11 @@
+substitutions:
+  name: virtual-uart-c3
+esp32:
+  variant: esp32c3
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+packages:
+  common: !include vu-common.yaml

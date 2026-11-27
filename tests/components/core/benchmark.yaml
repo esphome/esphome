@@ -1,0 +1,2 @@
+# USE_SENSOR without codegen sensors. Plain yaml.safe_load, no ESPHome tags.
+sensor: []

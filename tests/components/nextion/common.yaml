@@ -3,6 +3,7 @@ esphome:
     - lambda: 'ESP_LOGD("display","is_connected(): %s", YESNO(id(main_lcd).is_connected()));'
 
     - display.nextion.set_brightness: 80%
+    - display.nextion.set_brightness: !lambda 'return 0.5;'
 
     # Binary sensor publish action tests
     - binary_sensor.nextion.publish:
@@ -286,13 +287,20 @@ display:
       then:
         logger.log: "Nextion reported a buffer overflow!"
     on_custom_text_sensor:
-      then:
-        - lambda: |-
-            // key: StringRef, value: StringRef
-            if (key == "csv") {
-              // parse value here, or forward to your own component
-              ESP_LOGD("nextion.csv", "Got CSV: %s", value.c_str());
-            }
+      - then:
+          - lambda: |-
+              // key: StringRef, value: StringRef
+              if (key == "csv") {
+                // parse value here, or forward to your own component
+                ESP_LOGD("nextion.csv", "Got CSV: %s", value.c_str());
+              }
+      # Deferring: key and value are passed as std::string
+      - then:
+          - delay: 1s
+          - lambda: |-
+              if (key == "csv") {
+                ESP_LOGD("nextion.csv", "Got CSV earlier: %s", value.c_str());
+              }
     on_custom_sensor:
       then:
         - lambda: |-
@@ -307,9 +315,13 @@ display:
               ESP_LOGD("nextion.btn", "btn1=%s", ONOFF(value));
             }
     on_custom_switch:
-      then:
-        - lambda: |-
-            ESP_LOGD("nextion.sw", "%s=%s", key.c_str(), ONOFF(value));
+      - then:
+          - lambda: |-
+              ESP_LOGD("nextion.sw", "%s=%s", key.c_str(), ONOFF(value));
+      - then:
+          - delay: 1s
+          - lambda: |-
+              ESP_LOGD("nextion.sw", "%s was %s", key.c_str(), ONOFF(value));
     on_page:
       then:
         lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
@@ -333,3 +345,4 @@ display:
     touch_sleep_timeout: 3
     update_interval: 5s
     wake_up_page: 2
+    skip_connection_handshake: true

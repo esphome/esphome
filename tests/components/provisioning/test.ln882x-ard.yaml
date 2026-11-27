@@ -1,0 +1,15 @@
+# Provisioning window on LN882x, where the fallback AP runs on its own: closing
+# the window hands the radio back to the networks.
+provisioning:
+  timeout: 1min
+
+api:
+  encryption:
+
+wifi:
+  ssid: MySSID
+  password: password1
+  ap:
+    ssid: MyAP
+
+captive_portal:

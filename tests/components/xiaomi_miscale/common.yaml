@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: xiaomi_miscale
+    ble_hub_id: ble_tracker_hub
     mac_address: '5C:CA:D3:70:D4:A2'
     weight:
       name: "Xiaomi Mi Scale Weight"

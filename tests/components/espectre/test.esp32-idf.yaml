@@ -1,0 +1,10 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+espectre:
+
+text:
+  - platform: espectre
+    traffic_generator_target_mac:
+      name: CSI Traffic Target MAC

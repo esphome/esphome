@@ -2,13 +2,15 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_CONTROLLER) && defined(USE_SENDSPIN_PLAYER)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_CONTROLLER) && defined(USE_SENDSPIN_PLAYER)
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 
 #include "esphome/components/media_source/media_source.h"
 
 #include <sendspin/player_role.h>
+
+#include <span>
 
 namespace esphome::sendspin_ {
 
@@ -39,9 +41,10 @@ class SendspinMediaSource final : public SendspinChild,
  protected:
   // --- Sendspin PlayerRoleListener overrides ---
 
-  /// @brief Writes decoded PCM audio to ESPHome's media source output pipeline.
+  /// @brief Writes decoded PCM audio, in the format it carries, to ESPHome's media source output pipeline.
   /// Called from the sync task's background thread.
-  size_t on_audio_write(uint8_t *data, size_t length, uint32_t timeout_ms) override;
+  size_t on_audio_output(std::span<const uint8_t> pcm, const sendspin::AudioFormat &format,
+                         uint32_t timeout_ms) override;
 
   /// @brief Called when a new audio stream starts (main loop thread).
   void on_stream_start() override;
@@ -61,7 +64,7 @@ class SendspinMediaSource final : public SendspinChild,
 
   bool cached_muted_{false};
   bool pending_start_{false};
-  bool static_delay_adjustable_{false};
+  bool static_delay_adjustable_{true};
 };
 
 }  // namespace esphome::sendspin_

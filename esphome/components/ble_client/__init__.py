@@ -1,7 +1,18 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
+from esphome.components.ble_device_base import validate_passkey
+from esphome.components.const import (
+    CONF_ACCEPT,
+    CONF_ON_NUMERIC_COMPARISON_REQUEST,
+    CONF_ON_PASSKEY_NOTIFICATION,
+    CONF_ON_PASSKEY_REQUEST,
+    CONF_PASSKEY,
+)
 from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import (
@@ -9,6 +20,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
+    CONF_NOTIFY,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_SERVICE_UUID,
@@ -16,10 +28,46 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+DOMAIN = "ble_client"
+
+CONF_DESCRIPTOR_UUID = "descriptor_uuid"
+CONF_ON_NOTIFY = "on_notify"
+
+
+def validate_descriptor_not_notify(config: ConfigType) -> ConfigType:
+    """Reject descriptor_uuid combined with notify or on_notify.
+
+    BLE descriptors cannot send notifications; only characteristics can, and
+    ESP-IDF has no descriptor variant of esp_ble_gattc_register_for_notify.
+    """
+    if CONF_DESCRIPTOR_UUID in config and (
+        config.get(CONF_NOTIFY) or CONF_ON_NOTIFY in config
+    ):
+        raise cv.Invalid(
+            f"'{CONF_DESCRIPTOR_UUID}' cannot be used with '{CONF_NOTIFY}' or "
+            f"'{CONF_ON_NOTIFY}': BLE descriptors cannot send notifications; remove "
+            f"'{CONF_DESCRIPTOR_UUID}' to receive characteristic notifications, or "
+            f"remove '{CONF_NOTIFY}' and '{CONF_ON_NOTIFY}' to poll the descriptor"
+        )
+    return config
+
+
+def notify_from_on_notify(config: ConfigType) -> ConfigType:
+    """Enable notifications when an on_notify automation is configured.
+
+    The triggers have no registration path of their own; without notify the
+    automation would validate but never fire.
+    """
+    if CONF_ON_NOTIFY in config and not config[CONF_NOTIFY]:
+        config = config.copy()
+        config[CONF_NOTIFY] = True
+    return config
+
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
@@ -60,11 +108,6 @@ BLERemoveBondAction = ble_client_ns.class_(
     "BLEClientRemoveBondAction", automation.Action
 )
 
-CONF_PASSKEY = "passkey"
-CONF_ACCEPT = "accept"
-CONF_ON_PASSKEY_REQUEST = "on_passkey_request"
-CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
-CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_AUTO_CONNECT = "auto_connect"
 
 MULTI_CONF = True
@@ -134,6 +177,13 @@ async def register_ble_node(var, config):
     cg.add(parent.register_ble_node(var))
 
 
+def new_ble_node_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Construct, register and attach to the BLE client; args go to the constructor."""
+    return cg.new_bus_component(register_ble_node, config, *args)
+
+
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
@@ -159,7 +209,7 @@ BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
 BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
-        cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
+        cv.Required(CONF_PASSKEY): cv.templatable(validate_passkey),
     }
 )
 
@@ -171,26 +221,20 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.disconnect",
     BLEDisconnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_disconnect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.connect",
     BLEConnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_connect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
@@ -292,15 +336,12 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.remove_bond",
     BLERemoveBondAction,
     BLE_REMOVE_BOND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def remove_bond_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 async def to_code(config):

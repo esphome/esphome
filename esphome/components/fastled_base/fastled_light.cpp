@@ -5,12 +5,13 @@
 
 namespace esphome::fastled_base {
 
-static const char *const TAG = "fastled";
+ESPHOME_LOG_TAG(TAG, "fastled");
 
 void FastLEDLightOutput::setup() {
   this->controller_->init();
-  this->controller_->setLeds(this->leds_, this->num_leds_);
-  this->effect_data_ = new uint8_t[this->num_leds_];  // NOLINT
+  // CRGB is 3 bytes with no padding, the same layout as the RGB color data
+  this->controller_->setLeds(reinterpret_cast<CRGB *>(this->internal_accessor_.color_data), this->num_leds_);
+  this->accessor_ = &this->internal_accessor_;
   if (!this->max_refresh_rate_.has_value()) {
     this->set_max_refresh_rate(this->controller_->getMaxRefreshRate());
   }

@@ -8,7 +8,7 @@ using esphome::i2c::ErrorCode;
 
 namespace esphome::ltr_als_ps {
 
-static const char *const TAG = "ltr_als_ps";
+ESPHOME_LOG_TAG(TAG, "ltr_als_ps");
 
 static const uint8_t MAX_TRIES = 5;
 
@@ -109,10 +109,6 @@ void LTRAlsPsComponent::dump_config() {
     LOG_SENSOR("  ", "Proximity counts", this->proximity_counts_sensor_);
   }
   LOG_UPDATE_INTERVAL(this);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void LTRAlsPsComponent::update() {
@@ -142,7 +138,7 @@ void LTRAlsPsComponent::loop() {
       err = this->write(nullptr, 0);
       if (err != i2c::ERROR_OK) {
         ESP_LOGV(TAG, "i2c connection failed");
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       }
       this->configure_reset_();
       if (this->is_als_()) {
@@ -498,26 +494,14 @@ void LTRAlsPsComponent::apply_lux_calculation_(AlsReadings &data) {
 }
 
 void LTRAlsPsComponent::publish_data_part_1_(AlsReadings &data) {
-  if (this->proximity_counts_sensor_ != nullptr) {
-    this->proximity_counts_sensor_->publish_state(this->ps_readings_);
-  }
-  if (this->ambient_light_sensor_ != nullptr) {
-    this->ambient_light_sensor_->publish_state(data.lux);
-  }
-  if (this->infrared_counts_sensor_ != nullptr) {
-    this->infrared_counts_sensor_->publish_state(data.ch1);
-  }
-  if (this->full_spectrum_counts_sensor_ != nullptr) {
-    this->full_spectrum_counts_sensor_->publish_state(data.ch0);
-  }
+  PUBLISH_STATE(this->proximity_counts_sensor_, this->ps_readings_);
+  PUBLISH_STATE(this->ambient_light_sensor_, data.lux);
+  PUBLISH_STATE(this->infrared_counts_sensor_, data.ch1);
+  PUBLISH_STATE(this->full_spectrum_counts_sensor_, data.ch0);
 }
 
 void LTRAlsPsComponent::publish_data_part_2_(AlsReadings &data) {
-  if (this->actual_gain_sensor_ != nullptr) {
-    this->actual_gain_sensor_->publish_state(get_gain_coeff(data.gain));
-  }
-  if (this->actual_integration_time_sensor_ != nullptr) {
-    this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
-  }
+  PUBLISH_STATE(this->actual_gain_sensor_, get_gain_coeff(data.gain));
+  PUBLISH_STATE(this->actual_integration_time_sensor_, get_itime_ms(data.integration_time));
 }
 }  // namespace esphome::ltr_als_ps

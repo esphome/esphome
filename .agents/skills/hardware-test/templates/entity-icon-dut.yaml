@@ -1,0 +1,148 @@
+# Entity icon and device class readback (esphome#21111): the per-run file supplies name and broker_ip through substitutions and includes this file as a package. Every readback path is covered: API listing, MQTT discovery, web_server JSON and dump_config. See reference/recipes/web_server.md.
+esp8266:
+  board: d1_mini
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+
+mqtt:
+  broker: ${broker_ip}
+  reboot_timeout: 0s
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("probe", "free heap %u, max block %u", (unsigned) ESP.getFreeHeap(), (unsigned) ESP.getMaxFreeBlockSize());
+
+esphome:
+  name: ${name}
+
+sensor:
+  - platform: template
+    name: Temp
+    id: temp
+    device_class: temperature
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+    accuracy_decimals: 1
+    lambda: return 21.5;
+    update_interval: 30s
+  - platform: template
+    name: Long Icon
+    id: long_icon
+    icon: mdi:this-icon-name-is-exactly-sixty-three-characters-long-abcde
+    device_class: humidity
+    unit_of_measurement: "%"
+    lambda: return 40.0;
+    update_interval: 30s
+  - platform: template
+    name: Plain
+    id: plain
+    lambda: return 1.0;
+    update_interval: 30s
+  - platform: template
+    name: Hidden
+    id: hidden
+    internal: true
+    icon: mdi:eye-off
+    device_class: power
+    lambda: return 2.0;
+    update_interval: 30s
+
+binary_sensor:
+  - platform: template
+    name: Motion
+    id: motion
+    device_class: motion
+    icon: mdi:motion-sensor
+    lambda: return false;
+
+switch:
+  - platform: template
+    name: Relay
+    id: relay
+    device_class: outlet
+    icon: mdi:power-plug
+    optimistic: true
+
+button:
+  - platform: template
+    name: Reboot
+    id: reboot_btn
+    device_class: restart
+    icon: mdi:restart
+    on_press:
+      - logger.log: "Reboot pressed"
+
+text_sensor:
+  - platform: template
+    name: Version
+    id: version
+    device_class: timestamp
+    icon: mdi:tag
+    lambda: return {"2026-10-21T00:00:00+00:00"};
+    update_interval: 30s
+
+number:
+  - platform: template
+    name: Level
+    id: level
+    device_class: battery
+    icon: mdi:knob
+    unit_of_measurement: "%"
+    min_value: 0
+    max_value: 100
+    step: 1
+    optimistic: true
+    initial_value: 50
+
+select:
+  - platform: template
+    name: Mode
+    id: mode
+    icon: mdi:format-list-bulleted
+    options: [a, b, c]
+    optimistic: true
+    initial_option: a
+
+event:
+  - platform: template
+    name: Doorbell
+    id: doorbell
+    device_class: doorbell
+    icon: mdi:doorbell
+    event_types: [ring, knock]
+
+cover:
+  - platform: template
+    name: Garage
+    id: garage
+    device_class: garage
+    icon: mdi:garage
+    optimistic: true
+
+text:
+  - platform: template
+    name: Secret Note
+    id: note
+    mode: password
+    icon: mdi:form-textbox-password
+    optimistic: true
+    initial_value: "x"

@@ -1,12 +1,15 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: xiaomi_cgg1
+    ble_hub_id: ble_tracker_hub
     mac_address: A4:C1:38:D1:61:7D
     bindkey: c99d2313182473b38001086febf781bd
     temperature:
-      name: Xiaomi CGD1 Temperature
+      name: Xiaomi CGG1 Temperature
     humidity:
-      name: Xiaomi CGD1 Humidity
+      name: Xiaomi CGG1 Humidity
     battery_level:
-      name: Xiaomi CGD1 Battery Level
+      name: Xiaomi CGG1 Battery Level

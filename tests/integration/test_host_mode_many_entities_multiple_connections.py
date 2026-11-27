@@ -8,6 +8,7 @@ from aioesphomeapi import EntityState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -45,16 +46,13 @@ async def test_host_mode_many_entities_multiple_connections(
         client2.subscribe_states(on_state2)
 
         # Wait for both clients to receive states
-        try:
-            count1, count2 = await asyncio.gather(
-                asyncio.wait_for(client1_ready, timeout=10.0),
-                asyncio.wait_for(client2_ready, timeout=10.0),
-            )
-        except TimeoutError:
-            pytest.fail(
-                f"One or both clients did not receive enough states within 10 seconds. "
-                f"Client1: {len(states1)}, Client2: {len(states2)}"
-            )
+        count1, count2 = await wait_or_fail(
+            asyncio.gather(client1_ready, client2_ready),
+            10.0,
+            "One or both clients did not receive enough states",
+            client1=lambda: len(states1),
+            client2=lambda: len(states2),
+        )
 
         # Verify both clients received states successfully
         assert count1 >= 20, (

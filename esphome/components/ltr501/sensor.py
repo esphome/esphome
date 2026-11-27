@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTUAL_GAIN,
@@ -10,20 +11,18 @@ from esphome.const import (
     CONF_FULL_SPECTRUM_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     CONF_REPEAT,
     CONF_TYPE,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
     UNIT_MILLISECOND,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
@@ -39,7 +38,6 @@ CONF_PS_LOW_THRESHOLD = "ps_low_threshold"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 ICON_GAIN = "mdi:multiplication"
 ICON_PROXIMITY = "mdi:hand-wave-outline"
-UNIT_COUNTS = "#"
 
 ltr501_ns = cg.esphome_ns.namespace("ltr501")
 
@@ -87,17 +85,7 @@ PS_GAINS = {
 }
 
 
-def validate_integration_time(value):
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(INTEGRATION_TIMES, int=True)(value)
-
-
-def validate_repeat_rate(value):
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(MEASUREMENT_REPEAT_RATES, int=True)(value)
-
-
-def validate_time_and_repeat_rate(config):
+def validate_time_and_repeat_rate(config: ConfigType) -> ConfigType:
     integraton_time = config[CONF_INTEGRATION_TIME]
     repeat_rate = config[CONF_REPEAT]
     if integraton_time > repeat_rate:
@@ -107,7 +95,7 @@ def validate_time_and_repeat_rate(config):
     return config
 
 
-def validate_als_gain_and_integration_time(config):
+def validate_als_gain_and_integration_time(config: ConfigType) -> ConfigType:
     integraton_time = config[CONF_INTEGRATION_TIME]
     if config[CONF_GAIN] == "1X" and integraton_time > 100:
         raise cv.Invalid(
@@ -125,10 +113,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TYPE, default="ALS_PS"): cv.enum(LTR_TYPES, upper=True),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(ALS_GAINS, upper=True),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="100ms"
-            ): validate_integration_time,
-            cv.Optional(CONF_REPEAT, default="500ms"): validate_repeat_rate,
+            cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): cv.time_period_enum(
+                INTEGRATION_TIMES
+            ),
+            cv.Optional(CONF_REPEAT, default="500ms"): cv.time_period_enum(
+                MEASUREMENT_REPEAT_RATES
+            ),
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
@@ -136,21 +126,13 @@ CONFIG_SCHEMA = cv.All(
                 CONF_PS_COOLDOWN, default="5s"
             ): cv.positive_time_period_seconds,
             cv.Optional(CONF_PS_GAIN, default="1X"): cv.enum(PS_GAINS, upper=True),
-            cv.Optional(CONF_PS_HIGH_THRESHOLD, default=65535): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.int_range(
-                min=0, max=65535
-            ),
+            cv.Optional(CONF_PS_HIGH_THRESHOLD, default=65535): cv.uint16_t,
+            cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.uint16_t,
             cv.Optional(CONF_ON_PS_HIGH_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_6,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_6, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),
@@ -221,34 +203,16 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    if als_config := config.get(CONF_AMBIENT_LIGHT):
-        sens = await sensor.new_sensor(als_config)
-        cg.add(var.set_ambient_light_sensor(sens))
-
-    if infrared_cnt_config := config.get(CONF_INFRARED_COUNTS):
-        sens = await sensor.new_sensor(infrared_cnt_config)
-        cg.add(var.set_infrared_counts_sensor(sens))
-
-    if full_spect_cnt_config := config.get(CONF_FULL_SPECTRUM_COUNTS):
-        sens = await sensor.new_sensor(full_spect_cnt_config)
-        cg.add(var.set_full_spectrum_counts_sensor(sens))
-
-    if act_gain_config := config.get(CONF_ACTUAL_GAIN):
-        sens = await sensor.new_sensor(act_gain_config)
-        cg.add(var.set_actual_gain_sensor(sens))
-
-    if act_itime_config := config.get(CONF_ACTUAL_INTEGRATION_TIME):
-        sens = await sensor.new_sensor(act_itime_config)
-        cg.add(var.set_actual_integration_time_sensor(sens))
-
-    if prox_cnt_config := config.get(CONF_PS_COUNTS):
-        sens = await sensor.new_sensor(prox_cnt_config)
-        cg.add(var.set_proximity_counts_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_AMBIENT_LIGHT, var.set_ambient_light_sensor)
+    await sensors(CONF_INFRARED_COUNTS, var.set_infrared_counts_sensor)
+    await sensors(CONF_FULL_SPECTRUM_COUNTS, var.set_full_spectrum_counts_sensor)
+    await sensors(CONF_ACTUAL_GAIN, var.set_actual_gain_sensor)
+    await sensors(CONF_ACTUAL_INTEGRATION_TIME, var.set_actual_integration_time_sensor)
+    await sensors(CONF_PS_COUNTS, var.set_proximity_counts_sensor)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

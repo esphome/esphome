@@ -13,7 +13,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee_on_off.switch";
+ESPHOME_LOG_TAG(TAG, "zigbee_on_off.switch");
 
 void ZigbeeSwitch::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -23,7 +23,6 @@ void ZigbeeSwitch::dump_config() {
 }
 
 void ZigbeeSwitch::setup() {
-  this->parent_->add_callback(this->endpoint_, [this](zb_bufid_t bufid) { this->zcl_device_cb_(bufid); });
   this->switch_->add_on_state_callback([this](bool state) {
     this->cluster_attributes_->present_value = state ? ZB_TRUE : ZB_FALSE;
     ESP_LOGD(TAG, "Set attribute endpoint: %d, present_value %d", this->endpoint_,
@@ -35,7 +34,7 @@ void ZigbeeSwitch::setup() {
   });
 }
 
-void ZigbeeSwitch::zcl_device_cb_(zb_bufid_t bufid) {
+void ZigbeeSwitch::on_zcl_device_event(zb_bufid_t bufid) {
   zb_zcl_device_callback_param_t *p_device_cb_param = ZB_BUF_GET_PARAM(bufid, zb_zcl_device_callback_param_t);
   zb_zcl_device_callback_id_t device_cb_id = p_device_cb_param->device_cb_id;
   zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;

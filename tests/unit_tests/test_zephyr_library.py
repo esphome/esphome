@@ -26,6 +26,8 @@ def test_generate_module_yml_uses_sanitized_name():
     # "/" -> "__" and " " -> "_" so it's a valid Zephyr module name.
     assert "name: owner__My_Lib" in out
     assert "cmake: zephyr" in out
+    # The library's own zephyr/Kconfig must not be used.
+    assert "kconfig: zephyr/Kconfig.esphome" in out
 
 
 def test_generate_cmakelists_txt_basic(tmp_path):
@@ -38,6 +40,11 @@ def test_generate_cmakelists_txt_basic(tmp_path):
     out = generate_cmakelists_txt(c)
 
     assert "zephyr_library_named(mylib)" in out
+    assert (
+        "if(DEFINED ESPHOME_LIBRARY_DEFINES)\n"
+        "  zephyr_library_compile_options(${ESPHOME_LIBRARY_DEFINES})\n"
+        "endif()"
+    ) in out
     assert "zephyr_library_sources(" in out
     # Sources are emitted as absolute paths (CMakeLists lives in zephyr/ subdir),
     # backslash-escaped for CMake (matching the output on Windows).
@@ -59,8 +66,39 @@ def test_generate_cmakelists_txt_flags_and_includes(tmp_path):
     assert "-DFOO" in out
     assert "-Wall" in out
     assert "zephyr_link_libraries(" in out
-    assert "-Llibdir" in out
+    # -L paths are absolutised against the library dir (the CMakeLists lives in a
+    # zephyr/ subdir, so a relative path would resolve from the wrong place).
+    abs_libdir = str((tmp_path / "libdir").resolve()).replace("\\", "\\\\")
+    assert f"-L{abs_libdir}" in out
     assert "-lm" in out
+
+
+def test_generate_cmakelists_txt_escapes_embedded_quotes(tmp_path):
+    """A define value carrying a literal quote (reachable via the lex
+    round-trip) survives as an escaped quote, not a broken CMake string."""
+    c = _make_component(tmp_path)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.c").write_text("")
+    c.data = {"build": {"flags": ['-DMSG=\\"hi\\"']}}
+
+    out = generate_cmakelists_txt(c)
+    assert '"-DMSG=\\"hi\\""' in out
+
+
+def test_generate_cmakelists_txt_lexes_spaced_flags(tmp_path):
+    """A spaced -I entry routes to include dirs instead of landing verbatim
+    in compile options; same shared lexer as the espidf emitter."""
+    c = _make_component(tmp_path)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.c").write_text("")
+    (tmp_path / "include").mkdir()
+    c.data = {"build": {"flags": "-I include -DBAR=1"}}
+
+    out = generate_cmakelists_txt(c)
+
+    assert str((tmp_path / "include").resolve()).replace("\\", "\\\\") in out
+    assert "-DBAR=1" in out
+    assert "-I include" not in out
 
 
 def test_generate_zephyr_modules_collects_all_dirs_and_writes(tmp_path, monkeypatch):
@@ -94,6 +132,7 @@ def test_generate_zephyr_modules_collects_all_dirs_and_writes(tmp_path, monkeypa
     for comp in (top, dep):
         assert (comp.path / "zephyr" / "module.yml").is_file()
         assert (comp.path / "zephyr" / "CMakeLists.txt").is_file()
+        assert (comp.path / "zephyr" / "Kconfig.esphome").read_text() == ""
 
 
 def test_generate_zephyr_modules_errors_on_duplicate_module_name(tmp_path, monkeypatch):

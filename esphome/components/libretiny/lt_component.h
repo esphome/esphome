@@ -15,18 +15,13 @@
 namespace esphome::libretiny {
 
 class LTComponent final : public Component {
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(version)
+#endif
+
  public:
   float get_setup_priority() const override;
   void dump_config() override;
-
-#ifdef USE_TEXT_SENSOR
-  void set_version_sensor(text_sensor::TextSensor *version) { version_ = version; }
-#endif  // USE_TEXT_SENSOR
-
- protected:
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *version_{nullptr};
-#endif  // USE_TEXT_SENSOR
 };
 
 }  // namespace esphome::libretiny

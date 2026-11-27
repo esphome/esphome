@@ -1,0 +1,77 @@
+esphome:
+  name: wispcli
+
+esp8266:
+  board: d1_mini
+
+logger:
+  level: DEBUG
+
+wifi:
+  networks:
+    - ssid: !secret dut_ap_ssid
+      password: !secret dut_ap_password
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+http_request:
+  timeout: 5s
+  verify_ssl: false
+
+globals:
+  - id: tick
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 3s
+    then:
+      - lambda: |-
+          id(tick)++;
+          if (id(tick) % 4 != 1) return;
+          if (!WiFi.isConnected()) { ESP_LOGI("cli", "NOT CONNECTED"); return; }
+          IPAddress r;
+          bool ok = WiFi.hostByName("neverssl.com", r, 3000);
+          ESP_LOGI("cli", "NET ip %s gw %s dns %s | neverssl.com -> %s", WiFi.localIP().toString().c_str(),
+                   WiFi.gatewayIP().toString().c_str(), WiFi.dnsIP(0).toString().c_str(),
+                   ok ? r.toString().c_str() : "FAIL");
+      - if:
+          condition:
+            lambda: return id(tick) % 4 == 2 && WiFi.isConnected();
+          then:
+            - http_request.get:
+                url: http://neverssl.com/
+                capture_response: true
+                max_response_buffer_size: 160
+                collect_headers:
+                  - location
+                on_response:
+                  - lambda: ESP_LOGI("cli", "NAME %d loc=%s body=%.60s", response->status_code, response->get_response_header("location").c_str(), body.c_str());
+                on_error:
+                  - lambda: ESP_LOGI("cli", "NAME error");
+      - if:
+          condition:
+            lambda: return id(tick) % 4 == 3 && WiFi.isConnected();
+          then:
+            - http_request.get:
+                url: !lambda 'return std::string("http://") + WiFi.gatewayIP().toString().c_str() + "/";'
+                capture_response: true
+                max_response_buffer_size: 160
+                on_response:
+                  - lambda: ESP_LOGI("cli", "GW %d body=%.60s", response->status_code, body.c_str());
+                on_error:
+                  - lambda: ESP_LOGI("cli", "GW error");
+      - if:
+          condition:
+            lambda: return id(tick) % 4 == 0 && WiFi.isConnected();
+          then:
+            - http_request.get:
+                url: !secret lan_probe_url
+                capture_response: true
+                max_response_buffer_size: 64
+                on_response:
+                  - lambda: ESP_LOGI("cli", "MAC %d body=%.20s", response->status_code, body.c_str());
+                on_error:
+                  - lambda: ESP_LOGI("cli", "MAC error");

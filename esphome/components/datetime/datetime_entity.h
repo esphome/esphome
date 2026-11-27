@@ -13,8 +13,7 @@
 namespace esphome::datetime {
 
 #define LOG_DATETIME_DATETIME(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
@@ -58,7 +57,7 @@ class DateTimeEntity : public DateTimeBase {
  protected:
   friend class DateTimeCall;
   friend struct DateTimeEntityRestoreState;
-  friend class OnDateTimeTrigger;
+  friend class OnDateTimeBase;
 
   virtual void control(const DateTimeCall &call) = 0;
 };
@@ -121,23 +120,13 @@ class DateTimeCall {
   optional<uint8_t> second_;
 };
 
-template<typename... Ts> class DateTimeSetAction final : public Action<Ts...>, public Parented<DateTimeEntity> {
- public:
-  TEMPLATABLE_VALUE(ESPTime, datetime)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-
-    if (this->datetime_.has_value()) {
-      call.set_datetime(this->datetime_.value(x...));
-    }
-    call.perform();
-  }
-};
+inline DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
 #ifdef USE_TIME
-class OnDateTimeTrigger final : public Trigger<>, public Component, public Parented<DateTimeEntity> {
+/// Runs fire() when the clock reaches the entity's date and time, for on_time.
+class OnDateTimeBase : public FiringComponent<>, public Parented<DateTimeEntity> {
  public:
+  explicit OnDateTimeBase(DateTimeEntity *parent) : Parented(parent) {}
   void loop() override;
 
  protected:

@@ -12,7 +12,7 @@ static constexpr uint8_t DAC0_PIN = 17;
 static constexpr uint8_t DAC0_PIN = 25;
 #endif
 
-static const char *const TAG = "esp32_dac";
+ESPHOME_LOG_TAG(TAG, "esp32_dac");
 
 void ESP32DAC::setup() {
   this->pin_->setup();

@@ -6,7 +6,7 @@ from ..automation import action_to_code
 from ..defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
 from ..lv_validation import lv_image_list, lv_milliseconds
 from ..lvcode import lv
-from ..types import LvType, ObjUpdateAction
+from ..types import LvType
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 from .label import CONF_LABEL
@@ -17,7 +17,7 @@ CONF_ANIMIMG = "animimg"
 def lv_repeat_count(value):
     if isinstance(value, str) and value.lower() in ("forever", "infinite"):
         value = 0xFFFF
-    return cv.int_range(min=0, max=0xFFFF)(value)
+    return cv.uint16_t(value)
 
 
 ANIMIMG_BASE_SCHEMA = cv.Schema(
@@ -73,7 +73,7 @@ animimg_spec = AnimimgType()
 
 @automation.register_action(
     "lvgl.animimg.start",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(lv_animimg_t),
@@ -93,7 +93,7 @@ async def animimg_start(config, action_id, template_arg, args):
 
 @automation.register_action(
     "lvgl.animimg.stop",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(lv_animimg_t),

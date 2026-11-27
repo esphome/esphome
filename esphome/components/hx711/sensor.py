@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_CLK_PIN, CONF_GAIN, ICON_SCALE, STATE_CLASS_MEASUREMENT
+from esphome.types import ConfigType
 
 hx711_ns = cg.esphome_ns.namespace("hx711")
 HX711Sensor = hx711_ns.class_("HX711Sensor", sensor.Sensor, cg.PollingComponent)
@@ -34,12 +35,10 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    dout_pin = await cg.gpio_pin_expression(config[CONF_DOUT_PIN])
-    cg.add(var.set_dout_pin(dout_pin))
-    sck_pin = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
-    cg.add(var.set_sck_pin(sck_pin))
+    await cg.add_pin(var.set_dout_pin, config[CONF_DOUT_PIN])
+    await cg.add_pin(var.set_sck_pin, config[CONF_CLK_PIN])
     cg.add(var.set_gain(config[CONF_GAIN]))

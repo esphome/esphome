@@ -4,7 +4,13 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_STATE
 
-from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from .. import (
+    CONF_NEXTION_ID,
+    CONF_PUBLISH_STATE,
+    CONF_SEND_TO_NEXTION,
+    nextion_ns,
+    register_switch_component,
+)
 from ..base_component import (
     CONF_COMPONENT_NAME,
     CONF_VARIABLE_NAME,
@@ -15,10 +21,6 @@ from ..base_component import (
 CODEOWNERS = ["@senexcrenshaw"]
 
 NextionSwitch = nextion_ns.class_("NextionSwitch", switch.Switch, cg.PollingComponent)
-
-NextionPublishBoolAction = nextion_ns.class_(
-    "NextionPublishBoolAction", automation.Action
-)
 
 CONFIG_SCHEMA = cv.All(
     switch.switch_schema(NextionSwitch)
@@ -34,14 +36,13 @@ async def to_code(config):
     await cg.register_component(var, config)
     await switch.register_switch(var, config)
 
-    cg.add(hub.register_switch_component(var))
+    cg.add(register_switch_component(hub, var))
 
     await setup_component_core_(var, config, ".val")
 
 
-@automation.register_action(
+automation.register_apply_action(
     "switch.nextion.publish",
-    NextionPublishBoolAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(NextionSwitch),
@@ -52,19 +53,12 @@ async def to_code(config):
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "set_state({}, {}, {})",
+        (
+            (CONF_STATE, cg.bool_),
+            (CONF_PUBLISH_STATE, cg.bool_),
+            (CONF_SEND_TO_NEXTION, cg.bool_),
+        ),
+    ),
 )
-async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-
-    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, cg.bool_)
-    cg.add(var.set_publish_state(template_))
-
-    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, cg.bool_)
-    cg.add(var.set_send_to_nextion(template_))
-
-    return var

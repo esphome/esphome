@@ -1,0 +1,4 @@
+esphome:
+  name: preftest
+
+host:

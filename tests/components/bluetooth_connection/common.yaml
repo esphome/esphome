@@ -1,0 +1,8 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome
+
+api:

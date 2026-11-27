@@ -1,5 +1,9 @@
 #include "ota_backend.h"
 
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#include <atomic>
+#endif
+
 namespace esphome::ota {
 
 bool version_is_older(const char *candidate, const char *reference) {
@@ -30,15 +34,84 @@ bool version_is_older(const char *candidate, const char *reference) {
   }
 }
 
-#ifdef USE_OTA_STATE_LISTENER
-OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Non-blocking; may be released by another task than the one that took it.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+// uint32_t: narrower atomics compile to a masked CAS on Xtensa.
+static std::atomic<uint32_t> update_locked{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-OTAGlobalCallback *get_global_ota_callback() {
-  if (global_ota_callback == nullptr) {
-    global_ota_callback = new OTAGlobalCallback();  // NOLINT(cppcoreguidelines-owning-memory)
-  }
-  return global_ota_callback;
+static bool update_lock_test_and_set() { return update_locked.exchange(1) == 0; }
+static void update_lock_clear() { update_locked.store(0); }
+#else
+static bool update_locked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+// BK72xx has no atomic exchange.
+static Mutex &update_lock_mutex() {
+  static Mutex mutex;
+  return mutex;
 }
+#endif
+
+static bool update_lock_test_and_set() {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#else
+  // lwIP callbacks may run from an interrupt (RP2040).
+  InterruptLock guard;
+#endif
+  if (update_locked)
+    return false;
+  update_locked = true;
+  return true;
+}
+
+static void update_lock_clear() {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#endif
+  update_locked = false;
+}
+#endif
+
+bool UpdateLock::try_acquire() {
+  if (!this->held_)
+    this->held_ = update_lock_test_and_set();
+  return this->held_;
+}
+
+void UpdateLock::release() {
+  if (!this->held_)
+    return;
+  update_lock_clear();
+  this->held_ = false;
+}
+
+void UpdateLock::force_release() { update_lock_clear(); }
+
+bool UpdateLock::any_held() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  return update_locked.load() != 0;
+#else
+  // Same guard as update_lock_test_and_set()
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#else
+  InterruptLock guard;
+#endif
+  return update_locked;
+#endif
+}
+
+#ifdef USE_OTA_STATE_LISTENER
+#ifdef OTA_STATE_CALLBACK_COUNT
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+StaticCallbackManager<OTA_STATE_CALLBACK_COUNT, void(OTAState, float, uint8_t, OTAComponent *)>
+    OTAComponent::state_callbacks;
+#endif
+
+static OTAGlobalCallback global_ota_callback;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+OTAGlobalCallback *get_global_ota_callback() { return &global_ota_callback; }
 
 void OTAComponent::notify_state_deferred_(OTAState state, float progress, uint8_t error) {
   // Pack state, error, and progress into a single uint32_t so the lambda
@@ -54,6 +127,9 @@ void OTAComponent::notify_state_deferred_(OTAState state, float progress, uint8_
 }
 
 void OTAComponent::notify_state_(OTAState state, float progress, uint8_t error) {
+#ifdef OTA_STATE_CALLBACK_COUNT
+  state_callbacks.call(state, progress, error, this);
+#endif
   for (auto *listener : this->state_listeners_) {
     listener->on_ota_state(state, progress, error);
   }

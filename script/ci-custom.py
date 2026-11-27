@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
 
 import argparse
+import ast
 import codecs
 import collections
+from collections.abc import Iterable, Iterator
 import fnmatch
 import functools
 import os.path
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 
 import colorama
-from helpers import filter_changed, git_ls_files, print_error_for_file, styled
+from helpers import (
+    ESPHOME_COMPONENTS_PATH,
+    filter_changed,
+    git_ls_files,
+    print_error_for_file,
+    root_path,
+    styled,
+)
+import yaml
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -163,7 +174,21 @@ def lint_post_check(func):
     return func
 
 
-def lint_re_check(regex, **kwargs):
+def _nolint_in_match(content, haystack, match, mask):
+    """With masking, only a trailing comment counts: the raw span still holds string contents, and
+    the masked text is blank exactly where comments and strings were, so NOLINT must sit after the
+    last real code character of the span."""
+    raw = content[match.start() : match.end()]
+    if not mask:
+        return "NOLINT" in raw
+    masked = haystack[match.start() : match.end()].rstrip()
+    return "NOLINT" in raw[len(masked) :]
+
+
+def lint_re_check(regex, mask=False, prefilter=None, **kwargs):
+    """mask=True blanks comments and string literals first so prose about the pattern is not reported;
+    the masked text keeps its length, so match offsets still index the original content.
+    prefilter is a literal every match must contain, checked before the costlier masking."""
     flags = kwargs.pop("flags", re.MULTILINE)
     prog = re.compile(regex, flags)
     decor = lint_content_check(**kwargs)
@@ -172,8 +197,11 @@ def lint_re_check(regex, **kwargs):
         @functools.wraps(func)
         def new_func(fname, content):
             errs = []
-            for match in prog.finditer(content):
-                if "NOLINT" in match.group(0):
+            if prefilter is not None and prefilter not in content:
+                return errs
+            haystack = _mask_cpp_comments_strings(content) if mask else content
+            for match in prog.finditer(haystack):
+                if _nolint_in_match(content, haystack, match, mask):
                     continue
                 lineno = content.count("\n", 0, match.start()) + 1
                 substr = content[: match.start()]
@@ -247,6 +275,11 @@ def lint_ext_check(fname):
         "CLAUDE.md",
         "GEMINI.md",
         ".github/copilot-instructions.md",
+        # Symlinks to the shared .agents/skills directory
+        ".claude/skills",
+        ".github/skills",
+        # Symlink to the real wifi scan_list.h so the test stub cannot drift
+        "tests/integration/fixtures/external_components/wifi/scan_list.h",
     ]
 )
 def lint_executable_bit(fname: Path) -> str | None:
@@ -292,6 +325,9 @@ def highlight(s):
         "esphome/components/socket/headers.h",
         "esphome/core/defines.h",
         "esphome/components/http_request/httplib.h",
+        # Shared C wire header (byte-identical with the co-processor firmware);
+        # these are protocol constants and constexpr is C++-only.
+        "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
     ],
 )
 def lint_no_defines(fname, match):
@@ -315,6 +351,154 @@ def lint_no_long_delays(fname, match):
         "If there's no way to work around the delay() and it doesn't execute often, please add "
         "a '// NOLINT' comment to the line."
     )
+
+
+# An if/else/for/while whose only body is an unbraced ESP_LOG*() call. When the build's compile-time
+# log level drops that macro, the body expands to nothing and the compiler warns (-Wempty-body).
+# clang-tidy's brace check does not catch these (ShortStatementLines allows short unbraced bodies), so
+# this fills that gap. Matched against comment/string-masked content, so commented-out or quoted code
+# is ignored. Both spellings are covered: core/log.h defines the uppercase ESP_LOG*() macros and
+# the lowercase esph_log_*() ones, and both expand to nothing below their log level.
+# 'for' allows ';' inside its parentheses (the classic C-style header); 'if'/'while' do not, so their
+# condition cannot run past the statement it guards. The 'for' header permits one level of nested
+# parens so it stays bounded to its own statement: without that, it can run past the loop body and
+# latch onto a later ')', mis-reporting the line and skipping the '#' preprocessor check below.
+ESP_LOG_NEEDS_BRACES_RE = re.compile(
+    r"(?:\bif\s*\([^{};]*\)|\bwhile\s*\([^{};]*\)|\bfor\s*\((?:[^{}()]|\([^{}()]*\))*\)|\belse\b)"
+    r"[ \t]*\n?[ \t]*(?:ESP_LOG[A-Z]*|esph_log_[a-z]+)\s*\(",
+    re.MULTILINE,
+)
+
+
+def _mask_cpp_comments_strings(s):
+    """Return s with // and /* */ comments and string/char/raw-string literals blanked to spaces
+    (length and newlines preserved) so a regex only matches real code. Parentheses in real code are
+    kept, so callers can still balance them on the masked text."""
+    out = list(s)
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+        # Raw string literal: an optional encoding prefix, then R"delim( ... )delim". The body may
+        # contain quotes, //, /* and unbalanced parens, so it must be consumed as one unit.
+        if c == "R" and i + 1 < n and s[i + 1] == '"':
+            j = i + 2
+            delim = ""
+            while j < n and s[j] not in "( \t\r\n\\" and len(delim) < 16:
+                delim += s[j]
+                j += 1
+            if j < n and s[j] == "(":
+                closing = ")" + delim + '"'
+                end = s.find(closing, j + 1)
+                end = n if end == -1 else end + len(closing)
+                for k in range(i, end):
+                    if s[k] != "\n":
+                        out[k] = " "
+                i = end
+                continue
+            i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "/":
+            while i < n and s[i] != "\n":
+                out[i] = " "
+                i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "*":
+            out[i] = out[i + 1] = " "
+            i += 2
+            while i < n and not (s[i] == "*" and i + 1 < n and s[i + 1] == "/"):
+                if s[i] != "\n":
+                    out[i] = " "
+                i += 1
+            if i < n:
+                out[i] = " "
+            if i + 1 < n:
+                out[i + 1] = " "
+            i += 2
+        # A "'" after an alphanumeric or '_' is a C++ digit separator (1'000), not a literal opener.
+        elif c == '"' or (
+            c == "'" and not (i and (s[i - 1].isalnum() or s[i - 1] == "_"))
+        ):
+            quote = c
+            out[i] = " "
+            i += 1
+            while i < n:
+                if s[i] == "\\":
+                    out[i] = " "
+                    if i + 1 < n:
+                        out[i + 1] = " "
+                    i += 2
+                    continue
+                if s[i] == quote:
+                    out[i] = " "
+                    i += 1
+                    break
+                if s[i] != "\n":
+                    out[i] = " "
+                i += 1
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _log_statement_end(masked, open_paren):
+    """Index of the ';' ending the ESP_LOG call whose '(' is at open_paren, or None. Balanced on the
+    masked text so quotes/comments inside the arguments do not confuse the paren count."""
+    depth = 0
+    i = open_paren
+    n = len(masked)
+    while i < n:
+        ch = masked[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                j = i + 1
+                while j < n and masked[j] != ";":
+                    if not masked[j].isspace():
+                        return None
+                    j += 1
+                return j if j < n else None
+        i += 1
+    return None
+
+
+@lint_content_check(include=cpp_include)
+def lint_esp_log_needs_braces(fname, content):
+    # Cheap bailout: no log call means nothing to flag, and skips masking the file entirely.
+    if "ESP_LOG" not in content and "esph_log_" not in content:
+        return []
+    masked = _mask_cpp_comments_strings(content)
+    errors = []
+    for match in ESP_LOG_NEEDS_BRACES_RE.finditer(masked):
+        pos = match.start()
+        line_start = content.rfind("\n", 0, pos) + 1
+        # Skip preprocessor conditionals (#if/#else/#elif): not C++ control statements.
+        if content[line_start:pos].lstrip().startswith("#"):
+            continue
+        # A '// NOLINT' may sit at the end of the log line (where the message says to put it) or on the
+        # control-statement line, so scan the whole statement rather than only up to the ESP_LOG token.
+        stmt_end = _log_statement_end(masked, match.end() - 1)
+        nolint_end = (
+            content.find("\n", stmt_end) if stmt_end is not None else match.end()
+        )
+        if nolint_end == -1:
+            nolint_end = len(content)
+        if "NOLINT" in content[pos:nolint_end]:
+            continue
+        snippet = content[pos : match.end()].replace("\n", " ").strip()
+        errors.append(
+            (
+                content.count("\n", 0, pos) + 1,
+                pos - line_start + 1,
+                (
+                    f"{highlight(snippet)} - an if/else/for/while body that is a single log "
+                    "call must be wrapped in braces. When the log level compiles the macro out, the "
+                    "body becomes empty and the compiler warns (-Wempty-body). Add { } around the "
+                    "log call (or a '// NOLINT' comment if this is genuinely intended)."
+                ),
+            )
+        )
+    return errors
 
 
 @lint_content_check(
@@ -369,24 +553,153 @@ def lint_conf_matches(fname, match):
     )
 
 
-CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*=\s*[\'"].*?[\'"]\s*?$'
+CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
 with codecs.open("esphome/const.py", "r", encoding="utf-8") as const_f_handle:
     constants_content = const_f_handle.read()
+with codecs.open(
+    "esphome/components/const/__init__.py", "r", encoding="utf-8"
+) as component_const_f_handle:
+    component_constants_content = component_const_f_handle.read()
+
+# The two canonical homes for shared constants: esphome/const.py (core, frozen) and
+# esphome/components/const/__init__.py (shared by components). A constant defined in
+# either must be imported from there rather than redefined in a component.
+CONST_HOMES = ["esphome/const.py", "esphome/components/const/__init__.py"]
+
 CONSTANTS = [m.group(1) for m in re.finditer(CONF_RE, constants_content, re.MULTILINE)]
+COMPONENT_CONSTANTS = [
+    m.group(1) for m in re.finditer(CONF_RE, component_constants_content, re.MULTILINE)
+]
 
 CONSTANTS_USES = collections.defaultdict(list)
 
 
-@lint_re_check(CONF_RE, include=["*.py"], exclude=["esphome/const.py"])
+def _const_home_error(name, core_constants, component_constants):
+    """Return an error if the constant already lives in one of the canonical homes."""
+    if name in core_constants:
+        return (
+            f"Constant {highlight(name)} has already been defined in const.py - "
+            "please import the constant from const.py directly."
+        )
+    if name in component_constants:
+        return (
+            f"Constant {highlight(name)} has already been defined in "
+            "esphome/components/const/__init__.py - please import the constant from "
+            "esphome.components.const directly."
+        )
+    return None
+
+
+@lint_re_check(CONF_RE, include=["*.py"], exclude=CONST_HOMES)
 def lint_conf_from_const_py(fname, match):
     name = match.group(1)
-    if name not in CONSTANTS:
+    err = _const_home_error(name, CONSTANTS, COMPONENT_CONSTANTS)
+    if err is None:
         CONSTANTS_USES[name].append(fname)
-        return None
-    return (
-        f"Constant {highlight(name)} has already been defined in const.py - "
-        "please import the constant from const.py directly."
-    )
+    return err
+
+
+UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
+UNIT_CONSTANTS = [
+    m.group(1) for m in re.finditer(UNIT_RE, constants_content, re.MULTILINE)
+]
+COMPONENT_UNIT_CONSTANTS = [
+    m.group(1) for m in re.finditer(UNIT_RE, component_constants_content, re.MULTILINE)
+]
+
+UNIT_CONSTANTS_USES = collections.defaultdict(list)
+
+
+@lint_re_check(UNIT_RE, include=["*.py"], exclude=CONST_HOMES)
+def lint_unit_from_const_py(fname, match):
+    name = match.group(1)
+    err = _const_home_error(name, UNIT_CONSTANTS, COMPONENT_UNIT_CONSTANTS)
+    if err is None:
+        UNIT_CONSTANTS_USES[name].append(fname)
+    return err
+
+
+# Names that start with CONF_ or UNIT_ but are not config key or unit constants.
+NON_LITERAL_CONSTANT_ALLOWLIST = {"UNIT_OF_MEASUREMENT_MAX_LENGTH"}
+
+
+def _constant_names(target: ast.expr) -> Iterator[ast.Name]:
+    """Yield the CONF_/UNIT_ names bound by an assignment target."""
+    if isinstance(target, ast.Name):
+        if (
+            target.id.startswith(("CONF_", "UNIT_"))
+            and target.id not in NON_LITERAL_CONSTANT_ALLOWLIST
+        ):
+            yield target
+    elif isinstance(target, ast.Starred):
+        yield from _constant_names(target.value)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            yield from _constant_names(elt)
+
+
+def _module_level_statements(nodes: Iterable[ast.AST]) -> Iterator[ast.AST]:
+    """Yield statements at module level, including those inside if/try/with/for blocks.
+
+    Function and class bodies are a different scope and are not entered.
+    """
+    for node in nodes:
+        yield node
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield from _module_level_statements(
+            child
+            for child in ast.iter_child_nodes(node)
+            if isinstance(child, (ast.stmt, ast.excepthandler, ast.match_case))
+        )
+
+
+@lint_content_check(include=["esphome/*.py"])
+def lint_constant_is_plain_string(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    """Require module-level CONF_ and UNIT_ constants to be plain string literals.
+
+    Other scripts and lints (for example the duplicate constant checks above) read these
+    definitions as text, so a computed value would be missed or moved incorrectly.
+    """
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
+        return []
+    errs: list[tuple[int, int, str]] = []
+    for node in _module_level_statements(tree.body):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+            value = node.value
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+            value = None
+        else:
+            continue
+        # Unpacking a string binds single characters or a list, so only a plain name counts.
+        if (
+            isinstance(value, ast.Constant)
+            and type(value.value) is str
+            and all(isinstance(target, ast.Name) for target in targets)
+        ):
+            continue
+        for target in targets:
+            for name in _constant_names(target):
+                example = highlight(f'{name.id} = "value"')
+                msg = (
+                    f"Constant {highlight(name.id)} must be set to a plain string "
+                    f"literal, such as {example}. Do not build it from other "
+                    "constants, f-strings, operators or function calls. If the value "
+                    "is not a config key or a unit, give it a name without the CONF_ "
+                    "or UNIT_ prefix."
+                )
+                errs.append((name.lineno, name.col_offset + 1, msg))
+    return errs
 
 
 RAW_PIN_ACCESS_RE = (
@@ -554,10 +867,102 @@ def lint_constants_usage():
     return errs
 
 
+@lint_post_check
+def lint_unit_constants_usage():
+    errs = []
+    for constant, uses in UNIT_CONSTANTS_USES.items():
+        if len(uses) < 3:
+            continue
+        errs.append(
+            f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
+            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
+            "See https://developers.esphome.io/contributing/code/#python"
+        )
+    return errs
+
+
+def _git_output(*args: str) -> str | None:
+    """Run a git command and return its stdout, or None if it fails."""
+    proc = subprocess.run(
+        ["git", *args], capture_output=True, text=True, check=False, close_fds=False
+    )
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def _base_commit() -> str | None:
+    """Return the commit that holds the base branch, or None when there is none.
+
+    In a GitHub pull request run, HEAD is the test merge commit and its first parent is
+    the tip of the target branch (the checkout needs fetch-depth 2 for it). Elsewhere,
+    such as pre-commit or a local run, use the merge base of HEAD with dev, found the same
+    way as helpers.changed_files(). Without a dev remote ref there is nothing to compare
+    against, so the caller skips the check.
+    """
+    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+        if (out := _git_output("rev-parse", "--verify", "-q", "HEAD^1")) is None:
+            print(
+                "WARNING: HEAD has no parent commit; cannot find new constants "
+                "(the checkout needs fetch-depth: 2)",
+                file=sys.stderr,
+            )
+            return None
+        return out.strip()
+    remotes = ["upstream", "origin", *(_git_output("remote") or "").split()]
+    for remote in remotes:
+        if out := _git_output("merge-base", f"refs/remotes/{remote}/dev", "HEAD"):
+            return out.strip()
+    return None
+
+
+def _constants_defined_at(commit: str) -> set[str]:
+    """Return the names of all CONF_/UNIT_ definitions in Python files at a commit."""
+    out = _git_output(
+        "grep",
+        "-h",
+        "-o",
+        "-E",
+        r"^(CONF|UNIT)_[A-Za-z0-9_]+[[:space:]]*(:[^=]*)?=",
+        commit,
+        "--",
+        "*.py",
+    )
+    # git grep exits 1 when nothing matches, which is an empty set and not an error.
+    # Each line is the name followed by an optional annotation and "=".
+    return {re.match(r"\w+", line)[0] for line in (out or "").splitlines()}
+
+
+@lint_post_check
+def lint_new_constant_in_multiple_files() -> list[str]:
+    """Reject a constant that this change adds, brand new, in two or more files.
+
+    Constants that already exist on the base branch are left to the 3+ files checks
+    above, which a workflow can fix by moving them. Skipped when no base commit is known.
+    """
+    candidates: dict[str, list[str]] = {}
+    for name, uses in (*CONSTANTS_USES.items(), *UNIT_CONSTANTS_USES.items()):
+        files = sorted({str(u) for u in uses if fnmatch.fnmatch(str(u), "esphome/*")})
+        if len(files) >= 2:
+            candidates[name] = files
+    if not candidates or (base := _base_commit()) is None:
+        return []
+    existing = _constants_defined_at(base)
+    return [
+        f"New constant {highlight(name)} is defined in {len(files)} files "
+        f"({', '.join(files)}). Define it once and import it everywhere else: in "
+        "esphome/const.py if core code uses it, otherwise in "
+        "esphome/components/const/__init__.py, or in one component that the others "
+        "import it from."
+        for name, files in sorted(candidates.items())
+        if name not in existing
+    ]
+
+
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1015
+CONST_PY_MAX_CONF = 1022
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -575,6 +980,40 @@ def lint_const_py_frozen(fname, content):
     if count < CONST_PY_MAX_CONF:
         return f"CONST_PY_MAX_CONF in ci-custom.py should be updated to {count}."
     return None
+
+
+@lint_content_check(include=["esphome/components/*/__init__.py"])
+def lint_component_domain(fname: Path, content: str) -> str | None:
+    """Require every component's __init__.py to define DOMAIN as its own name."""
+    if len(fname.parts) != 4:
+        # Platform packages such as esphome/components/<name>/sensor/__init__.py
+        return None
+    domain = fname.parts[2]
+    expected = f'DOMAIN = "{domain}"'
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if (
+            any(isinstance(t, ast.Name) and t.id == "DOMAIN" for t in targets)
+            and isinstance(node.value, ast.Constant)
+            and node.value.value == domain
+        ):
+            return None
+    return (
+        f"Component is missing the {highlight(expected)} constant. "
+        "Add it in alphabetical order with the other component metadata such as "
+        "CODEOWNERS and DEPENDENCIES, so other code can refer to the component by "
+        "name, e.g. CORE.data[DOMAIN]."
+    )
 
 
 def relative_cpp_search_text(fname: Path, content) -> str:
@@ -666,6 +1105,12 @@ def lint_relative_py_import(fname: Path, line, col, content):
         "esphome/components/host/helpers.cpp",
         "esphome/components/zephyr/helpers.cpp",
         "esphome/components/http_request/httplib.h",
+        # Global extern "C" esp_now_* linker symbols + shared C wire header;
+        # neither can live in a C++ namespace.
+        "esphome/components/esp32_hosted/esp_now_hosted.cpp",
+        "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
+        # C header shared with the vendored decoder
+        "esphome/components/esphome/ota/ota_esphome_inflate.h",
     ],
 )
 def lint_namespace(fname: Path, content: str) -> str | None:
@@ -691,7 +1136,15 @@ def lint_esphome_h(fname, line, col, content):
     )
 
 
-@lint_content_check(include=["*.h"], exclude=["esphome/core/entity_types.h"])
+@lint_content_check(
+    include=["*.h"],
+    exclude=[
+        "esphome/core/entity_types.h",
+        # Shared C wire header; uses a classic #ifndef guard for portability
+        # across the co-processor firmware repo it stays byte-identical with.
+        "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
+    ],
+)
 def lint_pragma_once(fname, content):
     if "#pragma once" not in content:
         return (
@@ -782,15 +1235,13 @@ HEAP_ALLOCATING_HELPERS = {
     r"str_sprintf|"
     r"str_snprintf|"
     r"value_accuracy_to_string"
-    r")\s*\(" + CPP_RE_EOL,
+    # Explicit template arguments at any nesting depth, e.g. format_hex<std::array<uint8_t, 4>>(
+    r")\s*(?:<[^;{}()\n]*>\s*)?\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves
         "esphome/core/alloc_helpers.h",
         "esphome/core/alloc_helpers.cpp",
-        # Backward compatibility re-exports (remove before 2026.11.0)
-        "esphome/core/helpers.h",
-        "esphome/core/helpers.cpp",
         # Vendored third-party library
         "esphome/components/http_request/httplib.h",
     ],
@@ -843,7 +1294,6 @@ def lint_no_sprintf(fname, match):
         # Vendored library
         "esphome/components/http_request/httplib.h",
         # Deprecated helpers that return std::string
-        "esphome/core/helpers.cpp",
         "esphome/core/alloc_helpers.cpp",
         # The using declaration itself
         "esphome/core/helpers.h",
@@ -970,7 +1420,143 @@ def lint_no_std_bind(fname, match):
     )
 
 
-LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
+@lint_re_check(
+    r"[^\w]std\s*::\s*nothrow\b" + CPP_RE_EOL,
+    mask=True,
+    prefilter="nothrow",
+    include=cpp_include,
+)
+def lint_no_std_nothrow(fname, match):
+    return (
+        f"{highlight('new (std::nothrow)')} aborts on ESP-IDF when the allocation fails, exceptions are disabled "
+        f"there, so it never returns nullptr.\n"
+        f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h, which does.\n"
+        f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
+        f"  After:  {highlight('auto buf = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(n);')}\n"
+        f"For one object use {highlight('RAMAllocator<T>().make_unique(args...)')}; both return empty on failure.\n"
+        f"Default flags prefer PSRAM; pass RAMAllocator<T>::PREFER_INTERNAL to keep it where new put it.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+# Every C++ source and header; plain C files cannot use the macro
+LOG_TAG_INCLUDE = ["esphome/*.cpp", "esphome/*.h"]
+
+
+@lint_re_check(
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?(?:\w+::)*TAG|\s(?:const\s+)?(?:\w+::)*TAG\s*\[\w*\])"
+    r"\s*(?:=\s*\{?|[{(])\s*\"" + CPP_RE_EOL,
+    prefilter="TAG",
+    include=LOG_TAG_INCLUDE,
+)
+def lint_log_tag_macro(fname, match):
+    return (
+        f"Declare log tags with {highlight('ESPHOME_LOG_TAG(TAG, "name");')}, which keeps the tag in flash on "
+        f"ESP8266.\n"
+        f"  Before: {highlight('static const char *const TAG = "name";')}\n"
+        f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
+        f"A class member tag cannot use the macro; declare {highlight('static const char TAG[];')} in the class "
+        f"and define {highlight('const char Foo::TAG[] PROGMEM = "name";')} in the .cpp.\n"
+        f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*(?:\w+::)*TAG\b"
+    r"|\bstd::string\s+\w+\s*[={(]\s*(?:\w+::)*TAG\b",
+    mask=True,
+    prefilter="TAG",
+    include=LOG_TAG_INCLUDE,
+)
+def lint_log_tag_as_string(fname, match):
+    return (
+        f"{highlight('TAG')} is in flash on ESP8266 (ESPHOME_LOG_TAG), so it can only be used for logging.\n"
+        f"Use a separate name or a numeric id for scheduler calls, and do not pass it to string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+# The ESP_LOG* macros, and esp_log_printf_ for calls that pick the log level at run time
+LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(|\besp_log_printf_\s*\(")
+# Comments, raw/plain string literals and single char literals are consumed whole so ; ( ) ? :
+# inside them are never seen. A char literal is exactly one (escaped) char so a digit separator
+# like 1'000'000 cannot open one.
+CPP_COMMENT_RE = r"//[^\n]*|/\*.*?\*/"
+CPP_SKIP_RE = (
+    CPP_COMMENT_RE
+    + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
+)
+LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
+# Splitting arguments also needs brackets, braces, commas and template brackets: clang-format writes a
+# comparison as `a < b`, so a `<` right after a name (or after `]`, a templated lambda) opens a
+# template argument list, and `>` closes one unless it is `->` or `>=`
+LOG_ARG_TOKEN_RE = re.compile(
+    CPP_SKIP_RE + r"|[()\[\]{},]|(?<=[\w\]])<(?![<=])|(?<!-)>(?!=)", re.DOTALL
+)
+# Call heads are found in the same pass that skips comments and literals, so commented-out code and
+# code examples inside strings are never taken for calls
+LOG_CALL_HEAD_SCAN_RE = re.compile(
+    CPP_SKIP_RE + "|" + LOG_CALL_START_RE.pattern, re.DOTALL
+)
+# A format argument that is a string literal, after any comments or macro line continuations; raw and
+# prefixed literals count too
+LOG_FORMAT_LITERAL_RE = re.compile(
+    r"(?:\s|\\\n|" + CPP_COMMENT_RE + r')*(?P<fmt>(?:u8|u|U|L)?R?")', re.DOTALL
+)
+# The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
+# i.e. a string literal used as a ternary branch.
+LOG_TERNARY_LITERAL_RE = re.compile(
+    CPP_SKIP_RE + r"|[?:](?:\s|" + CPP_COMMENT_RE + r')*(?=")', re.DOTALL
+)
+# A bare NOLINT; a clang-tidy NOLINT(check-name) is aimed at a different tool.
+NOLINT_RE = re.compile(r"\bNOLINT\b(?!\()")
+
+
+def _line_col(content: str, pos: int) -> tuple[int, int]:
+    """1-based line and column of an offset in content."""
+    return content.count("\n", 0, pos) + 1, pos - content.rfind("\n", 0, pos)
+
+
+def _iter_log_calls(content: str) -> Iterator[tuple[int, str | None]]:
+    """Yield (start, text) for every ESP_LOG*(...) and esp_log_printf_(...) call, text running to the
+    matching close paren.
+    text is None when no matching paren exists so callers can report the call instead of skipping it."""
+    for head in LOG_CALL_HEAD_SCAN_RE.finditer(content):
+        if not LOG_CALL_START_RE.fullmatch(head.group(0)):
+            continue  # a comment or literal
+        depth = 1
+        for tok in LOG_CALL_TOKEN_RE.finditer(content, head.end()):
+            if tok.group(0) == "(":
+                depth += 1
+            elif tok.group(0) == ")":
+                depth -= 1
+                if depth == 0:
+                    yield head.start(), content[head.start() : tok.end()]
+                    break
+        else:
+            yield head.start(), None
+
+
+def _unbalanced_log_call_error(content: str, pos: int) -> tuple[int, int, str]:
+    lineno, col = _line_col(content, pos)
+    return (
+        lineno,
+        col,
+        "Log call has no matching closing parenthesis, so it cannot be checked.",
+    )
+
+
+def _log_call_has_nolint(content: str, log_start: int, log_text: str) -> bool:
+    """True when a bare NOLINT is on any line the log call spans."""
+    first_line = content.rfind("\n", 0, log_start) + 1
+    last_line = content.find("\n", log_start + len(log_text))
+    return bool(
+        NOLINT_RE.search(content[first_line : last_line if last_line != -1 else None])
+    )
+
+
 LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
 LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
 
@@ -978,16 +1564,16 @@ LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
 @lint_content_check(include=cpp_include)
 def lint_log_multiline_continuation(fname, content):
     errs = []
-    for log_match in LOG_MULTILINE_RE.finditer(content):
-        log_text = log_match.group(0)
+    for log_start, log_text in _iter_log_calls(content):
+        if log_text is None:
+            errs.append(_unbalanced_log_call_error(content, log_start))
+            continue
         for bad_match in LOG_BAD_CONTINUATION_RE.finditer(log_text):
             # %s may expand to a whitespace prefix at runtime, skip those
             if LOG_PERCENT_S_CONTINUATION_RE.match(log_text, bad_match.start()):
                 continue
             # Calculate line number from position in full content
-            abs_pos = log_match.start() + bad_match.start()
-            lineno = content.count("\n", 0, abs_pos) + 1
-            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            lineno, col = _line_col(content, log_start + bad_match.start())
             errs.append(
                 (
                     lineno,
@@ -1002,6 +1588,155 @@ def lint_log_multiline_continuation(fname, content):
                     ),
                 )
             )
+    return errs
+
+
+def _find_ternary_literals(text: str) -> Iterator[tuple[int, str]]:
+    """Yield (offset, literal) for every string literal used as a ternary branch."""
+    branch = False
+    for m in LOG_TERNARY_LITERAL_RE.finditer(text):
+        tok = m.group(0)
+        # An empty literal is merged with every other string's terminator, so it costs no RAM,
+        # while a PSTR("") would add its own flash array; leave it alone.
+        if branch and tok[0] == '"' and tok != '""':
+            yield m.start(), tok
+        branch = tok[0] in "?:"
+
+
+# LOG_STR_LITERAL is a no op everywhere except ESP8266, so code that never builds there is skipped
+# to avoid churn: platform specific sources and components for ESP32, LibreTiny, RP2 and Zephyr only.
+# A component belongs here only if it has no tests/components/<name>/test.esp8266-ard.yaml.
+LOG_LITERAL_LINT_EXCLUDE = [
+    "*_esp32.cpp",
+    "*_esp32_*.cpp",
+    "*_esp_idf.cpp",
+    "*_rmt.cpp",
+    "*_zephyr.cpp",
+    "*_bk72xx.cpp",
+    "*_libretiny.cpp",
+    "*_pico_w.cpp",
+    "*_host.cpp",
+    "esphome/components/esp32*/*",
+    "esphome/components/bk72xx*/*",
+    "esphome/components/ln882h*/*",
+    "esphome/components/ln882x*/*",
+    "esphome/components/rp2*/*",
+    "esphome/components/zephyr*/*",
+    "esphome/components/host/*",
+    "esphome/components/libretiny*/*",
+    "esphome/components/bluetooth_proxy/*",
+    "esphome/components/bluetooth_connection/*",
+    "esphome/components/ble_client/*",
+    "esphome/components/bedjet/*",
+    "esphome/components/anova/*",
+    "esphome/components/xiaomi_ble/*",
+    "esphome/components/bthome_mithermometer/*",
+    "esphome/components/usb_host/*",
+    "esphome/components/zigbee/*",
+    "esphome/components/lvgl/*",
+    # Test fixtures and host only unit tests - not production embedded code
+    "tests/integration/fixtures/*",
+    "tests/components/*",
+]
+
+
+@lint_content_check(include=cpp_include, exclude=LOG_LITERAL_LINT_EXCLUDE)
+def lint_log_no_bare_literal_ternary(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    errs = []
+    for log_start, log_text in _iter_log_calls(content):
+        if log_text is None:
+            continue  # reported by lint_log_multiline_continuation, which sees every file
+        # A NOLINT anywhere on the lines the call spans silences every branch in it
+        if _log_call_has_nolint(content, log_start, log_text):
+            continue
+        for offset, literal in _find_ternary_literals(log_text):
+            lineno, col = _line_col(content, log_start + offset)
+            errs.append(
+                (
+                    lineno,
+                    col,
+                    (
+                        "String literal used as a ternary branch in a log call. On ESP8266 the "
+                        "log macro moves the format string to flash, but bare literal arguments "
+                        "stay in RAM. Wrap each branch passed straight to the log call in "
+                        f"{highlight('LOG_STR_LITERAL(...)')}:\n"
+                        f"  Before: {highlight(literal)}\n"
+                        f"  After:  {highlight(f'LOG_STR_LITERAL({literal})')}\n"
+                        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+                    ),
+                )
+            )
+    return errs
+
+
+def _log_call_arg(
+    call: str, index: int, templates: bool = True
+) -> tuple[int, str] | None:
+    """(offset, text as written) of a top level argument of a balanced log call, None if it has fewer."""
+    depth, start, arg = 0, call.index("(") + 1, 0
+    opened: list[int] = []  # depth at which each open template argument list started
+    for tok in LOG_ARG_TOKEN_RE.finditer(call, start):
+        t = tok.group(0)
+        if t == "<":
+            if templates:
+                opened.append(depth)
+        elif t == ">":
+            if opened and opened[-1] == depth:
+                opened.pop()
+        elif t in "([{":
+            depth += 1
+        elif depth > 0 and t in ")]}":
+            depth -= 1
+            while opened and opened[-1] > depth:
+                opened.pop()  # a `<` that never closed inside these parens
+        elif opened and opened[-1] == depth and t == ",":
+            continue
+        elif depth == 0 and t in ",)":
+            if t == ")" and opened:
+                # A `<` that never closed was a comparison after all
+                return _log_call_arg(call, index, templates=False)
+            if arg == index:
+                return start, call[start : tok.start()]
+            if t == ")":
+                return None
+            arg += 1
+            start = tok.end()
+    return None
+
+
+@lint_content_check(include=cpp_include, exclude=LOG_LITERAL_LINT_EXCLUDE)
+def lint_log_direct_call_format_in_flash(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    if "esp_log_printf_" not in content:
+        return []
+    errs = []
+    for log_start, log_text in _iter_log_calls(content):
+        if log_text is None or not log_text.startswith("esp_log_printf_"):
+            continue
+        fmt_arg = _log_call_arg(log_text, 3)
+        if fmt_arg is None or not (m := LOG_FORMAT_LITERAL_RE.match(fmt_arg[1])):
+            continue
+        fmt_offset = fmt_arg[0] + m.start("fmt")
+        fmt = fmt_arg[1][m.start("fmt") :].strip()
+        if _log_call_has_nolint(content, log_start, log_text):
+            continue
+        lineno, col = _line_col(content, log_start + fmt_offset)
+        errs.append(
+            (
+                lineno,
+                col,
+                (
+                    "esp_log_printf_ called with a bare format string. The ESP_LOG* macros move the "
+                    "format string to flash on ESP8266, a direct call does not. Wrap it in "
+                    f"{highlight('ESPHOME_LOG_FORMAT(...)')}:\n"
+                    f"  Before: {highlight(fmt)}\n"
+                    f"  After:  {highlight(f'ESPHOME_LOG_FORMAT({fmt})')}"
+                ),
+            )
+        )
     return errs
 
 
@@ -1085,6 +1820,91 @@ def lint_test_package_key_matches_bus(fname, content):
                     ),
                 )
             )
+    return errs
+
+
+GROUPED_TEST_IDS = {
+    # tca9548a adds I2C buses next to the shared package bus
+    "i2c_id": ("i2c_device_schema", "i2c.I2CDevice"),
+    # several tests define their own IMU or one-wire bus
+    "motion_id": ("CONF_MOTION_ID",),
+    "one_wire_id": ("one_wire_device_schema",),
+}
+
+
+YAML_NULL_TAG = "tag:yaml.org,2002:null"
+YAML_MAP_TAG = "tag:yaml.org,2002:map"
+
+
+@functools.cache
+def _grouped_test_ids(domain: str, platform: str | None) -> tuple[str, ...]:
+    """The GROUPED_TEST_IDS the entity's own schema file takes."""
+    base = Path(root_path) / ESPHOME_COMPONENTS_PATH
+    paths = (
+        [base / platform / f"{domain}.py", base / platform / domain / "__init__.py"]
+        if platform
+        else [base / domain / "__init__.py"]
+    )
+    text = "".join(p.read_text() for p in paths if p.exists())
+    return tuple(
+        key
+        for key, markers in GROUPED_TEST_IDS.items()
+        if any(m in text for m in markers)
+    )
+
+
+def _yaml_entries(root: yaml.MappingNode) -> Iterator[tuple[str, yaml.MappingNode]]:
+    """(domain, entry) for each top-level entry, list items included."""
+    for key_node, value_node in root.value:
+        items = (
+            value_node.value
+            if isinstance(value_node, yaml.SequenceNode)
+            else [value_node]
+        )
+        for item in items:
+            if isinstance(item, yaml.MappingNode):
+                yield key_node.value, item
+            elif item.tag == YAML_NULL_TAG:  # `as5600:` is an empty mapping
+                yield (
+                    key_node.value,
+                    yaml.MappingNode(YAML_MAP_TAG, [], item.start_mark),
+                )
+
+
+@lint_content_check(
+    include=["tests/components/*/test.*.yaml", "tests/components/*/common*.yaml"]
+)
+def lint_grouped_test_ids(fname, content):
+    """CI merges grouped tests, so an id another test can duplicate must be set."""
+    from analyze_component_buses import is_groupable  # pylint: disable=import-outside-toplevel
+
+    if not is_groupable(Path(root_path) / Path(fname).parent):
+        return None
+    try:
+        root = yaml.compose(
+            content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+        )
+    except yaml.YAMLError:
+        return None  # yamllint and the build test report broken YAML
+    if not isinstance(root, yaml.MappingNode):
+        return None
+    errs: list[tuple[int, int, str]] = []
+    for domain, entry in _yaml_entries(root):
+        # An empty `i2c_id:` is the same as leaving it out
+        keys = {
+            k.value: v.value
+            for k, v in entry.value
+            if isinstance(k, yaml.ScalarNode) and v.tag != YAML_NULL_TAG
+        }
+        errs.extend(
+            (
+                entry.start_mark.line + 1,
+                entry.start_mark.column + 1,
+                f"Set {highlight(id_key)}: a grouped CI build can add a second candidate",
+            )
+            for id_key in _grouped_test_ids(domain, keys.get("platform"))
+            if id_key not in keys
+        )
     return errs
 
 

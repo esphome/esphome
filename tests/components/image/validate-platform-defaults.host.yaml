@@ -1,0 +1,24 @@
+# `platform: file` entry using the `defaults:`/`files:` shape, including the
+# per-type byte_order drop when an entry overrides to a non-endian type.
+display:
+  - platform: sdl
+    id: image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  - platform: file
+    defaults:
+      type: rgb565
+      transparency: opaque
+      byte_order: little_endian
+      resize: 50x50
+      dither: FloydSteinberg
+    files:
+      - id: platform_defaults_image
+        file: ../../pnglogo.png
+      - id: platform_defaults_binary
+        file: ../../pnglogo.png
+        type: binary

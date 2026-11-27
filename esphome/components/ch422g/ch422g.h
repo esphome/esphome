@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
@@ -26,7 +27,7 @@ class CH422GComponent final : public Component, public i2c::I2CDevice {
 
  protected:
   bool write_reg_(uint8_t reg, uint8_t value);
-  uint8_t read_reg_(uint8_t reg);
+  bool read_reg_(uint8_t reg, uint8_t *value);
   bool set_mode_(uint8_t mode);
   bool read_inputs_();
   bool write_outputs_();
@@ -42,26 +43,8 @@ class CH422GComponent final : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a CH422G pin as a GPIO pin.
-class CH422GGPIOPin final : public GPIOPin {
- public:
-  void setup() override{};
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(CH422GComponent *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags);
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  CH422GComponent *parent_{};
-  uint8_t pin_{};
-  bool inverted_{};
-  gpio::Flags flags_{};
-};
+using CH422GGPIOPin = gpio_expander::ExpanderGPIOPin<CH422GComponent>;
 
 }  // namespace esphome::ch422g
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::ch422g::CH422GComponent);

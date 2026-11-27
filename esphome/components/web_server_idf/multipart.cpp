@@ -8,7 +8,7 @@
 
 namespace esphome::web_server_idf {
 
-static const char *const TAG = "multipart";
+ESPHOME_LOG_TAG(TAG, "multipart");
 
 // ========== MultipartReader Implementation ==========
 

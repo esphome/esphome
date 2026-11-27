@@ -1,0 +1,6 @@
+# second level include
+text_sensor:
+  - platform: template
+    name: Greeting
+    lambda: return std::string("${greeting}");
+    update_interval: 60s

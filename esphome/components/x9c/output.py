@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_STEP_DELAY,
     CONF_UD_PIN,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@EtienneMD"]
 
@@ -39,17 +40,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
 
-    cs_pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
-    cg.add(var.set_cs_pin(cs_pin))
-    inc_pin = await cg.gpio_pin_expression(config[CONF_INC_PIN])
-    cg.add(var.set_inc_pin(inc_pin))
-    ud_pin = await cg.gpio_pin_expression(config[CONF_UD_PIN])
-    cg.add(var.set_ud_pin(ud_pin))
+    await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])
+    await cg.add_pin(var.set_inc_pin, config[CONF_INC_PIN])
+    await cg.add_pin(var.set_ud_pin, config[CONF_UD_PIN])
 
     cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
     cg.add(var.set_step_delay(config[CONF_STEP_DELAY]))

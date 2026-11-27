@@ -1,0 +1,6 @@
+substitutions:
+  tx_pin: GPIO20
+  rx_pin: GPIO21
+
+packages:
+  esp32_can: !include common.yaml

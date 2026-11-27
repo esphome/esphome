@@ -1,0 +1,3 @@
+---
+esphome:
+  libraries: !include {file: includes/list.yaml, vars: {var1: Wire}, condition: 1}

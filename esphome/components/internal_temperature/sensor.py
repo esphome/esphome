@@ -1,21 +1,21 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
+from esphome.components.esp32.const import VARIANT_ESP32
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 internal_temperature_ns = cg.esphome_ns.namespace("internal_temperature")
 InternalTemperatureSensor = internal_temperature_ns.class_(
@@ -25,10 +25,7 @@ InternalTemperatureSensor = internal_temperature_ns.class_(
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         InternalTemperatureSensor,
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.TEMPERATURE,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ).extend(cv.polling_component_schema("60s")),
     cv.only_on(
@@ -43,9 +40,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
+
+    if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32:
+        # temprature_sens_read() lives in the esp_phy blob, which is excluded by default
+        include_builtin_idf_component("esp_phy")
 
     if CORE.using_zephyr and CORE.is_nrf52:
         zephyr_add_prj_conf("SENSOR", True)

@@ -21,31 +21,30 @@ class BmpDecoder : public ImageDecoder {
    *
    * @param image The RuntimeImage to decode the stream into.
    */
-  BmpDecoder(RuntimeImage *image) : ImageDecoder(image) {}
+  BmpDecoder(RuntimeImage *image) : ImageDecoder(image, BMP) {}
 
+  void reset() override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
+  /// The header gives the pixel count, so the end is known once it has been parsed
+  bool knows_end() const override { return this->bits_per_pixel_ != 0; }
   bool is_finished() const override {
-    if (this->bits_per_pixel_ == 0) {
-      // header not yet received, so dimensions not yet determined
-      return false;
-    }
-    // BMP is finished when we've decoded all pixel data
-    return this->paint_index_ >= static_cast<size_t>(this->width_ * this->height_);
+    return this->knows_end() && this->paint_index_ >= static_cast<size_t>(this->width_ * this->height_);
   }
 
  protected:
+  std::unique_ptr<uint32_t[]> color_table_;
   size_t current_index_{0};
   size_t paint_index_{0};
   ssize_t width_{0};
   ssize_t height_{0};
-  uint16_t bits_per_pixel_{0};
+  size_t width_bytes_{0};
+  size_t data_offset_{0};
   uint32_t compression_method_{0};
   uint32_t image_data_size_{0};
   uint32_t color_table_entries_{0};
-  std::unique_ptr<uint32_t[]> color_table_;
-  size_t width_bytes_{0};
-  size_t data_offset_{0};
+  uint32_t color_table_capacity_{0};  // Allocated entries in color_table_, kept across decodes
+  uint16_t bits_per_pixel_{0};
   uint8_t padding_bytes_{0};
 };
 

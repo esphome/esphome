@@ -1,0 +1,14 @@
+packages:
+  uart_9600_even_7bits: !include ../../test_build_components/common/uart_9600_even_7bits/esp32-idf.yaml
+
+teleinfo:
+  id: test_teleinfo_standard
+  historical_mode: false
+  update_interval: 60s
+
+sensor:
+  - platform: teleinfo
+    name: sinsts
+    tag_name: SINSTS
+    teleinfo_id: test_teleinfo_standard
+    unit_of_measurement: VA

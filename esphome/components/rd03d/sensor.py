@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_TARGET_COUNT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANGLE,
@@ -8,18 +9,14 @@ from esphome.const import (
     CONF_SPEED,
     CONF_X,
     CONF_Y,
-    DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SPEED,
     STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
-    UNIT_MILLIMETER,
 )
+from esphome.types import ConfigType
 
 from . import CONF_RD03D_ID, RD03DComponent
 
 DEPENDENCIES = ["rd03d"]
-
-CONF_TARGET_COUNT = "target_count"
 
 MAX_TARGETS = 3
 
@@ -27,40 +24,18 @@ UNIT_MILLIMETER_PER_SECOND = "mm/s"
 
 TARGET_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_X): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Y): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_X): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
+        cv.Optional(CONF_Y): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
         cv.Optional(CONF_SPEED): sensor.sensor_schema(
             unit_of_measurement=UNIT_MILLIMETER_PER_SECOND,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_SPEED,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_RESOLUTION): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_DISTANCE): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
+        cv.Optional(CONF_RESOLUTION): sensor.sensor_schema(kind=sensor.DISTANCE_MM),
         cv.Optional(CONF_ANGLE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREES,
-            accuracy_decimals=1,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ANGLE, accuracy_decimals=1
         ),
     }
 )
@@ -76,12 +51,11 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)})
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_RD03D_ID])
 
-    if target_count_config := config.get(CONF_TARGET_COUNT):
-        sens = await sensor.new_sensor(target_count_config)
-        cg.add(hub.set_target_count_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TARGET_COUNT, hub.set_target_count_sensor)
 
     for i in range(MAX_TARGETS):
         if target_config := config.get(f"target_{i + 1}"):

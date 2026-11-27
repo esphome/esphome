@@ -14,7 +14,6 @@ class STTS22HComponent final : public sensor::Sensor, public PollingComponent, p
 
  protected:
   void initialize_sensor_();
-  bool is_stts22h_sensor_();
   float read_temperature_();
 };
 

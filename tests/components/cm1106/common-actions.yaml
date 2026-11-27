@@ -1,0 +1,5 @@
+button:
+  - platform: template
+    name: CM1106 Calibrate Zero
+    on_press:
+      - cm1106.calibrate_zero:

@@ -3,14 +3,13 @@ from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
-    CONF_ID,
     CONF_ILLUMINANCE,
-    DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["am43"]
 CODEOWNERS = ["@buxtronix"]
@@ -23,11 +22,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Am43),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                device_class=DEVICE_CLASS_BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -42,15 +37,9 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await ble_client.new_ble_node_component(config)
 
-    if battery_level_config := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(battery_level_config)
-        cg.add(var.set_battery(sens))
-
-    if illuminance_config := config.get(CONF_ILLUMINANCE):
-        sens = await sensor.new_sensor(illuminance_config)
-        cg.add(var.set_illuminance(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)

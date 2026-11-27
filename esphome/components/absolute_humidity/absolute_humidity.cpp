@@ -3,14 +3,14 @@
 
 namespace esphome::absolute_humidity {
 
-static const char *const TAG{"absolute_humidity.sensor"};
+ESPHOME_LOG_TAG(TAG, "absolute_humidity.sensor");
 
 void AbsoluteHumidityComponent::setup() {
   this->temperature_sensor_->add_on_state_callback([this](float state) {
     this->temperature_ = state;
     this->enable_loop();
   });
-  ESP_LOGD(TAG, "  Added callback for temperature '%s'", this->temperature_sensor_->get_name().c_str());
+  ESP_LOGD(TAG, "  Added callback for temperature '%s'", LOG_STR_ARG(this->temperature_sensor_->get_log_name()));
   // Get initial value
   if (this->temperature_sensor_->has_state()) {
     this->temperature_ = this->temperature_sensor_->get_state();
@@ -20,7 +20,7 @@ void AbsoluteHumidityComponent::setup() {
     this->humidity_ = state;
     this->enable_loop();
   });
-  ESP_LOGD(TAG, "  Added callback for relative humidity '%s'", this->humidity_sensor_->get_name().c_str());
+  ESP_LOGD(TAG, "  Added callback for relative humidity '%s'", LOG_STR_ARG(this->humidity_sensor_->get_log_name()));
   // Get initial value
   if (this->humidity_sensor_->has_state()) {
     this->humidity_ = this->humidity_sensor_->get_state();
@@ -49,7 +49,8 @@ void AbsoluteHumidityComponent::dump_config() {
                 "Sources\n"
                 "  Temperature: '%s'\n"
                 "  Relative Humidity: '%s'",
-                this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
+                LOG_STR_ARG(this->temperature_sensor_->get_log_name()),
+                LOG_STR_ARG(this->humidity_sensor_->get_log_name()));
 }
 
 void AbsoluteHumidityComponent::loop() {
@@ -106,6 +107,7 @@ void AbsoluteHumidityComponent::loop() {
 
 // Buck equation (https://en.wikipedia.org/wiki/Arden_Buck_equation)
 // More accurate than Tetens in normal meteorologic conditions
+// Buck (1996): water constants at or above 0 °C, ice constants below
 float AbsoluteHumidityComponent::es_buck(float temperature_c) {
   float a, b, c, d;
   if (temperature_c >= 0.0f) {
@@ -115,8 +117,8 @@ float AbsoluteHumidityComponent::es_buck(float temperature_c) {
     d = 257.14f;
   } else {
     a = 0.61115f;
-    b = 18.678f;
-    c = 233.7f;
+    b = 23.036f;
+    c = 333.7f;
     d = 279.82f;
   }
   return a * expf((b - (temperature_c / c)) * (temperature_c / (d + temperature_c)));

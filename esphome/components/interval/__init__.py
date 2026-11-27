@@ -2,17 +2,20 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERVAL, CONF_STARTUP_DELAY
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "interval"
 interval_ns = cg.esphome_ns.namespace("interval")
-IntervalTrigger = interval_ns.class_(
-    "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent
+IntervalCallback = interval_ns.class_("IntervalCallback", cg.PollingComponent)
+DelayedIntervalCallback = interval_ns.class_(
+    "DelayedIntervalCallback", IntervalCallback
 )
 
 CONFIG_SCHEMA = automation.validate_automation(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(IntervalTrigger),
+            cv.GenerateID(): cv.declare_id(IntervalCallback),
             cv.Optional(
                 CONF_STARTUP_DELAY, default="0s"
             ): cv.positive_time_period_milliseconds,
@@ -22,11 +25,14 @@ CONFIG_SCHEMA = automation.validate_automation(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
-        var = cg.new_Pvariable(conf[CONF_ID])
-        await cg.register_component(var, conf)
-        await automation.build_automation(var, [], conf)
-
+        # Cut to 32 bits, as the uint32_t setter always did
+        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds & 0xFFFFFFFF:
+            component_class, template_args = DelayedIntervalCallback, [startup_delay]
+        else:
+            component_class, template_args = IntervalCallback, []
+        var = await automation.build_component_automation(
+            conf, component_class, id_key=CONF_ID, template_args=template_args
+        )
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))
-        cg.add(var.set_startup_delay(conf[CONF_STARTUP_DELAY]))

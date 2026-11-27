@@ -34,7 +34,7 @@ const LogString *menu_item_type_to_string(MenuItemType type);
 
 class MenuItem;
 class MenuItemMenu;
-using value_getter_t = std::function<std::string(const MenuItem *)>;
+using value_getter_t = std::string (*)(const MenuItem *);
 
 class MenuItem {
  public:
@@ -89,36 +89,36 @@ class MenuItemEditable : public MenuItem {
   explicit MenuItemEditable(MenuItemType t) : MenuItem(t) {}
   void set_immediate_edit(bool val) { this->immediate_edit_ = val; }
   bool get_immediate_edit() const override { return this->immediate_edit_; }
-  void set_value_lambda(value_getter_t &&getter) { this->value_getter_ = getter; }
+  void set_value_lambda(value_getter_t getter) { this->value_getter_ = getter; }
 
  protected:
+  value_getter_t value_getter_{nullptr};
   bool immediate_edit_{false};
-  optional<value_getter_t> value_getter_{};
 };
 
 #ifdef USE_SELECT
 class MenuItemSelect final : public MenuItemEditable {
+  SUB_SELECT(variable)
+
  public:
   explicit MenuItemSelect() : MenuItemEditable(MENU_ITEM_SELECT) {}
-  void set_select_variable(select::Select *var) { this->select_var_ = var; }
 
   bool has_value() const override { return true; }
   std::string get_value_text() const override;
 
   bool select_next() override;
   bool select_prev() override;
-
- protected:
-  select::Select *select_var_{nullptr};
 };
 #endif
 
 #ifdef USE_NUMBER
 class MenuItemNumber final : public MenuItemEditable {
+  SUB_NUMBER(variable)
+
  public:
   explicit MenuItemNumber() : MenuItemEditable(MENU_ITEM_NUMBER) {}
-  void set_number_variable(number::Number *var) { this->number_var_ = var; }
-  void set_format(const std::string &fmt) { this->format_ = fmt; }
+  // Keeps the pointer; the string must outlive the item (codegen passes a literal)
+  void set_format(const char *fmt) { this->format_ = fmt; }
 
   bool has_value() const override { return true; }
   std::string get_value_text() const override;
@@ -129,18 +129,19 @@ class MenuItemNumber final : public MenuItemEditable {
  protected:
   float get_number_value_() const;
 
-  number::Number *number_var_{nullptr};
-  std::string format_;
+  const char *format_{""};
 };
 #endif
 
 #ifdef USE_SWITCH
 class MenuItemSwitch final : public MenuItemEditable {
+  SUB_SWITCH(variable)
+
  public:
   explicit MenuItemSwitch() : MenuItemEditable(MENU_ITEM_SWITCH) {}
-  void set_switch_variable(switch_::Switch *var) { this->switch_var_ = var; }
-  void set_on_text(const std::string &t) { this->switch_on_text_ = t; }
-  void set_off_text(const std::string &t) { this->switch_off_text_ = t; }
+  // Both keep the pointer; the strings must outlive the item (codegen passes literals)
+  void set_on_text(const char *t) { this->switch_on_text_ = t; }
+  void set_off_text(const char *t) { this->switch_off_text_ = t; }
 
   bool has_value() const override { return true; }
   std::string get_value_text() const override;
@@ -152,9 +153,8 @@ class MenuItemSwitch final : public MenuItemEditable {
   bool get_switch_state_() const;
   bool toggle_switch_();
 
-  switch_::Switch *switch_var_{nullptr};
-  std::string switch_on_text_;
-  std::string switch_off_text_;
+  const char *switch_on_text_{""};
+  const char *switch_off_text_{""};
 };
 #endif
 
@@ -172,7 +172,7 @@ class MenuItemCustom final : public MenuItemEditable {
   template<typename F> void add_on_next_callback(F &&cb) { this->on_next_callbacks_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_prev_callback(F &&cb) { this->on_prev_callbacks_.add(std::forward<F>(cb)); }
 
-  bool has_value() const override { return this->value_getter_.has_value(); }
+  bool has_value() const override { return this->value_getter_ != nullptr; }
   std::string get_value_text() const override;
 
   bool select_next() override;

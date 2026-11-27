@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: MySSID
+  password: password1
+  power_save_mode: none
+
+api:
+
+uart:
+  - id: uart_bus
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 115200
+  - id: uart_other
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 115200
+
+zwave_proxy:
+  id: zw_proxy

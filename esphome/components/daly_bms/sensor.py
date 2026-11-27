@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.components.const import ICON_CURRENT_DC, UNIT_AMPERE_HOUR
+from esphome.components.const import UNIT_AMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -8,21 +8,14 @@ from esphome.const import (
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ICON_COUNTER,
-    ICON_FLASH,
     ICON_GAUGE,
-    ICON_PERCENT,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-    UNIT_VOLT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_BMS_DALY_ID, DalyBmsComponent
 
@@ -97,78 +90,48 @@ TYPES = [
     CONF_CELL_18_VOLTAGE,
 ]
 
-CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_VOLT,
-    device_class=DEVICE_CLASS_VOLTAGE,
-    state_class=STATE_CLASS_MEASUREMENT,
-    icon=ICON_FLASH,
-    accuracy_decimals=3,
-)
+CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=3)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_BMS_DALY_ID): cv.use_id(DalyBmsComponent),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                icon=ICON_FLASH,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                icon=ICON_CURRENT_DC,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=1
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.BATTERY, accuracy_decimals=1
             ),
             cv.Optional(CONF_MAX_CELL_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                icon=ICON_FLASH,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=2
             ),
             cv.Optional(CONF_MAX_CELL_VOLTAGE_NUMBER): sensor.sensor_schema(
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
             ),
             cv.Optional(CONF_MIN_CELL_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                icon=ICON_FLASH,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=2
             ),
             cv.Optional(CONF_MIN_CELL_VOLTAGE_NUMBER): sensor.sensor_schema(
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
             ),
             cv.Optional(CONF_MAX_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
+                kind=sensor.TEMPERATURE,
                 icon=ICON_THERMOMETER_CHEVRON_UP,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MAX_TEMPERATURE_PROBE_NUMBER): sensor.sensor_schema(
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
             ),
             cv.Optional(CONF_MIN_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
+                kind=sensor.TEMPERATURE,
                 icon=ICON_THERMOMETER_CHEVRON_DOWN,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MIN_TEMPERATURE_PROBE_NUMBER): sensor.sensor_schema(
                 icon=ICON_COUNTER,
@@ -186,18 +149,10 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
             ),
             cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_CELL_1_VOLTAGE): CELL_VOLTAGE_SCHEMA,
             cv.Optional(CONF_CELL_2_VOLTAGE): CELL_VOLTAGE_SCHEMA,
@@ -222,13 +177,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def setup_conf(config, key, hub):
+async def setup_conf(config: ConfigType, key: str, hub: MockObj) -> None:
     if sensor_config := config.get(key):
         sens = await sensor.new_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BMS_DALY_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

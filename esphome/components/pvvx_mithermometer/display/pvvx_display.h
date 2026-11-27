@@ -1,13 +1,18 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include <utility>
+
 #include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+
+#include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/display/display.h"
 
 #include <cinttypes>
 
-#ifdef USE_ESP32
 #include <esp_gattc_api.h>
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -33,7 +38,7 @@ using pvvx_writer_t = display::DisplayWriter<PVVXDisplay>;
 
 class PVVXDisplay final : public ble_client::BLEClientNode, public PollingComponent {
  public:
-  void set_writer(pvvx_writer_t &&writer) { this->writer_ = writer; }
+  void set_writer(pvvx_writer_t &&writer) { this->writer_ = std::move(writer); }
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
   void set_disconnect_delay(uint32_t ms) { this->disconnect_delay_ms_ = ms; }
 
@@ -70,7 +75,7 @@ class PVVXDisplay final : public ble_client::BLEClientNode, public PollingCompon
    * Print a happy face
    *
    * Can be combined with print_sad()  print_bracket().
-   * Possible ouputs are:
+   * Possible outputs are:
    *
    * @verbatim
    * bracket sad happy
@@ -121,14 +126,13 @@ class PVVXDisplay final : public ble_client::BLEClientNode, public PollingCompon
   uint16_t char_handle_ = 0;
   bool connection_established_ = false;
 
-  esp32_ble_tracker::ESPBTUUID service_uuid_ =
-      esp32_ble_tracker::ESPBTUUID::from_raw("00001f10-0000-1000-8000-00805f9b34fb");
-  esp32_ble_tracker::ESPBTUUID char_uuid_ =
-      esp32_ble_tracker::ESPBTUUID::from_raw("00001f1f-0000-1000-8000-00805f9b34fb");
+  ble_device_base::ESPBTUUID service_uuid_ =
+      ble_device_base::ESPBTUUID::from_raw("00001f10-0000-1000-8000-00805f9b34fb");
+  ble_device_base::ESPBTUUID char_uuid_ = ble_device_base::ESPBTUUID::from_raw("00001f1f-0000-1000-8000-00805f9b34fb");
 
   pvvx_writer_t writer_{};
 };
 
 }  // namespace esphome::pvvx_mithermometer
 
-#endif
+#endif  // USE_ESP32

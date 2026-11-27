@@ -3,6 +3,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include <esp_http_server.h>
 
@@ -15,18 +16,14 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_WEBSERVER
-#include "esphome/components/json/json_util.h"
-#include "esphome/components/web_server/list_entities.h"
-#endif
+#include "esphome/components/web_server_base/stream_head.h"
 
-namespace esphome {
-#ifdef USE_WEBSERVER
-namespace web_server {
-class WebServer;
-};  // namespace web_server
-#endif
-namespace web_server_idf {
+struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
+
+namespace esphome::web_server_idf {
+
+using web_server_base::HttpHeader;
+using web_server_base::StallClock;
 
 class AsyncWebParameter {
  public:
@@ -42,6 +39,8 @@ class AsyncWebParameter {
 class AsyncWebServerRequest;
 
 class AsyncWebServerResponse {
+  friend class AsyncWebServerRequest;
+
  public:
   AsyncWebServerResponse(const AsyncWebServerRequest *req) : req_(req) {}
   virtual ~AsyncWebServerResponse() {}
@@ -54,6 +53,8 @@ class AsyncWebServerResponse {
 
  protected:
   const AsyncWebServerRequest *req_;
+  // Bit i set: this response set default header i itself, so it is not sent at send time
+  uint8_t replaced_defaults_{0};
 };
 
 class AsyncWebServerResponseEmpty : public AsyncWebServerResponse {
@@ -117,12 +118,6 @@ class AsyncWebServerRequest {
   /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
   /// URL is decoded (e.g., %20 -> space).
   StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string url() const {
-    char buffer[URL_BUF_SIZE];
-    return std::string(this->url_to(buffer));
-  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 
@@ -132,11 +127,10 @@ class AsyncWebServerRequest {
   void requestAuthentication() const;
 #endif
 
-  void redirect(const std::string &url);
+  void redirect(const char *url);
+  void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
-  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
-    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-  }
+  void send(AsyncWebServerResponse *response);
   inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
     this->init_response_(nullptr, code, content_type);
     if (content) {
@@ -185,8 +179,18 @@ class AsyncWebServerRequest {
   std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
+#ifdef USE_WEBSERVER_OTA
+  /// Called when the request ends, including early returns.
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
+#endif
+
+  /// sess_ctx is reserved for AsyncStreamResponse: the server's close_fn treats any session context as one.
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
+  /// Copy a header value into buf without heap allocation.
+  /// Returns its length, 0 when absent, or SIZE_MAX when it does not fit in buf.
+  size_t get_header_to(const char *name, std::span<char> buf) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool hasHeader(const char *name) const;
 
@@ -200,6 +204,9 @@ class AsyncWebServerRequest {
   optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
+#ifdef USE_WEBSERVER_OTA
+  std::function<void()> on_disconnect_;
+#endif
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
   AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
   void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
@@ -209,7 +216,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port){};
+  AsyncWebServer(uint16_t port) : port_(port) {};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -217,6 +224,13 @@ class AsyncWebServer {
 
   void begin();
   void end();
+#ifdef USE_WEBSERVER_SSL
+  /// PEM certificate and key, not copied; nullptr for plain HTTP. Takes effect at the next begin().
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+  }
+#endif
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
@@ -228,7 +242,17 @@ class AsyncWebServer {
 
  protected:
   uint16_t port_{};
+#ifdef USE_WEBSERVER_SSL
+  uint16_t running_port_{};  // port of the running listener, 0 once httpd frees it
+#endif
   httpd_handle_t server_{};
+#ifdef USE_WEBSERVER_SSL
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+  Mutex close_lock_;  // held by close_fn while closing, by shutdown_clients_() and by context_free()
+  void shutdown_clients_();
+  static void context_free(void *ctx);
+#endif
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
@@ -257,129 +281,91 @@ class AsyncWebHandler {
   virtual bool isRequestHandlerTrivial() const { return true; }
 };
 
-#ifdef USE_WEBSERVER
-class AsyncEventSource;
-class AsyncEventSourceResponse;
-
-using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
-
-/*
-  This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
-  that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-  the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
-  std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two pointers
-  per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
-  because of dedup) would take up only 0.8 kB.
-*/
-struct DeferredEvent {
-  friend class AsyncEventSourceResponse;
-
- protected:
-  void *source_;
-  message_generator_t *message_generator_;
-
+/// A response that keeps its connection open and is written from the main loop, such as an event stream or
+/// an audio stream. Use it directly or derive from it. Call loop() and delete the object only through the type
+/// it was created as: subclasses hide loop() instead of overriding it, and the destructor is not virtual.
+///
+/// Lifecycle:
+///  1. Httpd task, inside handleRequest(): create it and call begin(), then hand the pointer to the main loop.
+///  2. Main loop: once is_attached() is true, write() may go through. Call loop() on every pass.
+///  3. Main loop: delete it once safe_to_delete() is true. httpd owns the socket throughout.
+class AsyncStreamResponse {
  public:
-  DeferredEvent(void *source, message_generator_t *message_generator)
-      : source_(source), message_generator_(message_generator) {}
-  bool operator==(const DeferredEvent &test) const {
-    return (source_ == test.source_ && message_generator_ == test.message_generator_);
-  }
-};
-static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
-              "DeferredEvent should have no padding");
+  /// Httpd task, once. Sends the status line (for example HTTPD_200), Content-Type, headers, the default headers
+  /// and body (a C string or null, sent as is), then makes this object the session context. A chunked response
+  /// passes {"Transfer-Encoding", "chunked"} as its first header and frames each chunk itself. On an HTTPS server
+  /// it answers 501 instead and the stream never attaches.
+  void begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
+             std::span<const HttpHeader> headers, const char *body = nullptr);
 
-class AsyncEventSourceResponse {
-  friend class AsyncEventSource;
-
- public:
-  bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
-                        uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
+  /// keeps the rest and continues from there. 0 means the socket is full or not ours yet; -1 means the stream failed
+  /// and is closing. Refused writes for SEND_STALL_TIMEOUT_MS in a row also close it.
+  ssize_t write(struct iovec *iov, int iovcnt);
+  ssize_t write(const void *data, size_t len);
+  /// Main loop. Shuts the connection down through httpd; safe to call more than once.
+  void close();
+  /// Main loop, every pass. Keeps the session fresh in httpd's LRU and retries a pending close.
   void loop();
+  /// Httpd task, from the server's close_fn: no write() reaches the socket after this returns.
+  static void socket_closing(httpd_handle_t hd, int fd);
+
+  /// httpd holds this response as the session context; begin() has sent the whole head by then.
+  bool is_attached() const { return this->owns_session_(this->fd_.load()); }
+  /// The client is still connected; httpd has not freed the session.
+  bool is_connected() const { return this->fd_.load() != 0; }
+  bool is_closing() const { return this->loop_flags_.close_requested; }
+  /// The socket fd, for log lines only
+  int log_id() const { return this->fd_.load(); }
+  /// The session is gone and no queued httpd work still references this object.
+  bool safe_to_delete() const {
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
+           !this->lru_work_queued_.load(std::memory_order_acquire);
+  }
+
+  static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
 
  protected:
-  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
-                           esphome::web_server::WebServer *ws);
-
-  // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
-  void start_session_main_loop_();
-
-  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
-  void process_deferred_queue_();
-  void process_buffer_();
-
+  void process_close_();
+  static void close_session_work(void *arg);
+  void refresh_lru_();
+  static void refresh_lru_work(void *arg);
+  // httpd closes the socket before it clears the session, so this can still match a closed fd; write() also checks
+  // socket_closed_
+  bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
   static void destroy(void *p);
-  AsyncEventSource *server_;
+  // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and closes. True when it closed.
+  bool stall_or_close_(const LogString *reason);
+
   httpd_handle_t hd_{};
   std::atomic<int> fd_{};
-  std::vector<DeferredEvent> deferred_queue_;
-  esphome::web_server::WebServer *web_server_;
-  esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer_;
-  size_t event_bytes_sent_;
-  uint16_t consecutive_send_failures_{0};
-  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
-};
+  // Runs while sends make no progress; a running clock keeps its start time
+  StallClock stall_;
+  uint32_t next_close_attempt_ms_{0};
+  uint32_t last_lru_refresh_ms_{0};
+  // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
+  std::atomic<bool> close_work_queued_{false};
+  std::atomic<bool> lru_work_queued_{false};
+  // Guarded by the stream send mutex
+  bool socket_closed_{false};
+  // Main-loop only; the HTTPD task never reads or writes these flags.
+  // One byte, so the stream's flags share a word on 32-bit targets
+  struct LoopFlags {
+    uint8_t close_requested : 1;
+    uint8_t close_retry_warning_logged : 1;
+    uint8_t reserved : 6;
+  } loop_flags_{};
 
-using AsyncEventSourceClient = AsyncEventSourceResponse;
-
-class AsyncEventSource : public AsyncWebHandler {
-  friend class AsyncEventSourceResponse;
-  using connect_handler_t = std::function<void(AsyncEventSourceClient *)>;
-
- public:
-  AsyncEventSource(std::string url, esphome::web_server::WebServer *ws) : url_(std::move(url)), web_server_(ws) {}
-  ~AsyncEventSource() override;
-
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  bool canHandle(AsyncWebServerRequest *request) const override {
-    if (request->method() != HTTP_GET)
-      return false;
-    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
-    return request->url_to(url_buf) == this->url_;
-  }
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  void handleRequest(AsyncWebServerRequest *request) override;
-  // Callback runs on the main loop (not the httpd task) after the session's
-  // initial ping/config/sorting_groups have been sent.
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
-
-  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
-                        uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  /// Returns true if there are sessions remaining (including pending cleanup).
-  bool loop();
-  bool empty() { return this->count() == 0; }
-
-  size_t count() const { return this->sessions_.size(); }
-
- protected:
-  // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
-  void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
-
-  std::string url_;
-  // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
-  std::vector<AsyncEventSourceResponse *> sessions_;
-  // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
-  std::vector<AsyncEventSourceResponse *> pending_sessions_;
-  Mutex pending_mutex_;
-  connect_handler_t on_connect_{};
-  esphome::web_server::WebServer *web_server_;
-  std::atomic<bool> has_pending_sessions_{false};
-};
-#endif  // USE_WEBSERVER
-
-struct HttpHeader {
-  const char *name;
-  const char *value;
+  static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
+  static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
+  static constexpr uint32_t LRU_REFRESH_INTERVAL_MS = 1000;
 };
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
-#ifdef USE_WEBSERVER
-  friend class AsyncEventSourceResponse;
-#endif
+  friend class AsyncStreamResponse;
+  friend class AsyncWebServerResponse;
+  static_assert(WEB_SERVER_DEFAULT_HEADERS_COUNT <= 8, "AsyncWebServerResponse::replaced_defaults_ holds 8 bits");
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -391,10 +377,12 @@ class DefaultHeaders {
  protected:
   // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
   StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
+
+  /// Set every default header on the response except those whose bit is set in skip_mask.
+  void apply_(httpd_req_t *req, uint8_t skip_mask = 0) const;
 };
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 
 using namespace esphome::web_server_idf;  // NOLINT(google-global-names-in-headers)
 

@@ -10,6 +10,7 @@ from ..types import lv_obj_t
 from . import Widget, WidgetType
 from .canvas import CONF_CANVAS
 from .img import CONF_IMAGE
+from .label import CONF_LABEL
 
 CONF_QRCODE = "qrcode"
 CONF_DARK_COLOR = "dark_color"
@@ -41,7 +42,7 @@ class QrCodeType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_CANVAS, CONF_IMAGE
+        return CONF_CANVAS, CONF_IMAGE, CONF_LABEL
 
     async def to_code(self, w: Widget, config):
         await w.set_property(

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from collections import Counter
 import logging
 import os
 from pathlib import Path
+import re
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
@@ -39,25 +42,45 @@ from esphome.const import (
     CONF_PRIORITY,
     CONF_PROJECT,
     CONF_TRIGGER_ID,
+    CONF_URL,
     CONF_VERSION,
     KEY_CORE,
+    PLATFORM_HOST,
+    PLATFORM_RP2,
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
     CORE,
-    KEY_CONTROLLER_REGISTRY_COUNT,
+    KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
+    TimePeriodMilliseconds,
+    app_lists,
     coroutine_with_priority,
 )
+from esphome.core.entity_types import ENTITY_PLATFORMS
+from esphome.cpp_helpers import add_component_counts
+import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
+    get_usable_cpu_count,
     walk_files,
 )
 from esphome.types import ConfigType
+
+CONF_CONTACT = "contact"
+CONF_LOOP_INTERVAL = "loop_interval"
+CONF_RELATION = "relation"
+CONF_SBOM = "sbom"
+CONF_SUPPLIER = "supplier"
+CONF_SUSPEND_LOOP = "suspend_loop"
+CONF_FRIENDLY_NAME_SEPARATOR = "friendly_name_separator"
+
+# Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
+DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,19 +116,22 @@ def make_app_name_cpp(
     return cpp_string_escape(value), None, len(value.encode("utf-8"))
 
 
-StartupTrigger = cg.esphome_ns.class_(
-    "StartupTrigger", cg.Component, automation.Trigger.template()
-)
-ShutdownTrigger = cg.esphome_ns.class_(
-    "ShutdownTrigger", cg.Component, automation.Trigger.template()
-)
-LoopTrigger = cg.esphome_ns.class_(
-    "LoopTrigger", cg.Component, automation.Trigger.template()
-)
-ProjectUpdateTrigger = cg.esphome_ns.class_(
-    "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
-)
+StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
+ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
+LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
+ProjectUpdateCallback = cg.esphome_ns.class_("ProjectUpdateCallback", cg.Component)
 Device = cg.esphome_ns.class_("Device")
+DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
+DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
+    "via", "child", prefix="DEVICE_RELATION_"
+)
+# Relation the C++ getter and field use when nothing sets one, and the API's default
+DEFAULT_DEVICE_RELATION: str = "via"
+# Define for a relation shared by every device
+SHARED_DEVICE_RELATION_DEFINES: dict[str, str | None] = {
+    DEFAULT_DEVICE_RELATION: None,
+    "child": "USE_DEVICE_RELATION_ALL_CHILD",
+}
 Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
@@ -128,6 +154,23 @@ def validate_hostname(config):
             "as it can cause problems with some DHCP and local name services. "
             "For more information, see https://esphome.io/guides/faq/#why-shouldnt-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
+        )
+    return config
+
+
+# DeviceInfoResponse sends the friendly name as a short string (encode_short_string_force in api/proto.h)
+FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN = 127
+
+
+def validate_friendly_name_with_suffix(config: ConfigType) -> ConfigType:
+    if not config[CONF_NAME_ADD_MAC_SUFFIX] or not config[CONF_FRIENDLY_NAME]:
+        return config
+    full = f"{config[CONF_FRIENDLY_NAME]}{config[CONF_FRIENDLY_NAME_SEPARATOR]}{_MAC_SUFFIX_PLACEHOLDER}"
+    if (length := len(full.encode("utf-8"))) > FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN:
+        raise cv.Invalid(
+            f"friendly_name with {CONF_FRIENDLY_NAME_SEPARATOR} and the MAC suffix is {length} "
+            f"bytes; at most {FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN} fit",
+            path=[CONF_FRIENDLY_NAME],
         )
     return config
 
@@ -182,6 +225,42 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
+def get_loop_interval() -> TimePeriodMilliseconds:
+    """Return the main loop interval of the configuration; for final validation."""
+    return fv.full_config.get()[CONF_ESPHOME].get(
+        CONF_LOOP_INTERVAL, DEFAULT_LOOP_INTERVAL
+    )
+
+
+def validate_loop_interval(config: ConfigType) -> ConfigType:
+    if CONF_LOOP_INTERVAL in config and not (CORE.is_host or CORE.is_esp8266):
+        # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
+        max_loop = 600  # 2 * 300ms default for other platforms
+        if CORE.is_esp32:
+            from esphome.components.esp32 import task_wdt_timeout_ms
+
+            wdt_ms = task_wdt_timeout_ms()
+            if wdt_ms == 0:
+                # Task watchdog disabled: the loop sleep is not capped
+                return config
+            max_loop = 2 * wdt_ms // 5
+        elif CORE.is_bk72xx:
+            max_loop = 4000  # 10000ms / 5 * 2 default value
+        if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
+            _LOGGER.warning(
+                "%s of %s exceeds the %sms maximum sleep on this platform; the loop will still "
+                "wake every %sms.%s",
+                CONF_LOOP_INTERVAL,
+                config[CONF_LOOP_INTERVAL],
+                max_loop,
+                max_loop,
+                " Raise esp32.watchdog_timeout to sleep longer."
+                if CORE.is_esp32
+                else "",
+            )
+    return config
+
+
 def valid_include(value: str) -> str:
     # Look for "<...>" includes
     if value.startswith("<") and value.endswith(">"):
@@ -205,14 +284,50 @@ def valid_project_name(value: str):
     return value
 
 
-def get_usable_cpu_count() -> int:
-    """Return the number of CPUs that can be used for processes.
-    On Python 3.13+ this is the number of CPUs that can be used for processes.
-    On older Python versions this is the number of CPUs.
-    """
-    return (
-        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
-    )
+# The checks below match esp-idf-sbom's, which aborts on a value they reject
+def _sbom_email(value: str) -> str:
+    value = cv.string_strict(value)
+    if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value) is None:
+        raise cv.Invalid("Expected an email address")
+    return value
+
+
+def _sbom_url(value: str) -> str:
+    value = cv.url(value)
+    if not value.startswith(("http://", "https://")):
+        raise cv.Invalid("Expected an http or https URL")
+    return value
+
+
+def _sbom_supplier(value: str) -> str:
+    value = cv.string_strict(value).strip()
+    if not value:
+        raise cv.Invalid("Supplier name must not be empty")
+    if any(c in value for c in "()\n\r"):
+        raise cv.Invalid("Supplier name must not contain parentheses or line breaks")
+    return value
+
+
+def _sbom_platform(value: ConfigType) -> ConfigType:
+    # Only ESP-IDF builds produce the manifests esp-idf-sbom reads
+    if not CORE.is_esp32:
+        raise cv.Invalid(
+            f"SBOM details are only used on ESP32, not on {CORE.target_platform}"
+        )
+    return value
+
+
+SBOM_SCHEMA = cv.All(
+    _sbom_platform,
+    cv.Schema(
+        {
+            cv.Required(CONF_SUPPLIER): _sbom_supplier,
+            cv.Optional(CONF_CONTACT): _sbom_email,
+            cv.Optional(CONF_URL): _sbom_url,
+        }
+    ),
+    cv.has_at_least_one_key(CONF_CONTACT, CONF_URL),
+)
 
 
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
@@ -264,12 +379,22 @@ DEVICE_SCHEMA = cv.Schema(
             cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
+        cv.Required(CONF_RELATION): cv.enum(DEVICE_RELATIONS, lower=True),
     }
 )
 
 
 def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
     return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
+
+
+def _validate_suspend_loop(value: bool) -> bool:
+    # host and RP2 platforms have unwakeable delay fallbacks, so suspending the main loop is unsafe
+    if value and CORE.target_platform in [PLATFORM_HOST, PLATFORM_RP2]:
+        raise cv.Invalid(
+            f"Suspend loop is not available on {CORE.target_platform} platform"
+        )
+    return value
 
 
 CONFIG_SCHEMA = cv.All(
@@ -308,19 +433,19 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_LOOP): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopCallback),
                 }
             ),
             cv.Optional(
@@ -333,10 +458,26 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
             ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(
+                CONF_FRIENDLY_NAME_SEPARATOR, default=_APP_FRIENDLY_NAME_MAC_SEP
+            ): cv.All(cv.string_no_slash, cv.ByteLength(max=3)),
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
             ): cv.boolean,
+            cv.Optional(CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(milliseconds=1),
+                    max=cv.TimePeriod(milliseconds=65535),
+                ),
+            ),
+            cv.Optional(
+                CONF_SUSPEND_LOOP, default=False, visibility=cv.Visibility.YAML_ONLY
+            ): cv.All(
+                cv.boolean,
+                _validate_suspend_loop,
+            ),
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
@@ -347,10 +488,11 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VERSION): cv.All(
                         cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
                     ),
+                    cv.Optional(CONF_SBOM): SBOM_SCHEMA,
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                ProjectUpdateTrigger
+                                ProjectUpdateCallback
                             ),
                         }
                     ),
@@ -371,6 +513,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_hostname,
+    validate_friendly_name_with_suffix,
 )
 
 
@@ -524,7 +667,8 @@ async def add_arduino_global_workaround():
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
-    # Add includes at the very end, so that the included files can access global variables
+    # After the id declarations, so the headers can use id(x); the generated function bodies
+    # and flash tables come later still, so their lambdas can use the headers.
     for include in includes:
         path = CORE.relative_config_path(include)
         if path.is_dir():
@@ -542,8 +686,10 @@ def _add_library_str(lib: str) -> None:
     if "@" in lib:
         name, vers = lib.split("@", 1)
         cg.add_library(name, vers)
-    elif "://" in lib:
-        # Repository...
+    elif "://" in lib or lib.split("=", 1)[-1].startswith("file:"):
+        # A repository or URL source. Also catch a ``file:`` source spelled with
+        # fewer than two slashes (e.g. ``file:lib_dev``) so it reaches the
+        # file:// handling and its clear error, rather than a registry lookup.
         if "=" in lib:
             name, repo = lib.split("=", 1)
             cg.add_library(name, None, repo)
@@ -553,12 +699,32 @@ def _add_library_str(lib: str) -> None:
         cg.add_library(lib, None)
 
 
+# platformio_options keys the native ESP8266 Arduino generator (a later PR
+# in this chain) will honor; its ignored-option warning will consume the same
+# list so the two cannot drift
+NATIVE_ARDUINO_PIO_OPTIONS = frozenset(
+    {"board_build.f_cpu", "board_build.ldscript", "board_upload.maximum_size"}
+)
+# The full set that survives into CORE.platformio_options under the native
+# arduino toolchain: lib_ignore is the only specially-translated key below
+# that is stored rather than translated away. Consumed by the esp8266 native
+# backend (later in this chain) for its ignored-option warning; defined here
+# so it stays adjacent to the routing.
+# build_src_flags and board_build.flash_mode are not user-routable, so
+# not in the set above
+NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {
+    "lib_ignore",
+    "build_src_flags",
+    "board_build.flash_mode",
+}
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
-    if CORE.using_toolchain_esp_idf:
-        # The native ESP-IDF build doesn't read platformio.ini; honor the
-        # options with a native equivalent and warn about the rest, which
-        # would otherwise be silently ignored.
+    if CORE.using_native_toolchain:
+        # The native builds don't read platformio.ini; honor the options
+        # with a native equivalent and warn about the rest, which would
+        # otherwise be silently ignored.
         for key, val in pio_options.items():
             vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
@@ -571,23 +737,45 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 )
                 for flag in vals:
                     cg.add_build_flag(flag)
+            elif key == "build_unflags":
+                # Native equivalent: add_build_unflag (honored token-level by
+                # the arduino generator; the IDF generator warns there)
+                for flag in vals:
+                    CORE.add_build_unflag(flag)
             elif key == "lib_deps":
-                # Routed through the regular library mechanism so the libraries
-                # are converted to IDF components like any other PIO library
+                # Routed through the regular library mechanism so the
+                # libraries reach the native backend's converter (IDF
+                # components, or the ESP8266 native library resolution)
                 for lib in vals:
                     _add_library_str(lib)
             elif key == "lib_ignore":
-                # Read by the PIO-library-to-IDF-component conversion
-                # (generate_idf_components); filters both top-level libraries
-                # and dependencies discovered during conversion
+                # Read by the shared library conversion (lib_ignore_set in
+                # platformio/library.py); filters top-level libraries and
+                # discovered dependencies
                 cg.add_platformio_option(key, vals)
-            elif key != "upload_speed":
-                # upload_speed needs no handling: it is read from the raw
-                # config at upload time (upload_using_esptool)
+            elif (
+                key in NATIVE_ARDUINO_PIO_OPTIONS
+                and CORE.using_toolchain_arduino
+                and vals
+            ):
+                # The esp8266 native generator reads these as scalars; the
+                # schema also permits the list form, where the last value
+                # wins like a later platformio.ini line (an empty list falls
+                # through to the ignored-option warning). Other native
+                # toolchains have no equivalent and fall through too.
+                cg.add_platformio_option(key, vals[-1])
+            elif key != "upload_speed" and not (
+                key == "board_upload.flash_size" and CORE.using_toolchain_arduino
+            ):
+                # upload_speed is read from the raw config at upload time.
+                # board_upload.flash_size is dropped silently on arduino:
+                # PlatformIO's esp8266 builder never reads it either, and
+                # published configs (Athom) commonly set it.
                 _LOGGER.warning(
                     "esphome->platformio_options->%s is ignored when building with "
-                    "the native ESP-IDF toolchain",
+                    "the native '%s' toolchain",
                     key,
+                    CORE.toolchain.value,
                 )
         return
     # Add includes at the very end, so that they override everything
@@ -611,24 +799,15 @@ async def _add_environment_variables(env_vars: dict[str, str]) -> None:
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
-    for conf in config.get(CONF_ON_BOOT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_LOOP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-
-# Datetime component has special subtypes that need additional defines
-DATETIME_SUBTYPES = {"date", "time", "datetime"}
+    for key, component_class in (
+        (CONF_ON_BOOT, StartupCallback),
+        (CONF_ON_SHUTDOWN, ShutdownCallback),
+        (CONF_ON_LOOP, LoopCallback),
+    ):
+        for conf in config.get(key, []):
+            await automation.build_component_automation(
+                conf, component_class, conf.get(CONF_PRIORITY)
+            )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -639,46 +818,30 @@ async def _add_platform_defines() -> None:
         if count <= 0:
             continue
 
-        define_name = f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT"
-        cg.add_define(define_name, count)
-
-        # Datetime subtypes only use USE_DATETIME_* defines
-        if platform_name in DATETIME_SUBTYPES:
-            cg.add_define(f"USE_DATETIME_{platform_name.upper()}")
-        else:
-            # Regular platforms use USE_* defines
-            cg.add_define(f"USE_{platform_name.upper()}")
+        # Entity list types get their defines with the lists (esphome/core/app_lists.py)
+        if platform_name in ENTITY_PLATFORMS:
+            continue
+        cg.add_define(f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT", count)
+        cg.add_define(app_lists.use_define(platform_name))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_controller_registry_define() -> None:
-    # Generate StaticVector size for ControllerRegistry
-    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
-    if controller_count > 0:
-        cg.add_define("USE_CONTROLLER_REGISTRY")
-        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_looping_components() -> None:
-    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
-    # happens in core to_code() so it lands before safe_mode's early return.
-    entries = CORE.data.get("looping_component_entries", [])
-
-    # Build constexpr sum for the exact count, deduplicating by type
-    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
-    type_counts = Counter(entries)
-    terms = [
-        f"({count} * HasLoopOverride<{cpp_type}>::value)"
-        for cpp_type, count in type_counts.items()
-    ] or ["0"]
-    constexpr_expr = " + \\\n  ".join(terms)
+async def _add_controller_registry_dispatch() -> None:
+    # controller_dispatch.h defines ControllerRegistry::notify_*() as direct
+    # calls on the controllers returned by esphome_controllers(), emitted as
+    #   static auto esphome_controllers() { return std::tuple{a, b}; }
+    controllers = CORE.data.get(KEY_CONTROLLER_REGISTRY_CONTROLLERS)
+    if not controllers:
+        return
+    cg.add_define("USE_CONTROLLER_REGISTRY")
+    controllers = cg.ArrayInitializer(*controllers)
+    cg.add_global(cg.RawStatement("#include <tuple>"))
     cg.add_global(
         cg.RawStatement(
-            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
-            f"  {constexpr_expr};"
+            f"static auto esphome_controllers() {{ return std::tuple{controllers}; }}"
         )
     )
+    cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))
 
 
 @coroutine_with_priority(CoroPriority.CORE)
@@ -694,9 +857,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
-    # Construct App via placement new — see application.cpp for storage details
+    # Construct App via placement new — see application.cpp for storage details.
+    # No parens: `Application()` would zero-fill storage that is already zero.
     cg.add_global(cg.RawStatement("#include <new>"))
-    cg.add(cg.RawExpression("new (&App) Application()"))
+    cg.add(cg.RawExpression("new (&App) Application"))
     name = config[CONF_NAME]
     friendly_name = config[CONF_FRIENDLY_NAME]
     name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
@@ -714,29 +878,32 @@ async def to_code(config: ConfigType) -> None:
 
     name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
     friendly_expr, friendly_len = _emit_app_name(
-        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
+        friendly_name,
+        _APP_FRIENDLY_NAME_BUF_VAR,
+        config[CONF_FRIENDLY_NAME_SEPARATOR],
     )
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
-    # Define component count for static allocation
-    cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+    CORE.add_job(add_component_counts)
 
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
+    # Pre-init the list with exact capacity so calculate_looping_components_()
+    # can skip the counting pass; the storage is emitted by add_component_counts()
     cg.add(
         cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+            "App.looping_components_.init(std::span<Component *>("
+            "looping_components_storage, ESPHOME_LOOPING_COMPONENT_COUNT))"
         )
     )
 
     CORE.add_job(_add_platform_defines)
-    CORE.add_job(_add_controller_registry_define)
-    CORE.add_job(_add_looping_components)
+    app_lists.schedule_emit()
+    CORE.add_job(_add_controller_registry_dispatch)
 
     CORE.add_job(_add_automations, config)
 
-    cg.add_build_flag("-fno-exceptions")
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
+        cg.add_build_flag("-fno-exceptions")
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:
@@ -745,6 +912,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    cg.add_build_flag("-Wno-unused-function")
     # C++20 deprecated ++/--, compound assignment, and chained assignment on
     # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
     # C++23 (P2327R1) removed the deprecation for compound assignment, so the
@@ -756,6 +924,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
+    if config[CONF_SUSPEND_LOOP]:
+        cg.add_define("ESPHOME_SUSPEND_LOOP")
+    cg.add_optional(cg.App.set_loop_interval, config.get(CONF_LOOP_INTERVAL))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
@@ -786,10 +957,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_PROJECT_VERSION", project_conf[CONF_VERSION])
         cg.add_define("ESPHOME_PROJECT_VERSION_30", project_conf[CONF_VERSION][:29])
         for conf in project_conf.get(CONF_ON_UPDATE, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await cg.register_component(trigger, conf)
-            await automation.build_automation(
-                trigger, [(cg.std_string, "version")], conf
+            await automation.build_component_automation(
+                conf,
+                ProjectUpdateCallback,
+                args=[(cg.std_string, "version")],
             )
 
     if config[CONF_PLATFORMIO_OPTIONS]:
@@ -809,7 +980,6 @@ async def to_code(config: ConfigType) -> None:
 
     if all_areas:
         cg.add_define("USE_AREAS")
-        cg.add_define("ESPHOME_AREA_COUNT", len(all_areas))
 
         for area_conf in all_areas:
             area_id: core.ID = area_conf[CONF_ID]
@@ -819,16 +989,23 @@ async def to_code(config: ConfigType) -> None:
             area_var = cg.new_Pvariable(area_id)
             cg.add(area_var.set_area_id(area_id_hash))
             cg.add(area_var.set_name(area_name))
-            cg.add(cg.App.register_area(area_var))
+            app_lists.add_to_list("AREA", area_var)
 
     # Process devices
     devices: list[dict[str, str | core.ID]] = config[CONF_DEVICES]
     if not devices:
         return
 
-    # Define device count for static allocation
     cg.add_define("USE_DEVICES")
-    cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
+
+    # When every device shares one relation the getter returns it as a constant,
+    # so only a mix of relations needs a per-device field
+    relations: set[str] = {dev_conf[CONF_RELATION] for dev_conf in devices}
+    mixed_relations: bool = len(relations) > 1
+    if mixed_relations:
+        cg.add_define("USE_DEVICE_RELATION")
+    elif (shared_define := SHARED_DEVICE_RELATION_DEFINES[relations.pop()]) is not None:
+        cg.add_define(shared_define)
 
     # Process each device
     for dev_conf in devices:
@@ -846,11 +1023,18 @@ async def to_code(config: ConfigType) -> None:
             area_id_hash = fnv1a_32bit_hash(area_id.id)
             cg.add(dev.set_area_id(area_id_hash))
 
-        cg.add(cg.App.register_device(dev))
+        # The field only exists for a mix of relations, and starts as VIA
+        if (
+            mixed_relations
+            and (relation := dev_conf[CONF_RELATION]) != DEFAULT_DEVICE_RELATION
+        ):
+            cg.add(dev.set_relation(relation))
+
+        app_lists.add_to_list("DEVICE", dev)
 
 
 # Platform-specific source files for core
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_platform_sources = filter_source_files_from_platform(
     {
         "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -903,3 +1087,14 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         # as they are only included when needed by the preprocessor
     }
 )
+
+# util.cpp holds only the out-of-line MQTT connectivity helpers; without
+# USE_MQTT the header provides inline stubs and the file must not compile.
+# line_reader.cpp compiles only for components that opt in with USE_LINE_READER.
+_filter_define_sources = filter_source_files_from_defines(
+    {"util.cpp": "USE_MQTT", "line_reader.cpp": "USE_LINE_READER"}
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _filter_platform_sources() + _filter_define_sources()

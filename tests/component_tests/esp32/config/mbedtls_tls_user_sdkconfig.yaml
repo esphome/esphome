@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT: y
+      CONFIG_MBEDTLS_CCM_C: y
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+
+http_request:
+  verify_ssl: true

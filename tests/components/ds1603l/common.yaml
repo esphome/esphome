@@ -1,0 +1,3 @@
+sensor:
+  - platform: ds1603l
+    name: ds1603l Distance

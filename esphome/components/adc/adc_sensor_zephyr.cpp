@@ -7,7 +7,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc.zephyr";
+ESPHOME_LOG_TAG(TAG, "adc");
 
 void ADCSensor::setup() {
   if (!adc_is_ready_dt(this->channel_)) {
@@ -111,6 +111,8 @@ static const LogString *input_to_str(uint8_t input) {
       return LOG_STR("VDD");
     case NRF_SAADC_INPUT_VDDHDIV5:
       return LOG_STR("VDDHDIV5");
+    default:
+      break;
   }
   return LOG_STR("undefined input");
 }

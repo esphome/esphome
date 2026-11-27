@@ -1,0 +1,66 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  sendspin: !include common.yaml
+
+display:
+  - platform: ili9xxx
+    spi_id: spi_bus
+    id: main_lcd
+    model: ili9342
+    cs_pin: 20
+    dc_pin: 13
+    reset_pin: 21
+    invert_colors: true
+    auto_clear_enabled: false
+
+lvgl:
+  displays:
+    - main_lcd
+  animations:
+    # Fades the top widget out to reveal the new artwork underneath. Starting it also snaps the
+    # widget back to full opacity, and on_stop acks the transition so the library can deliver the
+    # next artwork.
+    - id: album_art_crossfade
+      duration: 2s
+      widgets:
+        - id: outgoing_art
+          opa:
+            from: 100%
+            to: 0%
+      on_stop:
+        - sendspin.image.transition_finished: album_slot
+  widgets:
+    # Cross-fade pair: the bottom widget always shows the current artwork; the top widget is
+    # pointed at the outgoing frame on each display event and faded out over it.
+    - image:
+        id: incoming_art
+        src: album_art
+    - image:
+        id: outgoing_art
+        src: album_art
+
+image:
+  - platform: sendspin
+    id: album_slot
+    format: JPEG
+    type: RGB565
+    resize: 240x240
+    source: ALBUM
+    # Start the fade 1s before the track boundary so the 2s cross-fade straddles it.
+    display_offset: 1s
+    current_image:
+      id: album_art
+    transition_image:
+      id: album_art_transition
+    on_image_display:
+      # A widget keeps drawing the buffer it was last pointed at until its source is set again, so
+      # both widgets are re-pointed on every display: the top widget at the outgoing frame
+      # (covering the bottom), the bottom widget at the new frame. The transition image is black
+      # before the first artwork, so the first fade needs no special case.
+      - lvgl.image.update:
+          id: outgoing_art
+          src: album_art_transition
+      - lvgl.image.update:
+          id: incoming_art
+          src: album_art
+      - lvgl.animation.start: album_art_crossfade

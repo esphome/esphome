@@ -70,12 +70,15 @@ from esphome.cpp_generator import _extract_component_ns
         "arduino_json_ns",
         "JsonObject",
         "JsonObjectConst",
-        "Controller",
         "GPIOPin",
     ),
 )
 def test_exists(attr):
     assert hasattr(cg, attr)
+
+
+def test_byte_span() -> None:
+    assert str(cg.byte_span) == "std::span<const uint8_t>"
 
 
 @pytest.mark.parametrize(

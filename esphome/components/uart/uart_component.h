@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <cstdint>
 #include <cstring>
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
@@ -13,14 +14,25 @@
 
 namespace esphome::uart {
 
-enum UARTParityOptions {
+enum UARTParityOptions : uint8_t {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
+  // Only USB serial adapters (usb_uart) support these
+  UART_CONFIG_PARITY_MARK,
+  UART_CONFIG_PARITY_SPACE,
+};
+
+// A runtime setting like CRTSCTS and IXON/IXOFF in termios. A backend without the lines
+// keeps the value and ignores it, as a Linux driver does.
+enum UARTFlowControl : uint8_t {
+  UART_FLOW_CONTROL_NONE,
+  UART_FLOW_CONTROL_RTS_CTS,
+  UART_FLOW_CONTROL_XON_XOFF,
 };
 
 #ifdef USE_UART_DEBUGGER
-enum UARTDirection {
+enum UARTDirection : uint8_t {
   UART_DIRECTION_RX,
   UART_DIRECTION_TX,
   UART_DIRECTION_BOTH,
@@ -61,6 +73,13 @@ class UARTComponent {
   // @param len Length of the array.
   virtual void write_array(const uint8_t *data, size_t len) = 0;
 
+  // Writes bytes that may live in PROGMEM; ESP8266 cannot read flash bytewise, so it copies chunks.
+#ifdef USE_ESP8266
+  void write_array_progmem(const uint8_t *data, size_t len);
+#else
+  void write_array_progmem(const uint8_t *data, size_t len) { this->write_array(data, len); }
+#endif
+
   // Reads a single byte from the UART bus.
   // @param data Pointer to the byte where the read data will be stored.
   // @return True if a byte was successfully read, false otherwise.
@@ -81,6 +100,14 @@ class UARTComponent {
   // @return Number of available bytes.
   virtual size_t available() = 0;
 
+  // Returns how many bytes write_array() accepts right now without blocking.
+  // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
+  virtual size_t available_for_write() { return SIZE_MAX; }
+
+  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the line time at 10 bits
+  // per byte since last_write_ms, a loop start time: at most one loop interval and 4 s, at least one byte.
+  size_t paced_write_room(uint32_t last_write_ms);
+
   // Pure virtual method to block until all bytes have been written to the UART bus.
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
   virtual UARTFlushResult flush() = 0;
@@ -93,6 +120,14 @@ class UARTComponent {
   // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
   // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
   virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
+
+#ifdef USE_UART_TX_BREAK
+  // Holds the TX line at the level opposite to idle (low for a pin that is not inverted) until released.
+  // flush() before it; no read or write on the bus meanwhile: a LibreTiny hardware port is closed for it and
+  // loses its RX buffer. load_settings() applies a held break again. Needs uart.request_tx_break() in codegen.
+  // @return false when the bus cannot do it, e.g. no TX pin of the microcontroller (see the platform files).
+  virtual bool set_tx_break(bool enable) { return false; }
+#endif
 
   // Sets the TX (transmit) pin for the UART bus.
   // @param tx_pin Pointer to the internal GPIO pin used for transmission.
@@ -166,6 +201,15 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+  // Set the line handshaking (RTS/CTS or XON/XOFF) used in UART communication. Unrelated to
+  // flow_control_pin, the RS485 driver enable; backends without handshaking ignore it.
+  // @param flow_control Flow control option.
+  void set_flow_control(UARTFlowControl flow_control) { this->flow_control_ = flow_control; }
+
+  // Get the flow control used in UART communication.
+  // @return Flow control option.
+  UARTFlowControl get_flow_control() const { return this->flow_control_; }
+
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -212,7 +256,8 @@ class UARTComponent {
   uint32_t baud_rate_{0};
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
-  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
+  UARTFlowControl flow_control_{UART_FLOW_CONTROL_NONE};
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif

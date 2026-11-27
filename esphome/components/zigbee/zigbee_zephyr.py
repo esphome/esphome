@@ -1,7 +1,8 @@
-import datetime
+import datetime as dt
 import random
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_MANUFACTURER
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
@@ -9,7 +10,7 @@ from esphome.const import (
     CONF_MODEL,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
-    __version__,
+    CONF_VERSION,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import (
@@ -22,25 +23,26 @@ from esphome.types import ConfigType
 from .const import (
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
+    CONF_ENDPOINT,
     CONF_POWER_SOURCE,
     CONF_ROUTER,
-    CONF_WIPE_ON_BOOT,
-    KEY_ZIGBEE,
-    POWER_SOURCE,
-    AnalogAttrs,
-    AnalogAttrsOutput,
-    BinaryAttrs,
-    ZigbeeComponent,
-    zigbee_ns,
-)
-from .const_zephyr import (
-    CONF_IEEE802154_VENDOR_OUI,
     CONF_SLEEPY,
+    CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
     CONF_ZIGBEE_SWITCH,
+    KEY_ZIGBEE,
+    KEY_ZIGBEE_AREA_STR,
+    KEY_ZIGBEE_VERSION_STR,
+    POWER_SOURCE,
+    AnalogAttrs,
+    AnalogAttrsOutput,
+    BinaryAttrs,
+)
+from .const_zephyr import (
+    CONF_IEEE802154_VENDOR_OUI,
     KEY_EP_NUMBER,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
@@ -51,47 +53,32 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
 )
+from .endpoints_zephyr import endpoint_ids
 
-ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
-ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
-ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
-ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
-
-zephyr_binary_sensor = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeBinarySensor
-        ),
-    }
+# Switches, numbers and time each handle the ZCL writes to their endpoint; true when one matched
+ZCL_DEVICE_PUBLISHER = cg.HubFunction(
+    "zcl_device",
+    cg.bool_,
+    [
+        (cg.global_ns.namespace("zb_uint8_t"), "endpoint"),
+        (cg.global_ns.namespace("zb_bufid_t"), "bufid"),
+    ],
 )
+ZCL_ENDPOINT = ZCL_DEVICE_PUBLISHER.param("endpoint")
+ZCL_BUFID = ZCL_DEVICE_PUBLISHER.param("bufid")
 
-zephyr_sensor = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSensor
-        ),
-    }
-)
 
-zephyr_switch = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SWITCH, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSwitch
+async def add_zcl_device_handler(
+    config: ConfigType, var: cg.MockObj, ep_id: int
+) -> None:
+    """Route the ZCL writes to endpoint ep_id to var->on_zcl_device_event()."""
+    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    ZCL_DEVICE_PUBLISHER.add(
+        hub,
+        cg.RawExpression(
+            f"({ZCL_ENDPOINT} == {ep_id} && ({var}->on_zcl_device_event({ZCL_BUFID}), true))"
         ),
-    }
-)
-
-zephyr_number = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_NUMBER, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeNumber
-        ),
-    }
-)
+    )
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
@@ -158,31 +145,32 @@ async def zephyr_to_code(config: ConfigType) -> "MockObj":
 
 async def _attr_to_code(config: ConfigType) -> None:
     # Create the basic attributes structure and attribute list
+    zb_data = CORE.data.get(KEY_ZIGBEE, {})
     basic_attrs = zigbee_new_variable("zigbee_basic_attrs", ZB_ZCL_BASIC_ATTRS_EXT_T)
     zigbee_new_attr_list(
         "zigbee_basic_attrib_list",
         "ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT",
         zigbee_assign(basic_attrs.zcl_version, cg.RawExpression("ZB_ZCL_VERSION")),
-        zigbee_assign(basic_attrs.app_version, 0),
+        zigbee_assign(basic_attrs.app_version, config[CONF_VERSION]),
         zigbee_assign(basic_attrs.stack_version, 0),
         zigbee_assign(basic_attrs.hw_version, 0),
-        zigbee_set_string(basic_attrs.mf_name, "esphome"),
+        zigbee_set_string(basic_attrs.mf_name, config[CONF_MANUFACTURER]),
         zigbee_set_string(basic_attrs.model_id, config[CONF_MODEL]),
         zigbee_set_string(
             basic_attrs.date_code,
             # Local build time, matching the esp32 implementation
             # (App.get_build_time() in C++).
-            datetime.datetime.now().astimezone().strftime("%Y%m%d %H%M%S"),
+            dt.datetime.now().astimezone().strftime("%Y%m%d %H%M%S"),
         ),
         zigbee_assign(
             basic_attrs.power_source,
             POWER_SOURCE[config[CONF_POWER_SOURCE]],
         ),
-        zigbee_set_string(basic_attrs.location_id, ""),
+        zigbee_set_string(basic_attrs.location_id, zb_data[KEY_ZIGBEE_AREA_STR]),
         zigbee_assign(
             basic_attrs.ph_env, cg.RawExpression("ZB_ZCL_BASIC_ENV_UNSPECIFIED")
         ),
-        zigbee_set_string(basic_attrs.sw_ver, __version__),
+        zigbee_set_string(basic_attrs.sw_ver, zb_data[KEY_ZIGBEE_VERSION_STR]),
     )
 
     # Create the identify attributes structure and attribute list
@@ -284,6 +272,7 @@ def zigbee_register_ep(
     report_attr_count: int,
     clusters: list[ZigbeeClusterDesc],
     slot_index: int,
+    ep_id: int,
     app_device_id: str,
 ) -> None:
     """Register a Zigbee endpoint."""
@@ -295,7 +284,6 @@ def zigbee_register_ep(
     CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER][slot_index] = ep_name
 
     # Generate the endpoint declaration
-    ep_id = slot_index + 1  # Endpoints are 1-indexed
     obj = cg.RawExpression(
         f"ESPHOME_ZB_HA_DECLARE_EP({ep_name}, {ep_id}, {cluster_list_name}, "
         f"{in_cluster_num}, {out_cluster_num}, {report_attr_count}, {app_device_id}, {', '.join(cluster_ids)})"
@@ -305,25 +293,12 @@ def zigbee_register_ep(
 
 @coroutine_with_priority(CoroPriority.LATE)
 async def _ctx_to_code(config: ConfigType) -> None:
-    cg.add_define("ZIGBEE_ENDPOINTS_COUNT", len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]))
     cg.add_global(
         cg.RawExpression(
             f"ZBOSS_DECLARE_DEVICE_CTX_EP_VA(zb_device_ctx, &{', &'.join(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
         )
     )
     cg.add(cg.RawExpression("ZB_AF_REGISTER_DEVICE_CTX(&zb_device_ctx)"))
-
-
-async def zephyr_setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    CORE.add_job(_add_binary_sensor, entity, config)
-
-
-async def zephyr_setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    CORE.add_job(_add_sensor, entity, config)
-
-
-async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    CORE.add_job(_add_switch, entity, config)
 
 
 async def zephyr_setup_number(
@@ -357,8 +332,10 @@ async def _add_zigbee_ep(
     cluster_id: str,
     app_device_id: str,
     extra_field_values: dict[str, int] | None = None,
-) -> None:
+) -> tuple[cg.MockObj, int]:
     slot_index = get_slot_index()
+    # int(): YAML true passes cv.int_ as a bool, which would print as Python's True in the C++
+    ep_id = int(config.get(CONF_ENDPOINT) or endpoint_ids().allocate())
 
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_attrs"
@@ -390,21 +367,21 @@ async def _add_zigbee_ep(
         [ZigbeeClusterDesc(cluster_id, attr_list)],
     )
     zigbee_register_ep(
-        ep_name, cluster_list_name, 2, clusters, slot_index, app_device_id
+        ep_name, cluster_list_name, 2, clusters, slot_index, ep_id, app_device_id
     )
 
     # Create ESPHome component
     var = cg.new_Pvariable(config[component_key], entity)
     await cg.register_component(var, {})
 
-    cg.add(var.set_endpoint(slot_index + 1))
+    cg.add(var.set_endpoint(ep_id))
     cg.add(var.set_cluster_attributes(attrs))
 
-    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
-    cg.add(var.set_parent(hub))
+    await cg.register_parented(var, config[CONF_ZIGBEE_ID])
+    return var, ep_id
 
 
-async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+async def add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     await _add_zigbee_ep(
         entity,
         config,
@@ -416,7 +393,7 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     )
 
 
-async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     # Get BACnet engineering unit from unit_of_measurement
     unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
     bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
@@ -433,8 +410,8 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     )
 
 
-async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    await _add_zigbee_ep(
+async def add_switch(entity: cg.MockObj, config: ConfigType) -> None:
+    var, ep_id = await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_SWITCH,
@@ -443,6 +420,7 @@ async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
         ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
     )
+    await add_zcl_device_handler(config, var, ep_id)
 
 
 async def _add_number(
@@ -456,7 +434,7 @@ async def _add_number(
     unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
     bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
 
-    await _add_zigbee_ep(
+    var, ep_id = await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_NUMBER,
@@ -471,3 +449,4 @@ async def _add_number(
             "engineering_units": bacnet_unit,
         },
     )
+    await add_zcl_device_handler(config, var, ep_id)

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import light, output
 import esphome.config_validation as cv
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_OUTPUT_ID, CONF_RED
+from esphome.types import ConfigType
 
 rgb_ns = cg.esphome_ns.namespace("rgb")
 RGBLightOutput = rgb_ns.class_("RGBLightOutput", light.LightOutput)
@@ -16,13 +17,10 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 
-    red = await cg.get_variable(config[CONF_RED])
-    cg.add(var.set_red(red))
-    green = await cg.get_variable(config[CONF_GREEN])
-    cg.add(var.set_green(green))
-    blue = await cg.get_variable(config[CONF_BLUE])
-    cg.add(var.set_blue(blue))
+    await cg.add_variable(var.set_red, config[CONF_RED])
+    await cg.add_variable(var.set_green, config[CONF_GREEN])
+    await cg.add_variable(var.set_blue, config[CONF_BLUE])

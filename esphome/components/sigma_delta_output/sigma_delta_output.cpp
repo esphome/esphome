@@ -3,7 +3,7 @@
 
 namespace esphome::sigma_delta_output {
 
-static const char *const TAG = "output.sigma_delta";
+ESPHOME_LOG_TAG(TAG, "output.sigma_delta");
 
 void SigmaDeltaOutput::setup() {
   if (this->pin_)

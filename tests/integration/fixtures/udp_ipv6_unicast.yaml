@@ -1,0 +1,24 @@
+esphome:
+  name: udp-ipv6-unicast-test
+
+host:
+
+api:
+
+network:
+  enable_ipv6: true
+
+logger:
+  level: DEBUG
+
+udp:
+  - id: test_udp
+    port:
+      listen_port: UDP_LISTEN_PORT_PLACEHOLDER
+      broadcast_port: UDP_REPLY_PORT_PLACEHOLDER
+    addresses:
+      - "::1"
+    on_receive:
+      - udp.write:
+          id: test_udp
+          data: "PONG"

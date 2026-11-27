@@ -1,0 +1,15 @@
+# Frequency scaling set by hand with esp_pm_configure(), for a tree without esp32_power_management
+substitutions:
+  name: pms-manual-pm
+esphome:
+  includes: [pmh.hpp]
+  on_boot:
+    priority: 900
+    then:
+      - lambda: pms_pm_configure(false);
+packages:
+  common: !include pms-common.yaml
+esp32:
+  framework:
+    sdkconfig_options:
+      CONFIG_PM_ENABLE: y

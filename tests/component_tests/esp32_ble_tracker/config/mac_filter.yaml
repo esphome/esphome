@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+esp32_ble_tracker:
+  on_ble_advertise:
+    - mac_address:
+        - AC:37:43:77:5F:4C
+        - 11:22:33:44:55:66
+      then:
+        - logger.log: one
+    - mac_address:
+        - AC:37:43:77:5F:4C
+        - 11:22:33:44:55:66
+      then:
+        - logger.log: two
+    - then:
+        - logger.log: any
+    - mac_address: []
+      then:
+        - logger.log: empty

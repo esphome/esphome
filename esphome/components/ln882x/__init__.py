@@ -28,11 +28,15 @@ from esphome.components.libretiny.const import (
     LibreTinyComponent,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
+from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401
+from esphome.types import ConfigType
 
 from .boards import LN882X_BOARD_PINS, LN882X_BOARDS
 
 CODEOWNERS = ["@lamauny"]
 AUTO_LOAD = ["libretiny"]
+DOMAIN = "ln882x"
 IS_TARGET_PLATFORM = True
 
 COMPONENT_DATA = LibreTinyComponent(
@@ -45,28 +49,36 @@ COMPONENT_DATA = LibreTinyComponent(
 )
 
 
-def _set_core_data(config):
+def _set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_LIBRETINY] = {}
     CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] = COMPONENT_DATA
     return config
 
 
-CONFIG_SCHEMA = libretiny.BASE_SCHEMA
+# extend({}) makes this platform's own schema instance: BASE_SCHEMA is shared
+# by every LibreTiny platform, and prepending this platform's _set_core_data
+# onto the shared object would run it for every platform's validation once two
+# platform modules are imported in one process (device-builder, tests).
+CONFIG_SCHEMA = libretiny.BASE_SCHEMA.extend({})
 
 PIN_SCHEMA = libretiny.gpio.BASE_PIN_SCHEMA
 
 CONFIG_SCHEMA.prepend_extra(_set_core_data)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> MockObj:
     return await libretiny.component_to_code(config)
 
 
 @pins.PIN_SCHEMA_REGISTRY.register("ln882x", PIN_SCHEMA)
-async def pin_to_code(config):
+async def pin_to_code(config: ConfigType) -> MockObj:
     return await libretiny.gpio.component_pin_to_code(config)
 
 
 # Called by writer.py; delegates to the shared libretiny implementation.
 def copy_files() -> None:
     libretiny.copy_files()
+
+
+# Called by the OTA upload; the shared libretiny implementation.
+ota_image = libretiny.device_ota_image

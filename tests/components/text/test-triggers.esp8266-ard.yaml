@@ -1,0 +1,3 @@
+packages:
+  text: !include common.yaml
+  triggers: !include common-triggers.yaml

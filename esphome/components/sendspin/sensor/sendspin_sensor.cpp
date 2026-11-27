@@ -1,12 +1,14 @@
 #include "sendspin_sensor.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
 
 #include <sendspin/metadata_role.h>
 
+#include <cmath>
+
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.sensor";
+ESPHOME_LOG_TAG(TAG, "sendspin.sensor");
 
 // --- SendspinTrackProgressSensor ---
 
@@ -18,8 +20,15 @@ void SendspinTrackProgressSensor::dump_config() {
 // THREAD CONTEXT: Main loop. The registered metadata callback also fires on the main loop
 // (SendspinHub dispatches metadata from client_->loop()).
 void SendspinTrackProgressSensor::setup() {
-  this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+  this->parent_->add_metadata_update_callback([this](const sendspin::TrackMetadata &metadata) {
     if (!metadata.progress.has_value()) {
+      // Progress is unknown: the server has not reported it, or it was cleared (e.g. on disconnect). Stop polling and
+      // report unknown rather than leaving the last position frozen on the frontend. Only the transition is published;
+      // NAN never compares equal to itself, so an unguarded publish would repeat on every metadata update.
+      this->stop_poller();
+      if (!std::isnan(this->get_raw_state())) {
+        this->publish_state(NAN);
+      }
       return;
     }
     const auto &progress = metadata.progress.value();
@@ -34,6 +43,11 @@ void SendspinTrackProgressSensor::setup() {
       this->start_poller();
     }
   });
+
+  // PollingComponent starts the poller before setup(), but there is nothing to interpolate yet:
+  // get_track_progress_ms() returns 0 until the server reports a position, so polling now would publish 0 every tick
+  // from boot until the first metadata arrives. The callback above starts it once playback is running.
+  this->stop_poller();
 }
 
 // THREAD CONTEXT: Main loop.
@@ -58,7 +72,7 @@ void SendspinMetadataSensor::dump_config() {
   }
 }
 
-std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::ServerMetadataStateObject &metadata) const {
+std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::TrackMetadata &metadata) const {
   switch (this->metadata_type_) {
     case SendspinNumericMetadataTypes::TRACK_DURATION:
       if (metadata.progress.has_value())
@@ -79,16 +93,20 @@ std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::Serv
 // THREAD CONTEXT: Main loop. The registered metadata callback also fires on the main loop
 // (SendspinHub dispatches metadata from client_->loop()).
 void SendspinMetadataSensor::setup() {
-  this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-    if (auto value = this->extract_value_(metadata)) {
-      this->publish_if_changed_(*value);
-    }
+  this->parent_->add_metadata_update_callback([this](const sendspin::TrackMetadata &metadata) {
+    // A field the server has not provided, or has explicitly cleared, is published as NAN (the sensor convention for
+    // unknown) rather than skipped, so a value that goes away does not linger from the previous track.
+    this->publish_if_changed_(this->extract_value_(metadata).value_or(NAN));
   });
 }
 
 // Dedup to avoid frontend churn; Sensor::publish_state always notifies without checking for changes.
 void SendspinMetadataSensor::publish_if_changed_(float value) {
-  if (this->get_raw_state() != value) {
+  const float current = this->get_raw_state();
+  // The raw state starts as NAN, so a field that is already cleared when the first update arrives is suppressed here
+  // as well: the frontend still shows the sensor as unknown, which is what a clear means. NAN never compares equal to
+  // itself, so a field that stays cleared would republish on every metadata update without the second check.
+  if (current != value && !(std::isnan(current) && std::isnan(value))) {
     this->publish_state(value);
   }
 }

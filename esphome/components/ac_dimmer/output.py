@@ -4,6 +4,7 @@ from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_METHOD, CONF_MIN_POWER
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
 
@@ -13,11 +14,9 @@ ac_dimmer_ns = cg.esphome_ns.namespace("ac_dimmer")
 AcDimmer = ac_dimmer_ns.class_("AcDimmer", output.FloatOutput, cg.Component)
 
 DimMethod = ac_dimmer_ns.enum("DimMethod")
-DIM_METHODS = {
-    "LEADING_PULSE": DimMethod.DIM_METHOD_LEADING_PULSE,
-    "LEADING": DimMethod.DIM_METHOD_LEADING,
-    "TRAILING": DimMethod.DIM_METHOD_TRAILING,
-}
+DIM_METHODS = DimMethod.options(
+    "LEADING_PULSE", "LEADING", "TRAILING", prefix="DIM_METHOD_"
+)
 
 ZC_INTERRUPT_TYPES = {
     "RISING": gpio_ns.INTERRUPT_RISING_EDGE,
@@ -48,7 +47,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        # Re-enable the gptimer driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_driver_gptimer")
+
     if CORE.is_esp8266:
         # ac_dimmer uses setTimer1Callback which requires the waveform generator
         from esphome.components.esp8266.const import require_waveform
@@ -63,10 +68,8 @@ async def to_code(config):
         config[CONF_MIN_POWER] = 0.1
     await output.register_output(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_GATE_PIN])
-    cg.add(var.set_gate_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
-    cg.add(var.set_zero_cross_pin(pin))
+    await cg.add_pin(var.set_gate_pin, config[CONF_GATE_PIN])
+    await cg.add_pin(var.set_zero_cross_pin, config[CONF_ZERO_CROSS_PIN])
     cg.add(var.set_zero_cross_interrupt_type(config[CONF_ZERO_CROSS_INTERRUPT_TYPE]))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
     cg.add(var.set_method(config[CONF_METHOD]))

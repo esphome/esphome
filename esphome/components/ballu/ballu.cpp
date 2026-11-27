@@ -1,15 +1,16 @@
 #include "ballu.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ballu {
 
-static const char *const TAG = "ballu.climate";
+ESPHOME_LOG_TAG(TAG, "ballu.climate");
 
 const uint16_t BALLU_HEADER_MARK = 9000;
 const uint16_t BALLU_HEADER_SPACE = 4500;
 const uint16_t BALLU_BIT_MARK = 575;
-const uint16_t BALLU_ONE_SPACE = 1675;
-const uint16_t BALLU_ZERO_SPACE = 550;
+static constexpr remote_base::BitTimings BALLU_BIT_TIMINGS{
+    .bit_mark = BALLU_BIT_MARK, .one_space = 1675, .zero_space = 550};
 
 const uint32_t BALLU_CARRIER_FREQUENCY = 38000;
 
@@ -30,6 +31,23 @@ const uint8_t BALLU_SWING_VER = 0x07;
 const uint8_t BALLU_SWING_HOR = 0xe0;
 const uint8_t BALLU_POWER = 0x20;
 
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// A fan mode not listed sends no fan bits and a received mode not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_AUTO, BALLU_AUTO},    {climate::CLIMATE_MODE_HEAT, BALLU_HEAT},
+    {climate::CLIMATE_MODE_COOL, BALLU_COOL},    {climate::CLIMATE_MODE_DRY, BALLU_DRY},
+    {climate::CLIMATE_MODE_FAN_ONLY, BALLU_FAN},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, BALLU_FAN_AUTO},
+    {climate::CLIMATE_FAN_HIGH, BALLU_FAN_HIGH},
+    {climate::CLIMATE_FAN_MEDIUM, BALLU_FAN_MED},
+    {climate::CLIMATE_FAN_LOW, BALLU_FAN_LOW},
+};
+
 void BalluClimate::transmit_state() {
   uint8_t remote_state[BALLU_STATE_LENGTH] = {0};
 
@@ -45,54 +63,14 @@ void BalluClimate::transmit_state() {
   remote_state[9] = (this->mode == climate::CLIMATE_MODE_OFF) ? 0 : BALLU_POWER;
   remote_state[11] = 0x1e;
 
-  // Fan speed
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_HIGH:
-      remote_state[4] |= BALLU_FAN_HIGH;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      remote_state[4] |= BALLU_FAN_MED;
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      remote_state[4] |= BALLU_FAN_LOW;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-      remote_state[4] |= BALLU_FAN_AUTO;
-      break;
-    default:
-      break;
-  }
-
-  // Mode
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
-      remote_state[6] |= BALLU_AUTO;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      remote_state[6] |= BALLU_HEAT;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      remote_state[6] |= BALLU_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      remote_state[6] |= BALLU_DRY;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state[6] |= BALLU_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-      remote_state[6] |= BALLU_AUTO;
-    default:
-      break;
-  }
+  remote_state[4] = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_ON), 0);
+  remote_state[6] = to_ir_code(MODES, this->mode, BALLU_AUTO);
 
   // Checksum
   for (uint8_t i = 0; i < BALLU_STATE_LENGTH - 1; i++)
     remote_state[12] += remote_state[i];
 
-  ESP_LOGV(TAG, "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X", remote_state[0],
-           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
-           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12]);
+  ESP_LOGV_HEX(TAG, remote_state, BALLU_STATE_LENGTH, BALLU_STATE_LENGTH, "Sending: %s");
 
   // Send code
   auto transmit = this->transmitter_->transmit();
@@ -104,13 +82,7 @@ void BalluClimate::transmit_state() {
   data->mark(BALLU_HEADER_MARK);
   data->space(BALLU_HEADER_SPACE);
   // Data
-  for (uint8_t i : remote_state) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(BALLU_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? BALLU_ONE_SPACE : BALLU_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH);
   // Footer
   data->mark(BALLU_BIT_MARK);
 
@@ -124,21 +96,10 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[BALLU_STATE_LENGTH] = {0};
-  // Read all bytes.
-  for (int i = 0; i < BALLU_STATE_LENGTH; i++) {
-    // Read bit
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(BALLU_BIT_MARK, BALLU_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-
-      } else if (!data.expect_item(BALLU_BIT_MARK, BALLU_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
-
-    ESP_LOGVV(TAG, "Byte %d %02X", i, remote_state[i]);
+  uint8_t remote_state[BALLU_STATE_LENGTH];
+  if (!data.expect_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH)) {
+    ESP_LOGV(TAG, "Data fail");
+    return false;
   }
   // Validate footer
   if (!data.expect_mark(BALLU_BIT_MARK)) {
@@ -146,19 +107,14 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t checksum = 0;
-  // Calculate  checksum and compare with signal value.
-  for (uint8_t i = 0; i < BALLU_STATE_LENGTH - 1; i++)
-    checksum += remote_state[i];
+  const uint8_t checksum = sum_bytes(remote_state, BALLU_STATE_LENGTH - 1);
 
   if (checksum != remote_state[BALLU_STATE_LENGTH - 1]) {
     ESP_LOGVV(TAG, "Checksum fail");
     return false;
   }
 
-  ESP_LOGV(TAG, "Received: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X", remote_state[0],
-           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
-           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12]);
+  ESP_LOGV_HEX(TAG, remote_state, BALLU_STATE_LENGTH, BALLU_STATE_LENGTH, "Received: %s");
 
   // verify header remote code
   if (remote_state[0] != 0xc3)
@@ -172,23 +128,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else {
     auto mode = remote_state[6] & 0xe0;
     ESP_LOGV(TAG, "Mode: %02X", mode);
-    switch (mode) {
-      case BALLU_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case BALLU_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case BALLU_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case BALLU_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case BALLU_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
-        break;
-    }
+    this->mode = from_ir_code(MODES, mode, this->mode);
   }
 
   // Set received temp
@@ -201,21 +141,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Set received fan speed
   auto fan = remote_state[4] & 0xe0;
   ESP_LOGVV(TAG, "Fan: %02X", fan);
-  switch (fan) {
-    case BALLU_FAN_HIGH:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case BALLU_FAN_MED:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case BALLU_FAN_LOW:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case BALLU_FAN_AUTO:
-    default:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-  }
+  this->fan_mode = from_ir_code(FANS, fan, climate::CLIMATE_FAN_AUTO);
 
   // Set received swing status
   ESP_LOGVV(TAG, "Swing status: %02X %02X", remote_state[1] & BALLU_SWING_VER, remote_state[2] & BALLU_SWING_HOR);

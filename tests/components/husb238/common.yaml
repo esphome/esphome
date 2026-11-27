@@ -1,0 +1,11 @@
+husb238:
+  id: husb238_hub
+  i2c_id: i2c_bus
+
+binary_sensor:
+  - platform: husb238
+    husb238_id: husb238_hub
+    attached: "PD Attached"
+    cc_direction:
+      name: "CC Direction"
+      entity_category: diagnostic

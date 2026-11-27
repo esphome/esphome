@@ -1,0 +1,52 @@
+esphome:
+  name: tmpl-clim-two-point
+host:
+api:
+logger:
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Two-Point Heatpump
+    optimistic: true
+    sensor: test_climate_current_temperature
+    supports_two_point_target_temperature: true
+    supports_target_humidity: true
+    supported_modes:
+      - "OFF"
+      - HEAT_COOL
+      - HEAT
+      - COOL
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    on_control:
+      - lambda: |-
+          if (x.get_mode().has_value())
+            ESP_LOGD("test", "on_control mode=%d", (int) *x.get_mode());
+          if (x.get_target_temperature_low().has_value())
+            ESP_LOGD("test", "on_control target_temperature_low=%.1f", *x.get_target_temperature_low());
+          if (x.get_target_temperature_high().has_value())
+            ESP_LOGD("test", "on_control target_temperature_high=%.1f", *x.get_target_temperature_high());
+          if (x.get_target_humidity().has_value())
+            ESP_LOGD("test", "on_control target_humidity=%.1f", *x.get_target_humidity());
+
+sensor:
+  - platform: template
+    id: test_climate_current_temperature
+    name: Test Climate Current Temperature
+    lambda: "return 21.0f;"
+    update_interval: 10ms
+
+button:
+  - platform: template
+    id: simulate_device_report
+    name: Simulate Device Report
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          mode: HEAT_COOL
+          target_temperature_low: 18.0
+          target_temperature_high: 24.0
+          target_humidity: 50.0

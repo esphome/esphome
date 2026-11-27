@@ -6,66 +6,6 @@
 
 namespace esphome::select {
 
-class SelectStateTrigger final : public Trigger<StringRef, size_t> {
- public:
-  explicit SelectStateTrigger(Select *parent) : parent_(parent) {
-    parent->add_on_state_callback(
-        [this](size_t index) { this->trigger(StringRef(this->parent_->option_at(index)), index); });
-  }
-
- protected:
-  Select *parent_;
-};
-
-template<typename... Ts> class SelectSetAction final : public Action<Ts...> {
- public:
-  explicit SelectSetAction(Select *select) : select_(select) {}
-  TEMPLATABLE_VALUE(std::string, option)
-
-  void play(const Ts &...x) override {
-    auto call = this->select_->make_call();
-    call.set_option(this->option_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Select *select_;
-};
-
-template<typename... Ts> class SelectSetIndexAction final : public Action<Ts...> {
- public:
-  explicit SelectSetIndexAction(Select *select) : select_(select) {}
-  TEMPLATABLE_VALUE(size_t, index)
-
-  void play(const Ts &...x) override {
-    auto call = this->select_->make_call();
-    call.set_index(this->index_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Select *select_;
-};
-
-template<typename... Ts> class SelectOperationAction final : public Action<Ts...> {
- public:
-  explicit SelectOperationAction(Select *select) : select_(select) {}
-  TEMPLATABLE_VALUE(bool, cycle)
-  TEMPLATABLE_VALUE(SelectOperation, operation)
-
-  void play(const Ts &...x) override {
-    auto call = this->select_->make_call();
-    call.with_operation(this->operation_.value(x...));
-    if (this->cycle_.has_value()) {
-      call.with_cycle(this->cycle_.value(x...));
-    }
-    call.perform();
-  }
-
- protected:
-  Select *select_;
-};
-
 template<size_t N, typename... Ts> class SelectIsCondition final : public Condition<Ts...> {
  public:
   SelectIsCondition(Select *parent, const char *const *option_list) : parent_(parent), option_list_(option_list) {}
@@ -87,13 +27,13 @@ template<size_t N, typename... Ts> class SelectIsCondition final : public Condit
 
 template<typename... Ts> class SelectIsCondition<0, Ts...> final : public Condition<Ts...> {
  public:
-  SelectIsCondition(Select *parent, std::function<bool(const StringRef &, const Ts &...)> &&f)
-      : parent_(parent), f_(f) {}
+  // process_lambda emits lambdas without captures, so they convert to a function pointer
+  SelectIsCondition(Select *parent, bool (*f)(const StringRef &, Ts...)) : parent_(parent), f_(f) {}
 
   bool check(const Ts &...x) override { return this->f_(this->parent_->current_option(), x...); }
 
  protected:
   Select *parent_;
-  std::function<bool(const StringRef &, const Ts &...)> f_;
+  bool (*f_)(const StringRef &, Ts...);
 };
 }  // namespace esphome::select
