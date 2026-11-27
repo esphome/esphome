@@ -54,9 +54,12 @@ class MQTTBackendESP8266 final : public MQTTBackend {
     this->mqtt_client_.onPublish(std::move(callback));
   }
 
-  bool connected() const final { return mqtt_client_.connected(); }
+  // False as soon as DISCONNECT is sent, so a closing link is never reused
+  bool connected() const final { return this->mqtt_client_.connected() && !this->mqtt_client_.disconnecting(); }
+  bool link_open() const final { return this->mqtt_client_.connected(); }
   void connect() final { mqtt_client_.connect(); }
-  void disconnect() final { mqtt_client_.disconnect(true); }
+  // Sends DISCONNECT, then the library waits for the broker to close (or closes after 5 s)
+  void disconnect() final { this->mqtt_client_.disconnect(false); }
 #if ASYNC_TCP_SSL_ENABLED
   // The library's loop() only pumps TLS output; without TLS the base class's empty loop() stays inline
   void loop() final { this->mqtt_client_.loop(); }
