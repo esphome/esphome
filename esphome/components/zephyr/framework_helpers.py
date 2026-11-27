@@ -385,20 +385,19 @@ def install_framework(
         raise EsphomeError(f"Can't update {name} {version}")
 
 
+# In the penv, so a venv rebuild removes it; nrf52's name, so its installs keep theirs
+_ZEPHYR_REQS_MARKER = ".zephyr_reqs_ready"
+
+
 def ensure_zephyr_requirements(
     python_env_path: Path,
     framework_path: Path,
     venv_rebuilt: bool,
     label: str,
-    marker_name: str,
 ) -> None:
-    """Install the workspace's Zephyr Python requirements into the penv unless current.
-
-    ``marker_name`` is the file in the penv that records the install, so a venv
-    rebuild removes it.
-    """
+    """Install the workspace's Zephyr Python requirements into the penv unless current."""
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    sentinel = python_env_path / marker_name
+    sentinel = python_env_path / _ZEPHYR_REQS_MARKER
     if (
         not venv_rebuilt
         and sentinel.exists()

@@ -86,9 +86,7 @@ def _check_and_install(
     patch_gen_defines_dts_path(framework_path)
     patch_west_build_source_dir_relpath(framework_path)
 
-    ensure_zephyr_requirements(
-        python_env_path, framework_path, install_venv, version, ".zephyr_reqs_ready"
-    )
+    ensure_zephyr_requirements(python_env_path, framework_path, install_venv, version)
 
 
 def _read_sdk_version(framework_path: Path) -> str:
