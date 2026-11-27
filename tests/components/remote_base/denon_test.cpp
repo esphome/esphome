@@ -72,6 +72,14 @@ TEST(DenonProtocolTest, RoundTrips) {
   }
 }
 
+// A lambda can pass an address above 31; its extra bits must not reach the command
+TEST(DenonProtocolTest, AddressAbove31KeepsTheCommand) {
+  RemoteTransmitData wide, masked;
+  DenonProtocol().encode(&wide, DenonData{.address = 34, .command = 120});
+  DenonProtocol().encode(&masked, DenonData{.address = 2, .command = 120});
+  EXPECT_EQ(wide.get_data(), masked.get_data());
+}
+
 TEST(DenonProtocolTest, RejectsABadSpace) {
   RawTimings timings = reference_frame(0x2278);
   timings[5] = -1300;
