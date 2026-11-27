@@ -176,8 +176,8 @@ uint32_t EntityBase::calc_old_object_id_hash_() const {
 void EntityBase::migrate_entity_preference_([[maybe_unused]] ESPPreferenceObject &pref, [[maybe_unused]] size_t size,
                                             [[maybe_unused]] uint32_t version) const {
 #ifdef USE_PREFERENCE_KEY_LOOKUP
-  // All in-tree entity preferences fit the stack buffer, so migration never hits the heap
-  SmallBufferWithHeapFallback<64> buffer(size);
+  // Sized for the largest in-tree entity preference (the 94 byte ld2450 Polygon), so migration never hits the heap
+  SmallBufferWithHeapFallback<96> buffer(size);
   migrate_preference(pref, buffer.get(), size, this->old_preference_key_base_() ^ version,
                      this->entity_preference_key_(version));
 #endif
