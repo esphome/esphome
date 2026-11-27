@@ -121,8 +121,7 @@ NRF52_BAUD_RATES = (
     921600,
     1000000,
 )
-# UARTE1 shares no registers with the console UART (UARTE0), SPIM2 or the TWIMs.
-# CONFIG_UART_1_NRF_PARITY_BIT below must match this node.
+# UARTE1 shares no registers with the console UART (UARTE0), SPIM2 or the TWIMs
 NRF52_UART_NODE = "uart1"
 
 HOST_BAUD_RATES = [
@@ -244,10 +243,6 @@ def validate_nrf52_config(config: ConfigType) -> ConfigType:
     if config[CONF_PARITY] not in ("NONE", "EVEN"):
         raise cv.Invalid(
             "The nRF52 UART supports only NONE or EVEN parity", path=[CONF_PARITY]
-        )
-    if config[CONF_STOP_BITS] != 1:
-        raise cv.Invalid(
-            "The nRF52 UART supports only 1 stop bit", path=[CONF_STOP_BITS]
         )
     for key in (CONF_TX_PIN, CONF_RX_PIN):
         if (pin := config.get(key)) is None:
@@ -461,8 +456,8 @@ def _add_nrf52_uart_overlay(config: ConfigType) -> None:
     zephyr_add_prj_conf("SERIAL", True)
     zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
     zephyr_add_prj_conf("RING_BUFFER", True)
-    if config[CONF_PARITY] != "NONE":
-        zephyr_add_prj_conf("UART_1_NRF_PARITY_BIT", True)
+    # Nordic SoCs default this off; setup() and load_settings() call uart_configure()
+    zephyr_add_prj_conf("UART_USE_RUNTIME_CONFIGURE", True)
     groups = []
     for signal, key in (("UART_TX", CONF_TX_PIN), ("UART_RX", CONF_RX_PIN)):
         if (pin := config.get(key)) is None:

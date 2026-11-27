@@ -15,12 +15,51 @@ void ZephyrUARTComponent::setup() {
     this->mark_failed(LOG_STR("UART device not ready"));
     return;
   }
-  // The baud rate, parity and stop bits are set in the devicetree
+  if (!this->configure_()) {
+    this->mark_failed(LOG_STR("UART configuration not supported"));
+    return;
+  }
   if (this->rx_pin_ != nullptr) {
     this->rx_storage_ = new uint8_t[this->rx_buffer_size_];  // NOLINT(cppcoreguidelines-owning-memory)
     ring_buf_init(&this->rx_ring_, this->rx_buffer_size_, this->rx_storage_);
     uart_irq_callback_user_data_set(this->device_, ZephyrUARTComponent::rx_isr, this);
     uart_irq_rx_enable(this->device_);
+  }
+}
+
+bool ZephyrUARTComponent::configure_() {
+  struct uart_config config{};
+  config.baudrate = this->baud_rate_;
+  switch (this->parity_) {
+    case UART_CONFIG_PARITY_EVEN:
+      config.parity = UART_CFG_PARITY_EVEN;
+      break;
+    case UART_CONFIG_PARITY_ODD:
+      config.parity = UART_CFG_PARITY_ODD;
+      break;
+    default:
+      config.parity = UART_CFG_PARITY_NONE;
+      break;
+  }
+  config.stop_bits = this->stop_bits_ == 2 ? UART_CFG_STOP_BITS_2 : UART_CFG_STOP_BITS_1;
+  config.data_bits = static_cast<uint8_t>(UART_CFG_DATA_BITS_5 + (this->data_bits_ - 5));
+  config.flow_ctrl = UART_CFG_FLOW_CTRL_NONE;
+  int err = uart_configure(this->device_, &config);
+  if (err != 0) {
+    ESP_LOGE(TAG, "uart_configure() failed for %" PRIu32 " baud, %u data bits, parity %s, %u stop bits: %d",
+             this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_, err);
+    return false;
+  }
+  return true;
+}
+
+void ZephyrUARTComponent::load_settings(bool dump_config) {
+  if (this->device_ == nullptr || !device_is_ready(this->device_))
+    return;
+  this->configure_();
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
+    this->dump_config();
   }
 }
 

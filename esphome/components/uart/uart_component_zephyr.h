@@ -26,8 +26,12 @@ class ZephyrUARTComponent final : public UARTComponent, public Component {
 
   void set_device(const struct device *device) { this->device_ = device; }
 
+  void load_settings(bool dump_config) override;
+  using UARTComponent::load_settings;
+
  protected:
   void check_logger_conflict() override {}
+  bool configure_();
   static void rx_isr(const struct device *device, void *user_data);
 
   const struct device *device_{nullptr};
