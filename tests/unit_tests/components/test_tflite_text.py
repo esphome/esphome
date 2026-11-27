@@ -1,10 +1,12 @@
 """Tests for the tflite_text vocabulary."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from esphome.components import tflite_text
+from esphome.components.tflite_model_io.model_reader import ModelIo, TensorSpec
 import esphome.config_validation as cv
 
 SPECIAL = b"[PAD]\n[UNK]\n[CLS]\n[SEP]\n"
@@ -38,3 +40,23 @@ def test_a_bad_vocabulary_is_rejected(
 ) -> None:
     with pytest.raises(cv.Invalid, match=message):
         load(tmp_path, data)
+
+
+def validate_output(output_type: str) -> None:
+    model_io = ModelIo(
+        inputs=(TensorSpec((1, 16), "int32"),),
+        outputs=(TensorSpec((1, 2), output_type),),
+    )
+    with patch.object(tflite_text, "read_model_io", return_value=model_io):
+        tflite_text.validate_model_io(Path("text.tflite"))
+
+
+@pytest.mark.parametrize("output_type", ("float32", "uint8", "int8", "int32"))
+def test_a_readable_output_type_is_accepted(output_type: str) -> None:
+    validate_output(output_type)
+
+
+@pytest.mark.parametrize("output_type", ("int64", "int16", "bool"))
+def test_an_unreadable_output_type_is_rejected(output_type: str) -> None:
+    with pytest.raises(cv.Invalid, match=f"declares a {output_type} output"):
+        validate_output(output_type)

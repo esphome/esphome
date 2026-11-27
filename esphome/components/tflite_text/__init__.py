@@ -33,6 +33,8 @@ CONF_TOKENIZER = "tokenizer"
 CONF_VOCABULARY = "vocabulary"
 CONF_LOWERCASE = "lowercase"
 
+# The output types read_tensor_value() reads.
+OUTPUT_TYPES = ("float32", "uint8", "int8", "int32")
 # The tokenizer stores ids in 16 bits.
 MAX_VOCABULARY_SIZE = 65536
 # Unknown, start, end and padding, in the order the tokenizer takes them.
@@ -154,6 +156,11 @@ def validate_model_io(model_path: Path, position_output: bool = False) -> None:
             f"text model needs one"
         )
     output = model_io.outputs[0]
+    if output.type not in OUTPUT_TYPES:
+        raise cv.Invalid(
+            f"Model '{name}' declares a {output.type} output; the decoder reads "
+            f"{', '.join(OUTPUT_TYPES)}"
+        )
     if len(output.shape) != 2 or output.shape[0] != 1 or output.shape[1] <= 0:
         raise cv.Invalid(
             f"Model '{name}' declares the output {list(output.shape)}; the "

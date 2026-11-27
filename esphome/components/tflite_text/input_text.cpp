@@ -37,6 +37,10 @@ bool TextInputPipeline::fill_all(TfLiteTensor *const *inputs, size_t count, cons
       ESP_LOGE(TAG, "%zu bytes of tokens do not fit the %zu-byte input", size, static_cast<size_t>(inputs[0]->bytes));
       return false;
     }
+    if (size % sizeof(int32_t) != 0) {
+      ESP_LOGE(TAG, "%zu bytes are not a whole number of int32 token ids", size);
+      return false;
+    }
     // Clear first, so a shorter request cannot reuse the previous call's tail.
     memset(tokens, 0, inputs[0]->bytes);
     memcpy(tokens, src, size);
