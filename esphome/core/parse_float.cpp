@@ -1,4 +1,5 @@
 // picolibc 1.8.10's strtof, bit for bit, without libc's strtod: decimals round to 9 digits, then to the nearest float.
+// Where libc's strtof is smaller (see parse_float.h), it does the full parse instead.
 // Float bits are built from integers, so chips that flush denormals give the same result.
 
 #include "esphome/core/parse_float.h"
@@ -22,6 +23,7 @@ constexpr int32_t MIN_EXP10 = -46, MAX_EXP10 = 40;
 // Past this, one more digit could pass 2^24
 constexpr uint32_t PLAIN_MANTISSA_LIMIT = 1677720;
 
+#ifndef ESPHOME_PARSE_FLOAT_LIBC
 // Bits of the float nearest to (m + sticky fraction) * 2^e, ties to even; m > 0
 uint32_t round_to_float_bits(uint64_t m, int32_t e, bool sticky) {
   const int32_t msb = e + static_cast<int32_t>(std::bit_width(m)) - 1;  // the value is in [2^msb, 2^(msb + 1))
@@ -315,6 +317,18 @@ ESPHOME_ALWAYS_INLINE inline const char *parse_plain_decimal(const char *str, ui
   return p;
 }
 
+// strtof for what parse_float's plain loop turned down
+float full_strtof(const char *str, char **end) {
+  const char *stop;
+  bool negative;
+  const uint32_t bits = parse_float_full(str, &stop, &negative);
+  *end = const_cast<char *>(stop);
+  return bit_cast<float>(negative ? bits | FLOAT_SIGN_BIT : bits);
+}
+#else
+float full_strtof(const char *str, char **end) { return ::strtof(str, end); }
+#endif  // ESPHOME_PARSE_FLOAT_LIBC
+
 }  // namespace
 
 optional<float> parse_float(const char *str) {
@@ -346,15 +360,15 @@ optional<float> parse_float(const char *str) {
       value /= static_cast<float>(pow10_exact<uint32_t>(fraction));
     return value;
   }
-  const char *end;
-  bool full_negative;
-  const uint32_t bits = parse_float_full(str, &end, &full_negative);
+  char *end;
+  const float value = full_strtof(str, &end);
   // HUGE_VALF, positive overflow or "inf", is rejected like before
-  if (end == str || *end != '\0' || (!full_negative && bits == FLOAT_INF_BITS))
+  if (end == str || *end != '\0' || bit_cast<uint32_t>(value) == FLOAT_INF_BITS)
     return {};
-  return bit_cast<float>(full_negative ? bits | FLOAT_SIGN_BIT : bits);
+  return value;
 }
 
+#ifndef ESPHOME_PARSE_FLOAT_LIBC
 float str_to_float(const char *str, char **end) {
   const char *stop;
   bool negative;
@@ -368,5 +382,6 @@ float str_to_float(const char *str, char **end) {
     *end = const_cast<char *>(stop);  // strtof's signature
   return bit_cast<float>(negative ? bits | FLOAT_SIGN_BIT : bits);
 }
+#endif
 
 }  // namespace esphome

@@ -604,6 +604,13 @@ async def component_to_code(config):
 
     # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
     cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
+    # The BK7238 SDK calls strtof; send it to ESPHome's parser so newlib's strtod stays out.
+    # Not on RTL87xx, whose LibreTiny fixups already wrap strtof. See strtof_wrap.cpp.
+    if config[CONF_COMPONENT_ID] == COMPONENT_BK72XX:
+        cg.add_build_flag("-Wl,--wrap=strtof")
+    # RTL8720C's strtof is in mask ROM, smaller than ESPHome's parser; see parse_float.h.
+    if config[CONF_FAMILY] == FAMILY_RTL8720C:
+        cg.add_build_flag("-DUSE_LIBC_STRTOF")
 
     # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
     if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:
