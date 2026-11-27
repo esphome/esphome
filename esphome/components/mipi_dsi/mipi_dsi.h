@@ -31,6 +31,8 @@ const uint8_t INVERT_OFF = 0x20;
 const uint8_t INVERT_ON = 0x21;
 const uint8_t DISPLAY_ON = 0x29;
 const uint8_t BRIGHTNESS_CMD = 0x51;
+static constexpr uint32_t BRIGHTNESS_RETRY_ID = 0;
+static constexpr uint32_t BRIGHTNESS_RETRY_MS = 1000;
 const uint8_t CMD2_BKSEL = 0xFF;
 const uint8_t DELAY_FLAG = 0xFF;
 const uint8_t MADCTL_BGR = 0x08;
@@ -84,6 +86,7 @@ class MipiDsi final : public display::Display {
   void dump_config() override;
 
  protected:
+  void send_brightness_();
   void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                             bool big_endian, int x_offset, int y_offset, int x_pad) override;
 

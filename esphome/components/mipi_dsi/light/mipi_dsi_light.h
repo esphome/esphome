@@ -3,6 +3,7 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"
+#include "esphome/components/mipi_dsi/brightness.h"
 #include "esphome/components/mipi_dsi/mipi_dsi.h"
 #include "esphome/core/helpers.h"
 
@@ -24,9 +25,7 @@ class MipiDsiLight final : public light::LightOutput, public Parented<MipiDsi> {
   void write_state(light::LightState *state) override {
     float brightness;
     state->current_values_as_brightness(&brightness);
-    this->parent_->set_brightness(
-        this->min_brightness_ +
-        static_cast<uint8_t>(roundf(brightness * (this->max_brightness_ - this->min_brightness_))));
+    this->parent_->set_brightness(scale_brightness(brightness, this->min_brightness_, this->max_brightness_));
   }
 
  protected:
