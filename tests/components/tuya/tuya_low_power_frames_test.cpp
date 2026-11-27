@@ -1,3 +1,8 @@
+// The frame tests need the low_power protocol, also in clang-tidy builds whose defines.h leaves it out
+#ifndef USE_TUYA_LOW_POWER
+#define USE_TUYA_LOW_POWER
+#endif
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
