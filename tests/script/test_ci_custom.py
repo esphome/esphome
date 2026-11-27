@@ -225,6 +225,7 @@ def test_libc_float_parse_is_reported(use: str) -> None:
         "float v = my_strtof(s);\n",
         'extern "C" float __wrap_strtof(const char *s, char **e);\n',
         "// strtof(s, nullptr) links strtod\n",
+        "auto d = parse_number<double>(s, pos, std::strtod);  // NOLINT\n",
     ],
 )
 def test_libc_float_parse_allowed(content: str) -> None:
