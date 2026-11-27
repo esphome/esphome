@@ -129,6 +129,9 @@ void E131Component::leave_(int universe) {
   if (--consumer->consumers > 0) {
     return;  // we have other consumers of the given universe
   }
+#ifdef USE_E131_ARBITRATION
+  consumer->source = E131Source{};  // a later effect on this universe starts without a stale winner
+#endif
 
   if (this->listen_method_ == E131_MULTICAST) {
     ip4_addr_t multicast_addr = network::IPAddress(239, 255, ((universe >> 8) & 0xff), ((universe >> 0) & 0xff));
@@ -159,12 +162,26 @@ bool E131Component::packet_(const uint8_t *data, size_t len, int &universe, E131
 
   universe = htons(sbuff->universe);
   packet.count = htons(sbuff->property_value_count);
-  if (packet.count > E131_MAX_PROPERTY_VALUES_COUNT)
+  if (packet.count == 0 || packet.count > E131_MAX_PROPERTY_VALUES_COUNT)
     return false;
+  if (offsetof(E131RawPacket, property_values) + packet.count > len)
+    return false;  // the datagram is shorter than the property values it announces
 
   memcpy(packet.values, sbuff->property_values, packet.count);
   return true;
 }
+
+#ifdef USE_E131_ARBITRATION
+// Only called on a packet that packet_() accepted, so the framing layer is complete.
+void E131Component::source_info_(const uint8_t *data, E131SourceInfo &info) {
+  auto *sbuff = reinterpret_cast<const E131RawPacket *>(data);
+  info.cid = sbuff->cid;
+  info.source_name = sbuff->source_name;
+  info.priority = sbuff->priority;
+  info.sequence = sbuff->sequence_number;
+  info.options = sbuff->options;
+}
+#endif
 
 }  // namespace esphome::e131
 
