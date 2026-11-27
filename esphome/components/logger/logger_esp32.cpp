@@ -83,7 +83,13 @@ static bool init_usb_serial_jtag() {
   fcntl(fileno(stdin), F_SETFL, 0);
 
   usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
+#ifdef USE_LOGGER_CONSOLE
   usb_serial_jtag_config.rx_buffer_size = 512;
+#else
+  // Nothing reads this ring without a console user; stdin reads it too, so a stdin reader calls request_console().
+  // ESP-IDF requires more than one 64-byte packet, so this is the minimum.
+  usb_serial_jtag_config.rx_buffer_size = 65;
+#endif
   usb_serial_jtag_config.tx_buffer_size = USB_SERIAL_JTAG_TX_BUFFER_SIZE;
 
   esp_err_t ret = ESP_OK;
