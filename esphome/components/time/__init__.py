@@ -274,7 +274,7 @@ def validate_cron_raw(value):
     value = value.split(" ")
     if len(value) != len(CRON_FIELDS):
         raise cv.Invalid(
-            f"Cron expression must consist of exactly 6 space-separated parts, not {len(value)}"
+            f"Cron expression must consist of exactly {len(CRON_FIELDS)} space-separated parts, not {len(value)}"
         )
     return {
         key: validator(part)
