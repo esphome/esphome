@@ -97,8 +97,9 @@ void USBAudioSpeaker::loop() {
     this->pad_with_silence_();
   }
   const bool settling = this->settle_stale_count_();
-  // has_buffered_data_() turns false once the driver has taken the last whole transfer and it has had time to play.
-  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_()) {
+  // has_buffered_data_() turns false once the driver has taken the last whole transfer and it has had time to play;
+  // a write still in flight may add more.
+  if (this->finishing_ && this->pad_remaining_ == 0 && this->writes_in_flight_ == 0 && !this->has_buffered_data_()) {
     // Audio written after the finish padding leaves a tail; pad it too, or its frames are never reported.
     this->pad_remaining_ = this->audio_tail_bytes_();
     if (this->pad_remaining_ == 0) {
