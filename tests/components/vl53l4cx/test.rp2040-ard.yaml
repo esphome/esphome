@@ -1,0 +1,8 @@
+substitutions:
+  enable_pin_1: GPIO12
+  enable_pin_2: GPIO13
+  interrupt_pin: GPIO14
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
+  vl53l4cx: !include common.yaml

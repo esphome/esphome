@@ -91,14 +91,15 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
 
   int8_t rotation_dir = 0;
   uint16_t new_state = STATE_LOOKUP_TABLE[input_state];
-  if ((new_state & arg->resolution & STATE_HAS_INCREMENTED) != 0) {
+  const uint8_t counted = (new_state >> 8) & arg->resolution;
+  if ((counted & (STATE_HAS_INCREMENTED >> 8)) != 0) {
     if (arg->counter < arg->max_value) {
       auto x = arg->counter + 1;
       arg->counter = x;
     }
     rotation_dir = 1;
   }
-  if ((new_state & arg->resolution & STATE_HAS_DECREMENTED) != 0) {
+  if ((counted & (STATE_HAS_DECREMENTED >> 8)) != 0) {
     if (arg->counter > arg->min_value) {
       auto x = arg->counter - 1;
       arg->counter = x;

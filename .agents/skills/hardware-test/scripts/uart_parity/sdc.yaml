@@ -1,0 +1,6 @@
+# TX on GPIO1, RX on GPIO14
+substitutions:
+  name: sdc
+  rx: GPIO14
+packages:
+  c: !include common.yaml

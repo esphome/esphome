@@ -7,10 +7,12 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_RESTORE,
     CONF_SENSOR,
+    CONF_VALUE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
 )
+from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
 CONF_LAST_TIME = "last_time"
@@ -78,6 +80,26 @@ for _name, _call in (
     automation.register_apply_action(
         _name, DUTY_TIME_ID_SCHEMA, automation.ApplyCall(_call)
     )
+
+automation.register_apply_action(
+    "sensor.duty_time.set_value",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(DutyTimeSensor),
+            # Plain seconds or a time period, both limited to the 32-bit counter
+            cv.Required(CONF_VALUE): cv.templatable(
+                cv.Any(
+                    cv.uint32_t,
+                    cv.All(
+                        cv.positive_time_period_seconds,
+                        cv.Range(max=TimePeriod(seconds=4294967295)),
+                    ),
+                )
+            ),
+        }
+    ),
+    automation.ApplyField(CONF_VALUE, "set_value", cg.uint32),
+)
 
 automation.register_apply_condition(
     "sensor.duty_time.is_running", DUTY_TIME_ID_SCHEMA, "is_running()"

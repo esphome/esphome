@@ -1,0 +1,20 @@
+# ESP32-C6 Zigbee end device base (substitution name); the flows erase the flash first so it joins as a new device.
+esphome:
+  name: ${name}
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: VERBOSE
+preferences:
+  flash_write_interval: 5s
+zigbee:
+  id: radio
+  manufacturer: bench
+  on_start:
+    - logger.log: "HWT zigbee started"
+  on_join:
+    - logger.log: "HWT zigbee joined"
