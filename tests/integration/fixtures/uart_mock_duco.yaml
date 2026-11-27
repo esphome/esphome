@@ -10,6 +10,9 @@ esphome:
       - component.update: filter_remaining
       - component.update: flow_level
       - component.update: time_remaining
+      - component.update: time_remaining_node_2
+      - component.update: time_remaining_node_3
+      - component.update: time_remaining_node_4
       - component.update: bypass
       - component.update: temperature_oda
       - component.update: temperature_sup
@@ -103,8 +106,11 @@ uart_mock:
                 std::vector<uint8_t> status(20, 0);
                 status[0] = d[1] < sizeof(modes) ? modes[d[1]] : 0;
                 status[2] = 45;
-                status[12] = 0xAA;  // 21930 s, sent as AA 01 55: an escaped header inside the data
-                status[13] = 0x55;
+                // Node 1 retains the escaped AA 55 sequence used to test byte stuffing.
+                static constexpr uint16_t TIMES[] = {0, 21930, 600, 0, 3600};
+                const uint16_t remaining = d[1] < sizeof(TIMES) / sizeof(TIMES[0]) ? TIMES[d[1]] : 0;
+                status[12] = remaining & 0xFF;
+                status[13] = remaining >> 8;
                 reply(0x0e, status);
               } else if (function == 0x0c && d[0] == 0x04) {
                 if (d[1] < sizeof(modes)) {
@@ -298,9 +304,21 @@ sensor:
       name: Flow Level
       update_interval: never
     time_remaining:
-      id: time_remaining
-      name: Time Remaining
-      update_interval: never
+      - id: time_remaining
+        name: Time Remaining
+        update_interval: never
+      - address: 2
+        id: time_remaining_node_2
+        name: Time Remaining Node 2
+        update_interval: never
+      - address: 3
+        id: time_remaining_node_3
+        name: Time Remaining Node 3
+        update_interval: never
+      - address: 4
+        id: time_remaining_node_4
+        name: Time Remaining Node 4
+        update_interval: never
     bypass:
       id: bypass
       name: Bypass
