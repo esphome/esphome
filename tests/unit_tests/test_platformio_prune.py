@@ -453,6 +453,8 @@ def test_prune_keeps_the_libretiny_environment_inside_pioarduinos(
             for name in (scripts, "lib", "lib64", "pyvenv.cfg", ".gitignore", ".lock")
         ),
     }
+    # Last: without esptool the rest could not be told to be pioarduino's
+    assert removed[-1] == penv / scripts
     assert [path.name for path in penv.iterdir()] == [".libretiny"]
     assert (libretiny / "bin").is_dir()
 
@@ -575,9 +577,16 @@ def test_prune_keeps_packages_when_a_remaining_platform_is_unreadable(
     if manifest is not None:
         (other / "platform.json").write_text(manifest, encoding="utf-8")
 
-    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [esp32]
-    assert package.is_dir()
-    assert "Keeping all PlatformIO packages" in caplog.text
+    tools = core_dir / "tools"
+    tools.mkdir()
+    leftover = core_dir / "platforms" / f"{_PRUNING}espressif8266"
+    leftover.mkdir()
+
+    # The platform stays too: it says which packages are its own
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [leftover]
+    for path in (esp32, package, tools):
+        assert path.is_dir()
+    assert "Keeping all PlatformIO platforms and packages" in caplog.text
 
 
 def test_prune_removes_an_unreadable_platform_without_its_packages(

@@ -65,7 +65,8 @@ def _espressif32_python_environments(core_dir: Path) -> list[Path]:
         return removed
     if Path(sys.prefix).resolve().is_relative_to(penv.resolve()):
         return removed
-    pioarduino = get_python_env_executable_path(penv, _PENV_PIOARDUINO_TOOL).is_file()
+    tool = get_python_env_executable_path(penv, _PENV_PIOARDUINO_TOOL)
+    pioarduino = tool.is_file()
     entries = sorted(penv.iterdir())
     doomed = [
         entry
@@ -76,6 +77,9 @@ def _espressif32_python_environments(core_dir: Path) -> list[Path]:
     ]
     if entries and len(doomed) == len(entries):
         return [*removed, penv]
+    # The folder with esptool goes last: it is what tells a prune that
+    # continues an interrupted one that the rest is pioarduino's
+    doomed.sort(key=lambda entry: entry == tool.parent)
     return removed + doomed
 
 
@@ -239,7 +243,8 @@ def prune_platformio_installs(
     for platform in kept:
         if (packages := _packages(platform)) is None:
             _LOGGER.warning(
-                "Keeping all PlatformIO packages, could not tell which ones %s uses",
+                "Keeping all PlatformIO platforms and packages, could not tell "
+                "which packages %s uses",
                 platform,
             )
             all_read = False
@@ -261,6 +266,10 @@ def prune_platformio_installs(
                 # framework ESPHome never builds with.
                 owners[package].discard(name)
     owned = {package for package, names in owners.items() if names}
+    if not all_read:
+        # Once a platform is gone nothing says which packages were its own
+        kept += [platform for platform in doomed if not is_leftover(platform)]
+        doomed = [platform for platform in doomed if is_leftover(platform)]
 
     # Packages go before the platforms: the platforms say which packages are theirs
     packages_dir = Path(config.get("platformio", "packages_dir"))

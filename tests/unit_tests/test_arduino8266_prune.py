@@ -78,6 +78,17 @@ def test_prune_finishes_an_interrupted_prune(root: Path) -> None:
     assert core.is_dir()
 
 
+def test_prune_removes_a_core_reinstalled_after_an_interrupted_prune(
+    root: Path,
+) -> None:
+    old_core = _install(root, "frameworks", "3.1.2-esphome.3")
+    leftover = root / "frameworks" / "3.1.2-esphome.3.pruning"
+    (leftover / "bin").mkdir(parents=True)
+
+    assert prune_arduino8266_installs({_KEEP}) == [old_core, leftover]
+    assert not list((root / "frameworks").iterdir())
+
+
 def test_prune_keeps_a_core_a_build_is_installing(root: Path) -> None:
     old_core = _install(root, "frameworks", "3.1.2-esphome.3")
     lock = old_core.with_name("3.1.2-esphome.3.lock")
