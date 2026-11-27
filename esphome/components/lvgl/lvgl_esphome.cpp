@@ -833,8 +833,7 @@ void LvglComponent::setup() {
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
-  // LVGL rounds the size an area needs up to LV_DRAW_BUF_ALIGN, so a buffer that is not a
-  // multiple of it is too small for an area that fills it
+  // LVGL will round an area's size up to LV_DRAW_BUF_ALIGN, so the buffer must be a multiple of it
   size_t buf_bytes =
       LV_ROUND_UP(clamp_at_least(width * height / frac * LV_COLOR_DEPTH / 8, MIN_BUFFER_SIZE), LV_DRAW_BUF_ALIGN);
   void *buffer = nullptr;
