@@ -43,6 +43,7 @@ void PCF85063Component::read_time() {
   ESPTime rtc_time = time::decode_bcd_calendar<time::PCF_BCD_CALENDAR>(&raw[CALENDAR_REG]);
   if ((raw[CONTROL_1_REG] & CONTROL_1_12_24) != 0) {
     ESP_LOGD(TAG, "RTC in 12-hour mode, the next sync switches it to 24-hour mode");
+    // The decode read the hours as 24-hour, so redo the hour and the timestamp
     rtc_time.hour = decode_hour(raw[HOURS_REG] & 0x0F, (raw[HOURS_REG] >> 4) & 0x03, true);
     rtc_time.recalc_timestamp_utc(false);
   }

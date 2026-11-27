@@ -55,7 +55,8 @@ class DS1307Test : public ::testing::Test {
     this->rtc_.add_on_time_sync_callback([this]() { ++this->syncs_; });
   }
 
-  void load_current_time_(bool halted) {
+  // Returns the time it loaded.
+  ESPTime load_current_time_(bool halted) {
     const ESPTime now = ESPTime::from_epoch_utc(::time(nullptr));
     auto &reg = this->bus_.registers;
     reg[SECONDS_REG] = to_bcd(now.second) | (halted ? CLOCK_HALT_BIT : 0);
@@ -66,6 +67,7 @@ class DS1307Test : public ::testing::Test {
     reg[0x05] = to_bcd(now.month);
     reg[0x06] = to_bcd(now.year - 2000);
     reg[CONTROL_REG] = CONTROL_OUT_SQWE_RS;
+    return now;
   }
 
   RegisterBus bus_;
@@ -137,8 +139,7 @@ TEST_F(DS1307Test, WriteTimeKeepsTheControlRegister) {
 // Another library may have left the chip in 12-hour mode; the host's time written that way reads back as the same
 // time, so the sync finds the clock already set and does not log a new one.
 TEST_F(DS1307Test, TwelveHourModeReadsBack) {
-  this->load_current_time_(false);
-  const uint8_t hour = ESPTime::from_epoch_utc(::time(nullptr)).hour;
+  const uint8_t hour = this->load_current_time_(false).hour;
   const uint8_t hour_12 = hour % 12 == 0 ? 12 : hour % 12;
   this->bus_.registers[HOURS_REG] = HOURS_12H | (hour >= 12 ? HOURS_PM : 0) | to_bcd(hour_12);
   this->rtc_.setup();
