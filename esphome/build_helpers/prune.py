@@ -29,8 +29,17 @@ def is_leftover(path: Path) -> bool:
     return path.name.endswith(PRUNING_SUFFIX)
 
 
+def with_leftover(path: Path) -> list[Path]:
+    """``path`` and what an interrupted prune left of it, whichever exist."""
+    return [
+        candidate
+        for candidate in (path, path.with_name(path.name + PRUNING_SUFFIX))
+        if candidate.exists() and not candidate.is_symlink()
+    ]
+
+
 def remove_trees(paths: list[Path], dry_run: bool) -> None:
-    """Delete each tree, or only say so on a dry run."""
+    """Delete each tree or file, or only say so on a dry run."""
     # Leftovers of an interrupted prune go first so no rename can collide
     for path in sorted(paths, key=lambda path: not is_leftover(path)):
         if dry_run:
@@ -43,4 +52,7 @@ def remove_trees(paths: list[Path], dry_run: bool) -> None:
             doomed = path.with_name(path.name + PRUNING_SUFFIX)
             rename_with_retry(path, doomed)
             path = doomed
-        rmtree(path)
+        if path.is_dir():
+            rmtree(path)
+        else:
+            path.unlink(missing_ok=True)

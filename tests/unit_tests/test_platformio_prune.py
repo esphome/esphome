@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome.framework_helpers import get_python_env_executable_path
 from esphome.platformio.prune import DEPRECATED_PLATFORMS, prune_platformio_installs
 
 
@@ -19,6 +20,7 @@ class _FakeConfig:
             "core_dir": core_dir,
             "platforms_dir": core_dir / "platforms",
             "packages_dir": core_dir / "packages",
+            "cache_dir": core_dir / ".cache",
         }
 
     def get(self, section: str, option: str) -> str:
@@ -244,6 +246,84 @@ def test_prune_keeps_libretiny_packages_when_its_versions_are_unreadable(
 
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
     assert copy.is_dir()
+
+
+def _pioarduino_penv(core_dir: Path, name: str = "penv") -> Path:
+    """The Python environment pioarduino makes: the one with esptool in it."""
+    penv = core_dir / name
+    esptool = get_python_env_executable_path(penv, "esptool")
+    esptool.parent.mkdir(parents=True)
+    esptool.touch()
+    return penv
+
+
+def test_prune_removes_what_pioarduino_left_in_the_core_dir(core_dir: Path) -> None:
+    esp32 = _platform(core_dir, "espressif32", [])
+    penv = _pioarduino_penv(core_dir)
+    entries = [core_dir / name for name in ("tools", "dist", "root_managed_components")]
+    for entry in entries:
+        entry.mkdir()
+    record = core_dir / "idf-env.json"
+    record.write_text("{}", encoding="utf-8")
+    appstate = core_dir / "appstate.json"
+    appstate.write_text("{}", encoding="utf-8")
+
+    removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
+
+    assert set(removed) == {esp32, penv, record, *entries}
+    for path in removed:
+        assert not path.exists()
+    assert appstate.is_file()
+    assert not list(core_dir.rglob("*.pruning"))
+
+
+def test_prune_keeps_a_python_environment_that_is_not_pioarduinos(
+    core_dir: Path,
+) -> None:
+    """PlatformIO's own installer puts PlatformIO itself in the same directory."""
+    penv = core_dir / "penv"
+    pio = get_python_env_executable_path(penv, "pio")
+    pio.parent.mkdir(parents=True)
+    pio.touch()
+    leftover = _pioarduino_penv(core_dir, "penv.pruning")
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [leftover]
+    assert pio.is_file()
+
+
+def test_prune_keeps_pioarduinos_files_for_a_symlinked_espressif32(
+    core_dir: Path,
+) -> None:
+    checkout = core_dir / "my-platform-espressif32"
+    checkout.mkdir(parents=True)
+    (checkout / "platform.json").write_text('{"packages": {}}', encoding="utf-8")
+    link = core_dir / "platforms" / "espressif32"
+    link.parent.mkdir()
+    try:
+        link.symlink_to(checkout, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks not available")
+    penv = _pioarduino_penv(core_dir)
+    (core_dir / "tools").mkdir()
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert penv.is_dir()
+
+
+def test_prune_clears_the_download_cache(core_dir: Path) -> None:
+    cache = core_dir / ".cache"
+    (cache / "downloads").mkdir(parents=True)
+    (cache / "downloads" / "toolchain.tar.gz").write_bytes(b"x")
+    leftover = core_dir / ".cache.pruning"
+    leftover.mkdir()
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [cache, leftover]
+    assert not cache.exists()
+    assert not leftover.exists()
+
+    # PlatformIO makes the directory again; an empty one is nothing to prune
+    cache.mkdir()
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
 
 
 def test_prune_dry_run_changes_nothing(

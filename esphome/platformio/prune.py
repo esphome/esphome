@@ -12,7 +12,9 @@ from esphome.build_helpers.prune import (
     is_leftover,
     remove_trees,
     subdirs,
+    with_leftover,
 )
+from esphome.framework_helpers import get_python_env_executable_path
 from esphome.platformio.toolchain import get_platformio_config
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,8 +34,12 @@ DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266, NORDICNRF52)
 _SUPERSEDED_PLATFORMS = ("raspberrypi", LIBRETINY)
 _SUPERSEDED_MARK = "@src-"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
-# downloads, directly in PlatformIO's core directory
-_ESPRESSIF32_CORE_DIRS = ("tools", "dist")
+# downloads and records, directly in PlatformIO's core directory
+_ESPRESSIF32_CORE_ENTRIES = ("tools", "dist", "root_managed_components", "idf-env.json")
+# It also makes a Python environment there. PlatformIO's own installer uses
+# the same directory, but only pioarduino puts esptool in it.
+_PENV = "penv"
+_PENV_PIOARDUINO_TOOL = "esptool"
 
 
 def _name(path: Path) -> str:
@@ -102,8 +108,9 @@ def prune_platformio_installs(
     The copies of the RP2 and LibreTiny platforms that a newer install
     replaced are removed too, and so are the replaced LibreTiny packages in a
     version it no longer builds with.
-    Returns the removed directories (the ones that would be removed on a dry
-    run). Does nothing when PlatformIO is not installed.
+    PlatformIO's download cache is cleared. Returns what was removed (what
+    would be removed on a dry run). Does nothing when PlatformIO is not
+    installed.
     """
     if (config := get_platformio_config()) is None:
         return []
@@ -163,12 +170,22 @@ def prune_platformio_installs(
         for package in _unused_libretiny_packages(platforms_dir, packages_dir)
         if package not in removed
     ]
+    # The downloads PlatformIO keeps of what it installed; `esphome clean`
+    # clears this too. PlatformIO makes the directory again, so an empty one stays.
+    removed += [
+        path
+        for path in with_leftover(Path(config.get("platformio", "cache_dir")))
+        if is_leftover(path) or (path.is_dir() and any(path.iterdir()))
+    ]
     if ESPRESSIF32 in platforms and ESPRESSIF32 not in map(_name, kept):
         core_dir = Path(config.get("platformio", "core_dir"))
+        for name in _ESPRESSIF32_CORE_ENTRIES:
+            removed += with_leftover(core_dir / name)
         removed += [
             path
-            for name in _ESPRESSIF32_CORE_DIRS
-            if (path := core_dir / name).is_dir() and not path.is_symlink()
+            for path in with_leftover(core_dir / _PENV)
+            if is_leftover(path)
+            or get_python_env_executable_path(path, _PENV_PIOARDUINO_TOOL).is_file()
         ]
     removed += doomed
 
