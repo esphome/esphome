@@ -408,7 +408,12 @@ def _emit_dst_rule_fields(prefix, rule):
 
 
 def _emit_parsed_timezone_fields(parsed):
-    """Set a scoped ParsedTimezone field by field, then call set_global_tz()."""
+    """Set a scoped ParsedTimezone field by field, then call set_global_tz().
+
+    Field assignments keep the constants as immediates in flash instead of a const
+    struct in .rodata, which is RAM on ESP8266. The scope lets several time platforms
+    each declare their own `tz` in one build.
+    """
     cg.add(cg.RawStatement("{"))
     cg.add(cg.RawExpression("time::ParsedTimezone tz{}"))
     cg.add(cg.RawExpression(f"tz.std_offset_seconds = {parsed.std_offset_seconds}"))
