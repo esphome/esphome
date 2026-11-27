@@ -21,10 +21,11 @@ void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf);
 inline NMTState to_nmt_state(CO_NMT_internalState_t state) { return static_cast<NMTState>(state); }
 
 // Other components configure the node in two phases:
-// - Build time (Python codegen): the hub parts they use, enable_sdo_client(), enable_nmt_master(),
-//   enable_node_monitor(); these set defines and CANopenNode build flags, so they can't be switched on at runtime.
-// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: monitor_node() (codegen
-//   only), identity and device information. Two places run early enough: setters called from codegen (they run in
+// - Build time (Python codegen): the hub parts they use, enable_sdo_client(), enable_nmt_master(); these set defines
+//   and CANopenNode build flags, so they can't be switched on at runtime. Node monitoring comes from heartbeat_clients
+//   only (enable_node_monitor() and monitor_node() through cg.slot_list()).
+// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: identity and device
+//   information. Two places run early enough: setters called from codegen (they run in
 //   main(), before App.setup()), or the setup() of a component whose setup priority is above the hub's
 //   (setup_priority::HARDWARE - 1, after the CAN bus), e.g. HARDWARE - 0.5. Object dictionary entries and monitored
 //   nodes added later are logged as errors and ignored.
