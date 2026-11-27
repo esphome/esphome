@@ -305,7 +305,7 @@ class CANopenComponent : public Component {
   static void on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object);
   static void on_hb_timeout(uint8_t node_id, uint8_t idx, void *object);
   static void on_hb_remote_reset(uint8_t node_id, uint8_t idx, void *object);
-  static void push_node_event_(void *object, uint8_t node_id, NodeEvent event, NMTState state);
+  static void push_node_event(void *object, uint8_t node_id, NodeEvent event, NMTState state);
   void dispatch_node_events_();
   // Consumer callbacks run before CANopenNode stores the new state, so they only record the event for after
   // CO_process(); at most 2 per monitored node per pass.

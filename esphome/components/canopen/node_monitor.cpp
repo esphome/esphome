@@ -129,7 +129,7 @@ void CANopenComponent::on_hb_started(uint8_t node_id, uint8_t idx, void *object)
   self->pending_node_events_.push_back({node_id, NodeEvent::NODE_EVENT_ONLINE, to_nmt_state(state)});
 }
 
-void CANopenComponent::push_node_event_(void *object, uint8_t node_id, NodeEvent event, NMTState state) {
+void CANopenComponent::push_node_event(void *object, uint8_t node_id, NodeEvent event, NMTState state) {
   static_cast<CANopenComponent *>(object)->pending_node_events_.push_back({node_id, event, state});
 }
 
@@ -138,15 +138,15 @@ void CANopenComponent::on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_in
   // heartbeat (get_node_state() is UNKNOWN)
   if (state == CO_NMT_INITIALIZING)
     return;
-  push_node_event_(object, node_id, NodeEvent::NODE_EVENT_NMT_CHANGED, to_nmt_state(state));
+  push_node_event(object, node_id, NodeEvent::NODE_EVENT_NMT_CHANGED, to_nmt_state(state));
 }
 
 void CANopenComponent::on_hb_timeout(uint8_t node_id, uint8_t idx, void *object) {
-  push_node_event_(object, node_id, NodeEvent::NODE_EVENT_OFFLINE, NMTState::NMT_STATE_UNKNOWN);
+  push_node_event(object, node_id, NodeEvent::NODE_EVENT_OFFLINE, NMTState::NMT_STATE_UNKNOWN);
 }
 
 void CANopenComponent::on_hb_remote_reset(uint8_t node_id, uint8_t idx, void *object) {
-  push_node_event_(object, node_id, NodeEvent::NODE_EVENT_RESET, NMTState::NMT_STATE_BOOTUP);
+  push_node_event(object, node_id, NodeEvent::NODE_EVENT_RESET, NMTState::NMT_STATE_BOOTUP);
 }
 
 void CANopenComponent::dispatch_node_events_() {
