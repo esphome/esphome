@@ -32,6 +32,6 @@ def main_cpp(request: pytest.FixtureRequest) -> str:
 def test_initial_focus_is_applied(main_cpp: str, device: str, widget: str) -> None:
     focus_index = main_cpp.find(f"lv_group_focus_obj({widget});")
     assert focus_index != -1, f"{device} initial_focus was never applied"
-    assert focus_index > main_cpp.find(f"lv_indev_set_group({device}->get_drv(),")
-    assert focus_index > main_cpp.find(f"{widget} = lv_button_create(")
+    assert focus_index > main_cpp.index(f"lv_indev_set_group({device}->get_drv(),")
+    assert focus_index > main_cpp.index(f"{widget} = lv_button_create(")
     assert "lv_group_focus_obj(first_button);" not in main_cpp
