@@ -23,7 +23,6 @@ from esphome.const import (
     CONF_STATE_TOPIC,
     CONF_TOPIC_PREFIX,
 )
-from esphome.core import CORE
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     validate_no_object_id_conflicts,
@@ -74,166 +73,114 @@ def test_sub_topic_platforms_in_sync() -> None:
     assert expected == _SUB_TOPIC_PLATFORMS
 
 
-def test_conflict_filter_exempts_custom_topics() -> None:
-    """Test that custom state topics with discovery off avoid the conflict."""
-    validator = entity_duplicate_validator("sensor")
-    # Both entities have custom state topics and discovery disabled per entity,
-    # so no object_id-derived MQTT topic is used
-    validator(
-        {
-            CONF_NAME: "Датчик открытия",
-            CONF_STATE_TOPIC: "custom/topic/a",
-            CONF_DISCOVERY: False,
-        }
-    )
-    validator(
-        {
-            CONF_NAME: "Датчик закрытия",
-            CONF_STATE_TOPIC: "custom/topic/b",
-            CONF_DISCOVERY: False,
-        }
-    )
-
-    component_validator = validate_no_object_id_conflicts(
-        REASON, conflict_filter=_topics_conflict
-    )
-    config: dict = {CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"}
-    assert component_validator(config) is config
-
-    # Without the filter the same conflicts are fatal
-    with pytest.raises(Invalid, match=r"mqtt builds default topics"):
-        validate_no_object_id_conflicts(REASON)({})
+def _register(platform: str, overrides_a: dict, overrides_b: dict) -> None:
+    """Register two entities whose names sanitize to the same object_id."""
+    validator = entity_duplicate_validator(platform)
+    validator({CONF_NAME: "Датчик открытия", **overrides_a})
+    validator({CONF_NAME: "Датчик закрытия", **overrides_b})
 
 
-def test_conflict_on_default_command_topic() -> None:
-    """Test that commandable platforms conflict through their default command topic.
+_MQTT = {CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"}
+_NO_DISCOVERY = {CONF_DISCOVERY: False}
 
-    Custom state topics with discovery off are not enough for platforms that also
-    subscribe to an object_id-derived command topic.
+
+@pytest.mark.parametrize(
+    ("platform", "overrides_a", "overrides_b", "mqtt_config", "conflict"),
+    [
+        pytest.param(
+            "sensor",
+            {CONF_STATE_TOPIC: "custom/topic/a", **_NO_DISCOVERY},
+            {CONF_STATE_TOPIC: "custom/topic/b", **_NO_DISCOVERY},
+            _MQTT,
+            False,
+            id="custom_state_topics_exempt",
+        ),
+        pytest.param(
+            "switch",
+            {CONF_STATE_TOPIC: "custom/topic/a", **_NO_DISCOVERY},
+            {CONF_STATE_TOPIC: "custom/topic/b", **_NO_DISCOVERY},
+            _MQTT,
+            True,
+            id="shared_default_command_topic",
+        ),
+        pytest.param(
+            "switch",
+            {
+                CONF_STATE_TOPIC: "custom/topic/a",
+                CONF_COMMAND_TOPIC: "custom/cmd/a",
+                **_NO_DISCOVERY,
+            },
+            {
+                CONF_STATE_TOPIC: "custom/topic/b",
+                CONF_COMMAND_TOPIC: "custom/cmd/b",
+                **_NO_DISCOVERY,
+            },
+            _MQTT,
+            False,
+            id="custom_command_topics_exempt",
+        ),
+        pytest.param(
+            "cover",
+            {
+                CONF_STATE_TOPIC: "custom/topic/a",
+                CONF_COMMAND_TOPIC: "custom/cmd/a",
+                **_NO_DISCOVERY,
+            },
+            {
+                CONF_STATE_TOPIC: "custom/topic/b",
+                CONF_COMMAND_TOPIC: "custom/cmd/b",
+                **_NO_DISCOVERY,
+            },
+            _MQTT,
+            True,
+            id="sub_topic_platform_always_conflicts",
+        ),
+        pytest.param(
+            "switch",
+            {CONF_STATE_TOPIC: "custom/topic/a", **_NO_DISCOVERY},
+            {CONF_COMMAND_TOPIC: "custom/cmd/b", **_NO_DISCOVERY},
+            _MQTT,
+            False,
+            id="disjoint_default_topics",
+        ),
+        pytest.param(
+            "sensor",
+            {},
+            {},
+            {CONF_DISCOVERY: False, CONF_TOPIC_PREFIX: ""},
+            False,
+            id="empty_prefix_no_discovery",
+        ),
+        pytest.param(
+            "sensor",
+            {},
+            {},
+            {CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: ""},
+            True,
+            id="empty_prefix_discovery_topic",
+        ),
+    ],
+)
+def test_topics_conflict(
+    platform: str,
+    overrides_a: dict,
+    overrides_b: dict,
+    mqtt_config: dict,
+    conflict: bool,
+) -> None:
+    """Test which colliding object_ids actually share an MQTT topic.
+
+    Custom state and command topics avoid the default topics, disabling discovery
+    avoids the discovery topic, an empty topic_prefix disables default topics, and
+    platforms with extra object_id sub-topics (cover position/command, ...) always
+    conflict.
     """
-    validator = entity_duplicate_validator("switch")
-    validator(
-        {
-            CONF_NAME: "Датчик открытия",
-            CONF_STATE_TOPIC: "custom/topic/a",
-            CONF_DISCOVERY: False,
-        }
-    )
-    validator(
-        {
-            CONF_NAME: "Датчик закрытия",
-            CONF_STATE_TOPIC: "custom/topic/b",
-            CONF_DISCOVERY: False,
-        }
-    )
-
+    _register(platform, overrides_a, overrides_b)
     component_validator = validate_no_object_id_conflicts(
         REASON, conflict_filter=_topics_conflict
     )
-    mqtt_config: dict = {CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"}
-    # Both switches share the default command topic: rejected
-    with pytest.raises(Invalid, match=r"mqtt builds default topics"):
-        component_validator(mqtt_config)
-
-    # With custom command topics as well, nothing derives from the object_id
-    CORE.reset()
-    validator = entity_duplicate_validator("switch")
-    validator(
-        {
-            CONF_NAME: "Датчик открытия",
-            CONF_STATE_TOPIC: "custom/topic/a",
-            CONF_COMMAND_TOPIC: "custom/cmd/a",
-            CONF_DISCOVERY: False,
-        }
-    )
-    validator(
-        {
-            CONF_NAME: "Датчик закрытия",
-            CONF_STATE_TOPIC: "custom/topic/b",
-            CONF_COMMAND_TOPIC: "custom/cmd/b",
-            CONF_DISCOVERY: False,
-        }
-    )
-    assert component_validator(mqtt_config) is mqtt_config
-
-
-def test_conflict_on_sub_topic_platforms() -> None:
-    """Test that platforms with extra object_id sub-topics always conflict.
-
-    Covers derive topics like position/command from the object_id through their
-    own config keys, so custom state and command topics cannot exempt them.
-    """
-    validator = entity_duplicate_validator("cover")
-    validator(
-        {
-            CONF_NAME: "Датчик открытия",
-            CONF_STATE_TOPIC: "custom/topic/a",
-            CONF_COMMAND_TOPIC: "custom/cmd/a",
-            CONF_DISCOVERY: False,
-        }
-    )
-    validator(
-        {
-            CONF_NAME: "Датчик закрытия",
-            CONF_STATE_TOPIC: "custom/topic/b",
-            CONF_COMMAND_TOPIC: "custom/cmd/b",
-            CONF_DISCOVERY: False,
-        }
-    )
-
-    component_validator = validate_no_object_id_conflicts(
-        REASON, conflict_filter=_topics_conflict
-    )
-    with pytest.raises(Invalid, match=r"mqtt builds default topics"):
-        component_validator({CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"})
-
-
-def test_no_conflict_on_disjoint_default_topics() -> None:
-    """Test that entities whose default topics are disjoint do not conflict.
-
-    One entity uses only the default command topic and the other only the default
-    state topic, so they never share a topic.
-    """
-    validator = entity_duplicate_validator("switch")
-    validator(
-        {
-            CONF_NAME: "Датчик открытия",
-            CONF_STATE_TOPIC: "custom/topic/a",
-            CONF_DISCOVERY: False,
-        }
-    )
-    validator(
-        {
-            CONF_NAME: "Датчик закрытия",
-            CONF_COMMAND_TOPIC: "custom/cmd/b",
-            CONF_DISCOVERY: False,
-        }
-    )
-
-    component_validator = validate_no_object_id_conflicts(
-        REASON, conflict_filter=_topics_conflict
-    )
-    config: dict = {CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: "test-device"}
-    assert component_validator(config) is config
-
-
-def test_no_conflict_on_empty_topic_prefix() -> None:
-    """Test that an empty topic_prefix disables the default topic conflict.
-
-    With topic_prefix set to null no default topics exist at runtime, so entities
-    without custom state topics cannot conflict; only discovery still matters.
-    """
-    validator = entity_duplicate_validator("sensor")
-    validator({CONF_NAME: "Датчик открытия"})
-    validator({CONF_NAME: "Датчик закрытия"})
-
-    component_validator = validate_no_object_id_conflicts(
-        REASON, conflict_filter=_topics_conflict
-    )
-    # No default topics and no discovery: valid
-    config: dict = {CONF_DISCOVERY: False, CONF_TOPIC_PREFIX: ""}
-    assert component_validator(config) is config
-
-    # Discovery still uses object_id-derived config topics: rejected
-    with pytest.raises(Invalid, match=r"mqtt builds default topics"):
-        component_validator({CONF_DISCOVERY: True, CONF_TOPIC_PREFIX: ""})
+    if conflict:
+        with pytest.raises(Invalid, match=r"mqtt builds default topics"):
+            component_validator(mqtt_config)
+    else:
+        assert component_validator(mqtt_config) is mqtt_config

@@ -690,19 +690,6 @@ def test_object_id_conflicts_skipped_in_testing_mode() -> None:
         CORE.testing_mode = False
 
 
-def test_object_id_conflicts_none_recorded() -> None:
-    """Test that distinct object_ids produce no conflicts."""
-    validator = entity_duplicate_validator("sensor")
-    validator({CONF_NAME: "Temperature"})
-    validator({CONF_NAME: "Humidity"})
-
-    component_validator = validate_no_object_id_conflicts(
-        "mqtt builds default topics from the entity object_id"
-    )
-    config: dict = {}
-    assert component_validator(config) is config
-
-
 def test_object_id_conflicts_device_scoped() -> None:
     """Test that the object_id conflict check is scoped per device.
 

@@ -10,6 +10,10 @@
 namespace esphome::host::testing {
 namespace fs = std::filesystem;
 
+static constexpr const char *TEST_SWITCH = "Test Switch";
+static const uint32_t TEST_SWITCH_LEGACY_KEY = fnv1_hash_object_id(TEST_SWITCH, strlen(TEST_SWITCH), true);
+static const uint32_t TEST_SWITCH_KEY = fnv1_hash_bytes(TEST_SWITCH, strlen(TEST_SWITCH));
+
 /// Same entity_key_ means same preference key.
 class TestEntity : public EntityBase {
  public:
@@ -71,9 +75,9 @@ TEST_F(EntityPreferenceTest, InFlashOverloadStillAppliesTheVersion) {
 // Data under the legacy object_id-hash key moves to the raw-name key on first use
 TEST_F(EntityPreferenceTest, LegacyKeyDataIsMigrated) {
   TestEntity entity;
-  entity.configure("Test Switch");
-  const uint32_t legacy_key = fnv1_hash_object_id("Test Switch", 11, true) ^ 3;
-  const uint32_t new_key = fnv1_hash_bytes("Test Switch", 11) ^ 3;
+  entity.configure(TEST_SWITCH);
+  const uint32_t legacy_key = TEST_SWITCH_LEGACY_KEY ^ 3;
+  const uint32_t new_key = TEST_SWITCH_KEY ^ 3;
   const uint32_t saved = 0xBEEF;
   ASSERT_TRUE(global_preferences->make_preference<uint32_t>(legacy_key).save(&saved));
 
@@ -87,11 +91,11 @@ TEST_F(EntityPreferenceTest, LegacyKeyDataIsMigrated) {
 
 TEST_F(EntityPreferenceTest, NewKeyDataIsNeverOverwritten) {
   TestEntity entity;
-  entity.configure("Test Switch");
+  entity.configure(TEST_SWITCH);
   const uint32_t stale = 1;
   const uint32_t current = 2;
-  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(fnv1_hash_object_id("Test Switch", 11, true)).save(&stale));
-  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(fnv1_hash_bytes("Test Switch", 11)).save(&current));
+  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(TEST_SWITCH_LEGACY_KEY).save(&stale));
+  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(TEST_SWITCH_KEY).save(&current));
 
   uint32_t loaded = 0;
   ASSERT_TRUE(entity.make_entity_preference<uint32_t>(0, true).load(&loaded));

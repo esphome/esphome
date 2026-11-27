@@ -69,7 +69,6 @@ class ObjectIdEntity:
     """An entity tracked by the sanitized object_id its name resolves to."""
 
     name: str
-    platform: str
     config: ConfigType
 
 
@@ -80,7 +79,8 @@ def _get_object_id_registry() -> dict[tuple[str, str, str], list[ObjectIdEntity]
 
 def validate_no_object_id_conflicts(
     reason: str,
-    conflict_filter: Callable[[list[ObjectIdEntity], ConfigType], bool] | None = None,
+    conflict_filter: Callable[[str, list[ObjectIdEntity], ConfigType], bool]
+    | None = None,
 ) -> Callable[[ConfigType], ConfigType]:
     """Create a final-validate step that rejects entities with colliding object_ids.
 
@@ -92,8 +92,9 @@ def validate_no_object_id_conflicts(
     Args:
         reason: One sentence stating what the component builds from the object_id,
             e.g. "mqtt builds default topics from the entity object_id"
-        conflict_filter: Optional predicate receiving the colliding entities and the
-            component config; return False when the component is not affected
+        conflict_filter: Optional predicate receiving the platform, the colliding
+            entities and the component config; return False when the component is
+            not affected
 
     Returns:
         A validator function for use as (or within) FINAL_VALIDATE_SCHEMA
@@ -107,7 +108,7 @@ def validate_no_object_id_conflicts(
             key: entities
             for key, entities in _get_object_id_registry().items()
             if len(entities) > 1
-            and (conflict_filter is None or conflict_filter(entities, config))
+            and (conflict_filter is None or conflict_filter(key[1], entities, config))
         }
         if not conflicts:
             return config
@@ -992,18 +993,12 @@ def entity_duplicate_validator(
                     f"{collision_msg}"
                 )
 
-        # Components that still address entities by the sanitized object_id reject
-        # colliding names in final validation via validate_no_object_id_conflicts(),
-        # so track every entity by the object_id its name resolves to. Scoped per
-        # device and platform to match the strictness configs had before entity keys
-        # moved to raw names: same-named entities on different sub-devices were
-        # already accepted then, internal entities were already skipped (above), and
-        # overlaps between platforms that share an MQTT component type (sensor and
-        # text_sensor both publish under "sensor") were already possible.
+        # Track entities by sanitized object_id for validate_no_object_id_conflicts();
+        # scoped per device and platform, as strict as configs were before raw-name keys.
         object_id = sanitize(snake_case(base_name))
         _get_object_id_registry().setdefault(
             (device_id, platform, object_id), []
-        ).append(ObjectIdEntity(base_name, platform, config))
+        ).append(ObjectIdEntity(base_name, config))
 
         # Store metadata about this entity
         entity_metadata: EntityMetadata = {

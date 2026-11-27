@@ -73,13 +73,14 @@ void EntityBase::configure_entity_(const char *name, uint32_t entity_key, uint32
     }
     this->name_ = ProgmemStringRef(fallback);
     this->flags_.has_own_name = false;
-    // Dynamic name in RAM - hash it at runtime
-    this->entity_key_ = fnv1_hash_bytes(fallback.c_str(), fallback.size());
   } else {
     this->flags_.has_own_name = true;
-    // Static name - codegen precomputes the key; callers that set up entities by hand may pass 0
-    this->entity_key_ = entity_key != 0 ? entity_key : fnv1_hash_bytes(this->name_.size(), name_reader(this->name_));
   }
+  // Codegen precomputes the key of a static name; a fallback name, or a caller that sets up an entity
+  // by hand and passes 0, is hashed at runtime
+  if (!this->flags_.has_own_name || entity_key == 0)
+    entity_key = fnv1_hash_bytes(this->name_.size(), name_reader(this->name_));
+  this->entity_key_ = entity_key;
   // Unpack entity string table indices and flags from entity_fields.
 #ifdef USE_ENTITY_DEVICE_CLASS
   this->device_class_idx_ = (entity_fields >> ENTITY_FIELD_DC_SHIFT) & 0xFF;
@@ -170,19 +171,6 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
 // point; entities without their own name hashed their fallback name per byte at runtime.
 uint32_t EntityBase::calc_old_object_id_hash_() const {
   return fnv1_hash_object_id(this->name_.size(), name_reader(this->name_), this->flags_.has_own_name);
-}
-
-// The legacy key hashed the sanitized object_id, so several entity names could collide on one key
-// and overwrite each other's stored preferences; the raw-name key fixes that.
-// See: https://github.com/esphome/backlog/issues/85
-uint32_t EntityBase::entity_preference_key_(uint32_t version) const {
-#ifdef USE_PREFERENCE_KEY_LOOKUP
-  return this->preference_key_base_() ^ version;
-#else
-  // Slot-based backends keep the legacy key: it only tags a positional slot, so collisions
-  // cannot corrupt data there, and keeping it preserves stored state.
-  return this->old_preference_key_base_() ^ version;
-#endif
 }
 
 void EntityBase::migrate_entity_preference_([[maybe_unused]] ESPPreferenceObject &pref, [[maybe_unused]] size_t size,

@@ -228,8 +228,7 @@ class EntityBase {
   /// Non-template helpers for make_entity_preference() to avoid code bloat.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version, bool in_flash);
-  /// Key for both helpers: the raw-name key on key-lookup backends, the legacy key on slot-based ones.
-  uint32_t entity_preference_key_(uint32_t version) const;
+  uint32_t entity_preference_key_(uint32_t version) const { return this->preference_key_base_() ^ version; }
   /// Moves data stored under the legacy key to pref's raw-name key once; a no-op on slot-based backends.
   /// See: https://github.com/esphome/backlog/issues/85
   void migrate_entity_preference_(ESPPreferenceObject &pref, size_t size, uint32_t version) const;
@@ -244,8 +243,16 @@ class EntityBase {
     return 0;
 #endif
   }
-  /// Preference key base: raw-name entity key XOR device_id.
-  uint32_t preference_key_base_() const { return this->entity_key_ ^ this->device_id_or_zero_(); }
+  /// Preference key base XOR device_id: the raw-name entity key on key-lookup backends. Slot-based backends
+  /// keep the legacy key: it only tags a positional slot, so collisions cannot corrupt data there.
+  /// See: https://github.com/esphome/backlog/issues/85
+  uint32_t preference_key_base_() const {
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+    return this->entity_key_ ^ this->device_id_or_zero_();
+#else
+    return this->old_preference_key_base_();
+#endif
+  }
   /// Legacy preference key base: sanitized-object_id hash XOR device_id (0 for the main device).
   uint32_t old_preference_key_base_() const { return this->calc_old_object_id_hash_() ^ this->device_id_or_zero_(); }
 

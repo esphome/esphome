@@ -29,7 +29,6 @@ TEST(EntityBaseName, ZeroKeyIsComputedFromTheRawName) {
   TestEntity entity;
   entity.configure("Living Room Temp", 0);
   EXPECT_EQ(entity.get_entity_key(), 0x7E5CC74Fu);
-  EXPECT_EQ(entity.get_entity_key(), fnv1_hash_bytes("Living Room Temp", 16));
 }
 
 TEST(EntityBaseName, PrecomputedKeyIsKept) {
@@ -53,26 +52,32 @@ TEST(EntityBaseName, LegacyHashOfUtf8NameIsPerCodePoint) {
   EXPECT_EQ(entity.legacy_hash(), 0x965698F3u);
 }
 
-// The values come from the Python fnv1_hash_object_id() and fnv1_hash_name() test tables. Reading
-// through the byte reader is the path a name in flash takes on ESP8266.
-TEST(EntityBaseName, HashThroughByteReaderMatchesPlainHash) {
-  const char *name = "My Sensor Name";
-  const size_t len = strlen(name);
-  auto reader = [name](size_t i) { return name[i]; };
-  EXPECT_EQ(fnv1_hash_object_id(name, len), 0x2760962Au);
-  EXPECT_EQ(fnv1_hash_object_id(len, reader), 0x2760962Au);
-  EXPECT_EQ(fnv1_hash_object_id(0, [](size_t) { return 'x'; }), 0x811C9DC5u);
-  EXPECT_EQ(fnv1_hash_bytes(name, len), 0x8CEC6FB0u);
-  EXPECT_EQ(fnv1_hash_bytes(len, reader), 0x8CEC6FB0u);
-}
-
-// Bytes >= 0x80 hash as unsigned, so the key does not depend on the signedness of char
-TEST(EntityBaseName, BytesHashUnsigned) {
-  const char *name = "Température";
-  EXPECT_EQ(fnv1_hash_bytes(name, strlen(name)), 0x531A74AAu);
-  // Per byte, each of the two UTF-8 bytes of 'é' becomes one underscore
-  EXPECT_NE(fnv1_hash_object_id(name, strlen(name)), fnv1_hash_object_id(name, strlen(name), true));
-  EXPECT_EQ(fnv1_hash_object_id(name, strlen(name), true), 0x965698F3u);
+// The values come from the Python fnv1_hash_name() and fnv1_hash_object_id() test tables; Python
+// has no per-byte form. Reading through the byte reader is the path a name in flash takes on ESP8266.
+// Bytes >= 0x80 hash as unsigned, so the values do not depend on the signedness of char.
+TEST(EntityBaseName, HashTable) {
+  struct Case {
+    const char *name;
+    uint32_t raw;
+    uint32_t legacy_per_byte;
+    uint32_t legacy_per_code_point;
+  };
+  static constexpr Case CASES[] = {
+      {"", 0x811C9DC5u, 0x811C9DC5u, 0x811C9DC5u},
+      {"My Sensor Name", 0x8CEC6FB0u, 0x2760962Au, 0x2760962Au},
+      // Per byte, each of the two UTF-8 bytes of 'é' becomes one underscore
+      {"Température", 0x531A74AAu, 0x131A01F8u, 0x965698F3u},
+  };
+  for (const auto &c : CASES) {
+    const size_t len = strlen(c.name);
+    auto reader = [name = c.name](size_t i) { return name[i]; };
+    EXPECT_EQ(fnv1_hash_bytes(c.name, len), c.raw) << c.name;
+    EXPECT_EQ(fnv1_hash_bytes(len, reader), c.raw) << c.name;
+    EXPECT_EQ(fnv1_hash_object_id(c.name, len, false), c.legacy_per_byte) << c.name;
+    EXPECT_EQ(fnv1_hash_object_id(len, reader, false), c.legacy_per_byte) << c.name;
+    EXPECT_EQ(fnv1_hash_object_id(c.name, len, true), c.legacy_per_code_point) << c.name;
+    EXPECT_EQ(fnv1_hash_object_id(len, reader, true), c.legacy_per_code_point) << c.name;
+  }
 }
 
 // The getters return {} when the feature define is absent; get_*_to() must still hand back "", not null

@@ -651,36 +651,24 @@ def _validate_topic_lengths(config: ConfigType) -> ConfigType:
     return config
 
 
-# Platforms whose MQTT components subscribe to an object_id-derived command topic.
-# Keep in sync with the platforms extending cv.MQTT_COMMAND_COMPONENT_SCHEMA, plus
-# text, whose MQTT component subscribes a command topic that cannot be overridden.
+# Platforms whose MQTT components subscribe to an object_id-derived command topic;
+# date and time entities belong to the datetime platform
 _COMMAND_TOPIC_PLATFORMS = frozenset(
-    {
-        "alarm_control_panel",
-        "button",
-        "climate",
-        "cover",
-        "datetime",
-        "fan",
-        "light",
-        "lock",
-        "number",
-        "select",
-        "switch",
-        "text",
-        "update",
-        "valve",
-    }
+    "datetime" if component_type in ("date", "time") else component_type
+    for component_type, _ in _COMMAND_TOPICS.values()
 )
 
 
 # Platforms whose MQTT components derive extra sub-topics (position/command,
 # mode/command, speed/command, ...) from the object_id, each with its own config
 # key; custom state and command topics cannot exempt them from conflicting.
+# The sub-topics are built in the C++ MQTT components of these platforms (mqtt_climate.cpp, ...).
 _SUB_TOPIC_PLATFORMS = frozenset({"climate", "cover", "fan", "valve"})
 
 
-def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool:
+def _topics_conflict(
+    platform: str, entities: list[ObjectIdEntity], config: ConfigType
+) -> bool:
     """Check whether more than one entity actually uses an object_id-derived topic.
 
     An empty topic_prefix disables default topics entirely, custom state and
@@ -688,7 +676,6 @@ def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool
     or per entity) avoids the discovery config topic.
     """
     if config[CONF_TOPIC_PREFIX]:
-        platform = entities[0].platform
         if platform in _SUB_TOPIC_PLATFORMS:
             return True
         if sum(CONF_STATE_TOPIC not in entity.config for entity in entities) > 1:

@@ -20,14 +20,9 @@ void TemplateText::setup() {
 
   // Need std::string for pref_->setup() to fill from flash
   std::string value{this->initial_value_ != nullptr ? this->initial_value_ : ""};
-  uint32_t extra = 0;
-  extra += this->traits.get_min_length() << 2;
-  extra += this->traits.get_max_length() << 4;
-  extra += fnv1_hash(this->traits.get_pattern_c_str()) << 6;
-  // TextSaver::setup() picks the key for the platform and migrates old data once
-  uint32_t key = this->preference_key_base_() + extra;
-  uint32_t old_key = this->old_preference_key_base_() + extra;
-  this->pref_->setup(key, old_key, value);
+  const uint32_t extra = (this->traits.get_min_length() << 2) + (this->traits.get_max_length() << 4) +
+                         (fnv1_hash(this->traits.get_pattern_c_str()) << 6);
+  this->pref_->setup(this->preference_key_base_() + extra, this->old_preference_key_base_() + extra, value);
   if (!value.empty())
     this->publish_state(value);
 }
