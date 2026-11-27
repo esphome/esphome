@@ -155,12 +155,12 @@ bool USBAudioSpeaker::settle_stale_count_() {
     return true;
   }
   portENTER_CRITICAL(&this->taken_lock_);
-  // Again under the lock, so a take inside a write that just started has already set the event time.
+  // Again under the lock, where the event time is published.
   if (this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_)) {
     portEXIT_CRITICAL(&this->taken_lock_);
     return true;
   }
-  // Replayed at the last driver event, so the frames finish in the past and open no in-flight window.
+  // The missed takes played by the last driver event, so they are replayed and reported finished there.
   const int64_t now_us = esp_timer_get_time();
   const int64_t event_us = now_us - static_cast<uint32_t>(static_cast<uint32_t>(now_us) - this->last_event_us_);
   while (true) {
@@ -173,9 +173,8 @@ bool USBAudioSpeaker::settle_stale_count_() {
     }
     this->take_(ring, padding_now, size, accum, event_us);
   }
-  if (this->unreported_frames_ > 0) {
-    this->queue_report_(this->last_finish_us_);
-  }
+  this->last_finish_us_ = event_us;
+  this->queue_report_(event_us);
   portEXIT_CRITICAL(&this->taken_lock_);
   this->deliver_reports_();
   return false;
@@ -420,9 +419,10 @@ void USBAudioSpeaker::pad_with_silence_() {
 
 void USBAudioSpeaker::on_transfer_taken() {
   bool report = false;
+  portENTER_CRITICAL(&this->taken_lock_);
+  // Sampled and published under the lock, so event times only move forward and settling sees a consistent one.
   const int64_t now_us = esp_timer_get_time();
   this->last_event_us_ = static_cast<uint32_t>(now_us);
-  portENTER_CRITICAL(&this->taken_lock_);
   // Only a take on the writer's task comes after the driver stored the write.
   const TaskHandle_t writer = this->writer_task_;
   if (writer != nullptr && writer == xTaskGetCurrentTaskHandle()) {
