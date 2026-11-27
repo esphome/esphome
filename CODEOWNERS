@@ -170,6 +170,7 @@ esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/delta_wallbox/* @epicRE
+esphome/components/derivative/* @angelnu
 esphome/components/dew_point/* @CFlix
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
@@ -430,6 +431,7 @@ esphome/components/mics_5524/* @nliaudat
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/midea_portasplit/* @Fexiven
+esphome/components/mipi_csi/* @Horstexplorer
 esphome/components/mipi_dsi/* @clydebarrow
 esphome/components/mipi_rgb/* @clydebarrow
 esphome/components/mipi_spi/* @clydebarrow
@@ -747,6 +749,7 @@ esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
 esphome/components/virtual_uart/* @Bascht74
 esphome/components/vl53l1x/* @will-tm
+esphome/components/vl53l4cx/* @bdraco
 esphome/components/vl6180x/* @NonaSuomy
 esphome/components/vnc/* @MindFreeze
 esphome/components/voice_assistant/* @jesserockz @kahrendt

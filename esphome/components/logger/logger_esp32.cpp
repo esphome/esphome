@@ -83,7 +83,13 @@ static bool init_usb_serial_jtag() {
   fcntl(fileno(stdin), F_SETFL, 0);
 
   usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
+#ifdef USE_LOGGER_CONSOLE
   usb_serial_jtag_config.rx_buffer_size = 512;
+#else
+  // Nothing reads this ring without a console user; stdin reads it too, so a stdin reader calls request_console().
+  // ESP-IDF requires more than one 64-byte packet, so this is the minimum.
+  usb_serial_jtag_config.rx_buffer_size = 65;
+#endif
   usb_serial_jtag_config.tx_buffer_size = USB_SERIAL_JTAG_TX_BUFFER_SIZE;
 
   esp_err_t ret = ESP_OK;
@@ -117,7 +123,7 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
   uart_config.source_clk = UART_SCLK_DEFAULT;
 #endif
   uart_param_config(uart_num, &uart_config);
-  // The logger only writes to UART, never reads, so use the minimum RX buffer.
+  // Only console users (improv_serial) read this port, through console_read(); the RX buffer stays at the minimum.
   // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
   const int min_rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
   uart_driver_install(uart_num, min_rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
