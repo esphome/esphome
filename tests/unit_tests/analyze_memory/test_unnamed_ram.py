@@ -275,3 +275,15 @@ Linker script and memory map
     analyzer._symbol_spans = []
     analyzer._attribute_unnamed_ram()
     assert analyzer.get_unnamed_ram() == []
+
+
+def test_map_text_finds_esp_idf_project_map(tmp_path: Path) -> None:
+    """ESP-IDF writes <project>.map; firmware.elf is a copy of <project>.elf."""
+    elf = tmp_path / "firmware.elf"
+    elf.write_bytes(b"elf")
+    (tmp_path / "device.elf").write_bytes(b"elf")
+    (tmp_path / "other.map").write_text(MAP_TEXT * 100)
+    (tmp_path / "device.map").write_text(MAP_TEXT * 100)
+    analyzer = make_analyzer()
+    analyzer.elf_path = elf
+    assert analyzer._map_text == MAP_TEXT * 100

@@ -776,7 +776,7 @@ SYMBOL_PATTERNS = {
     "pwm_driver": ["pwm_", "PWM", "ledc_", "LEDC"],
     "rmt_driver": ["rmt_", "RMT"],
     "pcnt_driver": ["pcnt_", "PCNT"],
-    "can_driver": ["can_", "CAN", "twai_", "TWAI"],
+    "can_driver": ["^can_", "CAN", "twai_", "TWAI"],
     "sdmmc_driver": ["sdmmc_", "SDMMC", "sdcard", "sd_card"],
     "temp_sensor": ["temp_sensor", "tsens_"],
     "watchdog": ["wdt_", "WDT", "watchdog"],

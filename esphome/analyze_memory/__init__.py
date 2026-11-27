@@ -1026,6 +1026,18 @@ class MemoryAnalyzer:
     def _map_text(self) -> str | None:
         """The linker map next to the ELF, or None without a usable one."""
         map_path = self.elf_path.with_suffix(".map")
+        if not map_path.exists():
+            # ESP-IDF names the map after the project; firmware.elf is a copy of its ELF
+            size = self.elf_path.stat().st_size
+            map_path = next(
+                (
+                    candidate
+                    for candidate in sorted(self.elf_path.parent.glob("*.map"))
+                    if (elf := candidate.with_suffix(".elf")).is_file()
+                    and elf.stat().st_size == size
+                ),
+                map_path,
+            )
         if not map_path.exists() or map_path.stat().st_size < 10000:
             return None
         # ld writes the map during the link; one much older is from an earlier build
