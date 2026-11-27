@@ -125,7 +125,7 @@ class CANopenComponent : public Component {
   NMTState get_node_state(uint8_t node_id);
   bool is_node_online(uint8_t node_id);
 #else
-  // no monitored nodes: without heartbeat_clients or a component monitoring a node, the heartbeat consumer isn't built
+  // no monitored nodes: without heartbeat_clients the heartbeat consumer isn't built
   NMTState get_node_state(uint8_t /*node_id*/) { return NMTState::NMT_STATE_UNKNOWN; }
   bool is_node_online(uint8_t /*node_id*/) { return false; }
 #endif

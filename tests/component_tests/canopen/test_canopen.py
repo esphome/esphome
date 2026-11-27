@@ -151,7 +151,7 @@ def test_node_monitor_only_when_used(
     yaml: str,
     monitor: bool,
 ) -> None:
-    """CANopenNode's heartbeat consumer is built only for heartbeat_clients or a component monitoring a node."""
+    """CANopenNode's heartbeat consumer is built only for heartbeat_clients."""
     generate_main(component_config_path(yaml))
     assert ("USE_CANOPEN_NODE_MONITOR" in _defines()) == monitor
     assert ("-DCO_CONFIG_HB_CONS=0" in CORE.build_flags) != monitor
