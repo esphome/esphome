@@ -16,9 +16,6 @@ class RX8130Component final : public time::RealTimeClock, public i2c::I2CDevice 
 
  protected:
   void stop_(bool stop);
-
-  // The voltage-low flag is set: the time registers are not used until written
-  bool time_lost_{false};
 };
 
 }  // namespace esphome::rx8130
