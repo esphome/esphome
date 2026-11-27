@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -25,11 +26,32 @@ from esphome.components.esp32 import (
 from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION
 from esphome.components.nrf52 import MIN_SDK_NRF_VERSIONS, RECOMMENDED_SDK_NRF_VERSION
 from esphome.components.nrf52.const import VARIANT_NRF54LM20
+from esphome.platformio.prune import DEPRECATED_PLATFORMS
 
 
 @dataclass
 class MockArgs:
     dry_run: bool = False
+
+
+_PRUNERS = {
+    "idf": "esphome.espidf.prune.prune_idf_installs",
+    "arduino8266": "esphome.arduino8266.prune.prune_arduino8266_installs",
+    "sdk_nrf": "esphome.components.nrf52.prune.prune_sdk_nrf_installs",
+    "platformio": "esphome.platformio.prune.prune_platformio_installs",
+}
+
+
+@pytest.fixture
+def pruners() -> Generator[dict[str, Mock]]:
+    """Every backend's prune, each removing nothing."""
+    patches = {
+        name: patch(target, return_value=[]) for name, target in _PRUNERS.items()
+    }
+    mocks = {name: patcher.start() for name, patcher in patches.items()}
+    yield mocks
+    for patcher in patches.values():
+        patcher.stop()
 
 
 def test_recommended_idf_versions() -> None:
@@ -55,68 +77,53 @@ def test_recommended_sdk_nrf_versions() -> None:
     }
 
 
-def test_command_prune_passes_arguments() -> None:
-    with (
-        patch("esphome.espidf.prune.prune_idf_installs", return_value=[]) as mock_idf,
-        patch(
-            "esphome.arduino8266.prune.prune_arduino8266_installs", return_value=[]
-        ) as mock_arduino8266,
-        patch(
-            "esphome.components.nrf52.prune.prune_sdk_nrf_installs", return_value=[]
-        ) as mock_sdk_nrf,
-    ):
-        assert command_prune(MockArgs(dry_run=True)) == 0
+def test_command_prune_passes_arguments(pruners: dict[str, Mock]) -> None:
+    assert command_prune(MockArgs(dry_run=True)) == 0
 
-    mock_idf.assert_called_once_with(_recommended_idf_versions(), dry_run=True)
-    mock_arduino8266.assert_called_once_with(
+    pruners["idf"].assert_called_once_with(_recommended_idf_versions(), dry_run=True)
+    pruners["arduino8266"].assert_called_once_with(
         _recommended_arduino8266_frameworks(), dry_run=True
     )
-    mock_sdk_nrf.assert_called_once_with(_recommended_sdk_nrf_versions(), dry_run=True)
+    pruners["sdk_nrf"].assert_called_once_with(
+        _recommended_sdk_nrf_versions(), dry_run=True
+    )
+    pruners["platformio"].assert_called_once_with(DEPRECATED_PLATFORMS, dry_run=True)
 
 
 @pytest.mark.parametrize(
-    ("idf", "arduino8266", "sdk_nrf", "dry_run", "expected"),
+    ("removed_by", "dry_run", "expected"),
     [
-        ([], [], [], False, "Nothing to prune"),
-        ([], [], [], True, "Nothing to prune"),
-        ([Path("frameworks/5.5.6")], [], [], False, "Done!"),
-        ([], [Path("frameworks/3.1.2-esphome.3")], [], False, "Done!"),
-        ([], [], [Path("frameworks/v2.6.1")], False, "Done!"),
-        ([Path("frameworks/5.5.6")], [], [], True, None),
+        (None, False, "Nothing to prune"),
+        (None, True, "Nothing to prune"),
+        ("idf", False, "Done!"),
+        ("arduino8266", False, "Done!"),
+        ("sdk_nrf", False, "Done!"),
+        ("platformio", False, "Done!"),
+        ("idf", True, None),
     ],
 )
 def test_command_prune_reports_outcome(
-    idf: list[Path],
-    arduino8266: list[Path],
-    sdk_nrf: list[Path],
+    removed_by: str | None,
     dry_run: bool,
     expected: str | None,
+    pruners: dict[str, Mock],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with (
-        caplog.at_level(logging.INFO),
-        patch("esphome.espidf.prune.prune_idf_installs", return_value=idf),
-        patch(
-            "esphome.arduino8266.prune.prune_arduino8266_installs",
-            return_value=arduino8266,
-        ),
-        patch(
-            "esphome.components.nrf52.prune.prune_sdk_nrf_installs",
-            return_value=sdk_nrf,
-        ),
-    ):
+    if removed_by is not None:
+        pruners[removed_by].return_value = [Path("removed")]
+
+    with caplog.at_level(logging.INFO):
         assert command_prune(MockArgs(dry_run=dry_run)) == 0
 
     assert caplog.messages == ([expected] if expected else [])
 
 
-def test_command_prune_oserror(caplog: pytest.LogCaptureFixture) -> None:
-    with patch(
-        "esphome.espidf.prune.prune_idf_installs",
-        side_effect=PermissionError("denied"),
-    ):
-        assert command_prune(MockArgs()) == 1
+def test_command_prune_oserror(
+    pruners: dict[str, Mock], caplog: pytest.LogCaptureFixture
+) -> None:
+    pruners["idf"].side_effect = PermissionError("denied")
 
+    assert command_prune(MockArgs()) == 1
     assert "Error pruning installs: denied" in caplog.text
 
 

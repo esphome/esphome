@@ -2839,7 +2839,8 @@ def parse_args(argv):
         "prune",
         help="Remove the installed ESP-IDF, ESP8266 Arduino and nRF Connect SDK "
         "versions other than the recommended ones, along with the toolchains "
-        "and Python environments those do not use.",
+        "and Python environments those do not use, and everything PlatformIO "
+        "installed for ESP32 and ESP8266.",
     )
     parser_prune.add_argument(
         "--dry-run",

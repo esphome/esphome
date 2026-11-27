@@ -54,6 +54,7 @@ def command_prune(args: argparse.Namespace) -> int | None:
     from esphome.arduino8266.prune import prune_arduino8266_installs
     from esphome.components.nrf52.prune import prune_sdk_nrf_installs
     from esphome.espidf.prune import prune_idf_installs
+    from esphome.platformio.prune import DEPRECATED_PLATFORMS, prune_platformio_installs
 
     try:
         removed = prune_idf_installs(_recommended_idf_versions(), dry_run=args.dry_run)
@@ -63,6 +64,7 @@ def command_prune(args: argparse.Namespace) -> int | None:
         removed += prune_sdk_nrf_installs(
             _recommended_sdk_nrf_versions(), dry_run=args.dry_run
         )
+        removed += prune_platformio_installs(DEPRECATED_PLATFORMS, dry_run=args.dry_run)
     except OSError as err:
         _LOGGER.error("Error pruning installs: %s", err)
         return 1

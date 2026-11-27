@@ -25,21 +25,21 @@ def subdirs(path: Path, symlinks: bool = False) -> list[Path]:
         return []
 
 
-def _is_leftover(path: Path) -> bool:
+def is_leftover(path: Path) -> bool:
     return path.name.endswith(PRUNING_SUFFIX)
 
 
 def remove_trees(paths: list[Path], dry_run: bool) -> None:
     """Delete each tree, or only say so on a dry run."""
     # Leftovers of an interrupted prune go first so no rename can collide
-    for path in sorted(paths, key=lambda path: not _is_leftover(path)):
+    for path in sorted(paths, key=lambda path: not is_leftover(path)):
         if dry_run:
             _LOGGER.info("Would delete %s", path)
             continue
         _LOGGER.info("Deleting %s", path)
         # Renamed first: an interrupted delete must not leave a partial tree
         # that still passes for an install
-        if not _is_leftover(path):
+        if not is_leftover(path):
             doomed = path.with_name(path.name + PRUNING_SUFFIX)
             rename_with_retry(path, doomed)
             path = doomed
