@@ -16,8 +16,8 @@ static constexpr uint8_t MAX_FRAME_SIZE = 40;
 using PayloadLength = PayloadLengthU16BE<LengthField{.offset = 2}>;
 /// The wrong-type warning, for a frame longer than any supported type sends
 void warn_too_long(size_t len);
-using PmsFrame = FrameFormat<FrameHeader<START_CHARACTER_1, START_CHARACTER_2>,
-                             WarnIfLonger<PayloadLength, MAX_FRAME_SIZE, warn_too_long>>;
+using PmsFrame = FrameFormat<FrameHeader<START_CHARACTER_1, START_CHARACTER_2>, PayloadLength,
+                             WarnIfLongerThan<MAX_FRAME_SIZE, warn_too_long>>;
 
 enum class Type : uint8_t {
   PMS1003 = 0,

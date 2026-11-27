@@ -50,10 +50,9 @@ static constexpr uint8_t SWING_OFF = 0x08;
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
 // A5 01, ..., whole-frame length at 7, CRC (2) at 8, body
-using PacketReader =
-    LengthFrameReader<MAX_FRAME_SIZE,
-                      FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>,
-                                  FrameLengthU8<LengthField{.offset = LEN_POS}>, FrameMinLength<HEADER_SIZE>>>;
+using FrameLength = FrameLengthU8<LengthField{.offset = LEN_POS}>;
+using Frame = FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>, FrameLength, FrameMinLength<HEADER_SIZE>>;
+using PacketReader = LengthFrameReader<MAX_FRAME_SIZE, Frame>;
 
 inline bool checksum_valid(const uint8_t *frame, size_t len) {
   return frame_crc(frame, len) == encode_uint16(frame[CRC_POS], frame[CRC_POS + 1]);

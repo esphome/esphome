@@ -80,46 +80,50 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
 
 // Length rules: get() gives the whole frame length once KNOWN_AT bytes are in, or 0 to reject the header.
 
-/// offset: where the length field starts, counted from the first header byte; trailer: the bytes after the payload
-/// (checksum, footer), for a payload length only.
+/// offset: where the length field starts, counted from the first header byte. For a payload length only:
+/// payload_at: where the payload starts when other bytes sit between it and the length field (0: right after it);
+/// trailer: the bytes after the payload (checksum, footer).
 struct LengthField {
   size_t offset;
+  size_t payload_at = 0;
   size_t trailer = 0;
 };
 
 /// Whole-frame length: the field counts every byte of the frame, header included.
 template<LengthField F> struct FrameLengthU8 {
-  static_assert(F.trailer == 0, "A whole-frame length has no trailer");
+  static_assert(F.payload_at == 0 && F.trailer == 0, "A whole-frame length has no payload_at or trailer");
   static constexpr size_t KNOWN_AT = F.offset + 1;
   static constexpr size_t get(const uint8_t *buf) { return buf[F.offset]; }
 };
 template<LengthField F> struct FrameLengthU16BE {
-  static_assert(F.trailer == 0, "A whole-frame length has no trailer");
+  static_assert(F.payload_at == 0 && F.trailer == 0, "A whole-frame length has no payload_at or trailer");
   static constexpr size_t KNOWN_AT = F.offset + 2;
   static constexpr size_t get(const uint8_t *buf) { return (size_t(buf[F.offset]) << 8) | buf[F.offset + 1]; }
 };
 template<LengthField F> struct FrameLengthU16LE {
-  static_assert(F.trailer == 0, "A whole-frame length has no trailer");
+  static_assert(F.payload_at == 0 && F.trailer == 0, "A whole-frame length has no payload_at or trailer");
   static constexpr size_t KNOWN_AT = F.offset + 2;
   static constexpr size_t get(const uint8_t *buf) { return buf[F.offset] | (size_t(buf[F.offset + 1]) << 8); }
 };
-/// Payload length: the field counts the payload right after it.
-template<LengthField F> struct PayloadLengthU8 {
-  static constexpr size_t KNOWN_AT = F.offset + 1;
-  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + buf[F.offset] + F.trailer; }
+namespace frame_reader_detail {
+// A payload length read by the whole-frame rule FIELD; the payload starts at PAYLOAD_AT
+template<LengthField F, class FIELD> struct PayloadLength {
+  static_assert(F.payload_at == 0 || F.payload_at >= FIELD::KNOWN_AT, "payload_at must follow the length field");
+  static constexpr size_t KNOWN_AT = FIELD::KNOWN_AT;
+  static constexpr size_t PAYLOAD_AT = F.payload_at != 0 ? F.payload_at : KNOWN_AT;
+  // The shortest frame: an empty payload
+  static constexpr size_t MIN = PAYLOAD_AT + F.trailer;
+  static constexpr size_t get(const uint8_t *buf) { return PAYLOAD_AT + FIELD::get(buf) + F.trailer; }
 };
-template<LengthField F> struct PayloadLengthU16BE {
-  static constexpr size_t KNOWN_AT = F.offset + 2;
-  static constexpr size_t get(const uint8_t *buf) {
-    return KNOWN_AT + FrameLengthU16BE<LengthField{.offset = F.offset}>::get(buf) + F.trailer;
-  }
-};
-template<LengthField F> struct PayloadLengthU16LE {
-  static constexpr size_t KNOWN_AT = F.offset + 2;
-  static constexpr size_t get(const uint8_t *buf) {
-    return KNOWN_AT + FrameLengthU16LE<LengthField{.offset = F.offset}>::get(buf) + F.trailer;
-  }
-};
+}  // namespace frame_reader_detail
+
+/// Payload length: the field counts the payload, which starts at PAYLOAD_AT.
+template<LengthField F>
+using PayloadLengthU8 = frame_reader_detail::PayloadLength<F, FrameLengthU8<LengthField{.offset = F.offset}>>;
+template<LengthField F>
+using PayloadLengthU16BE = frame_reader_detail::PayloadLength<F, FrameLengthU16BE<LengthField{.offset = F.offset}>>;
+template<LengthField F>
+using PayloadLengthU16LE = frame_reader_detail::PayloadLength<F, FrameLengthU16LE<LengthField{.offset = F.offset}>>;
 /// A frame type that always has LEN bytes.
 template<size_t LEN> struct FrameFixedLength {
   static_assert(LEN >= 2, "A fixed length frame has at least 2 bytes");
@@ -127,45 +131,33 @@ template<size_t LEN> struct FrameFixedLength {
   static constexpr size_t get(const uint8_t * /*buf*/) { return LEN; }
 };
 
-/// Wraps a length rule: CHECK(buf) runs once AT bytes are in, and a header it fails gives length 0 (rejected).
-template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)> struct CheckedLength {
-  static_assert(AT >= LENGTH::KNOWN_AT, "AT must cover the length field");
-  static constexpr size_t KNOWN_AT = AT;
-  static size_t get(const uint8_t *buf) { return CHECK(buf) ? LENGTH::get(buf) : 0; }
+/// Base of the FrameFormat options; each option overrides only its own members.
+struct FrameOption {
+  static constexpr size_t MIN = 0;
+  static constexpr size_t CHECK_AT = 0;
+  static constexpr size_t WARN_MAX = 0;
+  static constexpr bool check(const uint8_t * /*buf*/) { return true; }
+  static constexpr bool fits(size_t /*len*/) { return true; }
 };
-
-/// Wraps a length rule: a frame longer than MAX calls WARN(length) and is rejected; a replay can warn again.
-template<class LENGTH, size_t MAX, void (*WARN)(size_t)> struct WarnIfLonger {
-  static constexpr size_t KNOWN_AT = LENGTH::KNOWN_AT;
-  static size_t get(const uint8_t *buf) {
-    const size_t len = LENGTH::get(buf);
+/// FrameFormat option: the shortest frame, when that is more than its header and length field.
+template<size_t LEN> struct FrameMinLength : FrameOption {
+  static constexpr size_t MIN = LEN;
+};
+/// FrameFormat option: CHECK(frame) runs once the first BYTES bytes are in; a frame it fails is not a frame.
+template<size_t BYTES, bool (*CHECK)(const uint8_t *)> struct CheckFirstBytes : FrameOption {
+  static constexpr size_t CHECK_AT = BYTES;
+  static bool check(const uint8_t *buf) { return CHECK(buf); }
+};
+/// FrameFormat option: a frame longer than MAX calls WARN(length) and is skipped; a replay can warn again.
+template<size_t MAX, void (*WARN)(size_t)> struct WarnIfLongerThan : FrameOption {
+  static constexpr size_t WARN_MAX = MAX;
+  static bool fits(size_t len) {
     if (len <= MAX)
-      return len;
+      return true;
     WARN(len);
-    return 0;
+    return false;
   }
 };
-
-/// The shortest frame of a FrameFormat, when that is more than its header and length field.
-template<size_t LEN> struct FrameMinLength {
-  static constexpr size_t VALUE = LEN;
-};
-
-namespace frame_reader_detail {
-// The length of a FrameFixedLength rule, 0 for every other rule
-template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
-template<size_t LEN> constexpr size_t FIXED_LENGTH<FrameFixedLength<LEN>> = LEN;
-template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)>
-constexpr size_t FIXED_LENGTH<CheckedLength<LENGTH, AT, CHECK>> = FIXED_LENGTH<LENGTH>;
-template<class LENGTH, size_t MAX, void (*WARN)(size_t)>
-constexpr size_t FIXED_LENGTH<WarnIfLonger<LENGTH, MAX, WARN>> = FIXED_LENGTH<LENGTH>;
-// The MAX of a WarnIfLonger rule, 0 for every other rule
-template<class LENGTH> constexpr size_t WARN_MAX = 0;
-template<class LENGTH, size_t MAX, void (*WARN)(size_t)>
-constexpr size_t WARN_MAX<WarnIfLonger<LENGTH, MAX, WARN>> = MAX;
-template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)>
-constexpr size_t WARN_MAX<CheckedLength<LENGTH, AT, CHECK>> = WARN_MAX<LENGTH>;
-}  // namespace frame_reader_detail
 
 /// The bytes every frame of a FrameFormat starts with.
 template<uint8_t... BYTES> struct FrameHeader {
@@ -174,15 +166,45 @@ template<uint8_t... BYTES> struct FrameHeader {
   static constexpr uint8_t byte(size_t i) { return frame_reader_detail::header_byte<BYTES...>(i); }
 };
 
-/// One frame type for LengthFrameReader: a FrameHeader, a length rule from above and an optional FrameMinLength.
-template<class HEADER, class LENGTH, class MIN = FrameMinLength<0>> struct FrameFormat {
-  using Length = LENGTH;
+namespace frame_reader_detail {
+// The length rule with its options applied: every check runs before any warning, so a failed check never warns
+template<class LENGTH, class... OPTIONS> struct OptionLength {
+  static constexpr size_t KNOWN_AT = std::max<size_t>({LENGTH::KNOWN_AT, OPTIONS::CHECK_AT...});
+  static size_t get(const uint8_t *buf) {
+    if (!(OPTIONS::check(buf) && ...))
+      return 0;
+    const size_t len = LENGTH::get(buf);
+    return (OPTIONS::fits(len) && ...) ? len : 0;
+  }
+};
+// The shortest frame a length rule allows, 0 when it sets none
+template<class LENGTH> constexpr size_t RULE_MIN = 0;
+template<LengthField F, class FIELD> constexpr size_t RULE_MIN<PayloadLength<F, FIELD>> = PayloadLength<F, FIELD>::MIN;
+// The length of a FrameFixedLength rule, 0 for every other rule
+template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
+template<size_t LEN> constexpr size_t FIXED_LENGTH<FrameFixedLength<LEN>> = LEN;
+}  // namespace frame_reader_detail
+
+/// One frame type for LengthFrameReader: a FrameHeader, a length rule from above, then any of the options
+/// FrameMinLength, CheckFirstBytes and WarnIfLongerThan.
+template<class HEADER, class LENGTH, class... OPTIONS> struct FrameFormat {
+  static_assert((std::is_base_of_v<FrameOption, OPTIONS> && ...),
+                "FrameFormat options are FrameMinLength, CheckFirstBytes and WarnIfLongerThan");
+  static_assert(((OPTIONS::CHECK_AT == 0 || OPTIONS::CHECK_AT >= LENGTH::KNOWN_AT) && ...),
+                "CheckFirstBytes must cover the length field");
+  // Checks run only once the largest CHECK_AT is in, so a shorter one would reject late
+  static_assert((0 + ... + (OPTIONS::CHECK_AT != 0)) <= 1, "A FrameFormat takes at most one CheckFirstBytes");
+  // Only the shortest limit would ever warn
+  static_assert((0 + ... + (OPTIONS::WARN_MAX != 0)) <= 1, "A FrameFormat takes at most one WarnIfLongerThan");
+  using Length = frame_reader_detail::OptionLength<LENGTH, OPTIONS...>;
   static constexpr size_t HEADER_LEN = HEADER::LEN;
   static constexpr uint8_t FIRST = HEADER::byte(0);
-  // Bytes collected when the length is checked
-  static constexpr size_t MIN_LEN = std::max<size_t>({LENGTH::KNOWN_AT, HEADER_LEN, 2});
+  static constexpr size_t FIXED_LENGTH = frame_reader_detail::FIXED_LENGTH<LENGTH>;
+  static constexpr size_t WARN_MAX = std::max<size_t>({0, OPTIONS::WARN_MAX...});
+  static constexpr size_t MIN_LEN = std::max<size_t>({Length::KNOWN_AT, HEADER_LEN, 2});
   // A shorter length is not a frame
-  static constexpr size_t SHORTEST = std::max(MIN_LEN, MIN::VALUE);
+  static constexpr size_t SHORTEST =
+      std::max<size_t>({MIN_LEN, frame_reader_detail::RULE_MIN<LENGTH>, OPTIONS::MIN...});
   static_assert(LENGTH::KNOWN_AT == 1 || LENGTH::KNOWN_AT > HEADER_LEN, "The length field must follow the header");
   static constexpr uint8_t header_byte(size_t i) { return HEADER::byte(i); }
 };
@@ -213,13 +235,12 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   }
   static_assert(distinct_first(), "Each FrameFormat needs a different first header byte");
   static_assert(((FORMATS::SHORTEST <= N) && ...), "N must hold the shortest frame of every FrameFormat");
-  static_assert(((frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> == 0 ||
-                  (frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> >= FORMATS::SHORTEST &&
-                   frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> <= N)) &&
+  static_assert(((FORMATS::FIXED_LENGTH == 0 ||
+                  (FORMATS::FIXED_LENGTH >= FORMATS::SHORTEST && FORMATS::FIXED_LENGTH <= N)) &&
                  ...),
                 "A fixed length must hold the header and fit in N");
-  static_assert(((frame_reader_detail::WARN_MAX<typename FORMATS::Length> <= N) && ...),
-                "A WarnIfLonger MAX above N lets longer frames be skipped without a warning");
+  static_assert(((FORMATS::WARN_MAX <= N) && ...),
+                "A WarnIfLongerThan MAX above N lets longer frames be skipped without a warning");
 
  public:
   /// Feed one byte; calls handle(frame, length) for each frame it completes, header included. A rejected frame
