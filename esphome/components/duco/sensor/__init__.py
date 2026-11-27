@@ -109,9 +109,7 @@ SENSORS = {
                 accuracy_decimals=0,
             ).extend(
                 {
-                    cv.Optional(
-                        CONF_ADDRESS, default=BOX_NODE
-                    ): cv.int_range(0, 68),
+                    cv.Optional(CONF_ADDRESS, default=BOX_NODE): cv.int_range(0, 68),
                 }
             )
         ),
