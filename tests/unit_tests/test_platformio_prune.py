@@ -130,6 +130,101 @@ def test_prune_removes_copies_a_newer_install_replaced(core_dir: Path) -> None:
         assert path.is_dir()
 
 
+def test_prune_removes_the_nrf52_platform(core_dir: Path) -> None:
+    """Its toolchain shares a name with the one LibreTiny uses, which stays."""
+    nrf52 = _platform(
+        core_dir, "nordicnrf52", ["framework-zephyr", "toolchain-gccarmnoneeabi"]
+    )
+    _platform(core_dir, "libretiny", ["toolchain-gccarmnoneeabi"])
+    zephyr = _package(core_dir, "framework-zephyr")
+    toolchain = _package(core_dir, "toolchain-gccarmnoneeabi")
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [zephyr, nrf52]
+    assert toolchain.is_dir()
+
+
+_LIBRETINY = "https://github.com/libretiny-eu"
+
+
+def _libretiny_package(
+    core_dir: Path, dirname: str, record: str | None, *, cloned: bool = True
+) -> Path:
+    """A package with PlatformIO's install record; ``cloned`` keeps it in .git."""
+    package = _package(core_dir, dirname)
+    if record is not None:
+        location = package / ".git" if cloned else package
+        location.mkdir(exist_ok=True)
+        (location / ".piopm").write_text(record, encoding="utf-8")
+    return package
+
+
+def _record(uri: str | None) -> str:
+    return json.dumps({"spec": {"uri": uri}})
+
+
+def test_prune_removes_libretiny_packages_in_a_version_no_longer_used(
+    core_dir: Path,
+) -> None:
+    platform = core_dir / "platforms" / "libretiny"
+    platform.mkdir(parents=True)
+    packages = {
+        "framework-beken-bdk": {"version": f"{_LIBRETINY}/framework-beken-bdk#3.0.33"},
+        "library-printf": {"version": f"{_LIBRETINY}/library-printf#6.1.0"},
+        "toolchain-gccarmnoneeabi": {"optionalVersions": ["~1.100301.0"]},
+    }
+    (platform / "platform.json").write_text(
+        json.dumps({"packages": packages}), encoding="utf-8"
+    )
+    bdk = f"git+{_LIBRETINY}/framework-beken-bdk"
+    old = [
+        _libretiny_package(
+            core_dir, "framework-beken-bdk@src-0001", _record(f"{bdk}#3.0.7")
+        ),
+        _libretiny_package(
+            core_dir,
+            "library-printf@src-0002",
+            _record(f"git+{_LIBRETINY}/library-printf#5.2.0"),
+            cloned=False,
+        ),
+    ]
+    stay = [
+        # The latest install, whatever its version
+        _libretiny_package(core_dir, "framework-beken-bdk", _record(f"{bdk}#3.0.7")),
+        # Both versions the platform builds with: its own and the one ESPHome selects
+        _libretiny_package(
+            core_dir, "framework-beken-bdk@src-0003", _record(f"{bdk}#3.0.33")
+        ),
+        _libretiny_package(
+            core_dir, "framework-beken-bdk@src-0004", _record(f"{bdk}#3.0.78")
+        ),
+        # Nothing says where these came from
+        _libretiny_package(core_dir, "framework-beken-bdk@src-0005", None),
+        _libretiny_package(core_dir, "framework-beken-bdk@src-0006", "{"),
+        _libretiny_package(core_dir, "framework-beken-bdk@src-0007", _record(None)),
+        # Not a LibreTiny package
+        _libretiny_package(
+            core_dir, "framework-other@src-0008", _record(f"{bdk}#3.0.7")
+        ),
+    ]
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == old
+    for path in stay:
+        assert path.is_dir()
+
+
+@pytest.mark.parametrize("manifest", ["{}", json.dumps({"packages": {"a": 1}})])
+def test_prune_keeps_libretiny_packages_when_its_versions_are_unreadable(
+    manifest: str, core_dir: Path
+) -> None:
+    platform = core_dir / "platforms" / "libretiny"
+    platform.mkdir(parents=True)
+    (platform / "platform.json").write_text(manifest, encoding="utf-8")
+    copy = _libretiny_package(core_dir, "a@src-0001", _record("git+https://x/a#1"))
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert copy.is_dir()
+
+
 def test_prune_dry_run_changes_nothing(
     core_dir: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

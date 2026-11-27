@@ -19,13 +19,16 @@ _LOGGER = logging.getLogger(__name__)
 
 ESPRESSIF32 = "espressif32"
 ESPRESSIF8266 = "espressif8266"
+NORDICNRF52 = "nordicnrf52"
+LIBRETINY = "libretiny"
 # The platforms whose PlatformIO toolchain is deprecated
-DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266)
+DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266, NORDICNRF52)
 # Installed from a URL that changes with every version. PlatformIO moves the
 # copy a new install replaces to "<name>@src-<hash>", so a directory of that
-# form is never the one in use. LibreTiny's packages are left out: its chip
-# families build with different versions of the same package at once.
-_SUPERSEDED_PLATFORMS = ("raspberrypi", "libretiny")
+# form is never the one in use. LibreTiny's packages are not listed: its chip
+# families build with different versions of the same package at once, so
+# those copies are checked one by one (_unused_libretiny_packages).
+_SUPERSEDED_PLATFORMS = ("raspberrypi", LIBRETINY)
 # The RP2 framework, and the tools its platform downloads from URLs it sets
 # itself; `pio system prune` skips every package that came from a URL
 _SUPERSEDED_PACKAGES = (
@@ -60,6 +63,38 @@ def _package_names(platform: Path) -> set[str] | None:
         return None
 
 
+def _installed_from(package: Path) -> str | None:
+    """The URI PlatformIO recorded for an installed package, None if unknown."""
+    # A package cloned with git keeps its record inside .git
+    for record in (package / ".git" / ".piopm", package / ".piopm"):
+        try:
+            return json.loads(record.read_text(encoding="utf-8"))["spec"]["uri"]
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError, KeyError, TypeError) as err:
+            _LOGGER.debug("Could not read %s: %s", record, err)
+            return None
+    return None
+
+
+def _unused_libretiny_packages(platforms_dir: Path, packages_dir: Path) -> list[Path]:
+    """Replaced copies of LibreTiny packages in a version it no longer builds with."""
+    from esphome.components.libretiny.prune import package_uris
+
+    platform = platforms_dir / LIBRETINY
+    if (names := _package_names(platform)) is None:
+        return []
+    if (uris := package_uris(platform)) is None:
+        return []
+    return [
+        package
+        for package in subdirs(packages_dir)
+        if _superseded(package, names)
+        and (uri := _installed_from(package)) is not None
+        and uri not in uris
+    ]
+
+
 def prune_platformio_installs(
     platforms: Collection[str], dry_run: bool = False
 ) -> list[Path]:
@@ -67,7 +102,8 @@ def prune_platformio_installs(
 
     A package that PlatformIO itself or a remaining platform needs is kept.
     The copies of the RP2 and LibreTiny platforms and of the RP2 framework
-    and tools that a newer install replaced are removed too.
+    and tools that a newer install replaced are removed too, and so are the
+    replaced LibreTiny packages in a version it no longer builds with.
     Returns the removed directories (the ones that would be removed on a dry
     run). Does nothing when PlatformIO is not installed.
     """
@@ -105,12 +141,18 @@ def prune_platformio_installs(
         owned -= names
 
     # Packages go before the platforms: the platforms say which packages are theirs
+    packages_dir = Path(config.get("platformio", "packages_dir"))
     removed = [
         package
-        for package in subdirs(Path(config.get("platformio", "packages_dir")))
+        for package in subdirs(packages_dir)
         if is_leftover(package)
         or _name(package) in owned
         or _superseded(package, _SUPERSEDED_PACKAGES)
+    ]
+    removed += [
+        package
+        for package in _unused_libretiny_packages(platforms_dir, packages_dir)
+        if package not in removed
     ]
     if ESPRESSIF32 in platforms and ESPRESSIF32 not in map(_name, kept):
         core_dir = Path(config.get("platformio", "core_dir"))
