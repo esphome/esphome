@@ -215,8 +215,6 @@ _COMMAND_ACTIONS = [
     "clear_playlist",
 ]
 
-StateAnyForwarder = media_player_ns.class_("StateAnyForwarder")
-StateEnterForwarder = media_player_ns.class_("StateEnterForwarder")
 MediaPlayerState = media_player_ns.enum("MediaPlayerState")
 
 # State triggers: (config_key, state enum or None for any-state)
@@ -247,7 +245,6 @@ def _on_state_enter(conf_key: str, state: cg.MockObj) -> automation.CallbackAuto
     return automation.CallbackAutomation(
         conf_key,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(state),
         params=[(MediaPlayerState, "state")],
         forward=[],
         when=f"state == {state}",
@@ -258,7 +255,6 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_STATE,
         "add_on_state_callback",
-        forwarder=StateAnyForwarder,
         params=[(MediaPlayerState, "state")],
         forward=[],
     ),

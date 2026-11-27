@@ -24,10 +24,19 @@ sensor:
       - below: !lambda "return x > 1000 ? NAN : id(sensor_publish_target).state;"
         then:
           - logger.log: Sensor below the publish target
+      - above: 95
+        then:
+          - delay: 10ms
+          - lambda: 'ESP_LOGD("test", "Entered above 95 at %.1f", x);'
 
   - platform: template
     name: "Publish Target"
     id: sensor_publish_target
+
+  # A YAML id equal to a generated list's name must not clash with that list
+  - platform: template
+    name: "List Name Clash"
+    id: APP_SENSOR_LIST
 
   # Streaming filters (window_size == send_every) - uses StreamingFilter base class
   - platform: copy

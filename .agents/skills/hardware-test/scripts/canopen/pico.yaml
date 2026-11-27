@@ -1,0 +1,57 @@
+substitutions:
+  name: canopen-pico
+  clock: 8MHZ
+packages:
+  a2: !include actions2.yaml
+esphome:
+  name: ${name}
+  includes:
+    - cotest.hpp
+  on_boot:
+    priority: -100
+    then: [script.execute: suite]
+rp2040:
+  board: rpipico2w
+logger:
+  level: DEBUG
+  logs:
+    canbus: INFO
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO19
+  miso_pin: GPIO16
+canbus:
+  - platform: mcp2515
+    id: can_bus
+    cs_pin: GPIO17
+    data_rate: 2MHz
+    clock: ${clock}
+    can_id: 0
+    bit_rate: 250KBPS
+canopen:
+  id: hub
+  response_timeout: 300ms
+interval:
+  - interval: 10s
+    then:
+      - lambda: cot::log_stat(id(can_bus));
+script:
+  - id: suite
+    then:
+      - delay: 8s
+      - script.execute: phases
+      - script.wait: phases
+      - repeat:
+          count: 3
+          then:
+            - lambda: cot::phase_late(id(hub));
+            - delay: 2s
+            - lambda: cot::phase_late_read(id(hub));
+            - delay: 2s
+      - lambda: |-
+          cot::summary("before soak");
+          cot::soak_start(id(hub), 15000);
+      - delay: 17s
+      - lambda: |-
+          cot::soak_report();
+          cot::summary("final");

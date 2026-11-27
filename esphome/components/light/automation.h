@@ -3,6 +3,7 @@
 #include "esphome/core/automation.h"
 #include "light_state.h"
 #include "addressable_light.h"
+#include "light_color_values.h"
 
 namespace esphome::light {
 
@@ -16,59 +17,12 @@ bool dim_relative(LightState *state, LightCall &call, float relative_brightness,
 /// Turn on the next or previous configured effect; with `include_none`, "None" is part of the cycle.
 void cycle_effect(LightState *state, bool forward, bool include_none);
 
-class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListener {
- public:
-  explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {
-    a_light->add_remote_values_listener(this);
-    this->last_on_ = a_light->current_values.is_on();
-  }
-
-  void on_light_remote_values_update() override {
-    // using the remote value because of transitions we need to trigger as early as possible
-    auto is_on = this->light_->remote_values.is_on();
-    // only trigger when going from off to on
-    auto should_trigger = is_on && !this->last_on_;
-    // Set new state immediately so that trigger() doesn't devolve
-    // into infinite loop
-    this->last_on_ = is_on;
-    if (should_trigger) {
-      this->trigger();
-    }
-  }
-
- protected:
-  LightState *light_;
-  bool last_on_;
-};
-
-class LightTurnOffTrigger final : public Trigger<>, public LightTargetStateReachedListener {
- public:
-  explicit LightTurnOffTrigger(LightState *a_light) : light_(a_light) {
-    a_light->add_target_state_reached_listener(this);
-  }
-
-  void on_light_target_state_reached() override {
-    auto is_on = this->light_->current_values.is_on();
-    // only trigger when going from on to off
-    if (!is_on) {
-      this->trigger();
-    }
-  }
-
- protected:
-  LightState *light_;
-};
-
-class LightStateTrigger final : public Trigger<>, public LightRemoteValuesListener {
- public:
-  explicit LightStateTrigger(LightState *a_light) { a_light->add_remote_values_listener(this); }
-
-  void on_light_remote_values_update() override { this->trigger(); }
-};
-
-// This is slightly ugly, but we can't log in headers, and can't make this a static method on AddressableSet
-// due to the template. It's just a temporary warning anyway.
-void addressableset_warn_about_scale(const char *field);
+/// Codegen use only: whether the light turned on since the report one on_turn_on automation last saw, kept in `last`.
+inline bool update_turned_on(bool &last, bool now) {
+  const bool turned_on = now && !last;
+  last = now;
+  return turned_on;
+}
 
 template<typename... Ts> class AddressableSet final : public Action<Ts...> {
  public:
@@ -94,16 +48,16 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
       range_to = size;
 
     uint8_t color_brightness =
-        to_uint8_scale(this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness()));
+        to_uint8_clamped(this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness()));
     auto range = out->range(range_from, range_to);
     if (this->red_.has_value())
-      range.set_red(esp_scale8(to_uint8_compat(this->red_.value(x...), "red"), color_brightness));
+      range.set_red(esp_scale8(to_uint8_clamped(this->red_.value(x...)), color_brightness));
     if (this->green_.has_value())
-      range.set_green(esp_scale8(to_uint8_compat(this->green_.value(x...), "green"), color_brightness));
+      range.set_green(esp_scale8(to_uint8_clamped(this->green_.value(x...)), color_brightness));
     if (this->blue_.has_value())
-      range.set_blue(esp_scale8(to_uint8_compat(this->blue_.value(x...), "blue"), color_brightness));
+      range.set_blue(esp_scale8(to_uint8_clamped(this->blue_.value(x...)), color_brightness));
     if (this->white_.has_value())
-      range.set_white(to_uint8_compat(this->white_.value(x...), "white"));
+      range.set_white(to_uint8_clamped(this->white_.value(x...)));
     out->schedule_show();
   }
 
@@ -112,14 +66,7 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
 
   static inline int32_t interpret_index(int32_t index, int32_t size) { return index < 0 ? index + size : index; }
 
-  // Historically, this action required uint8_t (0-255) for RGBW values from lambdas. Keep compatibility.
-  static inline uint8_t to_uint8_compat(float value, const char *field) {
-    if (value > 1.0f) {
-      addressableset_warn_about_scale(field);
-      return static_cast<uint8_t>(value);
-    }
-    return to_uint8_scale(value);
-  }
+  static inline uint8_t to_uint8_clamped(float value) { return to_uint8_scale(clamp_unit_float(value)); }
 };
 
 }  // namespace esphome::light
