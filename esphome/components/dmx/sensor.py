@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.components.template.number import TemplateNumber
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -33,7 +32,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_DMX_ID): cv.use_id(DMXComponent),
             cv.Optional(CONF_CHANNEL): cv.int_range(min=1, max=512),
-            cv.Optional(CONF_CHANNEL_ID): cv.use_id(TemplateNumber),
+            cv.Optional(CONF_CHANNEL_ID): cv.use_id(number.Number),
         }
     ),
     cv.has_exactly_one_key(CONF_CHANNEL, CONF_CHANNEL_ID),

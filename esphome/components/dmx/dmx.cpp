@@ -13,6 +13,8 @@
 #include "driver/uart.h"
 #endif
 
+extern "C" size_t rdm_read_pd(dmx_port_t dmx_num, const char *format, void *data, uint32_t data_len);
+
 namespace esphome::dmx {
 
 ESPHOME_LOG_TAG(TAG, "dmx");
