@@ -191,6 +191,11 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version, bool in_flash) {
   auto pref = global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
+#if defined(USE_ESP32_RTC_PREFERENCES) || defined(USE_LIBRETINY_RTC_PREFERENCES)
+  // RTC storage is empty after every power loss, so migrating would restore the legacy flash copy on each cold boot
+  if (!in_flash)
+    return pref;
+#endif
   this->migrate_entity_preference_(pref, size, version);
   return pref;
 }

@@ -108,8 +108,9 @@ class EntityBase {
   /// Returns the LEGACY sanitized-object_id hash, unchanged from previous releases, so existing
   /// callers keep stable values (for example preference keys). It is no longer the API key.
   // Remove before 2027.6.0
-  ESPDEPRECATED("Use get_entity_key() for the entity key sent to API clients, or make_entity_preference<T>() "
-                "for preference storage. Will be removed in 2027.6.0.",
+  ESPDEPRECATED("Returns the old sanitized object_id hash, which is no longer the key sent to API clients. Use "
+                "get_entity_key() for the entity key, or make_entity_preference<T>() for preference storage. "
+                "Will be removed in 2027.6.0.",
                 "2026.12.0")
   uint32_t get_object_id_hash() const { return this->calc_old_object_id_hash_(); }
 
