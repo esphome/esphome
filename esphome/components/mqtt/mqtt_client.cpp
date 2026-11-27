@@ -970,6 +970,12 @@ bool MQTTClientComponent::teardown() {
   // Core no longer runs loop() here, and it is what sends buffered TLS output
   this->mqtt_backend_.loop();
 #endif
+  // Not queued yet: retry, and if it never is, the teardown timeout cuts the link without DISCONNECT so the
+  // broker publishes the Last Will instead
+  if (!this->shutdown_message_sent_ && !this->shutdown_message_.topic.empty() && this->is_connected()) {
+    this->on_shutdown();
+    return false;
+  }
   // A disconnect drops a message the broker has not confirmed; the core's teardown timeout bounds the wait
   if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() && !this->mqtt_backend_.publish_acknowledged())
     return false;
