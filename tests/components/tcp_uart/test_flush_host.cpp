@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "esphome/components/tcp_uart/tcp_uart.h"
+#include "common.h"
 
 #ifdef USE_HOST
 
@@ -18,7 +18,7 @@ class TcpUartUnderTest : public TcpUart {
     this->set_port(1);
     this->link_.begin("flush_test");
   }
-  socket::TcpClientLink &link() { return this->link_; }
+  Link &link() { return this->link_; }
 };
 
 class TcpUartFlush : public ::testing::Test {
@@ -26,10 +26,7 @@ class TcpUartFlush : public ::testing::Test {
   void SetUp() override {
     // EPIPE must come back as an errno, not a signal.
     signal(SIGPIPE, SIG_IGN);
-    int fds[2];
-    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-    this->peer_fd_ = fds[1];
-    this->uart_.link().adopt(std::make_unique<socket::Socket>(fds[0]));
+    adopt_socket_pair(this->uart_.link(), &this->peer_fd_);
   }
   void TearDown() override {
     if (this->peer_fd_ >= 0) {
