@@ -52,8 +52,14 @@ sensor:
     filter_remaining:
       name: Filter Time Remaining
     flow_level:
-      name: Flow Level
-      update_interval: 5s
+      - name: Flow Level
+        update_interval: 5s
+      - name: Flow Level Bathroom
+        address: 2
+        update_interval: 5s
+      - name: Flow Level Bedroom
+        address: 3
+        update_interval: 10s
     flow_level_request:
       - name: Node 2 Flow Level Request
         address: 2
