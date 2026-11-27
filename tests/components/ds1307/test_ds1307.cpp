@@ -15,6 +15,7 @@ static constexpr uint8_t CLOCK_HALT_BIT = 0x80;
 static constexpr uint8_t CONTROL_OUT_SQWE_RS = 0x93;  // OUT, SQWE and both rate select bits set
 
 static uint8_t to_bcd(int value) { return ((value / 10) << 4) | (value % 10); }
+static int from_bcd(uint8_t value) { return (value >> 4) * 10 + (value & 0x0F); }
 
 // The chip's 64 registers (clock, control and RAM) behind an address pointer that moves on after every byte.
 class RegisterBus final : public i2c::I2CBus {
@@ -88,6 +89,35 @@ TEST_F(DS1307Test, WriteTimeStartsTheClockAndReadsBack) {
   EXPECT_EQ(this->bus_.registers[SECONDS_REG] & CLOCK_HALT_BIT, 0);
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 1u);
+}
+
+// Decodes the written registers independently of the driver, so swapped fields or digits show up.
+TEST_F(DS1307Test, WriteTimeStoresTheHostTime) {
+  this->load_current_time_(false);
+  this->rtc_.setup();
+  const time_t before = ::time(nullptr);
+  this->rtc_.write_time();
+  const time_t after = ::time(nullptr);
+  const auto &reg = this->bus_.registers;
+  struct tm written{};
+  written.tm_sec = from_bcd(reg[0x00] & 0x7F);
+  written.tm_min = from_bcd(reg[0x01]);
+  written.tm_hour = from_bcd(reg[0x02]);
+  written.tm_mday = from_bcd(reg[0x04]);
+  written.tm_mon = from_bcd(reg[0x05]) - 1;
+  written.tm_year = from_bcd(reg[0x06]) + 100;
+  const time_t epoch = ::timegm(&written);
+  EXPECT_GE(epoch, before);
+  EXPECT_LE(epoch, after);
+  EXPECT_EQ(reg[0x03], ESPTime::from_epoch_utc(epoch).day_of_week);  // 1-7, Sunday = 1
+}
+
+TEST_F(DS1307Test, InvalidTimeDoesNotSync) {
+  this->load_current_time_(false);
+  this->bus_.registers[0x05] = 0x13;  // Month 13
+  this->rtc_.setup();
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 0u);
 }
 
 TEST_F(DS1307Test, WriteTimeKeepsTheControlRegister) {
