@@ -2293,9 +2293,11 @@ def require_fatfs() -> None:
     """Mark that FATFS support is required by a component.
 
     Call this from components that use FATFS (e.g., SD card, storage components).
-    This prevents FATFS from being disabled when disable_fatfs is set.
+    This prevents FATFS from being disabled when disable_fatfs is set, and builds the
+    IDF fatfs component with the components it requires.
     """
     CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
+    include_builtin_idf_component("fatfs")
 
 
 def require_adc_oneshot_iram() -> None:
@@ -3235,10 +3237,22 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     user_picked_lfn = any(k in opts for k in lfn_keys)
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
         if not user_picked_lfn:
+            # On the stack, so a long name costs no heap allocation per call
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", False)
-            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_HEAP", True)
+            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_STACK", True)
             set_idf_sdkconfig_default("CONFIG_FATFS_MAX_LFN", 255)
         set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 4)
+        # One sector buffer per volume shared by its open files, and 512 byte sectors only, instead of
+        # a 4 KiB buffer per file sized for wear levelling
+        set_idf_sdkconfig_default("CONFIG_FATFS_PER_FILE_CACHE", False)
+        if not any(
+            k in opts
+            for k in ("CONFIG_WL_SECTOR_SIZE_512", "CONFIG_WL_SECTOR_SIZE_4096")
+        ):
+            set_idf_sdkconfig_default("CONFIG_WL_SECTOR_SIZE_4096", False)
+            set_idf_sdkconfig_default("CONFIG_WL_SECTOR_SIZE_512", True)
+        if "CONFIG_FATFS_API_ENCODING_ANSI_OEM" not in opts:
+            set_idf_sdkconfig_default("CONFIG_FATFS_API_ENCODING_UTF_8", True)
     elif disable_fatfs:
         if not user_picked_lfn:
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", True)
