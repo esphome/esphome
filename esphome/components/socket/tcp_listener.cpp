@@ -10,7 +10,7 @@
 
 namespace esphome::socket {
 
-void TcpListener::try_listen_(TcpClientLink &link, uint8_t backlog) {
+void TcpListener::try_listen_(TcpClientLinkBase &link, uint8_t backlog) {
   this->listen_ = socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
   int err = errno;
   if (this->listen_ != nullptr) {
@@ -34,7 +34,7 @@ void TcpListener::try_listen_(TcpClientLink &link, uint8_t backlog) {
   link.note_attempt();
 }
 
-std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &link) {
+std::unique_ptr<Socket> TcpListener::accept(TcpClientLinkBase &link) {
   if (this->listen_ == nullptr) {
     return nullptr;
   }
