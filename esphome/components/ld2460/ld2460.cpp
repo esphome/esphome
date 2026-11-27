@@ -127,11 +127,8 @@ bool LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_
 
 // Handles the frame when its footer and structure are in place; returns false otherwise
 bool LD2460Component::handle_frame_(const uint8_t *frame, uint8_t len) {
-  if (!ld24xx::has_footer(frame, len)) {
-    ESP_LOGW(TAG, "Invalid footer");
-    ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Rejected: %s");
+  if (!ld24xx::check_footer<MAX_FRAME_LENGTH>(TAG, frame, len))
     return false;
-  }
   ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
   if (frame[0] == DataFrame::FIRST)
     return this->handle_periodic_data_(frame, len);

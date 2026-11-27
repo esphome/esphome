@@ -830,7 +830,7 @@ bool LD2450Component::handle_frame_(const uint8_t *frame, uint8_t len) {
     if (this->invalid_frames_ < UINT16_MAX) {
       this->invalid_frames_++;
     }
-    ESP_LOGW(TAG, "Invalid footer");
+    ld24xx::log_invalid_footer<MAX_LINE_LENGTH>(TAG, frame, len);
     return false;
   }
   if (periodic) {

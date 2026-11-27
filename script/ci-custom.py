@@ -1755,6 +1755,7 @@ def lint_log_direct_call_format_in_flash(
         "esphome/components/event/event.h",
         "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
+        "esphome/components/ld24xx/ld24xx.h",
         "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",

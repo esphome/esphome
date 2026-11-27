@@ -541,10 +541,8 @@ bool LD2410Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
 
 // Handles the frame when its footer is in place; returns false otherwise
 bool LD2410Component::handle_frame_(const uint8_t *frame, uint8_t len) {
-  if (!ld24xx::has_footer(frame, len)) {
-    ESP_LOGW(TAG, "Invalid footer");
+  if (!ld24xx::check_footer<MAX_LINE_LENGTH>(TAG, frame, len))
     return false;
-  }
   if (frame[0] == ld24xx::DataFrameFormat::FIRST) {
     ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     return this->handle_periodic_data_(frame, len);

@@ -4,6 +4,7 @@
 #include "esphome/core/frame_reader.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
 #include <cstring>
@@ -97,6 +98,21 @@ inline bool has_footer(const uint8_t *frame, size_t len) {
   uint8_t footer[HEADER_FOOTER_SIZE];
   progmem_memcpy(footer, frame[0] == DataFrameFormat::FIRST ? DATA_FRAME_FOOTER : CMD_FRAME_FOOTER, sizeof(footer));
   return std::memcmp(&frame[len - HEADER_FOOTER_SIZE], footer, sizeof(footer)) == 0;
+}
+
+// Logs a frame whose footer did not match under the caller's tag, with up to MAX_BYTES of it in hex at verbose level
+template<size_t MAX_BYTES> inline void log_invalid_footer(const char *tag, const uint8_t *frame, size_t len) {
+  ESP_LOGW(tag, "Invalid footer");
+  ESP_LOGV_HEX(tag, frame, len, MAX_BYTES, "Rejected: %s");
+}
+
+// Whether the frame ends in its footer; otherwise logs it as rejected under the caller's tag, with up to MAX_BYTES of
+// it in hex at verbose level
+template<size_t MAX_BYTES> inline bool check_footer(const char *tag, const uint8_t *frame, size_t len) {
+  if (has_footer(frame, len)) [[likely]]
+    return true;
+  log_invalid_footer<MAX_BYTES>(tag, frame, len);
+  return false;
 }
 
 }  // namespace esphome::ld24xx

@@ -38,11 +38,8 @@ void LD2451Component::loop() {
 
 // Handles the frame when its footer and structure are in place; returns false otherwise
 bool LD2451Component::handle_frame_(const uint8_t *frame, size_t len) {
-  if (!ld24xx::has_footer(frame, len)) {
-    ESP_LOGW(TAG, "Invalid footer");
-    ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Rejected: %s");
+  if (!ld24xx::check_footer<MAX_FRAME_LENGTH>(TAG, frame, len))
     return false;
-  }
   ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
   if (frame[0] != DataFrame::FIRST) {
     return true;  // A reply to a configuration command, none of which are sent yet
