@@ -42,6 +42,11 @@ InputType tensor_type_to_input_type(TfLiteType type) {
   }
 }
 
+/// Output types process_output() can turn into a class and a confidence.
+bool has_classification_mapping(const TfLiteTensor *output) {
+  return output->type == kTfLiteFloat32 || output->type == kTfLiteUInt8 || output->type == kTfLiteInt8;
+}
+
 }  // namespace
 
 TFLiteMicroHelper::LockGuard::LockGuard(const TFLiteMicroHelper *helper, bool wait) : helper_(helper) {
@@ -332,7 +337,11 @@ bool TFLiteMicroHelper::decode_outputs_locked_() {
   TfLiteTensor *outputs[MAX_OUTPUTS];
   for (size_t i = 0; i < count; i++)
     outputs[i] = this->model_handler_.output(i);
-  return this->output_decoder_->decode(outputs, count);
+  if (this->output_decoder_->decode(outputs, count))
+    return true;
+  // A decoder need not log, and without this a failed run would only look like a missing notification.
+  ESP_LOGE(TAG, "The output decoder could not decode the model outputs");
+  return false;
 }
 
 bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
@@ -360,6 +369,8 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
     ESP_LOGE(TAG, "Model invocation failed");
     return false;
   }
+  // A result run_inference() cached belongs to an earlier invocation.
+  this->last_result_ = ProcessedOutput{0.0f, 0.0f, false};
   if (this->output_decoder_ != nullptr)
     return this->decode_outputs_locked_();
   // A raw model has no decoder, so store the processed result for get_last_result().
@@ -367,10 +378,9 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
   // classification mapping; the stored result is then marked invalid.
   if (!this->result_callback_.empty()) {
     TfLiteTensor *output = this->model_handler_.output_tensor();
-    this->last_result_ = ProcessedOutput{0.0f, 0.0f, false};
     if (output == nullptr) {
       ESP_LOGW(TAG, "No output tensor; get_last_result() is invalid for this run");
-    } else if (output->type == kTfLiteFloat32 || output->type == kTfLiteUInt8 || output->type == kTfLiteInt8) {
+    } else if (has_classification_mapping(output)) {
       this->last_result_ = this->model_handler_.process_output(output);
     } else {
       // The processor would log an error on every run for a type it cannot classify.
@@ -438,11 +448,17 @@ optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_da
       this->result_reserved_ = false;
       return nullopt;
     }
-    const ProcessedOutput result = this->model_handler_.process_output(output);
-    if (!result.valid) {
-      // The reason is already logged by the output processor.
-      this->result_reserved_ = false;
-      return nullopt;
+    // An output type without a classification mapping is still a successful run, with an invalid result.
+    ProcessedOutput result{0.0f, 0.0f, false};
+    if (has_classification_mapping(output)) {
+      result = this->model_handler_.process_output(output);
+      if (!result.valid) {
+        // The reason is already logged by the output processor.
+        this->result_reserved_ = false;
+        return nullopt;
+      }
+    } else {
+      ESP_LOGV(TAG, "The output type has no classification mapping; the result is invalid");
     }
     // Keep the kind's decoder in step with the result its callback reads; a
     // decoder failure is this inference's failure, not a stale notification.

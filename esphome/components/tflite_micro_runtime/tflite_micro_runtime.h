@@ -141,7 +141,8 @@ class TFLiteMicroHelper : public Component {
   TfLiteTensor *output_tensor();
 
   bool run_inference_on_buffer(const uint8_t *src_data, size_t src_size);
-  /// run_inference_on_buffer() plus output processing; nullopt (logged) on failure.
+  /// run_inference_on_buffer() plus output processing; nullopt (logged) on failure. The result is marked
+  /// invalid when the output type has no classification mapping.
   optional<ProcessedOutput> run_inference(const uint8_t *src_data, size_t src_size);
 
   /// Fill through the pipeline when one is set, invoke, then decode every output.
@@ -187,7 +188,7 @@ class TFLiteMicroHelper : public Component {
   ArenaStats get_arena_stats() const;
   void report_memory_status();
   LoadStats get_last_load_stats() const;
-  /// The result run_inference() produced for the current notification.
+  /// The first output of the latest run, processed. Invalid after a run() that decodes into a decoder.
   ProcessedOutput get_last_result() const;
 
 #ifdef USE_TFLITE_MODEL_DEBUG
