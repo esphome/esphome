@@ -70,12 +70,12 @@ void AnalogGaugeReader::update() {
     this->requested_ = false;
     this->status_set_warning();
   });
-  this->camera_->request_image(camera::IDLE);
+  this->camera_->request_image(camera::COMPONENT_REQUESTER);
 }
 
 void AnalogGaugeReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
   // Frames the camera captures for other listeners are not ours to process.
-  if (this->paused_ || !this->requested_)
+  if (this->paused_ || !this->requested_ || !image->was_requested_by(camera::COMPONENT_REQUESTER))
     return;
   this->requested_ = false;
   this->cancel_timeout(FRAME_TIMEOUT_ID);
