@@ -72,6 +72,16 @@ TEST(BcdCalendar, DsLayoutTwelveHourMode) {
   EXPECT_EQ(decode_bcd_calendar<DS_BCD_CALENDAR>(patched(DS_RAW, 2, 0x40 | 0x20 | 0x12).data()).hour, 12);  // 12 PM
 }
 
+TEST(BcdCalendar, DsLayoutRejectsTwelveHourValuesOutOfRange) {
+  for (uint8_t hour : {0x00, 0x13, 0x19}) {
+    for (uint8_t pm : {0x00, 0x20}) {
+      const ESPTime time = decode_bcd_calendar<DS_BCD_CALENDAR>(patched(DS_RAW, 2, 0x40 | pm | hour).data());
+      EXPECT_FALSE(time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false))
+          << "hour byte 0x" << std::hex << unsigned(0x40 | pm | hour);
+    }
+  }
+}
+
 TEST(BcdCalendar, DsLayoutCenturyBit) {
   const ESPTime time = decode_bcd_calendar<DS_BCD_CALENDAR>(patched(DS_RAW, 5, 0x84).data());
   EXPECT_EQ(time.year, 2126);

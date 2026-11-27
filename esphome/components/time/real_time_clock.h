@@ -100,7 +100,9 @@ template<BcdCalendarLayout LAYOUT> __attribute__((noinline)) ESPTime decode_bcd_
   if constexpr (LAYOUT.hour_12h) {
     if ((raw[2] & 0x40) != 0) {
       // 12-hour mode, e.g. set by another library: 12 AM reads as 12 with PM clear, 12 PM as 12 with PM set.
-      hour = bcd_to_uint8(raw[2] & 0x1F) % 12 + ((raw[2] & 0x20) != 0 ? 12 : 0);
+      // An hour outside 1-12 stays out of range, so is_valid() rejects it.
+      const uint8_t hour_12 = bcd_to_uint8(raw[2] & 0x1F);
+      hour = hour_12 == 0 || hour_12 > 12 ? UINT8_MAX : hour_12 % 12 + ((raw[2] & 0x20) != 0 ? 12 : 0);
     }
   }
   uint16_t year = 2000 + bcd_to_uint8(raw[6]);
