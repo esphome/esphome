@@ -966,12 +966,34 @@ void MQTTClientComponent::on_shutdown() {
 }
 
 bool MQTTClientComponent::teardown() {
+#ifdef USE_ESP8266
+  // Core no longer runs loop() here, and it is what sends buffered TLS output
+  this->mqtt_backend_.loop();
+  // Not queued yet: retry, and if it never is, the teardown timeout cuts the link without DISCONNECT so the
+  // broker publishes the Last Will instead
+  if (!this->shutdown_message_sent_ && !this->shutdown_message_.topic.empty() && this->is_connected()) {
+    this->on_shutdown();
+    return false;
+  }
+#endif
   // A disconnect drops a message the broker has not confirmed; the core's teardown timeout bounds the wait
   if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() && !this->mqtt_backend_.publish_acknowledged())
     return false;
   this->mqtt_backend_.disconnect();
-  return true;
+  // Wait for the broker to close after DISCONNECT, so a reboot does not cut it off
+  return !this->mqtt_backend_.link_open();
 }
+
+#ifdef USE_ESP8266
+void MQTTClientComponent::on_powerdown() {
+  // Teardown ran out of time: the restart would leave the socket open, and the broker sends no Last Will when
+  // the next boot takes the session over
+  if (this->mqtt_backend_.link_open()) {
+    this->mqtt_backend_.close_now();
+    delay(100);  // NOLINT: once per reboot or deep sleep, lets the reset leave before the restart
+  }
+}
+#endif
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

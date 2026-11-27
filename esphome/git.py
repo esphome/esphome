@@ -23,6 +23,7 @@ from esphome.helpers import (
     rmtree,
     write_file,
 )
+from esphome.net_retry import NETWORK_MAX_ATTEMPTS
 
 if TYPE_CHECKING:
     from filelock import FileLock
@@ -120,11 +121,9 @@ _MISSING_REPOSITORY_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Network commands get 3 attempts with 2s/4s backoff. Worst case is ~3x
-# the command's own duration plus 6s of sleep, held under the cache entry
-# lock; peers with a complete entry fall back to it after
-# _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS.
-_NETWORK_MAX_ATTEMPTS = 3
+# Network commands get NETWORK_MAX_ATTEMPTS tries, as downloads do. The retries
+# are held under the cache entry lock; peers with a complete entry fall back
+# to it after _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS.
 
 
 class GitException(cv.Invalid):
@@ -234,7 +233,7 @@ def run_git_command(
     ``retry_cleanup`` names a directory to remove before each retry, for
     commands like clone that can leave a partial destination behind.
     """
-    attempts = _NETWORK_MAX_ATTEMPTS if network else 1
+    attempts = NETWORK_MAX_ATTEMPTS if network else 1
     attempt = 0
     while True:
         try:

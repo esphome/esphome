@@ -37,13 +37,13 @@ static void set_stream_options(Socket *sock, const char *tag) {
   }
 }
 
-void TcpClientLink::begin(const char *tag) {
+void TcpClientLinkBase::begin(const char *tag) {
   this->tag_ = tag;
   // The first attempt must not wait out a full interval.
   this->last_attempt_ms_ = App.get_loop_component_start_time() - this->reconnect_interval_ms_;
 }
 
-void TcpClientLink::poll_slow_() {
+void TcpClientLinkBase::poll_slow_() {
   if (this->sock_ == nullptr) {
     this->try_connect_();
     return;
@@ -69,7 +69,7 @@ void TcpClientLink::poll_slow_() {
   ESP_LOGI(this->tag_, "Connected to %s:%u", this->host_.c_str(), this->port_);
 }
 
-void TcpClientLink::try_connect_() {
+void TcpClientLinkBase::try_connect_() {
   if (this->resolved_.consume_failure()) {
     this->note_attempt();
     return;
@@ -99,7 +99,7 @@ void TcpClientLink::try_connect_() {
   }
 }
 
-void TcpClientLink::adopt(std::unique_ptr<Socket> sock) {
+void TcpClientLinkBase::adopt(std::unique_ptr<Socket> sock) {
   this->close();
   set_stream_options(sock.get(), this->tag_);
   this->sock_ = std::move(sock);
@@ -107,7 +107,7 @@ void TcpClientLink::adopt(std::unique_ptr<Socket> sock) {
   this->note_io();
 }
 
-ssize_t TcpClientLink::read(uint8_t *buf, size_t len) {
+ssize_t TcpClientLinkBase::read(uint8_t *buf, size_t len) {
   if (!this->connected_) {
     return 0;
   }
@@ -123,7 +123,7 @@ ssize_t TcpClientLink::read(uint8_t *buf, size_t len) {
   return 0;
 }
 
-ssize_t TcpClientLink::write_(const uint8_t *buf, size_t len) {
+ssize_t TcpClientLinkBase::write_(const uint8_t *buf, size_t len) {
   if (!this->connected_ || len == 0) {
     return 0;
   }
@@ -141,27 +141,27 @@ ssize_t TcpClientLink::write_(const uint8_t *buf, size_t len) {
   return -1;
 }
 
-size_t TcpClientLink::queue(const uint8_t *data, size_t len) {
+size_t TcpClientLinkBase::queue_(uint8_t *tx, const uint8_t *data, size_t len) {
   size_t room = this->tx_free();
   if (len > room) {
     len = room;
   }
-  std::memcpy(this->tx_ + this->tx_len_, data, len);
+  std::memcpy(tx + this->tx_len_, data, len);
   this->tx_len_ += static_cast<uint16_t>(len);
   return len;
 }
 
-void TcpClientLink::flush_tx_slow_() {
-  ssize_t sent = this->write_(this->tx_, this->tx_len_);
+void TcpClientLinkBase::flush_tx_slow_(uint8_t *tx) {
+  ssize_t sent = this->write_(tx, this->tx_len_);
   if (sent > 0) {
     this->tx_len_ -= static_cast<uint16_t>(sent);
     if (this->tx_len_ != 0) {
-      std::memmove(this->tx_, this->tx_ + sent, this->tx_len_);
+      std::memmove(tx, tx + sent, this->tx_len_);
     }
   }
 }
 
-void TcpClientLink::close() {
+void TcpClientLinkBase::close() {
   if (this->sock_ != nullptr) {
     this->sock_->shutdown(SHUT_RDWR);
     this->sock_->close();
@@ -172,13 +172,13 @@ void TcpClientLink::close() {
   this->resolved_.forget();
 }
 
-void TcpClientLink::drop_(const LogString *what, int err) {
+void TcpClientLinkBase::drop_(const LogString *what, int err) {
   ESP_LOGW(this->tag_, "%s: %d", LOG_STR_ARG(what), err);
   this->close();
   this->note_attempt();
 }
 
-void TcpClientLink::idle_close_() {
+void TcpClientLinkBase::idle_close_() {
   uint32_t idle = App.get_loop_component_start_time() - this->last_io_ms_;
   // A configured close, not a failure.
   ESP_LOGI(this->tag_, "Idle for %" PRIu32 "ms, closing", idle);
