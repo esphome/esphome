@@ -282,6 +282,9 @@ def test_map_text_finds_esp_idf_project_map(tmp_path: Path) -> None:
     elf = tmp_path / "firmware.elf"
     elf.write_bytes(b"elf")
     (tmp_path / "device.elf").write_bytes(b"elf")
+    # Same size, different ELF: its map is not this firmware's
+    (tmp_path / "another.elf").write_bytes(b"ELF")
+    (tmp_path / "another.map").write_text("wrong" * 10000)
     (tmp_path / "other.map").write_text(MAP_TEXT * 100)
     (tmp_path / "device.map").write_text(MAP_TEXT * 100)
     # Every compile copies the ELF to firmware.elf, after the map was written

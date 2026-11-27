@@ -4,6 +4,7 @@ from bisect import bisect_right
 from collections import Counter, defaultdict
 from collections.abc import Container
 from dataclasses import dataclass, field
+import filecmp
 from functools import cache, cached_property
 import logging
 from pathlib import Path
@@ -1028,13 +1029,12 @@ class MemoryAnalyzer:
         map_path = self.elf_path.with_suffix(".map")
         if not map_path.exists():
             # ESP-IDF names the map after the project; firmware.elf is a copy of its ELF
-            size = self.elf_path.stat().st_size
             map_path = next(
                 (
                     candidate
                     for candidate in sorted(self.elf_path.parent.glob("*.map"))
                     if (elf := candidate.with_suffix(".elf")).is_file()
-                    and elf.stat().st_size == size
+                    and filecmp.cmp(elf, self.elf_path, shallow=False)
                 ),
                 map_path,
             )
