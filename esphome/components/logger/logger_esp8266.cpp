@@ -16,7 +16,12 @@ ESPHOME_LOG_TAG(TAG, "logger");
 void Logger::pre_setup() {
 #if defined(USE_ESP8266_LOGGER_SERIAL)
   this->hw_serial_ = &Serial;
+#ifdef USE_LOGGER_CONSOLE
   Serial.begin(this->baud_rate_);
+#else
+  // Nothing reads without a console user; TX only skips the core's 256 B RX buffer and RX interrupt
+  Serial.begin(this->baud_rate_, SERIAL_8N1, SERIAL_TX_ONLY);
+#endif
 #ifdef USE_LOGGER_UART_SELECTION_UART0_SWAP
   Serial.swap();
 #endif
