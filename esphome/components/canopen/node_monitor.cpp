@@ -17,7 +17,7 @@ const LogString *node_event_to_string(NodeEvent event) {
 }
 
 #ifdef USE_CANOPEN_NODE_MONITOR
-void CANopenComponent::monitor_node(uint8_t node_id, uint16_t timeout_ms) {
+void CANopenComponent::monitor_node_(uint8_t node_id, uint16_t timeout_ms) {
   if (this->co_ != nullptr) {
     ESP_LOGE(TAG, "monitor_node(0x%02x) after setup, ignored", node_id);
     return;
@@ -61,12 +61,14 @@ bool CANopenComponent::is_node_online(uint8_t node_id) {
 }
 
 void CANopenComponent::add_node_monitor_od_() {
+#if ESPHOME_CANOPEN_HEARTBEAT_CLIENTS > 0
   uint8_t n_cons = this->hb_cons_.size();
   if (n_cons) {
     this->hb_cons_count_ = n_cons;
     // read only: without CO_CONFIG_FLAG_OD_DYNAMIC a write wouldn't reach the consumer
     this->od_.add_array(0x1016, ODA_SDO_R, &this->hb_cons_count_, this->hb_cons_.data(), sizeof(uint32_t), n_cons);
   }
+#endif
 }
 
 void CANopenComponent::config_node_monitor_(CO_config_t &cfg) {
@@ -80,14 +82,10 @@ void CANopenComponent::init_node_monitor_() {
   CO_HBconsumer_t *hb = this->co_->HBcons;
   if (hb == nullptr)
     return;  // no monitored nodes
-  // CO_process() runs the consumer only while this node is pre-operational or operational, and clears every entry
-  // when it stops (no events; ONLINE again for each node after a start). CiA 301 keeps error control running in
-  // stopped, so process_node_monitor_() runs it instead, as (pre-)operational after initialisation: CO_process() skips
-  // it with the count 0 (read there through config_; allocation and init are done).
+  // CO_process() would stop the consumer in STOPPED (CiA 301 keeps it running): with the count 0 it skips it and
+  // process_node_monitor_() runs it in every state.
   this->config_.CNT_HB_CONS = 0;
-  // The entries are as a first pass would leave them (state unknown, no frame), so that pass doesn't handle the end of
-  // initialisation as a state change, which would drop a heartbeat received before it (from the bus, or a local
-  // node's boot-up queued before our first loop()).
+  // as a first pass leaves it, so that pass doesn't drop a heartbeat received before our first loop()
   hb->NMTisPreOrOperationalPrev = true;
   this->pending_node_events_.init(2 * this->hb_cons_.size());
   for (uint8_t i = 0, n = this->hb_cons_.size(); i < n; i++) {
@@ -131,23 +129,24 @@ void CANopenComponent::on_hb_started(uint8_t node_id, uint8_t idx, void *object)
   self->pending_node_events_.push_back({node_id, NodeEvent::NODE_EVENT_ONLINE, to_nmt_state(state)});
 }
 
+void CANopenComponent::push_node_event_(void *object, uint8_t node_id, NodeEvent event, NMTState state) {
+  static_cast<CANopenComponent *>(object)->pending_node_events_.push_back({node_id, event, state});
+}
+
 void CANopenComponent::on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object) {
   // a boot-up message: the RESET event reports it, and the consumer already counts the node offline until its next
   // heartbeat (get_node_state() is UNKNOWN)
   if (state == CO_NMT_INITIALIZING)
     return;
-  static_cast<CANopenComponent *>(object)->pending_node_events_.push_back(
-      {node_id, NodeEvent::NODE_EVENT_NMT_CHANGED, to_nmt_state(state)});
+  push_node_event_(object, node_id, NodeEvent::NODE_EVENT_NMT_CHANGED, to_nmt_state(state));
 }
 
 void CANopenComponent::on_hb_timeout(uint8_t node_id, uint8_t idx, void *object) {
-  static_cast<CANopenComponent *>(object)->pending_node_events_.push_back(
-      {node_id, NodeEvent::NODE_EVENT_OFFLINE, NMTState::NMT_STATE_UNKNOWN});
+  push_node_event_(object, node_id, NodeEvent::NODE_EVENT_OFFLINE, NMTState::NMT_STATE_UNKNOWN);
 }
 
 void CANopenComponent::on_hb_remote_reset(uint8_t node_id, uint8_t idx, void *object) {
-  static_cast<CANopenComponent *>(object)->pending_node_events_.push_back(
-      {node_id, NodeEvent::NODE_EVENT_RESET, NMTState::NMT_STATE_BOOTUP});
+  push_node_event_(object, node_id, NodeEvent::NODE_EVENT_RESET, NMTState::NMT_STATE_BOOTUP);
 }
 
 void CANopenComponent::dispatch_node_events_() {

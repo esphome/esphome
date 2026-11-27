@@ -17,16 +17,17 @@ namespace esphome::canopen {
 
 void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf);
 
-NMTState to_nmt_state(CO_NMT_internalState_t state);
+// NMTState uses CANopenNode's values (static_asserts in canopen.cpp)
+inline NMTState to_nmt_state(CO_NMT_internalState_t state) { return static_cast<NMTState>(state); }
 
 // Other components configure the node in two phases:
 // - Build time (Python codegen): the hub parts they use, enable_sdo_client(), enable_nmt_master(),
 //   enable_node_monitor(); these set defines and CANopenNode build flags, so they can't be switched on at runtime.
-// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: monitor_node(), identity
-//   and device information. Two places run early enough: setters called from codegen (they run in main(), before
-//   App.setup()), or the setup() of a component whose setup priority is above the hub's (setup_priority::HARDWARE - 1,
-//   after the CAN bus), e.g. HARDWARE - 0.5. Object dictionary entries and monitored nodes added later are logged as
-//   errors and ignored.
+// - Before the hub's setup(), which builds the object dictionary and initialises CANopenNode: monitor_node() (codegen
+//   only), identity and device information. Two places run early enough: setters called from codegen (they run in
+//   main(), before App.setup()), or the setup() of a component whose setup priority is above the hub's
+//   (setup_priority::HARDWARE - 1, after the CAN bus), e.g. HARDWARE - 0.5. Object dictionary entries and monitored
+//   nodes added later are logged as errors and ignored.
 // The rest is runtime API, e.g. from loop() or automations: add_frame_listener() and the callbacks (any time),
 // send_frame(), SDO client and NMT master requests (made before the hub's setup(), they wait for it). The hub's setup()
 // runs before most components' setup() (e.g. sensors, DATA) and the default on_boot automations.
@@ -62,10 +63,6 @@ class CANopenComponent : public Component {
 #endif
 #ifdef USE_CANOPEN_NODE
   void set_heartbeat_interval(uint16_t ms) { this->hb_producer_ms_ = ms; }
-  // NMT reset node: once CANopenNode's queue is empty, how long the CAN controller gets to put the frames it holds on
-  // the bus before we reboot (the canbus API only says a frame was accepted, not sent); codegen sets it from the bit
-  // rate below 50 kbit/s
-  void set_reset_tx_grace(uint16_t ms) { this->reset_tx_grace_ms_ = ms; }
   // NMT state after boot: OPERATIONAL (default) or PRE_OPERATIONAL (until an NMT master, or set_nmt_state(), starts
   // the node)
   void set_start_operational(bool operational) { this->start_operational_ = operational; }
@@ -120,9 +117,10 @@ class CANopenComponent : public Component {
   }
 #ifdef USE_CANOPEN_NODE_MONITOR
   // Heartbeat monitoring of another node (CANopenNode heartbeat consumer, OD 0x1016; canopen.enable_node_monitor() in
-  // codegen). Before setup() only (called from codegen). Registering a node again keeps the shortest timeout. Node id
-  // 0, above 127, our own, or a timeout of 0 is logged and ignored.
-  void monitor_node(uint8_t node_id, uint16_t timeout_ms);
+  // codegen). Before setup() only, from codegen (cg.slot_list() sizes the storage). Registering a node again keeps the
+  // shortest timeout. Node id 0, above 127, our own, or a timeout of 0 is logged and ignored.
+  SLOT_LIST_REQUIRES(ESPHOME_CANOPEN_HEARTBEAT_CLIENTS)
+  void monitor_node(uint8_t node_id, uint16_t timeout_ms) { this->monitor_node_(node_id, timeout_ms); }
   // state of a monitored node from its last heartbeat; UNKNOWN / false for nodes that aren't monitored
   NMTState get_node_state(uint8_t node_id);
   bool is_node_online(uint8_t node_id);
@@ -266,9 +264,7 @@ class CANopenComponent : public Component {
   LazyCallbackManager<void(NMTState)> nmt_state_callback_;
   uint32_t cob_emcy_{0x80};                // 0x1014, CANopenNode adds the node id
   uint32_t last_us_{0};                    // the node's clock (CO_process())
-  uint32_t reset_ms_{0};                   // when an NMT reset node came, see reset_pending_
-  uint32_t reset_flushed_ms_{0};           // when CANopenNode's TX queue was empty after it
-  uint16_t reset_tx_grace_ms_{20};         // set_reset_tx_grace()
+  uint32_t reset_deadline_ms_{0};          // NMT reset node: reboot time, see reset_pending_
   uint32_t dev_type_{0};                   // 0x1000
   const char *device_name_{nullptr};       // 0x1008
   const char *hardware_version_{nullptr};  // 0x1009, only if set
@@ -285,7 +281,6 @@ class CANopenComponent : public Component {
   bool start_operational_{true};
   // NMT reset node: reboot once the queued frames are sent (and RESET_TX_GRACE_MS later)
   bool reset_pending_{false};
-  bool reset_flushed_{false};
   bool processing_{false};  // inside process_node_(), also in the automations it runs
 #ifdef USE_CANOPEN_NMT_MASTER
   bool nmt_sending_{false};  // inside CO_NMT_sendCommand(): guards send_nmt() against a log handler calling it again
@@ -293,9 +288,13 @@ class CANopenComponent : public Component {
 #endif  // USE_CANOPEN_NODE
 
   // --- Node monitoring (node_monitor.cpp) ---
+#ifdef USE_CANOPEN_NODE_MONITOR
+  uint8_t hb_cons_count_{0};  // 0x1016:0; first, so it packs with the node's small members
+#endif
   void node_event_(uint8_t node_id, NodeEvent event, NMTState state);
   LazyCallbackManager<void(uint8_t, NodeEvent, NMTState)> node_event_callback_;
 #ifdef USE_CANOPEN_NODE_MONITOR
+  void monitor_node_(uint8_t node_id, uint16_t timeout_ms);
   void add_node_monitor_od_();
   void config_node_monitor_(CO_config_t &cfg);
   void init_node_monitor_();
@@ -306,18 +305,18 @@ class CANopenComponent : public Component {
   static void on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object);
   static void on_hb_timeout(uint8_t node_id, uint8_t idx, void *object);
   static void on_hb_remote_reset(uint8_t node_id, uint8_t idx, void *object);
+  static void push_node_event_(void *object, uint8_t node_id, NodeEvent event, NMTState state);
   void dispatch_node_events_();
-  // CANopenNode calls the consumer callbacks before it stores the node's new state, so they only record the event;
-  // process_node_() dispatches them after CO_process(), when is_node_online() / get_node_state() agree with them.
-  // At most 2 per monitored node per CO_process() (heartbeat started or boot-up or timeout, then NMT changed).
+  // Consumer callbacks run before CANopenNode stores the new state, so they only record the event for after
+  // CO_process(); at most 2 per monitored node per pass.
   struct PendingNodeEvent {
     uint8_t node_id;
     NodeEvent event;
     NMTState state;
   };
   FixedVector<PendingNodeEvent> pending_node_events_;  // allocated in init_node_monitor_()
-  std::vector<uint32_t> hb_cons_;                      // 0x1016:1.., (node_id << 16) | timeout_ms
-  uint8_t hb_cons_count_{0};                           // 0x1016:0
+  // 0x1016:1.., (node_id << 16) | timeout_ms
+  [[no_unique_address]] SlotList<uint32_t, ESPHOME_CANOPEN_HEARTBEAT_CLIENTS> hb_cons_;
 #endif
 
   // --- Raw frames (frames.cpp) ---

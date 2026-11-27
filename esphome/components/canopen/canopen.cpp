@@ -14,8 +14,10 @@ namespace esphome::canopen {
 ESPHOME_LOG_TAG(TAG, "canopen");
 
 #ifdef USE_CANOPEN_NODE
-// an NMT reset node waits at most the grace time (reset_tx_grace_ms_) plus this long for queued frames (e.g. our own
-// broadcast reset_node) to be sent
+// NMT reset node: once CANopenNode's queue is empty, the CAN controller's time to send what it holds (the canbus API
+// only says a frame was accepted): 4 frames at 10 kbit/s, the lowest CiA 301 rate
+static constexpr uint32_t RESET_TX_GRACE_MS = 60;
+// and the extra time it waits at most for the queue to empty (e.g. our own broadcast reset_node)
 static constexpr uint32_t RESET_FLUSH_EXTRA_MS = 80;
 #endif
 
@@ -31,15 +33,13 @@ const LogString *nmt_state_to_string(NMTState state) {
   return NMTStateStrings::get_log_str(NMTStateStrings::LAST_INDEX, NMTStateStrings::LAST_INDEX);
 }
 
-// NMTState uses CANopenNode's values; CO_NMT_UNKNOWN (-1) becomes NMT_STATE_UNKNOWN (255). Not static: the node
-// monitor uses it too.
+// to_nmt_state() casts: NMTState uses CANopenNode's values; CO_NMT_UNKNOWN (-1) becomes NMT_STATE_UNKNOWN (255)
 static_assert(static_cast<uint8_t>(CO_NMT_INITIALIZING) == static_cast<uint8_t>(NMTState::NMT_STATE_BOOTUP));
 static_assert(static_cast<uint8_t>(CO_NMT_STOPPED) == static_cast<uint8_t>(NMTState::NMT_STATE_STOPPED));
 static_assert(static_cast<uint8_t>(CO_NMT_OPERATIONAL) == static_cast<uint8_t>(NMTState::NMT_STATE_OPERATIONAL));
 static_assert(static_cast<uint8_t>(CO_NMT_PRE_OPERATIONAL) ==
               static_cast<uint8_t>(NMTState::NMT_STATE_PRE_OPERATIONAL));
 static_assert(static_cast<uint8_t>(CO_NMT_UNKNOWN) == static_cast<uint8_t>(NMTState::NMT_STATE_UNKNOWN));
-NMTState to_nmt_state(CO_NMT_internalState_t state) { return static_cast<NMTState>(state); }
 
 void CANopenComponent::setup() {
   if (this->canbus_->is_failed()) {
@@ -239,19 +239,17 @@ void CANopenComponent::process_node_() {
   if (reset == CO_RESET_APP && !this->reset_pending_) {
     ESP_LOGW(TAG, "NMT reset node");
     this->reset_pending_ = true;
-    this->reset_ms_ = now_ms;
+    this->reset_deadline_ms_ = now_ms + RESET_TX_GRACE_MS + RESET_FLUSH_EXTRA_MS;
   } else if (reset == CO_RESET_COMM) {
     ESP_LOGW(TAG, "NMT reset communication (not implemented)");
   }
   // The reboot waits for the queued frames (loop() flushes them before it processes the node), then for the controller
   // to send them: a reset_node to all nodes from us would otherwise reboot us before its frame is on the bus.
   if (this->reset_pending_) {
-    if (!this->reset_flushed_ && this->co_->CANmodule->CANtxCount == 0) {
-      this->reset_flushed_ = true;
-      this->reset_flushed_ms_ = now_ms;
-    }
-    if ((this->reset_flushed_ && now_ms - this->reset_flushed_ms_ >= this->reset_tx_grace_ms_) ||
-        now_ms - this->reset_ms_ >= this->reset_tx_grace_ms_ + RESET_FLUSH_EXTRA_MS)
+    if (this->co_->CANmodule->CANtxCount == 0 &&
+        static_cast<int32_t>(now_ms + RESET_TX_GRACE_MS - this->reset_deadline_ms_) < 0)
+      this->reset_deadline_ms_ = now_ms + RESET_TX_GRACE_MS;
+    if (static_cast<int32_t>(now_ms - this->reset_deadline_ms_) >= 0)
       App.safe_reboot();
   }
   // CANopenNode's state change callback has no context pointer, so the state is compared here

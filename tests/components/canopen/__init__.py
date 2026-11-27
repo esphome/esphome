@@ -19,6 +19,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         enable_sdo_client()
         enable_nmt_master()
         enable_node_monitor()
+        # the C++ unit test build has no hub config to count heartbeat clients from
+        cg.add_define("ESPHOME_CANOPEN_HEARTBEAT_CLIENTS", 4)
         cg.add_define("USE_CANOPEN_HEARTBEAT")
         cg.add_define("USE_CANOPEN_EMCY")
         # loopback_test.cpp: nodes on one canbus

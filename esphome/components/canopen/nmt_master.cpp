@@ -9,6 +9,15 @@ namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen");
 
+// NMTCommand uses CANopenNode's values: send_nmt() casts it
+static_assert(static_cast<uint8_t>(CO_NMT_ENTER_OPERATIONAL) == static_cast<uint8_t>(NMTCommand::NMT_COMMAND_START));
+static_assert(static_cast<uint8_t>(CO_NMT_ENTER_STOPPED) == static_cast<uint8_t>(NMTCommand::NMT_COMMAND_STOP));
+static_assert(static_cast<uint8_t>(CO_NMT_ENTER_PRE_OPERATIONAL) ==
+              static_cast<uint8_t>(NMTCommand::NMT_COMMAND_PRE_OPERATIONAL));
+static_assert(static_cast<uint8_t>(CO_NMT_RESET_NODE) == static_cast<uint8_t>(NMTCommand::NMT_COMMAND_RESET_NODE));
+static_assert(static_cast<uint8_t>(CO_NMT_RESET_COMMUNICATION) ==
+              static_cast<uint8_t>(NMTCommand::NMT_COMMAND_RESET_COMMUNICATION));
+
 bool CANopenComponent::send_nmt(uint8_t node_id, NMTCommand command) {
   // A log handler inside our own send (canbus logs a frame) calling us again would overwrite the frame being sent
   // before CANopenNode marks its buffer: refused, without logging (we are inside a log call)

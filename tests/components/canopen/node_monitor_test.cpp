@@ -27,12 +27,15 @@ class NodeMonitorTest : public ::testing::Test {
   TestHub hub_{&this->bus_};
   std::vector<Event> events_;
 
-  void start_(uint16_t timeout_ms) {
+  void setup_(uint16_t timeout_ms) {
     this->hub_.monitor_node(0x21, timeout_ms);
     this->hub_.add_on_node_event_callback(
         [this](uint8_t node_id, NodeEvent event, NMTState state) { this->events_.push_back({node_id, event, state}); });
     this->hub_.setup();
     ASSERT_FALSE(this->hub_.is_failed());
+  }
+  void start_(uint16_t timeout_ms) {
+    this->setup_(timeout_ms);
     this->hub_.loop();
   }
 };
@@ -82,11 +85,7 @@ TEST_F(NodeMonitorTest, EventsFromHeartbeats) {
 // Frames before the hub's first loop(): a heartbeat and a boot-up aren't lost to the first processing (which takes the
 // node to operational).
 TEST_F(NodeMonitorTest, HeartbeatBeforeTheFirstLoop) {
-  this->hub_.monitor_node(0x21, 1000);
-  this->hub_.add_on_node_event_callback(
-      [this](uint8_t node_id, NodeEvent event, NMTState state) { this->events_.push_back({node_id, event, state}); });
-  this->hub_.setup();
-  ASSERT_FALSE(this->hub_.is_failed());
+  this->setup_(1000);
   this->hub_.frame(0x721, {0x05});
   ASSERT_FALSE(this->events_.empty());
   EXPECT_EQ(this->events_.front(), (Event{0x21, NodeEvent::NODE_EVENT_ONLINE, NMTState::NMT_STATE_OPERATIONAL}));
@@ -94,11 +93,7 @@ TEST_F(NodeMonitorTest, HeartbeatBeforeTheFirstLoop) {
 }
 
 TEST_F(NodeMonitorTest, BootupBeforeTheFirstLoop) {
-  this->hub_.monitor_node(0x21, 1000);
-  this->hub_.add_on_node_event_callback(
-      [this](uint8_t node_id, NodeEvent event, NMTState state) { this->events_.push_back({node_id, event, state}); });
-  this->hub_.setup();
-  ASSERT_FALSE(this->hub_.is_failed());
+  this->setup_(1000);
   this->hub_.frame(0x721, {0x00});
   ASSERT_FALSE(this->events_.empty());
   EXPECT_EQ(this->events_.front().event, NodeEvent::NODE_EVENT_RESET);
@@ -132,25 +127,19 @@ TEST_F(NodeMonitorTest, MonitoringContinuesWhileStopped) {
   EXPECT_TRUE(this->hub_.is_node_online(0x21));
 }
 
-TEST_F(NodeMonitorTest, TimeoutWhileStopped) {
-  this->start_(30);
-  this->hub_.frame(0x721, {0x05});
-  this->hub_.frame(0x000, {0x02, 0x10});
-  this->hub_.loop();
-  ASSERT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
-  this->events_.clear();
-  std::this_thread::sleep_for(std::chrono::milliseconds(60));
-  this->hub_.loop();
-  ASSERT_FALSE(this->events_.empty());
-  EXPECT_EQ(this->events_.front(), (Event{0x21, NodeEvent::NODE_EVENT_OFFLINE, NMTState::NMT_STATE_UNKNOWN}));
-  EXPECT_FALSE(this->hub_.is_node_online(0x21));
-}
+// The node is processed on the real clock (micros()), so the test waits out a short timeout; also while this node is
+// stopped.
+class NodeMonitorTimeoutTest : public NodeMonitorTest, public ::testing::WithParamInterface<bool> {};
 
-// The node is processed on the real clock (micros()), so the test waits out a short timeout.
-TEST_F(NodeMonitorTest, TimeoutReportsOffline) {
+TEST_P(NodeMonitorTimeoutTest, ReportsOffline) {
   this->start_(30);
   this->hub_.frame(0x721, {0x05});
   ASSERT_TRUE(this->hub_.is_node_online(0x21));
+  if (GetParam()) {
+    this->hub_.frame(0x000, {0x02, 0x10});  // an NMT master stops us
+    this->hub_.loop();
+    ASSERT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  }
   this->events_.clear();
   std::this_thread::sleep_for(std::chrono::milliseconds(60));
   this->hub_.loop();
@@ -165,24 +154,22 @@ TEST_F(NodeMonitorTest, TimeoutReportsOffline) {
   EXPECT_EQ(this->events_.front().event, NodeEvent::NODE_EVENT_ONLINE);
 }
 
+INSTANTIATE_TEST_SUITE_P(Stopped, NodeMonitorTimeoutTest, ::testing::Bool());
+
 // An event's automation sees the state it reports: CANopenNode calls the consumer callbacks before it stores the new
 // state, so the events are dispatched after CO_process().
-TEST(CanopenNodeMonitor, QueriesInAnEventSeeTheNewState) {
+TEST_F(NodeMonitorTest, QueriesInAnEventSeeTheNewState) {
   struct Seen {
     NodeEvent event;
     bool online;
     NMTState state;
   };
-  FakeCanbus bus;
-  TestHub hub{&bus};
+  TestHub &hub = this->hub_;
   std::vector<Seen> seen;
-  hub.monitor_node(0x21, 30);
   hub.add_on_node_event_callback([&](uint8_t node_id, NodeEvent event, NMTState state) {
     seen.push_back({event, hub.is_node_online(node_id), hub.get_node_state(node_id)});
   });
-  hub.setup();
-  ASSERT_FALSE(hub.is_failed());
-  hub.loop();
+  this->start_(30);
   auto find = [&](NodeEvent event) {
     for (const Seen &s : seen) {
       if (s.event == event)
@@ -246,13 +233,23 @@ TEST(CanopenNodeMonitor, ConsumerEntries) {
 #endif  // USE_CANOPEN_NODE_MONITOR
 
 #ifdef USE_CANOPEN_NMT_MASTER
-TEST(CanopenNmtMaster, Commands) {
-  FakeCanbus bus;
-  TestHub hub(&bus);
-  hub.setup();
-  ASSERT_FALSE(hub.is_failed());
-  hub.loop();
-  bus.sent.clear();
+// A started node (0x10), nothing sent yet.
+class NmtMasterTest : public ::testing::Test {
+ protected:
+  FakeCanbus bus_;
+  TestHub hub_{&this->bus_};
+
+  void SetUp() override {
+    this->hub_.setup();
+    ASSERT_FALSE(this->hub_.is_failed());
+    this->hub_.loop();
+    this->bus_.sent.clear();
+  }
+};
+
+TEST_F(NmtMasterTest, Commands) {
+  FakeCanbus &bus = this->bus_;
+  TestHub &hub = this->hub_;
 
   // to another node: one frame on 0x000, the node's own state unchanged
   ASSERT_TRUE(hub.send_nmt(0x21, NMTCommand::NMT_COMMAND_START));
@@ -280,13 +277,9 @@ TEST(CanopenNmtMaster, Commands) {
 }
 
 // A command while the previous one waits in the TX buffer is refused and doesn't replace it.
-TEST(CanopenNmtMaster, CommandWhileTheFrameWaits) {
-  FakeCanbus bus;
-  TestHub hub(&bus);
-  hub.setup();
-  ASSERT_FALSE(hub.is_failed());
-  hub.loop();
-  bus.sent.clear();
+TEST_F(NmtMasterTest, CommandWhileTheFrameWaits) {
+  FakeCanbus &bus = this->bus_;
+  TestHub &hub = this->hub_;
   bus.busy = true;
   ASSERT_TRUE(hub.send_nmt(0x21, NMTCommand::NMT_COMMAND_START));  // queued
   EXPECT_FALSE(hub.send_nmt(0, NMTCommand::NMT_COMMAND_RESET_NODE));
@@ -299,20 +292,14 @@ TEST(CanopenNmtMaster, CommandWhileTheFrameWaits) {
 
 // Commands for us (or all nodes) are applied right away: CANopenNode keeps one until its processing, where a received
 // NMT frame or set_nmt_state() would replace it.
-class NmtForUsTest : public ::testing::Test {
+class NmtForUsTest : public NmtMasterTest {
  protected:
-  FakeCanbus bus_;
-  TestHub hub_{&this->bus_};
   std::vector<NMTState> states_;
 
   void SetUp() override {
-    this->hub_.add_on_nmt_state_callback([this](NMTState state) { this->states_.push_back(state); });
-    this->hub_.setup();
-    ASSERT_FALSE(this->hub_.is_failed());
-    this->hub_.loop();
+    NmtMasterTest::SetUp();
     ASSERT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
-    this->states_.clear();
-    this->bus_.sent.clear();
+    this->hub_.add_on_nmt_state_callback([this](NMTState state) { this->states_.push_back(state); });
   }
 };
 
@@ -360,13 +347,9 @@ TEST_F(NmtForUsTest, FromInsideTheProcessing) {
 
 // A log handler inside the send (here the canbus driver) calling send_nmt() again is refused: it would overwrite the
 // frame being sent and count CANopenNode's TX buffer twice.
-TEST(CanopenNmtMaster, CommandFromInsideItsOwnSend) {
-  FakeCanbus bus;
-  TestHub hub(&bus);
-  hub.setup();
-  ASSERT_FALSE(hub.is_failed());
-  hub.loop();
-  bus.sent.clear();
+TEST_F(NmtMasterTest, CommandFromInsideItsOwnSend) {
+  FakeCanbus &bus = this->bus_;
+  TestHub &hub = this->hub_;
   bool nested = true;
   bus.on_send = [&](uint32_t) {
     bus.on_send = nullptr;
@@ -382,15 +365,12 @@ TEST(CanopenNmtMaster, CommandFromInsideItsOwnSend) {
   EXPECT_EQ(hub.tx_count(), 0u);
 }
 
-// A reset_node to all nodes reboots us (safe_reboot() exits on the host) only 20 ms after its frame is handed to the
-// driver (the controller may still hold it), or after 100 ms.
+// A reset_node to all nodes reboots us (safe_reboot() exits on the host) only 60 ms after its frame is handed to the
+// driver (the controller may still hold it), or after 140 ms.
 // Each case runs in a death test's child: a reboot too early would end the test binary.
-TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
-  FakeCanbus bus;
-  TestHub hub(&bus);
-  hub.setup();
-  ASSERT_FALSE(hub.is_failed());
-  hub.loop();
+TEST_F(NmtMasterTest, ResetNodeRebootsAfterItsFrame) {
+  FakeCanbus &bus = this->bus_;
+  TestHub &hub = this->hub_;
   bus.busy = true;
   ASSERT_TRUE(hub.send_nmt(0, NMTCommand::NMT_COMMAND_RESET_NODE));  // queued
   auto wait = [&hub]() {
@@ -411,12 +391,12 @@ TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
         wait();
         bus.busy = false;
         hub.loop();
-        advance_loop_clock(19);
+        advance_loop_clock(59);
         hub.loop();
         exit(bus.count(0x000) == 1 ? 3 : 4);
       },
       ::testing::ExitedWithCode(3), "");
-  // rebooted 20 ms after the hand-over; on_send runs before the frame is taken or refused, so only a frame the
+  // rebooted 60 ms after the hand-over; on_send runs before the frame is taken or refused, so only a frame the
   // driver takes counts
   bus.on_send = [&bus](uint32_t can_id) {
     if (can_id == 0x000 && !bus.busy)
@@ -427,7 +407,7 @@ TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
         wait();
         bus.busy = false;
         hub.loop();
-        advance_loop_clock(20);
+        advance_loop_clock(60);
         hub.loop();
         exit(4);
       },
@@ -436,7 +416,7 @@ TEST(CanopenNmtMaster, ResetNodeRebootsAfterItsFrame) {
   EXPECT_EXIT(
       {
         wait();
-        advance_loop_clock(50);
+        advance_loop_clock(90);
         hub.loop();
         exit(4);
       },
