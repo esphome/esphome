@@ -294,6 +294,17 @@ def test_aggregate_keeps_its_own_metadata() -> None:
     assert aggregate[CONF_DEVICE_CLASS] == "carbon_dioxide"
 
 
+def test_aggregate_can_clear_the_source_metadata() -> None:
+    empty = {CONF_UNIT_OF_MEASUREMENT: "", CONF_DEVICE_CLASS: ""}
+    platform = {CONF_COLUMNS: [{CONF_COLUMN: "value", CONF_AVERAGE: dict(empty)}]}
+    source = {
+        CONF_UNIT_OF_MEASUREMENT: "ppm",
+        CONF_DEVICE_CLASS: "carbon_dioxide",
+    }
+    _final_validate_with_hub(_config(**{CONF_TIME_ID: "clock"}), platform, source)
+    assert platform[CONF_COLUMNS][0][CONF_AVERAGE] == empty
+
+
 def test_aggregate_of_a_source_without_metadata_gets_none() -> None:
     platform = {CONF_COLUMNS: [{CONF_COLUMN: "value", CONF_AVERAGE: {}}]}
     _final_validate_with_hub(_config(**{CONF_TIME_ID: "clock"}), platform)

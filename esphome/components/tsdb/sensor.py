@@ -91,7 +91,8 @@ def _inherit_source_metadata(
     """Give each aggregate the unit and device class of the sensor it summarizes.
 
     Units and device classes are registered during code generation, so this has to be
-    decided here, before the sensors are built. A value set on the aggregate wins.
+    decided here, before the sensors are built. A value set on the aggregate wins,
+    an empty one included.
     """
     by_name = {column[CONF_NAME]: column for column in hub[CONF_COLUMNS]}
     for column in columns:
@@ -103,7 +104,7 @@ def _inherit_source_metadata(
             if aggregate is None:
                 continue
             for metadata in _METADATA:
-                if not aggregate.get(metadata) and (value := source.get(metadata)):
+                if metadata not in aggregate and (value := source.get(metadata)):
                     aggregate[metadata] = value
 
 
