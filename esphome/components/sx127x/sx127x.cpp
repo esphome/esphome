@@ -651,6 +651,27 @@ void SX127x::change_mode_(uint8_t mode) {
   }
 }
 
+void SX127x::retune(uint32_t frequency) {
+  if (this->state_ != RadioState::RADIO_STATE_IDLE) {
+    ESP_LOGW(TAG, "Radio unavailable, frequency change ignored");
+    return;
+  }
+  // The frequency registers are written in standby
+  if (!this->set_mode_(this->applied_.modulation, MODE_STDBY)) {
+    this->fail_(set_mode_failure());
+    return;
+  }
+  this->frequency_ = frequency;
+  this->applied_.frequency = frequency;
+  uint64_t frf = ((uint64_t) frequency << 19) / FXOSC;
+  uint8_t frf_bytes[3];
+  put_be24(frf_bytes, static_cast<uint32_t>(frf));
+  this->write_registers_(REG_FRF_MSB, frf_bytes, sizeof(frf_bytes));
+  if (!this->restore_()) {
+    this->fail_(set_mode_failure());
+  }
+}
+
 void SX127x::set_mode_rx() { this->change_mode_(MODE_RX); }
 
 void SX127x::set_mode_tx() { this->change_mode_(MODE_TX); }

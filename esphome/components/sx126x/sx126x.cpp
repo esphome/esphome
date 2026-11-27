@@ -106,6 +106,20 @@ void SX126x::set_mode_sleep(bool cold) {
 }
 void SX126x::run_image_cal() { this->change_mode_(ModeCommand::MODE_COMMAND_IMAGE_CAL); }
 
+void SX126x::retune(uint32_t frequency) {
+  if (this->cold_sleep_) {
+    // The configuration was lost; waking configures the radio again, on this frequency
+    this->requested_profile_.frequency = frequency;
+    return;
+  }
+  if (!this->radio_.can_change_mode()) {
+    ESP_LOGW(TAG, "Radio unavailable, frequency change ignored");
+    return;
+  }
+  this->requested_profile_.frequency = frequency;
+  this->apply_(this->radio_.retune(frequency));
+}
+
 void SX126x::change_mode_(ModeCommand command, uint8_t arg) {
   const bool sleep = command == ModeCommand::MODE_COMMAND_SLEEP || command == ModeCommand::MODE_COMMAND_COLD_SLEEP;
   if (this->cold_sleep_) {

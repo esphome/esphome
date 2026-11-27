@@ -76,6 +76,11 @@ class SX126x final : public Component {
   void set_tcxo_voltage(uint8_t tcxo_voltage) { this->requested_profile_.tcxo_voltage = tcxo_voltage; }
   void set_tcxo_delay(uint32_t tcxo_delay) { this->requested_profile_.tcxo_delay = tcxo_delay; }
   void run_image_cal();
+  // Moves the running radio to another frequency, without configuring it again, then receives or sleeps as the
+  // configuration says. The frequency is kept for later configurations. Ignored with a warning unless the radio is
+  // idle and configured; after a cold sleep it is kept and applied when the radio wakes. The image is calibrated for
+  // the band the radio started in: run run_image_cal() after a move to another band.
+  void retune(uint32_t frequency);
   // Mode changes and configuration are allowed during RX callbacks when the radio
   // is available; they never modify the borrowed packet buffer.
   void configure();

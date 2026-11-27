@@ -109,6 +109,10 @@ class SX127x final : public Component,
   void set_spreading_factor(uint8_t spreading_factor) { this->spreading_factor_ = spreading_factor; }
   void set_sync_value(const std::vector<uint8_t> &sync_value) { this->sync_value_ = sync_value; }
   void run_image_cal();
+  // Moves the radio to another frequency without configuring it again, then receives or sleeps as the configuration
+  // says. The frequency is kept for later configurations. Ignored with a warning unless the radio is idle. The image is
+  // calibrated for the band the radio started in: run run_image_cal() after a move to another band.
+  void retune(uint32_t frequency);
   // Ignored while a send is on air; discards a held packet
   void configure();
   SX127xError transmit_packet(const uint8_t *data, size_t len);

@@ -52,6 +52,9 @@ button:
         - sx127x.set_mode_tx
         - sx127x.set_mode_sleep
         - sx127x.set_mode_rx
+        - sx127x.set_frequency: 434.5MHz
+        - sx127x.set_frequency:
+            frequency: !lambda return 433920000 + (uint32_t) id(sx127x_my_number).state * 200000;
         - sx127x.send_packet:
             data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
         - sx127x.send_packet: !lambda |-
