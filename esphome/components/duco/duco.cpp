@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::duco {
 
@@ -56,7 +57,7 @@ void Duco::close_request(DucoDevice *device) {
 bool Duco::parse_byte_(uint8_t byte) {
   const size_t at = this->rx_size_;
   if (at >= MAX_FRAME_SIZE) {
-    ESP_LOGV(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
+    ESP_LOGW(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
     return false;
   }
   const uint8_t prev = at > 0 ? this->rx_buffer_[at - 1] : 0;
@@ -178,26 +179,28 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
-static const LogString *node_type_name(uint8_t type) {
-  switch (type) {
-    case 8:
-      return LOG_STR("UCBAT");
-    case 9:
-      return LOG_STR("UC");
-    case 10:
-      return LOG_STR("UCRH");
-    case 12:
-      return LOG_STR("UCCO2");
-    case 13:
-      return LOG_STR("VLV");
-    case 17:
-      return LOG_STR("BOX");
-    case 18:
-      return LOG_STR("SWITCH");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+// Indexed by node type - 1 (types 1-49); type 0 wraps to a huge index and falls back to UNKNOWN too
+PROGMEM_STRING_TABLE(NodeTypeStrings, "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", "CLIMA", "UCBAT", "UC", "UCRH", "UCVOC",
+                     "UCCO2", "VLV", "VLVRH", "VLVVOC", "VLVCO2", "BOX", "SWITCH", "ACTUAT", "UCBATRH", "PWMIN", "IAV",
+                     "IAVRH", "IAVVOC", "IAVCO2", "BOILER", "TRONIC", "VLVCO2RH", "UCSUN", "UCVENT", "EAV", "EAVRH",
+                     "EAVVOC", "EAVCO2", "BSRH", "BSVOC", "BSCO2", "MOTORRLY", "WXSENSOR", "MOTORMB", "DI", "DO",
+                     "COMM", "RLYMB", "PERILEX", "RO", "HEATODA", "AO", "CSCO2", "UNKNOWN");
+
+static_assert(NodeTypeStrings::LAST_INDEX == 49);
+
+const LogString *node_type_name(uint8_t type, uint8_t network_type) {
+  // A box sensor reports the UC type it is built on; BSRH and BSCO2 are types 35 and 37
+  if (network_type == NETWORK_TYPE_VIRTUAL && (type == 10 || type == 12))
+    type += 25;
+  return NodeTypeStrings::get_log_str(type - 1);
 }
+
+// Indexed by network type (types 0-3); last entry is the unknown fallback.
+PROGMEM_STRING_TABLE(NetworkTypeStrings, "-", "Wired", "RF", "Virtual", "unknown");
+
+static_assert(NetworkTypeStrings::LAST_INDEX == 4);
+
+const LogString *network_type_name(uint8_t type) { return NetworkTypeStrings::get_log_str(type); }
 
 void DucoDiscovery::setup() {
   // Give the box time to start before walking its node addresses
@@ -230,8 +233,12 @@ void DucoDiscovery::receive_response(const DucoMessage &message) {
   if (message.size >= 1 && this->next_node_ < NODE_COUNT) {
     if (message.data[0] != 0) {
       ESP_LOGV(TAG, "Found node %u: type %u", this->next_node_, message.data[0]);
+      const uint8_t type = message.data[0] <= NODE_TYPE_MASK ? message.data[0] : NODE_TYPE_MASK;
+      const uint8_t network = node_network_type(message);
+      this->node_types_[this->next_node_] =
+          type | ((network <= NETWORK_TYPE_VIRTUAL ? network : 0) << NETWORK_TYPE_SHIFT);
     }
-    this->node_types_[this->next_node_++] = message.data[0];
+    this->next_node_++;
     this->attempts_ = 0;
   }
 }
@@ -239,9 +246,12 @@ void DucoDiscovery::receive_response(const DucoMessage &message) {
 void DucoDiscovery::dump_config() {
   ESP_LOGCONFIG(TAG, "Discovered nodes:");
   for (uint8_t node = 0; node < NODE_COUNT; node++) {
-    const uint8_t type = this->node_types_[node];
+    const uint8_t packed = this->node_types_[node];
+    const uint8_t type = packed & NODE_TYPE_MASK;
     if (type != 0) {
-      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s)", node, type, LOG_STR_ARG(node_type_name(type)));
+      const uint8_t network_type = packed >> NETWORK_TYPE_SHIFT;
+      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s) network: %s", node, type,
+                    LOG_STR_ARG(node_type_name(type, network_type)), LOG_STR_ARG(network_type_name(network_type)));
     }
   }
   if (this->next_node_ < NODE_COUNT) {

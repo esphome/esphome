@@ -4,7 +4,9 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-static const uint8_t FRAME_BUF_MAX_SIZE = 128;
+// 6 header bytes, up to 32 data bytes, sum and 2 footer bytes
+static constexpr uint8_t FRAME_BUF_MAX_SIZE = 41;
+static constexpr uint8_t MIN_FRAME_SIZE = 10;  // header (2), control, command, length (2), 1 data byte, sum, footer (2)
 static const uint8_t PRODUCT_BUF_MAX_SIZE = 32;
 
 static const uint8_t FRAME_CONTROL_WORD_INDEX = 2;

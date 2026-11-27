@@ -249,8 +249,7 @@ bool DfrobotSen0395Component::handle_reply_(const Command &cmd, const char *mess
 
   // Configuration commands, which need the sensor stopped
   if (is(ESPHOME_PSTR("sensor is not stopped"))) {
-    ESP_LOGE(TAG, "Cannot %s. Sensor is not stopped!",
-             LOG_STR_ARG(BusyActions::get_log_str(static_cast<uint8_t>(cmd.type), 0)));
+    ESP_LOGE(TAG, "Cannot %s. Sensor is not stopped!", LOG_STR_ARG(BusyActions::get_log_str(cmd.type, 0)));
     return true;
   }
   if (!is(ESPHOME_PSTR("Done")))

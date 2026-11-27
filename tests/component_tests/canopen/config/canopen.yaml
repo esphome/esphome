@@ -1,0 +1,43 @@
+esphome:
+  name: canopen-test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+
+canopen:
+  - id: canopen_node
+    canbus_id: can_bus
+    node_id: 0x10
+    heartbeat_interval: 2s
+    identity:
+      vendor_id: 0x12345678
+      product_code: 0x2A
+    hardware_version: rev B
+    nmt_startup: pre_operational
+    on_nmt_state_change:
+      - logger.log: "nmt state"
+    on_heartbeat:
+      - logger.log: "heartbeat"
+    on_emcy:
+      - logger.log: "emcy"
+
+script:
+  - id: sdo_test
+    then:
+      - canopen.sdo_write:
+          node_id: 0x01
+          index: 0x1017
+          value: -1
+          size: 2
+          on_error:
+            - logger.log: "error"

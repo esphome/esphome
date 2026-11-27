@@ -9,7 +9,7 @@ import pytest
 import esphome.codegen as cg
 from esphome.components import light
 from esphome.components.light import types as light_types
-from esphome.core import ID, EsphomeError
+from esphome.core import CORE, ID, EsphomeError
 
 
 def test_default_flash_length_and_empty_effects_are_not_emitted(
@@ -31,6 +31,17 @@ def test_default_flash_length_and_empty_effects_are_not_emitted(
         rf"static light::LightEffect \* const {call.group(1)}\[\] PROGMEM = \{{[^}}]+\}};",
         main_cpp,
     )
+    assert "USE_LIGHT_EFFECTS" in {define.name for define in CORE.defines}
+
+
+def test_effects_compile_out_without_any_effect(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """No light with effects leaves USE_LIGHT_EFFECTS undefined, so LightState drops its effect list."""
+    generate_main(component_config_path("write_on_setup.yaml"))
+
+    assert "USE_LIGHT_EFFECTS" not in {define.name for define in CORE.defines}
 
 
 def test_effect_assigned_in_setup_is_rejected() -> None:

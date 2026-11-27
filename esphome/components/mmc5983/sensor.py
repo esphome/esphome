@@ -5,9 +5,6 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
-    ICON_MAGNET,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROTESLA,
 )
 from esphome.types import ConfigType
 
@@ -19,10 +16,7 @@ MMC5983Component = mmc5983_ns.class_(
 )
 
 field_strength_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_MICROTESLA,
-    icon=ICON_MAGNET,
-    accuracy_decimals=4,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.MAGNETIC_FIELD, accuracy_decimals=2
 )
 
 CONFIG_SCHEMA = (

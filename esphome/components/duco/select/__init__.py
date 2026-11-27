@@ -11,7 +11,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["duco"]
-CODEOWNERS = ["@kokx"]
+CODEOWNERS = ["@kokx", "@w1ll14m"]
 
 # Same order as MODE_CODES in select.cpp
 DUCO_MODE_OPTIONS = [
@@ -41,5 +41,5 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await select.new_select(config, options=DUCO_MODE_OPTIONS)
+    var = await select.new_select(config, options=DUCO_MODE_OPTIONS, fixed_options=True)
     await register_duco_device(var, config, config[CONF_DUCO_ID])

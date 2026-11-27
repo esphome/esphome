@@ -1966,7 +1966,7 @@ def test_run_gh_command_retries_transient_error(second_error: str) -> None:
 
 
 def test_run_gh_command_gives_up_after_max_attempts() -> None:
-    """A persistent transient error raises after the third attempt."""
+    """A persistent transient error raises after the fifth attempt."""
     with (
         patch(
             "helpers.subprocess.run",
@@ -1977,8 +1977,8 @@ def test_run_gh_command_gives_up_after_max_attempts() -> None:
     ):
         run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
 
-    assert mock_run.call_count == 3
-    assert mock_sleep.call_count == 2
+    assert mock_run.call_count == 5
+    assert mock_sleep.call_count == 4
 
 
 @pytest.mark.parametrize(

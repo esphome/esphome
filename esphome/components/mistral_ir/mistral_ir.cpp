@@ -21,19 +21,16 @@ constexpr uint8_t MISTRAL_POWER_ON = 0x20;
 constexpr uint8_t MISTRAL_TEMP_OFFSET = 0x9F;
 constexpr uint8_t MISTRAL_MODE_AUTO = 0x10;
 
-// The tables live in flash, so entries are copied out before use
-struct ModeCode {
-  climate::ClimateMode mode;
-  uint8_t code;
-};
-static const ModeCode MODES[] PROGMEM = {
+// OFF sends the auto mode code and only clears the power byte
+static constexpr climate_ir::IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, MISTRAL_MODE_AUTO},
     {climate::CLIMATE_MODE_COOL, 0xC0},
     {climate::CLIMATE_MODE_DRY, 0x40},
     {climate::CLIMATE_MODE_FAN_ONLY, 0x80},
     {climate::CLIMATE_MODE_HEAT, 0x60},
-    {climate::CLIMATE_MODE_HEAT_COOL, MISTRAL_MODE_AUTO},
 };
 
+// Each fan speed sets two bytes; the table lives in flash, so entries are copied out before use
 struct FanCode {
   climate::ClimateFanMode fan;
   uint8_t byte1;
@@ -78,7 +75,6 @@ static bool is_valid_frame(const uint8_t *frame) {
 }
 
 void MistralIR::transmit_state() {
-  const auto mode = find_entry(MODES, [this](const ModeCode &m) { return m.mode == this->mode; });
   const climate::ClimateFanMode fan_mode = this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO);
   const FanCode fan =
       find_entry(FANS, [fan_mode](const FanCode &f) { return f.fan == fan_mode; }).value_or(load_entry(FANS[0]));
@@ -88,7 +84,7 @@ void MistralIR::transmit_state() {
   progmem_memcpy(frame, FRAME_TEMPLATE, sizeof(frame));
   frame[1] = fan.byte1;
   frame[3] = this->mode == climate::CLIMATE_MODE_OFF ? MISTRAL_POWER_OFF : MISTRAL_POWER_ON;
-  frame[4] = mode.has_value() ? mode->code : MISTRAL_MODE_AUTO;
+  frame[4] = climate_ir::to_ir_code(MODES, this->mode, MISTRAL_MODE_AUTO);
   frame[5] = reverse_bits(static_cast<uint8_t>(MISTRAL_TEMP_OFFSET - temp));
   frame[6] = fan.byte6;
   frame[11] = compute_checksum(frame);
@@ -116,12 +112,12 @@ bool MistralIR::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   // Decode everything before touching the state so an unknown code leaves it untouched
-  const auto mode = find_entry(MODES, [frame](const ModeCode &m) { return m.code == frame[4]; });
+  const auto mode = climate_ir::find_ir_code(MODES, frame[4], true);
   const auto fan = find_entry(FANS, [frame](const FanCode &f) { return f.byte1 == frame[1] && f.byte6 == frame[6]; });
   if (!mode.has_value() || !fan.has_value())
     return false;
 
-  this->mode = mode->mode;
+  this->mode = static_cast<climate::ClimateMode>(mode->value);
   this->target_temperature =
       clamp<float>(MISTRAL_TEMP_OFFSET - reverse_bits(frame[5]), MISTRAL_TEMP_MIN, MISTRAL_TEMP_MAX);
   this->fan_mode = fan->fan;

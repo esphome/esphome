@@ -11,6 +11,7 @@ from esphome.components.socket import needs_tcp
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AP,
     CONF_ENABLE_IPV6,
     CONF_ETHERNET,
     CONF_ID,
@@ -293,9 +294,9 @@ def _ip_request(
     return validator
 
 
-def require_ipv4(name: str) -> Callable[[ConfigType], ConfigType]:
-    """Return a validator declaring that component `name` needs IPv4."""
-    return _ip_request(lambda data: data.require_ipv4.add(name))
+def require_ipv4(*path: str) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator declaring that the component or option at `path` needs IPv4."""
+    return _ip_request(lambda data: data.require_ipv4.add(": ".join(path)))
 
 
 def require_ipv6(name: str) -> Callable[[ConfigType], ConfigType]:
@@ -352,6 +353,27 @@ def get_network_priority(iface: str) -> float | None:
         if entry["interface"] == iface_lower:
             return NETWORK_PRIORITY_BASE - (idx * NETWORK_PRIORITY_STEP)
     return None
+
+
+# Network interfaces a config can bring up; each exists at most once
+INTERFACE_WIFI_STA = "wifi_sta"
+INTERFACE_WIFI_AP = "wifi_ap"
+INTERFACE_ETHERNET = "ethernet"
+
+
+def configured_interfaces() -> frozenset[str]:
+    """Return the network interfaces the config brings up.
+
+    Any ``wifi:`` block brings up the station interface, plus the access point when it has ``ap:``.
+    """
+    interfaces: set[str] = set()
+    if (wifi_config := CORE.config.get(CONF_WIFI)) is not None:
+        interfaces.add(INTERFACE_WIFI_STA)
+        if CONF_AP in wifi_config:
+            interfaces.add(INTERFACE_WIFI_AP)
+    if CONF_ETHERNET in CORE.config:
+        interfaces.add(INTERFACE_ETHERNET)
+    return frozenset(interfaces)
 
 
 def get_priority_interfaces_from_full_config(full_config: ConfigType) -> set[str]:
@@ -456,7 +478,10 @@ def _final_validate(config: ConfigType) -> None:
         CONF_ENABLE_IPV4,
         "IPv4",
         data.require_ipv4,
-        default=not data.request_ipv4_off,
+        # Wi-Fi and Ethernet keep IPv4 unless the config turns it off explicitly
+        default=not data.request_ipv4_off
+        or CONF_WIFI in full_config
+        or CONF_ETHERNET in full_config,
     )
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
@@ -555,7 +580,7 @@ async def to_code(config: ConfigType) -> None:
         psram_guaranteed = psram_is_guaranteed()
         # ESP-IDF ethernet drivers malloc() received frames into internal RAM, so
         # lwip is never sized for PSRAM on an ethernet-only build.
-        ethernet_only = CONF_ETHERNET in CORE.config and CONF_WIFI not in CORE.config
+        ethernet_only = configured_interfaces() == {INTERFACE_ETHERNET}
 
         if psram_guaranteed and not ethernet_only:
             _LOGGER.info(
@@ -662,9 +687,11 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
     if enable_ipv6:
-        cg.add_define(
-            "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-        )
+        # Without IPv4 an IPv6 address is the connection, so wait for at least one
+        min_count = config[CONF_MIN_IPV6_ADDR_COUNT]
+        if not enable_ipv4:
+            min_count = max(min_count, 1)
+        cg.add_define("USE_NETWORK_MIN_IPV6_ADDR_COUNT", min_count)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
@@ -681,6 +708,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
+        # DNS over RDNSS or stateless DHCPv6 is for IPv6-only Wi-Fi and Ethernet; leave
+        # other IPv4-less builds (OpenThread) on the sdkconfig they already build with.
+        if not enable_ipv4 and CORE.has_at_least_one_component(
+            CONF_WIFI, CONF_ETHERNET
+        ):
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS", 2)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_DHCP6", True)
 
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config

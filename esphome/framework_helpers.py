@@ -17,7 +17,6 @@ import threading
 import time
 from typing import IO, TYPE_CHECKING
 from urllib.parse import urlparse
-from urllib.request import url2pathname
 
 from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
 from esphome.net_retry import (
@@ -41,8 +40,8 @@ _LOGGER = logging.getLogger(__name__)
 _MIRROR_ATTEMPTS = 3
 
 # Passes over the whole mirror list when a transient network error is in
-# the mix; shares net_retry's policy (3 tries, 2s/4s backoff), which in
-# turn matches git.py's _NETWORK_MAX_ATTEMPTS.
+# the mix; shares net_retry's policy (NETWORK_MAX_ATTEMPTS tries with
+# doubling backoff from 2s), as git.py does.
 _MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
@@ -1363,6 +1362,9 @@ def local_path_from_url(url: str) -> Path:
     Handles ``file:///home/me/x`` and ``file:///C:/x`` (no host), ``file://localhost/x``
     and ``file://server/share/x`` (a UNC path).
     """
+    # urllib.request loads http.client and the email parser, which config validation does not need
+    from urllib.request import url2pathname
+
     from esphome.core import EsphomeError
 
     try:

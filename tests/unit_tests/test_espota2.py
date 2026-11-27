@@ -1846,19 +1846,25 @@ def test_tcp_retransmits(platform: str, info: bytes, expected: int | None) -> No
 
 def test_udp_channel_reports_socket_errors() -> None:
     """A closed device port fails fast instead of waiting out the timeout."""
-    gone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    gone.bind(("127.0.0.1", 0))
-    addr = gone.getsockname()
-    gone.close()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect(addr)
-    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
-    channel.settimeout(10.0)
-    with pytest.raises(espota2.OTANetworkError, match="closed its UDP port"):
-        channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
-    # A probe that is refused falls back instead
-    assert not espota2.UdpChannel(sock, b"\x01\x01\x01\x01").probe()
-    channel.close()
+    sock = Mock()
+    # The ICMP port unreachable for each datagram, as recv reports it
+    sock.recv.side_effect = ConnectionRefusedError(61, "Connection refused")
+    # A clock that ticks 1 ms per read, so only a missed refusal reaches the timeout
+    clock = itertools.count(100.0, 0.001)
+    with (
+        patch.object(espota2, "time", Mock(monotonic=lambda: next(clock))),
+        # One refusal per wait, then nothing more to read
+        patch(
+            "select.select",
+            side_effect=itertools.cycle([([sock], [], []), ([], [], [])]),
+        ),
+    ):
+        channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+        channel.settimeout(10.0)
+        with pytest.raises(espota2.OTANetworkError, match="closed its UDP port"):
+            channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
+        # A probe that is refused falls back instead
+        assert not espota2.UdpChannel(sock, b"\x01\x01\x01\x01").probe()
 
 
 def test_udp_channel_no_progress_names_last_error() -> None:

@@ -66,6 +66,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   `breaking-changes`: what is public API, deprecation patterns and migration notes.
     *   `pr-workflow`, `code-review`, `hardware-test`, `display-test`: creating PRs, reviewing them, and testing
         on real boards and panels.
+    *   `silent-failure-review`: code paths in a branch's diff that fail without telling the user, checked
+        before a PR goes up for review.
 
 *   **Formatting:**
     *   **Python:** Uses `ruff` for linting and formatting. Configuration is in `pyproject.toml`.
@@ -238,17 +240,32 @@ file does, and it is the authority when they disagree. The most useful starting 
         `publish_state(Table::get_progmem_str(idx, fallback))`, which copies it out of flash on ESP8266.
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
-        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick
-        the helper's arguments instead of writing a loop. `put_be16`/`24`/`32`, `put_le16` and `put_le32` write an
-        integer into a byte buffer and return the pointer past it. 7-byte BCD RTC calendars use
+        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`,
+        `high_nibble`, `low_nibble`, `encode_uint12`); pick the helper's arguments instead of writing a loop.
+        `put_be16`/`24`/`32`, `put_le16` and `put_le32` write an integer into a byte buffer and return the pointer
+        past it. 7-byte BCD RTC calendars use
         `time::decode_bcd_calendar<LAYOUT>` and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`,
         `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
-        `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
+        `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`, frames that give their own length
+        with `LengthFrameReader<N, FrameFormat<FrameHeader<...>, PayloadLengthU16LE<LengthField{...}>>...>` fed by
+        `read_frames(reader, handler, now, last_rx)`, which frees frames a bad length holds; I2C has `update_register`,
+        `update_register16`, `read_byte_reg16` and `write_byte_reg16` for 16-bit register addresses,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
         `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
         poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
+    *   **Output pins** (`esphome/core/gpio_pin.h`): `setup_output_pin(pin, level)` sets a pin up at its starting
+        level and does nothing for a null pin, so an optional pin needs no check.
+        `pulse_pin(pin, level, width_us)` drives a clock, latch or strobe pulse; width 0 writes the two levels back
+        to back, and the pin must not be null. `pulse_reset(pin, {.low_ms = 10, .high_after_ms = 5})` sets up an
+        active-low reset pin and drives its whole reset sequence (`.high_before_ms` drives it high first); it is
+        null-safe too.
+    *   **Fast loop on a condition:** `this->high_freq_.set(condition)` on a `HighFrequencyLoopRequester`, not an
+        `if` that picks `start()` or `stop()`.
+    *   **Text into a fixed buffer:** `buf_append_str(buf, size, pos, "literal")` (a literal only) and
+        `buf_append_str_p(...)` for a `PGM_P` string already in flash work on every platform, so no
+        `#ifdef USE_ESP8266` is needed around them.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
         the `<name>_<type>_` member (`SUB_SWITCH(turbo)` gives `set_turbo_switch()`); do not write the pair by hand.
@@ -309,6 +326,27 @@ file does, and it is the authority when they disagree. The most useful starting 
           text::Text *source_{nullptr};
         };
         ```
+    *   **No state that copies other state:** a flag that mirrors a timer, a `has_x_` bool beside `x_`, or an enum
+        that can be worked out from fields already stored is a second source of truth. Use the source:
+        `pending = this->cancel_timeout(ID)`, an unset value of `NAN` or an out-of-range sentinel.
+    *   **No dead guards:** do not check what the caller or core already guarantees: a member that codegen always
+        sets, `is_failed()` in `loop()` (core stops calling it), a value the config validation already limits, a
+        `default:` in a `switch` over every value of an `enum class` the component sets itself (keep it when the
+        value is cast from bus data).
+    *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
+        as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
+    *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale
+        factors, thresholds, checksums) is done in `to_code` and passed as a plain value, not done in C++ at
+        boot.
+    *   **One table for both directions:** a value that is encoded and decoded through the same mapping uses one
+        `static constexpr` (`PROGMEM` on ESP8266) table of `{value, code}` pairs, not two `switch` ladders.
+    *   **Logging:** follow https://developers.esphome.io/architecture/logging/ for log levels and `dump_config()`.
+        In short: a reading is logged with `ESP_LOGV`, not `ESP_LOGD` on every update; `setup()` logs no
+        "Setting up" or "initialized" line (core logs setup); `dump_config()` combines related lines into one
+        `ESP_LOGCONFIG` call, within the 512-byte log buffer.
+    *   **Leaf classes are `final`:** a component or entity class nothing derives from is declared `final`.
+    *   **No copies within the PR:** two functions, branches or platform files that differ in a constant or two
+        become one helper, loop or table; helpers, includes and imports nothing uses are deleted.
 
 *   **Component Code Generation:** every component's `__init__.py` defines `DOMAIN` (its own name, checked by
     CI). Hub entities go in platform files (`sensor.py`, ...) that take the hub's id, not under the hub's own
@@ -322,6 +360,14 @@ file does, and it is the authority when they disagree. The most useful starting 
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
     An intentionally empty body (an unused `register_dumper` builder, for example) gets a one-line docstring, not `pass`.
+
+*   **Sensor schemas:** `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (also `HUMIDITY`, `PRESSURE`, `VOLTAGE`,
+    `CURRENT`, `POWER`, `ENERGY_KWH`, `ILLUMINANCE`, `DISTANCE_MM`, ... in `esphome/components/sensor`) sets a
+    default state class (measurement, or total increasing for energy) and whichever of the unit, device class,
+    icon (`DURATION_H`, `PM25`, ...) and default accuracy the preset defines. Pass only what it leaves unset;
+    `accuracy_decimals` and `state_class` may override its defaults (a running total is
+    `kind=sensor.DURATION_S, state_class=STATE_CLASS_TOTAL_INCREASING`), and passing a unit, device class or
+    icon the preset already sets is an error.
 
 *   **Configuration Validation:** follow the `config-validation` skill. In short: one `cv.typed_schema` per
     model, reuse validators from `config_validation.py`, and never add `CONF_` constants to the frozen
@@ -355,7 +401,16 @@ file does, and it is the authority when they disagree. The most useful starting 
         `script/test_build_components -c <component>`. Never define buses directly in test YAML: include the
         shared packages from `tests/test_build_components/common/` with dict-style `packages:`. Test file naming,
         `validate.*.yaml` config-only tests, CI grouping, C++ unit tests and integration tests are in the
-        `component-tests` skill.
+        `component-tests` skill. Tests that differ only in their inputs are one `pytest.mark.parametrize` test
+        or a table-driven gtest.
+    *   **On a real board:** a change to what a device does (a driver, a bus, a platform, a fix for a fault seen on a
+        device) is tested with the `hardware-test` skill on a board it targets, and once the PR is open its results are
+        posted on it as a comment, not in the description. "It compiles and runs on my board" does not show that the
+        changed path ran. When the fault cannot be made to happen on demand, simulate the device or inject the fault as
+        the skill's recipes do (a fake device on a UART loopback, an I2C fault bus, AT commands through a modem
+        passthrough). A contributor who tests by hand posts the same facts: the commit, the board and framework, the
+        steps including how the changed path was triggered, the log lines that show the result, and for a fix the same
+        steps on a `dev` build. Validation, codegen-only and documentation changes need no board.
 
 *   **Debugging and Troubleshooting:**
     *   **Debug Tools:**
@@ -373,7 +428,8 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   **Contribution Workflow (Pull Request Process):** the `pr-workflow` skill walks through these steps.
     1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
-    3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
+    3.  **Test:** Create component tests for all supported platforms and run the full test suite locally. A change
+        to device behaviour is also tested on a board with the `hardware-test` skill (section 6).
     4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Changes to shared code (`esphome/core/`, entity platform components such as `esphome/components/sensor/` or `esphome/components/text_sensor/`, buses, shared constants in `esphome/components/const/`, codegen) go in their own PR, never inside a component PR, unless the shared change must update several components at once to avoid breaking them; a component's own `USE_*` lines in `esphome/core/defines.h` are fine. Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
