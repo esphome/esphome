@@ -15,38 +15,33 @@
 #endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 
 #include <map>
 
 namespace esphome::seeed_mr60fda2 {
 
-static const uint8_t DATA_BUF_MAX_SIZE = 28;
-static const uint8_t FRAME_BUF_MAX_SIZE = 37;
-static const uint8_t LEN_TO_HEAD_CKSUM = 8;
-static const uint8_t LEN_TO_DATA_FRAME = 9;
+static constexpr uint8_t DATA_BUF_MAX_SIZE = 28;
+static constexpr uint8_t LEN_TO_HEAD_CKSUM = 8;
+static constexpr uint8_t LEN_TO_DATA_FRAME = 9;
+static constexpr uint8_t FRAME_BUF_MAX_SIZE = DATA_BUF_MAX_SIZE + LEN_TO_DATA_FRAME;
 
-static const uint8_t FRAME_HEADER_BUFFER = 0x01;
+static constexpr uint8_t FRAME_HEADER_BUFFER = 0x01;
+
+// 01, id (2), data length (2, BE), type (2), header checksum, data, data checksum
+using PayloadLength = PayloadLengthU16BE<LengthField{.offset = 3, .payload_at = LEN_TO_HEAD_CKSUM, .trailer = 1}>;
+/// Whether the type is known, a parameter reply is long enough and the header checksum is right
+bool header_valid(const uint8_t *frame);
+using Frame =
+    FrameFormat<FrameHeader<FRAME_HEADER_BUFFER>, PayloadLength,
+                CheckFirstBytes<PayloadLength::PAYLOAD_AT, header_valid>, FrameMinLength<LEN_TO_DATA_FRAME + 1>>;
 static const uint16_t IS_FALL_TYPE_BUFFER = 0x0E02;
 static const uint16_t PEOPLE_EXIST_TYPE_BUFFER = 0x0F09;
 static const uint16_t RESULT_INSTALL_HEIGHT = 0x0E04;
 static const uint16_t RESULT_PARAMETERS = 0x0E06;
 static const uint16_t RESULT_HEIGHT_THRESHOLD = 0x0E08;
 static const uint16_t RESULT_SENSITIVITY = 0x0E0A;
-
-enum FrameLocation {
-  LOCATE_FRAME_HEADER,
-  LOCATE_ID_FRAME1,
-  LOCATE_ID_FRAME2,
-  LOCATE_LENGTH_FRAME_H,
-  LOCATE_LENGTH_FRAME_L,
-  LOCATE_TYPE_FRAME1,
-  LOCATE_TYPE_FRAME2,
-  LOCATE_HEAD_CKSUM_FRAME,  // Header checksum: [from the first byte to the previous byte of the HEAD_CKSUM bit]
-  LOCATE_DATA_FRAME,
-  LOCATE_DATA_CKSUM_FRAME,  // Data checksum: [from the first to the previous byte of the DATA_CKSUM bit]
-  LOCATE_PROCESS_FRAME,
-};
 
 class MR60FDA2Component final : public Component,
                                 public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
@@ -65,16 +60,10 @@ class MR60FDA2Component final : public Component,
 #endif
 
  protected:
-  uint8_t current_frame_locate_;
-  uint8_t current_frame_buf_[FRAME_BUF_MAX_SIZE];
-  uint8_t current_data_buf_[DATA_BUF_MAX_SIZE];
-  uint16_t current_frame_id_;
-  size_t current_frame_len_;
-  size_t current_data_frame_len_;
-  uint16_t current_frame_type_;
+  uint32_t last_rx_{0};
+  LengthFrameReader<FRAME_BUF_MAX_SIZE, Frame> reader_;
 
-  void split_frame_(uint8_t buffer);
-  void process_frame_();
+  void process_frame_(const uint8_t *frame);
 
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }

@@ -329,7 +329,7 @@ bool OpenThreadComponent::teardown() {
   return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
-void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback) {
+void OpenThreadComponent::on_factory_reset(void (*callback)()) {
 #ifndef USE_OPENTHREAD_SRP
   // Nothing registered with an SRP server to remove first
   callback();

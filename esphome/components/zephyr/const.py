@@ -14,5 +14,9 @@ KEY_PRJ_CONF: Final = "prj_conf"
 KEY_ZEPHYR = "zephyr"
 KEY_BOARD: Final = "board"
 KEY_SYSBUILD: Final = "sysbuild"
+KEY_VARIANT_RESOLVED: Final = "variant_resolved"
+
+# `framework: version: recommended`, the same as leaving `version:` out
+VERSION_RECOMMENDED: Final = "recommended"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")

@@ -165,9 +165,9 @@ TEST_F(AirtonSerialFrameTest, StalledPartialFrameReleasedAfterGap) {
   this->uart_.push_rx(a3_frame());
   this->loop_at_(1000);
   EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
-  this->loop_at_(1049);
+  this->loop_at_(1249);
   EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
-  this->loop_at_(1050);
+  this->loop_at_(1250);
   this->expect_a3_applied_();
 }
 
