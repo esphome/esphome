@@ -75,7 +75,7 @@ def test_prune_removes_the_platforms_and_their_packages(core_dir: Path) -> None:
         _package(core_dir, "tool-cmake"),
         _package(core_dir, "framework-beken-bdk"),
         # No platform lists it
-        _package(core_dir, "framework-arduinopico@src-4567"),
+        _package(core_dir, "tool-picotool@1.2.3"),
     ]
     tools = core_dir / "tools"
     dist = core_dir / "dist"
@@ -94,6 +94,32 @@ def test_prune_removes_the_platforms_and_their_packages(core_dir: Path) -> None:
     for path in (libretiny, *stay, penv):
         assert path.is_dir()
     assert not list(core_dir.rglob("*.pruning"))
+
+
+def test_prune_removes_copies_a_newer_install_replaced(core_dir: Path) -> None:
+    rp2 = _platform(core_dir, "raspberrypi", ["framework-arduinopico", "rp2-gcc"])
+    old_rp2 = _platform(
+        core_dir, "raspberrypi@src-0123", ["framework-arduinopico", "old-rp2-gcc"]
+    )
+    libretiny = _platform(core_dir, "libretiny", ["framework-beken-bdk"])
+    old_libretiny = _platform(core_dir, "libretiny@src-4567", ["framework-beken-bdk"])
+    framework = _package(core_dir, "framework-arduinopico")
+    old_framework = _package(core_dir, "framework-arduinopico@src-89ab")
+    # Only the replaced platform copy lists it
+    old_gcc = _package(core_dir, "old-rp2-gcc")
+    stay = [
+        framework,
+        _package(core_dir, "rp2-gcc"),
+        # LibreTiny families build with different versions at once
+        _package(core_dir, "framework-beken-bdk"),
+        _package(core_dir, "framework-beken-bdk@src-cdef"),
+    ]
+
+    removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
+
+    assert set(removed) == {old_rp2, old_libretiny, old_framework, old_gcc}
+    for path in (rp2, libretiny, *stay):
+        assert path.is_dir()
 
 
 def test_prune_dry_run_changes_nothing(

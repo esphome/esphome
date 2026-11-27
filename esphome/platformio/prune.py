@@ -18,8 +18,16 @@ from esphome.platformio.toolchain import get_platformio_config
 _LOGGER = logging.getLogger(__name__)
 
 ESPRESSIF32 = "espressif32"
+ESPRESSIF8266 = "espressif8266"
 # The platforms whose PlatformIO toolchain is deprecated
-DEPRECATED_PLATFORMS = (ESPRESSIF32, "espressif8266")
+DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266)
+# Installed from a URL that changes with every version. PlatformIO moves the
+# copy a new install replaces to "<name>@src-<hash>", so a directory of that
+# form is never the one in use. LibreTiny's packages are left out: its chip
+# families build with different versions of the same package at once.
+_SUPERSEDED_PLATFORMS = ("raspberrypi", "libretiny")
+_SUPERSEDED_PACKAGES = ("framework-arduinopico",)
+_SUPERSEDED_MARK = "@src-"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
 # downloads, directly in PlatformIO's core directory
 _ESPRESSIF32_CORE_DIRS = ("tools", "dist")
@@ -28,6 +36,10 @@ _ESPRESSIF32_CORE_DIRS = ("tools", "dist")
 def _name(path: Path) -> str:
     """The platform or package name of ``<name>`` or ``<name>@<version>``."""
     return path.name.removesuffix(PRUNING_SUFFIX).partition("@")[0]
+
+
+def _superseded(path: Path, names: Collection[str]) -> bool:
+    return _SUPERSEDED_MARK in path.name and _name(path) in names
 
 
 def _package_names(platform: Path) -> set[str] | None:
@@ -46,6 +58,8 @@ def prune_platformio_installs(
     """Remove the named PlatformIO platforms and the packages only they use.
 
     A package that PlatformIO itself or a remaining platform needs is kept.
+    The copies of the RP2 and LibreTiny platforms and of the RP2 framework
+    that a newer install replaced are removed too.
     Returns the removed directories (the ones that would be removed on a dry
     run). Does nothing when PlatformIO is not installed.
     """
@@ -58,7 +72,11 @@ def prune_platformio_installs(
     platforms_dir = Path(config.get("platformio", "platforms_dir"))
     for platform in subdirs(platforms_dir, symlinks=True):
         if is_leftover(platform) or (
-            _name(platform) in platforms and not platform.is_symlink()
+            not platform.is_symlink()
+            and (
+                _name(platform) in platforms
+                or _superseded(platform, _SUPERSEDED_PLATFORMS)
+            )
         ):
             doomed.append(platform)
         else:
@@ -82,7 +100,9 @@ def prune_platformio_installs(
     removed = [
         package
         for package in subdirs(Path(config.get("platformio", "packages_dir")))
-        if is_leftover(package) or _name(package) in owned
+        if is_leftover(package)
+        or _name(package) in owned
+        or _superseded(package, _SUPERSEDED_PACKAGES)
     ]
     if ESPRESSIF32 in platforms and ESPRESSIF32 not in map(_name, kept):
         core_dir = Path(config.get("platformio", "core_dir"))
