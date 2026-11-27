@@ -6,12 +6,11 @@ import re
 
 
 def _enable_pin_numbers(main_cpp: str) -> list[int]:
-    """Get the GPIO numbers passed to set_enable_pins() in the generated code."""
-    match = re.search(r"epaper_display->set_enable_pins\(\{(.*)\}\);", main_cpp)
-    if match is None:
-        return []
+    """Get the GPIO numbers passed to register_enable_pin() in the generated code."""
     numbers = []
-    for pin_id in match.group(1).split(", "):
+    for pin_id in re.findall(
+        r"epaper_display->register_enable_pin\((\w+)\);", main_cpp
+    ):
         pin = re.search(rf"{pin_id}->set_pin\(::GPIO_NUM_(\d+)\);", main_cpp)
         assert pin is not None
         numbers.append(int(pin.group(1)))

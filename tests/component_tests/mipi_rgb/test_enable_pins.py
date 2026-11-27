@@ -6,11 +6,9 @@ import re
 
 
 def _enable_pin_numbers(main_cpp: str) -> list[int]:
-    """Get the expander pin numbers passed to set_enable_pins() in the generated code."""
-    match = re.search(r"default_pins->set_enable_pins\(\{(.*)\}\);", main_cpp)
-    assert match is not None
+    """Get the expander pin numbers passed to register_enable_pin() in the generated code."""
     numbers = []
-    for pin_id in match.group(1).split(", "):
+    for pin_id in re.findall(r"default_pins->register_enable_pin\((\w+)\);", main_cpp):
         pin = re.search(rf"{pin_id}->set_pin\((\d+)\);", main_cpp)
         assert pin is not None
         numbers.append(int(pin.group(1)))

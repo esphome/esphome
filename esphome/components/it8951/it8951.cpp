@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"

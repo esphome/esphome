@@ -48,7 +48,7 @@ class MipiDsi final : public display::Display {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
-  void set_enable_pins(std::vector<GPIOPin *> enable_pins) { this->enable_pins_ = std::move(enable_pins); }
+  SLOT_LIST(GPIOPin, enable_pins_, register_enable_pin, MIPI_DSI_ENABLE_PIN_COUNT)
   void set_pclk_frequency(float pclk_frequency) { this->pclk_frequency_ = pclk_frequency; }
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
@@ -114,7 +114,6 @@ class MipiDsi final : public display::Display {
     return this->big_endian_ ? convert_big_endian(rgb565) : rgb565;
   }
   GPIOPin *reset_pin_{nullptr};
-  std::vector<GPIOPin *> enable_pins_{};
   size_t width_{};
   size_t height_{};
   uint16_t hsync_pulse_width_ = 10;

@@ -39,6 +39,8 @@ from esphome.const import (
 from esphome.cpp_generator import RawExpression
 from esphome.types import ConfigType
 
+from . import register_enable_pin
+
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
@@ -367,12 +369,8 @@ async def to_code(config: ConfigType) -> None:
     await display.add_writer(var, config)
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
-    if enable_pins := config.get(CONF_ENABLE_PIN):
-        cg.add(
-            var.set_enable_pins(
-                [await cg.gpio_pin_expression(pin) for pin in enable_pins]
-            )
-        )
+    for pin in config.get(CONF_ENABLE_PIN, ()):
+        cg.add(register_enable_pin(var, await cg.gpio_pin_expression(pin)))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if config.get(CONF_INVERT_COLORS):
