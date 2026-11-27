@@ -1,0 +1,8 @@
+# No pins: builds the 62-byte transfer split and leaves the pin code out
+packages:
+  i2c: !include ../../test_build_components/common/i2c/bk72xx-ard.yaml
+
+sensor:
+  - platform: vl53l4cx
+    i2c_id: i2c_bus
+    name: VL53L4CX Distance
