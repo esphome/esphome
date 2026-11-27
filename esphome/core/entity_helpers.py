@@ -650,6 +650,9 @@ class SubEntities:
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
     """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
     If a property is already set, it will not be inherited.
+    The parent's own inheritance chain is followed, so inheriting from a parent that
+    inherits the property itself does not depend on which component is final-validated
+    first (see resolve_inherited_property).
     Keyword arguments:
     property_to_inherit -- the name or path of the property to inherit, e.g. CONF_ICON or [CONF_SENSOR, 0, CONF_ICON]
                            (the parent must exist, otherwise nothing is done).
@@ -676,14 +679,15 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
             # Get config for the parent entity
             parent_id = _walk_config(config, parent_id_property)
-            parent_config = fv.get_declaring_config(parent_id, fconf)
+            # Resolve the value through the parent's own inherit_property_from chain, so the
+            # property is inherited even when the parent has not been final-validated yet.
+            value = resolve_inherited_property(parent_id, property)
 
             # If parent sensor has the property set, inherit it
-            if property in parent_config:
+            if value is not None and value is not UNRESOLVED_PROPERTY:
                 this_config = _walk_config(
                     fv.get_declaring_config(config[CONF_ID], fconf), property_path
                 )
-                value = parent_config[property]
                 if transform:
                     value = transform(value, config)
                 this_config[property] = value

@@ -434,13 +434,17 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def debug_to_code(config: ConfigType, parent: cg.MockObj) -> None:
     # The debugger is named by the debug block's trigger_id
     sequence = {**config[CONF_SEQUENCE], CONF_TRIGGER_ID: config[CONF_TRIGGER_ID]}
+    # A sequence that defers (delay, ble_client actions) keeps its arguments, so only it needs its own copy
+    bytes_type = cg.std_vector.template(cg.uint8)
+    if not automation.has_non_synchronous_actions(config[CONF_SEQUENCE]):
+        bytes_type = bytes_type.operator("ref").operator("const")
     debugger = await automation.build_component_automation(
         sequence,
         automation.FireCallback,
         template_args=[UARTDebugger],
         args=[
             (UARTDirection, "direction"),
-            (cg.std_vector.template(cg.uint8), "bytes"),
+            (bytes_type, "bytes"),
             (cg.StringRef, "debug_prefix"),
         ],
         ctor_args=[parent],
