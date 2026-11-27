@@ -20,6 +20,7 @@ static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data
 static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
 static constexpr uint8_t FUNCTION_ERRORS = 0x30;     // the active errors of a node
 
+/// Network type of a virtual node, such as a box sensor (BS) built into the box.
 static constexpr uint8_t NETWORK_TYPE_VIRTUAL = 3;
 
 /// The name of a node, taking its network type into account.
