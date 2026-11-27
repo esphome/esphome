@@ -39,11 +39,12 @@ class LibreTinyUARTComponent final : public UARTComponent, public Component {
  protected:
   void check_logger_conflict() override;
   /// Opens the hardware port of hardware_idx_ on the given pins (PIN_INVALID = none), at setup and after a break.
+  /// False without a hardware port or its SDK handle.
 #ifdef USE_UART_TX_BREAK
-  void open_hardware_port_(pin_size_t tx_pin, pin_size_t rx_pin);
+  bool open_hardware_port_(pin_size_t tx_pin, pin_size_t rx_pin);
 #else
   // one caller without the break: inlined, the build keeps its size
-  ESPHOME_ALWAYS_INLINE inline void open_hardware_port_(pin_size_t tx_pin, pin_size_t rx_pin);
+  ESPHOME_ALWAYS_INLINE inline bool open_hardware_port_(pin_size_t tx_pin, pin_size_t rx_pin);
 #endif
 
   HardwareSerial *serial_{nullptr};

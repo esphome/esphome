@@ -47,6 +47,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
+    CONF_OPTIONS,
     CONF_OTA,
     CONF_PLATFORM,
     CONF_PORT,
@@ -439,6 +440,84 @@ def _libretiny_hardware_uart(config: ConfigType) -> "HardwareUart | None":
         ),
         None,
     )
+
+
+def libretiny_uses_software_serial(config: ConfigType) -> bool:
+    """True when setup() opens this bus with SoftwareSerial; False for a board without pin data."""
+    from esphome.components.libretiny import get_hardware_uarts, has_software_serial
+
+    return (
+        has_software_serial()
+        and bool(get_hardware_uarts())
+        and _libretiny_hardware_uart(config) is None
+    )
+
+
+# LT_UART_DEFAULT_PORT of lt_family.h: the first of these ports the board has
+_LIBRETINY_DEFAULT_PORTS = {
+    "bk72xx": (2, 1),
+    "ln882x": (1, 0, 2),
+    "rtl87xx": (2, 0, 1),
+}
+
+
+def _libretiny_logger_port(logger: ConfigType) -> int | None:
+    """Hardware UART a logger with a baud rate writes to; None when the board data does not tell."""
+    from esphome.components.libretiny import get_hardware_uarts
+    from esphome.components.libretiny.const import CONF_UART_PORT
+
+    ports = {uart.port for uart in get_hardware_uarts()}
+    selection = logger.get("hardware_uart", "DEFAULT")
+    # a port the board does not have falls back to the default port
+    if selection.startswith("UART") and (port := int(selection[-1])) in ports:
+        return port
+    framework = fv.full_config.get()[CORE.target_platform].get("framework", {})
+    # as in codegen: an LT_UART_DEFAULT_PORT option goes over uart_port
+    default = framework.get(CONF_OPTIONS, {}).get(
+        "LT_UART_DEFAULT_PORT", framework.get(CONF_UART_PORT)
+    )
+    if default is not None:
+        # an option can be an expression of the SDK
+        return int(default) if str(default).isdecimal() else None
+    return next(
+        (
+            port
+            for port in _LIBRETINY_DEFAULT_PORTS.get(CORE.target_platform, ())
+            if port in ports
+        ),
+        None,
+    )
+
+
+def esp8266_logger_shares_port(config: ConfigType) -> bool:
+    """Whether the logger writes to the hardware UART of this bus: UART0 on its own or on its swapped pins."""
+    logger = fv.full_config.get().get("logger")
+    if not logger or logger[CONF_BAUD_RATE] == 0:
+        return False
+    bus_pins = tuple(
+        config[pin][CONF_NUMBER] if pin in config else None
+        for pin in (CONF_TX_PIN, CONF_RX_PIN)
+    )
+    return {"UART0": (1, 3), "UART0_SWAP": (15, 13)}.get(
+        logger.get("hardware_uart")
+    ) == bus_pins
+
+
+def libretiny_logger_shares_port(config: ConfigType) -> bool | None:
+    """Whether the logger writes to the hardware UART of this bus; None when it cannot be told."""
+    from esphome.components.libretiny import get_hardware_uarts
+
+    logger = fv.full_config.get().get("logger")
+    if not logger or logger[CONF_BAUD_RATE] == 0:
+        return False
+    # without pin data the port of the bus is matched at boot
+    if not get_hardware_uarts():
+        return None
+    if (uart := _libretiny_hardware_uart(config)) is None:
+        return False
+    if (port := _libretiny_logger_port(logger)) is None:
+        return None
+    return uart.port == port
 
 
 def _final_validate(config: ConfigType) -> None:

@@ -1,0 +1,10 @@
+# action: reset on a family without a shared UART package, config only
+uart:
+  - id: uart_bus
+    tx_pin: PA23
+    rx_pin: PA18
+    baud_rate: 9600
+
+tuya:
+  mcu_watchdog:
+    action: reset
