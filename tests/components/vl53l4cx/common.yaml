@@ -1,0 +1,19 @@
+sensor:
+  - platform: vl53l4cx
+    i2c_id: i2c_bus
+    name: VL53L4CX Distance
+    address: 0x2C
+    enable_pin: ${enable_pin_1}
+    interrupt_pin: ${interrupt_pin}
+    target: farthest
+    min_distance: 100mm
+    update_interval: never
+  - platform: vl53l4cx
+    i2c_id: i2c_bus
+    name: VL53L4CX Nearest
+    address: 0x2D
+    enable_pin: ${enable_pin_2}
+    distance_mode: medium
+    timing_budget: 100ms
+    target: strongest
+    offset: -12
