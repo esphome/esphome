@@ -71,7 +71,6 @@ TRANSMIT_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VBusTransmitter),
-            cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_SOURCE, default=0x0020): validate_address,
             cv.Required(CONF_DESTINATION): validate_address,
             cv.Optional(CONF_LEASE_DURATION, default="500ms"): cv.All(
@@ -108,12 +107,10 @@ def final_validate(config: ConfigType) -> None:
     if transmit is None and config[CONF_ID] in _get_data().tx_actions:
         raise cv.Invalid("VBus actions require transmit to be configured on this hub")
     if transmit is not None:
-        rx_id = config[CONF_UART_ID]
-        if uart.is_unclocked(rx_id) or uart.is_unclocked(
-            transmit.get(CONF_UART_ID, rx_id)
-        ):
+        uart_id = config[CONF_UART_ID]
+        if uart.is_unclocked(uart_id):
             raise cv.Invalid(
-                "VBus transmit requires RX and TX UARTs that preserve serial line timing"
+                "VBus transmit requires a UART that preserves serial line timing"
             )
         if get_loop_interval().total_milliseconds > 50:
             raise cv.Invalid(
@@ -122,15 +119,12 @@ def final_validate(config: ConfigType) -> None:
         # A busy RX line must become visible on the first byte, even without an idle gap.
         if (
             CORE.is_esp32
-            and uart.CONF_RX_TIMEOUT in (rx_config := fv.get_declaring_config(rx_id))
+            and uart.CONF_RX_TIMEOUT in (rx_config := fv.get_declaring_config(uart_id))
             and rx_config.setdefault(uart.CONF_RX_FULL_THRESHOLD, 1) != 1
         ):
             raise cv.Invalid(
-                "Set rx_full_threshold to 1 on the VBus receive UART when using transmit"
+                "Set rx_full_threshold to 1 on the VBus UART when using transmit"
             )
-    same_uart = transmit is not None and (
-        CONF_UART_ID not in transmit or transmit[CONF_UART_ID] == config[CONF_UART_ID]
-    )
     uart.final_validate_device_schema(
         "vbus",
         baud_rate=9600,
@@ -138,17 +132,8 @@ def final_validate(config: ConfigType) -> None:
         parity="NONE",
         stop_bits=1,
         require_rx=transmit is not None,
-        require_tx=same_uart,
+        require_tx=transmit is not None,
     )(config)
-    if transmit is not None and not same_uart:
-        uart.final_validate_device_schema(
-            "vbus transmit",
-            baud_rate=9600,
-            data_bits=8,
-            parity="NONE",
-            stop_bits=1,
-            require_tx=True,
-        )(transmit)
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
@@ -176,9 +161,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_VBUS_TX")
         tx = cg.new_Pvariable(transmit[CONF_ID], var)
         await cg.register_component(tx, transmit)
-        await uart.register_uart_device(
-            tx, {CONF_UART_ID: transmit.get(CONF_UART_ID, config[CONF_UART_ID])}
-        )
+        await uart.register_uart_device(tx, config)
         cg.add(var.set_transmitter(tx))
         cg.add(tx.set_source(transmit[CONF_SOURCE]))
         cg.add(tx.set_destination(transmit[CONF_DESTINATION]))
