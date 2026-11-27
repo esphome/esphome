@@ -96,13 +96,13 @@ void DMXComponent::setup() {
   this->rx_data_[0] = 0;
   this->tx_data_[0] = 0;
 
-#ifdef USE_ESP32
+  #ifdef USE_ESP32
   if (uart_is_driver_installed(static_cast<uart_port_t>(this->uart_num_))) {
     ESP_LOGE(TAG, "UART%d is already in use. Check logger and UART configuration.", this->uart_num_);
     this->mark_failed();
     return;
   }
-#endif
+  #endif
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
 
@@ -143,7 +143,7 @@ void DMXComponent::setup() {
 
 void DMXComponent::setup_rdm_() {
   if constexpr (ESPHOME_DMX_HAS_RDM) {
-#if __has_include(<rdm/responder.h>)
+  #if __has_include(<rdm/responder.h>)
 
     const size_t count = this->rdm_channels_.size();
 
@@ -229,7 +229,7 @@ void DMXComponent::setup_rdm_() {
       ESP_LOGD(TAG, "RDM enabled; no RX sensor channels registered");
     }
 
-#endif
+  #endif
   } else {
     ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
   }
@@ -237,7 +237,7 @@ void DMXComponent::setup_rdm_() {
 
 void DMXComponent::sync_rdm_to_numbers_() {
   if constexpr (ESPHOME_DMX_HAS_RDM) {
-#if __has_include(<rdm/responder.h>)
+  #if __has_include(<rdm/responder.h>)
 
     for (size_t i = 0; i < this->rdm_channels_.size(); i++) {
       auto &channel = this->rdm_channels_[i];
@@ -274,13 +274,13 @@ void DMXComponent::sync_rdm_to_numbers_() {
       }
     }
 
-#endif
+  #endif
   }
 }
 
 void DMXComponent::sync_numbers_to_rdm_() {
   if constexpr (ESPHOME_DMX_HAS_RDM) {
-#if __has_include(<rdm/responder.h>)
+  #if __has_include(<rdm/responder.h>)
 
     for (size_t i = 0; i < this->rdm_channels_.size(); i++) {
       auto &channel = this->rdm_channels_[i];
@@ -312,7 +312,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
       }
     }
 
-#endif
+  #endif
   }
 }
 
@@ -369,6 +369,15 @@ void DMXComponent::loop() {
   }
 
   // TX mode: ESPHome is the DMX controller.
+  if (this->mode_ == DMXMode::DMX_MODE_TX) {
+    static bool logged = false;
+    if (!logged) {
+      ESP_LOGI(TAG, "TX enabled=%s dirty=%s",
+               this->tx_enabled_ ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"),
+               this->tx_dirty_ ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
+      logged = true;
+    }
+  }
   if (this->mode_ == DMXMode::DMX_MODE_TX && this->tx_enabled_) {
     if (this->tx_dirty_ || (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
       this->send_universe_();
