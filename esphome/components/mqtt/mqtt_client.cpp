@@ -986,9 +986,10 @@ bool MQTTClientComponent::teardown() {
 
 #ifdef USE_ESP8266
 void MQTTClientComponent::on_powerdown() {
-  // Teardown ran out of time: the restart would leave the socket open, and the broker sends no Last Will when
-  // the next boot takes the session over
-  if (this->mqtt_backend_.link_open()) {
+  // Teardown ran out of time before DISCONNECT: the restart would leave the socket open, and the broker sends no
+  // Last Will when the next boot takes the session over. Once DISCONNECT is sent, connected() is false and the link
+  // is left alone: a reset could make the broker drop a DISCONNECT it has not read yet and publish the Last Will.
+  if (this->mqtt_backend_.connected()) {
     this->mqtt_backend_.close_now();
     delay(100);  // NOLINT: once per reboot or deep sleep, lets the reset leave before the restart
   }
