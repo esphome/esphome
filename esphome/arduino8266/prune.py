@@ -6,7 +6,7 @@ from collections.abc import Collection
 from pathlib import Path
 
 from esphome.arduino8266.framework import TOOLCHAIN_VERSION, get_arduino8266_tools_path
-from esphome.build_helpers.prune import PRUNING_SUFFIX, remove_guarded, subdirs
+from esphome.build_helpers.prune import installed_name, remove_guarded, subdirs
 
 
 def prune_arduino8266_installs(
@@ -33,7 +33,7 @@ def prune_arduino8266_installs(
     for path in doomed:
         # The installer locks "<install>.lock"; what is left of an
         # interrupted prune belongs to the install it was renamed from
-        install = path.with_name(path.name.removesuffix(PRUNING_SUFFIX))
+        install = path.with_name(installed_name(path))
         lock = install.with_name(f"{install.name}.lock")
         removed += remove_guarded(lock, [install], [path], dry_run)
     return removed

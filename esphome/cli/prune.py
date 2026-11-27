@@ -50,6 +50,21 @@ def _recommended_sdk_nrf_versions() -> set[str]:
     return {f"v{ver.major}.{ver.minor}.{ver.patch}" for ver in versions}
 
 
+def _recommended_platformio_sources() -> dict[str, str]:
+    """Where the recommended version of each PlatformIO platform comes from."""
+    from esphome.components.libretiny import ARDUINO_VERSIONS
+    from esphome.components.rp2 import (
+        RECOMMENDED_ARDUINO_PLATFORM_VERSION,
+        _parse_platform_version,
+    )
+    from esphome.platformio.prune import LIBRETINY, RASPBERRYPI
+
+    return {
+        RASPBERRYPI: _parse_platform_version(RECOMMENDED_ARDUINO_PLATFORM_VERSION),
+        LIBRETINY: ARDUINO_VERSIONS["recommended"][1],
+    }
+
+
 def command_prune(args: argparse.Namespace) -> int | None:
     from esphome.arduino8266.prune import prune_arduino8266_installs
     from esphome.components.nrf52.prune import prune_sdk_nrf_installs
@@ -64,7 +79,11 @@ def command_prune(args: argparse.Namespace) -> int | None:
         removed += prune_sdk_nrf_installs(
             _recommended_sdk_nrf_versions(), dry_run=args.dry_run
         )
-        removed += prune_platformio_installs(DEPRECATED_PLATFORMS, dry_run=args.dry_run)
+        removed += prune_platformio_installs(
+            DEPRECATED_PLATFORMS,
+            _recommended_platformio_sources(),
+            dry_run=args.dry_run,
+        )
     except OSError as err:
         _LOGGER.error("Error pruning installs: %s", err)
         return 1

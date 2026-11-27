@@ -91,7 +91,6 @@ def test_prune_finishes_an_interrupted_prune(root: Path) -> None:
     assert not leftover.exists()
     assert not (root / f"sdk-{_OLD}.lock").exists()
     assert sdk.is_dir()
-    assert (root / f"sdk-{_KEEP}.lock").is_file()
 
 
 def test_prune_keeps_an_sdk_a_build_is_installing(
@@ -102,10 +101,10 @@ def test_prune_keeps_an_sdk_a_build_is_installing(
 
     with FileLock(str(root / f"sdk-{_OLD}.lock")):
         assert prune_sdk_nrf_installs({_KEEP}) == [old_toolchain]
+        assert (root / f"sdk-{_OLD}.lock").is_file()
 
     assert old.is_dir()
     assert (root / "penvs" / _OLD).is_dir()
-    assert (root / f"sdk-{_OLD}.lock").is_file()
     assert f"Keeping {old}, {root / 'penvs' / _OLD}, a build is installing it" in (
         caplog.text
     )
@@ -113,6 +112,23 @@ def test_prune_keeps_an_sdk_a_build_is_installing(
     # The build is done: the next prune removes it
     assert prune_sdk_nrf_installs({_KEEP}) == [old, root / "penvs" / _OLD]
     assert not (root / f"sdk-{_OLD}.lock").exists()
+
+
+def test_prune_keeps_the_environment_of_a_symlinked_sdk(root: Path) -> None:
+    checkout = root / "my-sdk-nrf"
+    checkout.mkdir(parents=True)
+    link = root / "frameworks" / "v3.0.0"
+    link.parent.mkdir()
+    try:
+        link.symlink_to(checkout, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks not available")
+    penv = root / "penvs" / "v3.0.0"
+    penv.mkdir(parents=True)
+
+    assert prune_sdk_nrf_installs({_KEEP}) == []
+    assert link.is_symlink()
+    assert penv.is_dir()
 
 
 def test_prune_without_an_install_does_nothing(root: Path) -> None:

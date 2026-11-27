@@ -114,6 +114,19 @@ def test_prune_keeps_tools_it_cannot_account_for(
     assert "Keeping all ESP-IDF tools" in caplog.text
 
 
+def test_prune_removes_tool_leftovers_it_cannot_account_for(
+    idf_root: Path, tool_exports: dict[str, tuple[list[str], dict[str, str]]]
+) -> None:
+    """What an interrupted prune left needs no lookup to be removed."""
+    _framework(idf_root, "6.1.1")
+    gcc = _tool(idf_root, "gcc", "15.2.0")
+    leftover = idf_root / "tools" / "gcc" / "14.2.0.pruning"
+    leftover.mkdir()
+
+    assert prune_idf_installs({"6.1.1"}) == [leftover]
+    assert gcc.is_dir()
+
+
 def test_prune_dry_run_changes_nothing(
     idf_root: Path,
     tool_exports: dict[str, tuple[list[str], dict[str, str]]],

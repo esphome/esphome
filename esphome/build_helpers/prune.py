@@ -12,7 +12,13 @@ from esphome.helpers import rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
+# What is being removed is renamed first, so an interrupted delete cannot
+# leave a partial tree that still passes for an install
 PRUNING_SUFFIX = ".pruning"
+# PlatformIO takes every directory in its platform and package folders for an
+# install, whatever its name, except names that start with "_tmp_installing".
+# The extra ".pruning-" keeps these apart from its own temporary directories.
+PLATFORMIO_PRUNING_PREFIX = "_tmp_installing.pruning-"
 
 
 def subdirs(path: Path, symlinks: bool = False) -> list[Path]:
@@ -28,30 +34,47 @@ def subdirs(path: Path, symlinks: bool = False) -> list[Path]:
 
 
 def is_leftover(path: Path) -> bool:
-    return path.name.endswith(PRUNING_SUFFIX)
+    """Whether an interrupted prune left ``path`` behind."""
+    return path.name.endswith(PRUNING_SUFFIX) or path.name.startswith(
+        PLATFORMIO_PRUNING_PREFIX
+    )
 
 
-def with_leftover(path: Path) -> list[Path]:
+def installed_name(path: Path) -> str:
+    """The name ``path`` has, or had before a prune renamed it."""
+    return path.name.removesuffix(PRUNING_SUFFIX).removeprefix(
+        PLATFORMIO_PRUNING_PREFIX
+    )
+
+
+def _renamed(path: Path, platformio: bool) -> Path:
+    if platformio:
+        return path.with_name(PLATFORMIO_PRUNING_PREFIX + path.name)
+    return path.with_name(path.name + PRUNING_SUFFIX)
+
+
+def with_leftover(path: Path, platformio: bool = False) -> list[Path]:
     """``path`` and what an interrupted prune left of it, whichever exist."""
     return [
         candidate
-        for candidate in (path, path.with_name(path.name + PRUNING_SUFFIX))
+        for candidate in (path, _renamed(path, platformio))
         if candidate.exists() and not candidate.is_symlink()
     ]
 
 
-def remove_trees(paths: list[Path], dry_run: bool) -> None:
-    """Delete each tree or file, or only say so on a dry run."""
+def remove_trees(paths: list[Path], dry_run: bool, platformio: bool = False) -> None:
+    """Delete each tree or file, or only say so on a dry run.
+
+    ``platformio`` renames with the prefix PlatformIO ignores.
+    """
     # Leftovers of an interrupted prune go first so no rename can collide
     for path in sorted(paths, key=lambda path: not is_leftover(path)):
         if dry_run:
             _LOGGER.info("Would delete %s", path)
             continue
         _LOGGER.info("Deleting %s", path)
-        # Renamed first: an interrupted delete must not leave a partial tree
-        # that still passes for an install
         if not is_leftover(path):
-            doomed = path.with_name(path.name + PRUNING_SUFFIX)
+            doomed = _renamed(path, platformio)
             rename_with_retry(path, doomed)
             path = doomed
         if path.is_dir() and not path.is_symlink():

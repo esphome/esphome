@@ -2841,7 +2841,7 @@ def parse_args(argv):
         "the ESP-IDF, ESP8266 Arduino and nRF Connect SDK versions other than "
         "the recommended ones, with the toolchains and Python environments "
         "those do not use; what PlatformIO installed for ESP32, ESP8266 and "
-        "nRF52; replaced copies of the RP2 and LibreTiny platforms; and the "
+        "nRF52; other versions of the RP2 and LibreTiny platforms; and the "
         "PlatformIO download cache.",
     )
     parser_prune.add_argument(

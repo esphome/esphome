@@ -38,9 +38,25 @@ def core_dir(tmp_path: Path) -> Generator[Path]:
         yield core_dir
 
 
+_PRUNING = "_tmp_installing.pruning-"
+_RP2_SOURCE = "https://github.com/maxgerhardt/platform-raspberrypi.git#0123abc"
+_LIBRETINY_SOURCE = "https://github.com/libretiny-eu/libretiny.git#v1.14.0"
+_RECOMMENDED = {"raspberrypi": _RP2_SOURCE, "libretiny": _LIBRETINY_SOURCE}
+
+
+def _record(uri: object) -> str:
+    """PlatformIO's install record; it stores a git URL with a ``git+`` prefix."""
+    return json.dumps({"spec": {"uri": uri}})
+
+
 def _platform(
-    core_dir: Path, name: str, packages: list[str], optional: tuple[str, ...] = ()
+    core_dir: Path,
+    name: str,
+    packages: list[str],
+    optional: tuple[str, ...] = (),
+    source: str | None = None,
 ) -> Path:
+    """A platform; ``source`` is the URL its install record says it came from."""
     platform = core_dir / "platforms" / name
     platform.mkdir(parents=True)
     manifest = {package: {} for package in packages}
@@ -48,7 +64,16 @@ def _platform(
     (platform / "platform.json").write_text(
         json.dumps({"packages": manifest}), encoding="utf-8"
     )
+    if source is not None:
+        (platform / ".git").mkdir()
+        (platform / ".git" / ".piopm").write_text(
+            _record(f"git+{source}"), encoding="utf-8"
+        )
     return platform
+
+
+def _leftovers(core_dir: Path) -> list[Path]:
+    return [path for path in core_dir.rglob("*") if "pruning" in path.name]
 
 
 def _package(core_dir: Path, name: str) -> Path:
@@ -98,37 +123,62 @@ def test_prune_removes_the_platforms_and_their_packages(core_dir: Path) -> None:
         assert not path.exists()
     for path in (libretiny, *stay, penv):
         assert path.is_dir()
-    assert not list(core_dir.rglob("*.pruning"))
+    assert not _leftovers(core_dir)
 
 
-def test_prune_removes_copies_a_newer_install_replaced(core_dir: Path) -> None:
-    """The packages of the copy in use stay, optional ones included."""
-    rp2 = _platform(
-        core_dir, "raspberrypi", ["rp2-gcc"], optional=("framework-arduinopico",)
+def test_prune_keeps_only_the_recommended_rp2_and_libretiny_platforms(
+    core_dir: Path,
+) -> None:
+    """Whichever folder it is in: a pinned version built last has the plain name."""
+    pinned_rp2 = _platform(
+        core_dir,
+        "raspberrypi",
+        ["pinned-rp2-gcc"],
+        optional=("framework-arduinopico",),
+        source="https://github.com/maxgerhardt/platform-raspberrypi.git#9999fff",
     )
-    old_rp2 = _platform(
+    rp2 = _platform(
         core_dir,
         "raspberrypi@src-0123",
-        ["old-rp2-gcc"],
+        ["rp2-gcc"],
         optional=("framework-arduinopico",),
+        source=_RP2_SOURCE,
     )
-    libretiny = _platform(core_dir, "libretiny", ["framework-beken-bdk"])
-    old_libretiny = _platform(core_dir, "libretiny@src-4567", ["framework-beken-bdk"])
-    # Only the replaced platform copy lists it
-    old_gcc = _package(core_dir, "old-rp2-gcc")
+    # Nothing says where this one came from
+    unknown_rp2 = _platform(core_dir, "raspberrypi@src-4567", [])
+    libretiny = _platform(
+        core_dir, "libretiny", ["framework-beken-bdk"], source=_LIBRETINY_SOURCE
+    )
+    old_libretiny = _platform(
+        core_dir,
+        "libretiny@src-89ab",
+        ["framework-beken-bdk"],
+        source="https://github.com/libretiny-eu/libretiny.git#v1.12.1",
+    )
+    # Only the pinned platform lists it
+    pinned_gcc = _package(core_dir, "pinned-rp2-gcc")
     stay = [
         _package(core_dir, "framework-arduinopico"),
         _package(core_dir, "rp2-gcc"),
-        # LibreTiny families build with different versions at once
         _package(core_dir, "framework-beken-bdk"),
-        _package(core_dir, "framework-beken-bdk@src-cdef"),
     ]
 
-    removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
+    removed = prune_platformio_installs(DEPRECATED_PLATFORMS, _RECOMMENDED)
 
-    assert set(removed) == {old_rp2, old_libretiny, old_gcc}
-    for path in (rp2, libretiny, *stay):
+    assert set(removed) == {pinned_rp2, old_libretiny, pinned_gcc}
+    for path in (rp2, unknown_rp2, libretiny, *stay):
         assert path.is_dir()
+
+
+def test_prune_keeps_every_rp2_and_libretiny_platform_without_a_recommended_one(
+    core_dir: Path,
+) -> None:
+    rp2 = _platform(core_dir, "raspberrypi", [], source=_RP2_SOURCE)
+    old_rp2 = _platform(core_dir, "raspberrypi@src-0123", [], source=f"{_RP2_SOURCE}0")
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert rp2.is_dir()
+    assert old_rp2.is_dir()
 
 
 def test_prune_is_not_held_back_by_an_optional_listing(core_dir: Path) -> None:
@@ -136,18 +186,25 @@ def test_prune_is_not_held_back_by_an_optional_listing(core_dir: Path) -> None:
     nrf52 = _platform(
         core_dir, "nordicnrf52", ["tool-cmake", "toolchain-gccarmnoneeabi"]
     )
-    old_rp2 = _platform(core_dir, "raspberrypi@src-0123", [], optional=("tool-cmake",))
+    old_rp2 = _platform(
+        core_dir,
+        "raspberrypi@src-0123",
+        [],
+        optional=("tool-cmake",),
+        source=f"{_RP2_SOURCE}0",
+    )
     _platform(
         core_dir,
         "raspberrypi",
         ["toolchain-gccarmnoneeabi"],
         optional=("tool-cmake", "tool-jlink"),
+        source=_RP2_SOURCE,
     )
     cmake = _package(core_dir, "tool-cmake")
     cmake_copy = _package(core_dir, "tool-cmake@src-0123")
     toolchain = _package(core_dir, "toolchain-gccarmnoneeabi")
 
-    removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
+    removed = prune_platformio_installs(DEPRECATED_PLATFORMS, _RECOMMENDED)
 
     assert removed == [cmake, cmake_copy, nrf52, old_rp2]
     assert toolchain.is_dir()
@@ -179,10 +236,6 @@ def _libretiny_package(
         location.mkdir(exist_ok=True)
         (location / ".piopm").write_text(record, encoding="utf-8")
     return package
-
-
-def _record(uri: str | None) -> str:
-    return json.dumps({"spec": {"uri": uri}})
 
 
 def test_prune_removes_libretiny_packages_in_a_version_no_longer_used(
@@ -224,6 +277,7 @@ def test_prune_removes_libretiny_packages_in_a_version_no_longer_used(
         _libretiny_package(core_dir, "framework-beken-bdk@src-0005", None),
         _libretiny_package(core_dir, "framework-beken-bdk@src-0006", "{"),
         _libretiny_package(core_dir, "framework-beken-bdk@src-0007", _record(None)),
+        _libretiny_package(core_dir, "framework-beken-bdk@src-0009", _record([])),
         # Not a LibreTiny package
         _libretiny_package(
             core_dir, "framework-other@src-0008", _record(f"{bdk}#3.0.7")
@@ -235,18 +289,60 @@ def test_prune_removes_libretiny_packages_in_a_version_no_longer_used(
         assert path.is_dir()
 
 
-@pytest.mark.parametrize("manifest", ["{}", json.dumps({"packages": {"a": 1}})])
 def test_prune_keeps_libretiny_packages_when_its_versions_are_unreadable(
-    manifest: str, core_dir: Path, caplog: pytest.LogCaptureFixture
+    core_dir: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """The packages are listed, but a library they name is not."""
     platform = core_dir / "platforms" / "libretiny"
     platform.mkdir(parents=True)
-    (platform / "platform.json").write_text(manifest, encoding="utf-8")
-    copy = _libretiny_package(core_dir, "a@src-0001", _record("git+https://x/a#1"))
+    packages = {"framework-x": {"libraries": {"gone": "1.0"}}}
+    (platform / "platform.json").write_text(
+        json.dumps({"packages": packages}), encoding="utf-8"
+    )
+    copy = _libretiny_package(
+        core_dir, "framework-x@src-0001", _record("git+https://x/framework-x#1")
+    )
 
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
     assert copy.is_dir()
     assert "Keeping all replaced LibreTiny packages" in caplog.text
+
+
+def _libretiny_with_an_old_copy(core_dir: Path, package: str) -> Path:
+    """A LibreTiny platform and a replaced copy of ``package`` in an old version."""
+    platform = core_dir / "platforms" / "libretiny"
+    platform.mkdir(parents=True)
+    packages = {package: {"version": f"{_LIBRETINY}/{package}#2.0"}}
+    (platform / "platform.json").write_text(
+        json.dumps({"packages": packages}), encoding="utf-8"
+    )
+    return _libretiny_package(
+        core_dir, f"{package}@src-0001", _record(f"git+{_LIBRETINY}/{package}#1.0")
+    )
+
+
+def test_prune_keeps_a_libretiny_copy_of_a_package_another_platform_lists(
+    core_dir: Path,
+) -> None:
+    copy = _libretiny_with_an_old_copy(core_dir, "toolchain-gccarmnoneeabi")
+    _platform(core_dir, "raspberrypi", [], optional=("toolchain-gccarmnoneeabi",))
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert copy.is_dir()
+
+
+def test_prune_keeps_libretiny_copies_when_another_platform_is_unreadable(
+    core_dir: Path,
+) -> None:
+    copy = _libretiny_with_an_old_copy(core_dir, "framework-beken-bdk")
+    (core_dir / "platforms" / "raspberrypi").mkdir()
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert copy.is_dir()
+
+    # With every platform readable the old copy goes
+    (core_dir / "platforms" / "raspberrypi").rmdir()
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [copy]
 
 
 def _pioarduino_penv(core_dir: Path, name: str = "penv") -> Path:
@@ -275,7 +371,7 @@ def test_prune_removes_what_pioarduino_left_in_the_core_dir(core_dir: Path) -> N
     for path in removed:
         assert not path.exists()
     assert appstate.is_file()
-    assert not list(core_dir.rglob("*.pruning"))
+    assert not _leftovers(core_dir)
 
 
 def test_prune_keeps_a_python_environment_that_is_not_pioarduinos(
@@ -289,7 +385,7 @@ def test_prune_keeps_a_python_environment_that_is_not_pioarduinos(
     # The official ESP32 platform kept one environment per ESP-IDF version in it
     espidf = penv / ".espidf-4.4.7"
     espidf.mkdir()
-    leftover = _pioarduino_penv(core_dir, "penv.pruning")
+    leftover = _pioarduino_penv(core_dir, f"{_PRUNING}penv")
 
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [leftover, espidf]
     assert pio.is_file()
@@ -300,6 +396,8 @@ def test_prune_keeps_the_libretiny_environment_inside_pioarduinos(
 ) -> None:
     """LibreTiny keeps its Python environment in a hidden folder of the same directory."""
     penv = _pioarduino_penv(core_dir)
+    # "bin", or "Scripts" on Windows
+    scripts = get_python_env_executable_path(penv, "esptool").parent.name
     for name in ("pyvenv.cfg", ".gitignore", ".lock"):
         (penv / name).touch()
     (penv / "lib").mkdir()
@@ -309,7 +407,7 @@ def test_prune_keeps_the_libretiny_environment_inside_pioarduinos(
         pytest.skip("symlinks not available")
     libretiny = penv / ".libretiny"
     (libretiny / "bin").mkdir(parents=True)
-    interrupted = penv / "include.pruning"
+    interrupted = penv / f"{_PRUNING}include"
     interrupted.mkdir()
 
     removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
@@ -318,7 +416,7 @@ def test_prune_keeps_the_libretiny_environment_inside_pioarduinos(
         interrupted,
         *(
             penv / name
-            for name in ("bin", "lib", "lib64", "pyvenv.cfg", ".gitignore", ".lock")
+            for name in (scripts, "lib", "lib64", "pyvenv.cfg", ".gitignore", ".lock")
         ),
     }
     assert [path.name for path in penv.iterdir()] == [".libretiny"]
@@ -326,6 +424,53 @@ def test_prune_keeps_the_libretiny_environment_inside_pioarduinos(
 
     # Nothing of pioarduino's is left to find
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+
+
+def test_prune_keeps_the_python_environment_esphome_runs_from(
+    core_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ESPHome installed into PlatformIO's environment brings esptool with it."""
+    penv = _pioarduino_penv(core_dir)
+    (penv / ".espidf-5.5.0").mkdir()
+    monkeypatch.setattr("sys.prefix", str(penv))
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert get_python_env_executable_path(penv, "esptool").is_file()
+
+
+def test_prune_keeps_the_core_dir_when_the_native_esp_idf_install_is_in_it(
+    core_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its ``tools`` folder is then the native install's, not pioarduino's."""
+    tools = core_dir / "tools"
+    tools.mkdir(parents=True)
+    penv = _pioarduino_penv(core_dir)
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", str(core_dir))
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert tools.is_dir()
+    assert penv.is_dir()
+
+
+def test_prune_hides_what_it_is_removing_from_platformio(core_dir: Path) -> None:
+    """PlatformIO takes any other folder name in its package folders for an install."""
+    esp32 = _platform(core_dir, "espressif32", ["framework-espidf"])
+    package = _package(core_dir, "framework-espidf")
+
+    with (
+        patch("esphome.build_helpers.prune.rmtree", side_effect=OSError("killed")),
+        pytest.raises(OSError, match="killed"),
+    ):
+        prune_platformio_installs(DEPRECATED_PLATFORMS)
+
+    hidden = package.with_name(f"{_PRUNING}framework-espidf")
+    assert hidden.is_dir()
+    assert not package.exists()
+    # The platform is still there to say which packages were its own
+    assert esp32.is_dir()
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [hidden, esp32]
+    assert not _leftovers(core_dir)
 
 
 def test_prune_leaves_an_empty_python_environment_directory(core_dir: Path) -> None:
@@ -358,7 +503,7 @@ def test_prune_clears_the_download_cache(core_dir: Path) -> None:
     cache = core_dir / ".cache"
     (cache / "downloads").mkdir(parents=True)
     (cache / "downloads" / "toolchain.tar.gz").write_bytes(b"x")
-    leftover = core_dir / ".cache.pruning"
+    leftover = core_dir / f"{_PRUNING}.cache"
     leftover.mkdir()
 
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [cache, leftover]
@@ -415,16 +560,16 @@ def test_prune_removes_an_unreadable_platform_without_its_packages(
 
 def test_prune_finishes_an_interrupted_prune(core_dir: Path) -> None:
     """Leftovers go even when the platform that listed them is already gone."""
-    leftover_platform = core_dir / "platforms" / "espressif32.pruning"
+    leftover_platform = core_dir / "platforms" / f"{_PRUNING}espressif32"
     leftover_platform.mkdir(parents=True)
-    leftover_package = _package(core_dir, "framework-espidf.pruning")
+    leftover_package = _package(core_dir, f"{_PRUNING}framework-espidf")
     tools = core_dir / "tools"
     tools.mkdir()
 
     removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
 
     assert set(removed) == {leftover_platform, leftover_package, tools}
-    assert not list(core_dir.rglob("*.pruning"))
+    assert not _leftovers(core_dir)
     assert not tools.exists()
 
 

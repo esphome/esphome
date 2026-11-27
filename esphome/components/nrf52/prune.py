@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Collection
 from pathlib import Path
 
-from esphome.build_helpers.prune import PRUNING_SUFFIX, remove_guarded, subdirs
+from esphome.build_helpers.prune import installed_name, remove_guarded, subdirs
 
 from .framework import _TOOLCHAIN_VERSIONS, get_sdk_nrf_tools_path
 
@@ -23,7 +23,13 @@ def prune_sdk_nrf_installs(
     (the ones that would be removed on a dry run).
     """
     root = get_sdk_nrf_tools_path()
-    keep = {"sdk": keep_versions, "toolchain": _TOOLCHAIN_VERSIONS}
+    # A symlinked SDK is the user's own checkout; its environment stays with it
+    symlinked = {
+        framework.name
+        for framework in subdirs(root / "frameworks", symlinks=True)
+        if framework.is_symlink()
+    }
+    keep = {"sdk": {*keep_versions, *symlinked}, "toolchain": _TOOLCHAIN_VERSIONS}
     # (lock prefix, version) -> what to remove of that install
     doomed: dict[tuple[str, str], list[Path]] = {}
     for prefix, kinds in _LOCKED_INSTALLS.items():
@@ -32,7 +38,7 @@ def prune_sdk_nrf_installs(
                 if install.name not in keep[prefix]:
                     # What is left of an interrupted prune belongs to the
                     # install it was renamed from
-                    version = install.name.removesuffix(PRUNING_SUFFIX)
+                    version = installed_name(install)
                     doomed.setdefault((prefix, version), []).append(install)
 
     removed: list[Path] = []

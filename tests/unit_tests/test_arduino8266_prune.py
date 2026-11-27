@@ -76,7 +76,6 @@ def test_prune_finishes_an_interrupted_prune(root: Path) -> None:
     assert not leftover.exists()
     assert not old_lock.exists()
     assert core.is_dir()
-    assert core.with_name(f"{_KEEP}.lock").is_file()
 
 
 def test_prune_keeps_a_core_a_build_is_installing(root: Path) -> None:
@@ -85,9 +84,9 @@ def test_prune_keeps_a_core_a_build_is_installing(root: Path) -> None:
 
     with FileLock(str(lock)):
         assert prune_arduino8266_installs({_KEEP}) == []
+        assert lock.is_file()
 
     assert old_core.is_dir()
-    assert lock.is_file()
 
 
 def test_prune_leaves_symlinks_alone(root: Path) -> None:

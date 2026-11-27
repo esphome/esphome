@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 import json
 import logging
 from pathlib import Path
+import sys
 
 from esphome.build_helpers.prune import (
-    PRUNING_SUFFIX,
+    installed_name,
     is_leftover,
     remove_trees,
     subdirs,
     with_leftover,
 )
+from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.framework_helpers import get_python_env_executable_path
 from esphome.platformio.toolchain import get_platformio_config
 
@@ -22,17 +24,14 @@ _LOGGER = logging.getLogger(__name__)
 ESPRESSIF32 = "espressif32"
 ESPRESSIF8266 = "espressif8266"
 NORDICNRF52 = "nordicnrf52"
+RASPBERRYPI = "raspberrypi"
 LIBRETINY = "libretiny"
 # The platforms whose PlatformIO toolchain is deprecated
 DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266, NORDICNRF52)
-# Installed from a URL that changes with every version. PlatformIO moves the
-# copy a new install replaces to "<name>@src-<hash>", so a directory of that
-# form is never the one in use. The RP2 packages need no such rule, a new
-# version overwrites them in place. LibreTiny's packages are moved aside too,
-# but its chip families build with different versions of one package at once,
-# so those copies are checked one by one (_unused_libretiny_packages).
-_SUPERSEDED_PLATFORMS = ("raspberrypi", LIBRETINY)
-_SUPERSEDED_MARK = "@src-"
+# A package installed from a URL that a newer install replaced is moved aside
+# to "<name>@src-<hash>". LibreTiny's chip families build with different
+# versions of one package at once, so such a copy may still be in use.
+_REPLACED_MARK = "@src-"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
 # downloads and records, directly in PlatformIO's core directory
 _ESPRESSIF32_CORE_ENTRIES = ("tools", "dist", "root_managed_components", "idf-env.json")
@@ -43,11 +42,7 @@ _PENV_ESPIDF_PREFIX = ".espidf-"
 
 def _name(path: Path) -> str:
     """The platform or package name of ``<name>`` or ``<name>@<version>``."""
-    return path.name.removesuffix(PRUNING_SUFFIX).partition("@")[0]
-
-
-def _superseded(path: Path, names: Collection[str]) -> bool:
-    return _SUPERSEDED_MARK in path.name and _name(path) in names
+    return installed_name(path).partition("@")[0]
 
 
 def _espressif32_python_environments(core_dir: Path) -> list[Path]:
@@ -59,11 +54,15 @@ def _espressif32_python_environments(core_dir: Path) -> list[Path]:
     theirs in a hidden folder of their own (LibreTiny in ``.libretiny``), and
     PlatformIO's own installer puts PlatformIO itself there. Only what the
     ESP32 platforms made is removed; the directory goes with it when nothing
-    else is in it.
+    else is in it. An environment ESPHome itself is running from is left alone.
     """
     penv = core_dir / _PENV
-    removed = [path for path in with_leftover(penv) if is_leftover(path)]
+    removed = [
+        path for path in with_leftover(penv, platformio=True) if is_leftover(path)
+    ]
     if not penv.is_dir() or penv.is_symlink():
+        return removed
+    if Path(sys.prefix).resolve().is_relative_to(penv.resolve()):
         return removed
     pioarduino = get_python_env_executable_path(penv, _PENV_PIOARDUINO_TOOL).is_file()
     entries = sorted(penv.iterdir())
@@ -95,54 +94,70 @@ def _packages(platform: Path) -> dict[str, bool] | None:
         return None
 
 
-def _installed_from(package: Path) -> str | None:
-    """The URI PlatformIO recorded for an installed package, None if unknown."""
-    # A package cloned with git keeps its record inside .git
-    for record in (package / ".git" / ".piopm", package / ".piopm"):
+def _installed_from(install: Path) -> str | None:
+    """The URI PlatformIO recorded for an install, None if unknown."""
+    # An install cloned with git keeps its record inside .git
+    for record in (install / ".git" / ".piopm", install / ".piopm"):
         try:
-            return json.loads(record.read_text(encoding="utf-8"))["spec"]["uri"]
+            uri = json.loads(record.read_text(encoding="utf-8"))["spec"]["uri"]
         except FileNotFoundError:
             continue
         except (OSError, ValueError, KeyError, TypeError) as err:
             _LOGGER.debug("Could not read %s: %s", record, err)
             return None
+        return uri if isinstance(uri, str) else None
     return None
 
 
-def _unused_libretiny_packages(platforms_dir: Path, packages_dir: Path) -> list[Path]:
-    """Replaced copies of LibreTiny packages in a version it no longer builds with."""
+def _unused_libretiny_packages(
+    platforms: list[Path], packages_dir: Path, shared: Collection[str]
+) -> list[Path]:
+    """Replaced copies of LibreTiny packages in a version it no longer builds with.
+
+    ``platforms`` are the LibreTiny platforms that stay, and ``shared`` the
+    packages that PlatformIO itself or another platform that stays lists.
+    """
     from esphome.components.libretiny.prune import package_uris
 
-    platform = platforms_dir / LIBRETINY
-    if not platform.is_dir():
-        return []
-    names = _packages(platform)
-    uris = package_uris(platform)
-    if names is None or uris is None:
-        _LOGGER.warning(
-            "Keeping all replaced LibreTiny packages, could not tell which "
-            "versions %s builds with",
-            platform,
-        )
-        return []
+    names: set[str] = set()
+    uris: set[str] = set()
+    for platform in platforms:
+        listed = _packages(platform)
+        used = package_uris(platform)
+        if listed is None or used is None:
+            _LOGGER.warning(
+                "Keeping all replaced LibreTiny packages, could not tell which "
+                "versions %s builds with",
+                platform,
+            )
+            return []
+        names |= listed.keys()
+        uris |= used
+    names -= set(shared)
     return [
         package
         for package in subdirs(packages_dir)
-        if _superseded(package, names)
+        if _REPLACED_MARK in package.name
+        and _name(package) in names
         and (uri := _installed_from(package)) is not None
         and uri not in uris
     ]
 
 
 def prune_platformio_installs(
-    platforms: Collection[str], dry_run: bool = False
+    platforms: Collection[str],
+    recommended: Mapping[str, str] | None = None,
+    dry_run: bool = False,
 ) -> list[Path]:
     """Remove the named PlatformIO platforms and the packages only they use.
 
+    ``recommended`` maps the name of a platform that still builds with
+    PlatformIO to the source its recommended version is installed from. Of
+    such a platform, every install from another source is removed too, and so
+    are the replaced LibreTiny packages in a version it no longer builds
+    with. An install whose source is not recorded is kept.
+
     A package that PlatformIO itself or a remaining platform needs is kept.
-    The copies of the RP2 and LibreTiny platforms that a newer install
-    replaced are removed too, and so are the replaced LibreTiny packages in a
-    version it no longer builds with.
     PlatformIO's download cache is cleared. Returns what was removed (what
     would be removed on a dry run). Does nothing when PlatformIO is not
     installed.
@@ -150,6 +165,21 @@ def prune_platformio_installs(
     if (config := get_platformio_config()) is None:
         return []
     from platformio.dependencies import get_core_dependencies
+    from platformio.package.meta import PackageSpec
+
+    # In the form PlatformIO records for an install
+    sources = {
+        name: PackageSpec(source).uri for name, source in (recommended or {}).items()
+    }
+
+    def other_source(platform: Path) -> bool:
+        source = sources.get(_name(platform))
+        installed_from = _installed_from(platform)
+        return (
+            source is not None
+            and installed_from is not None
+            and installed_from != source
+        )
 
     doomed: list[Path] = []
     kept: list[Path] = []
@@ -157,15 +187,13 @@ def prune_platformio_installs(
     for platform in subdirs(platforms_dir, symlinks=True):
         if is_leftover(platform) or (
             not platform.is_symlink()
-            and (
-                _name(platform) in platforms
-                or _superseded(platform, _SUPERSEDED_PLATFORMS)
-            )
+            and (_name(platform) in platforms or other_source(platform))
         ):
             doomed.append(platform)
         else:
             kept.append(platform)
 
+    core_packages = set(get_core_dependencies())
     # Package name -> the removed platforms that list it
     owners: dict[str, set[str]] = {}
     for platform in doomed:
@@ -177,23 +205,28 @@ def prune_platformio_installs(
             continue
         for package in packages:
             owners.setdefault(package, set()).add(_name(platform))
-    for package in get_core_dependencies():
+    for package in core_packages:
         owners.pop(package, None)
+    # Package name -> the platforms that stay and list it
+    listed_by: dict[str, set[str]] = {}
+    all_read = True
     for platform in kept:
         if (packages := _packages(platform)) is None:
             _LOGGER.warning(
                 "Keeping all PlatformIO packages, could not tell which ones %s uses",
                 platform,
             )
+            all_read = False
             owners = {}
             break
         name = _name(platform)
         for package, optional in packages.items():
+            listed_by.setdefault(package, set()).add(name)
             if not optional or name in platforms:
                 owners.pop(package, None)
             elif package in owners:
-                # Optional here: kept if only this platform's own replaced
-                # copies list it, removed if another removed platform does.
+                # Optional here: kept if only this platform's own removed
+                # installs list it, removed if another removed platform does.
                 # The RP2 platform lists cmake and ninja this way, for a
                 # framework ESPHome never builds with.
                 owners[package].discard(name)
@@ -206,24 +239,36 @@ def prune_platformio_installs(
         for package in subdirs(packages_dir)
         if is_leftover(package) or _name(package) in owned
     ]
-    removed += [
-        package
-        for package in _unused_libretiny_packages(platforms_dir, packages_dir)
-        if package not in removed
-    ]
+    if all_read:
+        shared = core_packages | {
+            package for package, names in listed_by.items() if names != {LIBRETINY}
+        }
+        libretiny = [platform for platform in kept if _name(platform) == LIBRETINY]
+        removed += [
+            package
+            for package in _unused_libretiny_packages(libretiny, packages_dir, shared)
+            if package not in removed
+        ]
     # The downloads PlatformIO keeps of what it installed; `esphome clean`
     # clears this too. PlatformIO makes the directory again, so an empty one stays.
+    cache_dir = Path(config.get("platformio", "cache_dir"))
     removed += [
         path
-        for path in with_leftover(Path(config.get("platformio", "cache_dir")))
+        for path in with_leftover(cache_dir, platformio=True)
         if is_leftover(path) or (path.is_dir() and any(path.iterdir()))
     ]
-    if ESPRESSIF32 in platforms and ESPRESSIF32 not in map(_name, kept):
-        core_dir = Path(config.get("platformio", "core_dir"))
+    core_dir = Path(config.get("platformio", "core_dir"))
+    if (
+        ESPRESSIF32 in platforms
+        and ESPRESSIF32 not in map(_name, kept)
+        # The native ESP-IDF install can be pointed at the same directory;
+        # the tools in it are then that install's
+        and tools_cache_path(*IDF_TOOLS_CACHE) != core_dir.resolve()
+    ):
         for name in _ESPRESSIF32_CORE_ENTRIES:
-            removed += with_leftover(core_dir / name)
+            removed += with_leftover(core_dir / name, platformio=True)
         removed += _espressif32_python_environments(core_dir)
     removed += doomed
 
-    remove_trees(removed, dry_run)
+    remove_trees(removed, dry_run, platformio=True)
     return removed

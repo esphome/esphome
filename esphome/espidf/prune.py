@@ -7,7 +7,7 @@ from contextlib import suppress
 import logging
 from pathlib import Path
 
-from esphome.build_helpers.prune import remove_trees, subdirs
+from esphome.build_helpers.prune import is_leftover, remove_trees, subdirs
 from esphome.espidf.framework import _get_idf_tool_paths, get_idf_tools_path
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,15 +68,14 @@ def prune_idf_installs(
         penv for penv in subdirs(root / "penvs") if penv.name not in kept_versions
     ]
 
-    tools: list[Path] = []
-    if (used := _used_tools(kept)) is not None:
-        tools = subdirs(root / "tools")
-        removed += [
-            version
-            for tool in tools
-            for version in subdirs(tool)
-            if version not in used
-        ]
+    used = _used_tools(kept)
+    tools = subdirs(root / "tools")
+    removed += [
+        version
+        for tool in tools
+        for version in subdirs(tool)
+        if is_leftover(version) or (used is not None and version not in used)
+    ]
 
     remove_trees(removed, dry_run)
 

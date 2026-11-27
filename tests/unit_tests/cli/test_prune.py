@@ -15,6 +15,7 @@ from esphome.arduino8266.framework import FRAMEWORK_RELEASES
 from esphome.cli.prune import (
     _recommended_arduino8266_frameworks,
     _recommended_idf_versions,
+    _recommended_platformio_sources,
     _recommended_sdk_nrf_versions,
     command_prune,
 )
@@ -24,8 +25,10 @@ from esphome.components.esp32 import (
     ESP_IDF_FRAMEWORK_VERSION_LOOKUP,
 )
 from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION
+from esphome.components.libretiny import ARDUINO_VERSIONS
 from esphome.components.nrf52 import MIN_SDK_NRF_VERSIONS, RECOMMENDED_SDK_NRF_VERSION
 from esphome.components.nrf52.const import VARIANT_NRF54LM20
+from esphome.components.rp2 import RECOMMENDED_ARDUINO_PLATFORM_VERSION
 from esphome.platformio.prune import DEPRECATED_PLATFORMS
 
 
@@ -77,6 +80,14 @@ def test_recommended_sdk_nrf_versions() -> None:
     }
 
 
+def test_recommended_platformio_sources() -> None:
+    sources = _recommended_platformio_sources()
+
+    assert set(sources) == {"raspberrypi", "libretiny"}
+    assert RECOMMENDED_ARDUINO_PLATFORM_VERSION in sources["raspberrypi"]
+    assert sources["libretiny"] == ARDUINO_VERSIONS["recommended"][1]
+
+
 def test_command_prune_passes_arguments(pruners: dict[str, Mock]) -> None:
     assert command_prune(MockArgs(dry_run=True)) == 0
 
@@ -87,7 +98,9 @@ def test_command_prune_passes_arguments(pruners: dict[str, Mock]) -> None:
     pruners["sdk_nrf"].assert_called_once_with(
         _recommended_sdk_nrf_versions(), dry_run=True
     )
-    pruners["platformio"].assert_called_once_with(DEPRECATED_PLATFORMS, dry_run=True)
+    pruners["platformio"].assert_called_once_with(
+        DEPRECATED_PLATFORMS, _recommended_platformio_sources(), dry_run=True
+    )
 
 
 @pytest.mark.parametrize(
