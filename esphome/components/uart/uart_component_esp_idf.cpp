@@ -123,8 +123,9 @@ uart_config_t IDFUARTComponent::get_config_() {
     uint32_t xtal_d2_freq = 0;
     esp_clk_tree_src_get_freq_hz(static_cast<soc_module_clk_t>(LP_UART_SCLK_XTAL_D2),
                                  ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &xtal_d2_freq);
-    uart_config.lp_source_clk =
-        xtal_d2_freq / this->baud_rate_ <= UART_CLKDIV_V ? LP_UART_SCLK_XTAL_D2 : LP_UART_SCLK_DEFAULT;
+    // Compare in the divider's 1/16 steps: an integer part of UART_CLKDIV_V with a fraction does not run (4883 baud)
+    const bool xtal_d2_fits = (xtal_d2_freq << 4) / this->baud_rate_ <= (UART_CLKDIV_V << 4);
+    uart_config.lp_source_clk = xtal_d2_fits ? LP_UART_SCLK_XTAL_D2 : LP_UART_SCLK_DEFAULT;
 #else
     // Other LP UARTs, such as the ESP32-S31's, have no XTAL_D2 but a prescaler, so the default clock fits.
     uart_config.lp_source_clk = LP_UART_SCLK_DEFAULT;
