@@ -3,22 +3,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include "esphome/components/tflite_model_loader/engine.h"
 #include "esphome/components/tflite_output_processor/output_processor.h"
 #include "tensorflow/lite/c/common.h"
 
 namespace tflite {
 class MicroResourceVariables;
 }  // namespace tflite
-
-namespace esphome::tflite_runtime_testing {
-/// What the engine double does next, and how often it ran.
-struct Engine {
-  TfLiteType output_type{kTfLiteFloat32};
-  TfLiteStatus invoke_status{kTfLiteOk};
-  unsigned invocations{0};
-};
-inline Engine engine;
-}  // namespace esphome::tflite_runtime_testing
 
 namespace esphome::tflite_model_loader {
 
@@ -42,9 +33,9 @@ class ModelHandler {
   bool load_model_with_arena(const uint8_t *, size_t, uint8_t *, size_t, const ModelConfig &config,
                              tflite::MicroResourceVariables *) {
     this->config_ = config;
-    return true;
+    return tflite_runtime_testing::engine.load_succeeds;
   }
-  void unload() {}
+  void unload() { ++tflite_runtime_testing::engine.unloads; }
   TfLiteStatus invoke() {
     auto &engine = tflite_runtime_testing::engine;
     this->output_value_ = static_cast<float>(++engine.invocations);

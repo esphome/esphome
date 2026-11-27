@@ -19,7 +19,6 @@
 #include <utility>
 #include <vector>
 #include "tensorflow/lite/c/common.h"
-#include "tensorflow/lite/micro/micro_interpreter.h"
 
 namespace esphome::tflite_micro_runtime {
 

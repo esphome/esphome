@@ -1,14 +1,19 @@
 #ifdef USE_HOST
 #include <gtest/gtest.h>
 
+#include <atomic>
+#include <chrono>
 #include <functional>
 #include <thread>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+// Empty without USE_ESP32, and included first so the runtime does not pull in FreeRTOS.
+#include "esphome/core/main_task.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/string_ref.h"
+#include "tflite_runtime_platform.h"
 
 // Compile the production runtime; only the inference engine and the ESP platform headers use __sdk.
 #define USE_ESP32
@@ -164,6 +169,61 @@ TEST_F(ResultLifecycleTest, AnUnmappedOutputTypeIsNotifiedWithAnInvalidResult) {
   ASSERT_TRUE(this->run());
   EXPECT_FALSE(this->helper.get_last_result().valid);
   EXPECT_EQ(this->notified, 3u);
+}
+
+TEST_F(ResultLifecycleTest, AFailedLoadReleasesTheArenaAndCanBeRetried) {
+  ASSERT_TRUE(this->helper.unload_model());
+  engine.load_succeeds = false;
+  const unsigned unloads = engine.unloads;
+  EXPECT_FALSE(this->helper.load_model());
+  EXPECT_FALSE(this->helper.is_model_loaded());
+  EXPECT_EQ(engine.unloads, unloads + 1);
+  EXPECT_EQ(this->helper.get_tensor_arena_size_actual(), 0u);
+  EXPECT_FALSE(this->helper.get_last_load_stats().success);
+  EXPECT_FALSE(this->run());
+  engine.load_succeeds = true;
+  EXPECT_TRUE(this->helper.load_model());
+  EXPECT_TRUE(this->run());
+}
+
+TEST_F(ResultLifecycleTest, AFailedArenaAllocationFailsTheLoad) {
+  ASSERT_TRUE(this->helper.unload_model());
+  engine.allocation_succeeds = false;
+  EXPECT_FALSE(this->helper.load_model());
+  EXPECT_FALSE(this->helper.is_model_loaded());
+  engine.allocation_succeeds = true;
+  EXPECT_TRUE(this->helper.load_model());
+}
+
+TEST_F(ResultLifecycleTest, AReloadAfterUnloadRunsAgain) {
+  ASSERT_TRUE(this->run());
+  EXPECT_FALSE(this->helper.load_model());  // already loaded
+  ASSERT_TRUE(this->helper.unload_model());
+  EXPECT_EQ(this->helper.input_tensor(), nullptr);
+  EXPECT_FALSE(this->run());
+  ASSERT_TRUE(this->helper.load_model());
+  EXPECT_TRUE(this->run());
+  EXPECT_EQ(engine.invocations, 2u);
+}
+
+TEST_F(ResultLifecycleTest, AnUnloadWaitsForAnInferenceSession) {
+  std::atomic<bool> unloaded{false};
+  std::thread worker;
+  {
+    InferenceSession session(&this->helper);
+    ASSERT_TRUE(session.valid());
+    worker = std::thread([this, &unloaded]() {
+      this->helper.unload_model();
+      unloaded = true;
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_FALSE(unloaded);
+    EXPECT_EQ(session.invoke(), kTfLiteOk);
+    EXPECT_NE(session.output_tensor(), nullptr);
+  }
+  worker.join();
+  EXPECT_TRUE(unloaded);
+  EXPECT_FALSE(this->helper.is_model_loaded());
 }
 
 }  // namespace esphome::tflite_micro_runtime::testing
