@@ -37,7 +37,6 @@ CODEOWNERS = ["@nliaudat"]
 
 CONF_CAMERA_ID = "camera_id"
 CONF_CROP = "crop"
-CONF_ON_IMAGE = "on_image"
 
 # The size the frame decodes to, recorded by the final validation where the
 # camera's resolution is known, and read back by to_code.
@@ -108,7 +107,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TIMEOUT, default="5s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_IMAGE): automation.validate_automation({}),
+            cv.Optional(esp32_camera.CONF_ON_IMAGE): automation.validate_automation({}),
             cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
         }
     )
@@ -119,7 +118,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 _CALLBACK_AUTOMATIONS = (
-    automation.CallbackAutomation(CONF_ON_IMAGE, "add_on_image_callback"),
+    automation.CallbackAutomation(esp32_camera.CONF_ON_IMAGE, "add_on_image_callback"),
     automation.CallbackAutomation(CONF_ON_ERROR, "add_on_error_callback"),
 )
 
