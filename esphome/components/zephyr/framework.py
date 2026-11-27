@@ -30,8 +30,9 @@ def get_zephyr_tools_path() -> Path:
     return tools_cache_path(*ZEPHYR_TOOLS_CACHE)
 
 
-def _get_python_env_path(version: str) -> Path:
-    return get_zephyr_tools_path() / "penvs" / version
+def _get_python_env_path(framework_path: Path) -> Path:
+    # One venv per workspace, so one workspace's pip install can't change another's
+    return get_zephyr_tools_path() / "penvs" / framework_path.name
 
 
 def _get_toolchain_path(sdk_version: str, toolchain: str) -> Path:
@@ -65,11 +66,9 @@ def _check_and_install(
     framework_path: Path,
     projects: frozenset[str],
 ) -> None:
-    python_env_path = _get_python_env_path(version)
+    python_env_path = _get_python_env_path(framework_path)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
-    # Every workspace of this version shares the venv
-    with install_lock(get_zephyr_tools_path(), f"penv-{version}"):
-        install_venv = ensure_venv(python_env_path, _REQUIREMENTS, version)
+    install_venv = ensure_venv(python_env_path, _REQUIREMENTS, version)
 
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
@@ -87,15 +86,9 @@ def _check_and_install(
     patch_gen_defines_dts_path(framework_path)
     patch_west_build_source_dir_relpath(framework_path)
 
-    with install_lock(get_zephyr_tools_path(), f"penv-{version}"):
-        # One marker per workspace, since workspaces share the penv
-        ensure_zephyr_requirements(
-            python_env_path,
-            framework_path,
-            install_venv,
-            version,
-            f".zephyr_reqs_ready-{framework_path.name}",
-        )
+    ensure_zephyr_requirements(
+        python_env_path, framework_path, install_venv, version, ".zephyr_reqs_ready"
+    )
 
 
 def _read_sdk_version(framework_path: Path) -> str:
