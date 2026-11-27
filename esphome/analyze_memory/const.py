@@ -16,6 +16,9 @@ ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 # - LibreTiny BK7231: .itcm.code (fast RAM), .vectors (interrupt vectors)
 # - LibreTiny LN882X: .flash_text, .flash_copy* (flash code)
 # - Zephyr/nRF52: text, rodata, datas, bss (no leading dots)
+# ESP-IDF sections that only reserve address space; ".dram0.dummy" is the DRAM view of IRAM code
+PLACEHOLDER_SECTION_MARKERS = ("dummy", "_noload")
+
 SECTION_MAPPING = {
     ".text": frozenset(
         [

@@ -1061,7 +1061,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         *ar_rule_lines(toolchain_tool(paths.toolchain, "ar")),
         *pch_rule_lines(),
         "rule link",
-        "  command = $cxx -o $out $linkflags @$out.rsp $libdirflags -Wl,--start-group $archives $libflags -Wl,--end-group",
+        # The map lets analyze-memory charge SDK buffers that have no symbols
+        "  command = $cxx -o $out -Wl,-Map=firmware.map $linkflags @$out.rsp $libdirflags -Wl,--start-group $archives $libflags -Wl,--end-group",
         "  rspfile = $out.rsp",
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
@@ -1173,7 +1174,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if CORE.testing_mode:
         ld_deps.append(f"ld/{flash_ld}")
     lines.append(
-        f"build firmware.elf: link {' '.join(src_objs + direct_objs)} | "
+        f"build firmware.elf | firmware.map: link {' '.join(src_objs + direct_objs)} | "
         f"{' '.join(_e(a) for a in archives)} {' '.join(_e(d) for d in ld_deps)}"
     )
     lines.append(f"  archives = {' '.join(_shell_token(a) for a in archives)}")

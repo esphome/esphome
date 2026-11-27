@@ -1,5 +1,6 @@
 """Memory usage analyzer for ESPHome compiled binaries."""
 
+from bisect import bisect_right
 from collections import Counter, defaultdict
 from collections.abc import Container
 from dataclasses import dataclass, field
@@ -224,6 +225,68 @@ class _RodataSection:
     @property
     def unnamed_size(self) -> int:
         return self.size - len(self._named)
+
+
+@dataclass
+class MapInputSection:
+    """An input section the linker placed, from its map file."""
+
+    output: str  # Output section, e.g. ".bss"
+    address: int
+    size: int
+    source: str  # Object file, or archive(member)
+
+
+def _parse_map_input_sections(map_text: str) -> list[MapInputSection]:
+    """List the input sections in a GNU ld map; a long name puts the rest on the next line."""
+    _, found, memory_map = map_text.partition("Linker script and memory map")
+    if not found:
+        return []
+    sections: list[MapInputSection] = []
+    output = ""
+    wrapped = False
+    for line in memory_map.splitlines():
+        if not (fields := line.split()):
+            continue
+        if not line[0].isspace():
+            output = fields[0]
+            wrapped = False
+            continue
+        if line[1] != " ":
+            # " .bss" or " COMMON"; " *fill*" and " *(.bss)" are padding and patterns
+            wrapped = len(fields) == 1 and not fields[0].startswith("*")
+            if len(fields) == 1 or fields[0].startswith("*"):
+                continue
+            fields = fields[1:]
+        elif not wrapped:
+            continue
+        wrapped = False
+        if (
+            len(fields) >= 3
+            and fields[0].startswith("0x")
+            and fields[1].startswith("0x")
+            and (size := int(fields[1], 16))
+        ):
+            sections.append(
+                MapInputSection(output, int(fields[0], 16), size, " ".join(fields[2:]))
+            )
+    return sections
+
+
+def _covered_bytes(
+    spans: list[tuple[int, int, str]], starts: list[int], start: int, end: int
+) -> int:
+    """Bytes of [start, end) that the sorted symbol spans cover, overlaps counted once."""
+    covered = 0
+    cursor = start
+    for index in range(max(0, bisect_right(starts, start) - 1), len(spans)):
+        address, size, _ = spans[index]
+        if address >= end:
+            break
+        if (stop := min(address + size, end)) > (begin := max(address, cursor)):
+            covered += stop - begin
+            cursor = stop
+    return covered
 
 
 def _parse_string_sections(output: str) -> dict[str, dict[str, tuple[str, str | None]]]:
@@ -480,6 +543,13 @@ class MemoryAnalyzer:
         self.rodata_in_ram = False
         self._unnamed_constants: list[UnnamedConstant] = []
         self._string_literals: list[StringLiteral] = []
+        # Named symbols as (address, size, name), and the component each belongs to
+        self._symbol_spans: list[tuple[int, int, str]] = []
+        self._symbol_components: dict[str, str] = {}
+        # RAM without a symbol, from the linker map: (object, section, component) -> bytes
+        self._unnamed_ram: Counter[tuple[str, str, str]] = Counter()
+        # _analyze_object_rodata charged the unnamed .rodata of objects built next to the ELF
+        self._object_rodata_charged = False
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -490,7 +560,10 @@ class MemoryAnalyzer:
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
         self._analyze_object_rodata()
-        self._analyze_sdk_libraries()
+        self._attribute_unnamed_ram()
+        if not self._unnamed_ram:
+            # The map already names the objects these symbols would point at
+            self._analyze_sdk_libraries()
         self._analyze_function_calls()
         return dict(self.components)
 
@@ -557,6 +630,7 @@ class MemoryAnalyzer:
             self.sections[section].symbols.append((name, size, ""))
             self.sections[section].symbol_size += size
             seen_addresses.add(address)
+            self._symbol_spans.append((int(address, 16), size, name))
 
     def _categorize_symbols(self) -> None:
         """Categorize symbols by component."""
@@ -574,6 +648,7 @@ class MemoryAnalyzer:
         for section_name, section in self.sections.items():
             for symbol_name, size, _ in section.symbols:
                 component = self._identify_component(symbol_name)
+                self._symbol_components[symbol_name] = component
 
                 if component not in self.components:
                     self.components[component] = ComponentMemory(component)
@@ -940,6 +1015,19 @@ class MemoryAnalyzer:
 
         return mapping
 
+    @cached_property
+    def _map_text(self) -> str | None:
+        """The linker map next to the ELF, or None without a usable one."""
+        map_path = self.elf_path.with_suffix(".map")
+        if not map_path.exists() or map_path.stat().st_size < 10000:
+            return None
+        _LOGGER.info("Parsing linker map file: %s", map_path.name)
+        try:
+            return map_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as err:
+            _LOGGER.warning("Failed to read map file: %s", err)
+            return None
+
     def _parse_map_file(self) -> dict[str, str] | None:
         """Parse linker map file to build authoritative symbol-to-library mapping.
 
@@ -957,16 +1045,7 @@ class MemoryAnalyzer:
         Returns:
             Symbol-to-library dict, or ``None`` if no usable map file exists.
         """
-        map_path = self.elf_path.with_suffix(".map")
-        if not map_path.exists() or map_path.stat().st_size < 10000:
-            return None
-
-        _LOGGER.info("Parsing linker map file: %s", map_path.name)
-
-        try:
-            map_text = map_path.read_text(encoding="utf-8", errors="replace")
-        except OSError as err:
-            _LOGGER.warning("Failed to read map file: %s", err)
+        if (map_text := self._map_text) is None:
             return None
 
         symbol_map: dict[str, str] = {}
@@ -1495,6 +1574,7 @@ class MemoryAnalyzer:
             output = f"File: {objects[0]}\n{output}"
         self._attribute_unnamed_constants(output, obj_dir)
         self._attribute_string_literals(output, obj_dir)
+        self._object_rodata_charged = True
         names = {n for c in self._unnamed_constants for n in c.functions} | {
             n
             for literal in self._string_literals
@@ -1802,11 +1882,83 @@ class MemoryAnalyzer:
                 resolved[name] = [t.decode("utf-8", "backslashreplace") for t in texts]
         return resolved
 
-    def _charge_ram(self, component: str, size: int) -> None:
+    def _attribute_unnamed_ram(self) -> None:
+        """Charge RAM no symbol covers to its object's component, from the linker map.
+
+        Closed-source SDK archives keep most of their buffers without symbols; the
+        map still names the object, whose named symbols give the component.
+        """
+        if self._map_text is None or not (
+            inputs := _parse_map_input_sections(self._map_text)
+        ):
+            return
+        inputs.sort(key=lambda s: s.address)
+        starts = [s.address for s in inputs]
+        spans = sorted(self._symbol_spans)
+
+        # Weigh each object's components by the size of its named symbols
+        weights: dict[str, Counter[str]] = defaultdict(Counter)
+        for address, size, name in spans:
+            index = bisect_right(starts, address) - 1
+            if index >= 0 and address < inputs[index].address + inputs[index].size:
+                weights[inputs[index].source][self._symbol_components[name]] += max(
+                    size, 1
+                )
+
+        # Relative sources were linked from the build directory
+        build_dir = f"{self.elf_path.parent.resolve()}/"
+        mapped = {
+            output: map_section_name(output) for output in {s.output for s in inputs}
+        }
+        span_starts = [address for address, _, _ in spans]
+        # Merged string sections share an address; count their bytes once
+        placed_end = 0
+        for section in inputs:
+            ram_section = self._standard_section(mapped[section.output])
+            if ram_section not in RAM_SECTIONS:
+                continue
+            start = max(section.address, placed_end)
+            end = section.address + section.size
+            if end <= start:
+                continue
+            placed_end = end
+            if (
+                self._object_rodata_charged
+                and mapped[section.output] == ".rodata"
+                and (
+                    not section.source.startswith("/")
+                    or section.source.startswith(build_dir)
+                )
+            ):
+                continue
+            unnamed = end - start - _covered_bytes(spans, span_starts, start, end)
+            if unnamed <= 0:
+                continue
+            obj = Path(section.source).name
+            if obj_weights := weights.get(section.source):
+                component = obj_weights.most_common(1)[0][0]
+            elif "(" in obj:
+                archive = obj.partition("(")[0].removesuffix(".a").removeprefix("lib")
+                component = f"{_COMPONENT_PREFIX_LIB}{archive}"
+            else:
+                component = self._source_file_to_component(section.source)
+            self._unnamed_ram[(obj, ram_section, component)] += unnamed
+
+        for (obj, ram_section, component), size in self._unnamed_ram.items():
+            self._charge_ram(component, size, ram_section)
+            entry = (obj, f"{obj} (no symbol)", size, ram_section)
+            self._component_symbols[component].append(entry)
+            self._ram_symbols[component].append(entry)
+
+    def get_unnamed_ram(self) -> list[tuple[str, str, str, int]]:
+        """RAM charged from the linker map, as (object, section, component, bytes), largest first."""
+        return [(*key, size) for key, size in self._unnamed_ram.most_common()]
+
+    def _charge_ram(self, component: str, size: int, section: str = ".data") -> None:
         """Charge RAM bytes that have no ELF symbol to a component."""
-        self._add_component_size(component, ".data", size)
-        if (data_section := self.sections.get(".data")) is not None:
-            data_section.symbol_size += size
+        self._add_component_size(component, section, size)
+        if (ram_section := self.sections.get(section)) is not None:
+            ram_section.symbol_size += size
 
     def _add_component_size(self, component: str, section: str, size: int) -> None:
         """Add size to a component, creating it under its own name."""

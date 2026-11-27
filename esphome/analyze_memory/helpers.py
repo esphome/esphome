@@ -3,7 +3,7 @@
 from functools import cache
 from pathlib import Path
 
-from .const import SECTION_MAPPING
+from .const import PLACEHOLDER_SECTION_MARKERS, SECTION_MAPPING
 
 # Import namespace constant from parent module
 # Note: This would create a circular import if done at module level,
@@ -61,6 +61,8 @@ def map_section_name(raw_section: str) -> str | None:
     Returns:
         Standard section name (".text", ".rodata", ".data", ".bss") or None
     """
+    if any(marker in raw_section for marker in PLACEHOLDER_SECTION_MARKERS):
+        return None
     for standard_section, patterns in SECTION_MAPPING.items():
         if any(pattern in raw_section for pattern in patterns):
             return standard_section
