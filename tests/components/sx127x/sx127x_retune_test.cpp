@@ -6,6 +6,7 @@ namespace esphome::sx127x::testing {
 // 434.5 MHz as the chip's frequency registers: 434500000 * 2^19 / 32 MHz, independent of the code under test
 static constexpr uint32_t FRF = 0x6CA000;
 static constexpr uint32_t FREQUENCY = 434500000;
+static constexpr uint32_t OTHER_FREQUENCY = 434700000;
 // The RadioHardware default, 433.92 MHz
 static constexpr uint32_t FRF_DEFAULT = 0x6C7AE1;
 
@@ -70,7 +71,64 @@ TEST_P(SX127xRetuneModulation, FailureWarnsAndTheRetryUsesTheNewFrequency) {
   EXPECT_EQ(frf(hw), FRF);
 }
 
+TEST_P(SX127xRetuneModulation, ASecondRetuneBeforeTheLoopWaitsForTheHeldPacket) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(GetParam(), true);
+  hw.radio.register_listener(&listener);
+  hw.receive({0x01});
+  hw.radio.retune(FREQUENCY);
+  hw.receive({0x02});
+  hw.radio.retune(OTHER_FREQUENCY);
+  EXPECT_EQ(frf(hw), FRF);
+  hw.radio.loop();
+  hw.radio.loop();
+  EXPECT_EQ(listener.packets, (std::vector<std::vector<uint8_t>>{{0x01}, {0x02}}));
+}
+
+TEST_P(SX127xRetuneModulation, ListenersKeepTheirPacketWhenOneRetunes) {
+  RadioHardware hw;
+  PacketListener first, second;
+  hw.configure(GetParam(), true);
+  hw.radio.register_listener(&first);
+  hw.radio.register_listener(&second);
+  first.on_receive = [&]() {
+    if (first.packets.size() == 1) {
+      hw.receive({0x02});
+      hw.radio.retune(FREQUENCY);
+    }
+  };
+  hw.receive({0x01});
+  hw.radio.loop();
+  hw.radio.loop();
+  hw.radio.loop();
+  const std::vector<std::vector<uint8_t>> both{{0x01}, {0x02}};
+  EXPECT_EQ(first.packets, both);
+  EXPECT_EQ(second.packets, both);
+  EXPECT_EQ(frf(hw), FRF);
+}
+
+TEST_P(SX127xRetuneModulation, ConfigureDiscardsAHeldPacket) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(GetParam(), true);
+  hw.radio.register_listener(&listener);
+  hw.receive({0x01});
+  hw.radio.retune(FREQUENCY);
+  hw.radio.configure();
+  hw.radio.loop();
+  EXPECT_TRUE(listener.packets.empty());
+}
+
 INSTANTIATE_TEST_SUITE_P(LoraOrFsk, SX127xRetuneModulation, ::testing::Bool());
+
+TEST(SX127xRetune, IgnoresAFrequencyOutOfRange) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.radio.retune(1024000000);
+  hw.radio.retune(136000000);
+  EXPECT_EQ(frf(hw), FRF_DEFAULT);
+}
 
 TEST(SX127xRetune, IgnoredWhileSending) {
   RadioHardware hw;

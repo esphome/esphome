@@ -11,6 +11,9 @@
 namespace esphome::sx126x {
 
 static constexpr size_t SX126X_MAX_PACKET_SIZE = 255;
+// The frequencies the configuration accepts, which retune() also checks
+static constexpr uint32_t MIN_FREQUENCY = 137000000;
+static constexpr uint32_t MAX_FREQUENCY = 1020000000;
 
 class SX126xListener {
  public:

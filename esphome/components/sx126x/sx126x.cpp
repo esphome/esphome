@@ -107,6 +107,10 @@ void SX126x::set_mode_sleep(bool cold) {
 void SX126x::run_image_cal() { this->change_mode_(ModeCommand::MODE_COMMAND_IMAGE_CAL); }
 
 void SX126x::retune(uint32_t frequency) {
+  if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
+    ESP_LOGW(TAG, "Frequency %" PRIu32 " Hz out of range, ignored", frequency);
+    return;
+  }
   if (this->cold_sleep_) {
     // The configuration was lost; waking configures the radio again, on this frequency
     this->requested_profile_.frequency = frequency;
@@ -118,6 +122,8 @@ void SX126x::retune(uint32_t frequency) {
   }
   this->requested_profile_.frequency = frequency;
   this->apply_(this->radio_.retune(frequency));
+  // A packet held for a radio that sleeps is read by loop()
+  this->enable_loop();
 }
 
 void SX126x::change_mode_(ModeCommand command, uint8_t arg) {

@@ -10,6 +10,9 @@
 namespace esphome::sx127x {
 
 static constexpr size_t SX127X_MAX_PACKET_SIZE = 255;  // the payload length register is 8 bits
+// The frequencies the configuration accepts, which retune() also checks
+static constexpr uint32_t MIN_FREQUENCY = 137000000;
+static constexpr uint32_t MAX_FREQUENCY = 1020000000;
 
 enum SX127xBw : uint8_t {
   SX127X_BW_2_6,
@@ -167,7 +170,7 @@ class SX127x final : public Component,
   bool packet_waiting_();
   void receive_();
   // Reads a packet the chip has received into packet_; false if there is none, or it failed its CRC
-  bool read_packet_(float &rssi, float &snr);
+  bool read_packet_(std::vector<uint8_t> &packet, float &rssi, float &snr);
   SX127xError start_transmit_(SX127xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
   // True once the send has ended, with its outcome in result
   bool poll_transmit_(uint32_t now, SX127xError &result);
@@ -211,6 +214,7 @@ class SX127x final : public Component,
   bool rx_start_{false};
   bool reconfigure_pending_{false};
   // A packet read by retune() and not yet given to the listeners
+  std::vector<uint8_t> held_packet_;
   bool packet_held_{false};
   float held_rssi_{0.0f};
   float held_snr_{NAN};

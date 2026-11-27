@@ -100,6 +100,32 @@ TEST(SX126xRetune, FailureWarnsAndTheRetryUsesTheNewFrequency) {
   EXPECT_NE(std::find(hw.transactions.begin(), hw.transactions.end(), set_frequency_command()), hw.transactions.end());
 }
 
+TEST(SX126xRetune, IgnoresAFrequencyOutOfRange) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.clear_trace();
+  hw.radio.retune(1024000000);
+  hw.radio.retune(136000000);
+  EXPECT_TRUE(hw.transactions.empty());
+}
+
+TEST(SX126xRetune, ARadioThatSleepsDeliversAReceivedPacketAndSleepsAgain) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(true, false);
+  hw.radio.register_listener(&listener);
+  hw.irq = IRQ_RX_DONE;
+  hw.clear_trace();
+  hw.radio.retune(FREQUENCY);
+  // Held in standby, not put to sleep with the packet still in it
+  for (const auto &command : hw.transactions) {
+    EXPECT_NE(command[0], RADIO_SET_SLEEP);
+  }
+  hw.radio.loop();
+  EXPECT_EQ(listener.packets, std::vector<std::vector<uint8_t>>{hw.packet});
+  EXPECT_EQ(hw.transactions.back()[0], RADIO_SET_SLEEP);
+}
+
 TEST(SX126xRetune, IgnoredBeforeSetup) {
   RadioHardware hw;
   hw.radio.retune(FREQUENCY);

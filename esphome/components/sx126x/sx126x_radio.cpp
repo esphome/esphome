@@ -60,16 +60,20 @@ RadioEffects SX126xRadio::retune(uint32_t frequency) {
   // A packet already received stays flagged for loop().
   this->commands_.clear_irqs(IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID);
   this->commands_.set_frequency(frequency);
+  // A radio that sleeps keeps a received packet in standby, held, so that reading it puts the radio back to sleep
+  const bool hold = !this->applied_.rx_start && ((this->commands_.read_irq() | this->pending_irq_) & IRQ_RX_DONE) != 0;
   if (this->applied_.rx_start) {
     this->commands_.receive();
-  } else {
+  } else if (!hold) {
     this->commands_.sleep();
   }
   const bool ok = this->bus().ok();
   if (ok) {
     this->applied_.frequency = frequency;
   }
-  this->commit_(ok ? RadioState::RADIO_STATE_IDLE : RadioState::RADIO_STATE_NEEDS_CONFIGURATION);
+  this->commit_(!ok    ? RadioState::RADIO_STATE_NEEDS_CONFIGURATION
+                : hold ? RadioState::RADIO_STATE_HOLDING_RX
+                       : RadioState::RADIO_STATE_IDLE);
   return comm_report(ok);
 }
 
