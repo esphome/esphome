@@ -124,10 +124,10 @@ class MR24HPC1Component final : public Component,
   char c_firmware_version_[PRODUCT_BUF_MAX_SIZE + 1];
   uint32_t last_rx_{0};
   // 53 59, control, command, payload length (2, BE), payload (at least 1), sum, 54 43
-  LengthFrameReader<FRAME_BUF_MAX_SIZE, FrameFormat<FrameHeader<FRAME_HEADER1_VALUE, FRAME_HEADER2_VALUE>,
-                                                    PayloadLengthU16BE<LengthField{.offset = 4, .trailer = 3}>,
-                                                    FrameMinLength<MIN_FRAME_SIZE>>>
-      reader_;
+  using PayloadLength = PayloadLengthU16BE<LengthField{.offset = 4, .trailer = 3}>;
+  using Frame =
+      FrameFormat<FrameHeader<FRAME_HEADER1_VALUE, FRAME_HEADER2_VALUE>, PayloadLength, FrameMinLength<MIN_FRAME_SIZE>>;
+  LengthFrameReader<FRAME_BUF_MAX_SIZE, Frame> reader_;
   int sg_start_query_data_;
   uint8_t s_output_info_switch_flag_;
   bool check_dev_inf_sign_;

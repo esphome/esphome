@@ -1,9 +1,26 @@
 #include "haier_tundra.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome::haier_tundra {
 
 // Number of bytes in decoded packet sans checksum
 static constexpr uint8_t HAIER_TUNDRA_FRAME_SIZE = 13;
+
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, HAIER_MODE_AUTO}, {climate::CLIMATE_MODE_COOL, HAIER_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, HAIER_MODE_DRY},        {climate::CLIMATE_MODE_HEAT, HAIER_MODE_HEAT},
+    {climate::CLIMATE_MODE_FAN_ONLY, HAIER_MODE_FAN},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, HAIER_FAN_AUTO},
+    {climate::CLIMATE_FAN_LOW, HAIER_FAN_LOW},
+    {climate::CLIMATE_FAN_MEDIUM, HAIER_FAN_MED},
+    {climate::CLIMATE_FAN_HIGH, HAIER_FAN_HIGH},
+};
 
 void HaierTundra::transmit_state() {
   // Button value does not seem to matter too much except
@@ -30,9 +47,9 @@ void HaierTundra::transmit_(uint8_t button) {
       static_cast<uint8_t>(this->horizontal_swing_() << 5),
       static_cast<uint8_t>(this->health_() << 1),
       static_cast<uint8_t>(this->power_() << 6),
-      static_cast<uint8_t>(this->fan_speed_() << 5),
+      static_cast<uint8_t>(to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), HAIER_FAN_AUTO) << 5),
       static_cast<uint8_t>(this->quiet_() << 7 | this->turbo_() << 6),
-      static_cast<uint8_t>(this->operation_mode_() << 5),
+      static_cast<uint8_t>(to_ir_code(MODES, this->mode, HAIER_MODE_AUTO) << 5),
       0x00,
       0x00,
       static_cast<uint8_t>((button == HAIER_BUTTON_SELF_CLEAN ? 1 : 0) << 4),
@@ -79,39 +96,9 @@ uint8_t HaierTundra::health_() { return this->health_mode_ ? 1 : 0; }
 
 uint8_t HaierTundra::power_() { return this->mode == climate::CLIMATE_MODE_OFF ? 0 : 1; }
 
-uint8_t HaierTundra::fan_speed_() {
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_LOW:
-      return HAIER_FAN_LOW;
-    case climate::CLIMATE_FAN_MEDIUM:
-      return HAIER_FAN_MED;
-    case climate::CLIMATE_FAN_HIGH:
-      return HAIER_FAN_HIGH;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      return HAIER_FAN_AUTO;
-  }
-}
-
 uint8_t HaierTundra::quiet_() { return this->quiet_mode_ ? 1 : 0; }
 
 uint8_t HaierTundra::turbo_() { return this->turbo_mode_ ? 1 : 0; }
-
-uint8_t HaierTundra::operation_mode_() {
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      return HAIER_MODE_COOL;
-    case climate::CLIMATE_MODE_DRY:
-      return HAIER_MODE_DRY;
-    case climate::CLIMATE_MODE_HEAT:
-      return HAIER_MODE_HEAT;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return HAIER_MODE_FAN;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    default:
-      return HAIER_MODE_AUTO;
-  }
-}
 
 bool HaierTundra::on_receive(remote_base::RemoteReceiveData data) {
   auto haier = remote_base::HaierProtocol().decode(data);
@@ -130,8 +117,9 @@ bool HaierTundra::on_haier_(const remote_base::HaierData &haier) {
   this->target_temperature = this->get_temperature_(haier.data[1] >> 4);
   this->swing_mode = this->get_swing_mode_(haier.data[1] & 0xF, haier.data[2] >> 5);
   this->health_mode_ = haier.data[3] & 0x2;
-  this->mode = this->get_operation_mode_(haier.data[4] & 0x40, haier.data[7] >> 5);
-  this->fan_mode = this->get_fan_speed_(haier.data[5] >> 5);
+  this->mode = (haier.data[4] & 0x40) ? from_ir_code(MODES, haier.data[7] >> 5, climate::CLIMATE_MODE_HEAT_COOL)
+                                      : climate::CLIMATE_MODE_OFF;
+  this->fan_mode = from_ir_code(FANS, haier.data[5] >> 5, climate::CLIMATE_FAN_AUTO);
   this->quiet_mode_ = haier.data[6] & 0x80;
   this->turbo_mode_ = haier.data[6] & 0x40;
 
@@ -160,40 +148,6 @@ climate::ClimateSwingMode HaierTundra::get_swing_mode_(uint8_t swing_v, uint8_t 
   }
 
   return climate::CLIMATE_SWING_OFF;
-}
-
-climate::ClimateMode HaierTundra::get_operation_mode_(uint8_t power, uint8_t mode) {
-  if (!power) {
-    return climate::CLIMATE_MODE_OFF;
-  }
-
-  switch (mode) {
-    case HAIER_MODE_COOL:
-      return climate::CLIMATE_MODE_COOL;
-    case HAIER_MODE_DRY:
-      return climate::CLIMATE_MODE_DRY;
-    case HAIER_MODE_HEAT:
-      return climate::CLIMATE_MODE_HEAT;
-    case HAIER_MODE_FAN:
-      return climate::CLIMATE_MODE_FAN_ONLY;
-    case HAIER_MODE_AUTO:
-    default:
-      return climate::CLIMATE_MODE_HEAT_COOL;
-  }
-}
-
-climate::ClimateFanMode HaierTundra::get_fan_speed_(uint8_t fan) {
-  switch (fan) {
-    case HAIER_FAN_LOW:
-      return climate::CLIMATE_FAN_LOW;
-    case HAIER_FAN_MED:
-      return climate::CLIMATE_FAN_MEDIUM;
-    case HAIER_FAN_HIGH:
-      return climate::CLIMATE_FAN_HIGH;
-    case HAIER_FAN_AUTO:
-    default:
-      return climate::CLIMATE_FAN_AUTO;
-  }
 }
 
 void HaierTundra::set_health_mode(bool health, bool transmit) {

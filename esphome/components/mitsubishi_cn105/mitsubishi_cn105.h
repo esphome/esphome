@@ -18,6 +18,12 @@ static constexpr uint8_t PREAMBLE = 0xFC;
 static constexpr uint8_t HEADER_BYTE_1 = 0x01;
 static constexpr uint8_t HEADER_BYTE_2 = 0x30;
 
+// The type byte sits between PREAMBLE and the fixed header bytes, so FrameHeader cannot check them
+inline bool frame_header_valid(const uint8_t *frame) { return frame[2] == HEADER_BYTE_1 && frame[3] == HEADER_BYTE_2; }
+// One checksum byte follows the payload
+using PayloadLength = PayloadLengthU8<LengthField{.offset = HEADER_LEN - 1, .trailer = 1}>;
+using Frame = FrameFormat<FrameHeader<PREAMBLE>, PayloadLength, CheckFirstBytes<HEADER_LEN, frame_header_valid>>;
+
 class MitsubishiCN105 {
  public:
   enum class Mode : uint8_t {
@@ -205,15 +211,7 @@ class MitsubishiCN105 {
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
   PropertyContext property_context_;
-  // The type byte sits between PREAMBLE and the fixed header bytes, so FrameHeader cannot check them
-  static bool frame_header_valid(const uint8_t *frame) {
-    return frame[2] == HEADER_BYTE_1 && frame[3] == HEADER_BYTE_2;
-  }
-  LengthFrameReader<MAX_FRAME_SIZE,
-                    FrameFormat<FrameHeader<PREAMBLE>,
-                                CheckedLength<PayloadLengthU8<LengthField{.offset = HEADER_LEN - 1, .trailer = 1}>,
-                                              HEADER_LEN, frame_header_valid>>>
-      reader_;
+  LengthFrameReader<MAX_FRAME_SIZE, Frame> reader_;
   uint8_t current_status_msg_type_{0};
 
   static constexpr uint8_t REMOTE_TEMPERATURE_DISABLED = 0;
