@@ -268,10 +268,10 @@ void USBAudioSpeaker::stop_() {
 // Reports the audio a suspend dropped as played, like the I2S speaker: the mixer waits for every frame it wrote.
 void USBAudioSpeaker::credit_dropped_() {
   portENTER_CRITICAL(&this->taken_lock_);
-  const uint32_t ring = this->ring_bytes_;
+  // One exchange, since a write's count of audio does not take the lock.
+  const uint32_t ring = this->ring_bytes_.exchange(0);
   this->unreported_frames_ +=
       this->usb_stream_info_.bytes_to_frames(ring - std::min<uint32_t>(this->ring_padding_, ring));
-  this->ring_bytes_ = 0;
   this->ring_padding_ = 0;
   this->queue_report_(esp_timer_get_time());
   portEXIT_CRITICAL(&this->taken_lock_);
