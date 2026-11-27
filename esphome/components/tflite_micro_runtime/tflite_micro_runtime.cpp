@@ -99,6 +99,9 @@ void TFLiteMicroHelper::setup() {
 void TFLiteMicroHelper::loop() {
   if (this->pending_epoch_.load(std::memory_order_acquire) != this->dispatched_epoch_.load(std::memory_order_acquire))
     this->dispatch_result_();
+  // Nothing left to deliver: finish_run_() re-enables the loop for the next result.
+  if (this->pending_epoch_.load(std::memory_order_acquire) == this->dispatched_epoch_.load(std::memory_order_acquire))
+    this->disable_loop();
 }
 
 void TFLiteMicroHelper::dump_config() {
@@ -364,14 +367,14 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
   // classification mapping; the stored result is then marked invalid.
   if (!this->result_callback_.empty()) {
     TfLiteTensor *output = this->model_handler_.output_tensor();
+    this->last_result_ = ProcessedOutput{0.0f, 0.0f, false};
     if (output == nullptr) {
       ESP_LOGW(TAG, "No output tensor; get_last_result() is invalid for this run");
-      this->last_result_ = ProcessedOutput{0.0f, 0.0f, false};
-    } else {
+    } else if (output->type == kTfLiteFloat32 || output->type == kTfLiteUInt8 || output->type == kTfLiteInt8) {
       this->last_result_ = this->model_handler_.process_output(output);
-      if (!this->last_result_.valid) {
-        ESP_LOGD(TAG, "The output type has no classification mapping; get_last_result() is invalid");
-      }
+    } else {
+      // The processor would log an error on every run for a type it cannot classify.
+      ESP_LOGV(TAG, "The output type has no classification mapping; get_last_result() is invalid");
     }
   }
   return true;
@@ -388,9 +391,17 @@ bool TFLiteMicroHelper::run_(const uint8_t *src_data, size_t src_size, int frame
       return false;
     if (!this->reserve_result_locked_())
       return false;
-    if (frame_width > 0 && frame_height > 0 && this->input_pipeline_ != nullptr)
+    // The frame size applies to this run only, so the configured one is put back.
+    const bool resized = frame_width > 0 && frame_height > 0 && this->input_pipeline_ != nullptr;
+    int configured_width = 0;
+    int configured_height = 0;
+    if (resized) {
+      this->input_pipeline_->get_frame_geometry(&configured_width, &configured_height);
       this->input_pipeline_->set_frame_geometry(frame_width, frame_height);
+    }
     succeeded = this->run_locked_(src_data, src_size);
+    if (resized)
+      this->input_pipeline_->set_frame_geometry(configured_width, configured_height);
     if (succeeded && !this->result_callback_.empty())
       this->pending_epoch_.fetch_add(1, std::memory_order_release);
     else if (!succeeded)

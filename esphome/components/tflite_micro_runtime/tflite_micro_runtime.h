@@ -87,6 +87,12 @@ class InputPipeline {
     (void) width;
     (void) height;
   }
+  /// The frame size currently set, 0x0 for none. A pipeline that stores one
+  /// overrides this, so a per-run size can be undone.
+  virtual void get_frame_geometry(int *width, int *height) const {
+    *width = 0;
+    *height = 0;
+  }
   /// Name for dump_config(), e.g. "image".
   virtual const char *name() const = 0;
 };
