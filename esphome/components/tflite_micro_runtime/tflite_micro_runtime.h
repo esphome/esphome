@@ -241,6 +241,12 @@ class TFLiteMicroHelper : public Component {
   ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};  // cached for reports after an unload
   bool debug_{false};
   bool defer_load_{false};
+  // One atomic value, so there is no check-then-act across flags.
+  enum class LoadState : uint8_t {
+    LOAD_STATE_UNLOADED,
+    LOAD_STATE_READY,
+  };
+  std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
 
   const uint8_t *model_data_{nullptr};
   tflite_model_loader::ModelHandler model_handler_;
@@ -248,13 +254,6 @@ class TFLiteMicroHelper : public Component {
   tflite_output_processor::OutputDecoder *output_decoder_{nullptr};
   tflite::MicroResourceVariables *resource_variables_{nullptr};
   MemoryManager::AllocationResult tensor_arena_allocation_;  // owned here, freed in unload_model()
-
-  // One atomic value, so there is no check-then-act across flags.
-  enum class LoadState : uint8_t {
-    LOAD_STATE_UNLOADED,
-    LOAD_STATE_READY,
-  };
-  std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
 
   /// Each successful run advances pending_epoch_; dispatch_result_() stores the
   /// epoch it delivered.
