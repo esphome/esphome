@@ -427,10 +427,10 @@ class LightState : public EntityBase, public Component {
    * color value may change continuously, but the remote values will be reported as the target values
    * starting with the beginning of the transition.
    *
-   * Lazily allocated - only created when a listener is actually registered.
+   * Held inline on MQTT builds, which always register here, and lazily allocated otherwise.
    * Holds the listeners and the on_turn_on and on_state callbacks in registration order.
    */
-  LazyCallbackManager<void()> remote_values_callback_;
+  EntityCallbackManager<void()> remote_values_callback_;
 
   /** Listeners for target state reached.
    * Notified when the state of current_values and remote_values are equal
