@@ -487,19 +487,6 @@ def test_check_esp_idf_install_already_installed(espidf_mocks: SimpleNamespace) 
     espidf_mocks.venv.assert_not_called()
 
 
-def test_check_esp_idf_install_records_last_use(espidf_mocks: SimpleNamespace) -> None:
-    """Each use refreshes the marker ``esphome prune`` ages installs by."""
-    framework_path = _get_framework_path(_IDF_VERSION)
-    (framework_path / ".esphome_extracted").touch()
-    marker = framework_path / ESPHOME_LAST_USED_FILE
-    marker.touch()
-    os.utime(marker, (0, 0))
-
-    check_esp_idf_install(_IDF_VERSION)
-
-    assert marker.stat().st_mtime > 0
-
-
 def test_corrupt_tarball_removed_when_extraction_fails(
     espidf_mocks: SimpleNamespace,
 ) -> None:
@@ -1746,6 +1733,40 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
     assert "IDF_PYTHON_ENV_PATH" not in env
     assert env["PATH"]  # taken from os.environ
+
+
+def test_get_framework_env_records_last_use(tmp_path: Path) -> None:
+    """The framework and each tool version it exports get a fresh marker."""
+    install = tmp_path / "idf"
+    framework = install / "frameworks" / "6.1.1"
+    gcc = install / "tools" / "xtensa-esp-elf" / "esp-15.2.0"
+    rom_elfs = install / "tools" / "esp-rom-elfs" / "20260528"
+    unused = install / "tools" / "xtensa-esp-elf" / "esp-14.2.0"
+    for path in (framework, gcc / "xtensa-esp-elf" / "bin", rom_elfs, unused):
+        path.mkdir(parents=True)
+    stale = framework / ESPHOME_LAST_USED_FILE
+    stale.touch()
+    os.utime(stale, (0, 0))
+
+    with (
+        patch("esphome.espidf.framework.get_idf_tools_path", return_value=install),
+        patch("esphome.espidf.framework._get_idf_version", return_value="6.1.1"),
+        patch(
+            "esphome.espidf.framework._get_idf_tool_paths",
+            return_value=(
+                [str(gcc / "xtensa-esp-elf" / "bin"), "/usr/bin", str(install)],
+                {"ESP_ROM_ELF_DIR": f"{rom_elfs}{os.sep}", "IDF_X": "1"},
+            ),
+        ),
+        patch("esphome.espidf.framework._ccache_env", return_value={}),
+    ):
+        get_framework_env(framework, env={"PATH": "/usr/bin"})
+
+    assert stale.stat().st_mtime > 0
+    assert (gcc / ESPHOME_LAST_USED_FILE).is_file()
+    assert (rom_elfs / ESPHOME_LAST_USED_FILE).is_file()
+    assert not (unused / ESPHOME_LAST_USED_FILE).exists()
+    assert len(list(install.rglob(ESPHOME_LAST_USED_FILE))) == 3
 
 
 # ---------------------------------------------------------------------------

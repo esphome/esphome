@@ -10,12 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.__main__ import parse_args
-from esphome.cli.prune import _default_idf_versions, command_prune
-from esphome.components.esp32 import (
-    ARDUINO_FRAMEWORK_VERSION_LOOKUP,
-    ARDUINO_IDF_VERSION_LOOKUP,
-    ESP_IDF_FRAMEWORK_VERSION_LOOKUP,
-)
+from esphome.cli.prune import command_prune
 from esphome.core import EsphomeError
 
 
@@ -25,21 +20,13 @@ class MockArgs:
     dry_run: bool = False
 
 
-def test_default_idf_versions() -> None:
-    versions = _default_idf_versions()
-
-    assert str(ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]) in versions
-    arduino = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
-    assert str(ARDUINO_IDF_VERSION_LOOKUP[arduino]) in versions
-
-
 def test_command_prune_passes_arguments() -> None:
     with patch(
         "esphome.espidf.prune.prune_idf_installs", return_value=[]
     ) as mock_prune:
         assert command_prune(MockArgs(days=7, dry_run=True)) == 0
 
-    mock_prune.assert_called_once_with(_default_idf_versions(), 7, dry_run=True)
+    mock_prune.assert_called_once_with(7, dry_run=True)
 
 
 @pytest.mark.parametrize(
@@ -76,12 +63,13 @@ def test_command_prune_oserror(caplog: pytest.LogCaptureFixture) -> None:
     assert "Error pruning ESP-IDF installs: denied" in caplog.text
 
 
-def test_command_prune_rejects_negative_days() -> None:
+def test_command_prune_rejects_less_than_a_day() -> None:
+    """Zero days would remove the installs the builds are using."""
     with (
         patch("esphome.espidf.prune.prune_idf_installs") as mock_prune,
-        pytest.raises(EsphomeError, match="must not be negative"),
+        pytest.raises(EsphomeError, match="at least 1"),
     ):
-        command_prune(MockArgs(days=-1))
+        command_prune(MockArgs(days=0))
 
     mock_prune.assert_not_called()
 
@@ -90,5 +78,5 @@ def test_parse_args_prune() -> None:
     args = parse_args(["esphome", "prune"])
     assert (args.command, args.days, args.dry_run) == ("prune", 30, False)
 
-    args = parse_args(["esphome", "prune", "--days", "0", "--dry-run"])
-    assert (args.days, args.dry_run) == (0, True)
+    args = parse_args(["esphome", "prune", "--days", "7", "--dry-run"])
+    assert (args.days, args.dry_run) == (7, True)

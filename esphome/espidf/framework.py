@@ -62,7 +62,8 @@ def _cache() -> _FrameworkCache:
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
-# Touched on every use of a framework; its mtime is what ``esphome prune`` ages
+# Touched in a framework and in each tool version a build uses; the mtime is
+# what ``esphome prune`` ages them by
 ESPHOME_LAST_USED_FILE = ".esphome_last_used"
 
 # Cache-buster baked into the stamp file. Bump this whenever a change would
@@ -1301,8 +1302,6 @@ def check_esp_idf_install(
     framework_path, fresh_extract = _check_esphome_idf_framework_install(
         version, targets, tools, force=force, env=env, source_url=source_url
     )
-    with suppress(OSError):
-        (framework_path / ESPHOME_LAST_USED_FILE).touch()
 
     features = features or ESPHOME_IDF_DEFAULT_FEATURES
 
@@ -1378,6 +1377,20 @@ def _ccache_env() -> dict[str, str]:
     return env
 
 
+def _mark_used(framework_path: PathType, exported: list[str]) -> None:
+    """Refresh the last-use marker of a framework and of the tools it exports."""
+    tools_path = get_idf_tools_path() / "tools"
+    used = {Path(framework_path)}
+    for value in exported:
+        with suppress(ValueError):
+            parts = Path(value).relative_to(tools_path).parts
+            if len(parts) >= 2:
+                used.add(tools_path / parts[0] / parts[1])
+    for path in used:
+        with suppress(OSError):
+            (path / ESPHOME_LAST_USED_FILE).touch()
+
+
 def get_framework_env(
     framework_path: PathType,
     python_env_path: PathType | None = None,
@@ -1417,6 +1430,7 @@ def get_framework_env(
 
     # 5. Get and add tool paths and environment variables
     paths_to_export, export_vars = _get_idf_tool_paths(framework_path, env)
+    _mark_used(framework_path, [*paths_to_export, *export_vars.values()])
     env.update(export_vars)
     env["PATH"] = os.pathsep.join(paths_to_export + path_list)
 

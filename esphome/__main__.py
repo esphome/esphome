@@ -2837,15 +2837,14 @@ def parse_args(argv):
 
     parser_prune = subparsers.add_parser(
         "prune",
-        help="Remove ESP-IDF versions that this ESPHome version does not build "
-        "with by default and that no build has used recently, along with the "
-        "toolchains and Python environments only they needed.",
+        help="Remove the ESP-IDF versions, toolchains and Python environments "
+        "that no build has used recently.",
     )
     parser_prune.add_argument(
         "--days",
         type=int,
         default=30,
-        help="Keep versions used within this many days. Default: %(default)s.",
+        help="Keep what was used within this many days. Default: %(default)s.",
     )
     parser_prune.add_argument(
         "--dry-run",
