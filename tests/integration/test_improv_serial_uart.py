@@ -122,11 +122,11 @@ async def test_improv_serial_uart(
 
         # Two requests back to back without a newline both get a reply
         bare = get_state[:-1]
-        start = len(waiter.lines)
+        want = waiter.count(authorized) + 2
         await client.execute_service(inject, {"payload": bare + bare})
-        async with asyncio.timeout(5):
-            while sum(authorized in line for line in waiter.lines[start:]) < 2:
-                await asyncio.sleep(0.05)
+        await waiter.wait_count(
+            authorized, want, msg="back to back frames did not both get a reply"
+        )
 
         # A frame cut off for longer than the 100 ms timeout is discarded
         await client.execute_service(inject, {"payload": get_state[:8]})

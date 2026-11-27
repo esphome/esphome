@@ -203,22 +203,21 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
       ESP_LOGW(TAG, "No memory for a frame");
       return false;
     }
-  } else if (at > FRAME_HEADER_SIZE && at > FRAME_HEADER_SIZE + this->rx_buffer_[FRAME_HEADER_SIZE - 1]) {
-    // Past the checksum the frame is complete, so the byte starts the next one; a host that sends requests back to
-    // back without a newline would otherwise lose every second request
-    this->reset_rx_buffer_();
-    return this->parse_improv_serial_byte_(byte);
   }
   this->rx_buffer_[at] = byte;
   this->rx_len_ = at + 1;
 
-  return improv::parse_improv_serial_byte(
+  const bool ok = improv::parse_improv_serial_byte(
       at, byte, this->rx_buffer_.get(),
       [this](improv::ImprovCommand command) -> bool { return this->parse_improv_payload_(command); },
       [this](improv::Error error) -> void {
         ESP_LOGW(TAG, "Error decoding payload");
         this->send_state_byte_(improv::TYPE_ERROR_STATE, error);
       });
+  // Frame complete: free it so the next 'I' starts a new one without waiting for the timeout
+  if (ok && at >= FRAME_HEADER_SIZE && at == FRAME_HEADER_SIZE + this->rx_buffer_[FRAME_HEADER_SIZE - 1])
+    this->reset_rx_buffer_();
+  return ok;
 }
 
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
