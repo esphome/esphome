@@ -100,7 +100,11 @@ void USBAudioSpeaker::loop() {
   const bool settling = this->settle_stale_count_();
   // has_buffered_data_() turns false once the driver has taken the last whole transfer and it has had time to play.
   if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_()) {
-    this->stop_();
+    // Audio written after the finish padding leaves a tail; pad it too, or its frames are never reported.
+    this->pad_remaining_ = this->audio_tail_bytes_();
+    if (this->pad_remaining_ == 0) {
+      this->stop_();
+    }
   }
   if (!this->finishing_ && !this->flush_tail_() && !settling) {
     this->disable_loop();
