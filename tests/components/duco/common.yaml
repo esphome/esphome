@@ -54,6 +54,9 @@ sensor:
     flow_level:
       name: Flow Level
       update_interval: 5s
+    flow_level_request:
+      - name: Node 2 Flow Level Request
+        address: 2
     time_remaining:
       name: Mode Time Remaining
       update_interval: 5s

@@ -29,6 +29,8 @@ EXPECTED_SENSORS = {
     "humidity": 54.32,
     "filter_remaining": 120.0,
     "flow_level": 45.0,
+    "flow_level_request_node_2": 10.0,
+    "flow_level_request_node_3": 20.0,
     "time_remaining": 21930.0,
     "bypass": 50.0,
     "temperature_oda": -3.5,
