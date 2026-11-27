@@ -6,6 +6,10 @@ esphome:
         - lvgl.widget.focus:
             lvgl_id: boot_lvgl
             action: next
+    # Hide the parent here, not in its config. If its config hides it, the group of page B does not give the focus
+    # to the button in it.
+    - then:
+        - lvgl.widget.hide: change_page_b_hidden_parent
 
 packages:
   lvgl_input_groups: !include
@@ -110,6 +114,100 @@ api:
             lvgl_id: keypad_lvgl
         - script.execute: report
 
+    - action: change_reset
+      then:
+        - lvgl.widget.hide: [change_button_msgbox, change_slider_msgbox, change_edit_slider, change_top_slider]
+        - lvgl.widget.enable: [change_edit_slider, change_msgbox_slider]
+        - lvgl.page.show:
+            id: change_page_a
+            lvgl_id: change_lvgl
+        - lvgl.widget.focus: change_page_a_button
+        - script.execute: report
+    - action: change_next_page
+      then:
+        - lvgl.page.next:
+            lvgl_id: change_lvgl
+        - script.execute: report
+    - action: change_show_page_b
+      then:
+        - lvgl.page.show:
+            id: change_page_b
+            lvgl_id: change_lvgl
+        - script.execute: report
+    - action: change_show_msgbox
+      then:
+        - lvgl.widget.show: change_button_msgbox
+        - script.execute: report
+    - action: change_focus_page_b_button
+      then:
+        - lvgl.widget.focus: change_page_b_button
+        - script.execute: report
+    - action: change_focus_page_a_button2_editing
+      then:
+        - lvgl.widget.focus:
+            id: change_page_a_button2
+            editing: true
+        - script.execute: report
+    - action: change_focus_top_button
+      then:
+        - lvgl.widget.focus: change_top_button
+        - script.execute: report
+    - action: change_focus_slider_editing
+      then:
+        - lvgl.widget.show: change_edit_slider
+        - lvgl.widget.focus:
+            id: change_edit_slider
+            editing: true
+        - script.execute: report
+    - action: change_focus_top_slider_editing
+      then:
+        - lvgl.widget.show: change_top_slider
+        - lvgl.widget.focus:
+            id: change_top_slider
+            editing: true
+        - script.execute: report
+    - action: change_disable_slider
+      then:
+        - lvgl.widget.disable: change_edit_slider
+        - script.execute: report
+    - action: change_show_slider_msgbox
+      then:
+        - lvgl.widget.show: change_slider_msgbox
+        - script.execute: report
+    - action: change_hide_slider_msgbox
+      then:
+        - lvgl.widget.hide: change_slider_msgbox
+        - script.execute: report
+    - action: change_focus_msgbox_slider_editing
+      then:
+        - lvgl.widget.focus:
+            id: change_msgbox_slider
+            editing: true
+        - script.execute: report
+    - action: change_disable_msgbox_slider
+      then:
+        - lvgl.widget.disable: change_msgbox_slider
+        - script.execute: report
+    # The pointer presses the middle of top_button while change_pointer_pressed is set
+    - action: change_attach_pointer
+      then:
+        - lambda: |-
+            lv_indev_t *pointer = lv_indev_create();
+            lv_indev_set_type(pointer, LV_INDEV_TYPE_POINTER);
+            lv_indev_set_read_cb(pointer, [](lv_indev_t *, lv_indev_data_t *data) {
+              lv_area_t button;
+              lv_obj_get_coords(id(change_top_button), &button);
+              data->point.x = (button.x1 + button.x2) / 2;
+              data->point.y = (button.y1 + button.y2) / 2;
+              data->state = id(change_pointer_pressed) ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+            });
+            lv_indev_set_display(pointer, id(change_lvgl)->get_disp());
+    - action: change_press_pointer
+      then:
+        - globals.set:
+            id: change_pointer_pressed
+            value: "true"
+
     - action: menu_reset
       then:
         - lvgl.widget.hide: menu_msgbox
@@ -150,6 +248,16 @@ api:
 globals:
   - id: page_a_button_clicks
     type: int
+  - id: change_page_b_button_clicks
+    type: int
+  - id: change_msgbox_ok_clicks
+    type: int
+  - id: change_top_button_clicks
+    type: int
+  - id: change_top_button_releases
+    type: int
+  - id: change_pointer_pressed
+    type: bool
 
 display:
   - platform: snapshot
@@ -189,6 +297,12 @@ display:
       width: 320
       height: 240
   - platform: snapshot
+    id: change_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 320
+      height: 240
+  - platform: snapshot
     id: menu_display
     auto_clear_enabled: false
     dimensions:
@@ -215,6 +329,15 @@ binary_sensor:
     id: idle_left
   - platform: template
     id: idle_right
+  - platform: template
+    id: change_encoder_left
+    name: change_encoder_left
+  - platform: template
+    id: change_encoder_right
+    name: change_encoder_right
+  - platform: template
+    id: change_encoder_enter
+    name: change_encoder_enter
   - platform: template
     id: menu_encoder_left
     name: menu_encoder_left
@@ -259,6 +382,17 @@ script:
                 {id(boot_a_button2), "boot_a_button2"},
                 {id(boot_a_button3), "boot_a_button3"},
                 {id(boot_b_button), "boot_b_button"},
+                {id(change_top_button), "top_button"},
+                {id(change_top_slider), "top_slider"},
+                {id(change_bottom_button), "bottom_button"},
+                {id(change_page_a_button), "page_a_button"},
+                {id(change_page_a_button2), "page_a_button2"},
+                {id(change_page_b_hidden), "page_b_hidden"},
+                {id(change_page_b_button), "page_b_button"},
+                {id(change_edit_slider), "edit_slider"},
+                {id(change_page_b_button2), "page_b_button2"},
+                {id(change_msgbox_ok), "msgbox_ok"},
+                {id(change_msgbox_slider), "msgbox_slider"},
                 {id(menu_item), "item"},
                 {id(menu_nav_button), "nav_button"},
                 {lv_menu_get_sidebar_header_back_button(id(menu_widget)), "sidebar_back_button"},
@@ -285,6 +419,18 @@ script:
                    (unsigned) id(later_lvgl).get_current_page(),
                    name(lvgl_test_focused(id(later_encoder)->get_drv())),
                    name(lvgl_test_focused(id(boot_encoder)->get_drv())));
+          lv_indev_t *change = id(change_encoder)->get_drv();
+          ESP_LOGI("report",
+                   "change_report page=%u encoder=%s encoder_pressed=%d encoder_editing=%d encoder_edited=%d "
+                   "encoder_focus_key=%d page_b_button_pressed=%d page_b_button_clicks=%d msgbox_ok_pressed=%d "
+                   "msgbox_ok_clicks=%d top_button_pressed=%d top_button_clicks=%d top_button_releases=%d",
+                   (unsigned) id(change_lvgl).get_current_page(), name(lvgl_test_focused(change)),
+                   lvgl_test_pressed(change), lv_group_get_editing(lv_indev_get_group(change)),
+                   lvgl_test_focused_state(change, LV_STATE_EDITED), lvgl_test_focused_state(change, LV_STATE_FOCUS_KEY),
+                   lv_obj_has_state(id(change_page_b_button), LV_STATE_PRESSED), id(change_page_b_button_clicks),
+                   lv_obj_has_state(id(change_msgbox_ok), LV_STATE_PRESSED), id(change_msgbox_ok_clicks),
+                   lv_obj_has_state(id(change_top_button), LV_STATE_PRESSED), id(change_top_button_clicks),
+                   id(change_top_button_releases));
           lv_indev_t *menu = id(menu_encoder)->get_drv();
           ESP_LOGI("report", "menu_report page=%u encoder=%s encoder_pressed=%d",
                    (unsigned) id(menu_lvgl).get_current_page(), name(lvgl_test_focused(menu)), lvgl_test_pressed(menu));
@@ -457,6 +603,99 @@ lvgl:
         widgets:
           - button:
               id: boot_b_button
+
+  # The focus as the encoder changes group: edit mode, a held press, the focus ring
+  - id: change_lvgl
+    displays: change_display
+    encoders:
+      id: change_encoder
+      enter_button: change_encoder_enter
+      sensor:
+        left_button: change_encoder_left
+        right_button: change_encoder_right
+      initial_focus: change_top_button
+    top_layer:
+      widgets:
+        - button:
+            id: change_top_button
+            align: bottom_left
+            on_press:
+              - logger.log: "PRESSED top_button"
+              - lvgl.page.next:
+                  lvgl_id: change_lvgl
+              # Reports before LVGL gives the focus to top_button for this pointer press
+              - if:
+                  condition:
+                    lambda: return id(change_pointer_pressed);
+                  then:
+                    - globals.set:
+                        id: change_pointer_pressed
+                        value: "false"
+                    - script.execute: report
+            on_click:
+              - lambda: id(change_top_button_clicks)++;
+            on_release:
+              - lambda: id(change_top_button_releases)++;
+        # Shown by the test that edits it
+        - slider:
+            id: change_top_slider
+            hidden: true
+            align: top_right
+    bottom_layer:
+      widgets:
+        - button:
+            id: change_bottom_button
+            align: top_left
+    msgboxes:
+      - id: change_button_msgbox
+        title: Buttons
+        close_button: false
+        buttons:
+          - id: change_msgbox_ok
+            text: OK
+            on_press:
+              - logger.log: "PRESSED msgbox_ok"
+              - lvgl.widget.hide: change_button_msgbox
+            on_click:
+              - lambda: id(change_msgbox_ok_clicks)++;
+      # The slider is the only widget here, so nothing else can take the focus when it is disabled
+      - id: change_slider_msgbox
+        title: Slider
+        close_button: false
+        widgets:
+          - slider:
+              id: change_msgbox_slider
+    pages:
+      - id: change_page_a
+        widgets:
+          - button:
+              id: change_page_a_button
+          - button:
+              id: change_page_a_button2
+              y: 50
+      - id: change_page_b
+        widgets:
+          # Only its parent is hidden. LVGL also skips this widget when it moves the focus.
+          - obj:
+              id: change_page_b_hidden_parent
+              widgets:
+                - button:
+                    id: change_page_b_hidden
+          - button:
+              id: change_page_b_button
+              on_press:
+                - logger.log: "PRESSED page_b_button"
+                - lvgl.widget.show: change_button_msgbox
+              on_click:
+                - lambda: id(change_page_b_button_clicks)++;
+          # Shown by the test that edits it
+          - slider:
+              id: change_edit_slider
+              hidden: true
+              y: 200
+          - button:
+              id: change_page_b_button2
+              y: 100
 
   # A menu on a page whose group is not the last default group from codegen. The menu has no sidebar until the
   # test adds one.
