@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from esphome import codegen as cg, const, cpp_helpers as ch, cpp_types as ct
-from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.core import ID, CoroPriority, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import ComponentSourcePool, register_component_source
@@ -337,6 +337,26 @@ def test_component_counts_include_final_and_waiting_registrations() -> None:
     looping = _looping_count_statement()
     assert "(1 * HasLoopOverride<foo::Final>::value)" in looping
     assert "(2 * HasLoopOverride<foo::Slow>::value)" in looping
+
+
+@pytest.mark.usefixtures("stub_component_codegen")
+def test_component_count_reads_the_type_after_define() -> None:
+    """A LatePvariable registered before define() is counted with its final class."""
+    ch.CORE.component_ids.add("late_comp")
+    late = cg.LatePvariable(
+        ID("late_comp", is_declaration=True, type=cg.esphome_ns.class_("Provisional"))
+    )
+
+    async def registrar() -> None:
+        await ch.register_component(late.var, {})
+        late.define(cg.esphome_ns.class_("FinalComp"))
+
+    ch.CORE.add_job(ch.add_component_counts)
+    ch.CORE.add_job(registrar)
+    ch.CORE.flush_tasks()
+    looping = _looping_count_statement()
+    assert "HasLoopOverride<FinalComp>" in looping
+    assert "Provisional" not in looping
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from esphome.core import (
     CORE,
     ID,
     LINE_DIRECTIVE_RESET,
+    CoroPriority,
     Define,
     EnumValue,
     EsphomeError,
@@ -21,6 +22,7 @@ from esphome.core import (
     TimePeriodMinutes,
     TimePeriodNanoseconds,
     TimePeriodSeconds,
+    coroutine_with_priority,
 )
 from esphome.helpers import (
     cpp_string_escape,
@@ -893,14 +895,23 @@ class LatePvariable:
         CORE.add_global(self.global_slot)
         CORE.add(self._main_slot)
         CORE.register_variable(id_, self.var)
-        # define() always places it in static storage
+        # define() always places it in static storage; until then it has no address
         CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
+        CORE.add_job(_require_late_defined, self)
 
     def define(self, type_: "MockObjClass", *args: SafeExpType) -> None:
         """Create the variable as ``type_`` with the constructor arguments ``args``."""
         self.id.type = type_
         _emit_pvariable(
             self.id, type_.new(*args), self.global_slot.add, self._main_slot.add
+        )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _require_late_defined(late: LatePvariable) -> None:
+    if static_pointer_address(late.var) is None:
+        raise EsphomeError(
+            f"{late.id} was declared with LatePvariable but never defined"
         )
 
 

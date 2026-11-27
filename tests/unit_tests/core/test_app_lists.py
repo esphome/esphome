@@ -173,3 +173,28 @@ def test_device_and_area_count_override_is_rejected(upper: str) -> None:
         match=f"ESPHOME_{upper}_COUNT is defined as 4 elsewhere.*devices and areas come from the YAML",
     ):
         CORE.flush_tasks()
+
+
+def test_late_variable_listed_before_define_gets_its_final_address() -> None:
+    """The list keeps the variable and reads its address at emit time, after define()."""
+    late = cg.LatePvariable(
+        ID("late_sensor", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+    late.define(cg.esphome_ns.class_("FinalSensor"))
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert _global_lines()[-1].endswith(
+        "PROGMEM = {reinterpret_cast<FinalSensor *>(esphome__late_sensor__pstorage)};"
+    )
+
+
+def test_late_variable_never_defined_is_rejected() -> None:
+    cg.LatePvariable(
+        ID("late_never", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    with pytest.raises(
+        EsphomeError, match="late_never was declared with LatePvariable"
+    ):
+        CORE.flush_tasks()

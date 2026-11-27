@@ -2257,6 +2257,10 @@ class AutomationPlan:
     ) -> MockObj:
         """The function ``esphome__<trigger id>__fn`` running a direct plan; it takes the run count
         and returns as soon as a stop (``script.stop``) clears it."""
+        if not self.direct:
+            raise EsphomeError(
+                "run_function() needs a direct plan; use build() for this one"
+            )
         return _run_function(
             trigger.base, self.actions[0], self.args, add_global_=add_global_
         )

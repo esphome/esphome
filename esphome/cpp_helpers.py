@@ -70,10 +70,11 @@ _AFTER_ALL_JOBS = float("-inf")
 
 @dataclass
 class _RegisteredComponents:
-    """C++ type of each register_component() call, which sizes App.components_
-    and App.looping_components_."""
+    """The id of each register_component() call, which sizes App.components_ and
+    App.looping_components_; its type is read when the counts are emitted, after any
+    LatePvariable.define()."""
 
-    types: list[str] = field(default_factory=list)
+    ids: list[ID] = field(default_factory=list)
     emitted: bool = False
 
 
@@ -89,12 +90,12 @@ async def add_component_counts() -> None:
     components actually registered; declared but unregistered ids take no slot."""
     registered = _get_registered_components()
     registered.emitted = True
-    add_define("ESPHOME_COMPONENT_COUNT", len(registered.types))
+    add_define("ESPHOME_COMPONENT_COUNT", len(registered.ids))
     # Exact looping count, summed per type at C++ compile time. HasLoopOverride<T>
     # handles an ambiguous &T::loop from multiple inheritance.
     terms = [
         f"({count} * HasLoopOverride<{cpp_type}>::value)"
-        for cpp_type, count in Counter(registered.types).items()
+        for cpp_type, count in Counter(str(id_.type) for id_ in registered.ids).items()
     ] or ["0"]
     constexpr_expr = " + \\\n  ".join(terms)
     add_global(
@@ -533,7 +534,7 @@ async def register_component(var, config):
     else:
         add(App.register_component_(var))
 
-    registered.types.append(str(var.base.type))
+    registered.ids.append(var.base)
 
     return var
 
