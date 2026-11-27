@@ -49,6 +49,7 @@ COMFORT_TEMPERATURE_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
 )
 
+
 def _setpoint_schema(unit):
     return (
         number.number_schema(DucoSetpoint, unit_of_measurement=unit)
