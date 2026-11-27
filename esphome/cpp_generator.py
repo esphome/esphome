@@ -10,7 +10,6 @@ from esphome.core import (
     CORE,
     ID,
     LINE_DIRECTIVE_RESET,
-    CoroPriority,
     Define,
     EnumValue,
     EsphomeError,
@@ -901,18 +900,30 @@ class LatePvariable:
 
     def define(self, type_: "MockObjClass", *args: SafeExpType) -> None:
         """Create the variable as ``type_`` with the constructor arguments ``args``."""
+        if static_pointer_address(self.var) is not None:
+            raise EsphomeError(f"{self.id} was already defined")
         self.id.type = type_
         _emit_pvariable(
             self.id, type_.new(*args), self.global_slot.add, self._main_slot.add
         )
 
 
-@coroutine_with_priority(CoroPriority.FINAL)
+# Below every finite priority, so the job runs only once every other job,
+# including FINAL ones and to_code tasks pushed down by waiting, is done.
+AFTER_ALL_JOBS = float("-inf")
+
+
+@coroutine_with_priority(AFTER_ALL_JOBS)
 async def _require_late_defined(late: LatePvariable) -> None:
     if static_pointer_address(late.var) is None:
-        raise EsphomeError(
-            f"{late.id} was declared with LatePvariable but never defined"
-        )
+        raise no_static_address_error(late.var)
+
+
+def no_static_address_error(var: SafeExpType) -> EsphomeError:
+    """The error for a variable whose static address is still unknown when it is emitted."""
+    return EsphomeError(
+        f"{var} has no static address: it was declared with LatePvariable but never defined"
+    )
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
