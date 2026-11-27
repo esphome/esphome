@@ -39,10 +39,10 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["sensor"]
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "tsdb"
-AUTO_LOAD = ["sensor"]
 
 tsdb_ns = cg.esphome_ns.namespace("tsdb")
 TsdbComponent = tsdb_ns.class_("TsdbComponent", cg.PollingComponent)

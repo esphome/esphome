@@ -1,17 +1,19 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_COLUMNS
+from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_FREE,
     CONF_NAME,
+    CONF_SENSOR,
     CONF_TIME_ID,
-    DEVICE_CLASS_DURATION,
+    CONF_UNIT_OF_MEASUREMENT,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_BYTES,
-    UNIT_SECOND,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -33,6 +35,8 @@ CONF_RECORDS = "records"
 CONF_USED = "used"
 
 _AGGREGATES = (CONF_AVERAGE, CONF_MIN, CONF_MAX)
+# Metadata an aggregate takes from the sensor it summarizes.
+_METADATA = (CONF_UNIT_OF_MEASUREMENT, CONF_DEVICE_CLASS)
 
 _COUNTER_SCHEMA = sensor.sensor_schema(
     accuracy_decimals=0,
@@ -45,9 +49,7 @@ _BYTES_SCHEMA = sensor.sensor_schema(
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
 )
 _AGE_SCHEMA = sensor.sensor_schema(
-    accuracy_decimals=0,
-    unit_of_measurement=UNIT_SECOND,
-    device_class=DEVICE_CLASS_DURATION,
+    kind=sensor.DURATION_S,
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
@@ -83,11 +85,34 @@ def _column_names(hub: ConfigType) -> list[str]:
     return [column[CONF_NAME] for column in hub[CONF_COLUMNS]]
 
 
+def _inherit_source_metadata(
+    hub: ConfigType, columns: list[ConfigType], full: Config
+) -> None:
+    """Give each aggregate the unit and device class of the sensor it summarizes.
+
+    Units and device classes are registered during code generation, so this has to be
+    decided here, before the sensors are built. A value set on the aggregate wins.
+    """
+    by_name = {column[CONF_NAME]: column for column in hub[CONF_COLUMNS]}
+    for column in columns:
+        # Looked up by ID, so a sensor nested in a platform (a DHT's humidity) is found.
+        path = full.get_path_for_id(by_name[column[CONF_COLUMN]][CONF_SENSOR])
+        source = full.get_config_for_path(path[:-1])
+        for key in _AGGREGATES:
+            aggregate = column.get(key)
+            if aggregate is None:
+                continue
+            for metadata in _METADATA:
+                if not aggregate.get(metadata) and (value := source.get(metadata)):
+                    aggregate[metadata] = value
+
+
 def _final_validate(config: ConfigType) -> None:
     columns = config.get(CONF_COLUMNS, [])
     if not columns:
         return
-    hub = fv.full_config.get()[DOMAIN]
+    full = fv.full_config.get()
+    hub = full[DOMAIN]
     names = _column_names(hub)
     for index, column in enumerate(columns):
         if column[CONF_COLUMN] not in names:
@@ -103,6 +128,7 @@ def _final_validate(config: ConfigType) -> None:
             "average, min and max need a time source; set time_id on tsdb",
             path=[CONF_COLUMNS],
         )
+    _inherit_source_metadata(hub, columns, full)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

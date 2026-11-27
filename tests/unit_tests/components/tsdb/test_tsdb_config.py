@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from esphome import core
 import esphome.components
 from esphome.components.tsdb import (
     CONF_COLUMNS,
@@ -19,6 +20,7 @@ from esphome.components.tsdb import (
     CONF_REQUIRE_TIME,
     CONF_SCALE_FACTOR,
     CONF_SENSOR,
+    DOMAIN,
     IDF_COMPONENTS,
     _final_validate,
     _utf8_bytes,
@@ -38,8 +40,15 @@ from esphome.components.tsdb.sensor import (
     CONF_MIN,
     _final_validate as _sensor_final_validate,
 )
+from esphome.config import Config
 import esphome.config_validation as cv
-from esphome.const import CONF_TIME, CONF_TIME_ID
+from esphome.const import (
+    CONF_DEVICE_CLASS,
+    CONF_ID,
+    CONF_TIME,
+    CONF_TIME_ID,
+    CONF_UNIT_OF_MEASUREMENT,
+)
 import esphome.final_validate as fv
 
 
@@ -214,8 +223,21 @@ def test_validate_config_rejects_zero_scale_factor() -> None:
         _validate_config(config)
 
 
-def _final_validate_with_hub(hub: dict, platform: dict) -> None:
-    token = fv.full_config.set({"tsdb": hub})
+def _final_validate_with_hub(
+    hub: dict, platform: dict, source: dict | None = None, nested: bool = False
+) -> None:
+    """Run the sensor final validation with the column's source sensor declared."""
+    entry = {CONF_ID: core.ID("source"), **(source or {})}
+    full = Config()
+    full[DOMAIN] = hub
+    if nested:
+        full["sensor"] = [{"humidity": entry}]
+        path = ["sensor", 0, "humidity", CONF_ID]
+    else:
+        full["sensor"] = [entry]
+        path = ["sensor", 0, CONF_ID]
+    full.declare_ids.append((entry[CONF_ID], path))
+    token = fv.full_config.set(full)
     try:
         _sensor_final_validate(platform)
     finally:
@@ -235,6 +257,47 @@ def test_sensor_platform_rejects_an_unknown_column() -> None:
     platform = {CONF_COLUMNS: [{CONF_COLUMN: "missing", CONF_AVERAGE: {}}]}
     with pytest.raises(cv.Invalid, match="'missing' is not a tsdb column"):
         _final_validate_with_hub(_config(**{CONF_TIME_ID: "clock"}), platform)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_aggregate_takes_the_source_unit_and_device_class(nested: bool) -> None:
+    platform = {CONF_COLUMNS: [{CONF_COLUMN: "value", CONF_AVERAGE: {}, CONF_MIN: {}}]}
+    source = {
+        CONF_UNIT_OF_MEASUREMENT: "ppm",
+        CONF_DEVICE_CLASS: "carbon_dioxide",
+    }
+    _final_validate_with_hub(
+        _config(**{CONF_TIME_ID: "clock"}), platform, source, nested
+    )
+    for key in (CONF_AVERAGE, CONF_MIN):
+        aggregate = platform[CONF_COLUMNS][0][key]
+        assert aggregate[CONF_UNIT_OF_MEASUREMENT] == "ppm"
+        assert aggregate[CONF_DEVICE_CLASS] == "carbon_dioxide"
+
+
+def test_aggregate_keeps_its_own_metadata() -> None:
+    platform = {
+        CONF_COLUMNS: [
+            {
+                CONF_COLUMN: "value",
+                CONF_AVERAGE: {CONF_UNIT_OF_MEASUREMENT: "ppb"},
+            }
+        ]
+    }
+    source = {
+        CONF_UNIT_OF_MEASUREMENT: "ppm",
+        CONF_DEVICE_CLASS: "carbon_dioxide",
+    }
+    _final_validate_with_hub(_config(**{CONF_TIME_ID: "clock"}), platform, source)
+    aggregate = platform[CONF_COLUMNS][0][CONF_AVERAGE]
+    assert aggregate[CONF_UNIT_OF_MEASUREMENT] == "ppb"
+    assert aggregate[CONF_DEVICE_CLASS] == "carbon_dioxide"
+
+
+def test_aggregate_of_a_source_without_metadata_gets_none() -> None:
+    platform = {CONF_COLUMNS: [{CONF_COLUMN: "value", CONF_AVERAGE: {}}]}
+    _final_validate_with_hub(_config(**{CONF_TIME_ID: "clock"}), platform)
+    assert platform[CONF_COLUMNS][0][CONF_AVERAGE] == {}
 
 
 def test_validate_config_rejects_a_budget_that_does_not_fit() -> None:

@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <limits>
 
+#include "esphome/core/helpers.h"
+
 namespace esphome::tsdb::tsdbmath {
 
 static constexpr int16_t RAW_MAX = 32767;
@@ -70,17 +72,7 @@ static constexpr uint32_t SIDECAR2_BYTES = 88;                 // checked in tsd
 static constexpr uint32_t SIDECAR_CRC_OFFSET = 8;
 static constexpr uint32_t SIDECAR_BODY_OFFSET = 12;
 
-// CRC-32 (IEEE, reflected), the one esp_tsdb stores in its header slots.
-inline uint32_t crc32_ieee(const uint8_t *data, size_t length) {
-  uint32_t crc = 0xFFFFFFFFu;
-  for (size_t index = 0; index < length; index++) {
-    crc ^= data[index];
-    for (uint8_t bit = 0; bit < 8; bit++)
-      crc = (crc >> 1) ^ (0xEDB88320u & static_cast<uint32_t>(-static_cast<int32_t>(crc & 1)));
-  }
-  return ~crc;
-}
-
+// Little-endian uint32, the layout of a slot's magic, sequence and CRC fields.
 inline uint32_t read_u32_le(const uint8_t *data) {
   return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
          (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
@@ -95,8 +87,7 @@ inline uint32_t sidecar_slot_seq(const uint8_t *buffer, size_t length) {
   const uint32_t seq = read_u32_le(buffer + 4);
   if (expected == 0 || length != expected || seq == 0)
     return 0;
-  if (crc32_ieee(buffer + SIDECAR_BODY_OFFSET, length - SIDECAR_BODY_OFFSET) !=
-      read_u32_le(buffer + SIDECAR_CRC_OFFSET))
+  if (crc32(0, buffer + SIDECAR_BODY_OFFSET, length - SIDECAR_BODY_OFFSET) != read_u32_le(buffer + SIDECAR_CRC_OFFSET))
     return 0;
   return seq;
 }

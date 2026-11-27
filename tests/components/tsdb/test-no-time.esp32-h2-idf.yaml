@@ -1,0 +1,3 @@
+# No WiFi radio on the H2, so the sntp clock of common.yaml is not available.
+packages:
+  tsdb: !include common-no-time.yaml

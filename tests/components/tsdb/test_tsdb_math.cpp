@@ -187,7 +187,7 @@ TEST(TsdbMath, AggregateAppliesTheOffset) {
 
 TEST(TsdbMath, Crc32MatchesTheReferenceVector) {
   const uint8_t data[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
-  EXPECT_EQ(tsdbmath::crc32_ieee(data, sizeof(data)), 0xCBF43926u);
+  EXPECT_EQ(crc32(0, data, sizeof(data)), 0xCBF43926u);
 }
 
 namespace {
@@ -201,7 +201,7 @@ void put_u32_le(uint8_t *data, uint32_t value) {
 
 void seal_slot(uint8_t *slot, size_t size) {
   put_u32_le(slot + tsdbmath::SIDECAR_CRC_OFFSET,
-             tsdbmath::crc32_ieee(slot + tsdbmath::SIDECAR_BODY_OFFSET, size - tsdbmath::SIDECAR_BODY_OFFSET));
+             crc32(0, slot + tsdbmath::SIDECAR_BODY_OFFSET, size - tsdbmath::SIDECAR_BODY_OFFSET));
 }
 
 }  // namespace
