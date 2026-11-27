@@ -486,6 +486,27 @@ def test_extract_model_ops_ignores_a_report_next_to_the_model(tmp_path: Path) ->
     assert extract_model_ops(model) == {"SOFTMAX"}
 
 
+def test_the_detection_postprocess_operator_is_supported(tmp_path: Path) -> None:
+    """SSD detection models end in this custom operator, registered as CUSTOM."""
+    model = write_model_file(
+        tmp_path, write_model([(0, 25), (32, 32, "TFLite_Detection_PostProcess")])
+    )
+
+    assert extract_model_ops(model) == {"SOFTMAX", "CUSTOM"}
+    tflite_op_processor.validate_model_operators(model)
+    assert build_selective_op_defines(extract_model_ops(model))["CUSTOM"] == 1
+
+
+def test_any_other_custom_operator_is_rejected(tmp_path: Path) -> None:
+    model = write_model_file(
+        tmp_path,
+        write_model([(32, 32, "TFLite_Detection_PostProcess"), (32, 32, "Foo")]),
+    )
+
+    with pytest.raises(cv.Invalid, match=r"requires operator\(s\) CUSTOM:Foo "):
+        tflite_op_processor.validate_model_operators(model)
+
+
 @pytest.mark.parametrize(
     ("deprecated", "builtin", "expected"),
     (

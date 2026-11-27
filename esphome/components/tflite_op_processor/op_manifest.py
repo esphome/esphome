@@ -17,6 +17,8 @@ _CONDITIONAL_RE = re.compile(
 _UNAVAILABLE_RE = re.compile(r"^TFLM_OP_UNAVAILABLE\(([A-Za-z0-9_]+)\)$")
 
 _TABLE_GUARD = "TFLM_OPERATORS_ACTIVE"
+# The custom operator the table's CUSTOM entry registers, as the model reader names it.
+_DETECTION_POSTPROCESS = "CUSTOM:TFLite_Detection_PostProcess"
 # The block holds plain entries only: a conditional inside it could let the preprocessor drop an entry this parser
 # still reports as supported.
 _ENDIF = "#endif"
@@ -120,9 +122,13 @@ def _is_op_entry(line: str) -> bool:
 
 def extract_model_ops(model_path: str | Path) -> set[str]:
     """Extract the operators a model requires; the ``.tflite`` file is authoritative, not a report.
-    A model that cannot be read or declares no codes raises ``ValueError``.
+    A model that cannot be read or declares no codes raises ``ValueError``. The supported custom operator is
+    returned under its table name, ``CUSTOM``; any other keeps its own name, which the table rejects.
     """
-    return set(read_model_operators(model_path))
+    return {
+        "CUSTOM" if name == _DETECTION_POSTPROCESS else name
+        for name in read_model_operators(model_path)
+    }
 
 
 def build_selective_op_defines(

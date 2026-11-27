@@ -124,7 +124,9 @@ TFLM_OP_AVAILABLE(READ_VARIABLE, AddReadVariable)
 TFLM_OP_AVAILABLE(VAR_HANDLE, AddVarHandle)
 TFLM_OP_UNAVAILABLE(FAKE_QUANT)
 TFLM_OP_UNAVAILABLE(LOCAL_RESPONSE_NORMALIZATION)
-TFLM_OP_UNAVAILABLE(CUSTOM)
+// CUSTOM stands for TFLite_Detection_PostProcess, the one custom operator that is registered; op_manifest.py maps
+// only that name to this entry, so validation rejects a model that uses any other custom operator.
+TFLM_OP_AVAILABLE(CUSTOM, AddDetectionPostprocess)
 TFLM_OP_UNAVAILABLE(HASHTABLE_LOOKUP)
 TFLM_OP_UNAVAILABLE(CALL)
 
