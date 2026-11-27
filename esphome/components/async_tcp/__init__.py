@@ -52,7 +52,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_library(
             "RPAsyncTCP",
             "1.3.2",
-            "https://github.com/esphome-libs/RPAsyncTCP#1.3.2-esphome.1",
+            "https://github.com/esphome-libs/RPAsyncTCP#1.3.2-esphome.2",
         )
     # Other platforms (host, etc) use socket-based implementation
 
