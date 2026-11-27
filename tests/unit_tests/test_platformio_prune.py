@@ -159,6 +159,14 @@ def test_prune_keeps_only_the_recommended_rp2_and_libretiny_platforms(
     pinned_gcc = _package(core_dir, "pinned-rp2-gcc")
     stay = [
         _package(core_dir, "framework-arduinopico"),
+        # ESPHome installs the framework from a URL of its own, not the
+        # one the platform lists, so a replaced copy may be the default one
+        _libretiny_package(
+            core_dir,
+            "framework-arduinopico@src-0001",
+            _record("https://example.com/arduino-pico.zip"),
+            cloned=False,
+        ),
         _package(core_dir, "rp2-gcc"),
         _package(core_dir, "framework-beken-bdk"),
     ]
@@ -587,6 +595,16 @@ def test_prune_keeps_packages_when_a_remaining_platform_is_unreadable(
     for path in (esp32, package, tools):
         assert path.is_dir()
     assert "Keeping all PlatformIO platforms and packages" in caplog.text
+
+
+def test_prune_ignores_an_install_platformio_did_not_finish(core_dir: Path) -> None:
+    esp32 = _platform(core_dir, "espressif32", ["framework-espidf"])
+    package = _package(core_dir, "framework-espidf")
+    unfinished = core_dir / "platforms" / "_tmp_installing-abc123"
+    unfinished.mkdir()
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [package, esp32]
+    assert unfinished.is_dir()
 
 
 def test_prune_removes_an_unreadable_platform_without_its_packages(

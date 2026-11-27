@@ -33,6 +33,8 @@ DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266, NORDICNRF52)
 # another install takes its name. LibreTiny's chip families build with
 # different versions of one package at once, so such a copy may still be in use.
 _REPLACED_MARK = "@src-"
+# What PlatformIO names an install it has not finished
+_INSTALLING_PREFIX = "_tmp_installing"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
 # downloads and records, directly in PlatformIO's core directory
 _ESPRESSIF32_CORE_ENTRIES = ("tools", "dist", "root_managed_components", "idf-env.json")
@@ -181,7 +183,7 @@ def prune_platformio_installs(
     with. An install whose source is not recorded is kept.
 
     A package that PlatformIO itself or a remaining platform needs is kept,
-    but not a replaced copy of it that only a removed platform installed.
+    but not a replaced copy of it that only a named platform installed.
     PlatformIO's download cache is cleared. Returns what was removed (what
     would be removed on a dry run). Does nothing when PlatformIO is not
     installed.
@@ -209,6 +211,8 @@ def prune_platformio_installs(
     kept: list[Path] = []
     platforms_dir = Path(config.get("platformio", "platforms_dir"))
     for platform in subdirs(platforms_dir, symlinks=True):
+        if platform.name.startswith(_INSTALLING_PREFIX) and not is_leftover(platform):
+            continue
         if is_leftover(platform) or (
             not platform.is_symlink()
             and (_name(platform) in platforms or other_source(platform))
@@ -231,10 +235,10 @@ def prune_platformio_installs(
             owners.setdefault(package, set()).add(_name(platform))
     for package in core_packages:
         owners.pop(package, None)
-    # A replaced copy of one of these may be a removed platform's own, even
+    # A replaced copy of one of these may be a deprecated platform's own, even
     # when the package itself stays. The nRF52 and LibreTiny toolchains share
     # a name this way.
-    replaced = set(owners)
+    replaced = {package for package, names in owners.items() if names & set(platforms)}
     # Package name -> the platforms that stay and list it
     listed_by: dict[str, set[str]] = {}
     # What the platforms that stay list a URL for
