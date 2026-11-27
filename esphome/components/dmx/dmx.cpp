@@ -165,7 +165,7 @@ void DMXComponent::setup_rdm_() {
       std::string description;
 
       if (channel.sensor_entity != nullptr) {
-        description = "ESPHome RX sensor: " + channel.sensor_entity->get_log_name();
+        description = std::string("ESPHome RX sensor: ") + channel.sensor_entity->get_name();
       } else {
         char channel_index[UINT32_MAX_STR_SIZE];
         uint32_to_str(channel_index, static_cast<uint32_t>(i + 1));
