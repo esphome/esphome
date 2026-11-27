@@ -1,0 +1,41 @@
+esphome:
+  name: test-fan-triggers
+
+esp8266:
+  board: esp01_1m
+
+logger:
+
+fan:
+  - platform: template
+    id: fan_a
+    name: Fan A
+    speed_count: 3
+    has_oscillating: true
+    has_direction: true
+    preset_modes: [Eco, Sleep]
+    on_turn_on:
+      - logger.log: "on"
+    on_turn_off:
+      - logger.log: "off"
+    on_direction_set:
+      - logger.log:
+          format: "direction %d"
+          args: ["(int) x"]
+    on_oscillating_set:
+      - logger.log:
+          format: "oscillating %d"
+          args: ["x"]
+    on_speed_set:
+      - then:
+          - logger.log:
+              format: "speed %d"
+              args: ["x"]
+      - then:
+          - logger.log:
+              format: "speed again %d"
+              args: ["x"]
+    on_preset_set:
+      - logger.log:
+          format: "preset %s"
+          args: ["x.c_str()"]

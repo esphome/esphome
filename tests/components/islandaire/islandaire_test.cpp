@@ -151,6 +151,11 @@ TEST(IslandaireTests, ReceivesStateFrames) {
   EXPECT_FLOAT_EQ(f.sut.target_temperature, 68.0f);
   EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_LOW);
 
+  // Powered on, cool is read from the mode table (off frames carry cool too, but skip it)
+  EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_COOL, 70, FAN_HIGH))));
+  EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_FLOAT_EQ(f.sut.target_temperature, 70.0f);
+
   // The timer flag in the fan byte and the alternate low code are both read as low
   EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_FAN_ONLY, 80, 0x01 | 0x40))));
   EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_FAN_ONLY);
@@ -160,6 +165,20 @@ TEST(IslandaireTests, ReceivesStateFrames) {
   EXPECT_TRUE(f.receive(encode(state_frame(false, MODE_COOL, 72, FAN_HIGH))));
   EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_OFF);
   EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_HIGH);
+}
+
+TEST(IslandaireTests, AutoAndUnassignedFanBytesReadAsAutoNotThePreviousSpeed) {
+  struct Case {
+    uint8_t fan_byte;
+  };
+  static constexpr Case CASES[] = {{FAN_AUTO}, {0x40}, {0x03}, {0x08}, {0x43}};
+  for (const auto &c : CASES) {
+    SCOPED_TRACE(static_cast<int>(c.fan_byte));
+    Fixture f;
+    f.sut.fan_mode = climate::CLIMATE_FAN_HIGH;
+    EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_HEAT, 68, c.fan_byte))));
+    EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_AUTO);
+  }
 }
 
 TEST(IslandaireTests, IgnoresTemperaturesOutsideTheRangeButKeepsTheRest) {

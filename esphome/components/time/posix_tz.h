@@ -66,29 +66,16 @@ bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
 
 namespace internal {
 
-/// Convert Julian day (J format, 1-365 not counting Feb 29) to month/day
-/// @param julian_day Day number 1-365
-/// @param[out] month Output: month 1-12
-/// @param[out] day Output: day of month
-void julian_to_month_day(int julian_day, int &month, int &day);
-
-/// Convert day of year (plain format, 0-365 counting Feb 29) to month/day
-/// @param day_of_year Day number 0-365
-/// @param year The year (for leap year calculation)
-/// @param[out] month Output: month 1-12
-/// @param[out] day Output: day of month
-void day_of_year_to_month_day(int day_of_year, int year, int &month, int &day);
-
-/// Calculate day of week for any date in the years 0 to 65535 (0 = Sunday)
-int day_of_week(int year, int month, int day);
-
 // The UTC calendar math lives in core (esphome/core/time_utc.h)
+using esphome::internal::days_before_month;
 using esphome::internal::days_in_month;
+using esphome::internal::days_to_weekday;
 using esphome::internal::days_to_year_start;
 using esphome::internal::epoch_to_tm_utc;
 using esphome::internal::epoch_in_range;
 using esphome::internal::epoch_to_year;
 using esphome::internal::is_leap_year;
+using esphome::internal::SECONDS_PER_DAY;
 
 /// Calculate the epoch timestamp for a DST transition in a given year.
 /// @param year The year (e.g., 2026)

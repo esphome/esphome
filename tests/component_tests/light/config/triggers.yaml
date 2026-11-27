@@ -1,0 +1,29 @@
+esphome:
+  name: test-light-triggers
+
+esp32:
+  board: esp32dev
+
+logger:
+
+output:
+  - platform: ledc
+    id: out_a
+    pin: GPIO4
+
+light:
+  - platform: monochromatic
+    id: lamp
+    output: out_a
+    on_turn_on:
+      - then:
+          - logger.log: first on
+      - then:
+          - logger.log: second on
+    on_turn_off:
+      - then:
+          - logger.log: first off
+      - then:
+          - logger.log: second off
+    on_state:
+      - logger.log: state

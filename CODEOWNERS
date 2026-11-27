@@ -170,6 +170,7 @@ esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/delta_wallbox/* @epicRE
+esphome/components/derivative/* @angelnu
 esphome/components/dew_point/* @CFlix
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
@@ -187,14 +188,15 @@ esphome/components/ds2484/* @mrk-its
 esphome/components/ds248x/* @tomwellnitz
 esphome/components/ds3231/* @linkedupbits
 esphome/components/dsmr/* @glmnet @PolarGoose
-esphome/components/duco/* @kokx
-esphome/components/duco/number/* @kokx
-esphome/components/duco/select/* @kokx
-esphome/components/duco/sensor/* @kokx
-esphome/components/duco/text_sensor/* @kokx
+esphome/components/duco/* @kokx @w1ll14m
+esphome/components/duco/number/* @kokx @w1ll14m
+esphome/components/duco/select/* @kokx @w1ll14m
+esphome/components/duco/sensor/* @kokx @w1ll14m
+esphome/components/duco/text_sensor/* @kokx @w1ll14m
 esphome/components/duty_time/* @dudanov
 esphome/components/dyp_a13/* @estockda
 esphome/components/dyp_base/* @estockda
+esphome/components/e131/* @docteurzoidberg
 esphome/components/ecocomfort2/* @gledian
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/touchscreen/* @jesserockz
@@ -358,6 +360,7 @@ esphome/components/ld2410s/* @NovakIrs
 esphome/components/ld2412/* @Rihan9
 esphome/components/ld2420/* @descipher
 esphome/components/ld2450/* @hareeshmu
+esphome/components/ld2451/* @poolski
 esphome/components/ld2460/* @jesusvallejo
 esphome/components/ld24xx/* @kbx81
 esphome/components/ld6002b/* @hepter
@@ -431,6 +434,7 @@ esphome/components/mics_5524/* @nliaudat
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/midea_portasplit/* @Fexiven
+esphome/components/mipi_csi/* @Horstexplorer
 esphome/components/mipi_dsi/* @clydebarrow
 esphome/components/mipi_rgb/* @clydebarrow
 esphome/components/mipi_spi/* @clydebarrow
@@ -748,6 +752,7 @@ esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
 esphome/components/virtual_uart/* @Bascht74
 esphome/components/vl53l1x/* @will-tm
+esphome/components/vl53l4cx/* @bdraco
 esphome/components/vl6180x/* @NonaSuomy
 esphome/components/vnc/* @MindFreeze
 esphome/components/voice_assistant/* @jesserockz @kahrendt

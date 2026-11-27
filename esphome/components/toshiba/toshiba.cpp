@@ -1,4 +1,5 @@
 #include "toshiba.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -25,6 +26,24 @@ const uint8_t TOSHIBA_MODE_DRY = 0x02;
 const uint8_t TOSHIBA_MODE_HEAT = 0x03;
 const uint8_t TOSHIBA_MODE_FAN_ONLY = 0x04;
 const uint8_t TOSHIBA_MODE_OFF = 0x07;
+
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// Generic frame codes, shared by every model that uses the F2 0D frame
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_OFF, TOSHIBA_MODE_OFF},   {climate::CLIMATE_MODE_HEAT_COOL, TOSHIBA_MODE_AUTO},
+    {climate::CLIMATE_MODE_COOL, TOSHIBA_MODE_COOL}, {climate::CLIMATE_MODE_DRY, TOSHIBA_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, TOSHIBA_MODE_HEAT}, {climate::CLIMATE_MODE_FAN_ONLY, TOSHIBA_MODE_FAN_ONLY},
+};
+// Speeds 2 and 4 are not exposed and are only received, as the nearest mode
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, TOSHIBA_FAN_SPEED_AUTO}, {climate::CLIMATE_FAN_QUIET, TOSHIBA_FAN_SPEED_QUIET},
+    {climate::CLIMATE_FAN_LOW, TOSHIBA_FAN_SPEED_1},     {climate::CLIMATE_FAN_MEDIUM, TOSHIBA_FAN_SPEED_3},
+    {climate::CLIMATE_FAN_HIGH, TOSHIBA_FAN_SPEED_5},    {climate::CLIMATE_FAN_MEDIUM, TOSHIBA_FAN_SPEED_2},
+    {climate::CLIMATE_FAN_HIGH, TOSHIBA_FAN_SPEED_4},
+};
 
 // RAC-PT1411HWRU temperature code flag bits
 const uint8_t RAC_PT1411HWRU_FLAG_FAH = 0x01;
@@ -516,38 +535,10 @@ void ToshibaClimate::transmit_generic_() {
   transmit.perform();
 }
 
-uint8_t ToshibaClimate::encode_mode_() const {
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_OFF:
-      return TOSHIBA_MODE_OFF;
-    case climate::CLIMATE_MODE_HEAT:
-      return TOSHIBA_MODE_HEAT;
-    case climate::CLIMATE_MODE_COOL:
-      return TOSHIBA_MODE_COOL;
-    case climate::CLIMATE_MODE_DRY:
-      return TOSHIBA_MODE_DRY;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return TOSHIBA_MODE_FAN_ONLY;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    default:
-      return TOSHIBA_MODE_AUTO;
-  }
-}
+uint8_t ToshibaClimate::encode_mode_() const { return to_ir_code(MODES, this->mode, TOSHIBA_MODE_AUTO); }
 
 uint8_t ToshibaClimate::encode_fan_() const {
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_QUIET:
-      return TOSHIBA_FAN_SPEED_QUIET;
-    case climate::CLIMATE_FAN_LOW:
-      return TOSHIBA_FAN_SPEED_1;
-    case climate::CLIMATE_FAN_MEDIUM:
-      return TOSHIBA_FAN_SPEED_3;
-    case climate::CLIMATE_FAN_HIGH:
-      return TOSHIBA_FAN_SPEED_5;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      return TOSHIBA_FAN_SPEED_AUTO;
-  }
+  return to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), TOSHIBA_FAN_SPEED_AUTO);
 }
 
 uint8_t ToshibaClimate::seiya_swing_code_() const {
@@ -1338,50 +1329,11 @@ void ToshibaClimate::decode_mode_fan_temperature_(const uint8_t *message) {
 }
 
 void ToshibaClimate::decode_mode_(const uint8_t *message) {
-  switch (message[6] & 0x0F) {
-    case TOSHIBA_MODE_OFF:
-      this->mode = climate::CLIMATE_MODE_OFF;
-      break;
-
-    case TOSHIBA_MODE_COOL:
-      this->mode = climate::CLIMATE_MODE_COOL;
-      break;
-
-    case TOSHIBA_MODE_DRY:
-      this->mode = climate::CLIMATE_MODE_DRY;
-      break;
-
-    case TOSHIBA_MODE_FAN_ONLY:
-      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-      break;
-
-    case TOSHIBA_MODE_HEAT:
-      this->mode = climate::CLIMATE_MODE_HEAT;
-      break;
-
-    case TOSHIBA_MODE_AUTO:
-    default:
-      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-  }
+  this->mode = from_ir_code(MODES, message[6] & 0x0F, climate::CLIMATE_MODE_HEAT_COOL);
 }
 
 climate::ClimateFanMode ToshibaClimate::decode_fan(uint8_t code) {
-  // Speeds 2 and 4 are not exposed; report the nearest mode
-  switch (code) {
-    case TOSHIBA_FAN_SPEED_QUIET:
-      return climate::CLIMATE_FAN_QUIET;
-    case TOSHIBA_FAN_SPEED_1:
-      return climate::CLIMATE_FAN_LOW;
-    case TOSHIBA_FAN_SPEED_2:
-    case TOSHIBA_FAN_SPEED_3:
-      return climate::CLIMATE_FAN_MEDIUM;
-    case TOSHIBA_FAN_SPEED_4:
-    case TOSHIBA_FAN_SPEED_5:
-      return climate::CLIMATE_FAN_HIGH;
-    case TOSHIBA_FAN_SPEED_AUTO:
-    default:
-      return climate::CLIMATE_FAN_AUTO;
-  }
+  return from_ir_code(FANS, code, climate::CLIMATE_FAN_AUTO);
 }
 
 void ToshibaClimate::seiya_decode_swing_(uint8_t code) {
