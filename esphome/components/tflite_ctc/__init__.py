@@ -52,8 +52,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_model_io(model_path: Path, config: ConfigType) -> int:
-    """Check the output matrix against the options; return the blank class."""
+def validate_model_io(model_path: Path, config: ConfigType) -> tuple[int, int]:
+    """Check the output matrix against the options; return its steps and the blank class."""
     try:
         model_io = read_model_io(model_path)
     except ValueError as err:
@@ -89,7 +89,7 @@ def validate_model_io(model_path: Path, config: ConfigType) -> int:
             f"{CONF_LABELS} needs one entry for each of the {classes - 1} classes "
             f"other than the blank, not {len(labels)}"
         )
-    return blank
+    return shape[1], blank
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -105,8 +105,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     """Create the runtime helper from this entry, then the decoder."""
     var, model_path = await declare_model(config)
-    blank = validate_model_io(model_path, config)
-    decoder = cg.new_Pvariable(config[CONF_DECODER_ID], blank)
+    steps, blank = validate_model_io(model_path, config)
+    # Sized now, so decoding never allocates.
+    ids = cg.static_buffer(config[CONF_DECODER_ID], cg.uint16, steps)
+    decoder = cg.new_Pvariable(config[CONF_DECODER_ID], blank, ids, steps)
     if (labels := config.get(CONF_LABELS)) is not None:
         array = cg.shared_progmem_array("tflite_ctc_labels", cg.const_char_ptr, labels)
         cg.add(decoder.set_labels(array))

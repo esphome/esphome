@@ -42,4 +42,17 @@ TEST(CtcDecoderTest, ALabelListLeavesOutTheBlank) {
   EXPECT_EQ(ctc_label_index(2, 1), 1u);
 }
 
+TEST(CtcDecoderTest, LabelsAreJoinedWhileTheyFitWhole) {
+  const char *const labels[] = {"ab", "c"};
+  const uint16_t ids[] = {0, 1, 0};
+  char out[8];
+  EXPECT_EQ(ctc_join_labels(out, sizeof(out), ids, 3, labels, 2), 5u);
+  EXPECT_STREQ(out, "abcab");
+  EXPECT_EQ(ctc_join_labels(out, 5, ids, 3, labels, 2), 3u);
+  EXPECT_STREQ(out, "abc");
+  EXPECT_EQ(ctc_join_labels(out, 1, ids, 3, labels, 2), 0u);
+  EXPECT_STREQ(out, "");
+  EXPECT_EQ(ctc_join_labels(out, 0, ids, 3, labels, 2), 0u);
+}
+
 }  // namespace esphome::tflite_ctc::testing

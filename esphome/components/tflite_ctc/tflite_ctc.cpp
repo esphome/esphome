@@ -30,16 +30,11 @@ bool CtcDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     ESP_LOGE(TAG, "The blank class %zu is outside the %zu classes", this->blank_, classes);
     return false;
   }
-  if (this->capacity_ < steps) {
-    this->ids_ = RAMAllocator<uint16_t>().make_unique_array_for_overwrite(steps);
-    if (!this->ids_) {
-      this->capacity_ = 0;
-      ESP_LOGE(TAG, "Could not allocate %zu ids", steps);
-      return false;
-    }
-    this->capacity_ = steps;
+  if (steps > this->capacity_) {
+    ESP_LOGE(TAG, "The output has %zu steps, the buffer holds %zu", steps, this->capacity_);
+    return false;
   }
-  this->id_count_ = ctc_greedy_decode(this->ids_.get(), steps, classes, this->blank_, [tensor](size_t index) {
+  this->id_count_ = ctc_greedy_decode(this->ids_, steps, classes, this->blank_, [tensor](size_t index) {
     // The type was checked above, so the read cannot fail.
     float value = 0.0f;
     tflite_output_processor::read_tensor_value(tensor, index, &value);
@@ -48,13 +43,9 @@ bool CtcDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   return true;
 }
 
-std::string CtcDecoder::text() const {
-  std::string text;
-  if (this->labels_ == nullptr)
-    return text;
-  for (size_t i = 0; i < this->id_count_; i++)
-    text += this->labels_[ctc_label_index(this->ids_[i], this->blank_)];
-  return text;
+size_t CtcDecoder::text(char *out, size_t size) const {
+  const size_t count = this->labels_ == nullptr ? 0 : this->id_count_;
+  return ctc_join_labels(out, size, this->ids_, count, this->labels_, this->blank_);
 }
 
 }  // namespace esphome::tflite_ctc

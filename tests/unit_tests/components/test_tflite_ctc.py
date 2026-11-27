@@ -11,7 +11,7 @@ import esphome.config_validation as cv
 from esphome.types import ConfigType
 
 
-def validate(config: ConfigType, *outputs: TensorSpec) -> int:
+def validate(config: ConfigType, *outputs: TensorSpec) -> tuple[int, int]:
     model_io = ModelIo(inputs=(), outputs=outputs)
     with patch.object(tflite_ctc, "read_model_io", return_value=model_io):
         return tflite_ctc.validate_model_io(Path("speech.tflite"), config)
@@ -21,11 +21,13 @@ SCORES = TensorSpec((1, 49, 4), "int8")
 
 
 def test_the_blank_defaults_to_the_last_class() -> None:
-    assert validate({}, SCORES) == 3
+    assert validate({}, SCORES) == (49, 3)
 
 
 def test_a_configured_blank_and_labels_are_accepted() -> None:
-    assert validate({"blank_index": 0, "labels": ["a", "b", "c"]}, SCORES) == 0
+    config = {"blank_index": 0, "labels": ["a", "b", "c"]}
+
+    assert validate(config, SCORES) == (49, 0)
 
 
 def test_a_blank_outside_the_classes_is_rejected() -> None:
