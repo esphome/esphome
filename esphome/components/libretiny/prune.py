@@ -20,13 +20,13 @@ def _versioned(package: dict[str, Any], version: str) -> str:
 
 
 def package_uris(platform: Path) -> set[str] | None:
-    """URIs of every package version the LibreTiny platform can install.
+    """URIs of the package versions an ESPHome build installs for LibreTiny.
 
-    The platform picks versions by chip family and by ``custom_versions``, so
-    several versions of one package are in use at the same time. This is
-    every version its manifest lists plus the ones ESPHome selects itself, in
-    the form PlatformIO records for an installed package. None if the manifest
-    cannot be read.
+    The platform picks versions by chip family, so several versions of one
+    package are in use at the same time. This is each family's default plus
+    the versions ESPHome selects itself, in the form PlatformIO records for
+    an installed package; a version only a user's own ``custom_versions``
+    selects is not included. None if the manifest cannot be read.
     """
     from platformio.package.meta import PackageSpec
 
@@ -40,9 +40,12 @@ def package_uris(platform: Path) -> set[str] | None:
         }
         for package in packages.values():
             for library, versions in package.get("libraries", {}).items():
-                target = packages[f"library-{library}"]
-                listed = [versions] if isinstance(versions, str) else versions.values()
-                urls |= {_versioned(target, version) for version in listed}
+                # A mapping offers alternatives that only a user's own
+                # custom_versions can select; the build takes "default"
+                if not isinstance(versions, str):
+                    versions = versions.get("default")
+                if versions is not None:
+                    urls.add(_versioned(packages[f"library-{library}"], versions))
         for name, version in CUSTOM_VERSIONS.items():
             for kind in ("library", "framework", "tool"):
                 if (target := packages.get(f"{kind}-{name}")) is not None:

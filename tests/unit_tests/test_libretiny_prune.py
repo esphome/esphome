@@ -37,7 +37,7 @@ def _platform(tmp_path: Path, manifest: str) -> Path:
     return tmp_path
 
 
-def test_package_uris_lists_every_version_in_use(tmp_path: Path) -> None:
+def test_package_uris_lists_the_versions_a_build_installs(tmp_path: Path) -> None:
     platform = _platform(tmp_path, json.dumps({"packages": _PACKAGES}))
 
     assert package_uris(platform) == {
@@ -47,16 +47,29 @@ def test_package_uris_lists_every_version_in_use(tmp_path: Path) -> None:
             ("framework-beken-bdk", "3.0.33"),
             ("framework-realtek-amb1", "v2022.06.21"),
             ("library-printf", "6.1.0"),
-            # Their libraries, every version a family or a user can pick
+            # Their libraries: each family's version, and the default where
+            # the manifest offers a choice (2.1.3-bdk needs custom_versions)
             ("library-freertos", "9.0.0"),
             ("library-freertos", "8.1.2"),
-            ("lwip", "2.1.3-bdk"),
             ("lwip", "2.2.0-bdk"),
             # The versions ESPHome selects itself
             ("framework-beken-bdk", CUSTOM_VERSIONS["beken-bdk"]),
             ("library-freertos", CUSTOM_VERSIONS["freertos"]),
         )
     }
+
+
+def test_package_uris_skips_a_choice_without_a_default(tmp_path: Path) -> None:
+    packages = {
+        "framework-x": {
+            "version": f"{_ORG}/framework-x#1.0",
+            "libraries": {"lwip": {"2.1.3": "2.1.3-x"}},
+        },
+        "library-lwip": _PACKAGES["library-lwip"],
+    }
+    platform = _platform(tmp_path, json.dumps({"packages": packages}))
+
+    assert package_uris(platform) == {f"git+{_ORG}/framework-x#1.0"}
 
 
 def test_package_uris_skips_a_custom_version_of_a_package_that_is_gone(
