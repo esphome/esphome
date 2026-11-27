@@ -50,33 +50,24 @@ static constexpr uint8_t STATE_TEMPLATE[STATE_MESSAGE_LENGTH] PROGMEM = {
 static constexpr uint8_t OFF_FRAME[STATE_MESSAGE_LENGTH_UTIL] PROGMEM = {0x00, 0x08, 0x08, BYTE3_POWER_OFF,
                                                                          255 - BYTE3_POWER_OFF};
 
-struct Code {
-  uint8_t value;  // a climate enum, all of which are uint8_t
-  uint8_t code;
-};
-static constexpr Code MODES[] PROGMEM = {
+using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// A received mode that is not listed is ignored
+static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, BYTE7_MODE_AUTO},
     {climate::CLIMATE_MODE_COOL, 0x80},
     {climate::CLIMATE_MODE_DRY, 0x40},
     {climate::CLIMATE_MODE_FAN_ONLY, 0xC0},
     {climate::CLIMATE_MODE_HEAT, 0x20},
 };
-static constexpr Code FANS[] PROGMEM = {
+static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, BYTE8_FAN_AUTO}, {climate::CLIMATE_FAN_HIGH, 0x80},
     {climate::CLIMATE_FAN_MEDIUM, 0x40},         {climate::CLIMATE_FAN_LOW, 0xC0},
     {climate::CLIMATE_FAN_QUIET, 0x20},
 };
-
-// The entry whose value (or code) matches key. Entries are copied out of PROGMEM.
-template<size_t N> static optional<Code> find_entry(const Code (&table)[N], uint8_t key, bool match_code) {
-  for (const Code &slot : table) {
-    Code entry;
-    progmem_memcpy(&entry, &slot, sizeof(entry));
-    if ((match_code ? entry.code : entry.value) == key)
-      return entry;
-  }
-  return {};
-}
 
 // The temperature code is the 4-bit reversal of (F - TEMP_MIN) / TEMP_STEP; the mapping is its own inverse.
 static uint8_t reverse_nibble(uint8_t value) { return reverse_bits(value) >> 4; }
@@ -151,14 +142,11 @@ void FriedrichClimate::transmit_state() {
   temperature += temperature % 2;
   this->target_temperature = temperature;
 
-  const auto mode = find_entry(MODES, this->mode, false);
-  const auto fan = find_entry(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), false);
-
   uint8_t frame[STATE_MESSAGE_LENGTH];
   progmem_memcpy(frame, STATE_TEMPLATE, sizeof(frame));
   frame[6] |= reverse_nibble((temperature - TEMP_MIN) / TEMP_STEP);
-  frame[7] = mode.has_value() ? mode->code : BYTE7_MODE_AUTO;
-  frame[8] = fan.has_value() ? fan->code : BYTE8_FAN_AUTO;
+  frame[7] = to_ir_code(MODES, this->mode, BYTE7_MODE_AUTO);
+  frame[8] = to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), BYTE8_FAN_AUTO);
   if (this->swing_mode != climate::CLIMATE_SWING_OFF)
     frame[8] |= BYTE8_FAN_SWING;
   frame[STATE_MESSAGE_LENGTH - 1] = checksum_state(frame);
@@ -209,7 +197,7 @@ bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
     return false;
 
   // Ignore frames with a mode this component does not expose (e.g. MIN_HEAT, COIL_DRY)
-  const auto mode = find_entry(MODES, d[7], true);
+  const auto mode = find_ir_code(MODES, d[7], true);
   if (!mode.has_value()) {
     ESP_LOGV(TAG, "Ignoring unknown mode 0x%02X", d[7]);
     return false;
@@ -224,8 +212,7 @@ bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
     this->target_temperature = TEMP_MIN + temp_index * TEMP_STEP;
 
   this->swing_mode = (d[8] & BYTE8_FAN_SWING) ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
-  const auto fan = find_entry(FANS, d[8] & ~BYTE8_FAN_SWING, true);
-  this->fan_mode = fan.has_value() ? static_cast<climate::ClimateFanMode>(fan->value) : climate::CLIMATE_FAN_AUTO;
+  this->fan_mode = from_ir_code(FANS, d[8] & ~BYTE8_FAN_SWING, climate::CLIMATE_FAN_AUTO);
 
   this->publish_state();
   return true;

@@ -11,7 +11,7 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 12"
     report: "force"
-    endpoint: 1
+    endpoint: 11
   - platform: template
     name: "Garage Door Open 13"
     endpoint: 2
@@ -26,7 +26,7 @@ sensor:
     lambda: return 10.0;
     device_class: temperature
     unit_of_measurement: "°C"
-    endpoint: 1
+    endpoint: 11
     use_device_type: true
     cluster: device_class
     report: enable

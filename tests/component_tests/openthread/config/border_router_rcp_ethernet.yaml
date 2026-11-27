@@ -1,0 +1,24 @@
+esphome:
+  name: otbr-rcp-ethernet
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO32
+  clk:
+    pin: GPIO0
+    mode: CLK_EXT_IN
+  phy_addr: 0
+
+openthread:
+  border_router:
+    backbone: ethernet
+    rcp:
+      rx_pin: GPIO16
+      tx_pin: GPIO4
+  tlv: 0e080000000000010000000300001435060004001fffe0

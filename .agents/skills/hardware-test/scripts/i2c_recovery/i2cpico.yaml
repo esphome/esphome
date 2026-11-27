@@ -1,0 +1,29 @@
+# RP2040/RP2350 recovery probe: levels right after recover_() (temporary instrumentation), scan and a register read.
+# Pins are GPIO numbers (`-s sda 4`).
+esphome:
+  name: ${name}
+rp2040:
+  board: ${board}
+logger:
+  level: DEBUG
+i2c:
+  id: bus0
+  sda: GPIO${sda}
+  scl: GPIO${scl}
+  scan: true
+interval:
+  - interval: 3s
+    then:
+      - lambda: |-
+          extern int i2c_recovery_probe;
+          int p = i2c_recovery_probe;
+          uint8_t reg = 0xFE, buf[2] = {0, 0};
+          auto err = id(bus0).write_readv(0x40, &reg, 1, buf, 2);
+          auto e2 = id(bus0).write_readv(0x41, nullptr, 0, nullptr, 0);
+          ESP_LOGI("rec", "after recover_: SCL=%d SDA=%d result=%d (0 SCL low, 1 SDA low, 2 ok); read 0x40 reg 0xFE err=%d data=%02X%02X; probe 0x41 err=%d; now SCL=%d SDA=%d",
+                   p & 1, (p >> 1) & 1, (p >> 4) & 0xF, (int) err, buf[0], buf[1], (int) e2, digitalRead(${scl}), digitalRead(${sda}));
+substitutions:
+  name: i2cpico
+  board: rpipico2w
+  sda: "4"
+  scl: "5"

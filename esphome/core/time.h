@@ -9,6 +9,8 @@
 #include <span>
 #include <string>
 
+#include "esphome/core/time_utc.h"
+
 #ifdef USE_TIME_TIMEZONE
 #include "esphome/components/time/posix_tz.h"
 #endif
@@ -76,11 +78,11 @@ struct ESPTime {
   /// @copydoc strftime(const std::string &format)
   std::string strftime(const char *format);
 
-  /// Check if this ESPTime is valid (year >= 2019 and the requested fields are in range).
+  /// Check if this ESPTime is valid (year >= internal::MIN_VALID_YEAR and the requested fields are in range).
   /// @param check_day_of_week validate day_of_week (not always available when constructing from date/time fields)
   /// @param check_day_of_year validate day_of_year (not always available when constructing from date/time fields)
   bool is_valid(bool check_day_of_week = true, bool check_day_of_year = true) const {
-    return this->year >= 2019 && this->fields_in_range(check_day_of_week, check_day_of_year);
+    return this->year >= internal::MIN_VALID_YEAR && this->fields_in_range(check_day_of_week, check_day_of_year);
   }
 
   /// Check if time fields are in range.
@@ -138,15 +140,9 @@ struct ESPTime {
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
    *
    * @param epoch Seconds since 1st January 1970. In UTC.
-   * @return The generated ESPTime
+   * @return The generated ESPTime, invalid outside the years 0 to 65535
    */
-  static ESPTime from_epoch_utc(time_t epoch) {
-    struct tm *c_tm = ::gmtime(&epoch);
-    if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime
-    }
-    return ESPTime::from_c_tm(c_tm, epoch);
-  }
+  static ESPTime from_epoch_utc(time_t epoch);
 
   /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
   void recalc_timestamp_utc(bool use_day_of_year = true);
@@ -168,5 +164,9 @@ struct ESPTime {
   bool operator==(const ESPTime &other) const;
   bool operator>=(const ESPTime &other) const;
   bool operator>(const ESPTime &other) const;
+
+ protected:
+  /// recalc_timestamp_utc() that also returns whether the fields were valid
+  bool recalc_timestamp_utc_(bool use_day_of_year);
 };
 }  // namespace esphome

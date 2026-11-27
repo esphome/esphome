@@ -23,8 +23,9 @@ class ZigbeeLight final : public ZigbeeEntityBase, public light::LightRemoteValu
   void on_light_remote_values_update() override;
   void on_value(ezb_zcl_attribute_t attribute) override {};
   void connect(light::LightState *light_state);
-  // Setup before ZigbeeComponent
-  float get_setup_priority() const override { return setup_priority::WIFI + 1; }
+
+  // After light setup (traits), before zigbee (WIFI)
+  float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
  protected:
   void schedule_call_();

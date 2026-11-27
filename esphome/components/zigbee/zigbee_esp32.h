@@ -67,7 +67,8 @@ class ZigbeeComponent final : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  // Setup after sensors and bluetooth
+
+  // After entities that build the data model (AFTER_BLUETOOTH+); dependents use BEFORE_CONNECTION.
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }

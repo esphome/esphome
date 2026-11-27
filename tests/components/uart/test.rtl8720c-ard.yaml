@@ -1,3 +1,6 @@
+packages:
+  tx_break: !include tx_break.yaml
+
 # UART1 on its second pair of pins (the board allows PA01/PA00 or PA03/PA02)
 uart:
   - id: uart_id

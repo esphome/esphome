@@ -82,11 +82,6 @@ ANALOG_OUTPUT_EP = {
             ROLE: "SERVER",
             CONF_ATTRIBUTES: [
                 {
-                    CONF_ATTRIBUTE_ID: 0x55,
-                    CONF_TYPE: "SINGLE",
-                    CONNECT: True,
-                },
-                {
                     CONF_ATTRIBUTE_ID: 0x51,
                     CONF_TYPE: "BOOL",
                 },
@@ -474,7 +469,7 @@ def _merge_endpoints(
         if (cluster[CONF_ID], cluster[ROLE]) not in clusters
     )
     ep_list: list[dict] = existing_ep.setdefault(_KEY_EP_REFS, [])
-    ep_list.append(ep)
+    ep_list.extend(ep.pop(_KEY_EP_REFS, []))
     return True
 
 
@@ -546,11 +541,8 @@ def create_ep(router: bool) -> None:
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
             ep_num = _get_next_ep_num(eps)
-            ep[CONF_NUMBER] = ep_num
-            if _KEY_EP_REFS in ep:
-                for ep_ref in ep[_KEY_EP_REFS]:
-                    ep_ref[CONF_NUMBER] = ep_num
-                del ep[_KEY_EP_REFS]
+            for ep_ref in ep.pop(_KEY_EP_REFS, ()):
+                ep_ref[CONF_NUMBER] = ep_num
             ep_dict[ep_num] = ep
 
         # clear list so that it is not processed again
@@ -614,6 +606,7 @@ def add_ep(
     ep_num: int | None,
     use_type: bool | None,
     merge_attributes: bool = False,
+    ep_ref: dict[str, Any] | None = None,
 ) -> None:
     """Add a Zigbee endpoint configuration to CORE.data.
 
@@ -625,6 +618,11 @@ def add_ep(
         merge_attributes: Merge attributes in a cluster that is already in the list
     """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+    if ep_ref is not None:
+        if ep_num is not None:
+            ep_ref[CONF_NUMBER] = ep_num
+        else:
+            ep.setdefault(_KEY_EP_REFS, []).append(ep_ref)
     if use_type is False:
         ep.pop(DEVICE_TYPE, None)
     if ep_num is None:

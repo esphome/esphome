@@ -24,6 +24,7 @@
 #endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 
 #include "seeed_mr24hpc1_constants.h"
@@ -31,19 +32,6 @@
 #include <map>
 
 namespace esphome::seeed_mr24hpc1 {
-
-enum FrameState {
-  FRAME_IDLE,
-  FRAME_HEADER2,
-  FRAME_CTL_WORD,
-  FRAME_CMD_WORD,
-  FRAME_DATA_LEN_H,
-  FRAME_DATA_LEN_L,
-  FRAME_DATA_BYTES,
-  FRAME_DATA_CRC,
-  FRAME_TAIL1,
-  FRAME_TAIL2,
-};
 
 enum PollingState {
   STANDARD_FUNCTION_QUERY_PRODUCT_MODE = 0,
@@ -134,24 +122,24 @@ class MR24HPC1Component final : public Component,
   char c_product_id_[PRODUCT_BUF_MAX_SIZE + 1];
   char c_hardware_model_[PRODUCT_BUF_MAX_SIZE + 1];
   char c_firmware_version_[PRODUCT_BUF_MAX_SIZE + 1];
-  uint8_t s_output_info_switch_flag_;
-  uint8_t sg_recv_data_state_;
-  uint8_t sg_frame_len_;
-  uint8_t sg_data_len_;
-  uint8_t sg_frame_buf_[FRAME_BUF_MAX_SIZE];
-  uint8_t sg_frame_prase_buf_[FRAME_BUF_MAX_SIZE];
+  uint32_t last_rx_{0};
+  // 53 59, control, command, payload length (2, BE), payload (at least 1), sum, 54 43
+  using PayloadLength = PayloadLengthU16BE<LengthField{.offset = 4, .trailer = 3}>;
+  using Frame =
+      FrameFormat<FrameHeader<FRAME_HEADER1_VALUE, FRAME_HEADER2_VALUE>, PayloadLength, FrameMinLength<MIN_FRAME_SIZE>>;
+  LengthFrameReader<FRAME_BUF_MAX_SIZE, Frame> reader_;
   int sg_start_query_data_;
+  uint8_t s_output_info_switch_flag_;
   bool check_dev_inf_sign_;
   bool poll_time_base_func_check_;
   bool module_ready_{false};
 
   void update_();
-  void r24_split_data_frame_(uint8_t value);
-  void r24_parse_data_frame_(uint8_t *data, uint8_t len);
-  void r24_frame_parse_open_underlying_information_(uint8_t *data);
-  void r24_frame_parse_work_status_(uint8_t *data);
-  void r24_frame_parse_product_information_(uint8_t *data);
-  void r24_frame_parse_human_information_(uint8_t *data);
+  void r24_parse_data_frame_(const uint8_t *data, uint8_t len);
+  void r24_frame_parse_open_underlying_information_(const uint8_t *data);
+  void r24_frame_parse_work_status_(const uint8_t *data);
+  void r24_frame_parse_product_information_(const uint8_t *data);
+  void r24_frame_parse_human_information_(const uint8_t *data);
   void send_query_(const uint8_t *query, size_t string_length);
 
  public:

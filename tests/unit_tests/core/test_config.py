@@ -182,7 +182,10 @@ async def test_core_area_recorded_at_config_load(
     # Recorded already at config-load time, before any code generation.
     assert CORE.area == expected_area
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -201,7 +204,10 @@ async def test_app_is_default_initialized(
     result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
     assert result is not None
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -231,7 +237,10 @@ async def test_no_exceptions_flag_skipped_on_native_cmake_builds(
     assert result is not None
     CORE.toolchain = toolchain
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -400,6 +409,10 @@ async def test_suspend_loop_and_loop_interval(
     assert esphome_config.get(CONF_SUSPEND_LOOP)
 
     with patch("esphome.core.config.cg") as mock_cg:
+        # Call through so the setter assertion below checks what is emitted.
+        mock_cg.add_optional.side_effect = lambda setter, value: (
+            None if value is None else setter(value)
+        )
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -492,7 +505,10 @@ async def test_device_relation_to_code(
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is not None
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -721,63 +737,6 @@ def test_to_code_priority_above_safe_mode() -> None:
         f"safe_mode to_code priority ({safe_mode_to_code.priority}) so that "
         "App.looping_components_.init() is emitted before safe_mode's early return"
     )
-
-
-@pytest.mark.asyncio
-async def test_add_looping_components_handles_empty_entries() -> None:
-    """Test that _add_looping_components emits a valid constexpr when there are
-    no looping component entries.
-
-    With zero entries the generated constexpr must still be syntactically valid
-    C++ (`= 0;`), not an empty expression (`= ;`). This guards the empty-list
-    case that would otherwise produce uncompilable main.cpp output.
-    """
-    CORE.data["looping_component_entries"] = []
-
-    await config._add_looping_components()
-
-    constexpr_lines = [
-        str(s)
-        for s in CORE.global_statements
-        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
-    ]
-    assert len(constexpr_lines) == 1
-    text = constexpr_lines[0]
-    assert "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in text
-    # The right-hand side must contain a literal `0`, not be empty.
-    rhs = text.split("=", 1)[1]
-    assert "0" in rhs
-    assert rhs.strip().rstrip(";").strip(), (
-        f"constexpr right-hand side must not be empty, got: {text!r}"
-    )
-    assert any(
-        "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];"
-        in str(s)
-        for s in CORE.global_statements
-    )
-
-
-@pytest.mark.asyncio
-async def test_add_looping_components_with_entries() -> None:
-    """Test that _add_looping_components builds a HasLoopOverride sum from entries."""
-    CORE.data["looping_component_entries"] = [
-        "esphome::wifi::WiFiComponent",
-        "esphome::logger::Logger",
-        "esphome::wifi::WiFiComponent",
-    ]
-
-    await config._add_looping_components()
-
-    constexpr_lines = [
-        str(s)
-        for s in CORE.global_statements
-        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
-    ]
-    assert len(constexpr_lines) == 1
-    text = constexpr_lines[0]
-    # Deduplicated by type, with per-type counts as multiplier.
-    assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
-    assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
 
 
 @pytest.mark.asyncio

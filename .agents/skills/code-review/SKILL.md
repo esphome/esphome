@@ -120,11 +120,11 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | hand-written `set_x_sensor()` plus `x_sensor_` member | `SUB_SENSOR(x)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`, `SUB_SWITCH`, ... |
 | `if CONF_X in config: s = await sensor.new_sensor(config[CONF_X])` plus setter | `sensors = sensor.sub_sensors(config)` then `await sensors(CONF_X, hub.set_x_sensor)` |
 | hand-written `{"a": MyEnum.MY_ENUM_A, ...}` dict | `MyEnum.options("a", "b", prefix="MY_ENUM_")` |
-| loops on `available()` / `read_byte()` | UART `read_available(on_byte)`, `discard_available()`, `LineReader<N>`, `FrameReader<N, HEADER...>` |
+| loops on `available()` / `read_byte()` | UART `read_available(on_byte)`, `discard_available()`, `LineReader<N>`, `FrameReader<N, HEADER...>`, `LengthFrameReader<N, FrameFormat<...>...>` |
 | hand-rolled CRC, checksum or bit loop | `crc8`, `crc16`, `xor_bytes`, `sum16_bytes`, `encode_uint16`, ... (`esphome/core/helpers.h`) |
 | integer split into buffer bytes by hand (`buf[0] = v >> 8; buf[1] = v;`) | `put_be16`/`24`/`32`, `put_le16`, `put_le32` (`esphome/core/helpers.h`) |
 | bare `mark_failed()`, or `ESP_LOGE` then `mark_failed()` | `this->mark_failed(LOG_STR("reason"))` or `LOG_STR(ESP_LOG_MSG_COMM_FAIL)` |
-| button/switch/number/select C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect` with `apply=` |
+| button/switch/number/select/text C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect`, `ApplyText` with `apply=` |
 | action or condition class that only forwards to the parent | `register_apply_action` / `register_apply_condition` |
 | enum-to-string `switch` returning literals | `PROGMEM_STRING_TABLE` with `get_log_str` / `get_progmem_str` |
 | `if (x := config.get(CONF_X)) is not None: cg.add(var.set_x(x))` | `cg.add_optional(var.set_x, config.get(CONF_X))`, when the setter takes the value unchanged |
@@ -132,6 +132,17 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | `x < lo ? lo : (x > hi ? hi : x)` | `std::clamp(x, lo, hi)` |
 | I2C read, mask, write by hand; private 16-bit register byte helpers | `update_register`, `update_register16`, `read_byte_reg16`, `write_byte_reg16` |
 | custom validator that checks which keys are set, or one schema with model checks | `cv.has_exactly_one_key`, `cv.has_at_most_one_key`, `cv.Inclusive`/`cv.Exclusive`, `cv.typed_schema` per model |
+| validator that turns a time period into one of a few allowed values | `cv.time_period_enum({10: Rate.RATE_10MS, ...})` (`unit="us"` for microseconds) |
+| `unit_of_measurement=`, `device_class=` and `state_class=` written out in `sensor_schema` | `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (or another preset), plus only what it leaves unset (`state_class=` and `accuracy_decimals=` may override) |
+| `pin->setup(); pin->digital_write(level);`, often inside `if (pin != nullptr)` | `setup_output_pin(pin, level)` (`esphome/core/gpio_pin.h`), null-safe |
+| write level, `delayMicroseconds(n)`, write the opposite level | `pulse_pin(pin, level, n)`; width 0 for back-to-back writes |
+| reset pin setup, then low, `delay`, high, `delay` | `pulse_reset(pin, {.high_before_ms = ..., .low_ms = ..., .high_after_ms = ...})`, null-safe |
+| `if (cond) this->high_freq_.start(); else this->high_freq_.stop();` | `this->high_freq_.set(cond)` |
+| `b >> 4`, `b & 0x0F`, `(hi << 4) \| lo` for 4-bit fields and 12-bit values | `high_nibble`, `low_nibble`, `encode_uint12` (`esphome/core/helpers.h`) |
+| `#ifdef USE_ESP8266` around appending a flash string to a buffer | `buf_append_str(buf, size, pos, "...")` / `buf_append_str_p` on every platform |
+| `remote_base` protocol whose data is plain fields, with hand-written binary sensor and action registration | `register_simple_protocol(name, protocol, schema, *fields)` |
+| buffer sized from the config and allocated in `setup()` | `cg.static_buffer` (`component-codegen` skill) |
+| hub keeping a list of child objects that each take a value, or per-child listener classes | `cg.HubFunction` publishers (`component-codegen` skill) |
 
 
 ## Cleanups automated reviews keep missing
@@ -206,6 +217,22 @@ detail.
   group builds. List-style packages or top-level merge keys block grouping.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
+- A change to device behaviour (a driver, a bus, a platform, a fix for a fault
+  seen on a device) needs a hardware test report on a head that includes the
+  last change to device code. Either form is fine:
+  - the `Automated testing results` comment from the `hardware-test` skill, or
+  - a manual report from the author with: the commit tested; the board, chip
+    and framework; the steps taken, including how the changed path was
+    triggered; what happened, with the log lines that show it; and, for a fix,
+    the same steps on a `dev` build showing the fault.
+
+  Without either, ask for one and list those items, since an author without AI
+  tools tests by hand. "Compiles and runs on my board" does not show the
+  changed path ran; for a fix whose trigger is rare, ask how it can be forced
+  (a simulated device, an injected error, an AT command, a pulled wire, or the
+  skill's recipes). If the author has no board, note that the change is
+  untested on hardware instead of blocking. Validation, codegen-only and
+  documentation changes need no board.
 
 ## Naming user-facing functions
 
