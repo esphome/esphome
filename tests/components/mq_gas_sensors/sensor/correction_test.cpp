@@ -25,7 +25,7 @@ class CorrectionTest : public ::testing::Test {
     this->sensor_.set_correction_sensor(&this->correction_);
   }
 
-  void enable_compensation() {
+  void enable_compensation_() {
     this->sensor_.set_correction_mode(CorrectionMode::CORRECTION_MODE_MQDATASCIENCE);
     this->sensor_.set_tc_coefficients(0.8559f, -0.0611f, 0.1673f, 0.8201f, -0.0606f, 0.1492f);
     this->sensor_.set_temperature_source(&this->temperature_);
@@ -51,7 +51,7 @@ TEST_F(CorrectionTest, AFaultPublishesTheCorrectionAsUnknown) {
 }
 
 TEST_F(CorrectionTest, ASourceWithoutAReadingIsNotUsedAndIsReported) {
-  this->enable_compensation();
+  this->enable_compensation_();
   this->sensor_.setup();
 
   this->sensor_.update();
