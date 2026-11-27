@@ -1,0 +1,43 @@
+esphome:
+  name: test-initial-focus
+
+host:
+
+display:
+  - platform: snapshot
+    dimensions:
+      width: 100
+      height: 100
+
+binary_sensor:
+  - platform: template
+    id: key_next
+  - platform: template
+    id: key_enter
+  - platform: template
+    id: encoder_left
+  - platform: template
+    id: encoder_right
+  - platform: template
+    id: encoder_enter
+
+lvgl:
+  encoders:
+    - id: test_encoder
+      initial_focus: third_button
+      enter_button: encoder_enter
+      sensor:
+        left_button: encoder_left
+        right_button: encoder_right
+  keypads:
+    - id: test_keypad
+      initial_focus: second_button
+      next: key_next
+      enter: key_enter
+  widgets:
+    - button:
+        id: first_button
+    - button:
+        id: second_button
+    - button:
+        id: third_button
