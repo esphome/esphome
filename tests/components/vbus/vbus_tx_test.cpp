@@ -410,30 +410,25 @@ TEST_F(VBusTransmitTest, ReleaseWaitsForWireTimeAndItsEchoPreservesTheNextReques
   EXPECT_EQ(this->uart_.writes.back(), wire_datagram(0x0300, 0x0020, 0x2211, 3, 0));
 }
 
-TEST_F(VBusTransmitTest, CanUseSeparateTransmitUartAndLeavesOtherHubRxOnly) {
-  TransmitTestUART tx_uart;
-  this->tx_.set_uart_parent(&tx_uart);
+TEST_F(VBusTransmitTest, TransmittingLeavesOtherHubRxOnly) {
   VBus other{};
   TransmitTestUART other_uart;
   other.set_uart_parent(&other_uart);
   EXPECT_FALSE(other.request_datagram(0x0300, 2, 0));
   this->acquire_();
   EXPECT_TRUE(this->tx_.send_datagram(this->grant_id_, 0x0300, 2, 0));
-  EXPECT_TRUE(this->uart_.writes.empty());
   EXPECT_TRUE(other_uart.writes.empty());
-  ASSERT_EQ(tx_uart.writes.size(), 1u);
+  ASSERT_EQ(this->uart_.writes.size(), 1u);
 }
 
 TEST_F(VBusTransmitTest, LosingTheReceiveUartInvalidatesTheGrant) {
-  TransmitTestUART tx_uart;
-  this->tx_.set_uart_parent(&tx_uart);
   ASSERT_TRUE(this->bus_.request_datagram(0x0300, 2, 0));
   this->feed_(wire_datagram());
   this->uart_.connected = false;
   this->advance_(100);
   this->uart_.connected = true;
   this->advance_(100);
-  ASSERT_TRUE(tx_uart.writes.empty());
+  ASSERT_TRUE(this->uart_.writes.empty());
 
   this->acquire_();
   this->uart_.connected = false;  // Between the last RX observation and the send.
@@ -441,7 +436,7 @@ TEST_F(VBusTransmitTest, LosingTheReceiveUartInvalidatesTheGrant) {
   this->uart_.connected = true;  // Reconnected before the next RX poll.
   EXPECT_FALSE(this->tx_.has_bus());
   EXPECT_FALSE(this->tx_.send_datagram(this->grant_id_, 0x0300, 2, 0));
-  EXPECT_TRUE(tx_uart.writes.empty());
+  EXPECT_TRUE(this->uart_.writes.empty());
 }
 
 TEST_F(VBusTransmitTest, AGrantAlreadyStartedBeforeRequestCannotBeClaimed) {

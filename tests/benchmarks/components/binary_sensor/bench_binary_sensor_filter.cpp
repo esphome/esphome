@@ -92,7 +92,8 @@ BENCHMARK(BinarySensorFilter_Settle);
 // Benchmark: autorepeat, passes every press and release, so it also pays a state change per publish
 static void BinarySensorFilter_Autorepeat(benchmark::State &state) {
   BinarySensor sensor;
-  AutorepeatFilter<1> filter({{DELAY_MS, 100, 900}});
+  static constexpr AutorepeatFilterTiming TIMINGS[] = {{DELAY_MS, 100, 900}, {SCHEDULER_DONT_RUN, 0, 0}};
+  AutorepeatFilter filter(TIMINGS);
   sensor.add_filter(&filter);
   publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
