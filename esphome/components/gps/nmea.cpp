@@ -203,10 +203,14 @@ bool parse_rmc(const Fields &f, GPSData &data) {
 
 }  // namespace
 
-bool parse_nmea_sentence(char *line, GPSData &data) {
-  char *start = strchr(line, '$');
-  if (start == nullptr)
+bool parse_nmea_sentence(char *line, size_t len, GPSData &data) {
+  // Noise before the sentence, NUL bytes included, is skipped
+  size_t pos = len;
+  while (pos != 0 && line[pos - 1] != '$')
+    pos--;
+  if (pos == 0 || strlen(line + pos - 1) != len - pos + 1)
     return false;
+  char *start = line + pos - 1;
   char *star = strchr(start, '*');
   uint8_t checksum;
   if (star == nullptr || strlen(star + 1) != 2 || !parse_hex(star + 1, &checksum, 1))

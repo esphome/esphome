@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #include "esphome/components/gps/nmea.h"
@@ -16,7 +17,7 @@ static std::string with_checksum(const std::string &body) {
   return body + suffix;
 }
 
-static bool parse(std::string line, GPSData &data) { return parse_nmea_sentence(line.data(), data); }
+static bool parse(std::string line, GPSData &data) { return parse_nmea_sentence(line.data(), line.size(), data); }
 
 TEST(GPSNmea, Gga) {
   GPSData data;
@@ -59,9 +60,46 @@ TEST(GPSNmea, SouthWestHighPrecision) {
 }
 
 TEST(GPSNmea, LeadingNoise) {
+  static const std::string GGA = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
+  for (const std::string &noise : {std::string("\x01\xff"), std::string("\x7f\0\x80", 3), std::string("$GPGGA,1235")}) {
+    GPSData data;
+    EXPECT_TRUE(parse(noise + GGA, data));
+    EXPECT_EQ(data.satellites, 8);
+  }
+}
+
+TEST(GPSNmea, NulInsideSentence) {
   GPSData data;
-  ASSERT_TRUE(parse("\x01\xff$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
-  EXPECT_EQ(data.satellites, 8);
+  EXPECT_FALSE(
+      parse(std::string("$GPGGA,123519,4807.038,N,") + '\0' + "01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
+}
+
+// Each float is the one nearest the decimal value, as strtof() gives it
+TEST(GPSNmea, FloatsRoundToNearest) {
+  GPSData data;
+  char text[24];
+  for (int32_t e7 = -1800000000; e7 <= 1800000000; e7 += 3999991) {
+    data.latitude_e7 = data.longitude_e7 = e7;
+    snprintf(text, sizeof(text), "%s%d.%07d", e7 < 0 ? "-" : "", std::abs(e7 / 10000000), std::abs(e7 % 10000000));
+    ASSERT_EQ(data.longitude(), strtof(text, nullptr)) << text;
+    ASSERT_EQ(data.latitude(), strtof(text, nullptr)) << text;
+  }
+  for (uint32_t e3 = 0; e3 <= 200000; e3 += 7) {
+    data.speed_e3 = e3;
+    data.altitude_e3 = static_cast<int32_t>(e3);
+    snprintf(text, sizeof(text), "%u.%03u", e3 / 1000, e3 % 1000);
+    ASSERT_EQ(data.speed_knots(), strtof(text, nullptr)) << text;
+    ASSERT_EQ(data.altitude(), strtof(text, nullptr)) << text;
+    const uint32_t kmh_e6 = e3 * 1852;
+    snprintf(text, sizeof(text), "%u.%06u", kmh_e6 / 1000000, kmh_e6 % 1000000);
+    ASSERT_EQ(data.speed_kmh(), strtof(text, nullptr)) << text;
+  }
+  for (uint16_t e2 = 0; e2 <= 36000; e2++) {
+    data.course_e2 = data.hdop_e2 = e2;
+    snprintf(text, sizeof(text), "%u.%02u", e2 / 100, e2 % 100);
+    ASSERT_EQ(data.course(), strtof(text, nullptr)) << text;
+    ASSERT_EQ(data.hdop(), strtof(text, nullptr)) << text;
+  }
 }
 
 TEST(GPSNmea, GgaWithoutFixKeepsLocationAndTime) {

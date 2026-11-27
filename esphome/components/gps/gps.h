@@ -47,7 +47,7 @@ class GPS final : public PollingComponent, public uart::UARTDevice {
   const GPSData &get_data() const { return this->data_; }
 
  protected:
-  void handle_line_(char *line);
+  void handle_line_(char *line, size_t len);
 
   GPSData data_;
   LineReader<NMEA_MAX_LINE + 1> line_reader_;

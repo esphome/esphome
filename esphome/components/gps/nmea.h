@@ -41,17 +41,19 @@ struct GPSData {
   bool has(GPSField field) const { return (this->valid & field) != 0; }
   bool is_updated(GPSField field) const { return (this->updated & field) != 0; }
 
-  float latitude() const { return this->latitude_e7 * 1e-7f; }
-  float longitude() const { return this->longitude_e7 * 1e-7f; }
-  float altitude() const { return this->altitude_e3 * 1e-3f; }
-  float speed_knots() const { return this->speed_e3 * 1e-3f; }
-  float speed_kmh() const { return this->speed_e3 * 1.852e-3f; }
-  float course() const { return this->course_e2 * 1e-2f; }
-  float hdop() const { return this->hdop_e2 * 1e-2f; }
+  // A double quotient rounds once to the float nearest the decimal value
+  float latitude() const { return static_cast<float>(this->latitude_e7 / 1e7); }
+  float longitude() const { return static_cast<float>(this->longitude_e7 / 1e7); }
+  float altitude() const { return static_cast<float>(this->altitude_e3 / 1e3); }
+  float speed_knots() const { return static_cast<float>(this->speed_e3 / 1e3); }
+  float speed_kmh() const { return static_cast<float>(this->speed_e3 * 1852.0 / 1e6); }
+  float course() const { return static_cast<float>(this->course_e2 / 1e2); }
+  float hdop() const { return static_cast<float>(this->hdop_e2 / 1e2); }
 };
 
-/// Parse one NMEA line, which is changed in place. On a GGA or RMC sentence with a good checksum and no malformed
-/// field, store its values in data and return true; otherwise leave data unchanged and return false.
-bool parse_nmea_sentence(char *line, GPSData &data);
+/// Parse one NMEA line of len bytes, which is changed in place; the sentence starts at the last '$'. On a GGA or RMC
+/// sentence with a good checksum and no malformed field, store its values in data and return true; otherwise leave
+/// data unchanged and return false.
+bool parse_nmea_sentence(char *line, size_t len, GPSData &data);
 
 }  // namespace esphome::gps
