@@ -19,6 +19,7 @@ TEST(InlineCallbackManager, LaterListenerSeesPublishedValue) {
   EXPECT_EQ(seen, 1.0f);
 
   state = 1.0f;
+  seen = 0.0f;
   callbacks(state);
   EXPECT_EQ(seen, 1.0f);
 }
