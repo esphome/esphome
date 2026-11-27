@@ -143,10 +143,8 @@ size_t TcpUart::read_socket_(Link &link, size_t limit) {
   }
   ssize_t count = link.read(this->rx_ + this->rx_end_, room);
   if (count <= 0) {
-    // A dropped link (-1) is seen by the edge check on the next loop.
-    if (count == 0) {
-      this->rx_pending_ = false;
-    }
+    // Nothing left in the socket, or the link dropped (-1, seen by the edge check on the next loop).
+    this->rx_pending_ = false;
     return 0;
   }
   this->rx_end_ += static_cast<uint16_t>(count);
@@ -242,9 +240,10 @@ void TcpUart::slot_edge_(uint8_t i) {
     this->up_mask_ &= ~bit;
     this->pending_mask_ &= ~bit;
     if (i == this->holder_) {
-      // Its unread bytes never reach another connection.
+      // Its unread bytes never reach another connection; the next turn goes round from it, as after end_turn_().
       this->rx_start_ = this->rx_end_ = 0;
       this->rx_pending_ = false;
+      this->last_holder_ = i;
       this->holder_ = NO_SLOT;
     }
     if (i == this->tx_slot_) {
@@ -267,6 +266,7 @@ void TcpUart::accept_slot_(uint32_t now) {
   const uint8_t count = this->slot_count_();
   uint8_t slot = NO_SLOT;
   uint8_t quietest = NO_SLOT;
+  bool quietest_waits = false;
   uint32_t quietest_idle = 0;
   for (uint8_t i = 0; i < count; i++) {
     Link &link = this->slot_(i);
@@ -283,9 +283,10 @@ void TcpUart::accept_slot_(uint32_t now) {
     }
     // A connection with bytes waiting for its turn is not idle.
     const bool waiting = (this->pending_mask_ & (1u << i)) != 0 || link.ready();
-    const uint32_t idle = waiting ? 0 : now - link.last_io();
-    if (quietest == NO_SLOT || idle > quietest_idle) {
+    const uint32_t idle = now - link.last_io();
+    if (quietest == NO_SLOT || (quietest_waits && !waiting) || (waiting == quietest_waits && idle > quietest_idle)) {
       quietest = i;
+      quietest_waits = waiting;
       quietest_idle = idle;
     }
   }
