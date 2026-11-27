@@ -133,7 +133,9 @@ int LWIPRawCommon::close_pcb_() {
     return -1;
   }
   LWIP_LOG("tcp_close(%p)", this->pcb_);
-  err_t err = pcb_detach_close(this->pcb_);
+  // A listen pcb is the smaller tcp_pcb_listen: tcp_recv()/tcp_err() and tcp_abort() would touch fields it lacks,
+  // and tcp_close() frees it at once with no callbacks to come
+  err_t err = this->pcb_->state == LISTEN ? tcp_close(this->pcb_) : pcb_detach_close(this->pcb_);
   this->pcb_ = nullptr;
   if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
@@ -695,18 +697,9 @@ LWIPRawListenImpl::~LWIPRawListenImpl() {
     }
   }
   this->accepted_socket_count_ = 0;
-  // Listen PCBs must use tcp_close(), not tcp_abort().
-  // tcp_abandon() asserts pcb->state != LISTEN and would access
-  // fields that don't exist in the smaller tcp_pcb_listen struct.
-  // Don't use pcb_detach_close() here — tcp_recv()/tcp_err() also access
-  // fields that only exist in the full tcp_pcb, not tcp_pcb_listen.
-  // tcp_close() on a listen PCB is synchronous (frees immediately),
-  // so there are no async callbacks to worry about.
-  // Close here and null pcb_ so the base destructor skips tcp_abort.
-  if (this->pcb_ != nullptr) {
-    tcp_close(this->pcb_);
-    this->pcb_ = nullptr;
-  }
+  // Close here so the base destructor's tcp_abort() never sees a listen pcb
+  if (this->pcb_ != nullptr)
+    this->close_pcb_();
 }
 
 void LWIPRawListenImpl::init() {
