@@ -132,6 +132,10 @@ void CANopenComponent::on_hb_started(uint8_t node_id, uint8_t idx, void *object)
 }
 
 void CANopenComponent::on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object) {
+  // a boot-up message: the RESET event reports it, and the consumer already counts the node offline until its next
+  // heartbeat (get_node_state() is UNKNOWN)
+  if (state == CO_NMT_INITIALIZING)
+    return;
   static_cast<CANopenComponent *>(object)->pending_node_events_.push_back(
       {node_id, NodeEvent::NODE_EVENT_NMT_CHANGED, to_nmt_state(state)});
 }

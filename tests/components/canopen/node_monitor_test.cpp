@@ -57,11 +57,19 @@ TEST_F(NodeMonitorTest, EventsFromHeartbeats) {
             (Event{0x21, NodeEvent::NODE_EVENT_NMT_CHANGED, NMTState::NMT_STATE_PRE_OPERATIONAL}));
   EXPECT_EQ(this->hub_.get_node_state(0x21), NMTState::NMT_STATE_PRE_OPERATIONAL);
 
-  // a boot-up message: the node restarted
+  // a boot-up message: the node restarted, offline until its next heartbeat; only RESET (no NMT changed to bootup,
+  // which get_node_state() wouldn't show)
   this->events_.clear();
   this->hub_.frame(0x721, {0x00});
-  ASSERT_FALSE(this->events_.empty());
-  EXPECT_EQ(this->events_.front().event, NodeEvent::NODE_EVENT_RESET);
+  EXPECT_EQ(this->events_, (std::vector<Event>{{0x21, NodeEvent::NODE_EVENT_RESET, NMTState::NMT_STATE_BOOTUP}}));
+  EXPECT_FALSE(this->hub_.is_node_online(0x21));
+  EXPECT_EQ(this->hub_.get_node_state(0x21), NMTState::NMT_STATE_UNKNOWN);
+  // its next heartbeat: online again, with its state
+  this->events_.clear();
+  this->hub_.frame(0x721, {0x05});
+  EXPECT_EQ(this->events_,
+            (std::vector<Event>{{0x21, NodeEvent::NODE_EVENT_ONLINE, NMTState::NMT_STATE_OPERATIONAL},
+                                {0x21, NodeEvent::NODE_EVENT_NMT_CHANGED, NMTState::NMT_STATE_OPERATIONAL}}));
 
   // a node that isn't monitored
   this->hub_.frame(0x722, {0x05});

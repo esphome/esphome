@@ -80,7 +80,8 @@ const LogString *nmt_state_to_string(NMTState state);
 // Events of a monitored node (CANopenComponent::monitor_node(), from CANopenNode's heartbeat consumer):
 // ONLINE: first heartbeat, or the first after a timeout; OFFLINE: no heartbeat within the timeout;
 // NMT_CHANGED: the state in the heartbeat changed (also unknown -> state right after ONLINE, state -> unknown after
-// OFFLINE); RESET: boot-up message, the node restarted and lost its runtime configuration.
+// OFFLINE; not for a boot-up); RESET: boot-up message, the node restarted and lost its runtime configuration, offline
+// until its next heartbeat.
 enum class NodeEvent : uint8_t { NODE_EVENT_ONLINE, NODE_EVENT_OFFLINE, NODE_EVENT_NMT_CHANGED, NODE_EVENT_RESET };
 
 const LogString *node_event_to_string(NodeEvent event);
