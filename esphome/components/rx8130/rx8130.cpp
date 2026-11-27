@@ -37,7 +37,7 @@ void RX8130Component::setup() {
     return;
   this->time_lost_ = (flags & RX8130_BIT_FLAG_VLF) != 0;
   if (this->time_lost_) {
-    ESP_LOGW(TAG, "The RTC lost its time; it is not read until the time is written");
+    ESP_LOGW(TAG, "The RTC lost its time; it will not be read until the time is written");
   }
   // The other flags are cleared; VLF stays set until the time is written, so that a restart still sees it
   const uint8_t keep = this->time_lost_ ? RX8130_BIT_FLAG_VLF : RX8130_CLEAR_FLAGS;
