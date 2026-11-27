@@ -24,7 +24,12 @@ def test_grouped_inputs_generate_no_input_groups(
     # The groups of the instance, the encoder and the keypad. The page and the msgbox get no group.
     assert main_cpp.count("lv_group_create()") == 3
     assert "new(grouped_page) LvPageType(false);" in main_cpp
-    for code in ("add_ungrouped_input", "add_msgbox"):
+    for code in (
+        "add_ungrouped_input",
+        "add_msgbox",
+        "set_default_group_for",
+        "restore_default_group",
+    ):
         assert code not in main_cpp
 
 
@@ -58,3 +63,4 @@ def test_ungrouped_inputs_register_with_their_own_instance(
         ("plain_lvgl", "plain_keypad"),
     ):
         assert f"{lvgl_id}->add_ungrouped_input({input_id}->get_drv());" in main_cpp
+    assert "set_default_group_for(top_list)" in main_cpp

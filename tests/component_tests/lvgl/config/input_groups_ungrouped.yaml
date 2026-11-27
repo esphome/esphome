@@ -35,6 +35,10 @@ lvgl:
       sensor:
         left_button: encoder_left
         right_button: encoder_right
+    top_layer:
+      widgets:
+        - list:
+            id: top_list
     msgboxes:
       - id: paged_msgbox
         title: Paged
@@ -43,6 +47,11 @@ lvgl:
         widgets:
           - button:
               id: paged_button
+              on_click:
+                - lvgl.list.add:
+                    id: top_list
+                    button:
+                      text: Item
 
   - id: plain_lvgl
     displays: plain_display

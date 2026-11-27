@@ -61,6 +61,10 @@ async def test_lvgl_input_groups_instances(
         )
         assert_fields(fields, "after grouped next", encoder="close_ok")
 
+        # An item added to a layer list of an instance without pages joins that instance's group
+        await device.run("add_plain_top_list_item", plain="plain_button2")
+        await device.move("plain_next", "plain", "plain_top_item", "plain_button")
+
 
 @pytest.mark.asyncio
 @pytest.mark.shared_yaml("lvgl_input_groups_pages")

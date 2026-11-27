@@ -32,6 +32,10 @@ lvgl:
   keypads:
     - group: keypad_group
       next: keypad_next
+  top_layer:
+    widgets:
+      - list:
+          id: top_list
   msgboxes:
     - id: grouped_msgbox
       title: Grouped
@@ -40,3 +44,8 @@ lvgl:
       widgets:
         - button:
             id: grouped_button
+            on_click:
+              - lvgl.list.add:
+                  id: top_list
+                  button:
+                    text: Item

@@ -10,6 +10,13 @@ esphome:
     # to the button in it.
     - then:
         - lvgl.widget.hide: change_page_b_hidden_parent
+    # Also runs before LVGL's setup(). At that time, the default group is the group of the last msgbox of
+    # list_lvgl, which is the last instance.
+    - then:
+        - lvgl.list.add:
+            id: list_page_b_list
+            button:
+              text: Boot item
 
 packages:
   lvgl_input_groups: !include
@@ -102,6 +109,13 @@ api:
         - lvgl.widget.focus:
             lvgl_id: plain_lvgl
             action: next
+        - script.execute: report
+    - action: add_plain_top_list_item
+      then:
+        - lvgl.list.add:
+            id: plain_top_list
+            button:
+              text: Item
         - script.execute: report
     - action: next_later_page
       then:
@@ -208,6 +222,59 @@ api:
             id: change_pointer_pressed
             value: "true"
 
+    - action: list_reset
+      then:
+        - lvgl.widget.hide: [list_button_msgbox, list_items_msgbox]
+        - lvgl.page.show:
+            id: list_page_a
+            lvgl_id: list_lvgl
+        - lvgl.widget.focus: list_page_a_button
+        - script.execute: report
+    - action: list_next_page
+      then:
+        - lvgl.page.next:
+            lvgl_id: list_lvgl
+        - script.execute: report
+    - action: list_show_page_b
+      then:
+        - lvgl.page.show:
+            id: list_page_b
+            lvgl_id: list_lvgl
+        - script.execute: report
+    - action: list_show_msgbox
+      then:
+        - lvgl.widget.show: list_button_msgbox
+        - script.execute: report
+    - action: list_hide_msgbox
+      then:
+        - lvgl.widget.hide: list_button_msgbox
+        - script.execute: report
+    - action: list_show_list_msgbox
+      then:
+        - lvgl.widget.show: list_items_msgbox
+        - script.execute: report
+    - action: list_add_list_item
+      then:
+        - lvgl.list.add:
+            id: list_page_a_list
+            button:
+              text: Item
+        - script.execute: report
+    - action: list_add_top_list_item
+      then:
+        - lvgl.list.add:
+            id: list_top_list
+            button:
+              text: Item
+        - script.execute: report
+    - action: list_add_msgbox_list_item
+      then:
+        - lvgl.list.add:
+            id: list_msgbox_list
+            button:
+              text: Item
+        - script.execute: report
+
     - action: menu_reset
       then:
         - lvgl.widget.hide: menu_msgbox
@@ -303,6 +370,12 @@ display:
       width: 320
       height: 240
   - platform: snapshot
+    id: list_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 320
+      height: 240
+  - platform: snapshot
     id: menu_display
     auto_clear_enabled: false
     dimensions:
@@ -339,6 +412,15 @@ binary_sensor:
     id: change_encoder_enter
     name: change_encoder_enter
   - platform: template
+    id: list_encoder_left
+    name: list_encoder_left
+  - platform: template
+    id: list_encoder_right
+    name: list_encoder_right
+  - platform: template
+    id: list_encoder_enter
+    name: list_encoder_enter
+  - platform: template
     id: menu_encoder_left
     name: menu_encoder_left
   - platform: template
@@ -367,6 +449,7 @@ script:
                 {lv_obj_get_child(lv_msgbox_get_header(id(close_msgbox)), -1), "close_button"},
                 {id(plain_button), "plain_button"},
                 {id(plain_button2), "plain_button2"},
+                {lv_obj_get_child(id(plain_top_list), 0), "plain_top_item"},
                 {id(grouped_button1), "grouped_button1"},
                 {id(grouped_button2), "grouped_button2"},
                 {id(loose_button), "loose_button"},
@@ -393,6 +476,18 @@ script:
                 {id(change_page_b_button2), "page_b_button2"},
                 {id(change_msgbox_ok), "msgbox_ok"},
                 {id(change_msgbox_slider), "msgbox_slider"},
+                {id(list_top_button), "top_button"},
+                {id(list_bottom_button), "bottom_button"},
+                {id(list_page_a_button), "page_a_button"},
+                {id(list_page_a_button2), "page_a_button2"},
+                {id(list_page_b_button), "page_b_button"},
+                {lv_obj_get_child(id(list_page_b_list), 0), "boot_item"},
+                {lv_obj_get_child(id(list_page_a_list), 0), "page_a_item1"},
+                {lv_obj_get_child(id(list_page_a_list), 1), "page_a_item2"},
+                {lv_obj_get_child(id(list_msgbox_list), 0), "msgbox_item1"},
+                {lv_obj_get_child(id(list_msgbox_list), 1), "msgbox_item2"},
+                {lv_obj_get_child(id(list_top_list), 0), "top_item"},
+                {id(list_msgbox_ok), "msgbox_ok"},
                 {id(menu_item), "item"},
                 {id(menu_nav_button), "nav_button"},
                 {lv_menu_get_sidebar_header_back_button(id(menu_widget)), "sidebar_back_button"},
@@ -431,6 +526,10 @@ script:
                    lv_obj_has_state(id(change_msgbox_ok), LV_STATE_PRESSED), id(change_msgbox_ok_clicks),
                    lv_obj_has_state(id(change_top_button), LV_STATE_PRESSED), id(change_top_button_clicks),
                    id(change_top_button_releases));
+          lv_indev_t *list_input = id(list_encoder)->get_drv();
+          ESP_LOGI("report", "list_report page=%u encoder=%s encoder_pressed=%d default_is_input_group=%d",
+                   (unsigned) id(list_lvgl).get_current_page(), name(lvgl_test_focused(list_input)),
+                   lvgl_test_pressed(list_input), lv_group_get_default() == lv_indev_get_group(list_input));
           lv_indev_t *menu = id(menu_encoder)->get_drv();
           ESP_LOGI("report", "menu_report page=%u encoder=%s encoder_pressed=%d",
                    (unsigned) id(menu_lvgl).get_current_page(), name(lvgl_test_focused(menu)), lvgl_test_pressed(menu));
@@ -509,6 +608,11 @@ lvgl:
       - button:
           id: plain_button2
           y: 50
+    top_layer:
+      widgets:
+        - list:
+            id: plain_top_list
+            align: center
 
   # A keypad with a group of its own stays on it
   - id: grouped_lvgl
@@ -733,3 +837,60 @@ lvgl:
         widgets:
           - button:
               id: menu_page_b_button
+
+  # List items that actions add at run time. This instance is the last, so codegen leaves one of its msgbox
+  # groups as the default group of LVGL.
+  - id: list_lvgl
+    displays: list_display
+    encoders:
+      id: list_encoder
+      enter_button: list_encoder_enter
+      sensor:
+        left_button: list_encoder_left
+        right_button: list_encoder_right
+    top_layer:
+      widgets:
+        - button:
+            id: list_top_button
+            align: bottom_left
+        # Starts empty; the test adds its items while a page is shown
+        - list:
+            id: list_top_list
+            align: center
+    bottom_layer:
+      widgets:
+        - button:
+            id: list_bottom_button
+            align: top_left
+    msgboxes:
+      - id: list_button_msgbox
+        title: Buttons
+        close_button: false
+        buttons:
+          - id: list_msgbox_ok
+            text: OK
+      # Starts with nothing that can take focus; the test adds the items while a page is shown
+      - id: list_items_msgbox
+        title: List
+        close_button: false
+        widgets:
+          - list:
+              id: list_msgbox_list
+    pages:
+      - id: list_page_a
+        widgets:
+          - button:
+              id: list_page_a_button
+          - button:
+              id: list_page_a_button2
+              y: 50
+          - list:
+              id: list_page_a_list
+              y: 100
+      - id: list_page_b
+        widgets:
+          - button:
+              id: list_page_b_button
+          - list:
+              id: list_page_b_list
+              y: 100
