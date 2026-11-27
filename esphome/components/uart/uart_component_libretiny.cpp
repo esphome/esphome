@@ -186,8 +186,9 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
 #if defined(USE_LN882X)
   // The LN882x core keeps 8N1. Its configure() zeroes the port while its RX interrupt is live, which a byte arriving
   // then turns into an endless interrupt loop, so only the baud rate is set.
-  if (this->get_config() != SERIAL_8N1)
+  if (this->get_config() != SERIAL_8N1) {
     ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
+  }
   serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
 #elif defined(USE_BK72XX)
   // The BK72xx configure() registers the port with the SDK again on every call, and each call grows the SDK's device
