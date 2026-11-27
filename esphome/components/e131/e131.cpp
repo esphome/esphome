@@ -197,8 +197,10 @@ E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info)
     }
   } else {
     // Take over. A winner pushed aside becomes the runner-up, timed from its last packet, unless the runner-up
-    // kept until then is higher; after a handoff that runner-up stays.
-    if (winner.active && (!winner.has_runner_up || winner.runner_up_priority <= winner.priority)) {
+    // kept until then is higher, or equal and heard later; after a handoff that runner-up stays.
+    if (winner.active &&
+        (!winner.has_runner_up || winner.runner_up_priority < winner.priority ||
+         (winner.runner_up_priority == winner.priority && now - winner.last_packet_ms < now - winner.runner_up_ms))) {
       winner.has_runner_up = true;
       winner.runner_up_priority = winner.priority;
       winner.runner_up_ms = winner.last_packet_ms;
