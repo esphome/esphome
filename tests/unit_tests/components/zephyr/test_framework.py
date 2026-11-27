@@ -158,17 +158,22 @@ def test_unknown_hal_fails_first(workspace: Path, mock_west: MagicMock) -> None:
     assert _subcommands(mock_west) == ["list"]
 
 
-def test_new_hal_fetches_only_that_hal(
+def test_new_hal_is_added_to_the_filter(
     zephyr_tools: Path, workspace: Path, mock_west: MagicMock
 ) -> None:
-    """A workspace only gains HALs; the projects already there are left alone."""
+    """A workspace only gains HALs; the ones already there stay in the filter."""
     _mark_installed(workspace, frozenset({"hal_nordic"}))
     (zephyr_tools / "penvs" / VERSION / f".zephyr_reqs_ready-zephyr-{VERSION}").touch()
 
     _check_and_install()
 
     assert _subcommands(mock_west) == ["list", "config", "update"]
-    assert _west_call(mock_west, "update")[-1:] == ["hal_stm32"]
+    assert _west_call(mock_west, "update") == [
+        "update",
+        "--narrow",
+        "--fetch-opt=--depth=1",
+    ]
+    assert "+hal_stm32" in _west_call(mock_west, "config")[-1]
     assert "+hal_nordic" in _west_call(mock_west, "config")[-1]
     assert "hal_nordic" in (workspace / ".west_projects").read_text(encoding="utf-8")
 

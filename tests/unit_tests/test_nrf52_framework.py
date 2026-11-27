@@ -315,12 +315,13 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """A finished install gains a project another config left out, keeping
-        what it already has; only the new project is updated."""
+        what it already has."""
         _mark_installed(nrf52_dirs)
         (nrf52_dirs.framework / ".west_projects").write_text(
             "cmsis\nhal_nordic\nnrfxlib\ntinycrypt\nzephyr", encoding="utf-8"
         )
-        include_west_project("openthread")
+        # segger comes in through the zephyr import, as debug: adds it
+        include_west_project("segger")
 
         check_and_install()
 
@@ -330,10 +331,15 @@ class TestCheckAndInstall:
             "config",
             "update",
         ]
-        wanted = "-.*,+cmsis,+hal_nordic,+nrfxlib,+openthread,+tinycrypt,+zephyr"
+        wanted = "-.*,+cmsis,+hal_nordic,+nrfxlib,+segger,+tinycrypt,+zephyr"
         assert _project_filter(mock_nrf52_ops.run_command_ok) == wanted
         update = mock_nrf52_ops.run_command_ok.call_args_list[2].args[0]
-        assert update[-1] == "openthread"
+        # No names: west refuses to update by name a project from a manifest import
+        assert update[update.index("update") :] == [
+            "update",
+            "--narrow",
+            "--fetch-opt=--depth=1",
+        ]
         mock_nrf52_ops.rmdir.assert_not_called()
 
     def test_sysbuild_fetches_mcuboot(

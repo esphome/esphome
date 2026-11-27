@@ -235,6 +235,15 @@ def _project_filter(run: MagicMock) -> str:
     return _west_call(run, "config").args[0][-1]
 
 
+# No project names: west refuses to update by name a project from a manifest import
+PLAIN_UPDATE = ["update", "--narrow", "--fetch-opt=--depth=1"]
+
+
+def _update_args(run: MagicMock) -> list[str]:
+    cmd = _west_call(run, "update").args[0]
+    return cmd[cmd.index("update") :]
+
+
 def _install(workspace: Path, projects: set[str]) -> None:
     install_framework(ENV_PYTHON, workspace, SOURCE, VERSION, projects)
 
@@ -262,7 +271,7 @@ def test_install_clones_the_manifest_with_the_filter(
     ]
     assert _project_filter(west) == "-hal_.*,+hal_a,+zephyr"
     update = _west_call(west, "update")
-    assert update.args[0][-2:] == ["--narrow", "--fetch-opt=--depth=1"]
+    assert _update_args(west) == PLAIN_UPDATE
     assert update.kwargs == {"cwd": workspace, "stream_output": True}
     # Streamed, so the long clone's progress reaches the log
     assert init.kwargs["stream_output"] is True
@@ -388,13 +397,12 @@ def test_fetch_of_only_a_new_required_project_fetches_it(
 
     _fetch(workspace, {"zephyr"})
 
-    assert _west_call(west, "update").args[0][-1:] == ["zephyr"]
+    assert _update_args(west) == PLAIN_UPDATE
     assert _project_filter(west) == "-hal_.*,+hal_a,+zephyr"
 
 
-def test_fetch_gains_only_the_missing_project(workspace: Path, west: MagicMock) -> None:
-    """The names are checked first; only the new project is updated, so a
-    build running from the others is left alone."""
+def test_fetch_gains_the_missing_project(workspace: Path, west: MagicMock) -> None:
+    """The names are checked first, then the filter gains the new project."""
     _mark_finished(workspace, "hal_a\nzephyr")
 
     _fetch(workspace, {"zephyr", "hal_b"})
@@ -402,7 +410,7 @@ def test_fetch_gains_only_the_missing_project(workspace: Path, west: MagicMock) 
     assert _subcommands(west) == ["list", "config", "update"]
     assert _west_call(west, "list").args[0][-2:] == ["hal_b", "zephyr"]
     assert _project_filter(west) == "-hal_.*,+hal_a,+hal_b,+zephyr"
-    assert _west_call(west, "update").args[0][-1] == "hal_b"
+    assert _update_args(west) == PLAIN_UPDATE
     assert (workspace / ".west_projects").read_text(encoding="utf-8").split() == [
         "hal_a",
         "hal_b",
@@ -450,7 +458,7 @@ def test_fetch_without_a_record_fetches_again(
     _fetch(workspace, {"zephyr", "hal_a"})
 
     assert _subcommands(west) == ["list", "config", "update"]
-    assert _west_call(west, "update").args[0][-2:] == ["hal_a", "zephyr"]
+    assert _update_args(west) == PLAIN_UPDATE
 
 
 def test_fetch_of_a_new_required_project_fetches_it(
@@ -461,7 +469,7 @@ def test_fetch_of_a_new_required_project_fetches_it(
 
     _fetch(workspace, {"zephyr", "hal_b"})
 
-    assert _west_call(west, "update").args[0][-2:] == ["hal_b", "zephyr"]
+    assert _update_args(west) == PLAIN_UPDATE
     assert _project_filter(west) == "-hal_.*,+hal_a,+hal_b,+zephyr"
 
 
