@@ -7,6 +7,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cmath>
+#include <esp_heap_caps.h>
+#include "esphome/core/hal.h"
 
 namespace esphome::mipi_dsi {
 
@@ -22,12 +25,36 @@ static constexpr uint32_t DSI_DMA_READ_PRIORITY = 15;
 #define MIPI_DSI_ISR_ATTR
 #endif
 
-static bool MIPI_DSI_ISR_ATTR notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
-                                                   void *user_ctx) {
-  SemaphoreHandle_t sem = static_cast<SemaphoreHandle_t>(user_ctx);
+// Only these releases expose the DMA-specific completion event (not VSYNC).
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 5) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)) || \
+    ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+#define MIPI_DSI_HAS_DMA_FRAME_EVENT
+#endif
+
+struct DsiCallbackContext {
+  SemaphoreHandle_t transfer;
+  SemaphoreHandle_t frame;
+};
+
+bool MIPI_DSI_ISR_ATTR MipiDsi::notify_refresh_ready(esp_lcd_panel_handle_t panel,
+                                                     esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
+  auto *ctx = static_cast<DsiCallbackContext *>(user_ctx);
+  SemaphoreHandle_t sem = ctx->transfer;
+  if (!xPortInIsrContext()) {
+    xSemaphoreGive(sem);
+    return false;
+  }
   BaseType_t need_yield = pdFALSE;
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
+}
+
+bool MIPI_DSI_ISR_ATTR MipiDsi::notify_frame_complete(esp_lcd_panel_handle_t panel,
+                                                      esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
+  auto *ctx = static_cast<DsiCallbackContext *>(user_ctx);
+  BaseType_t need_yield = pdFALSE;
+  xSemaphoreGiveFromISR(ctx->frame, &need_yield);
+  return need_yield == pdTRUE;
 }
 
 void MipiDsi::smark_failed(const LogString *message, esp_err_t err) {
@@ -87,7 +114,7 @@ void MipiDsi::setup() {
                                            .dpi_clock_freq_mhz = this->pclk_frequency_,
                                            .pixel_format = pixel_format,
 #endif
-                                           .num_fbs = 1,  // number of frame buffers to allocate
+                                           .num_fbs = this->num_fbs_,
                                            .video_timing =
                                                {
                                                    .h_size = this->width_,
@@ -124,10 +151,64 @@ void MipiDsi::setup() {
   }
   // need to know when the display is ready for SLPOUT command - will be 120ms after reset
   auto when = millis() + 120;
+  this->io_lock_ = xSemaphoreCreateBinary();
+#ifdef MIPI_DSI_HAS_DMA_FRAME_EVENT
+  if (this->num_fbs_ > 1)
+    this->frame_complete_ = xSemaphoreCreateCounting(2, 0);
+#endif
+  bool sync_allocation_failed = this->io_lock_ == nullptr;
+#ifdef MIPI_DSI_HAS_DMA_FRAME_EVENT
+  sync_allocation_failed |= this->num_fbs_ > 1 && this->frame_complete_ == nullptr;
+#endif
+  if (sync_allocation_failed) {
+    this->mark_failed(LOG_STR("Could not allocate display synchronization semaphores"));
+    return;
+  }
+  // ISR context must be in internal memory even when the component resides in PSRAM.
+  auto *ctx = static_cast<DsiCallbackContext *>(
+      heap_caps_malloc(sizeof(DsiCallbackContext), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  if (ctx == nullptr) {
+    this->mark_failed(LOG_STR("Could not allocate display callback context"));
+    return;
+  }
+  ctx->transfer = this->io_lock_;
+  ctx->frame = this->frame_complete_;
+  esp_lcd_dpi_panel_event_callbacks_t cbs = {
+      .on_color_trans_done = notify_refresh_ready,
+  };
+#ifdef MIPI_DSI_HAS_DMA_FRAME_EVENT
+  if (this->frame_complete_ != nullptr)
+    cbs.on_frame_buf_complete = notify_frame_complete;
+#endif
+  err = esp_lcd_dpi_panel_register_event_callbacks(this->handle_, &cbs, ctx);
+  if (err != ESP_OK) {
+    heap_caps_free(ctx);
+    this->smark_failed(LOG_STR("Failed to register callbacks"), err);
+    return;
+  }
+
+  const double htotal = this->width_ + this->hsync_pulse_width_ + this->hsync_back_porch_ + this->hsync_front_porch_;
+  const double vtotal = this->height_ + this->vsync_pulse_width_ + this->vsync_back_porch_ + this->vsync_front_porch_;
+  const auto timeout_ms = static_cast<uint32_t>(std::ceil(2 * htotal * vtotal / (1000 * this->pclk_frequency_))) + 50;
+  this->frame_timeout_ticks_ = pdMS_TO_TICKS(timeout_ms) + 1;
   err = esp_lcd_panel_init(this->handle_);
   if (err != ESP_OK) {
     this->smark_failed(LOG_STR("esp_lcd_init failed"), err);
     return;
+  }
+  {
+    if (this->num_fbs_ == 1) {
+      err = esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 1, &this->framebuffers_[0]);
+    } else if (this->num_fbs_ == 2) {
+      err = esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 2, &this->framebuffers_[0], &this->framebuffers_[1]);
+    } else {
+      err = esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 3, &this->framebuffers_[0], &this->framebuffers_[1],
+                                               &this->framebuffers_[2]);
+    }
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("Failed to get DPI framebuffers"), err);
+      return;
+    }
   }
   size_t index = 0;
   const uint8_t *seq = this->init_sequence_;
@@ -171,17 +252,6 @@ void MipiDsi::setup() {
         delay(10);
     }
   }
-  this->io_lock_ = xSemaphoreCreateBinary();
-  esp_lcd_dpi_panel_event_callbacks_t cbs = {
-      .on_color_trans_done = notify_refresh_ready,
-  };
-
-  err = (esp_lcd_dpi_panel_register_event_callbacks(this->handle_, &cbs, this->io_lock_));
-  if (err != ESP_OK) {
-    this->smark_failed(LOG_STR("Failed to register callbacks"), err);
-    return;
-  }
-
   // The panel reads its frame buffer from PSRAM all the time through DW-GDMA. With all AXI masters at the same
   // priority, heavy PSRAM use by the CPU or the PPA can hold those reads up until the panel runs out of data and
   // shows a corrupt frame. Raise the read priority on both DW-GDMA master ports; the panel does not write.
@@ -192,6 +262,8 @@ void MipiDsi::setup() {
 }
 
 void MipiDsi::update() {
+  if (this->native_owner_)
+    return;
   if (this->auto_clear_enabled_) {
     this->clear();
   }
@@ -228,7 +300,7 @@ void MipiDsi::flush_dirty_() {
 void MipiDsi::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
                                    display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
                                    int x_pad) {
-  if (w <= 0 || h <= 0)
+  if (this->native_owner_ || w <= 0 || h <= 0)
     return;
   if (bitness != this->color_depth_ || (bitness == display::COLOR_BITNESS_565 && big_endian != this->big_endian_) ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
@@ -287,8 +359,55 @@ void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const ui
   }
 }
 
+bool MipiDsi::wait_frame_fence_() {
+  while (this->pending_completions_ != 0) {
+    if (xSemaphoreTake(this->frame_complete_, this->frame_timeout_ticks_) != pdTRUE) {
+      this->status_set_warning(LOG_STR("Framebuffer presentation timed out"));
+      return false;
+    }
+    --this->pending_completions_;
+  }
+  return true;
+}
+
+bool MipiDsi::present_framebuffer(void *fb, bool defer) {
+  if (in_isr_context() || !is_main_loop_thread() || this->is_failed() || this->frame_complete_ == nullptr ||
+      fb == nullptr)
+    return false;
+  bool valid = false;
+  for (uint8_t i = 0; i < this->num_fbs_; i++)
+    valid |= fb == this->framebuffers_[i];
+  if (!valid || (defer && this->num_fbs_ != 3))
+    return false;
+
+  // Claim exclusive ownership; ordinary drawing must not touch the scan-out buffers.
+  if (!this->native_owner_) {
+    this->native_owner_ = true;
+    this->stop_poller();
+  }
+  if (!this->wait_frame_fence_())
+    return false;
+
+  const auto err = esp_lcd_panel_draw_bitmap(this->handle_, 0, 0, this->width_, this->height_, fb);
+  xSemaphoreTake(this->io_lock_, 0);
+  // Discard stale completions. Two new DMA events cover an ISR already in flight
+  // when the selected buffer changed.
+  xSemaphoreTake(this->frame_complete_, 0);
+  xSemaphoreTake(this->frame_complete_, 0);
+  this->pending_completions_ = 2;
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Framebuffer presentation failed: %s", esp_err_to_name(err));
+    this->status_set_warning(LOG_STR("Framebuffer presentation failed"));
+    return false;
+  }
+  if (!defer && !this->wait_frame_fence_())
+    return false;
+  this->status_clear_warning();
+  return true;
+}
+
 bool MipiDsi::check_buffer_() {
-  if (this->is_failed())
+  if (this->is_failed() || this->native_owner_)
     return false;
   if (this->buffer_ != nullptr)
     return true;
@@ -449,6 +568,7 @@ void MipiDsi::dump_config() {
                 this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
                 this->vsync_back_porch_, this->vsync_front_porch_, (3 - this->color_depth_) * 8, this->pixel_mode_,
                 YESNO(this->invert_colors_), this->pclk_frequency_);
+  ESP_LOGCONFIG(TAG, "  Framebuffers: %u", this->num_fbs_);
   LOG_PIN("  Reset Pin ", this->reset_pin_);
 }
 }  // namespace esphome::mipi_dsi

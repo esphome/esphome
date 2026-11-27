@@ -65,6 +65,18 @@ class MipiDsi final : public display::Display {
   void set_model(const char *model) { this->model_ = model; }
   void set_lane_bit_rate(float lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
+  void set_num_framebuffers(uint8_t count) { this->num_fbs_ = count; }
+  uint8_t get_num_framebuffers() const { return this->num_fbs_; }
+  /// Native panel buffer. Buffer zero is initially scanned out by the panel.
+  void *get_framebuffer(uint8_t index) const { return index < this->num_fbs_ ? this->framebuffers_[index] : nullptr; }
+  /// Present a complete native framebuffer and wait until the previous buffer is safe to reuse.
+  /// Call only from the ESPHome main loop, with an exclusive external display writer.
+  /// On failure, stop rendering and retry the same submission without modifying the buffers.
+  /// Native presentation needs an IDF version with a DMA framebuffer-completion callback.
+  /// With defer=true, requires three buffers used in strict rotation, starting away from scan-out.
+  /// The previous submission is fenced before the next swap; never write to either of the two
+  /// most recently submitted buffers. Do not mix deferred and synchronous modes or drawing APIs.
+  bool present_framebuffer(void *fb, bool defer = false);
 
   void smark_failed(const LogString *message, esp_err_t err);
 
@@ -80,6 +92,9 @@ class MipiDsi final : public display::Display {
   void dump_config() override;
 
  protected:
+  static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx);
+  static bool notify_frame_complete(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
+                                    void *user_ctx);
   void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                             bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
@@ -141,6 +156,13 @@ class MipiDsi final : public display::Display {
   esp_lcd_dsi_bus_handle_t bus_handle_{};
   esp_lcd_panel_io_handle_t io_handle_{};
   SemaphoreHandle_t io_lock_{};
+  SemaphoreHandle_t frame_complete_{};
+  uint8_t pending_completions_{0};
+  bool native_owner_{false};
+  TickType_t frame_timeout_ticks_{0};
+  bool wait_frame_fence_();
+  uint8_t num_fbs_{1};
+  void *framebuffers_[3]{};
   uint8_t *buffer_{nullptr};
   uint16_t x_low_{1};
   uint16_t y_low_{1};

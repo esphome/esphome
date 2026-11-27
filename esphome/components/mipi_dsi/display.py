@@ -60,7 +60,6 @@ from esphome.const import (
     KEY_ESP32,
 )
 from esphome.core import CORE
-from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
 from . import mipi_dsi_ns, models
@@ -78,6 +77,7 @@ ColorBitness = display.display_ns.enum("ColorBitness")
 
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
+CONF_FRAMEBUFFERS = "framebuffers"
 
 DsiDriverChip("CUSTOM")
 
@@ -145,6 +145,7 @@ def model_schema(config: ConfigType) -> cv.Schema:
             model.option(CONF_VSYNC_PULSE_WIDTH): cv.int_,
             model.option(CONF_VSYNC_BACK_PORCH): cv.int_,
             model.option(CONF_VSYNC_FRONT_PORCH): cv.int_,
+            cv.Optional(CONF_FRAMEBUFFERS, default=1): cv.int_range(min=1, max=3),
         }
     )
 
@@ -182,11 +183,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> None:
-    global_config = full_config.get()
-
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-
-    if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
+    if not requires_buffer(config) and not display.has_external_writer(config[CONF_ID]):
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
 
@@ -225,6 +222,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
+    cg.add(var.set_num_framebuffers(config[CONF_FRAMEBUFFERS]))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     if enable_pin := config.get(CONF_ENABLE_PIN):
