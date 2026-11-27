@@ -25,6 +25,7 @@ class StreamingReloadTest : public ::testing::TestWithParam<unsigned> {
     invocations.clear();
     output_type = kTfLiteUInt8;
     output_classes = 1;
+    input_slices = 3;
     output_bytes = {};
   }
   static void feed(WakeWordModel &model, int8_t value) {
@@ -140,6 +141,23 @@ TEST_F(ModelOptionsTest, TheSelectedClassOfAnInt8OutputIsTheProbability) {
 TEST_F(ModelOptionsTest, AClassTheModelDoesNotHaveFailsTheLoad) {
   WakeWordModel model("missing", MODEL_DATA, sizeof(MODEL_DATA), 229, 5, "example", 1024, true, false);
   model.set_output_index(1);
+  std::array<int8_t, PREPROCESSOR_FEATURE_SIZE> features{};
+  EXPECT_FALSE(model.perform_streaming_inference(features.data()));
+}
+TEST_F(ModelOptionsTest, AnIntervalLongerThanTheWindowSkipsSlices) {
+  WakeWordModel model("sparse", MODEL_DATA, sizeof(MODEL_DATA), 229, 5, "example", 1024, true, false);
+  model.set_inference_interval(5);
+  for (int8_t value = 1; value <= 11; ++value)
+    this->feed(model, value);
+  ASSERT_EQ(invocations.size(), 2u);
+  this->expect_rows(invocations[0], {3, 4, 5});
+  this->expect_rows(invocations[1], {8, 9, 10});
+}
+
+TEST_F(ModelOptionsTest, AnInputOfMoreThan255SlicesFailsTheLoad) {
+  input_slices = 256;
+  WakeWordModel model("long", MODEL_DATA, sizeof(MODEL_DATA), 229, 5, "example", 1024, true, false);
+  model.set_inference_interval(1);
   std::array<int8_t, PREPROCESSOR_FEATURE_SIZE> features{};
   EXPECT_FALSE(model.perform_streaming_inference(features.data()));
 }

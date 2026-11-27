@@ -123,6 +123,12 @@ bool StreamingModel::load_model_() {
       return false;
     }
 
+    // The slices of one input are counted in 8 bits.
+    if ((input->dims->data[1] <= 0) || (input->dims->data[1] > UINT8_MAX)) {
+      ESP_LOGE(TAG, "Streaming model input must hold 1 to 255 feature slices.");
+      return false;
+    }
+
     // Verify output tensor matches expected values
     TfLiteTensor *output = this->interpreter_->output(0);
     if ((output->dims->size != 2) || (output->dims->data[0] != 1) || (output->dims->data[1] <= this->output_index_)) {
@@ -135,8 +141,8 @@ bool StreamingModel::load_model_() {
       return false;
     }
 
-    const int stride = input->dims->data[1];
-    if ((this->inference_interval_ > 0) && (this->inference_interval_ < stride)) {
+    if (this->inference_interval_ > 0) {
+      const int stride = input->dims->data[1];
       this->window_ = RAMAllocator<int8_t>().make_unique_array_for_overwrite(stride * PREPROCESSOR_FEATURE_SIZE);
       if (this->window_ == nullptr) {
         ESP_LOGE(TAG, "Could not allocate the model's input window.");

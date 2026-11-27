@@ -61,7 +61,7 @@ class StreamingModel {
   void set_output_index(uint8_t output_index) { this->output_index_ = output_index; }
 
   /// @brief For a model without internal state: keep the latest input window and run the model on it every
-  /// `interval` feature slices. 0, or at least the window length, runs it on consecutive windows. A streaming
+  /// `interval` feature slices, once the window has filled. 0 runs it on consecutive windows. A streaming
   /// model keeps its own history and must not use this. Set before the model is loaded.
   void set_inference_interval(uint8_t interval) { this->inference_interval_ = interval; }
 
@@ -102,7 +102,7 @@ class StreamingModel {
   uint8_t inference_interval_{0};
   uint8_t window_slices_{0};           // slices held by the sliding input window
   uint8_t slices_since_inference_{0};  // only counted with a sliding input window
-  // Only for a model run more often than once per window; the interpreter may reuse its input tensor.
+  // Only with an inference interval; the interpreter may reuse its input tensor.
   RAMUniquePtr<int8_t[]> window_;
   int16_t ignore_windows_{-MIN_SLICES_BEFORE_DETECTION};
 
