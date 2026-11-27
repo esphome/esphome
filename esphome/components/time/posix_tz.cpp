@@ -113,9 +113,6 @@ time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRul
       break;
 
     case DSTRuleType::NONE:
-      // Should never be called with NONE, but handle it gracefully
-      month = 1;
-      day = 1;
       break;
   }
 
@@ -191,7 +188,7 @@ bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *ou
 
 // Thread-safe version
 extern "C" struct tm *localtime_r(const time_t *timer, struct tm *result) {
-  if (timer == nullptr || result == nullptr) {
+  if (timer == nullptr) {
     return nullptr;
   }
   return esphome::time::epoch_to_local_tm(*timer, esphome::time::get_global_tz(), result) ? result : nullptr;
