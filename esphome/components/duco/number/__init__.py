@@ -3,8 +3,8 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
-    CONF_DISABLED_BY_DEFAULT,
     DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_CONFIG,
     UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
@@ -50,15 +50,15 @@ COMFORT_TEMPERATURE_SCHEMA = (
 )
 
 
-def _setpoint_schema(unit):
+def _setpoint_schema(unit: str) -> cv.Schema:
+    # A setting of the node, so Home Assistant shows it under Configuration
     return (
-        number.number_schema(DucoSetpoint, unit_of_measurement=unit)
-        .extend(
-            {
-                cv.Required(CONF_ADDRESS): cv.int_range(min=2, max=68),
-                cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
-            }
+        number.number_schema(
+            DucoSetpoint,
+            unit_of_measurement=unit,
+            entity_category=ENTITY_CATEGORY_CONFIG,
         )
+        .extend({cv.Required(CONF_ADDRESS): cv.int_range(min=2, max=68)})
         .extend(cv.polling_component_schema("60s"))
     )
 
@@ -86,14 +86,10 @@ CONFIG_SCHEMA = cv.Any(
 
 
 async def to_code(config: ConfigType) -> None:
-    if not any(
-        key in config
-        for key in (CONF_COMFORT_TEMPERATURE, CONF_CO2_SETPOINT, CONF_RH_SETPOINT)
-    ):
-        comfort_entities = [config]
-    else:
-        comfort_entities = config.get(CONF_COMFORT_TEMPERATURE, [])
-
+    # The single-entity form is one comfort temperature with its address at the top level
+    comfort_entities = config.get(
+        CONF_COMFORT_TEMPERATURE, [config] if CONF_ADDRESS in config else []
+    )
     for entity_config in comfort_entities:
         var = await number.new_number(
             entity_config, min_value=10.0, max_value=25.5, step=0.1

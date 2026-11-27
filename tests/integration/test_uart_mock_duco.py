@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 
 from aioesphomeapi import (
+    EntityCategory,
     EntityState,
     NumberInfo,
     SelectInfo,
@@ -76,8 +77,8 @@ async def test_uart_mock_duco(
         co2_setpoint = require_entity(entities, "co2_setpoint", NumberInfo)
         rh_setpoint = require_entity(entities, "rh_setpoint", NumberInfo)
 
-        assert co2_setpoint.disabled_by_default
-        assert rh_setpoint.disabled_by_default
+        assert co2_setpoint.entity_category == EntityCategory.CONFIG
+        assert rh_setpoint.entity_category == EntityCategory.CONFIG
 
         serial = require_entity(entities, "serial_number", TextSensorInfo, exact=True)
         node_serial = require_entity(entities, "serial_number_node_2", TextSensorInfo)
