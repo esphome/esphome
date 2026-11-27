@@ -88,7 +88,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   }
   uart::UARTFlushResult flush() override;
   bool is_connected() override;
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_ZEPHYR)
   void load_settings(bool dump_config) override {}
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 #endif
