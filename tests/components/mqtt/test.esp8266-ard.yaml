@@ -4,3 +4,12 @@ substitutions:
 packages:
   common: !include common.yaml
   update: !include common-update.yaml
+
+mqtt:
+  port: 8883
+  ssl_fingerprints:
+    - 00112233445566778899aabbccddeeff00112233
+
+# TLS enables ASYNC_TCP_SSL_ENABLED, which ESPAsyncWebServer also builds against
+web_server:
+  port: 8080

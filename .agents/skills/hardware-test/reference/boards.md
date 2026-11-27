@@ -46,10 +46,19 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   reaches the chip, `esptool --baud 460800 write-flash 0x0 firmware.bin` works and the log at 115200 is clean.
 - ESP8266 Wi-Fi join time: about 7.8 s with a passphrase, about 0.65 s with a 64 hex PSK and `fast_connect: true`.
   Use the PSK form when a test depends on early boot timing.
+- A CH340 on macOS reports no parity or framing errors (PARMRK marks nothing); tell 8N1 from 8E1 by the data
+  (recipes/uart_parity.md).
 - The GPIO input register reads 0 for GPIO2 while it has the U1TXD function, not the pad level. Read the hardware
   UART1 TX level through its own receiver: set `UCLBE` in `USC0(1)` and read `USS(1)` bit 15 (RXD); `USIR(1)` bit 7
   is BRK_DET. With `UCTXI` set the loopback sees the inverted (pad) level. Software serial pins are GPIO function, so
   the input register is the pad (recipes/uart_tx_break.md).
+- With `logger: baud_rate: 0` a `uart` bus on `tx_pin: GPIO1` is read straight by the USB adapter, and a bus with
+  `rx_pin: GPIO3` receives what the host writes; no jumper needed. The same works with the logger on UART0 plus a
+  GPIO1/GPIO3 bus (#23175, #23174). Free heap after boot is identical on every reset of one image.
+- UART0 TX sometimes sends 64 bytes of `0xFF` in place of the start of a line around a Wi-Fi join or association
+  attempt, on every build (about one line per boot). Do not count it against a change.
+- `-Wl,--wrap=uart_write` on the Arduino build linked `__wrap_uart_write` to a literal pool address (Exception 9 at
+  the symbol). To time logger writes, put a timing `Stream` shim into `Logger::hw_serial_` instead.
 
 ## ESP32 classic devkit
 
@@ -78,6 +87,14 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - On modules where GPIO16 and GPIO17 are taken by the module itself (PSRAM on WROVER modules, for example), a
   `uart:` bus on those pins boot-loops with a watchdog reset during setup. Use GPIO21 and GPIO22. The ESP32-PICO-D4 uses
   GPIO16 and GPIO17 for its internal flash: never put any pin there.
+- The USB adapter's TX also reaches GPIO3, so a second hardware UART with `rx_pin: GPIO3` receives what the host
+  writes while the logger stays on UART0 (recipes/uart_sim.md, PMS5003T feed).
+- `esp32_power_management` with `min_frequency` below 80 MHz (tested 10 to 80 MHz) lowers the APB clock and breaks
+  APB-clocked UART RX (the IDF driver holds the APB lock only while sending); scaling between 80, 160 and 240 MHz
+  keeps APB at 80 MHz and does not. About 60 % of PMS5003T frames parsed, about 20 % with light sleep,
+  the same with `esp_pm_configure()` by hand. `clock_source: REF_TICK` on the UART fixes frequency scaling, not
+  light sleep. A bare `min_frequency: 10` means 10 Hz; write `10MHz`. Light sleep builds restarted once per run with
+  an unreadable reason, and the logger output garbles under frequency scaling (#23038).
 
 ## ESP32-S3, C3, C6, H2 with native USB
 
@@ -121,11 +138,18 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
   Its C6 co-processor logs "major version mismatch" and an SDIO RX overflow under HTTPS on dev too; a boot without
   TLS, the Wi-Fi join and the API work.
+  The C6 reports `coprocessor=0.0.0` (no version TLV, caps 0x0d) in esp_hosted's init event, seen with
+  `esp32: framework: log_level: INFO`. It never answers some RPCs (`esp_hosted_get_coprocessor_fwversion`, enterprise
+  enable): each blocks the loop 5 s and the default 5 s task watchdog resets the P4, so `update: platform:
+  esp32_hosted` boot-loops it on dev; `watchdog_timeout: 60s` survives. Embedding the 1.47 MB C6 image needs
+  `flash_size: 16MB` (#22920).
 - After an OTA, wait at least 80 s before a hard reset (`esptool chip_id` to wake a silent USB console, say): until
   safe mode marks the new image valid, the bootloader rolls back to the previous one. Log the image name from an
   `interval:` to be sure which build runs.
 - ESP32-S3: GPIO43/44 cannot be used to cross-wire two UARTs: the UART0 IOMUX TX is lost when another UART takes the
   pad as RX. TX17/RX16 and TX16/RX17 work. A task woken by `vTaskDelay` runs about 0.5 ms after the tick, on dev too.
+- ESP32-C3 heap A/B: one 132 B block is allocated before an `on_boot` priority 800 sample on some boots and not
+  others, on every build; compare `heap_caps_get_info` block counts matched, or the delta looks off by 132 B.
 
 ## ESP32-C2 (ESP8684, 26 MHz crystal)
 
@@ -180,6 +204,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   low.
 - W5100S-EVB-Pico with its USB attached shows a CDC port (`2e8a:1027`) while it runs ESPHome, so `esphome upload
   --device <that port>` (picotool) flashes it with or without `interrupt_pin`.
+- A Pico 2 W whose Wi-Fi scan finds no networks for a whole session, on every build including one that joined
+  before, needs a power cycle; reflashing does not help. Tests that only need the clock can run offline (set the
+  time as in the fake DST note under Harness tricks).
+- Pico 2 W: `App.safe_reboot()` does not keep watchdog scratch 0/1, so a boot counter kept there stays at 1; do not
+  rely on it to stop a self-reboot loop.
 
 ## BW15 kit (RTL8720CF, LibreTiny rtl87xx)
 
@@ -299,6 +328,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - LibreTiny's builder adds `-D'delay(ms)=delayMilliseconds(ms)'`, so `esphome::delay` is really
   `esphome::delayMilliseconds` on BK72xx and a YAML lambda calling `delay()` fails to compile on dev. In a header use
   `(esphome::micros)()` to dodge the `main.cpp` function-like macros.
+- BDK 3.0.78 builds BK7231N/T with `CFG_WPA3=1` (3.0.33 had 0), so the two BDKs can join a WPA2/WPA3 transition
+  network with different key management (#22977).
+- A CB3S OTA over Wi-Fi can take 20 minutes; give the upload a 2400 s timeout.
 - UART2 is P0 (TX) and P1 (RX), side by side on one header row of the WB3S module; a jumper between them makes a
   loopback. UART2 TX carries about 40 bytes of boot text before ESPHome starts, which loop back into RX.
 
@@ -348,6 +380,16 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - RTL8710B GPIO interrupts fire on one edge only, and LibreTiny maps CHANGE to rising. The Arduino `digitalRead` called
   from an ISR switches the pin back to GPIO and frees its interrupt (esphome#22400, #22403).
 - The FreeRTOS tick is 1/1024 s, so `millis()` on the tick ran 2.4 % fast (esphome#22404).
+- AmebaZ OTA images (LibreTiny 1.14.0) can be 4 bytes short of the RAM section their header declares (load address
+  0x10005000), on every build, so the last word of `.ram_image2.data` boots as 0xFFFFFFFF. In one BW12 build that
+  word was `lt_arduino_pin_info_list[PA23].data`, so pinMode and digitalWrite on PA23 (UART0 TX) did nothing. Check
+  with `arm-none-eabi-nm -S` (`__data_end__`) and `scripts/libretiny_edges/ambz_imgcheck.py` (#22986).
+- AmebaZ GPIO registers at 0x40001000: DR +0x00, DDR +0x04, EXT_PORT +0x50, bit = PA pin number; EXT_PORT reads 0
+  for a pad routed to the UART. UART0 LSR at 0x40040014 (THRE bit 5, TEMT bit 6); LibreTiny `flush()` there waits
+  for TEMT.
+- ESPHome OTA switches to UDP on a lossy link and can then stall for minutes (API refused until it gives up). Stay
+  on TCP as the `-tcp` modes in `recipes/ota.md` do (`espota2._loss_reason` returns None); the same helps an LN882H
+  on a bad link.
 
 ## BW16 kit (RTL8720DN, AmebaD)
 
@@ -379,6 +421,16 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Over a poor link (about 60 ms ping and 5 % loss) an ESPHome OTA takes anywhere from 50 to 445 s and a web `/update`
   of a UF2 can abort early while ESPHome OTA still works. Treat such a board's results as crash or no crash only, and
   settle questions about rates, heap after streams or OTA aborts on a BK7238 (same LibreTiny AsyncTCP).
+- Raw register reads that work from a component (the SDK register headers do not compile in C++): GPIOB 0x4000C400
+  (DDR +0x18, IDR +0x1C, ODR +0x20), UART1 0x40003000 (ISR +0x1C: TC bit 6, TXE bit 7, BUSY bit 16), pin routing
+  `func_ien` at 0x4000001C (GPIOA pin n is bit n, GPIOB pin n is bit n+10) (#22986).
+- The GPIO input register only follows a pad while it is a GPIO: a pad routed to a UART reads 0 at idle and while
+  sending. Use the routing bit and the UART status register instead.
+- LibreTiny `Serial.flush()` on LN882H waits for the software queue only: the UART still has about two bytes to send
+  (TC set 2.06 ms later at 9600), and `end()` resets the UART.
+- A `uart:` on UART0 next to `logger: hardware_uart: UART0` boot-loops the board into safe mode, on dev too: the
+  UART's `begin()` calls `end()`, `serial_deinit()` clears the SDK handle, then `serial_init(NULL)`. Recover by OTA
+  in safe mode (port 8820 answers, 6053 is closed).
 
 ## nRF52840
 
@@ -419,6 +471,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `interval:` lambda in an included header; results arrive on the OpenThread thread and log fine.
 - A wrong network key on a real network's channel and PAN ID makes the device form its own partition as leader on
   that PAN within about 30 s; take it off Thread at once. Never try guessed datasets against a network in use.
+- `ports.py` labels any `2fe3:0100` Zephyr CDC device "nRF52840 Dongle"; an ItsyBitsy nRF52840 running Zephyr
+  shows the same. Tell them apart by the USB product and serial or by the UF2 volume.
 
 ## Waveshare ESP32-S3-ETH with the OV5640 camera module
 
@@ -483,6 +537,18 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Two arduino-pico framework versions share the plain `framework-arduinopico` package directory, so an A/B swaps the
   framework on every build; give each side its own `PLATFORMIO_CORE_DIR`.
 - The general rule (a private directory whenever sessions may use different Pythons) is ground rule 8 in `SKILL.md`.
+
+## ESP32-S31 core board
+
+- Two USB ports on the same chip: a CP2102N bridge (`10c4:ea60`) and the native USB Serial/JTAG (`303a:1001`). Flash
+  and log over the bridge; ESPHome's default logger on the S31 is `USB_SERIAL_JTAG`, so set
+  `logger: hardware_uart: UART0` to log there.
+- esptool 5.3.0 reports ESP32-S31 rev v0.0, Wi-Fi 6, BT 5.4 LE, 802.15.4, dual core plus LP core, 300 MHz, 16 MB
+  flash; `chip-id` falls back to the MAC.
+- Wired Ethernet works with the YT8531 driver (RGMII; ESP-IDF CI runs the YT8531 on this target):
+  `ethernet: {type: YT8531, mdc_pin: GPIO5, mdio_pin: GPIO6, power_pin: GPIO7, phy_addr: 0}`. `power_pin` is the PHY
+  reset line; the RGMII data pins are ESP-IDF's per-target defaults. It links at 1000 Mbit about 8 s after boot,
+  `Setup ethernet took ~3.2 s` is normal, and the Ethernet MAC is the base MAC plus 1 (locally administered).
 
 ## LibreTiny crash and abort() facts (esphome#21596, #22288)
 
@@ -601,6 +667,14 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - nPM1300 power-on state: BUCK2 on at 3.3 V, BUCK1 off, LDO1 and LDO2 off in load switch mode (enabling one as is
   passes VINLDO straight through), charger off, VBUS limit 100 mA, NTC select 10 k. Flows: `recipes/npm1300.md`.
 
+## ESP32-C3-DevKitC-02 CAN pair
+
+- Two ESP32-C3-DevKitC-02 (CP2102N bridge, logger `hardware_uart: UART0`); RTS/DTR auto-reset works, so the host can
+  hold one board in reset with RTS on and DTR off.
+- Each has an SN65HVD230: TWAI TX GPIO5 to CTX, RX GPIO6 to CRX; CANH, CANL and GND linked, 120 ohm on each board.
+  `scripts/canopen/buscheck.yaml` at 250 kbit/s shows 0 errors both ways.
+- Alone on the bus a sender goes error passive (TEC 128), never bus off.
+
 ## I2C and SPI breakouts
 
 - GPIO switches on an I2C expander (XL9535 and others) write `value_or(false)` at setup even with
@@ -629,3 +703,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   Use `App.safe_reboot()` in reset loops, or `safe_mode: disabled: true`.
 - pioarduino 61.x (ESP-IDF 6.1, Arduino 4.0) needs PlatformIO 6.2.0; with an older PlatformIO in the shared venv,
   install 6.2.0 with `pip install --target <dir>` and put that directory on PYTHONPATH for the build.
+- Fake DST switch on any board: subclass `time::RealTimeClock` with `using RealTimeClock::synchronize_epoch_;`, cast
+  `id(t)` to it and set an epoch 30 s before the switch; restore with `clk->update()` (ESP8266, RP2) or
+  `esp_sntp_restart()` (ESP32). On dev before #22982, `localtime_r(INT64_MAX)` with a timezone hangs: soft WDT on the
+  ESP8266, task watchdog abort on the ESP32, watchdog reboot on the Pico 2 W.

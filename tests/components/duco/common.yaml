@@ -31,6 +31,9 @@ text_sensor:
     node_type:
       - name: Node 2 Type
         address: 2
+    node_network_type:
+      - name: Node 2 Network Type
+        address: 2
 
 select:
   - platform: duco
@@ -72,3 +75,11 @@ number:
   - platform: duco
     name: Comfort Temperature
     update_interval: 10s
+  - platform: duco
+    comfort_temperature:
+      - name: Comfort Temperature Zone 1
+        address: 0x13
+        update_interval: 10s
+      - name: Comfort Temperature Zone 2
+        address: 0x14
+        update_interval: 10s

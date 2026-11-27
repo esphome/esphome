@@ -8,6 +8,7 @@ from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+CODEOWNERS = ["@docteurzoidberg"]
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
 DOMAIN = "e131"
@@ -26,6 +27,7 @@ CHANNELS = E131LightChannels.options("MONO", "RGB", "RGBW", prefix="E131_")
 
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
+CONF_ARBITRATE_SOURCES = "arbitrate_sources"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -34,6 +36,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(
                 *METHODS, upper=True
             ),
+            cv.Optional(CONF_ARBITRATE_SOURCES, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     network.require_ipv4("e131"),
@@ -45,6 +48,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_method(METHODS[config[CONF_METHOD]]))
+    if config[CONF_ARBITRATE_SOURCES]:
+        cg.add_define("USE_E131_ARBITRATION")
 
 
 @register_addressable_effect(

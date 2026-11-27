@@ -1,0 +1,6 @@
+# Copy number flow (runcopy.sh): the number flow config plus a copy of NumR.
+packages:
+  base: !include c6base.yaml
+  sw: !include sw.yaml
+  number: !include number.yaml
+  numcopy: !include numcopy.yaml

@@ -10,7 +10,7 @@ union convert {
   uint32_t to;
 };
 
-void ValueRangeTrigger::setup() {
+void ValueRangeBase::setup() {
   const ValueRange range = this->range_(0.0f);
   convert hash = {.from = range.max - range.min};
   this->rtc_ = this->parent_->make_entity_preference<bool>(hash.to);
@@ -21,16 +21,16 @@ void ValueRangeTrigger::setup() {
 
   this->parent_->add_on_state_callback([this](float state) { this->on_state_(state); });
 }
-float ValueRangeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
+float ValueRangeBase::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void ValueRangeTrigger::on_state_(float state) {
+void ValueRangeBase::on_state_(float state) {
   if (std::isnan(state))
     return;
 
   bool in_range = this->range_(state).contains(state, this->previous_in_range_);
 
   if (in_range != this->previous_in_range_ && in_range) {
-    this->trigger(state);
+    this->fire(state);
   }
 
   this->previous_in_range_ = in_range;
