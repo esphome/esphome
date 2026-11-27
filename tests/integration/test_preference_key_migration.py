@@ -8,7 +8,8 @@ old key to the new key, so devices keep their restored state after upgrading.
 This test seeds the host preferences file the way a pre-migration firmware
 would have written it and verifies:
 1. Data stored under the OLD key is restored (migration happened, no data loss)
-2. Data already stored under the NEW key is never overwritten by old data
+2. The migrated data is written to disk and restores alone after a reboot
+3. Data already stored under the NEW key is never overwritten by old data
 
 The NEW keys are the same keys 2026.8 beta firmware wrote
 (https://github.com/esphome/esphome/pull/18361), so data a beta device left
@@ -33,7 +34,7 @@ import pytest
 from esphome.helpers import fnv1_hash, fnv1_hash_name, fnv1_hash_object_id
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
-from .host_prefs import clear_host_prefs, write_host_prefs
+from .host_prefs import clear_host_prefs, read_host_prefs, write_host_prefs
 from .state_utils import (
     assert_device_name,
     require_entity,
@@ -140,6 +141,21 @@ async def test_preference_key_migration(
         assert text_state.state == "hello", (
             "Text value stored under the old preference key was lost"
         )
+
+        # The migration must reach the prefs file, and the migrated entries alone
+        # must restore the state after a reboot with the old entries removed.
+        stored = read_host_prefs(DEVICE_NAME)
+        assert stored.get(SWITCH_NEW_KEY) == b"\x01"
+        assert stored.get(NUMBER_NEW_KEY) == struct.pack("<f", 42.5)
+        assert stored.get(TEXT_NEW_KEY) == text_pref_payload("hello")
+        old_keys = {SWITCH_OLD_KEY, NUMBER_OLD_KEY, TEXT_OLD_KEY}
+        write_host_prefs(
+            DEVICE_NAME, {k: v for k, v in stored.items() if k not in old_keys}
+        )
+        switch_state, number_state, text_state = await boot_and_get_initial_states()
+        assert switch_state.state is True
+        assert number_state.state == 42.5
+        assert text_state.state == "hello"
 
         # --- Run 2: both keys present with different values. The NEW key holds
         # the current data and must win; stale old-key data must never clobber it.
