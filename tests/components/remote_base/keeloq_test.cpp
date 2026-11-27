@@ -253,10 +253,23 @@ TEST(KeeloqProtocolTest, LeadingCarrierNeedsTheFullPreamble) {
 }
 
 TEST(KeeloqProtocolTest, LeadingCarrierNeedsAWholeFrameAfterIt) {
-  // Two entries short after the burst: long enough for the size check, too short to decode.
+  // Two entries short after the burst: the burst is not skipped, so decoding fails at the preamble without
+  // reading past the end of the capture.
   RawTimings timings = jarolift_emulator_frame();
   timings.resize(156);  // (12 preamble + 66 data bits) * 2
   EXPECT_FALSE(decode(timings).has_value());
+}
+
+TEST(KeeloqProtocolTest, AWideFirstPreambleMarkIsNotABurst) {
+  // At 35% tolerance a 500 us mark fits both a preamble pulse and a carrier burst; it stays a preamble pulse.
+  // The suffix makes the capture long enough for the burst skip to be considered.
+  RawTimings timings = as_received(encode(frame(0xA5, 8)));
+  timings[0] = 500;
+  auto decoded = KeeloqProtocol().decode(RemoteReceiveData(timings, 35, TOLERANCE_MODE_PERCENTAGE));
+  ASSERT_TRUE(decoded.has_value());
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->encrypted, 0xd19ef0a9u);
+  }
 }
 
 TEST(KeeloqProtocolTest, HcsWordStillEndsWithRepeatOne) {
