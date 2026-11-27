@@ -1,0 +1,3 @@
+packages:
+  # Not "ble": that key is the shared BLE tracker package
+  ble_switch: !include common.yaml

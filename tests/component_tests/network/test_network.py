@@ -9,8 +9,12 @@ from voluptuous import Invalid
 from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
 from esphome.components.network import (
     CONF_ENABLE_IPV4,
+    INTERFACE_ETHERNET,
+    INTERFACE_WIFI_AP,
+    INTERFACE_WIFI_STA,
     _final_validate,
     _get_data,
+    configured_interfaces,
     request_ipv4_off,
     require_ipv4,
     require_ipv6,
@@ -20,12 +24,32 @@ from esphome.components.zephyr.const import KEY_PRJ_CONF
 from esphome.config import load_config
 from esphome.const import CONF_ENABLE_IPV6, KEY_FRAMEWORK_VERSION, PlatformFramework
 from esphome.core import CORE, Version
+from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
 
 def _define_value(name: str) -> str | None:
     define = next((d for d in CORE.defines if d.name == name), None)
     return None if define is None else str(define.value)
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({}, set()),
+        ({"wifi": {"networks": []}}, {INTERFACE_WIFI_STA}),
+        ({"wifi": {"ap": {}}}, {INTERFACE_WIFI_STA, INTERFACE_WIFI_AP}),
+        ({"ethernet": {}}, {INTERFACE_ETHERNET}),
+        (
+            {"wifi": {"ap": {}}, "ethernet": {}},
+            {INTERFACE_WIFI_STA, INTERFACE_WIFI_AP, INTERFACE_ETHERNET},
+        ),
+    ],
+)
+def test_configured_interfaces(config: ConfigType, expected: set[str]) -> None:
+    """configured_interfaces() lists each interface the config brings up."""
+    CORE.config = config
+    assert configured_interfaces() == expected
 
 
 def test_require_ipv4_records_name_and_passes_config_through() -> None:

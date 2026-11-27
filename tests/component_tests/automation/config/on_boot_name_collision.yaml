@@ -12,5 +12,5 @@ logger:
 
 sensor:
   - platform: template
-    id: esphome__startuptrigger_id__fn
+    id: esphome__automation_id__fn
     lambda: return 1.0;

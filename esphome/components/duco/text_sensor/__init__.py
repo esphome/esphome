@@ -14,7 +14,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["duco"]
-CODEOWNERS = ["@kokx"]
+CODEOWNERS = ["@kokx", "@w1ll14m"]
 
 DucoTextSensor = duco_ns.class_("DucoTextSensor", DucoDevice, text_sensor.TextSensor)
 DucoTextReading = duco_ns.enum("DucoTextReading", is_class=True)

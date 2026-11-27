@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+uart:
+  - id: uart_a
+    tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 9600
+    debug:
+      direction: RX
+      debug_prefix: "[A] "
+      after:
+        bytes: 20
+        timeout: 50ms
+      sequence:
+        - lambda: UARTDebug::log_string(direction, bytes, debug_prefix);
+  - id: uart_b
+    tx_pin: GPIO2
+    baud_rate: 9600
+    debug:
+      trigger_id: named_debugger
+      sequence:
+        - delay: 10ms
+        - lambda: UARTDebug::log_hex(direction, bytes, ':', debug_prefix);
