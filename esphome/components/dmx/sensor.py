@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import sensor
+from esphome.components import sensor, number
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
