@@ -17,55 +17,12 @@ bool dim_relative(LightState *state, LightCall &call, float relative_brightness,
 /// Turn on the next or previous configured effect; with `include_none`, "None" is part of the cycle.
 void cycle_effect(LightState *state, bool forward, bool include_none);
 
-class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListener {
- public:
-  explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {
-    a_light->add_remote_values_listener(this);
-    this->last_on_ = a_light->current_values.is_on();
-  }
-
-  void on_light_remote_values_update() override {
-    // using the remote value because of transitions we need to trigger as early as possible
-    auto is_on = this->light_->remote_values.is_on();
-    // only trigger when going from off to on
-    auto should_trigger = is_on && !this->last_on_;
-    // Set new state immediately so that trigger() doesn't devolve
-    // into infinite loop
-    this->last_on_ = is_on;
-    if (should_trigger) {
-      this->trigger();
-    }
-  }
-
- protected:
-  LightState *light_;
-  bool last_on_;
-};
-
-class LightTurnOffTrigger final : public Trigger<>, public LightTargetStateReachedListener {
- public:
-  explicit LightTurnOffTrigger(LightState *a_light) : light_(a_light) {
-    a_light->add_target_state_reached_listener(this);
-  }
-
-  void on_light_target_state_reached() override {
-    auto is_on = this->light_->current_values.is_on();
-    // only trigger when going from on to off
-    if (!is_on) {
-      this->trigger();
-    }
-  }
-
- protected:
-  LightState *light_;
-};
-
-class LightStateTrigger final : public Trigger<>, public LightRemoteValuesListener {
- public:
-  explicit LightStateTrigger(LightState *a_light) { a_light->add_remote_values_listener(this); }
-
-  void on_light_remote_values_update() override { this->trigger(); }
-};
+/// Codegen use only: whether the light turned on since the report one on_turn_on automation last saw, kept in `last`.
+inline bool update_turned_on(bool &last, bool now) {
+  const bool turned_on = now && !last;
+  last = now;
+  return turned_on;
+}
 
 template<typename... Ts> class AddressableSet final : public Action<Ts...> {
  public:

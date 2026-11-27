@@ -121,7 +121,7 @@ bool MQTTBackendESP32::initialize_() {
 }
 
 void MQTTBackendESP32::disable() {
-  if (!this->is_initalized_) {
+  if (!this->is_initialized_) {
     return;
   }
   this->is_connected_ = false;
@@ -185,7 +185,7 @@ void MQTTBackendESP32::disable() {
   // Stops and destroys the client
   App.feed_wdt();
   this->handler_.reset();
-  this->is_initalized_ = false;
+  this->is_initialized_ = false;
 }
 
 void MQTTBackendESP32::loop() {
@@ -472,7 +472,7 @@ bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos,
                                 size_t len) {
   // Reject new enqueues if we are disabled to avoid burning pool slots
   // and publishing stale data when re-enabled
-  if (!this->is_initalized_) {
+  if (!this->is_initialized_) {
     this->mqtt_queue_.increment_dropped_count();
     return false;
   }

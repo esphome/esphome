@@ -11,31 +11,6 @@ uint16_t frame_crc(const uint8_t *frame, size_t len) {
   return crc16be(frame + HEADER_SIZE, len - HEADER_SIZE, head);
 }
 
-size_t PacketReader::feed(uint8_t byte) {
-  if (this->pos_ == 0 && byte != 0xA5)
-    return 0;
-  if (this->pos_ == 1 && byte != 0x01) {
-    this->pos_ = byte == 0xA5 ? 1 : 0;
-    return 0;
-  }
-  this->buf_[this->pos_++] = byte;
-  if (this->pos_ < 8)
-    return 0;
-  const uint8_t len = this->buf_[7];
-  if (len < HEADER_SIZE) {
-    this->pos_ = 0;
-    return 0;
-  }
-  if (this->pos_ < len)
-    return 0;
-  this->pos_ = 0;
-  if (frame_crc(this->buf_.data(), len) != encode_uint16(this->buf_[8], this->buf_[9])) {
-    this->checksum_error_ = true;
-    return 0;
-  }
-  return len;
-}
-
 enum class AttrKind : uint8_t {
   ATTR_KIND_UNKNOWN,
   ATTR_KIND_ONE_BYTE,
@@ -128,19 +103,19 @@ bool AttributeReader::next() {
 size_t build_frame(uint8_t *out, uint8_t flags, uint8_t type, uint8_t seq, uint8_t ack, uint8_t class_1,
                    uint8_t class_2, const uint8_t *body, size_t len) {
   const size_t total = HEADER_SIZE + 2 + len;
-  out[0] = 0xA5;
-  out[1] = 0x01;
+  out[0] = FRAME_START_1;
+  out[1] = FRAME_START_2;
   out[2] = flags;
   out[3] = type;
   out[4] = seq;
   out[5] = ack;
   out[6] = 0x00;
-  out[7] = total;
+  out[LEN_POS] = total;
   out[HEADER_SIZE] = class_1;
   out[HEADER_SIZE + 1] = class_2;
   if (len)
     std::memcpy(out + HEADER_SIZE + 2, body, len);
-  put_be16(out + 8, frame_crc(out, total));
+  put_be16(out + CRC_POS, frame_crc(out, total));
   return total;
 }
 

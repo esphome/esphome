@@ -84,7 +84,7 @@ def mock_download_content_many() -> MagicMock:
 @pytest.fixture
 def mock_retry_sleep() -> MagicMock:
     """Patch the retry backoff sleep (process-wide; net_retry.time is the
-    global module) so transient-error tests don't really wait 2s/4s.
+    global module) so transient-error tests don't really wait between attempts.
     """
     with patch("esphome.net_retry.time.sleep") as m:
         yield m
@@ -579,7 +579,7 @@ def test_download_content_transient_error_exhausts_attempts(
     mock_retry_sleep: MagicMock,
     setup_core: Path,
 ) -> None:
-    """A persistent transient failure gives up after three attempts and then
+    """A persistent transient failure gives up after five attempts and then
     follows the normal no-cache error path."""
     test_file = setup_core / "nonexistent.txt"
     mock_has_remote_file_changed.return_value = True
@@ -588,7 +588,7 @@ def test_download_content_transient_error_exhausts_attempts(
     with pytest.raises(Invalid, match="Could not download from.*reset by peer"):
         external_files.download_content("https://example.com/file.txt", test_file)
 
-    assert mock_retry_sleep.call_args_list == [call(2), call(4)]
+    assert mock_retry_sleep.call_args_list == [call(2), call(4), call(8), call(16)]
 
 
 def test_download_content_non_transient_error_not_retried(
