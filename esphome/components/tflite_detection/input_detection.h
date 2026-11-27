@@ -116,6 +116,26 @@ size_t select_detections(Detection *selected, size_t max_detections, float iou_t
   return count;
 }
 
+/// @brief Decodes the single output of a YOLO model, in either layout, into @p selected.
+///
+/// yolov5 stores one candidate per row, yolov8 one per column.
+///
+/// @param value  `value(index)` returns the dequantized tensor element at @p index.
+/// @return the number of boxes written, at most `max_detections`.
+template<typename Value>
+size_t decode_yolo(Detection *selected, size_t max_detections, float score_threshold, float iou_threshold,
+                   DetectionFormat format, size_t fields, size_t candidates, Value &&value) {
+  const bool v5 = format == DetectionFormat::DETECTION_FORMAT_YOLOV5;
+  const size_t classes = fields - (v5 ? 5 : 4);
+  return select_detections(selected, max_detections, iou_threshold, candidates,
+                           [&](size_t index, Detection &detection) {
+                             auto field_value = [&](size_t field) {
+                               return value(v5 ? index * fields + field : field * candidates + index);
+                             };
+                             return yolo_candidate(field_value, classes, v5, score_threshold, detection);
+                           });
+}
+
 #ifdef USE_TFLITE_MICRO_HELPER
 /// @brief Decodes a detection model's outputs: the four of SSD post-processing, or raw YOLO candidates.
 class DetectionDecoder final : public tflite_output_processor::OutputDecoder {

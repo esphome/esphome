@@ -131,7 +131,6 @@ bool DetectionDecoder::decode_yolo_(const TfLiteTensor *tensor) {
     ESP_LOGE(TAG, "The candidate tensor does not have 3 dimensions");
     return false;
   }
-  // yolov5 stores one candidate per row, yolov8 one per column.
   const size_t fields = tensor->dims->data[v5 ? 2 : 1];
   const size_t candidates = tensor->dims->data[v5 ? 1 : 2];
   float probe = 0.0f;
@@ -139,17 +138,13 @@ bool DetectionDecoder::decode_yolo_(const TfLiteTensor *tensor) {
     ESP_LOGE(TAG, "The candidate tensor has no class scores or an unsupported type");
     return false;
   }
-  auto get = [&](size_t index, Detection &detection) {
-    auto value = [&](size_t field) {
-      // The shape and type were checked above, so the read cannot fail.
-      float out = 0.0f;
-      tensor_value(tensor, v5 ? index * fields + field : field * candidates + index, &out);
-      return out;
-    };
-    return yolo_candidate(value, fields - fields_before_classes, v5, this->score_threshold_, detection);
-  };
-  this->detection_count_ =
-      select_detections(this->detections_.get(), this->max_detections_, this->iou_threshold_, candidates, get);
+  this->detection_count_ = decode_yolo(this->detections_.get(), this->max_detections_, this->score_threshold_,
+                                       this->iou_threshold_, this->format_, fields, candidates, [tensor](size_t index) {
+                                         // The shape and type were checked above, so the read cannot fail.
+                                         float out = 0.0f;
+                                         tensor_value(tensor, index, &out);
+                                         return out;
+                                       });
   return true;
 }
 

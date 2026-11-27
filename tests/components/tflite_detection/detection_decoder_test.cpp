@@ -120,4 +120,45 @@ TEST(YoloCandidateTest, ALowObjectnessSkipsTheClassScores) {
   EXPECT_EQ(highest_field_read, 4u);
 }
 
+namespace {
+/// Two candidates with two classes, each as {x, y, width, height, (objectness,) class scores} in quarters.
+std::vector<Detection> decode_quantized(DetectionFormat format, const std::vector<std::vector<int>> &candidates) {
+  const size_t fields = candidates[0].size();
+  const bool v5 = format == DetectionFormat::DETECTION_FORMAT_YOLOV5;
+  // An int8 tensor in the model's layout, with scale 1/4 and zero point -2.
+  std::vector<int8_t> tensor(fields * candidates.size());
+  for (size_t c = 0; c < candidates.size(); c++) {
+    for (size_t f = 0; f < fields; f++)
+      tensor[v5 ? c * fields + f : f * candidates.size() + c] = static_cast<int8_t>(candidates[c][f] - 2);
+  }
+  std::vector<Detection> kept(4);
+  kept.resize(decode_yolo(kept.data(), kept.size(), 0.5f, 0.5f, format, fields, candidates.size(),
+                          [&](size_t index) { return (tensor[index] + 2) * 0.25f; }));
+  return kept;
+}
+
+void expect_two_boxes(const std::vector<Detection> &kept) {
+  ASSERT_EQ(kept.size(), 2u);
+  // The better score comes first: the second candidate, class 1, centered at (2, 2) with size 1x1.
+  EXPECT_EQ(kept[0].class_id, 1);
+  EXPECT_FLOAT_EQ(kept[0].score, 1.0f);
+  EXPECT_FLOAT_EQ(kept[0].x_min, 1.5f);
+  EXPECT_FLOAT_EQ(kept[0].y_max, 2.5f);
+  EXPECT_EQ(kept[1].class_id, 0);
+  EXPECT_FLOAT_EQ(kept[1].score, 0.75f);
+  EXPECT_FLOAT_EQ(kept[1].x_max, 0.75f);
+  EXPECT_FLOAT_EQ(kept[1].y_min, 0.0f);
+}
+}  // namespace
+
+TEST(YoloLayoutTest, Yolov5ReadsOneCandidatePerRow) {
+  expect_two_boxes(
+      decode_quantized(DetectionFormat::DETECTION_FORMAT_YOLOV5, {{2, 2, 2, 4, 4, 3, 1}, {8, 8, 4, 4, 4, 1, 4}}));
+}
+
+TEST(YoloLayoutTest, Yolov8ReadsOneCandidatePerColumn) {
+  expect_two_boxes(
+      decode_quantized(DetectionFormat::DETECTION_FORMAT_YOLOV8, {{2, 2, 2, 4, 3, 1}, {8, 8, 4, 4, 1, 4}}));
+}
+
 }  // namespace esphome::tflite_detection::testing
