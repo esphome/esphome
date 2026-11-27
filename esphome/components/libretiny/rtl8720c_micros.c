@@ -17,9 +17,16 @@ RTL8720C_RAM_TEXT unsigned long __wrap_micros(void) {  // NOLINT(readability-ide
 
 // Not hal_delay_us(): it waits 5 us less than asked
 RTL8720C_RAM_TEXT void __wrap_delayMicroseconds(unsigned int us) {  // NOLINT(readability-identifier-naming)
-  const uint32_t start = hal_read_curtime_us();
-  // <= covers the part of the first microsecond that had already passed
-  while (hal_read_curtime_us() - start <= us) {
+  uint32_t start = hal_read_curtime_us();
+  // +1 covers the part of the first microsecond that had already passed; steps of at most 2^31 keep the 32-bit
+  // difference from wrapping
+  uint64_t remaining = (uint64_t) us + 1;
+  while (remaining > 0) {
+    const uint32_t step = remaining > 0x80000000UL ? 0x80000000UL : (uint32_t) remaining;
+    while (hal_read_curtime_us() - start < step) {
+    }
+    start += step;
+    remaining -= step;
   }
 }
 
