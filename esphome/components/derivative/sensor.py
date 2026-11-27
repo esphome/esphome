@@ -27,16 +27,14 @@ DERIVATIVE_TIME_UNITS = {
 CONF_TIME_UNIT = "time_unit"
 
 
+# Rates that integration turns into a total by appending the time unit (W + h = Wh).
+RATE_UNITS = frozenset({"W", "kW", "MW", "VA", "kVA", "var", "kvar", "A", "mA"})
+
+
 def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:
     # The reverse of integration: kWh with time_unit "h" becomes kW, m with "s" becomes m/s.
     suffix = config[CONF_TIME_UNIT]
-    prefix = uom.removesuffix(suffix)
-    if (
-        prefix
-        and prefix != uom
-        and not prefix.endswith("/")
-        and uom not in DERIVATIVE_TIME_UNITS
-    ):
+    if (prefix := uom.removesuffix(suffix)) in RATE_UNITS and prefix != uom:
         return prefix
     return f"{uom}/{suffix}"
 
