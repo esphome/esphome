@@ -98,8 +98,9 @@ void USBAudioSpeaker::loop() {
   }
   const bool settling = this->settle_stale_count_();
   // has_buffered_data_() turns false once the driver has taken the last whole transfer and it has had time to play;
-  // a write still in flight may add more.
-  if (this->finishing_ && this->pad_remaining_ == 0 && this->writes_in_flight_ == 0 && !this->has_buffered_data_()) {
+  // a write still in flight may add more, and a count still settling may hold a transfer below transfer_bytes_.
+  if (this->finishing_ && this->pad_remaining_ == 0 && this->writes_in_flight_ == 0 && !settling &&
+      !this->has_buffered_data_()) {
     // Audio written after the finish padding leaves a tail; pad it too, or its frames are never reported.
     this->pad_remaining_ = this->audio_tail_bytes_();
     if (this->pad_remaining_ == 0) {
@@ -374,8 +375,8 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     }
   }
   this->writes_in_flight_.fetch_sub(1);
-  // For settle_stale_count_() and the tail flush.
-  if (this->ring_bytes_ != 0) {
+  // For settle_stale_count_() and the tail flush; a write that stored nothing changed neither.
+  if (written != 0 && this->ring_bytes_ != 0) {
     this->enable_loop_soon_any_context();
   }
   return written;
