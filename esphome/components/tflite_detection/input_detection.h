@@ -23,17 +23,53 @@ struct Detection {
   float score{0.0f};
 };
 
-/// @brief Insert one candidate into a greedy non-maximum suppression result.
+/// Whether a kept box of the same class overlaps `candidate` by more than `iou_threshold`.
+bool suppresses(const Detection &kept, const Detection &candidate, float iou_threshold);
+
+/// @brief Greedy non-maximum suppression in descending score order, then the cap.
 ///
-/// `detections` holds at most `max_detections` boxes in descending score order.
-/// A candidate that overlaps a higher-scored box of the same class is dropped;
-/// one that overlaps a lower-scored box replaces it. The cap therefore applies
-/// to the boxes that survive suppression, so overlapping candidates cannot
-/// crowd out a distinct detection.
+/// `get(index, detection)` fills candidate `index` and returns false to skip it. Each
+/// pass picks the best candidate after the previous pick that no kept box suppresses,
+/// so only a box that is itself kept suppresses another, and no buffer for all the
+/// candidates is needed.
 ///
-/// @return the number of boxes left in `detections`.
-size_t insert_detection(Detection *detections, size_t count, size_t max_detections, float iou_threshold,
-                        const Detection &candidate);
+/// @return the number of boxes written to `selected`, at most `max_detections`.
+template<typename Get>
+size_t select_detections(Detection *selected, size_t max_detections, float iou_threshold, size_t candidates,
+                         Get &&get) {
+  size_t count = 0;
+  float last_score = 0.0f;
+  size_t last_index = 0;
+  while (count < max_detections) {
+    bool found = false;
+    Detection best;
+    size_t best_index = 0;
+    for (size_t index = 0; index < candidates; index++) {
+      Detection candidate;
+      if (!get(index, candidate))
+        continue;
+      // Candidates ordered before the previous pick were kept or suppressed already.
+      if (count > 0 && !(candidate.score < last_score || (candidate.score == last_score && index > last_index)))
+        continue;
+      if (found && candidate.score <= best.score)
+        continue;
+      bool covered = false;
+      for (size_t i = 0; i < count && !covered; i++)
+        covered = suppresses(selected[i], candidate, iou_threshold);
+      if (covered)
+        continue;
+      best = candidate;
+      best_index = index;
+      found = true;
+    }
+    if (!found)
+      break;
+    selected[count++] = best;
+    last_score = best.score;
+    last_index = best_index;
+  }
+  return count;
+}
 
 #ifdef USE_TFLITE_MICRO_HELPER
 /// @brief Decodes a detection model's four outputs: boxes, classes, scores and count.
@@ -51,9 +87,6 @@ class DetectionDecoder final : public tflite_output_processor::OutputDecoder {
   size_t detection_count() const { return this->detection_count_; }
 
  protected:
-  /// Add one candidate, suppressing overlaps and keeping the result capped.
-  void insert_(const Detection &detection);
-
   float score_threshold_;
   size_t max_detections_;
   float iou_threshold_;

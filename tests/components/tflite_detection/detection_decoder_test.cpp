@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "esphome/components/tflite_detection/input_detection.h"
 
 namespace esphome::tflite_detection::testing {
@@ -19,54 +21,64 @@ Detection make_box(float score, int class_id, float x_min, float y_min, float x_
 Detection full_frame(float score, int class_id = 0) { return make_box(score, class_id, 0.0f, 0.0f, 1.0f, 1.0f); }
 
 Detection small_box(float score, int class_id = 0) { return make_box(score, class_id, 0.2f, 0.2f, 0.4f, 0.4f); }
+
+std::vector<Detection> select(const std::vector<Detection> &candidates, size_t cap) {
+  std::vector<Detection> kept(cap);
+  kept.resize(select_detections(kept.data(), cap, 0.5f, candidates.size(), [&](size_t index, Detection &detection) {
+    detection = candidates[index];
+    return true;
+  }));
+  return kept;
+}
 }  // namespace
 
-// Regression: the cap used to be applied while candidates were collected, so an
-// overlapping pair could fill the buffer and hide a distinct detection.
+// An overlapping pair must not fill the cap and hide a distinct detection.
 TEST(DetectionDecoder, CapAppliesAfterSuppression) {
-  Detection detections[2];
-  size_t count = 0;
-  count = insert_detection(detections, count, 2, 0.5f, full_frame(0.9f));
-  count = insert_detection(detections, count, 2, 0.5f, full_frame(0.8f));
-  count = insert_detection(detections, count, 2, 0.5f, small_box(0.7f));
+  const auto kept = select({full_frame(0.9f), full_frame(0.8f), small_box(0.7f)}, 2);
 
-  ASSERT_EQ(count, 2u);
-  EXPECT_FLOAT_EQ(detections[0].score, 0.9f);
-  EXPECT_FLOAT_EQ(detections[1].score, 0.7f);
+  ASSERT_EQ(kept.size(), 2u);
+  EXPECT_FLOAT_EQ(kept[0].score, 0.9f);
+  EXPECT_FLOAT_EQ(kept[1].score, 0.7f);
 }
 
-// A later, higher-scored box replaces the lower-scored box it overlaps.
-TEST(DetectionDecoder, HigherScoredBoxReplacesTheOneItSuppresses) {
-  Detection detections[2];
-  size_t count = 0;
-  count = insert_detection(detections, count, 2, 0.5f, full_frame(0.8f));
-  count = insert_detection(detections, count, 2, 0.5f, full_frame(0.9f));
+// A suppressed box suppresses nothing, whatever order the candidates arrive in.
+TEST(DetectionDecoder, SuppressedBoxDoesNotSuppress) {
+  const auto kept = select({make_box(0.8f, 0, 0.0f, 0.0f, 0.7f, 1.0f), make_box(0.7f, 0, 0.0f, 0.0f, 0.45f, 1.0f),
+                            make_box(0.9f, 0, 0.0f, 0.0f, 1.0f, 1.0f)},
+                           3);
 
-  ASSERT_EQ(count, 1u);
-  EXPECT_FLOAT_EQ(detections[0].score, 0.9f);
+  ASSERT_EQ(kept.size(), 2u);
+  EXPECT_FLOAT_EQ(kept[0].score, 0.9f);
+  EXPECT_FLOAT_EQ(kept[1].score, 0.7f);
 }
 
-// Distinct boxes are still capped once they survive suppression.
-TEST(DetectionDecoder, CapStillLimitsDistinctBoxes) {
-  Detection detections[2];
-  size_t count = 0;
-  count = insert_detection(detections, count, 2, 0.5f, make_box(0.9f, 0, 0.0f, 0.0f, 0.2f, 0.2f));
-  count = insert_detection(detections, count, 2, 0.5f, make_box(0.8f, 0, 0.3f, 0.3f, 0.5f, 0.5f));
-  count = insert_detection(detections, count, 2, 0.5f, make_box(0.7f, 0, 0.6f, 0.6f, 0.8f, 0.8f));
+// Equal scores are each considered once.
+TEST(DetectionDecoder, EqualScoresAreNotRepeated) {
+  const auto kept = select({make_box(0.9f, 0, 0.0f, 0.0f, 0.2f, 0.2f), make_box(0.9f, 0, 0.3f, 0.3f, 0.5f, 0.5f)}, 4);
 
-  ASSERT_EQ(count, 2u);
-  EXPECT_FLOAT_EQ(detections[0].score, 0.9f);
-  EXPECT_FLOAT_EQ(detections[1].score, 0.8f);
+  ASSERT_EQ(kept.size(), 2u);
+  EXPECT_FLOAT_EQ(kept[0].score, 0.9f);
+  EXPECT_FLOAT_EQ(kept[1].score, 0.9f);
+}
+
+// Distinct boxes are capped to the best ones.
+TEST(DetectionDecoder, CapKeepsTheBestBoxes) {
+  const auto kept = select({make_box(0.7f, 0, 0.6f, 0.6f, 0.8f, 0.8f), make_box(0.9f, 0, 0.0f, 0.0f, 0.2f, 0.2f),
+                            make_box(0.8f, 0, 0.3f, 0.3f, 0.5f, 0.5f)},
+                           2);
+
+  ASSERT_EQ(kept.size(), 2u);
+  EXPECT_FLOAT_EQ(kept[0].score, 0.9f);
+  EXPECT_FLOAT_EQ(kept[1].score, 0.8f);
 }
 
 // Overlap only suppresses boxes of the same class.
 TEST(DetectionDecoder, DifferentClassesAreNotSuppressed) {
-  Detection detections[2];
-  size_t count = 0;
-  count = insert_detection(detections, count, 2, 0.5f, full_frame(0.9f, 0));
-  count = insert_detection(detections, count, 2, 0.5f, full_frame(0.8f, 1));
+  const auto kept = select({full_frame(0.9f, 0), full_frame(0.8f, 1)}, 2);
 
-  ASSERT_EQ(count, 2u);
+  ASSERT_EQ(kept.size(), 2u);
+  EXPECT_FLOAT_EQ(kept[0].score, 0.9f);
+  EXPECT_FLOAT_EQ(kept[1].score, 0.8f);
 }
 
 }  // namespace esphome::tflite_detection::testing

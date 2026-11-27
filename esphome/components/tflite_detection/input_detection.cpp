@@ -22,34 +22,8 @@ float intersection_over_union(const Detection &a, const Detection &b) {
 }
 }  // namespace
 
-size_t insert_detection(Detection *detections, size_t count, size_t max_detections, float iou_threshold,
-                        const Detection &candidate) {
-  if (max_detections == 0)
-    return 0;
-  // A higher-scored box of the same class already covers this candidate.
-  for (size_t i = 0; i < count; i++) {
-    if (detections[i].class_id == candidate.class_id && detections[i].score >= candidate.score &&
-        intersection_over_union(detections[i], candidate) > iou_threshold)
-      return count;
-  }
-  // This candidate suppresses the lower-scored overlapping boxes instead.
-  size_t kept = 0;
-  for (size_t i = 0; i < count; i++) {
-    if (detections[i].class_id == candidate.class_id && detections[i].score < candidate.score &&
-        intersection_over_union(detections[i], candidate) > iou_threshold)
-      continue;
-    detections[kept++] = detections[i];
-  }
-  size_t position = kept;
-  while (position > 0 && detections[position - 1].score < candidate.score)
-    position--;
-  if (position >= max_detections)
-    return kept;
-  const size_t last = std::min(kept, max_detections - 1);
-  for (size_t i = last; i > position; i--)
-    detections[i] = detections[i - 1];
-  detections[position] = candidate;
-  return std::min(kept + 1, max_detections);
+bool suppresses(const Detection &kept, const Detection &candidate, float iou_threshold) {
+  return kept.class_id == candidate.class_id && intersection_over_union(kept, candidate) > iou_threshold;
 }
 
 #ifdef USE_TFLITE_MICRO_HELPER
@@ -93,11 +67,6 @@ bool tensor_value(const TfLiteTensor *tensor, size_t index, float *out) {
 }
 }  // namespace
 
-void DetectionDecoder::insert_(const Detection &detection) {
-  this->detection_count_ = insert_detection(this->detections_.get(), this->detection_count_, this->max_detections_,
-                                            this->iou_threshold_, detection);
-}
-
 bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   this->detection_count_ = 0;
   if (count != 4) {
@@ -122,24 +91,28 @@ bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     available = total >= static_cast<float>(candidates) ? candidates : static_cast<size_t>(total);
   // Each per-box tensor must hold at least as many entries as the boxes it describes.
   available = std::min({available, tensor_elements(outputs[1]), tensor_elements(outputs[2])});
-  for (size_t index = 0; index < available; index++) {
-    float score = 0.0f;
+  bool readable = true;
+  auto get = [&](size_t index, Detection &detection) {
     float class_id = 0.0f;
-    Detection detection;
-    if (!tensor_value(outputs[2], index, &score) || !tensor_value(outputs[1], index, &class_id) ||
+    if (!tensor_value(outputs[2], index, &detection.score) || !tensor_value(outputs[1], index, &class_id) ||
         !tensor_value(boxes, index * 4 + 0, &detection.y_min) ||
         !tensor_value(boxes, index * 4 + 1, &detection.x_min) ||
         !tensor_value(boxes, index * 4 + 2, &detection.y_max) ||
         !tensor_value(boxes, index * 4 + 3, &detection.x_max)) {
-      ESP_LOGE(TAG, "Detection %zu could not be read from the output tensors", index);
+      readable = false;
       return false;
     }
-    if (score < this->score_threshold_)
-      continue;
     detection.class_id = static_cast<int>(class_id);
-    detection.score = score;
-    this->insert_(detection);
+    // Written this way round so a NaN score is skipped.
+    return detection.score >= this->score_threshold_;
+  };
+  const size_t selected =
+      select_detections(this->detections_.get(), this->max_detections_, this->iou_threshold_, available, get);
+  if (!readable) {
+    ESP_LOGE(TAG, "A detection could not be read from the output tensors");
+    return false;
   }
+  this->detection_count_ = selected;
   return true;
 }
 
