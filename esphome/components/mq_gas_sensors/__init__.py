@@ -90,7 +90,8 @@ RATIO_MODES = {
 # owned ESP32 pin does not apply (an external sampler, or a non-ESP32 target):
 # the recommended maximum input voltage (VDD) and the datasheet's absolute
 # maximum (VDD + 0.3 V). Override them per sensor for other samplers, e.g.
-# `adc_input_max: 6.144` / `adc_pin_max: 6.144` for an ADS1115 at the widest gain.
+# `adc_input_max: 3.3` / `adc_pin_max: 3.6` for an ADS1115 on 3.3 V: its gain
+# range is not the limit of its input pins, its supply is.
 ESP32_ADC_INPUT_MAX_V = 3.3
 ESP32_ADC_PIN_MAX_V = 3.6
 

@@ -67,6 +67,6 @@ sensor:
     min_ppm: 1.0
     max_ppm: 200.0
     correction_factor: 0.5
-    adc_input_max: 6.144
-    adc_pin_max: 6.144
+    adc_input_max: 5.0
+    adc_pin_max: 5.3
     r0: 10.0
