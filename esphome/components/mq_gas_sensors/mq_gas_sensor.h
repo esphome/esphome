@@ -61,12 +61,12 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   void set_correction_factor(float factor) { this->correction_factor_ = factor; }
   void set_correction_mode(CorrectionMode mode) { this->correction_mode_ = mode; }
   void set_correction_clamp(CorrectionClamp mode) { this->correction_clamp_ = mode; }
+#ifdef USE_MQ_GAS_SENSORS_CORRECTION
   void set_tc_coefficients(float a33, float b33, float c33, float a85, float b85, float c85) {
     this->tc_ = mqmath::TcCorrectionCoefficients{a33, b33, c33, a85, b85, c85};
   }
   void set_temperature_source(sensor::Sensor *sensor) { this->temperature_source_ = sensor; }
   void set_humidity_source(sensor::Sensor *sensor) { this->humidity_source_ = sensor; }
-#ifdef USE_MQ_GAS_SENSORS_CORRECTION
   /// Longest age of a source state, instead of the window learned from the source.
   /// `SCHEDULER_DONT_RUN` (`never`) keeps the last state of a source in use.
   void set_source_timeout(uint32_t timeout_ms) {
@@ -211,8 +211,6 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   StringRef gas_{StringRef::from_lit("CUSTOM")};
 
   voltage_sampler::VoltageSampler *source_{nullptr};
-  sensor::Sensor *temperature_source_{nullptr};
-  sensor::Sensor *humidity_source_{nullptr};
   /// The status warning currently reports a wiring fault, so it is the one to
   /// clear once the input reads as expected (a calibration warning is not ours).
   const LogString *wiring_warning_{nullptr};
@@ -242,9 +240,11 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   float rs_{0.0f};
   float ratio_{0.0f};
   float correction_{1.0f};
-  mqmath::TcCorrectionCoefficients tc_{};
 
 #ifdef USE_MQ_GAS_SENSORS_CORRECTION
+  sensor::Sensor *temperature_source_{nullptr};
+  sensor::Sensor *humidity_source_{nullptr};
+  mqmath::TcCorrectionCoefficients tc_{};
   /// Last state of the linked correction sources, used to detect a source that
   /// has stopped updating while `has_state()` stays true.
   mqmath::SourceTracker temperature_tracker_;

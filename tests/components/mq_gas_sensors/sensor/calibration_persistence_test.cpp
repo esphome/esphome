@@ -1,13 +1,15 @@
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <system_error>
 
 #include <gtest/gtest.h>
 
 #ifdef USE_HOST
+
+#include <unistd.h>  // mkdtemp() on macOS
 
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/mq_gas_sensors/mq_gas_sensor.h"
@@ -43,12 +45,14 @@ class CalibrationPersistenceTest : public ::testing::Test {
   void SetUp() override {
     this->previous_preferences_ = global_preferences;
     this->previous_host_preferences_ = host::host_preferences;
-    static uint32_t test_id = 0;
-    char directory[48];
-    std::snprintf(directory, sizeof(directory), "esphome_mq_gas_%u", ++test_id);
-    this->prefdir_ = fs::temp_directory_path() / directory;
-    fs::create_directories(this->prefdir_);
-    setenv("ESPHOME_PREFDIR", this->prefdir_.string().c_str(), 1);
+    if (const char *prefdir = getenv("ESPHOME_PREFDIR"); prefdir != nullptr)
+      this->previous_prefdir_ = prefdir;
+    // A new directory for every test: no R0 left by an earlier run, and none
+    // shared with a run in parallel.
+    std::string directory = (fs::temp_directory_path() / "esphome_mq_gas_XXXXXX").string();
+    ASSERT_NE(nullptr, mkdtemp(directory.data()));
+    this->prefdir_ = directory;
+    setenv("ESPHOME_PREFDIR", directory.c_str(), 1);
     global_preferences = &this->preferences_;
     host::host_preferences = &this->preferences_;
   }
@@ -56,7 +60,11 @@ class CalibrationPersistenceTest : public ::testing::Test {
   void TearDown() override {
     global_preferences = this->previous_preferences_;
     host::host_preferences = this->previous_host_preferences_;
-    unsetenv("ESPHOME_PREFDIR");
+    if (this->previous_prefdir_.has_value()) {
+      setenv("ESPHOME_PREFDIR", this->previous_prefdir_->c_str(), 1);
+    } else {
+      unsetenv("ESPHOME_PREFDIR");
+    }
     std::error_code ec;
     fs::remove_all(this->prefdir_, ec);
   }
@@ -90,12 +98,14 @@ class CalibrationPersistenceTest : public ::testing::Test {
   host::HostPreferences *previous_host_preferences_{nullptr};
   ESPPreferences *previous_preferences_{nullptr};
   fs::path prefdir_;
+  std::optional<std::string> previous_prefdir_;
 };
 
 TEST_F(CalibrationPersistenceTest, TwoValidSamplesBecomeTheReference) {
   CalibrationSampler sampler;
   sampler.value = 1.0f;
   MQGasSensor sensor{&sampler};
+  CalibrationTimerGuard guard(sensor);
   configure(sensor);
 
   run_calibration(sensor);
@@ -123,6 +133,7 @@ TEST_F(CalibrationPersistenceTest, StoredReferenceIsRestoredForTheSameKey) {
   sampler.value = 1.0f;
   {
     MQGasSensor sensor{&sampler};
+    CalibrationTimerGuard guard(sensor);
     configure(sensor);
     run_calibration(sensor);
     ASSERT_TRUE(sensor.has_r0());
@@ -136,6 +147,7 @@ TEST_F(CalibrationPersistenceTest, StoredReferenceIsRestoredForTheSameKey) {
   host::host_preferences = &reloaded;
 
   MQGasSensor restored{&sampler};
+  CalibrationTimerGuard guard(restored);
   configure(restored);
   restored.setup();
 
@@ -148,6 +160,7 @@ TEST_F(CalibrationPersistenceTest, ADifferentKeyDoesNotRestoreTheReference) {
   sampler.value = 1.0f;
   {
     MQGasSensor sensor{&sampler};
+    CalibrationTimerGuard guard(sensor);
     configure(sensor);
     run_calibration(sensor);
     ASSERT_TRUE(sensor.has_r0());
@@ -186,6 +199,7 @@ TEST_F(CalibrationPersistenceTest, AFailedManualRunKeepsTheReferenceUntilTheNext
 TEST_F(CalibrationPersistenceTest, AFailedSyncIsReportedAndStaysVisible) {
   CalibrationSampler sampler;
   MQGasSensor sensor{&sampler};
+  CalibrationTimerGuard guard(sensor);
   configure(sensor);
   text_sensor::TextSensor log;
   std::string messages;
