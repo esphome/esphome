@@ -204,13 +204,15 @@ void MipiDsi::send_brightness_() {
     return;
   const uint8_t brightness = *this->brightness_;
   esp_err_t err = esp_lcd_panel_io_tx_param(this->io_handle_, BRIGHTNESS_CMD, &brightness, 1);
-  if (this->status_comm_result(err == ESP_OK)) {
+  // The retry is set before logging, as a log callback can set the brightness again
+  if (err == ESP_OK) {
     this->cancel_timeout(BRIGHTNESS_RETRY_ID);
-    return;
+  } else {
+    // The latest value is sent again
+    this->set_timeout(BRIGHTNESS_RETRY_ID, BRIGHTNESS_RETRY_MS, [this]() { this->send_brightness_(); });
+    ESP_LOGW(TAG, "Setting brightness failed: %s", esp_err_to_name(err));
   }
-  ESP_LOGW(TAG, "Setting brightness failed: %s", esp_err_to_name(err));
-  // The latest value is sent again
-  this->set_timeout(BRIGHTNESS_RETRY_ID, BRIGHTNESS_RETRY_MS, [this]() { this->send_brightness_(); });
+  this->status_comm_result(err == ESP_OK);
 }
 
 void MipiDsi::update() {
