@@ -14,13 +14,13 @@ namespace {
 void set_loop_time(uint32_t now) { LoopBlockingGuard clock(nullptr, LOG_STR("test"), now); }
 
 // Publishes source readings at chosen loop times, as the generated code does.
-struct Fixture {
+template<uint32_t MS_PER_UNIT = 1000> struct Fixture {
   sensor::Sensor source;
-  DerivativeSensor derivative;
+  DerivativeSensor<MS_PER_UNIT> derivative;
   int publishes{0};
   float last_rate{NAN};
 
-  explicit Fixture(float time_factor) : derivative(&this->source, time_factor) {
+  Fixture() : derivative(&this->source) {
     this->derivative.add_on_state_callback([this](float rate) {
       this->publishes++;
       this->last_rate = rate;
@@ -37,33 +37,28 @@ struct Fixture {
   }
 };
 
+// A 2.0 change over 1000 ms, scaled to the time unit MS_PER_UNIT.
+template<uint32_t MS_PER_UNIT> void expect_rate(float expected) {
+  Fixture<MS_PER_UNIT> f;
+  EXPECT_FALSE(f.feed(1000, 10.0f)) << "baseline published a rate";
+  EXPECT_TRUE(f.feed(2000, 12.0f));
+  EXPECT_NEAR(f.last_rate, expected, expected * 1e-4f);
+}
+
 }  // namespace
 
-// The same 2.0 change over 1000 ms is scaled by the multiplier generated for each time unit.
 TEST(DerivativeSensor, RateIsScaledToTheConfiguredTimeUnit) {
-  struct Case {
-    float time_factor;
-    float expected;
-  };
-  const Case cases[] = {
-      {1.0f, 0.002f},                   // ms: 2.0 / 1000 ms
-      {1.0f / 1000.0f, 2.0f},           // s:  2.0 / 1 s
-      {1.0f / 60000.0f, 120.0f},        // min: 2.0 / (1/60 min)
-      {1.0f / 3600000.0f, 7200.0f},     // h:  2.0 / (1/3600 h)
-      {1.0f / 86400000.0f, 172800.0f},  // d:  2.0 / (1/86400 d)
-  };
-  for (const Case &c : cases) {
-    Fixture f(c.time_factor);
-    EXPECT_FALSE(f.feed(1000, 10.0f)) << "baseline published a rate";
-    EXPECT_TRUE(f.feed(2000, 12.0f));
-    EXPECT_NEAR(f.last_rate, c.expected, c.expected * 1e-4f);
-  }
+  expect_rate<1>(0.002f);            // ms
+  expect_rate<1000>(2.0f);           // s
+  expect_rate<60000>(120.0f);        // min
+  expect_rate<3600000>(7200.0f);     // h
+  expect_rate<86400000>(172800.0f);  // d
 }
 
 // A NaN reading drops the baseline: nothing is published across the gap, and the first valid
 // reading afterwards only re-establishes it, so the gap never produces a bogus spike.
 TEST(DerivativeSensor, NaNResetsTheBaselineAndTheNextSampleOnlyReestablishesIt) {
-  Fixture f(1.0f / 1000.0f);
+  Fixture<> f;
   EXPECT_FALSE(f.feed(1000, 10.0f));  // baseline
   EXPECT_FALSE(f.feed(2000, NAN));    // gap: baseline dropped, no publish
   EXPECT_EQ(f.publishes, 0);
@@ -78,7 +73,7 @@ TEST(DerivativeSensor, NaNResetsTheBaselineAndTheNextSampleOnlyReestablishesIt) 
 // Two readings at the same loop time publish nothing, and the older baseline is kept so the
 // change shows up on the next reading.
 TEST(DerivativeSensor, SameLoopTimeKeepsTheOlderBaseline) {
-  Fixture f(1.0f / 1000.0f);
+  Fixture<> f;
   EXPECT_FALSE(f.feed(1000, 10.0f));  // baseline at t = 1000
   EXPECT_FALSE(f.feed(1000, 15.0f));  // dt == 0
   EXPECT_EQ(f.publishes, 0);
@@ -93,7 +88,7 @@ TEST(DerivativeSensor, SameLoopTimeKeepsTheOlderBaseline) {
 // huge negative one.
 TEST(DerivativeSensor, LoopClockWraparoundUsesTheUnsignedDelta) {
   // 0xFFFFFF00 -> 0x00000100 wraps around: 512 ms elapsed, not a ~49 day negative gap.
-  Fixture f(1.0f / 1000.0f);
+  Fixture<> f;
   EXPECT_FALSE(f.feed(0xFFFFFF00u, 10.0f));  // baseline just before the wrap
   EXPECT_TRUE(f.feed(0x00000100u, 15.12f));  // 512 ms = 0.512 s later
   EXPECT_NEAR(f.last_rate, 10.0f, 1e-4f);    // (15.12 - 10) / 0.512

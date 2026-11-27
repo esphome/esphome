@@ -8,21 +8,23 @@
 
 namespace esphome::derivative {
 
-class DerivativeSensor final : public sensor::Sensor, public Component {
+class DerivativeSensorBase : public sensor::Sensor, public Component {
  public:
-  /// time_factor converts milliseconds to the configured time unit.
-  DerivativeSensor(sensor::Sensor *source, float time_factor) : time_factor_(time_factor) {
-    source->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
-  }
-
   void dump_config() override;
 
  protected:
-  void process_sensor_value_(float value);
+  void process_sensor_value_(float value, float ms_per_unit);
 
-  float time_factor_;
   uint32_t last_update_{0};
   float last_value_{NAN};  // NAN: no baseline yet
+};
+
+/// MS_PER_UNIT is the configured time unit in milliseconds, a constant rather than a member.
+template<uint32_t MS_PER_UNIT> class DerivativeSensor final : public DerivativeSensorBase {
+ public:
+  explicit DerivativeSensor(sensor::Sensor *source) {
+    source->add_on_state_callback([this](float state) { this->process_sensor_value_(state, MS_PER_UNIT); });
+  }
 };
 
 }  // namespace esphome::derivative

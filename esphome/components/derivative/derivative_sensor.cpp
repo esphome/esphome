@@ -9,9 +9,9 @@ namespace esphome::derivative {
 
 ESPHOME_LOG_TAG(TAG, "derivative");
 
-void DerivativeSensor::dump_config() { LOG_SENSOR("", "Derivative Sensor", this); }
+void DerivativeSensorBase::dump_config() { LOG_SENSOR("", "Derivative Sensor", this); }
 
-void DerivativeSensor::process_sensor_value_(float value) {
+void DerivativeSensorBase::process_sensor_value_(float value, float ms_per_unit) {
   // No valid reading: drop the baseline so a gap never yields a spike.
   if (std::isnan(value)) {
     this->last_value_ = NAN;
@@ -36,7 +36,7 @@ void DerivativeSensor::process_sensor_value_(float value) {
   this->last_value_ = value;
   this->last_update_ = now;
 
-  this->publish_state((value - old_value) / (dt_ms * this->time_factor_));
+  this->publish_state((value - old_value) * ms_per_unit / dt_ms);
 }
 
 }  // namespace esphome::derivative

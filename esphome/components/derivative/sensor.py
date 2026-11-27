@@ -25,11 +25,11 @@ DerivativeSensor = derivative_ns.class_("DerivativeSensor", sensor.Sensor, cg.Co
 
 # Milliseconds in each time unit.
 DERIVATIVE_TIME_UNITS = {
-    "ms": 1.0,
-    "s": 1000.0,
-    "min": 60000.0,
-    "h": 3600000.0,
-    "d": 86400000.0,
+    "ms": 1,
+    "s": 1000,
+    "min": 60000,
+    "h": 3600000,
+    "d": 86400000,
 }
 
 CONF_TIME_UNIT = "time_unit"
@@ -84,7 +84,9 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     source = await cg.get_variable(config[CONF_SENSOR])
     var = cg.new_Pvariable(
-        config[CONF_ID], source, 1.0 / DERIVATIVE_TIME_UNITS[config[CONF_TIME_UNIT]]
+        config[CONF_ID],
+        cg.TemplateArguments(DERIVATIVE_TIME_UNITS[config[CONF_TIME_UNIT]]),
+        source,
     )
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
