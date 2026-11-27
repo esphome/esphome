@@ -4,7 +4,7 @@ from bisect import bisect_right
 from collections import Counter, defaultdict
 from collections.abc import Container
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cache, cached_property
 import logging
 from pathlib import Path
 import re
@@ -273,19 +273,27 @@ def _parse_map_input_sections(map_text: str) -> list[MapInputSection]:
     return sections
 
 
+def _merge_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int]]:
+    """Merge sorted (address, size, name) spans into disjoint (start, end) ranges."""
+    merged: list[tuple[int, int]] = []
+    for address, size, _ in spans:
+        if merged and address <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], address + size))
+        elif size:
+            merged.append((address, address + size))
+    return merged
+
+
 def _covered_bytes(
-    spans: list[tuple[int, int, str]], starts: list[int], start: int, end: int
+    ranges: list[tuple[int, int]], starts: list[int], start: int, end: int
 ) -> int:
-    """Bytes of [start, end) that the sorted symbol spans cover, overlaps counted once."""
+    """Bytes of [start, end) that the disjoint sorted ranges cover."""
     covered = 0
-    cursor = start
-    for index in range(max(0, bisect_right(starts, start) - 1), len(spans)):
-        address, size, _ = spans[index]
-        if address >= end:
+    for index in range(max(0, bisect_right(starts, start) - 1), len(ranges)):
+        range_start, range_end = ranges[index]
+        if range_start >= end:
             break
-        if (stop := min(address + size, end)) > (begin := max(address, cursor)):
-            covered += stop - begin
-            cursor = stop
+        covered += max(0, min(range_end, end) - max(range_start, start))
     return covered
 
 
@@ -548,8 +556,8 @@ class MemoryAnalyzer:
         self._symbol_components: dict[str, str] = {}
         # RAM without a symbol, from the linker map: (object, section, component) -> bytes
         self._unnamed_ram: Counter[tuple[str, str, str]] = Counter()
-        # _analyze_object_rodata charged the unnamed .rodata of objects built next to the ELF
-        self._object_rodata_charged = False
+        # Objects whose unnamed .rodata _analyze_object_rodata already charged
+        self._rodata_scanned_objects: set[Path] = set()
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -560,9 +568,8 @@ class MemoryAnalyzer:
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
         self._analyze_object_rodata()
-        self._attribute_unnamed_ram()
-        if not self._unnamed_ram:
-            # The map already names the objects these symbols would point at
+        if not self._attribute_unnamed_ram():
+            # Without a map, list the SDK's static symbols instead
             self._analyze_sdk_libraries()
         self._analyze_function_calls()
         return dict(self.components)
@@ -1020,6 +1027,10 @@ class MemoryAnalyzer:
         """The linker map next to the ELF, or None without a usable one."""
         map_path = self.elf_path.with_suffix(".map")
         if not map_path.exists() or map_path.stat().st_size < 10000:
+            return None
+        # ld writes the map during the link; one much older is from an earlier build
+        if map_path.stat().st_mtime < self.elf_path.stat().st_mtime - 60:
+            _LOGGER.warning("Ignoring %s: it is older than the ELF", map_path.name)
             return None
         _LOGGER.info("Parsing linker map file: %s", map_path.name)
         try:
@@ -1574,7 +1585,11 @@ class MemoryAnalyzer:
             output = f"File: {objects[0]}\n{output}"
         self._attribute_unnamed_constants(output, obj_dir)
         self._attribute_string_literals(output, obj_dir)
-        self._object_rodata_charged = True
+        self._rodata_scanned_objects = {
+            Path(line[len("File: ") :]).resolve()
+            for line in output.splitlines()
+            if line.startswith("File: ")
+        }
         names = {n for c in self._unnamed_constants for n in c.functions} | {
             n
             for literal in self._string_literals
@@ -1882,16 +1897,18 @@ class MemoryAnalyzer:
                 resolved[name] = [t.decode("utf-8", "backslashreplace") for t in texts]
         return resolved
 
-    def _attribute_unnamed_ram(self) -> None:
+    def _attribute_unnamed_ram(self) -> bool:
         """Charge RAM no symbol covers to its object's component, from the linker map.
 
         Closed-source SDK archives keep most of their buffers without symbols; the
         map still names the object, whose named symbols give the component.
+        Returns whether a map was used.
         """
-        if self._map_text is None or not (
-            inputs := _parse_map_input_sections(self._map_text)
-        ):
-            return
+        if self._map_text is None:
+            return False
+        if not (inputs := _parse_map_input_sections(self._map_text)):
+            _LOGGER.warning("No input sections in the linker map; is it from GNU ld?")
+            return False
         inputs.sort(key=lambda s: s.address)
         starts = [s.address for s in inputs]
         spans = sorted(self._symbol_spans)
@@ -1905,12 +1922,23 @@ class MemoryAnalyzer:
                     size, 1
                 )
 
-        # Relative sources were linked from the build directory
-        build_dir = f"{self.elf_path.parent.resolve()}/"
+        build_dir = self.elf_path.parent.resolve()
+        scanned_names = {path.name for path in self._rodata_scanned_objects}
+
+        @cache
+        def rodata_charged(source: str) -> bool:
+            # Archive members are matched by name inside archives built here
+            archive, _, member = source.rstrip(")").partition("(")
+            path = (build_dir / archive).resolve()
+            if member:
+                return member in scanned_names and build_dir in path.parents
+            return path in self._rodata_scanned_objects
+
         mapped = {
             output: map_section_name(output) for output in {s.output for s in inputs}
         }
-        span_starts = [address for address, _, _ in spans]
+        covered_spans = _merge_spans(spans)
+        span_starts = [start for start, _ in covered_spans]
         # Merged string sections share an address; count their bytes once
         placed_end = 0
         for section in inputs:
@@ -1922,16 +1950,11 @@ class MemoryAnalyzer:
             if end <= start:
                 continue
             placed_end = end
-            if (
-                self._object_rodata_charged
-                and mapped[section.output] == ".rodata"
-                and (
-                    not section.source.startswith("/")
-                    or section.source.startswith(build_dir)
-                )
-            ):
+            if mapped[section.output] == ".rodata" and rodata_charged(section.source):
                 continue
-            unnamed = end - start - _covered_bytes(spans, span_starts, start, end)
+            unnamed = (
+                end - start - _covered_bytes(covered_spans, span_starts, start, end)
+            )
             if unnamed <= 0:
                 continue
             obj = Path(section.source).name
@@ -1949,6 +1972,7 @@ class MemoryAnalyzer:
             entry = (obj, f"{obj} (no symbol)", size, ram_section)
             self._component_symbols[component].append(entry)
             self._ram_symbols[component].append(entry)
+        return True
 
     def get_unnamed_ram(self) -> list[tuple[str, str, str, int]]:
         """RAM charged from the linker map, as (object, section, component, bytes), largest first."""

@@ -1,5 +1,7 @@
 """Tests for charging RAM without symbols from the linker map."""
 
+import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -122,14 +124,59 @@ def test_attribute_unnamed_ram() -> None:
     ) in analyzer._ram_symbols["wifi_stack"]
 
 
-def test_attribute_unnamed_ram_rodata_in_ram() -> None:
-    """ESP8266 .rodata is RAM; objects built next to the ELF were charged by the .rodata pass."""
+@pytest.mark.parametrize("scanned", [True, False])
+def test_attribute_unnamed_ram_rodata_in_ram(scanned: bool) -> None:
+    """ESP8266 .rodata is RAM; objects the .rodata pass read were already charged."""
     analyzer = _analyzer(rodata_in_ram=True)
-    analyzer._object_rodata_charged = True
+    if scanned:
+        build_dir = analyzer.elf_path.parent.resolve()
+        analyzer._rodata_scanned_objects = {build_dir / "obj" / "core" / "core.cpp.o"}
     analyzer._attribute_unnamed_ram()
     unnamed = analyzer.get_unnamed_ram()
     assert ("libc.a(lib_a-ctype_.o)", ".data", "[lib]c", 8) in unnamed
-    assert not any(obj.startswith("libFrameworkArduino.a") for obj, *_ in unnamed)
+    framework = (
+        "libFrameworkArduino.a(core.cpp.o)",
+        ".data",
+        "[lib]FrameworkArduino",
+        8,
+    )
+    assert (framework in unnamed) is not scanned
+
+
+def test_attribute_unnamed_ram_long_symbol_before_short_one() -> None:
+    """A long symbol that starts before a shorter one still covers the bytes after it."""
+    analyzer = _analyzer(rodata_in_ram=False)
+    analyzer.__dict__["_map_text"] = f"""\
+Linker script and memory map
+
+.bss            0x000000003ffe8000      0x100
+ .bss           0x000000003ffe8000      0x100 {SDK}/libpp.a(wdev.o)
+ .bss           0x000000003ffe8100       0x10 {SDK}/libpp.a(pp.o)
+"""
+    analyzer._symbol_spans = [(0x3FFE8000, 0x100, "big"), (0x3FFE8010, 0x4, "small")]
+    analyzer._symbol_components = {"big": "wifi_stack", "small": "wifi_stack"}
+    analyzer._attribute_unnamed_ram()
+    assert analyzer.get_unnamed_ram() == [("libpp.a(pp.o)", ".bss", "[lib]pp", 0x10)]
+
+
+def test_map_text_ignores_stale_map(tmp_path: Path) -> None:
+    """A map much older than the ELF is from an earlier link."""
+    elf = tmp_path / "firmware.elf"
+    elf.write_bytes(b"")
+    map_path = tmp_path / "firmware.map"
+    map_path.write_text(MAP_TEXT * 100)
+    os.utime(map_path, (elf.stat().st_mtime - 3600,) * 2)
+    analyzer = make_analyzer()
+    analyzer.elf_path = elf
+    assert analyzer._map_text is None
+
+
+def test_attribute_unnamed_ram_unparsable_map(caplog: pytest.LogCaptureFixture) -> None:
+    """A map without a GNU ld memory map is reported and not used."""
+    analyzer = _analyzer(rodata_in_ram=False)
+    analyzer.__dict__["_map_text"] = "not a map\n"
+    assert not analyzer._attribute_unnamed_ram()
+    assert "No input sections in the linker map" in caplog.text
 
 
 def test_attribute_unnamed_ram_without_map() -> None:
