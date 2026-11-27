@@ -13,6 +13,9 @@
 
 #include <atomic>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 namespace esphome::usb_audio {
 
 class USBAudioSpeaker : public speaker::Speaker,
@@ -59,7 +62,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   void pad_with_silence_();
   /// Write to the driver, counting the bytes in ring_bytes_ (and in ring_padding_ for silence padding).
   esp_err_t write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding);
-  /// Adds the ring before the padding, the order on_transfer_taken() relies on.
+  /// Adds stored bytes to the ring count; a padding count holds taken_lock_.
   void count_(uint32_t length, bool padding);
   bool settle_stale_count_();
   bool take_(uint32_t ring, uint32_t padding_now, uint32_t size, uint32_t accum, int64_t now_us);
