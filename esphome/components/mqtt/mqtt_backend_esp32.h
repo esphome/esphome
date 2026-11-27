@@ -7,10 +7,12 @@
 #include <atomic>
 #include <string>
 #include <cstring>
-#include <atomic>
 #include <mqtt_client.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#if defined(USE_MQTT_IDF_ENQUEUE)
+#include <freertos/semphr.h>
+#endif
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
@@ -131,33 +133,31 @@ class MQTTBackendESP32 final : public MQTTBackend {
   static constexpr uint8_t MQTT_EVENT_QUEUE_LENGTH = 32;  // Inbound events from broker
   static constexpr uint32_t EVENT_DRAIN_BUDGET_MS = 10;
   static constexpr uint8_t MQTT_EVENT_POOL_SIZE = MQTT_EVENT_QUEUE_LENGTH - 1;
+  // ESP-IDF default network.timeout_ms is 10 s; add 5 s margin for esp_mqtt_client_destroy()
+  static constexpr uint32_t DESTROY_WDT_TIMEOUT_MS = 15000;
 
-  void set_keep_alive(uint16_t keep_alive) final { this->keep_alive_ = keep_alive; }
-  void set_client_id(const char *client_id) final { this->client_id_ = client_id; }
-  void set_clean_session(bool clean_session) final { this->clean_session_ = clean_session; }
+  void set_keep_alive(uint16_t keep_alive) final { this->update_config_(this->keep_alive_, keep_alive); }
+  void set_client_id(const char *client_id) final { this->update_config_string_(this->client_id_, client_id); }
+  void set_clean_session(bool clean_session) final { this->update_config_(this->clean_session_, clean_session); }
 
   void set_credentials(const char *username, const char *password) final {
-    if (username)
-      this->username_ = username;
-    if (password)
-      this->password_ = password;
+    this->update_config_string_(this->username_, username);
+    this->update_config_string_(this->password_, password);
   }
   void set_will(const char *topic, uint8_t qos, bool retain, const char *payload) final {
-    if (topic)
-      this->lwt_topic_ = topic;
-    this->lwt_qos_ = qos;
-    if (payload)
-      this->lwt_message_ = payload;
-    this->lwt_retain_ = retain;
+    this->update_config_string_(this->lwt_topic_, topic);
+    this->update_config_(this->lwt_qos_, qos);
+    this->update_config_string_(this->lwt_message_, payload);
+    this->update_config_(this->lwt_retain_, retain);
   }
   void set_server(network::IPAddress ip, uint16_t port) final {
     char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    this->host_ = ip.str_to(ip_buf);
-    this->port_ = port;
+    this->update_config_string_(this->host_, ip.str_to(ip_buf));
+    this->update_config_(this->port_, port);
   }
   void set_server(const char *host, uint16_t port) final {
-    this->host_ = host;
-    this->port_ = port;
+    this->update_config_string_(this->host_, host);
+    this->update_config_(this->port_, port);
   }
   void set_on_connect(std::function<on_connect_callback_t> &&callback) final {
     this->on_connect_.add(std::move(callback));
@@ -177,14 +177,17 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final {
     this->on_publish_.add(std::move(callback));
   }
-  bool connected() const final { return this->is_connected_; }
+  bool connected() const final { return this->is_connected_.load(std::memory_order_acquire) != 0; }
 
   void connect() final {
+    if (this->is_initialized_ && this->config_changed_) {
+      this->destroy_client_();
+    }
     this->requested_link_state_.store(
         LinkState::LINK_STATE_CONNECTED);  // before start/reconnect, so the MQTT task sees it
-    if (!is_initialized_) {
-      if (initialize_()) {
-        esp_mqtt_client_start(handler_.get());
+    if (!this->is_initialized_) {
+      if (this->initialize_()) {
+        esp_mqtt_client_start(this->handler_.get());
       }
     } else {
       // Only acts in WAIT_RECONNECT; otherwise the state machine retries after DISCONNECTED
@@ -195,14 +198,15 @@ class MQTTBackendESP32 final : public MQTTBackend {
     this->requested_link_state_.store(LinkState::LINK_STATE_DISCONNECTED);
 
     // The MQTT task closes the socket 1 to 20 s later; report it down now so it is never reused
-    this->is_connected_ = false;
+    this->is_connected_.store(0, std::memory_order_release);
 
-    if (is_initialized_)
-      esp_mqtt_client_disconnect(handler_.get());
+    if (this->is_initialized_)
+      esp_mqtt_client_disconnect(this->handler_.get());
   }
-  void disable() final;
 
   bool subscribe(const char *topic, uint8_t qos) final {
+    if (!this->is_initialized_)
+      return false;
     // Stray SUBACKs for resent SUBSCRIBEs of an earlier connection give no credit once they outnumber
     // ours; one counted mid-burst still frees a slot until the burst ends
     const uint16_t counted = this->sent_on_connection_();
@@ -227,20 +231,24 @@ class MQTTBackendESP32 final : public MQTTBackend {
         this->on_subscribe_.size() != 0 ? INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK : INBOUND_SLOTS_PER_SUBSCRIBE);
   }
   bool unsubscribe(const char *topic) final {
+    if (!this->is_initialized_)
+      return false;
 #if defined(USE_MQTT_IDF_ENQUEUE)
-    return enqueue_(MQTT_QUEUE_TYPE_UNSUBSCRIBE, topic);
+    return this->enqueue_(MQTT_QUEUE_TYPE_UNSUBSCRIBE, topic);
 #else
-    return esp_mqtt_client_unsubscribe(handler_.get(), topic) != -1;
+    return esp_mqtt_client_unsubscribe(this->handler_.get(), topic) != -1;
 #endif
   }
 
   bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
+    if (!this->is_initialized_)
+      return false;
 #if defined(USE_MQTT_IDF_ENQUEUE)
-    return enqueue_(MQTT_QUEUE_TYPE_PUBLISH, topic, qos, retain, payload, length);
+    return this->enqueue_(MQTT_QUEUE_TYPE_PUBLISH, topic, qos, retain, payload, length);
 #else
     // might block for several seconds, either due to network timeout (10s)
     // or if publishing payloads longer than internal buffer (due to message fragmentation)
-    return esp_mqtt_client_publish(handler_.get(), topic, payload, length, qos, retain) != -1;
+    return esp_mqtt_client_publish(this->handler_.get(), topic, payload, length, qos, retain) != -1;
 #endif
   }
   using MQTTBackend::publish;
@@ -252,13 +260,13 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
 #ifdef USE_MQTT_TLS
   // The certificates are string literals from code generation, so only the pointers are kept
-  void set_ca_certificate(const char *cert) { this->ca_certificate_ = cert; }
-  void set_cl_certificate(const char *cert) { this->cl_certificate_ = cert; }
-  void set_cl_key(const char *key) { this->cl_key_ = key; }
-  void set_skip_cert_cn_check(bool skip_check) { this->skip_cert_cn_check_ = skip_check; }
+  void set_ca_certificate(const char *cert) { this->update_config_(this->ca_certificate_, cert); }
+  void set_cl_certificate(const char *cert) { this->update_config_(this->cl_certificate_, cert); }
+  void set_cl_key(const char *key) { this->update_config_(this->cl_key_, key); }
+  void set_skip_cert_cn_check(bool skip_check) { this->update_config_(this->skip_cert_cn_check_, skip_check); }
 #endif
-  void set_transport(MQTTTransport transport) { this->transport_ = transport; }
-  void set_ws_path(const char *path) { this->ws_path_ = path; }
+  void set_transport(MQTTTransport transport) { this->update_config_(this->transport_, transport); }
+  void set_ws_path(const char *path) { this->update_config_(this->ws_path_, path); }
   MQTTTransport get_transport() const { return this->transport_; }
   const char *get_ws_path() const { return this->ws_path_; }
 
@@ -269,7 +277,27 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // for a scenario that never occurs in practice.
 
  protected:
+  template<typename T> void update_config_(T &field, const T &value) {
+    if (field != value) {
+      field = value;
+      this->config_changed_ = true;
+    }
+  }
+  void update_config_string_(std::string &field, const char *value) {
+    if (value == nullptr || *value == '\0') {
+      if (!field.empty()) {
+        field.clear();
+        this->config_changed_ = true;
+      }
+    } else if (field != value) {
+      field = value;
+      this->config_changed_ = true;
+    }
+  }
+
+  esp_mqtt_client_config_t build_config_() const;
   bool initialize_();
+  void destroy_client_();
   void mqtt_event_handler_(const Event &event);
   void handle_disconnected_();
   static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
@@ -289,8 +317,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
   using ClientHandler_ = std::unique_ptr<esp_mqtt_client, MqttClientDeleter>;
   ClientHandler_ handler_;
 
-  bool is_connected_{false};
+  // uint8_t, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
+  std::atomic<uint8_t> is_connected_{0};
   bool is_initialized_{false};
+  bool config_changed_{false};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   // Queued SUBSCRIBEs the task could not send
   std::atomic<uint16_t> subscribes_lost_{0};
@@ -305,25 +335,23 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // Link state seen by the MQTT task, so loop() can catch a dropped DISCONNECTED
   std::atomic<LinkState> task_link_state_{LinkState::LINK_STATE_DISCONNECTED};
 
-  esp_mqtt_client_config_t mqtt_cfg_{};
-
   std::string host_;
-  uint16_t port_;
+  uint16_t port_{0};
   /// SUBSCRIBEs sent on this connection
   uint16_t subscribes_sent_{0};
   std::string username_;
   std::string password_;
   std::string lwt_topic_;
   std::string lwt_message_;
-  uint8_t lwt_qos_;
-  bool lwt_retain_;
+  uint8_t lwt_qos_{0};
+  bool lwt_retain_{false};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   // subscribes_lost_ when this connection started
   uint16_t subscribes_lost_at_connect_{0};
 #endif
   std::string client_id_;
-  uint16_t keep_alive_;
-  bool clean_session_;
+  uint16_t keep_alive_{0};
+  bool clean_session_{false};
   bool dispatching_{false};
   // uint8_t because atomic<bool> is out of line on Xtensa
   std::atomic<uint8_t> tracked_acked_{0};
@@ -340,9 +368,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // Pool sized to queue capacity (SIZE-1) — see mqtt_event_pool_ comment.
   EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
+  StaticSemaphore_t client_mutex_storage_{};
+  SemaphoreHandle_t client_mutex_{nullptr};
   TaskHandle_t task_handle_{nullptr};
-  TaskHandle_t teardown_task_handle_{nullptr};
-  std::atomic<bool> task_shutdown_requested_{false};
   // Only the task writes, so no atomic read-modify-write is needed
   void count_lost_subscribe_() {
     this->subscribes_lost_.store(this->subscribes_lost_.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);

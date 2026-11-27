@@ -18,84 +18,84 @@ namespace esphome::mqtt {
 
 ESPHOME_LOG_TAG(TAG, "mqtt");
 
-bool MQTTBackendESP32::initialize_() {
-  // Clear configuration to avoid dangling pointers on re-initialization
-  this->mqtt_cfg_ = {};
-
-  mqtt_cfg_.broker.address.hostname = this->host_.c_str();
-  mqtt_cfg_.broker.address.port = this->port_;
-  mqtt_cfg_.session.keepalive = this->keep_alive_;
-  mqtt_cfg_.session.disable_clean_session = !this->clean_session_;
+esp_mqtt_client_config_t MQTTBackendESP32::build_config_() const {
+  // The client copies what it keeps, so the struct only lives for the call
+  esp_mqtt_client_config_t mqtt_cfg{};
+  mqtt_cfg.broker.address.hostname = this->host_.c_str();
+  mqtt_cfg.broker.address.port = this->port_;
+  mqtt_cfg.session.keepalive = this->keep_alive_;
+  mqtt_cfg.session.disable_clean_session = !this->clean_session_;
   // ESPHome's state machine drives reconnects, so the client stays down after disconnect()
-  mqtt_cfg_.network.disable_auto_reconnect = true;
+  mqtt_cfg.network.disable_auto_reconnect = true;
 
   if (!this->username_.empty()) {
-    mqtt_cfg_.credentials.username = this->username_.c_str();
+    mqtt_cfg.credentials.username = this->username_.c_str();
     if (!this->password_.empty()) {
-      mqtt_cfg_.credentials.authentication.password = this->password_.c_str();
+      mqtt_cfg.credentials.authentication.password = this->password_.c_str();
     }
   }
 
   if (!this->lwt_topic_.empty()) {
-    mqtt_cfg_.session.last_will.topic = this->lwt_topic_.c_str();
-    this->mqtt_cfg_.session.last_will.qos = this->lwt_qos_;
-    this->mqtt_cfg_.session.last_will.retain = this->lwt_retain_;
+    mqtt_cfg.session.last_will.topic = this->lwt_topic_.c_str();
+    mqtt_cfg.session.last_will.qos = this->lwt_qos_;
+    mqtt_cfg.session.last_will.retain = this->lwt_retain_;
 
     if (!this->lwt_message_.empty()) {
-      mqtt_cfg_.session.last_will.msg = this->lwt_message_.c_str();
-      mqtt_cfg_.session.last_will.msg_len = this->lwt_message_.size();
+      mqtt_cfg.session.last_will.msg = this->lwt_message_.c_str();
+      mqtt_cfg.session.last_will.msg_len = this->lwt_message_.size();
     }
   }
 
   if (!this->client_id_.empty()) {
-    mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
+    mqtt_cfg.credentials.client_id = this->client_id_.c_str();
   }
 #ifdef USE_MQTT_TLS
-  mqtt_cfg_.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
-  mqtt_cfg_.broker.verification.certificate = this->ca_certificate_;
+  mqtt_cfg.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
+  mqtt_cfg.broker.verification.certificate = this->ca_certificate_;
 #ifdef USE_MQTT_CERT_BUNDLE
-  mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+  mqtt_cfg.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
   // Validation only accepts the client certificate together with its key
-  mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_;
-  mqtt_cfg_.credentials.authentication.key = this->cl_key_;
+  mqtt_cfg.credentials.authentication.certificate = this->cl_certificate_;
+  mqtt_cfg.credentials.authentication.key = this->cl_key_;
 #endif
   // Validation keeps TLS off plain ws, so only the TCP transport has two forms
   switch (this->transport_) {
     case MQTTTransport::MQTT_TRANSPORT_WS:
-      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+      mqtt_cfg.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
       break;
     case MQTTTransport::MQTT_TRANSPORT_WSS:
-      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+      mqtt_cfg.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
       break;
     case MQTTTransport::MQTT_TRANSPORT_TCP:
     default:
 #ifdef USE_MQTT_TLS
-      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+      mqtt_cfg.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
 #else
-      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+      mqtt_cfg.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
 #endif
       break;
   }
   // Only set for the WebSocket transports
-  mqtt_cfg_.broker.address.path = this->ws_path_;
+  mqtt_cfg.broker.address.path = this->ws_path_;
+  return mqtt_cfg;
+}
 
-  auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
-  if (mqtt_client) {
-    handler_.reset(mqtt_client);
-    is_initialized_ = true;
-    esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
+bool MQTTBackendESP32::initialize_() {
+  const esp_mqtt_client_config_t mqtt_cfg = this->build_config_();
+  auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
+  if (mqtt_client == nullptr) {
+    ESP_LOGE(TAG, "Failed to init client");
+    return false;
+  }
+
 #if defined(USE_MQTT_IDF_ENQUEUE)
-    // Forcibly clean up any lingering zombie task from a previous failed teardown
-    if (this->task_handle_ != nullptr) {
-      ESP_LOGE(TAG, "Zombie MQTT task detected on reconnect! Forcibly deleting.");
-      vTaskDelete(this->task_handle_);
-      this->task_handle_ = nullptr;
-    }
-
-    this->task_shutdown_requested_.store(false, std::memory_order_release);
-
-    // Create the task only after MQTT client is initialized successfully
+  if (this->client_mutex_ == nullptr) {
+    this->client_mutex_ = xSemaphoreCreateMutexStatic(&this->client_mutex_storage_);
+  }
+  if (this->task_handle_ == nullptr) {
+    // Store the client handle before creating the task for the first time
+    this->handler_.reset(mqtt_client);
     // Use larger stack size when TLS is enabled
 #ifdef USE_MQTT_TLS
     constexpr size_t stack_size = TASK_STACK_SIZE_TLS;
@@ -106,86 +106,75 @@ bool MQTTBackendESP32::initialize_() {
     if (this->task_handle_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create MQTT task");
       // Clean up MQTT client since we can't start the async task
-      handler_.reset();
-      is_initialized_ = false;
+      this->handler_.reset();
       return false;
     }
     // Set the task handle so the queue can notify it
     this->mqtt_queue_.set_task_to_notify(this->task_handle_);
-#endif
-    return true;
   } else {
-    ESP_LOGE(TAG, "Failed to init client");
-    return false;
+    // The outbound task stays alive across client recreations; publish the new handle under the mutex
+    xSemaphoreTake(this->client_mutex_, portMAX_DELAY);
+    this->handler_.reset(mqtt_client);
+    xSemaphoreGive(this->client_mutex_);
   }
+#else
+  this->handler_.reset(mqtt_client);
+#endif
+
+  esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
+  this->is_initialized_ = true;
+  this->config_changed_ = false;
+  return true;
 }
 
-void MQTTBackendESP32::disable() {
+void MQTTBackendESP32::destroy_client_() {
   if (!this->is_initialized_) {
     return;
   }
-  this->is_connected_ = false;
+  this->is_connected_.store(0, std::memory_order_release);
+  this->is_initialized_ = false;
 
+  ClientHandler_ old_client;
 #if defined(USE_MQTT_IDF_ENQUEUE)
-  // Stop async MQTT task before releasing resources it may use
-  this->mqtt_queue_.set_task_to_notify(nullptr);
-  if (this->task_handle_ != nullptr) {
-    // Register the current task to receive the exit notification
-    this->teardown_task_handle_ = xTaskGetCurrentTaskHandle();
-    this->task_shutdown_requested_.store(true, std::memory_order_release);
-    xTaskNotifyGive(this->task_handle_);
-
-    // Wait up to 100ms for the task to signal it is exiting
-    uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
-
-    if (notified == 0) {
-      ESP_LOGE(TAG, "MQTT task did not exit cleanly. Retaining handle for forced cleanup.");
-      // DANGER:
-      // We intentionally DO NOT reset task_shutdown_requested_ to false, so the
-      // zombie task will detect the shutdown request and abort.
-      // We intentionally DO NOT set task_handle_ to nullptr, so this leaves a
-      // breadcrumb for initialize_() to find and kill the zombie.
-    } else {
-      // Task exited cleanly: safe to reset everything
-      this->task_shutdown_requested_.store(false, std::memory_order_release);
-      this->task_handle_ = nullptr;
+  if (this->client_mutex_ != nullptr) {
+    // Wait for any in-flight publish/subscribe in esphome_mqtt_task to release the old handle
+    while (xSemaphoreTake(this->client_mutex_, pdMS_TO_TICKS(1000)) != pdTRUE) {
+      App.feed_wdt();
     }
-
-    this->teardown_task_handle_ = nullptr;
+    old_client = std::move(this->handler_);
+    xSemaphoreGive(this->client_mutex_);
+  } else {
+    old_client = std::move(this->handler_);
   }
-
-  // Release any queued elements that were not processed
-  struct QueueElement *elem;
-  while ((elem = this->mqtt_queue_.pop()) != nullptr) {
-    this->mqtt_outbound_pool_.release(elem);
+  // Wake the outbound task so it drains any stale queued items as the sole consumer
+  if (this->task_handle_ != nullptr) {
+    xTaskNotifyGive(this->task_handle_);
   }
-
   this->last_dropped_log_time_ = 0;
+#else
+  old_client = std::move(this->handler_);
 #endif
 
-  esp_mqtt_client_handle_t client = this->handler_.get();
-  if (client != nullptr) {
-    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
+  if (old_client != nullptr) {
+    esp_mqtt_client_unregister_event(old_client.get(), MQTT_EVENT_ANY, mqtt_event_handler);
+    // esp_mqtt_client_destroy() stops the ESP-IDF MQTT task and can block up to its network timeout
+    watchdog::WatchdogManager wdm(DESTROY_WDT_TIMEOUT_MS);
+    App.feed_wdt();
+    old_client.reset();
   }
 
-  // Drain inbound events that arrived before unregistering
+  // Drain inbound events after the ESP-IDF MQTT task has exited so no late events arrive after draining
   Event *event;
   while ((event = this->mqtt_event_queue_.pop()) != nullptr) {
     this->mqtt_event_pool_.release(event);
   }
-  // We must extend the watchdog before resetting the handler,
-  // as the handler's destructor may block for a while if the MQTT task
-  // is in the middle of trying to connect to a broker that is not responding
-  // NOTE: network.timeout_ms is currently not used, but if we ever add a
-  // configurable timeout, we should take it into account.
-  // ESP-IDF default timeout is 10s, and we add + 5s margin
-  uint32_t wdt_timeout = (this->mqtt_cfg_.network.timeout_ms > 0) ? this->mqtt_cfg_.network.timeout_ms + 1000 : 15000;
-  watchdog::WatchdogManager wdm(wdt_timeout);
-
-  // Stops and destroys the client
-  App.feed_wdt();
-  this->handler_.reset();
-  this->is_initialized_ = false;
+  this->task_link_state_.store(LinkState::LINK_STATE_DISCONNECTED, std::memory_order_relaxed);
+  this->cached_topic_.clear();
+  this->subacks_.reset();
+  this->subscribes_sent_ = 0;
+  this->tracked_msg_id_.store(0, std::memory_order_relaxed);
+  this->acked_msg_id_.store(0, std::memory_order_relaxed);
+  this->tracked_acked_.store(0, std::memory_order_relaxed);
 }
 
 void MQTTBackendESP32::loop() {
@@ -209,7 +198,7 @@ void MQTTBackendESP32::loop() {
 
   // A dropped DISCONNECTED, handled once the queue drains. Read task_link_state_ before empty():
   // it is cleared after the push.
-  if (this->is_connected_ && this->task_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED &&
+  if (this->connected() && this->task_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED &&
       this->mqtt_event_queue_.empty()) {
     ESP_LOGW(TAG, "Disconnect event was dropped, handling it now");
     this->handle_disconnected_();
@@ -256,15 +245,13 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
         ESP_LOGV(TAG, "Ignoring CONNECTED, disconnect pending");
         break;
       }
-      this->is_connected_ = true;
+      this->is_connected_.store(1, std::memory_order_release);
       // The MQTT task already reset subacks_
       this->subscribes_sent_ = 0;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->subscribes_lost_at_connect_ = this->subscribes_lost_.load(std::memory_order_relaxed);
       this->last_dropped_log_time_ = 0;
-      if (this->task_handle_ != nullptr) {
-        xTaskNotifyGive(this->task_handle_);
-      }
+      xTaskNotifyGive(this->task_handle_);
 #endif
       this->on_connect_.call(event.session_present);
       break;
@@ -319,12 +306,10 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 }
 
 void MQTTBackendESP32::handle_disconnected_() {
-  this->is_connected_ = false;
+  this->is_connected_.store(0, std::memory_order_release);
 #if defined(USE_MQTT_IDF_ENQUEUE)
   this->last_dropped_log_time_ = 0;
-  if (this->task_handle_ != nullptr) {
-    xTaskNotifyGive(this->task_handle_);
-  }
+  xTaskNotifyGive(this->task_handle_);
 #endif
   this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
 }
@@ -402,6 +387,8 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
 }
 
 bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
+  if (!this->is_initialized_)
+    return false;
   this->tracked_acked_.store(0, std::memory_order_relaxed);
   // Sent directly even with idf_send_async, so the message id is known here
   int msg_id = esp_mqtt_client_publish(this->handler_.get(), message.topic.c_str(), message.payload.c_str(),
@@ -417,66 +404,52 @@ bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
 
 #if defined(USE_MQTT_IDF_ENQUEUE)
 void MQTTBackendESP32::esphome_mqtt_task(void *params) {
-  MQTTBackendESP32 *this_mqtt = (MQTTBackendESP32 *) params;
+  MQTTBackendESP32 *this_mqtt = static_cast<MQTTBackendESP32 *>(params);
 
   while (true) {
     // Wait for notification indefinitely
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    // Read the atomic flag each wakeup
-    bool shutdown = this_mqtt->task_shutdown_requested_.load(std::memory_order_acquire);
-
-    struct QueueElement *elem;
-    // Drain remaining items safely during shutdown
-    if (shutdown) {
-      while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
-        this_mqtt->mqtt_outbound_pool_.release(elem);
-      }
-      break;
-    }
     // Process all queued items
+    struct QueueElement *elem;
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
+      bool sent = false;
       if (this_mqtt->connected()) {
-        switch (elem->type) {
-          case MQTT_QUEUE_TYPE_SUBSCRIBE:
-            if (esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos) == -1)
-              this_mqtt->count_lost_subscribe_();
-            break;
-          case MQTT_QUEUE_TYPE_UNSUBSCRIBE:
-            esp_mqtt_client_unsubscribe(this_mqtt->handler_.get(), elem->topic);
-            break;
-          case MQTT_QUEUE_TYPE_PUBLISH:
-            esp_mqtt_client_publish(this_mqtt->handler_.get(), elem->topic, elem->payload, elem->payload_len, elem->qos,
-                                    elem->retain);
-            break;
-          default:
-            ESP_LOGE(TAG, "Invalid operation type from MQTT queue");
-            break;
+        xSemaphoreTake(this_mqtt->client_mutex_, portMAX_DELAY);
+        esp_mqtt_client_handle_t client = this_mqtt->handler_.get();
+        if (client != nullptr && this_mqtt->connected()) {
+          sent = true;
+          switch (elem->type) {
+            case MQTT_QUEUE_TYPE_SUBSCRIBE:
+              if (esp_mqtt_client_subscribe(client, elem->topic, elem->qos) == -1)
+                this_mqtt->count_lost_subscribe_();
+              break;
+
+            case MQTT_QUEUE_TYPE_UNSUBSCRIBE:
+              esp_mqtt_client_unsubscribe(client, elem->topic);
+              break;
+
+            case MQTT_QUEUE_TYPE_PUBLISH:
+              esp_mqtt_client_publish(client, elem->topic, elem->payload, elem->payload_len, elem->qos, elem->retain);
+              break;
+
+            default:
+              ESP_LOGE(TAG, "Invalid operation type from MQTT queue");
+              break;
+          }
         }
-      } else if (elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
+        xSemaphoreGive(this_mqtt->client_mutex_);
+      }
+      if (!sent && elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
         this_mqtt->count_lost_subscribe_();
       }
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }
   }
-
-  // Notify the teardown thread that we are cleanly exiting
-  if (this_mqtt->teardown_task_handle_ != nullptr) {
-    xTaskNotifyGive(this_mqtt->teardown_task_handle_);
-  }
-
-  vTaskDelete(nullptr);
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
-  // Reject new enqueues if we are disabled to avoid burning pool slots
-  // and publishing stale data when re-enabled
-  if (!this->is_initialized_) {
-    this->mqtt_queue_.increment_dropped_count();
-    return false;
-  }
-
   auto *elem = this->mqtt_outbound_pool_.allocate();
 
   if (!elem) {
