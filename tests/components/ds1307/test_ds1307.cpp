@@ -2,15 +2,20 @@
 
 #include <array>
 #include <ctime>
+#include <string>
 
 #include "esphome/components/ds1307/ds1307.h"
+#include "esphome/components/logger/logger.h"
 #include "esphome/core/time.h"
 
 namespace esphome::ds1307::testing {
 
 static constexpr uint8_t ADDRESS = 0x68;
 static constexpr uint8_t SECONDS_REG = 0x00;
+static constexpr uint8_t HOURS_REG = 0x02;
 static constexpr uint8_t CONTROL_REG = 0x07;
+static constexpr uint8_t HOURS_12H = 0x40;
+static constexpr uint8_t HOURS_PM = 0x20;
 static constexpr uint8_t CLOCK_HALT_BIT = 0x80;
 static constexpr uint8_t CONTROL_OUT_SQWE_RS = 0x93;  // OUT, SQWE and both rate select bits set
 
@@ -127,6 +132,24 @@ TEST_F(DS1307Test, WriteTimeKeepsTheControlRegister) {
   this->rtc_.setup();
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.registers[CONTROL_REG], CONTROL_OUT_SQWE_RS);
+}
+
+// Another library may have left the chip in 12-hour mode; the host's time written that way reads back as the same
+// time, so the sync finds the clock already set and does not log a new one.
+TEST_F(DS1307Test, TwelveHourModeReadsBack) {
+  this->load_current_time_(false);
+  const uint8_t hour = ESPTime::from_epoch_utc(::time(nullptr)).hour;
+  const uint8_t hour_12 = hour % 12 == 0 ? 12 : hour % 12;
+  this->bus_.registers[HOURS_REG] = HOURS_12H | (hour >= 12 ? HOURS_PM : 0) | to_bcd(hour_12);
+  this->rtc_.setup();
+  const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+  logger::global_logger->set_baud_rate(115200);
+  ::testing::internal::CaptureStdout();
+  this->rtc_.read_time();
+  const std::string log = ::testing::internal::GetCapturedStdout();
+  logger::global_logger->set_baud_rate(baud_rate);
+  EXPECT_EQ(this->syncs_, 1u);
+  EXPECT_EQ(log.find("Synchronized time"), std::string::npos) << log;
 }
 
 }  // namespace esphome::ds1307::testing
