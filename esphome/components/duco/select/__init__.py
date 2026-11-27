@@ -1,5 +1,7 @@
+import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, CONF_MODE
 from esphome.types import ConfigType
 
 from .. import (
@@ -33,13 +35,21 @@ DUCO_MODE_OPTIONS = [
 
 DucoSelect = duco_ns.class_("DucoSelect", DucoDevice, select.Select)
 
-CONFIG_SCHEMA = (
+MODE_SCHEMA = (
     select.select_schema(DucoSelect)
+    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(0, 68)})
     .extend(cv.polling_component_schema("3s"))
-    .extend(DUCO_COMPONENT_SCHEMA)
+)
+CONFIG_SCHEMA = cv.Any(
+    MODE_SCHEMA.extend(DUCO_COMPONENT_SCHEMA),
+    DUCO_COMPONENT_SCHEMA.extend({cv.Required(CONF_MODE): cv.ensure_list(MODE_SCHEMA)}),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await select.new_select(config, options=DUCO_MODE_OPTIONS, fixed_options=True)
-    await register_duco_device(var, config, config[CONF_DUCO_ID])
+    for entity_config in config.get(CONF_MODE, [config]):
+        var = await select.new_select(
+            entity_config, options=DUCO_MODE_OPTIONS, fixed_options=True
+        )
+        cg.add(var.set_address(entity_config[CONF_ADDRESS]))
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
