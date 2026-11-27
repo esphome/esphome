@@ -121,19 +121,48 @@ TEST(YoloCandidateTest, ALowObjectnessSkipsTheClassScores) {
 }
 
 namespace {
-/// Two candidates with two classes, each as {x, y, width, height, (objectness,) class scores} in quarters.
-std::vector<Detection> decode_quantized(DetectionFormat format, const std::vector<std::vector<int>> &candidates) {
-  const size_t fields = candidates[0].size();
+constexpr TensorTypeCodes TYPES{1, 3, 9, 2};
+
+/// The members of TfLiteTensor the readers use.
+struct FakeTensor {
+  struct Dims {
+    int size;
+    int data[3];
+  };
+  int type;
+  Dims *dims;
+  union {
+    void *raw;
+    float *f;
+    uint8_t *uint8;
+    int8_t *int8;
+    int32_t *i32;
+  } data;
+  struct {
+    float scale;
+    int zero_point;
+  } params;
+};
+
+/// Decodes two candidates, each {x, y, width, height, (objectness,) two class scores} in quarters,
+/// from a quantized tensor in the layout of @p format, with scale 1/4.
+template<typename Element>
+std::vector<Detection> decode_quantized(DetectionFormat format, int type, int zero_point,
+                                        const std::vector<std::vector<int>> &candidates) {
+  const int fields = candidates[0].size();
+  const int rows = candidates.size();
   const bool v5 = format == DetectionFormat::DETECTION_FORMAT_YOLOV5;
-  // An int8 tensor in the model's layout, with scale 1/4 and zero point -2.
-  std::vector<int8_t> tensor(fields * candidates.size());
-  for (size_t c = 0; c < candidates.size(); c++) {
-    for (size_t f = 0; f < fields; f++)
-      tensor[v5 ? c * fields + f : f * candidates.size() + c] = static_cast<int8_t>(candidates[c][f] - 2);
+  std::vector<Element> values(fields * rows);
+  for (int c = 0; c < rows; c++) {
+    for (int f = 0; f < fields; f++)
+      values[v5 ? c * fields + f : f * rows + c] = static_cast<Element>(candidates[c][f] + zero_point);
   }
+  FakeTensor::Dims dims{3, {1, v5 ? rows : fields, v5 ? fields : rows}};
+  FakeTensor tensor{type, &dims, {values.data()}, {0.25f, zero_point}};
   std::vector<Detection> kept(4);
-  kept.resize(decode_yolo(kept.data(), kept.size(), 0.5f, 0.5f, format, fields, candidates.size(),
-                          [&](size_t index) { return (tensor[index] + 2) * 0.25f; }));
+  size_t count = 0;
+  EXPECT_TRUE(decode_yolo_tensor(&tensor, TYPES, format, 0.5f, 0.5f, kept.data(), kept.size(), count));
+  kept.resize(count);
   return kept;
 }
 
@@ -149,16 +178,41 @@ void expect_two_boxes(const std::vector<Detection> &kept) {
   EXPECT_FLOAT_EQ(kept[1].x_max, 0.75f);
   EXPECT_FLOAT_EQ(kept[1].y_min, 0.0f);
 }
+
+const std::vector<std::vector<int>> V5_CANDIDATES{{2, 2, 2, 4, 4, 3, 1}, {8, 8, 4, 4, 4, 1, 4}};
+const std::vector<std::vector<int>> V8_CANDIDATES{{2, 2, 2, 4, 3, 1}, {8, 8, 4, 4, 1, 4}};
 }  // namespace
 
-TEST(YoloLayoutTest, Yolov5ReadsOneCandidatePerRow) {
+TEST(YoloTensorTest, Yolov5ReadsOneCandidatePerRow) {
+  expect_two_boxes(decode_quantized<int8_t>(DetectionFormat::DETECTION_FORMAT_YOLOV5, TYPES.int8, -20, V5_CANDIDATES));
   expect_two_boxes(
-      decode_quantized(DetectionFormat::DETECTION_FORMAT_YOLOV5, {{2, 2, 2, 4, 4, 3, 1}, {8, 8, 4, 4, 4, 1, 4}}));
+      decode_quantized<uint8_t>(DetectionFormat::DETECTION_FORMAT_YOLOV5, TYPES.uint8, 100, V5_CANDIDATES));
 }
 
-TEST(YoloLayoutTest, Yolov8ReadsOneCandidatePerColumn) {
+TEST(YoloTensorTest, Yolov8ReadsOneCandidatePerColumn) {
+  expect_two_boxes(decode_quantized<int8_t>(DetectionFormat::DETECTION_FORMAT_YOLOV8, TYPES.int8, -20, V8_CANDIDATES));
   expect_two_boxes(
-      decode_quantized(DetectionFormat::DETECTION_FORMAT_YOLOV8, {{2, 2, 2, 4, 3, 1}, {8, 8, 4, 4, 1, 4}}));
+      decode_quantized<uint8_t>(DetectionFormat::DETECTION_FORMAT_YOLOV8, TYPES.uint8, 100, V8_CANDIDATES));
+}
+
+TEST(YoloTensorTest, AnUnusableTensorIsRejected) {
+  float values[12]{};
+  FakeTensor::Dims dims{3, {1, 2, 6}};
+  FakeTensor tensor{TYPES.float32, &dims, {values}, {1.0f, 0}};
+  Detection kept[1];
+  size_t count = 1;
+  const auto decode = [&](DetectionFormat format) {
+    return decode_yolo_tensor(&tensor, TYPES, format, 0.5f, 0.5f, kept, 1, count);
+  };
+  EXPECT_TRUE(decode(DetectionFormat::DETECTION_FORMAT_YOLOV5));
+  EXPECT_EQ(count, 0u);
+  // yolov8 reads the same shape as two fields per candidate, too few for a box and a class.
+  EXPECT_FALSE(decode(DetectionFormat::DETECTION_FORMAT_YOLOV8));
+  tensor.type = 4;  // int64
+  EXPECT_FALSE(decode(DetectionFormat::DETECTION_FORMAT_YOLOV5));
+  tensor.type = TYPES.float32;
+  dims.data[0] = 2;
+  EXPECT_FALSE(decode(DetectionFormat::DETECTION_FORMAT_YOLOV5));
 }
 
 }  // namespace esphome::tflite_detection::testing

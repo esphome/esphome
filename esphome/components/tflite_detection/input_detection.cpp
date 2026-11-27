@@ -31,39 +31,11 @@ bool suppresses(const Detection &kept, const Detection &candidate, float iou_thr
 namespace {
 ESPHOME_LOG_TAG(TAG, "tflite_detection");
 
-/// Number of entries a tensor can hold; 0 for a tensor without usable dimensions.
-size_t tensor_elements(const TfLiteTensor *tensor) {
-  if (tensor == nullptr || tensor->dims == nullptr)
-    return 0;
-  size_t count = 1;
-  for (int i = 0; i < tensor->dims->size; i++) {
-    if (tensor->dims->data[i] <= 0)
-      return 0;
-    count *= static_cast<size_t>(tensor->dims->data[i]);
-  }
-  return count;
-}
+constexpr TensorTypeCodes TENSOR_TYPES{kTfLiteFloat32, kTfLiteUInt8, kTfLiteInt8, kTfLiteInt32};
 
 /// One entry of any output tensor the runtime can hand over.
 bool tensor_value(const TfLiteTensor *tensor, size_t index, float *out) {
-  if (tensor == nullptr || tensor->data.raw == nullptr || index >= tensor_elements(tensor))
-    return false;
-  switch (tensor->type) {
-    case kTfLiteFloat32:
-      *out = tensor->data.f[index];
-      return true;
-    case kTfLiteUInt8:
-      *out = (static_cast<int>(tensor->data.uint8[index]) - tensor->params.zero_point) * tensor->params.scale;
-      return true;
-    case kTfLiteInt8:
-      *out = (static_cast<int>(tensor->data.int8[index]) - tensor->params.zero_point) * tensor->params.scale;
-      return true;
-    case kTfLiteInt32:
-      *out = static_cast<float>(tensor->data.i32[index]);
-      return true;
-    default:
-      return false;
-  }
+  return read_element(tensor, index, out, TENSOR_TYPES);
 }
 }  // namespace
 
@@ -124,27 +96,11 @@ bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
 }
 
 bool DetectionDecoder::decode_yolo_(const TfLiteTensor *tensor) {
-  const bool v5 = this->format_ == DetectionFormat::DETECTION_FORMAT_YOLOV5;
-  const size_t fields_before_classes = v5 ? 5 : 4;
-  if (tensor->dims == nullptr || tensor->dims->size != 3 || tensor->dims->data[0] != 1 || tensor->dims->data[1] <= 0 ||
-      tensor->dims->data[2] <= 0) {
-    ESP_LOGE(TAG, "The candidate tensor does not have 3 dimensions");
+  if (!decode_yolo_tensor(tensor, TENSOR_TYPES, this->format_, this->score_threshold_, this->iou_threshold_,
+                          this->detections_.get(), this->max_detections_, this->detection_count_)) {
+    ESP_LOGE(TAG, "The candidate tensor is not [1, N, M] with class scores of a supported type");
     return false;
   }
-  const size_t fields = tensor->dims->data[v5 ? 2 : 1];
-  const size_t candidates = tensor->dims->data[v5 ? 1 : 2];
-  float probe = 0.0f;
-  if (fields <= fields_before_classes || !tensor_value(tensor, 0, &probe)) {
-    ESP_LOGE(TAG, "The candidate tensor has no class scores or an unsupported type");
-    return false;
-  }
-  this->detection_count_ = decode_yolo(this->detections_.get(), this->max_detections_, this->score_threshold_,
-                                       this->iou_threshold_, this->format_, fields, candidates, [tensor](size_t index) {
-                                         // The shape and type were checked above, so the read cannot fail.
-                                         float out = 0.0f;
-                                         tensor_value(tensor, index, &out);
-                                         return out;
-                                       });
   return true;
 }
 

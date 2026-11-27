@@ -136,6 +136,77 @@ size_t decode_yolo(Detection *selected, size_t max_detections, float score_thres
                            });
 }
 
+// The readers below are templates over the tensor type, so host tests can run them on a double.
+
+/// The values TfLiteTensor::type takes for the element types the decoder reads.
+struct TensorTypeCodes {
+  int float32;
+  int uint8;
+  int int8;
+  int int32;
+};
+
+/// Number of entries a tensor can hold; 0 for a tensor without usable dimensions.
+template<typename Tensor> size_t tensor_elements(const Tensor *tensor) {
+  if (tensor == nullptr || tensor->dims == nullptr)
+    return 0;
+  size_t count = 1;
+  for (int i = 0; i < tensor->dims->size; i++) {
+    if (tensor->dims->data[i] <= 0)
+      return 0;
+    count *= static_cast<size_t>(tensor->dims->data[i]);
+  }
+  return count;
+}
+
+/// One dequantized entry of an output tensor; false past its end or for another element type.
+template<typename Tensor>
+bool read_element(const Tensor *tensor, size_t index, float *out, const TensorTypeCodes &types) {
+  if (tensor == nullptr || tensor->data.raw == nullptr || index >= tensor_elements(tensor))
+    return false;
+  const int type = static_cast<int>(tensor->type);
+  if (type == types.float32) {
+    *out = tensor->data.f[index];
+  } else if (type == types.uint8) {
+    *out = (static_cast<int>(tensor->data.uint8[index]) - tensor->params.zero_point) * tensor->params.scale;
+  } else if (type == types.int8) {
+    *out = (static_cast<int>(tensor->data.int8[index]) - tensor->params.zero_point) * tensor->params.scale;
+  } else if (type == types.int32) {
+    *out = static_cast<float>(tensor->data.i32[index]);
+  } else {
+    return false;
+  }
+  return true;
+}
+
+/// @brief decode_yolo() on the model's output tensor.
+///
+/// @param count  Receives the number of boxes written to @p selected.
+/// @return false when the tensor is not a [1, N, M] matrix with class scores of a readable type.
+template<typename Tensor>
+bool decode_yolo_tensor(const Tensor *tensor, const TensorTypeCodes &types, DetectionFormat format,
+                        float score_threshold, float iou_threshold, Detection *selected, size_t max_detections,
+                        size_t &count) {
+  count = 0;
+  if (tensor == nullptr || tensor->dims == nullptr || tensor->dims->size != 3 || tensor->dims->data[0] != 1 ||
+      tensor->dims->data[1] <= 0 || tensor->dims->data[2] <= 0)
+    return false;
+  const bool v5 = format == DetectionFormat::DETECTION_FORMAT_YOLOV5;
+  const size_t fields = tensor->dims->data[v5 ? 2 : 1];
+  const size_t candidates = tensor->dims->data[v5 ? 1 : 2];
+  float probe = 0.0f;
+  if (fields <= (v5 ? 5u : 4u) || !read_element(tensor, 0, &probe, types))
+    return false;
+  count = decode_yolo(selected, max_detections, score_threshold, iou_threshold, format, fields, candidates,
+                      [tensor, &types](size_t index) {
+                        // The shape and type were checked above, so the read cannot fail.
+                        float out = 0.0f;
+                        read_element(tensor, index, &out, types);
+                        return out;
+                      });
+  return true;
+}
+
 #ifdef USE_TFLITE_MICRO_HELPER
 /// @brief Decodes a detection model's outputs: the four of SSD post-processing, or raw YOLO candidates.
 class DetectionDecoder final : public tflite_output_processor::OutputDecoder {
