@@ -462,6 +462,12 @@ button:
         first: 0xB2BF40
         second: 0xB2BF40
   - platform: template
+    name: Denon
+    on_press:
+      remote_transmitter.transmit_denon:
+        address: 2
+        command: 121
+  - platform: template
     name: Dish
     on_press:
       remote_transmitter.transmit_dish:
@@ -630,6 +636,12 @@ button:
             wait_time: 10ms
       - remote_transmitter.transmit_coolix:
           first: 0xB2BF40
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_denon:
+          address: 2
+          command: 121
           repeat:
             times: 2
             wait_time: 10ms
@@ -917,6 +929,9 @@ button:
       - remote_transmitter.transmit_coolix:
           first: !lambda return 0xB2BF40;
           second: !lambda return 0xB2BF40;
+      - remote_transmitter.transmit_denon:
+          address: !lambda return 2;
+          command: !lambda return 121;
       - remote_transmitter.transmit_dish:
           address: !lambda return 1;
           command: !lambda return 16;

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdlib>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -19,8 +18,6 @@ namespace esphome::time {
 /// 2026.3.0 and newer). See set_global_tz() in posix_tz.h.
 class RealTimeClock : public PollingComponent {
  public:
-  explicit RealTimeClock();
-
   /// Get the time in the currently defined timezone.
   ESPTime now();
 
