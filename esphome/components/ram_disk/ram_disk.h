@@ -6,7 +6,7 @@
 namespace esphome::ram_disk {
 
 /// A block device held in RAM, in PSRAM when there is some. Its contents are lost on reboot.
-class RamDisk : public storage::BlockDevice, public Component {
+class RamDisk final : public storage::BlockDevice, public Component {
  public:
   RamDisk(uint32_t block_size, uint32_t block_count) : block_count_(block_count) {
     this->geometry_.block_size = block_size;
