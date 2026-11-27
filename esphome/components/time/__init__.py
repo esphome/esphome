@@ -289,10 +289,8 @@ def validate_time_at(value):
         CONF_MINUTES: [value[CONF_MINUTE]],
         CONF_SECONDS: [value[CONF_SECOND]],
     }
-    return {key: _CRON_VALIDATORS[key](values) for key, values in at.items()} | {
-        key: validator("*")
-        for key, validator in _CRON_VALIDATORS.items()
-        if key not in at
+    return {
+        key: validator(at.get(key, "*")) for key, validator in _CRON_VALIDATORS.items()
     }
 
 
@@ -443,7 +441,7 @@ async def setup_time_core_(time_var, config):
             raise EsphomeError(f"Invalid timezone: {timezone}") from e
         _emit_parsed_timezone_fields(parsed)
 
-    if on_time := config.get(CONF_ON_TIME, []):
+    if on_time := config.get(CONF_ON_TIME):
         cg.add_define("USE_TIME_TRIGGERS")
         for conf in on_time:
             _request_on_time_slot(str(time_var))
