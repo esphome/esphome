@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -17,7 +18,7 @@ from paho.mqtt.reasoncodes import ReasonCode
 import pytest
 
 from esphome.components.const import CONF_VERIFY_SSL
-from esphome.components.mqtt import CONF_TLS
+from esphome.components.mqtt import CONF_SSL_FINGERPRINTS, CONF_TLS
 from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
@@ -808,6 +809,7 @@ def test_prepare_reconnects_with_backoff_after_an_unexpected_disconnect(
         )
         == 2
     )
+    assert "Cannot reconnect to the MQTT broker: down" in caplog.text
     assert "Successfully reconnected to the MQTT server" in caplog.text
 
 
@@ -913,6 +915,94 @@ def test_prepare_loads_client_certificate() -> None:
     cert_file, key_file = context.load_cert_chain.call_args.args
     assert not Path(cert_file).exists()
     assert not Path(key_file).exists()
+
+
+_BROKER_CERT = b"broker certificate"
+# Uppercase, colon separated and padded, as a !secret may hold it
+_BROKER_FINGERPRINT_AS_WRITTEN = " {} ".format(
+    ":".join(
+        hashlib.sha1(_BROKER_CERT).hexdigest().upper()[i : i + 2]
+        for i in range(0, 40, 2)
+    )
+)
+
+
+def _pinned_context_from_prepare() -> tuple[MagicMock, ssl.SSLContext]:
+    """Runs prepare() with ssl_fingerprints pinned to _BROKER_CERT."""
+    with patch("esphome.mqtt.mqtt.Client") as client_cls:
+        prepare(
+            _mqtt_config({CONF_SSL_FINGERPRINTS: [_BROKER_FINGERPRINT_AS_WRITTEN]}),
+            [],
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    client = client_cls.return_value
+    client.tls_set_context.assert_called_once()
+    return client, client.tls_set_context.call_args.args[0]
+
+
+def test_prepare_fingerprint_pins_the_paho_socket() -> None:
+    """The pin lives on the context paho wraps every connection with, not a separate check."""
+    client, context = _pinned_context_from_prepare()
+
+    assert context.check_hostname is False
+    assert context.verify_mode == ssl.CERT_NONE
+    assert issubclass(context.sslsocket_class, ssl.SSLSocket)
+    assert context.sslsocket_class is not ssl.SSLSocket
+    client.connect.assert_called_once_with("broker.local", 8883)
+
+
+@pytest.mark.parametrize(
+    ("peer_cert", "error"),
+    [
+        (_BROKER_CERT, None),
+        (
+            b"other certificate",
+            "^MQTT broker certificate fingerprint [0-9a-f]{40} does not match",
+        ),
+        (None, "^MQTT broker presented no certificate;"),
+    ],
+    ids=["match", "mismatch", "no certificate"],
+)
+def test_pinned_socket_checks_the_certificate_after_the_handshake(
+    peer_cert: bytes | None, error: str | None
+) -> None:
+    _, context = _pinned_context_from_prepare()
+    sock = MagicMock(spec=context.sslsocket_class)
+    sock.getpeercert.return_value = peer_cert
+
+    with patch.object(ssl.SSLSocket, "do_handshake") as base_handshake:
+        if error is None:
+            context.sslsocket_class.do_handshake(sock)
+        else:
+            with pytest.raises(ssl.SSLCertVerificationError, match=error):
+                context.sslsocket_class.do_handshake(sock)
+
+    base_handshake.assert_called_once_with(False)
+    sock.getpeercert.assert_called_once_with(binary_form=True)
+
+
+def test_prepare_fingerprint_mismatch_refuses_to_connect() -> None:
+    """A mismatch on paho's own handshake fails the connect before CONNECT is sent."""
+    with (
+        patch("esphome.mqtt.mqtt.Client") as client_cls,
+        pytest.raises(EsphomeError, match="does not match ssl_fingerprints"),
+    ):
+        client_cls.return_value.connect.side_effect = ssl.SSLCertVerificationError(
+            "MQTT broker certificate fingerprint 00 does not match ssl_fingerprints"
+        )
+        prepare(
+            _mqtt_config({CONF_SSL_FINGERPRINTS: ["00" * 20]}),
+            [],
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
 
 @patch("esphome.mqtt.initialize")
