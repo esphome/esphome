@@ -4,9 +4,7 @@
 #include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#ifdef USE_TEXT_SENSOR
 #include "esphome/core/progmem.h"
-#endif
 
 namespace esphome::npm1300 {
 
@@ -144,7 +142,7 @@ void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, cons
   if (index == last)
     return;
   last = index;
-  sensor->publish_state(ChargerStatusStrings::get_progmem_str(index, ChargerStatusStrings::LAST_INDEX));
+  sensor->publish_state(ChargerStatusStrings::get_progmem_str(index));
 }
 #endif
 
@@ -421,18 +419,8 @@ void NPM1300Component::read_measurements_() {
 // BCHGVTERM: 3.50 V to 3.65 V, then 4.00 V to 4.45 V, both in 50 mV steps
 static uint16_t termination_voltage_mv(uint8_t code) { return code < 4 ? 3500 + 50 * code : 4000 + 50 * (code - 4); }
 
-static const LogString *output_name(uint8_t index) {
-  switch (static_cast<NPM1300Output>(index)) {
-    case NPM1300Output::NPM1300_OUTPUT_BUCK1:
-      return LOG_STR("BUCK1");
-    case NPM1300Output::NPM1300_OUTPUT_BUCK2:
-      return LOG_STR("BUCK2");
-    case NPM1300Output::NPM1300_OUTPUT_LDO1:
-      return LOG_STR("LDO1");
-    default:
-      return LOG_STR("LDO2");
-  }
-}
+// Indexed by NPM1300Output
+PROGMEM_STRING_TABLE(OutputNameStrings, "BUCK1", "BUCK2", "LDO1", "LDO2");
 
 void NPM1300Component::dump_config() {
   ESP_LOGCONFIG(TAG, "nPM1300:");
@@ -464,7 +452,7 @@ void NPM1300Component::dump_config() {
     const NPM1300OutputConfig &output = config.outputs[i];
     if (output.voltage == NPM1300_UNSET && output.ldo_mode == NPM1300_UNSET && output.enabled == NPM1300_UNSET)
       continue;
-    ESP_LOGCONFIG(TAG, "  %s:", LOG_STR_ARG(output_name(i)));
+    ESP_LOGCONFIG(TAG, "  %s:", LOG_STR_ARG(OutputNameStrings::get_log_str(i)));
     if (output.voltage != NPM1300_UNSET) {
       ESP_LOGCONFIG(TAG, "    Voltage: %u mV", 1000u + output.voltage * 100u);
     }

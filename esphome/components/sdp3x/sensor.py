@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_MEASUREMENT_MODE,
-    DEVICE_CLASS_PRESSURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_HECTOPASCAL,
-)
+from esphome.const import CONF_MEASUREMENT_MODE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -30,13 +25,7 @@ MEASUREMENT_MODE = {
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        SDP3XComponent,
-        unit_of_measurement=UNIT_HECTOPASCAL,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_PRESSURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(SDP3XComponent, kind=sensor.PRESSURE, accuracy_decimals=3)
     .extend(
         {
             cv.Optional(

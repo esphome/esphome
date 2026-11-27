@@ -29,17 +29,18 @@ uart_mock:
     - delay: 100ms
       inject_rx: [0x6E, 0x02, 0x2C, 0x01, 0x62]
     # Standard header with a 255 byte length field (over the 96 byte buffer), three payload bytes,
-    # then a short frame, state 0 -> frame dropped, presence off
+    # then a short frame, state 0: the length is skipped and the short frame still parses -> presence off
     - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0xFF, 0x00, 0x01, 0x02, 0x03, 0x6E, 0x00, 0x00, 0x00, 0x62]
     # Standard frame declaring 5 payload bytes but carrying 3, then a short frame, state 2: the short
     # frame is read as the rest of the declared length, so the frame stays one byte short
     - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x05, 0x00, 0x01, 0x02, 0x2C, 0x6E, 0x02, 0x2C, 0x01, 0x62]
-    # Short frame, state 0: its first byte completes the truncated frame (footer mismatch); the
-    # rescan of the swallowed bytes rescues the state 2 short frame -> presence on, and leaves this
-    # frame's header pending, so the rest of it completes -> presence off
-    - delay: 100ms
+    # Short frame, state 0, within the 250 ms the reader waits for the rest of a frame: its first byte
+    # completes the truncated frame (footer mismatch); the rescan of the swallowed bytes rescues the
+    # state 2 short frame -> presence on, and leaves this frame's header pending, so the rest of it
+    # completes -> presence off
+    - delay: 30ms
       inject_rx: [0x6E, 0x00, 0x00, 0x00, 0x62]
     # Short frame, state 2 -> presence on
     - delay: 100ms

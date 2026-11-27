@@ -61,6 +61,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
@@ -85,6 +86,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire (uart_virtual.h)
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
@@ -128,7 +131,7 @@ HOST_BAUD_RATES = [
 ]
 
 UARTDevice = uart_ns.class_("UARTDevice")
-UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
+UARTDebugger = uart_ns.class_("UARTDebugger", automation.FiringComponent)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
@@ -178,7 +181,8 @@ def validate_host_config(config):
 
 
 def validate_rx_buffer_size(config):
-    if CORE.is_esp32:
+    # Without an RX pin the buffer is not used
+    if CORE.is_esp32 and CONF_RX_PIN in config:
         # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
         # rx_buffer_size must be greater than the hardware FIFO length
         min_buffer_size = 128
@@ -258,7 +262,11 @@ DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix);
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
-def maybe_empty_debug(value):
+@schema_extractor("schema")
+def maybe_empty_debug(value: ConfigType | None) -> ConfigType:
+    # A bare `debug:` is valid; the schema dumper still walks DEBUG_SCHEMA
+    if value is SCHEMA_EXTRACT:
+        return DEBUG_SCHEMA
     if value is None:
         value = {}
     return DEBUG_SCHEMA(value)
@@ -291,7 +299,7 @@ DEBUG_SCHEMA = cv.Schema(
         ),
         cv.Optional(
             CONF_SEQUENCE, default=DEFAULT_SEQUENCE
-        ): automation.validate_automation(),
+        ): automation.validate_automation(single=True),
         cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
         cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
         cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
@@ -423,38 +431,45 @@ def _validate_libretiny_pins(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def debug_to_code(config, parent):
-    trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent)
-    await cg.register_component(trigger, config)
-    for action in config[CONF_SEQUENCE]:
-        await automation.build_automation(
-            trigger,
-            [
-                (UARTDirection, "direction"),
-                (cg.std_vector.template(cg.uint8), "bytes"),
-                (cg.StringRef, "debug_prefix"),
-            ],
-            action,
-        )
-    cg.add(trigger.set_direction(config[CONF_DIRECTION]))
+async def debug_to_code(config: ConfigType, parent: cg.MockObj) -> None:
+    # The debugger is named by the debug block's trigger_id
+    sequence = {**config[CONF_SEQUENCE], CONF_TRIGGER_ID: config[CONF_TRIGGER_ID]}
+    # A sequence that defers (delay, ble_client actions) keeps its arguments, so only it needs its own copy
+    bytes_type = cg.std_vector.template(cg.uint8)
+    if not automation.has_non_synchronous_actions(config[CONF_SEQUENCE]):
+        bytes_type = bytes_type.operator("ref").operator("const")
+    debugger = await automation.build_component_automation(
+        sequence,
+        automation.FireCallback,
+        template_args=[UARTDebugger],
+        args=[
+            (UARTDirection, "direction"),
+            (bytes_type, "bytes"),
+            (cg.StringRef, "debug_prefix"),
+        ],
+        ctor_args=[parent],
+    )
+    cg.add(debugger.set_direction(config[CONF_DIRECTION]))
     after = config[CONF_AFTER]
-    cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
-    cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
+    cg.add(debugger.set_after_bytes(after[CONF_BYTES]))
+    cg.add(debugger.set_after_timeout(after[CONF_TIMEOUT]))
     if delimiter := after.get(CONF_DELIMITER):
         table = cg.shared_progmem_array(
             "uart_debug_delimiter", cg.uint8, [int(b) for b in delimiter]
         )
-        cg.add(trigger.set_after_delimiter(table, len(delimiter)))
+        cg.add(debugger.set_after_delimiter(table, len(delimiter)))
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
     if debug_prefix := config[CONF_DEBUG_PREFIX]:
-        cg.add(trigger.set_debug_prefix(debug_prefix))
+        cg.add(debugger.set_debug_prefix(debug_prefix))
     cg.add_define("USE_UART_DEBUGGER")
 
 
 async def to_code(config):
     cg.add_global(uart_ns.using)
+    # A hardware UART is configured; uart can also be loaded only for virtual UARTs
+    cg.add_define("USE_UART_HARDWARE")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -698,7 +713,11 @@ def subtree_references_uart(node: object, uart_id: str, *conf_keys: str) -> bool
     conf_keys = conf_keys or (CONF_UART_ID,)
     if isinstance(node, dict):
         return any(
-            (key in conf_keys and str(value) == uart_id)
+            # the value is one id, or a list of ids
+            (
+                key in conf_keys
+                and uart_id in map(str, value if isinstance(value, list) else [value])
+            )
             or subtree_references_uart(value, uart_id, *conf_keys)
             for key, value in node.items()
         )
@@ -785,6 +804,11 @@ automation.register_apply_action(
 )
 
 
+def request_tx_break() -> None:
+    """Compile in UARTComponent::set_tx_break() for a component that holds the TX line low."""
+    cg.add_define("USE_UART_TX_BREAK")
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
@@ -814,9 +838,13 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 # uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
-# debug block is configured.
+# debug block is configured. uart_component_rp2.cpp names Serial1 and Serial2,
+# which links arduino-pico's SerialUART objects even when nothing uses them.
 _define_filter = filter_source_files_from_defines(
-    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+    {
+        "uart_debugger.cpp": "USE_UART_DEBUGGER",
+        "uart_component_rp2.cpp": "USE_UART_HARDWARE",
+    }
 )
 
 

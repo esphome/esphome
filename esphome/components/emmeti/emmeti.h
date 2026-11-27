@@ -78,13 +78,10 @@ class EmmetiClimate final : public climate_ir::ClimateIR {
   // setters
   uint8_t set_mode_();
   uint8_t set_temp_();
-  uint8_t set_fan_speed_();
   uint8_t gen_checksum_();
   uint8_t set_blades_();
 
   // getters
-  climate::ClimateMode get_mode_(uint8_t mode);
-  climate::ClimateFanMode get_fan_speed_(uint8_t fan);
   void get_blades_(uint8_t fanpos);
   // get swing
   climate::ClimateSwingMode get_swing_(uint8_t bitmap);

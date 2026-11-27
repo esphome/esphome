@@ -1,0 +1,8 @@
+substitutions:
+  name: tbs
+packages:
+  base: !include bench-nopsram.yaml
+psram:
+  mode: hex
+  speed: 200MHz
+  ignore_not_found: false
