@@ -57,13 +57,9 @@ void USBAudioSpeaker::loop() {
     if (this->writes_in_flight_ != 0) {
       // A write from before the stop may still count its bytes; reset once it has, unless a stop() came since.
       // A finish() that came with the start is held with it.
-      const uint8_t held = commands & (COMMAND_START | COMMAND_FINISH);
-      uint8_t pending = this->commands_;
-      while (!(pending & COMMAND_STOP)) {
-        if (this->commands_.compare_exchange_weak(pending, pending | held)) {
-          // Not disabled, so loop() retries at its normal pace.
-          return;
-        }
+      if (this->update_commands_(commands & (COMMAND_START | COMMAND_FINISH), 0, COMMAND_STOP)) {
+        // Not disabled, so loop() retries at its normal pace.
+        return;
       }
     } else {
       // A write that finished after the stop counted bytes the suspend dropped.
@@ -152,12 +148,12 @@ bool USBAudioSpeaker::settle_stale_count_() {
   if (this->state_ != speaker::STATE_RUNNING || this->ring_bytes_.load(relaxed) == 0) {
     return false;
   }
-  if (this->writes_in_flight_.load(relaxed) != 0 || this->within_in_flight_(this->last_event_us_.load(relaxed))) {
+  if (this->bus_busy_<relaxed>()) {
     return true;
   }
   portENTER_CRITICAL(&this->taken_lock_);
   // Again under the lock, where the event time is published.
-  if (this->writes_in_flight_ != 0 || this->within_in_flight_(this->last_event_us_)) {
+  if (this->bus_busy_<std::memory_order_seq_cst>()) {
     portEXIT_CRITICAL(&this->taken_lock_);
     return true;
   }
@@ -212,11 +208,19 @@ bool USBAudioSpeaker::flush_tail_() {
 }
 
 void USBAudioSpeaker::request_(uint8_t set, uint8_t clear) {
-  // One update, so loop() never sees the clear without the set.
-  uint8_t commands = this->commands_;
-  while (!this->commands_.compare_exchange_weak(commands, static_cast<uint8_t>((commands & ~clear) | set))) {
-  }
+  this->update_commands_(set, clear, 0);
   this->enable_loop_soon_any_context();
+}
+
+// One update, so loop() never sees the clear without the set; skipped (false) while any of `unless` is pending.
+bool USBAudioSpeaker::update_commands_(uint8_t set, uint8_t clear, uint8_t unless) {
+  uint8_t commands = this->commands_;
+  while (!(commands & unless)) {
+    if (this->commands_.compare_exchange_weak(commands, static_cast<uint8_t>((commands & ~clear) | set))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void USBAudioSpeaker::start() {

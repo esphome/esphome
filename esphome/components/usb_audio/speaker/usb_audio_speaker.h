@@ -54,6 +54,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   static constexpr uint8_t COMMAND_STOP = 1 << 1;
   static constexpr uint8_t COMMAND_FINISH = 1 << 2;
   void request_(uint8_t set, uint8_t clear);
+  bool update_commands_(uint8_t set, uint8_t clear, uint8_t unless);
   void deliver_reports_();
   void begin_finishing_();
   void stop_();
@@ -72,6 +73,10 @@ class USBAudioSpeaker : public speaker::Speaker,
   size_t ring_room_() const;
   /// Less time than the transfers in flight take has passed since since_us.
   bool within_in_flight_(uint32_t since_us) const;
+  /// A write is in flight, or the driver raised a transfer event within the time its transfers take.
+  template<std::memory_order O> bool bus_busy_() const {
+    return this->writes_in_flight_.load(O) != 0 || this->within_in_flight_(this->last_event_us_.load(O));
+  }
   bool has_buffered_data_() const;
   uint32_t next_transfer_bytes_(uint32_t &accum) const;
   uint32_t audio_tail_bytes_();
