@@ -307,6 +307,12 @@ def test_number_step_must_be_positive() -> None:
         tt_number.CONFIG_SCHEMA({"name": "Setpoint", **COORDS, **NUMBER, "step": 0})
 
 
+@pytest.mark.parametrize("key", ["min_value", "max_value", "step"])
+def test_number_raw_values_must_be_integers(key) -> None:
+    with pytest.raises(cv.Invalid, match="no fractional part"):
+        tt_number.CONFIG_SCHEMA({"name": "Setpoint", **COORDS, **NUMBER, key: 100.5})
+
+
 def test_duplicate_option_values_are_rejected() -> None:
     with pytest.raises(cv.Invalid, match="'values' must be unique"):
         tt_select.CONFIG_SCHEMA(
