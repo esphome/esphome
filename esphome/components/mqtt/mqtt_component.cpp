@@ -220,16 +220,12 @@ bool MQTTComponent::publish_json(const char *topic, json::JsonBuildRef f) {
 bool MQTTComponent::send_discovery_() {
   const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
 
-  // Captured by reference so the callback stays two pointers, small enough for std::function to hold inline
   char object_id_buf[MQTT_DISCOVERY_OBJECT_ID_MAX_LEN];
-  struct {
-    StringRef object_id;
-    size_t sub_device_len;
-  } ids;
-  ids.object_id = this->get_discovery_object_id_to_(object_id_buf, ids.sub_device_len);
+  size_t sub_device_len;
+  StringRef object_id = this->get_discovery_object_id_to_(object_id_buf, sub_device_len);
 
   char discovery_topic_buf[MQTT_DISCOVERY_TOPIC_MAX_LEN];
-  StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info, ids.object_id);
+  StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info, object_id);
 
   if (discovery_info.clean) {
     ESP_LOGV(TAG, "'%s': Cleaning discovery", LOG_STR_ARG(this->log_name_()));
@@ -241,7 +237,7 @@ bool MQTTComponent::send_discovery_() {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
       discovery_topic.c_str(),
-      [this, &ids](JsonObject root) {
+      [this, object_id, sub_device_len](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
@@ -298,15 +294,14 @@ bool MQTTComponent::send_discovery_() {
         }
 
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
-        const StringRef &object_id = ids.object_id;
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char name_buf[ENTITY_NAME_BUF_SIZE];
           char friendly_name_hash[9];
           uint32_t name_hash = fnv1_hash(this->get_entity()->get_name_to(name_buf).c_str());
-          if (ids.sub_device_len > 0) {
+          if (sub_device_len > 0) {
             // A NUL between the two, so "power" on "battery" and "powerbattery" on the node hash apart.
             name_hash = fnv1_hash_extend(name_hash, uint8_t{0});
-            for (size_t i = 0; i < ids.sub_device_len; i++) {
+            for (size_t i = 0; i < sub_device_len; i++) {
               name_hash = fnv1_hash_extend(name_hash, object_id[i]);
             }
           }
@@ -345,7 +340,7 @@ bool MQTTComponent::send_discovery_() {
         char mac[MAC_ADDRESS_BUFFER_SIZE];
         get_mac_address_into_buffer(mac);
 #if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
-        if (ids.sub_device_len > 0) {
+        if (sub_device_len > 0) {
           // Its own Home Assistant device via this node; no connections, a shared MAC would merge them
           Device *device = this->get_entity()->get_device();
           char sub_device_ids[MAC_ADDRESS_BUFFER_SIZE + 1 + 8 + 1];
