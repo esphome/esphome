@@ -239,3 +239,15 @@ def test_listed_late_variable_never_defined_is_rejected() -> None:
     app_lists.schedule_emit()
     with pytest.raises(EsphomeError, match="late_listed has no static address"):
         CORE.flush_tasks()
+
+
+def test_late_variable_listed_after_emit_was_scheduled_is_rejected() -> None:
+    """With the lists queued first, they are the first to find the missing address."""
+    app_lists.schedule_emit()
+    late = cg.LatePvariable(
+        ID("late_after", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+    with pytest.raises(EsphomeError, match="late_after has no static address"):
+        CORE.flush_tasks()
