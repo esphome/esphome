@@ -66,6 +66,14 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   }
   void set_temperature_source(sensor::Sensor *sensor) { this->temperature_source_ = sensor; }
   void set_humidity_source(sensor::Sensor *sensor) { this->humidity_source_ = sensor; }
+#ifdef USE_MQ_GAS_SENSORS_CORRECTION
+  /// Longest age of a source state, instead of the window learned from the source.
+  /// `SCHEDULER_DONT_RUN` (`never`) keeps the last state of a source in use.
+  void set_source_timeout(uint32_t timeout_ms) {
+    this->temperature_tracker_.timeout_ms = timeout_ms;
+    this->humidity_tracker_.timeout_ms = timeout_ms;
+  }
+#endif
   void set_samples(uint8_t samples) { this->samples_ = samples; }
   void set_sample_interval(uint32_t interval) { this->sample_interval_ = interval; }
   void set_warmup_time(uint32_t warmup) { this->warmup_time_ = warmup; }

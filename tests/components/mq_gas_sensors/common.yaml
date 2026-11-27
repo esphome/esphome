@@ -28,6 +28,7 @@ sensor:
       sample_count: 5
     temperature: mq8_air_temperature
     humidity: mq8_air_humidity
+    source_timeout: never
     ratio_sensor:
       name: MQ-8 RS-R0 ratio
     rs_sensor:

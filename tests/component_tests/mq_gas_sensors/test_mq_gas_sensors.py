@@ -1009,6 +1009,50 @@ def test_r0_rs_needs_a_matching_curve(
         )
 
 
+@pytest.mark.parametrize(
+    ("given", "milliseconds"), [("2h", 7200000), ("never", 4294967295)]
+)
+def test_source_timeout_is_accepted(
+    set_core_config: SetCoreConfigCallable, given: str, milliseconds: int
+) -> None:
+    """A source that only publishes changes needs its own staleness limit."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+
+    config = CONFIG_SCHEMA(
+        {
+            **_base_entry(),
+            "temperature": "air_temperature",
+            "humidity": "air_humidity",
+            "source_timeout": given,
+        }
+    )
+
+    assert config["source_timeout"].total_milliseconds == milliseconds
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ({"source_timeout": "1h"}, "has no effect without"),
+        (
+            {
+                "temperature": "air_temperature",
+                "humidity": "air_humidity",
+                "source_timeout": "0s",
+            },
+            "value must be at least",
+        ),
+    ],
+)
+def test_source_timeout_is_checked(
+    set_core_config: SetCoreConfigCallable, extra: dict[str, str], message: str
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+
+    with pytest.raises(cv.Invalid, match=message):
+        CONFIG_SCHEMA({**_base_entry(), **extra})
+
+
 def test_two_owned_pins_without_ids_do_not_collide(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

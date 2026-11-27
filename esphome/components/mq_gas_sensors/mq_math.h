@@ -210,10 +210,11 @@ struct SourceTracker {
   /// Outage-sized gaps in a row after which the source is taken to be slower.
   static constexpr uint8_t SLOW_GAPS_TO_ADOPT = 2;
 
-  uint32_t last_ms{0};   ///< loop time of the last state
-  uint32_t gap_ms{0};    ///< estimate of the publication interval
-  uint8_t slow_gaps{0};  ///< consecutive gaps that looked like outages
-  bool seen{false};      ///< the last state was finite
+  uint32_t last_ms{0};     ///< loop time of the last state
+  uint32_t gap_ms{0};      ///< estimate of the publication interval
+  uint8_t slow_gaps{0};    ///< consecutive gaps that looked like outages
+  bool seen{false};        ///< the last state was finite
+  uint32_t timeout_ms{0};  ///< configured longest age, 0 to derive it from the cadence
 
   /// A state arrived at `now_ms`. A dropout is not the cadence: a gap far beyond
   /// the estimate is ignored once, but two in a row mean the source really is
@@ -235,9 +236,12 @@ struct SourceTracker {
     this->seen = std::isfinite(value);
   }
 
-  /// Longest age the last state may have: three publication periods, never below
-  /// `STALE_MS`, and a bounded window until the first gap is known.
+  /// Longest age the last state may have: the configured one, or else three
+  /// publication periods, never below `STALE_MS`, and a bounded window until the
+  /// first gap is known. `UINT32_MAX` never expires.
   uint32_t max_age() const {
+    if (this->timeout_ms != 0)
+      return this->timeout_ms;
     return this->gap_ms == 0 ? UNLEARNED_MS : std::max<uint32_t>(STALE_MS, this->gap_ms * OUTAGE_FACTOR);
   }
 

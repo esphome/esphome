@@ -39,6 +39,7 @@ from esphome.const import (
     CONF_VOLTAGE_DIVIDER,
     CONF_WARMUP_TIME,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    SCHEDULER_DONT_RUN,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_VOLT,
@@ -81,6 +82,7 @@ from . import (
     CONF_RS_SENSOR,
     CONF_SAMPLE_COUNT,
     CONF_SENSOR_TYPE,
+    CONF_SOURCE_TIMEOUT,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
@@ -594,6 +596,11 @@ def _validate_config(config: ConfigType) -> ConfigType:
             f"'temperature:' and 'humidity:' must be linked together, "
             f"missing: {', '.join(missing_sources)}"
         )
+    if CONF_SOURCE_TIMEOUT in config and missing_sources:
+        raise cv.Invalid(
+            f"'{CONF_SOURCE_TIMEOUT}:' has no effect without 'temperature:' and "
+            "'humidity:'"
+        )
 
     correction_mode = config.get(CONF_CORRECTION_MODE)
     # `None` = the key was not written, i.e. the mode is derived from the links.
@@ -896,6 +903,15 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
+            # Replaces the window learned from the publications of a source;
+            # `never` is for one that only publishes when its value changes.
+            cv.Optional(CONF_SOURCE_TIMEOUT): cv.All(
+                cv.update_interval,
+                cv.Range(
+                    min=cv.TimePeriod(seconds=1),
+                    max=cv.TimePeriod(milliseconds=SCHEDULER_DONT_RUN),
+                ),
+            ),
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
             # The mirrors of the measurement chain are owned by this component and
             # carry the diagnostic category, so Home Assistant keeps them out of
@@ -1031,6 +1047,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_tc_coefficients(tc.a33, tc.b33, tc.c33, tc.a85, tc.b85, tc.c85))
         await cg.add_variable(var.set_temperature_source, config[CONF_TEMPERATURE])
         await cg.add_variable(var.set_humidity_source, config[CONF_HUMIDITY])
+        cg.add_optional(var.set_source_timeout, config.get(CONF_SOURCE_TIMEOUT))
 
     cg.add_optional(var.set_r0, config.get(CONF_R0))
 

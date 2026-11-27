@@ -208,6 +208,20 @@ TEST(MqMath, SourceTrackerLearnsTheCadence) {
   EXPECT_EQ(3600000u, tracker.max_age());
 }
 
+TEST(MqMath, SourceTrackerFollowsAConfiguredTimeout) {
+  SourceTracker tracker;
+  tracker.timeout_ms = 60000;
+  tracker.record(21.5f, 1000);
+  EXPECT_TRUE(tracker.fresh(61000));
+  EXPECT_FALSE(tracker.fresh(61001));
+  // `never`: a source that only publishes changes stays in use ...
+  tracker.timeout_ms = UINT32_MAX;
+  EXPECT_TRUE(tracker.fresh(1000 + 4000000000u));
+  // ... but a state that is not a measurement is still refused.
+  tracker.record(NAN, 2000);
+  EXPECT_FALSE(tracker.fresh(2000));
+}
+
 TEST(MqMath, SourceTrackerRejectsANonFiniteState) {
   SourceTracker tracker;
   tracker.record(NAN, 1000);

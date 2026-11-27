@@ -234,6 +234,14 @@ void MQGasSensor::log_config_() {
                   this->correction_clamp_ == CorrectionClamp::CORRECTION_CLAMP_SCALED
                       ? LOG_STR_LITERAL("max_ppm * correction")
                       : LOG_STR_LITERAL("absolute max_ppm"));
+#ifdef USE_MQ_GAS_SENSORS_CORRECTION
+    const uint32_t timeout = this->temperature_tracker_.timeout_ms;
+    if (timeout == SCHEDULER_DONT_RUN) {
+      ESP_LOGCONFIG(TAG, "  Correction source timeout: never");
+    } else if (timeout != 0) {
+      ESP_LOGCONFIG(TAG, "  Correction source timeout: %" PRIu32 " s", timeout / 1000);
+    }
+#endif
   }
 }
 
