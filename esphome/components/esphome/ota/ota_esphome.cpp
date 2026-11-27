@@ -214,6 +214,9 @@ static constexpr uint8_t CLIENT_NOISE_FEATURES =
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
+#ifdef USE_OTA_DELTA
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DELTA = 0x20;
+#endif
 // Raw deflate, window <= OTA_INFLATE_WINDOW_SIZE. Binding once offered: the
 // client must then send the image size frame and a deflate stream.
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
@@ -356,6 +359,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #endif
 #ifdef USE_OTA_PARTITIONS
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
+#endif
+#ifdef USE_OTA_DELTA
+        this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_DELTA;
 #endif
 #ifdef USE_OTA_ENCRYPTION_PROVISIONED
         // A runtime provisioned key may not exist yet
@@ -593,7 +599,11 @@ void ESPHomeOTAComponent::handle_data_() {
 #endif
 
 #ifndef USE_OTA_PARTITIONS
-  if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
+  if (ota_type != ota::OTA_TYPE_UPDATE_APP
+#ifdef USE_OTA_DELTA
+      && ota_type != ota::OTA_TYPE_UPDATE_APP_DELTA
+#endif
+  ) {
     error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }

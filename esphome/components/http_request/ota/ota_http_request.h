@@ -31,6 +31,11 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   void set_password(const std::string &password);
   void set_url(const std::string &url);
   void set_username(const std::string &username);
+  void set_delta(const std::string &url, const std::string &md5) {
+    Request &request = this->get_request_();
+    request.delta_url = url;
+    request.delta_md5 = md5;
+  }
 
   std::string md5_computed() { return this->request_ != nullptr ? this->request_->md5_computed : std::string(); }
   std::string md5_expected() { return this->request_ != nullptr ? this->request_->md5_expected : std::string(); }
@@ -46,12 +51,14 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
     std::string password;
     std::string username;
     std::string url;
+    std::string delta_url;
+    std::string delta_md5;
   };
   Request &get_request_();
 
   void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container, bool abort_backend);
   // Only reached from flash(), which returns early while request_ is null
-  uint8_t do_ota_();
+  uint8_t do_ota_(bool delta = false);
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
   bool validate_url_(const std::string &url);

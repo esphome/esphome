@@ -1,0 +1,15 @@
+packages:
+  wifi: !include wifi.yaml
+
+http_request:
+  verify_ssl: false
+
+ota:
+  - platform: esphome
+    allow_delta: true
+  - platform: http_request
+
+update:
+  - platform: http_request
+    name: Firmware
+    source: http://example.com/manifest.json

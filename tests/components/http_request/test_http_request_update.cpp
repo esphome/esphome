@@ -43,6 +43,10 @@ class HttpRequestUpdateTest : public ::testing::Test {
  protected:
   static void begin_check(HttpRequestUpdate &update, TaskResult &result) { update.begin_check_(&result); }
   static void end_check(HttpRequestUpdate &update, TaskResult &result) { update.end_check_(&result); }
+  static std::string merge_url(std::string path, const char *source) {
+    HttpRequestUpdate::merge_url(path, source);
+    return path;
+  }
 };
 
 TEST(HttpRequestUpdateSourceUrl, ConfigLiteralIsKeptByPointer) {
@@ -137,5 +141,26 @@ TEST_F(HttpRequestUpdateTest, ConfigLiteralDuringACheckIsNeverFreed) {
   EXPECT_STREQ(LITERAL, "http://example.invalid/manifest.json");
   EXPECT_STREQ(update.get_source_url(), "http://example.invalid/runtime-manifest.json");
 }
+
+TEST_F(HttpRequestUpdateTest, MergeUrlKeepsAbsoluteUrls) {
+  EXPECT_EQ(merge_url("https://cdn.example.com/fw.bin", "https://example.com/dir/manifest.json"),
+            "https://cdn.example.com/fw.bin");
+  EXPECT_EQ(merge_url("HTTP://cdn.example.com/fw.bin", "https://example.com/dir/manifest.json"),
+            "HTTP://cdn.example.com/fw.bin");
+}
+
+TEST_F(HttpRequestUpdateTest, MergeUrlHostRelativePath) {
+  EXPECT_EQ(merge_url("/fw.bin", "https://example.com/dir/manifest.json"), "https://example.com/fw.bin");
+  EXPECT_EQ(merge_url("/fw.bin", "https://example.com"), "https://example.com/fw.bin");
+}
+
+TEST_F(HttpRequestUpdateTest, MergeUrlManifestRelativePath) {
+  EXPECT_EQ(merge_url("fw.bin", "https://example.com/dir/manifest.json"), "https://example.com/dir/fw.bin");
+  EXPECT_EQ(merge_url("patches/http-update.delta.bin", "http://example.com/dir/manifest.json"),
+            "http://example.com/dir/patches/http-update.delta.bin");
+  EXPECT_EQ(merge_url("updates/patch.bin", "https://example.com"), "https://example.com/updates/patch.bin");
+}
+
+TEST_F(HttpRequestUpdateTest, MergeUrlLeavesEmptyPath) { EXPECT_EQ(merge_url("", "https://example.com/m.json"), ""); }
 
 }  // namespace esphome::http_request::testing
