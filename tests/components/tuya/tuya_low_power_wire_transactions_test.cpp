@@ -69,9 +69,15 @@ TEST(TuyaLowPowerWireTransactions, VersionThreeAnswers) {
   ASSERT_TRUE(t.begin(0x08, 250));
   EXPECT_FALSE(t.begin(0x06, 260));
   EXPECT_TRUE(t.complete(0x07, 5));
-  // An unanswered CMD06 times out like any other command.
+  // An unanswered CMD06 or CMD08 is dropped without quarantine: a report carries its own values.
   ASSERT_TRUE(t.begin(0x06, 300));
-  EXPECT_TRUE(t.expire(300 + TuyaLowPowerWireTransactions::ACK_TIMEOUT_MS));
+  EXPECT_FALSE(t.abandon_report(300 + TuyaLowPowerWireTransactions::ACK_TIMEOUT_MS - 1));
+  EXPECT_TRUE(t.abandon_report(300 + TuyaLowPowerWireTransactions::ACK_TIMEOUT_MS));
+  EXPECT_TRUE(t.idle());
+  // Other commands still fault, and only they
+  ASSERT_TRUE(t.begin(0x09, 2000));
+  EXPECT_FALSE(t.abandon_report(2000 + TuyaLowPowerWireTransactions::ACK_TIMEOUT_MS));
+  EXPECT_TRUE(t.expire(2000 + TuyaLowPowerWireTransactions::ACK_TIMEOUT_MS));
   EXPECT_TRUE(t.faulted());
 }
 

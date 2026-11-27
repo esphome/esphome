@@ -195,64 +195,81 @@ TEST_F(TuyaLowPowerFrames, VersionThreeHandshakeAndWrites) {
 
   // The full status arrives: the MCU is ready, once
   this->receive_(300, {0x03, 0x07, {0x01, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x05}});
+  this->step_(800);  // The status is complete once its frames have been quiet for 500 ms
   EXPECT_EQ(this->ready_count_, 1);
 
   // Two writes: the second waits until the MCU's CMD07 confirms the first
   this->tuya_.set_boolean_datapoint_value(1, true);
   this->tuya_.set_integer_datapoint_value(2, 7);
-  this->step_(400);
+  this->step_(1400);
   sent = this->uart_.sent();
   ASSERT_EQ(sent.size(), 1u);
   EXPECT_EQ(sent[0].command, 0x06);
   EXPECT_EQ(sent[0].payload, (std::vector<uint8_t>{0x01, 0x01, 0x00, 0x01, 0x01}));
-  this->step_(500);
+  this->step_(1500);
   EXPECT_TRUE(this->uart_.sent().empty());
-  this->receive_(600, {0x03, 0x07, {0x01, 0x01, 0x00, 0x01, 0x01}});
-  this->step_(610);
+  this->receive_(1600, {0x03, 0x07, {0x01, 0x01, 0x00, 0x01, 0x01}});
+  this->step_(1610);
   sent = this->uart_.sent();
   ASSERT_EQ(sent.size(), 1u);
   EXPECT_EQ(sent[0].command, 0x06);
   EXPECT_EQ(sent[0].payload[0], 0x02);
-  this->receive_(700, {0x03, 0x07, {0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x07}});
+  this->receive_(1700, {0x03, 0x07, {0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x07}});
   EXPECT_EQ(this->ready_count_, 1);
 
   // A restarted MCU gets the working-mode handshake again
-  this->receive_(800, {0x03, 0x00, {0x00}});
-  this->step_(810);
+  this->receive_(1800, {0x03, 0x00, {0x00}});
+  this->step_(1810);
   bool mode_query = false;
   for (const auto &f : this->uart_.sent())
     mode_query |= f.command == 0x02;
   EXPECT_TRUE(mode_query);
 }
 
-TEST_F(TuyaLowPowerFrames, VersionThreeWriteSurvivesLostConfirmation) {
+TEST_F(TuyaLowPowerFrames, VersionThreeWriteWithoutReportNeedsNoResync) {
   this->handshake_(3);
   this->uart_.sent();
   this->receive_(200, {0x03, 0x02, {}});
   this->receive_(300, {0x03, 0x07, {0x01, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x05}});
+  this->step_(800);  // The status is complete once its frames have been quiet for 500 ms
   this->uart_.sent();
 
   this->tuya_.set_boolean_datapoint_value(1, true);
-  this->step_(400);
+  this->step_(1400);
   ASSERT_EQ(this->uart_.sent().size(), 1u);
-  // A second write is still queued when the first goes unanswered
+  // A second write waits while the first one waits for its report
   this->tuya_.set_integer_datapoint_value(2, 9);
-  this->step_(400 + 1500);
-  this->step_(400 + 1500 + 500);
+  this->step_(1500);
+  EXPECT_TRUE(this->uart_.sent().empty());
+  // MCU firmware 1.0.9 applies some writes without a CMD07: the module asks for the state, no product query
+  this->step_(1400 + 1500);
   auto sent = this->uart_.sent();
   ASSERT_EQ(sent.size(), 1u);
-  EXPECT_EQ(sent[0].command, 0x01);  // recovery
+  EXPECT_EQ(sent[0].command, 0x08);
+  // The answer shows the new value; then the waiting write goes out
+  this->receive_(3000, {0x03, 0x07, {0x01, 0x01, 0x00, 0x01, 0x01, 0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x05}});
+  this->step_(3010);
+  sent = this->uart_.sent();
+  ASSERT_EQ(sent.size(), 1u);
+  EXPECT_EQ(sent[0].command, 0x06);
+  EXPECT_EQ(sent[0].payload[0], 0x02);
+  EXPECT_EQ(this->ready_count_, 1);
+}
 
-  // After the resync the kept write goes out
-  this->receive_(2500, {0x03, 0x01, bytes(R"({"p":"abcdefgh","v":"1.0.0"})")});
-  this->step_(2510);
-  this->receive_(2600, {0x03, 0x02, {}});
-  this->receive_(2700, {0x03, 0x07, {0x01, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x05}});
-  this->step_(2710);
-  bool kept_write = false;
-  for (const auto &f : this->uart_.sent())
-    kept_write |= f.command == 0x06 && !f.payload.empty() && f.payload[0] == 0x02;
-  EXPECT_TRUE(kept_write);
+TEST_F(TuyaLowPowerFrames, VersionThreeStatusInSeveralFramesIsCompleteWhenQuiet) {
+  this->handshake_(3);
+  this->uart_.sent();
+  this->receive_(200, {0x03, 0x02, {}});
+  // MCU firmware 1.0.9 answers CMD08 with three CMD07 frames and a CMD25 between them
+  this->receive_(300, {0x03, 0x07, {0x1F, 0x00, 0x00, 0x04, 0x06, 0x00, 0x00, 0xC8}});
+  this->receive_(310, {0x03, 0x25, {}});
+  this->receive_(320, {0x03, 0x07, {0x01, 0x01, 0x00, 0x01, 0x00, 0x03, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}});
+  EXPECT_EQ(this->ready_count_, 0);
+  this->receive_(330, {0x03, 0x07, {0x14, 0x01, 0x00, 0x01, 0x00}});
+  this->step_(829);
+  EXPECT_EQ(this->ready_count_, 0);
+  this->step_(830);
+  EXPECT_EQ(this->ready_count_, 1);
 }
 
 }  // namespace esphome::tuya::testing

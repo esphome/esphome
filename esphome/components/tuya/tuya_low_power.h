@@ -7,9 +7,8 @@ namespace esphome::tuya {
 
 /// Tracks whether the MCU's state is known and whether it can take a write.
 ///
-/// A version-0 MCU reports its state as a series of CMD05 frames, after the module said it is online and after
-/// a write. The series has no end marker, so it counts as complete once the MCU has been quiet for QUIET_MS.
-/// A version-3 MCU sends its state in one CMD07 report; mark_synchronized() is called for it.
+/// The MCU reports its state as a series of frames (version 0: CMD05 after the module said it is online and after
+/// a write; version 3: CMD07 after CMD08). A series has no end marker, so it is complete once quiet for QUIET_MS.
 class TuyaLowPowerSession {
  public:
   static constexpr uint32_t QUIET_MS = 500;
@@ -33,7 +32,7 @@ class TuyaLowPowerSession {
     this->write_pending_ = false;
   }
 
-  /// The module asked for the full state (network online); its CMD05 series follows.
+  /// The module asked for the full state (version 0: online status, version 3: CMD08); its report series follows.
   void begin_full_status(uint32_t now) {
     this->synced_ = false;
     this->status_pending_ = true;
@@ -92,13 +91,6 @@ class TuyaLowPowerSession {
     this->fault_ = true;
     this->status_pending_ = false;
     this->write_pending_ = false;
-  }
-
-  /// A version-3 MCU sent its complete state in one report.
-  void mark_synchronized() {
-    this->status_pending_ = false;
-    this->synced_ = true;
-    this->fault_ = false;
   }
 
  protected:

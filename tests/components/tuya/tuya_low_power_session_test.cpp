@@ -37,10 +37,17 @@ TEST(TuyaLowPowerSession, StatusSeriesTimesOut) {
   EXPECT_TRUE(s.ready() && !s.faulted());  // A full status clears the fault.
 }
 
+// A status series that ends at 600 ms
+static void synchronize(TuyaLowPowerSession &s) {
+  s.begin_full_status(0);
+  s.observe_report(100);
+  s.update(100 + TuyaLowPowerSession::QUIET_MS);
+}
+
 TEST(TuyaLowPowerSession, WriteEndsAfterAckAndReports) {
   TuyaLowPowerSession s;
   s.product_received();
-  s.mark_synchronized();
+  synchronize(s);
   s.begin_write(1000);
   s.observe_report(1100);  // A report may come before the ACK.
   EXPECT_EQ(s.update(2000), Event::EVENT_NONE);
@@ -62,11 +69,11 @@ TEST(TuyaLowPowerSession, WriteEndsAfterAckAndReports) {
 TEST(TuyaLowPowerSession, ResetAndCommandTimeout) {
   TuyaLowPowerSession s;
   s.product_received();
-  s.mark_synchronized();
+  synchronize(s);
   EXPECT_TRUE(s.ready());
   s.reset_status();
   EXPECT_FALSE(s.ready() || s.busy() || s.faulted());
-  s.mark_synchronized();
+  synchronize(s);
   s.begin_write(0);
   s.command_timeout();
   EXPECT_TRUE(s.faulted() && !s.busy() && !s.ready());

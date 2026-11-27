@@ -51,6 +51,13 @@ class TuyaLowPowerWireTransactions {
     return true;
   }
 
+  /// A version-3 write or query without its CMD07 report: a late report carries its own values, so no quarantine.
+  bool abandon_report(uint32_t now) {
+    if (!this->overdue(now) || (this->command_ != 0x06 && this->command_ != 0x08))
+      return false;
+    this->active_ = false;
+    return true;
+  }
   void transport_fault() {
     this->active_ = false;
     this->faulted_ = true;

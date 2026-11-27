@@ -130,8 +130,12 @@ void TuyaUART::handle_low_power_frame_(uint8_t command, uint8_t version, const u
   this->lp_mcu_heard_ms_ = millis();
   // A late answer to an expired command must not complete a newer one.
   if (this->lp_wire_.overdue(App.get_loop_component_start_time()) && this->lp_wire_.accepts(command, len)) {
-    ESP_LOGW(LP_TAG, "Discarding overdue MCU ACK CMD 0x%02X; recovery required", command);
-    return;
+    // A late CMD07 confirms nothing, but its values are still taken
+    if (!this->lp_wire_.abandon_report(App.get_loop_component_start_time())) {
+      ESP_LOGW(LP_TAG, "Discarding overdue MCU ACK CMD 0x%02X; recovery required", command);
+      return;
+    }
+    this->expected_response_.reset();
   }
   // A malformed report confirms nothing
   if (command == 0x07 && !valid_datapoints(buffer, len)) {
@@ -171,7 +175,9 @@ void TuyaUART::send_low_power_raw_command_(const TuyaCommand &command) {
     }
     this->expected_response_ = command.cmd;
   }
-  if (cmd == 0x02 && command.payload.size() == 1 && command.payload[0] == 0x04 && !this->lp_v3_)
+  // CMD02 0x04 asks a version-0 MCU for its full status, CMD08 a version-3 MCU that is not synchronized yet
+  if ((cmd == 0x02 && command.payload.size() == 1 && command.payload[0] == 0x04 && !this->lp_v3_) ||
+      (cmd == 0x08 && !this->lp_session_.synchronized()))
     this->lp_session_.begin_full_status(now);
   if (cmd == 0x06 && this->lp_v3_)
     this->lp_v3_last_poll_ms_ = now;  // Its CMD07 echo is a reply, not a report of its own.
@@ -290,7 +296,13 @@ void TuyaUART::process_low_power_queue_() {
 
   // A version-0 MCU reports some time after its ACK, so ACK and report have separate timeouts.
   const bool product_query = this->lp_wire_.active() && this->lp_wire_.command() == 0x01;
-  if (this->lp_wire_.expire(now)) {
+  const bool unreported_write = this->lp_wire_.active() && this->lp_wire_.command() == 0x06;
+  if (this->lp_wire_.abandon_report(now)) {
+    // No quarantine: MCU firmware 1.0.9 applies some writes without a CMD07 report. Ask for the state instead.
+    this->expected_response_.reset();
+    if (unreported_write)
+      this->command_queue_.insert(this->command_queue_.begin(), TuyaCommand{.cmd = TuyaCommandType(0x08)});
+  } else if (this->lp_wire_.expire(now)) {
     this->expected_response_.reset();
     this->lp_session_.command_timeout();
     this->lp_network_status_ = 0xFF;
@@ -490,6 +502,7 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
           this->send_low_power_direct_(0x03, {this->lp_network_status_});
         ESP_LOGD(LP_TAG, "Querying MCU status with CMD08");
         this->lp_v3_last_poll_ms_ = App.get_loop_component_start_time();
+        this->lp_session_.begin_full_status(this->lp_v3_last_poll_ms_);
         this->send_low_power_direct_(0x08, {});
       }
       return;
@@ -511,14 +524,8 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
         this->lp_v3_pushes_ = true;
         ESP_LOGI(LP_TAG, "MCU reports changes on its own; status polling stopped");
       }
+      // The full status after CMD08 comes as several frames (firmware 1.0.9: three): the session ends it when quiet
       this->handle_datapoints_(data, len);
-      // A version-3 MCU sends one complete report, so that report is the full status; one that comes before the
-      // working-mode handshake or during quarantine only updates the datapoints.
-      if (!this->lp_session_.synchronized() && this->lp_v3_mode_acked_ && !this->lp_wire_.faulted()) {
-        this->lp_session_.mark_synchronized();
-        this->status_clear_warning();
-        this->finish_low_power_sync_();
-      }
       return;
     }
 
