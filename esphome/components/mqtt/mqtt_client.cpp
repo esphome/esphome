@@ -984,6 +984,15 @@ bool MQTTClientComponent::teardown() {
   return !this->mqtt_backend_.link_open();
 }
 
+#ifdef USE_ESP8266
+void MQTTClientComponent::on_powerdown() {
+  // Teardown ran out of time: the restart would leave the socket open, and the broker sends no Last Will when
+  // the next boot takes the session over
+  if (this->mqtt_backend_.link_open())
+    this->mqtt_backend_.close_now();
+}
+#endif
+
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::mqtt

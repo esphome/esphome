@@ -364,6 +364,9 @@ class MQTTClientComponent final : public Component {
 
   void on_shutdown() override;
   bool teardown() override;
+#ifdef USE_ESP8266
+  void on_powerdown() override;
+#endif
 
   void set_broker_address(const std::string &address) { this->credentials_.address = address; }
   void set_broker_port(uint16_t port) { this->credentials_.port = port; }
