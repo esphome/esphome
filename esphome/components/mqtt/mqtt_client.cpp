@@ -988,8 +988,10 @@ bool MQTTClientComponent::teardown() {
 void MQTTClientComponent::on_powerdown() {
   // Teardown ran out of time: the restart would leave the socket open, and the broker sends no Last Will when
   // the next boot takes the session over
-  if (this->mqtt_backend_.link_open())
+  if (this->mqtt_backend_.link_open()) {
     this->mqtt_backend_.close_now();
+    delay(20);  // NOLINT: once per reboot or deep sleep, lets the FIN leave before the reset
+  }
 }
 #endif
 
