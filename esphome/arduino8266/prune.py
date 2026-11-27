@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from contextlib import suppress
 from pathlib import Path
 
 from esphome.arduino8266.framework import TOOLCHAIN_VERSION, get_arduino8266_tools_path
-from esphome.build_helpers.prune import PRUNING_SUFFIX, remove_trees, subdirs
+from esphome.build_helpers.prune import PRUNING_SUFFIX, remove_guarded, subdirs
 
 
 def prune_arduino8266_installs(
@@ -20,23 +19,21 @@ def prune_arduino8266_installs(
     dry run).
     """
     root = get_arduino8266_tools_path()
-    removed = [
+    doomed = [
         framework
         for framework in subdirs(root / "frameworks")
         if framework.name not in keep_frameworks
     ]
-    removed += [
+    doomed += [
         toolchain
         for toolchain in subdirs(root / "toolchains")
         if toolchain.name != TOOLCHAIN_VERSION
     ]
-    remove_trees(removed, dry_run)
-
-    if not dry_run:
-        for path in removed:
-            install = path.with_name(path.name.removesuffix(PRUNING_SUFFIX))
-            if not install.exists():
-                with suppress(OSError):
-                    install.with_name(f"{install.name}.lock").unlink()
-
+    removed: list[Path] = []
+    for path in doomed:
+        # The installer locks "<install>.lock"; what is left of an
+        # interrupted prune belongs to the install it was renamed from
+        install = path.with_name(path.name.removesuffix(PRUNING_SUFFIX))
+        lock = install.with_name(f"{install.name}.lock")
+        removed += remove_guarded(lock, [install], [path], dry_run)
     return removed

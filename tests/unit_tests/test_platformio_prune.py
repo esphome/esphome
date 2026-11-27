@@ -237,7 +237,7 @@ def test_prune_removes_libretiny_packages_in_a_version_no_longer_used(
 
 @pytest.mark.parametrize("manifest", ["{}", json.dumps({"packages": {"a": 1}})])
 def test_prune_keeps_libretiny_packages_when_its_versions_are_unreadable(
-    manifest: str, core_dir: Path
+    manifest: str, core_dir: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     platform = core_dir / "platforms" / "libretiny"
     platform.mkdir(parents=True)
@@ -246,6 +246,7 @@ def test_prune_keeps_libretiny_packages_when_its_versions_are_unreadable(
 
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
     assert copy.is_dir()
+    assert "Keeping all replaced LibreTiny packages" in caplog.text
 
 
 def _pioarduino_penv(core_dir: Path, name: str = "penv") -> Path:
@@ -401,7 +402,7 @@ def test_prune_keeps_packages_when_a_remaining_platform_is_unreadable(
 
 
 def test_prune_removes_an_unreadable_platform_without_its_packages(
-    core_dir: Path,
+    core_dir: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     esp32 = core_dir / "platforms" / "espressif32"
     esp32.mkdir(parents=True)
@@ -409,6 +410,7 @@ def test_prune_removes_an_unreadable_platform_without_its_packages(
 
     assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [esp32]
     assert package.is_dir()
+    assert f"Could not tell which packages {esp32} installed" in caplog.text
 
 
 def test_prune_finishes_an_interrupted_prune(core_dir: Path) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from filelock import FileLock
 import pytest
 
 from esphome.components.nrf52.framework import TOOLCHAIN_VERSION
@@ -91,6 +92,27 @@ def test_prune_finishes_an_interrupted_prune(root: Path) -> None:
     assert not (root / f"sdk-{_OLD}.lock").exists()
     assert sdk.is_dir()
     assert (root / f"sdk-{_KEEP}.lock").is_file()
+
+
+def test_prune_keeps_an_sdk_a_build_is_installing(
+    root: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    old = _sdk(root, _OLD)
+    old_toolchain = _toolchain(root, _OLD_TOOLCHAIN)
+
+    with FileLock(str(root / f"sdk-{_OLD}.lock")):
+        assert prune_sdk_nrf_installs({_KEEP}) == [old_toolchain]
+
+    assert old.is_dir()
+    assert (root / "penvs" / _OLD).is_dir()
+    assert (root / f"sdk-{_OLD}.lock").is_file()
+    assert f"Keeping {old}, {root / 'penvs' / _OLD}, a build is installing it" in (
+        caplog.text
+    )
+
+    # The build is done: the next prune removes it
+    assert prune_sdk_nrf_installs({_KEEP}) == [old, root / "penvs" / _OLD]
+    assert not (root / f"sdk-{_OLD}.lock").exists()
 
 
 def test_prune_without_an_install_does_nothing(root: Path) -> None:

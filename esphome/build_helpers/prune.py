@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
+from contextlib import suppress
 import logging
 from pathlib import Path
 
@@ -56,3 +58,37 @@ def remove_trees(paths: list[Path], dry_run: bool) -> None:
             rmtree(path)
         else:
             path.unlink(missing_ok=True)
+
+
+def remove_guarded(
+    lock_path: Path, guarded: Collection[Path], paths: list[Path], dry_run: bool
+) -> list[Path]:
+    """Remove installs under the install lock that guards them.
+
+    ``guarded`` are the installs the lock is for and ``paths`` what to remove
+    of them. Nothing is removed while a build holds the lock, which it does
+    for as long as it installs. The lock file goes too once none of the
+    installs is left. Returns what was removed (``paths`` on a dry run).
+    """
+    if dry_run:
+        remove_trees(paths, dry_run)
+        return paths
+    from filelock import FileLock, Timeout
+
+    lock = FileLock(str(lock_path), fallback_to_soft=False)
+    try:
+        lock.acquire(timeout=0)
+    except Timeout:
+        _LOGGER.warning(
+            "Keeping %s, a build is installing it",
+            ", ".join(str(path) for path in paths),
+        )
+        return []
+    try:
+        remove_trees(paths, dry_run)
+        if not any(path.exists() for path in guarded):
+            with suppress(OSError):
+                lock_path.unlink()
+    finally:
+        lock.release()
+    return paths

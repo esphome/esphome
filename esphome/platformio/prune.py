@@ -114,9 +114,16 @@ def _unused_libretiny_packages(platforms_dir: Path, packages_dir: Path) -> list[
     from esphome.components.libretiny.prune import package_uris
 
     platform = platforms_dir / LIBRETINY
-    if (names := _packages(platform)) is None:
+    if not platform.is_dir():
         return []
-    if (uris := package_uris(platform)) is None:
+    names = _packages(platform)
+    uris = package_uris(platform)
+    if names is None or uris is None:
+        _LOGGER.warning(
+            "Keeping all replaced LibreTiny packages, could not tell which "
+            "versions %s builds with",
+            platform,
+        )
         return []
     return [
         package
@@ -162,7 +169,13 @@ def prune_platformio_installs(
     # Package name -> the removed platforms that list it
     owners: dict[str, set[str]] = {}
     for platform in doomed:
-        for package in _packages(platform) or ():
+        if (packages := _packages(platform)) is None:
+            _LOGGER.warning(
+                "Could not tell which packages %s installed, removing it without them",
+                platform,
+            )
+            continue
+        for package in packages:
             owners.setdefault(package, set()).add(_name(platform))
     for package in get_core_dependencies():
         owners.pop(package, None)

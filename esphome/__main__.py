@@ -2837,10 +2837,12 @@ def parse_args(argv):
 
     parser_prune = subparsers.add_parser(
         "prune",
-        help="Remove the installed ESP-IDF, ESP8266 Arduino and nRF Connect SDK "
-        "versions other than the recommended ones, along with the toolchains "
-        "and Python environments those do not use, and everything PlatformIO "
-        "installed for ESP32 and ESP8266.",
+        help="Remove what this ESPHome version no longer builds with by default: "
+        "the ESP-IDF, ESP8266 Arduino and nRF Connect SDK versions other than "
+        "the recommended ones, with the toolchains and Python environments "
+        "those do not use; what PlatformIO installed for ESP32, ESP8266 and "
+        "nRF52; replaced copies of the RP2 and LibreTiny platforms; and the "
+        "PlatformIO download cache.",
     )
     parser_prune.add_argument(
         "--dry-run",

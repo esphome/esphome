@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from filelock import FileLock
 import pytest
 
 from esphome.arduino8266.framework import TOOLCHAIN_VERSION
@@ -76,6 +77,17 @@ def test_prune_finishes_an_interrupted_prune(root: Path) -> None:
     assert not old_lock.exists()
     assert core.is_dir()
     assert core.with_name(f"{_KEEP}.lock").is_file()
+
+
+def test_prune_keeps_a_core_a_build_is_installing(root: Path) -> None:
+    old_core = _install(root, "frameworks", "3.1.2-esphome.3")
+    lock = old_core.with_name("3.1.2-esphome.3.lock")
+
+    with FileLock(str(lock)):
+        assert prune_arduino8266_installs({_KEEP}) == []
+
+    assert old_core.is_dir()
+    assert lock.is_file()
 
 
 def test_prune_leaves_symlinks_alone(root: Path) -> None:

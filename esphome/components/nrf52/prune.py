@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from contextlib import suppress
 from pathlib import Path
 
-from esphome.build_helpers.prune import PRUNING_SUFFIX, remove_trees, subdirs
+from esphome.build_helpers.prune import PRUNING_SUFFIX, remove_guarded, subdirs
 
 from .framework import _TOOLCHAIN_VERSIONS, get_sdk_nrf_tools_path
+
+# The directories one install lock guards, by the lock's name prefix
+_LOCKED_INSTALLS = {"sdk": ("frameworks", "penvs"), "toolchain": ("toolchains",)}
 
 
 def prune_sdk_nrf_installs(
@@ -21,28 +23,21 @@ def prune_sdk_nrf_installs(
     (the ones that would be removed on a dry run).
     """
     root = get_sdk_nrf_tools_path()
-    removed = [
-        install
-        for kind in ("frameworks", "penvs")
-        for install in subdirs(root / kind)
-        if install.name not in keep_versions
-    ]
-    removed += [
-        toolchain
-        for toolchain in subdirs(root / "toolchains")
-        if toolchain.name not in _TOOLCHAIN_VERSIONS
-    ]
-    remove_trees(removed, dry_run)
+    keep = {"sdk": keep_versions, "toolchain": _TOOLCHAIN_VERSIONS}
+    # (lock prefix, version) -> what to remove of that install
+    doomed: dict[tuple[str, str], list[Path]] = {}
+    for prefix, kinds in _LOCKED_INSTALLS.items():
+        for kind in kinds:
+            for install in subdirs(root / kind):
+                if install.name not in keep[prefix]:
+                    # What is left of an interrupted prune belongs to the
+                    # install it was renamed from
+                    version = install.name.removesuffix(PRUNING_SUFFIX)
+                    doomed.setdefault((prefix, version), []).append(install)
 
-    if not dry_run:
-        for path in removed:
-            name = path.name.removesuffix(PRUNING_SUFFIX)
-            if path.parent.name == "toolchains":
-                lock, installs = f"toolchain-{name}.lock", ("toolchains",)
-            else:
-                lock, installs = f"sdk-{name}.lock", ("frameworks", "penvs")
-            if not any((root / kind / name).exists() for kind in installs):
-                with suppress(OSError):
-                    (root / lock).unlink()
-
+    removed: list[Path] = []
+    for (prefix, version), paths in doomed.items():
+        guarded = [root / kind / version for kind in _LOCKED_INSTALLS[prefix]]
+        lock = root / f"{prefix}-{version}.lock"
+        removed += remove_guarded(lock, guarded, paths, dry_run)
     return removed
