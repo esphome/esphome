@@ -3,7 +3,7 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.storage import block_size, storage_size
+from esphome.components.storage import block_size, storage_size, storage_size_range
 
 
 @pytest.mark.parametrize(
@@ -39,3 +39,16 @@ def test_block_size_accepts(value: object) -> None:
 def test_block_size_rejects(value: object) -> None:
     with pytest.raises(cv.Invalid):
         block_size(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [("1KB", True), ("64KB", True), ("1023", False), ("65537", False)],
+)
+def test_storage_size_range(value: str, valid: bool) -> None:
+    validate = storage_size_range(min_size=1024, max_size=64 * 1024)
+    if valid:
+        assert validate(value) == storage_size(value)
+    else:
+        with pytest.raises(cv.Invalid):
+            validate(value)

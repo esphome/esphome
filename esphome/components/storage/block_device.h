@@ -4,6 +4,7 @@
 #include <mutex>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::storage {
@@ -43,7 +44,7 @@ struct NullMutex {
 };
 
 #ifdef USE_STORAGE_LOCK
-using DeviceMutex = std::mutex;
+using DeviceMutex = Mutex;
 #else
 using DeviceMutex = NullMutex;
 #endif
@@ -53,8 +54,9 @@ using DeviceMutex = NullMutex;
  * Callers use the public methods, which check the address range, alignment and read-only state once,
  * so a driver only implements the transfer. An access may span several blocks.
  *
- * With USE_STORAGE_LOCK (a filesystem used from other tasks) each public call holds mutex(). A driver that touches
- * the device from its own loop() or timers must hold it too.
+ * With USE_STORAGE_LOCK (a filesystem used from other tasks) each transfer holds mutex(). A driver that touches
+ * the device from its own loop() or timers must hold it too. The getters do not lock: a caller on another task that
+ * needs the geometry to stay as it is holds mutex() while it uses it.
  */
 class BlockDevice {
  public:
@@ -85,7 +87,7 @@ class BlockDevice {
   void media_changed_() { this->media_generation_++; }
   void dump_geometry_(const char *tag) const;
 
-  StorageError check_access_(uint32_t block, uint32_t offset, uint32_t len, uint16_t align) const;
+  StorageError check_access_(uint32_t block, uint32_t offset, uint32_t len, uint16_t align, bool write) const;
   StorageError check_range_(uint32_t block, uint32_t count) const;
 
   BlockGeometry geometry_{};

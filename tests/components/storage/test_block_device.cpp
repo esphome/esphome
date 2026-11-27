@@ -109,6 +109,15 @@ TEST(BlockDevice, ReadOnlyRejectsChanges) {
   EXPECT_EQ(dev.calls, 1);
 }
 
+TEST(BlockDevice, RemovedReadOnlyMediaReportsNoMedia) {
+  FakeDevice dev(1, 1, BLOCK_FLAG_REMOVABLE | BLOCK_FLAG_READ_ONLY | BLOCK_FLAG_TRIM);
+  dev.remove_media();
+  static constexpr StorageError NO_MEDIA = StorageError::STORAGE_ERROR_NO_MEDIA;
+  EXPECT_EQ(dev.program(0, 0, nullptr, 1), NO_MEDIA);
+  EXPECT_EQ(dev.erase(0, 1), NO_MEDIA);
+  EXPECT_EQ(dev.trim(0, 1), NO_MEDIA);
+}
+
 TEST(BlockDevice, TrimOnlyReachesDevicesThatSupportIt) {
   FakeDevice plain(1, 1, 0);
   EXPECT_EQ(plain.trim(0, 1), NONE);
@@ -131,6 +140,13 @@ TEST(BlockDevice, NoMediaRejectsEverything) {
   EXPECT_EQ(dev.erase(0, 1), NO_MEDIA);
   EXPECT_EQ(dev.sync(), NO_MEDIA);
   EXPECT_EQ(dev.calls, 0);
+}
+
+TEST(BlockDevice, ErrorNames) {
+  EXPECT_STREQ(LOG_STR_ARG(storage_error_to_string(StorageError::STORAGE_ERROR_NONE)), "none");
+  EXPECT_STREQ(LOG_STR_ARG(storage_error_to_string(StorageError::STORAGE_ERROR_READ_ONLY)), "read only");
+  EXPECT_STREQ(LOG_STR_ARG(storage_error_to_string(StorageError::STORAGE_ERROR_TIMEOUT)), "timeout");
+  EXPECT_STREQ(LOG_STR_ARG(storage_error_to_string(static_cast<StorageError>(1))), "unknown");
 }
 
 }  // namespace esphome::storage::testing

@@ -22,8 +22,8 @@ def _validate_size(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     storage.block_device_schema(RamDisk).extend(
         {
-            cv.Required(CONF_SIZE): cv.All(
-                storage.storage_size, cv.int_range(max=64 * 1024 * 1024)
+            cv.Required(CONF_SIZE): storage.storage_size_range(
+                max_size=64 * 1024 * 1024
             ),
             cv.Optional(CONF_BLOCK_SIZE, default=512): storage.block_size,
         }

@@ -3,32 +3,26 @@
 #include <cinttypes>
 
 #include "esphome/core/application.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::storage {
 
 ESPHOME_LOG_TAG(TAG, "storage");
 
+// Indexed by the negated StorageError value; the last entry is the fallback
+PROGMEM_STRING_TABLE(StorageErrorStrings, "none", "I/O error", "no media", "read only", "invalid address or size",
+                     "timeout", "unknown");
+
 const LogString *storage_error_to_string(StorageError error) {
-  switch (error) {
-    case StorageError::STORAGE_ERROR_NONE:
-      return LOG_STR("none");
-    case StorageError::STORAGE_ERROR_IO:
-      return LOG_STR("I/O error");
-    case StorageError::STORAGE_ERROR_NO_MEDIA:
-      return LOG_STR("no media");
-    case StorageError::STORAGE_ERROR_READ_ONLY:
-      return LOG_STR("read only");
-    case StorageError::STORAGE_ERROR_INVALID:
-      return LOG_STR("invalid address or size");
-    case StorageError::STORAGE_ERROR_TIMEOUT:
-      return LOG_STR("timeout");
-  }
-  return LOG_STR("unknown");
+  return StorageErrorStrings::get_log_str(-static_cast<int>(error));
 }
 
-StorageError BlockDevice::check_access_(uint32_t block, uint32_t offset, uint32_t len, uint16_t align) const {
+StorageError BlockDevice::check_access_(uint32_t block, uint32_t offset, uint32_t len, uint16_t align,
+                                        bool write) const {
   if (!this->has_media())
     return StorageError::STORAGE_ERROR_NO_MEDIA;
+  if (write && (this->geometry_.flags & BLOCK_FLAG_READ_ONLY))
+    return StorageError::STORAGE_ERROR_READ_ONLY;
   if (offset % align != 0 || len % align != 0)
     return StorageError::STORAGE_ERROR_INVALID;
   const uint64_t start = static_cast<uint64_t>(block) * this->geometry_.block_size + offset;
@@ -40,6 +34,8 @@ StorageError BlockDevice::check_access_(uint32_t block, uint32_t offset, uint32_
 StorageError BlockDevice::check_range_(uint32_t block, uint32_t count) const {
   if (!this->has_media())
     return StorageError::STORAGE_ERROR_NO_MEDIA;
+  if (this->geometry_.flags & BLOCK_FLAG_READ_ONLY)
+    return StorageError::STORAGE_ERROR_READ_ONLY;
   if (count == 0 || block >= this->geometry_.block_count || count > this->geometry_.block_count - block)
     return StorageError::STORAGE_ERROR_INVALID;
   return StorageError::STORAGE_ERROR_NONE;
@@ -49,39 +45,32 @@ StorageError BlockDevice::read(uint32_t block, uint32_t offset, void *buf, uint3
   const std::scoped_lock lock{this->mutex_};
   if (len == 0)
     return StorageError::STORAGE_ERROR_NONE;
-  StorageError err = this->check_access_(block, offset, len, this->geometry_.read_size);
+  StorageError err = this->check_access_(block, offset, len, this->geometry_.read_size, false);
   if (err != StorageError::STORAGE_ERROR_NONE)
     return err;
-  // A single filesystem call, such as a format, can make thousands of transfers. Another task (a filesystem used
-  // through the C library) must not feed it: that would hold back the main loop's own feed.
-  if (is_main_loop_thread())
-    App.feed_wdt();
+  // A single filesystem call, such as a format, can make thousands of transfers. Only a task the watchdog watches
+  // feeds it: the main loop, also during setup(), but not a task using a filesystem through the C library.
+  App.feed_wdt_if_watched();
   return this->device_read(block, offset, buf, len);
 }
 
 StorageError BlockDevice::program(uint32_t block, uint32_t offset, const void *buf, uint32_t len) {
   const std::scoped_lock lock{this->mutex_};
-  if (this->geometry_.flags & BLOCK_FLAG_READ_ONLY)
-    return StorageError::STORAGE_ERROR_READ_ONLY;
   if (len == 0)
     return StorageError::STORAGE_ERROR_NONE;
-  StorageError err = this->check_access_(block, offset, len, this->geometry_.program_size);
+  StorageError err = this->check_access_(block, offset, len, this->geometry_.program_size, true);
   if (err != StorageError::STORAGE_ERROR_NONE)
     return err;
-  if (is_main_loop_thread())
-    App.feed_wdt();
+  App.feed_wdt_if_watched();
   return this->device_program(block, offset, buf, len);
 }
 
 StorageError BlockDevice::erase(uint32_t block, uint32_t count) {
   const std::scoped_lock lock{this->mutex_};
-  if (this->geometry_.flags & BLOCK_FLAG_READ_ONLY)
-    return StorageError::STORAGE_ERROR_READ_ONLY;
   StorageError err = this->check_range_(block, count);
   if (err != StorageError::STORAGE_ERROR_NONE)
     return err;
-  if (is_main_loop_thread())
-    App.feed_wdt();
+  App.feed_wdt_if_watched();
   return this->device_erase(block, count);
 }
 
@@ -94,8 +83,6 @@ StorageError BlockDevice::sync() {
 
 StorageError BlockDevice::trim(uint32_t block, uint32_t count) {
   const std::scoped_lock lock{this->mutex_};
-  if (this->geometry_.flags & BLOCK_FLAG_READ_ONLY)
-    return StorageError::STORAGE_ERROR_READ_ONLY;
   StorageError err = this->check_range_(block, count);
   if (err != StorageError::STORAGE_ERROR_NONE || !(this->geometry_.flags & BLOCK_FLAG_TRIM))
     return err;
