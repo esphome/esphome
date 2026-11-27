@@ -38,6 +38,7 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_SOURCE_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WEB_SERVER,
 )
@@ -2313,6 +2314,21 @@ def test_resolve_inherited_property_follows_the_inherit_chain(
         )
     finally:
         fv.full_config.reset(token)
+
+
+def test_inherit_property_from_follows_the_parent_chain() -> None:
+    """A consumer inherits the unit from a copy before the copy's own validation has run."""
+    config = _copy_chain_config("s0")
+    consumer_id = ID("consumer", is_declaration=True)
+    consumer = {CONF_ID: consumer_id, CONF_SOURCE_ID: ID("s1")}
+    config["sensor"].append(consumer)
+    config.declare_ids.append((consumer_id, ["sensor", 2, CONF_ID]))
+    token = fv.full_config.set(config)
+    try:
+        inherit_property_from(CONF_UNIT_OF_MEASUREMENT, CONF_SOURCE_ID)(consumer)
+    finally:
+        fv.full_config.reset(token)
+    assert consumer[CONF_UNIT_OF_MEASUREMENT] == "°C"
 
 
 def _declare(config: Config, path: list[str | int], entry: ConfigType) -> None:
