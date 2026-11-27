@@ -99,14 +99,16 @@ TEST_F(DS1307Test, WriteTimeStoresTheHostTime) {
   this->rtc_.write_time();
   const time_t after = ::time(nullptr);
   const auto &reg = this->bus_.registers;
-  struct tm written{};
-  written.tm_sec = from_bcd(reg[0x00] & 0x7F);
-  written.tm_min = from_bcd(reg[0x01]);
-  written.tm_hour = from_bcd(reg[0x02]);
-  written.tm_mday = from_bcd(reg[0x04]);
-  written.tm_mon = from_bcd(reg[0x05]) - 1;
-  written.tm_year = from_bcd(reg[0x06]) + 100;
-  const time_t epoch = ::timegm(&written);
+  ESPTime written{
+      .second = static_cast<uint8_t>(from_bcd(reg[0x00] & 0x7F)),
+      .minute = static_cast<uint8_t>(from_bcd(reg[0x01])),
+      .hour = static_cast<uint8_t>(from_bcd(reg[0x02])),
+      .day_of_month = static_cast<uint8_t>(from_bcd(reg[0x04])),
+      .month = static_cast<uint8_t>(from_bcd(reg[0x05])),
+      .year = static_cast<uint16_t>(from_bcd(reg[0x06]) + 2000),
+  };
+  written.recalc_timestamp_utc(false);
+  const time_t epoch = written.timestamp;
   EXPECT_GE(epoch, before);
   EXPECT_LE(epoch, after);
   EXPECT_EQ(reg[0x03], ESPTime::from_epoch_utc(epoch).day_of_week);  // 1-7, Sunday = 1
