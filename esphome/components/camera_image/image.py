@@ -8,9 +8,11 @@ import esphome.codegen as cg
 from esphome.components import esp32_camera, runtime_image
 from esphome.components.const import CONF_WINDOW
 from esphome.components.image import CONF_ALPHA_CHANNEL, CONF_TRANSPARENCY, add_metadata
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.runtime_image import CONF_DOUBLE_BUFFER
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DISABLED,
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
@@ -167,6 +169,18 @@ def _decoded_size(
     )
 
 
+def _output_size(config: ConfigType) -> tuple[int, int]:
+    """Size of the published frame: the crop or decoded size, after the rotation."""
+    if CONF_CROP in config:
+        width = config[CONF_CROP][CONF_WIDTH]
+        height = config[CONF_CROP][CONF_HEIGHT]
+    else:
+        width, height = config[_KEY_DECODED_SIZE]
+    if config[CONF_ROTATION] in (90, 270):
+        return height, width
+    return width, height
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     """Check the options that depend on the referenced camera's configuration."""
     camera_config = fv.get_declaring_config(config[CONF_CAMERA_ID])
@@ -211,19 +225,20 @@ def _final_validate(config: ConfigType) -> ConfigType:
             timeout_ms,
         )
 
+    # An OV2640 `window` publishes a smaller frame than the resolution, which the
+    # image size and a crop are derived from. The fitted sensor is only known at
+    # run time, where the real frame is checked.
+    if CONF_WINDOW in camera_config:
+        _LOGGER.warning(
+            "camera_image: the camera has a 'window', so the frame may be smaller "
+            "than the %dx%d resolution; the image size and any 'crop' are only "
+            "checked against the real frame at run time",
+            camera_width,
+            camera_height,
+        )
+
     if CONF_CROP in config:
         crop = config[CONF_CROP]
-        # An OV2640 `window` publishes a smaller frame than the resolution. The
-        # fitted sensor is only known at run time, so the crop is checked against
-        # the resolution here and against the real frame on every update.
-        if CONF_WINDOW in camera_config:
-            _LOGGER.warning(
-                "camera_image: the camera has a 'window', so the frame may be smaller "
-                "than the %dx%d resolution and 'crop' is checked against the frame at "
-                "run time",
-                camera_width,
-                camera_height,
-            )
         if (
             crop[CONF_X] + crop[CONF_WIDTH] > decoded_width
             or crop[CONF_Y] + crop[CONF_HEIGHT] > decoded_height
@@ -243,6 +258,18 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 f"{detail}",
                 path=[CONF_CROP],
             )
+
+    # Without PSRAM the rotation buffer is a static array in internal RAM, and one
+    # that does not fit only shows up as a link error.
+    psram_config = fv.full_config.get().get(PSRAM_DOMAIN, {CONF_DISABLED: True})
+    if config[CONF_ROTATION] and psram_config.get(CONF_DISABLED):
+        width, height = _output_size(config)
+        _LOGGER.warning(
+            "camera_image: 'rotation' reserves %d bytes of internal RAM without "
+            "PSRAM; if the firmware does not link, enable 'psram' or reduce the "
+            "image with 'resize' or 'crop'",
+            width * height * _BYTES_PER_PIXEL[config[CONF_TYPE]],
+        )
     return config
 
 
@@ -257,13 +284,7 @@ async def to_code(config: ConfigType) -> None:
     # Publish and allocate for the size the frame actually comes out at: the
     # crop, or the decoded frame `resize` fits it to, and after a 90 or 270
     # degree rotation those dimensions swapped.
-    if CONF_CROP in config:
-        output_width = config[CONF_CROP][CONF_WIDTH]
-        output_height = config[CONF_CROP][CONF_HEIGHT]
-    else:
-        output_width, output_height = config[_KEY_DECODED_SIZE]
-    if config[CONF_ROTATION] in (90, 270):
-        output_width, output_height = output_height, output_width
+    output_width, output_height = _output_size(config)
 
     add_metadata(
         config[CONF_ID],

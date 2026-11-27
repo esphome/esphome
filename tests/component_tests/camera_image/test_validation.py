@@ -243,11 +243,15 @@ def test_timeout_is_configurable(set_core_config: Callable[..., None]) -> None:
     assert config["timeout"].total_milliseconds == 8000
 
 
-def test_crop_with_camera_window_warns(
-    set_core_config: Callable[..., None], caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize(
+    "extra", [{}, {"crop": {"x": 0, "y": 0, "width": 100, "height": 100}}]
+)
+def test_camera_window_warns(
+    set_core_config: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+    extra: ConfigType,
 ) -> None:
-    crop = {"x": 0, "y": 0, "width": 100, "height": 100}
-    config = _validate(set_core_config, {"crop": crop})
+    config = _validate(set_core_config, extra)
     full = _full_config()
     full[esp32_camera.DOMAIN]["window"] = {"offset_x": 0}
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
@@ -271,3 +275,29 @@ def test_slow_max_framerate_warns(
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
     camera_image.FINAL_VALIDATE_SCHEMA(config)
     assert ("'max_framerate' allows" in caplog.text) is warns
+
+
+@pytest.mark.parametrize(
+    ("rotation", "psram", "warns"),
+    [
+        (0, None, False),
+        (90, None, True),
+        (90, {"disabled": True}, True),
+        (90, {"disabled": False}, False),
+    ],
+)
+def test_rotation_without_psram_warns(
+    set_core_config: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+    rotation: int,
+    psram: ConfigType | None,
+    warns: bool,
+) -> None:
+    config = _validate(set_core_config, {"rotation": rotation})
+    full = _full_config()
+    if psram is not None:
+        full["psram"] = psram
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    camera_image.FINAL_VALIDATE_SCHEMA(config)
+    # 640x480 RGB565
+    assert ("reserves 614400 bytes" in caplog.text) is warns

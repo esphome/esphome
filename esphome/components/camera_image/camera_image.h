@@ -53,9 +53,13 @@ class CameraImage final : public PollingComponent, public runtime_image::Runtime
   int decode_height_{0};
 #endif
   uint32_t request_timeout_;
+  /// Image size the configuration was validated against.
+  int16_t output_width_;
+  int16_t output_height_;
   bool waiting_{false};
   /// Set by a request timeout, so the frame that arrives afterwards is reported.
   bool timed_out_{false};
+  bool size_mismatch_logged_{false};
   LazyCallbackManager<void()> on_image_callback_{};
   LazyCallbackManager<void()> on_error_callback_{};
 };

@@ -23,13 +23,15 @@ PROGMEM_STRING_TABLE(ImageTypeStrings, "BINARY", "GRAYSCALE", "RGB", "RGB565", "
 
 CameraImage::CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
-                         bool is_big_endian, uint32_t request_timeout, [[maybe_unused]] const Transform &transform)
+                         bool is_big_endian, uint32_t request_timeout, const Transform &transform)
     : RuntimeImage(format, type, transparency, placeholder, is_big_endian, width, height),
       camera_(camera),
 #ifdef USE_CAMERA_IMAGE_TRANSFORM
       transform_(transform),
 #endif
-      request_timeout_(request_timeout) {
+      request_timeout_(request_timeout),
+      output_width_(transform.output_width),
+      output_height_(transform.output_height) {
 }
 
 void CameraImage::setup() {
@@ -142,6 +144,13 @@ bool CameraImage::decode_frame_(const uint8_t *data, size_t length) {
     return false;
   }
 #endif
+  // The image size was derived from the camera resolution; a sensor `window` delivers less.
+  if (!this->size_mismatch_logged_ &&
+      (this->buffer_width_ != this->output_width_ || this->buffer_height_ != this->output_height_)) {
+    this->size_mismatch_logged_ = true;
+    ESP_LOGW(TAG, "Image is %dx%d, but the configuration expects %dx%d; check the camera 'window'", this->buffer_width_,
+             this->buffer_height_, this->output_width_, this->output_height_);
+  }
   return this->end_decode();
 }
 
