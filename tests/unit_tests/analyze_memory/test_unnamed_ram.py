@@ -284,6 +284,8 @@ def test_map_text_finds_esp_idf_project_map(tmp_path: Path) -> None:
     (tmp_path / "device.elf").write_bytes(b"elf")
     (tmp_path / "other.map").write_text(MAP_TEXT * 100)
     (tmp_path / "device.map").write_text(MAP_TEXT * 100)
+    # Every compile copies the ELF to firmware.elf, after the map was written
+    os.utime(elf, (elf.stat().st_mtime + 3600,) * 2)
     analyzer = make_analyzer()
     analyzer.elf_path = elf
     assert analyzer._map_text == MAP_TEXT * 100

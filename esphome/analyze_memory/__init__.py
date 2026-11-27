@@ -1040,8 +1040,10 @@ class MemoryAnalyzer:
             )
         if not map_path.exists() or map_path.stat().st_size < 10000:
             return None
-        # ld writes the map during the link; one much older is from an earlier build
-        if map_path.stat().st_mtime < self.elf_path.stat().st_mtime - 60:
+        # ld writes the map during the link; one much older than its ELF is from an
+        # earlier build. Compare with the linked ELF, since every compile copies it.
+        linked_elf = map_path.with_suffix(".elf")
+        if map_path.stat().st_mtime < linked_elf.stat().st_mtime - 60:
             _LOGGER.warning("Ignoring %s: it is older than the ELF", map_path.name)
             return None
         _LOGGER.info("Parsing linker map file: %s", map_path.name)
