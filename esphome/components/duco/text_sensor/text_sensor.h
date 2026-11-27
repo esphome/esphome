@@ -13,6 +13,7 @@ enum class DucoTextReading : uint8_t {
   DUCO_TEXT_READING_ERROR,
   DUCO_TEXT_READING_UPTIME,
   DUCO_TEXT_READING_NODE_TYPE,
+  DUCO_TEXT_READING_NODE_NETWORK_TYPE,
 };
 
 class DucoTextSensor : public DucoDevice, public text_sensor::TextSensor {

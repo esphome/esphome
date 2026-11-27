@@ -16,12 +16,6 @@ class BM8563 final : public time::RealTimeClock, public i2c::I2CDevice {
   void start_timer(uint32_t duration_s);
 
  private:
-  void get_time_(ESPTime &time);
-  void get_date_(ESPTime &time);
-
-  void set_time_(const ESPTime &time);
-  void set_date_(const ESPTime &time);
-
   void set_timer_irq_(uint32_t duration_s);
   void clear_irq_();
   void disable_irq_();

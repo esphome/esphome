@@ -16,7 +16,7 @@
 
 namespace esphome::pulse_counter {
 
-enum PulseCounterCountMode {
+enum PulseCounterCountMode : uint8_t {
   PULSE_COUNTER_DISABLE = 0,
   PULSE_COUNTER_INCREMENT,
   PULSE_COUNTER_DECREMENT,
@@ -29,10 +29,11 @@ struct PulseCounterStorageBase {
   virtual pulse_counter_t read_raw_value() = 0;
 
   InternalGPIOPin *pin{nullptr};
-  PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
-  PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
   uint32_t filter_us{0};
   pulse_counter_t last_value{0};
+  // Last, so BasicPulseCounterStorage::fixed_mode fills the tail padding
+  PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
+  PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
 };
 
 struct BasicPulseCounterStorage : public PulseCounterStorageBase {
@@ -41,11 +42,11 @@ struct BasicPulseCounterStorage : public PulseCounterStorageBase {
   bool pulse_counter_setup(InternalGPIOPin *pin) override;
   pulse_counter_t read_raw_value() override;
 
+  PulseCounterCountMode fixed_mode{PULSE_COUNTER_DISABLE};
   volatile pulse_counter_t counter{0};
   volatile uint32_t last_pulse{0};
 
   ISRInternalGPIOPin isr_pin;
-  PulseCounterCountMode fixed_mode{PULSE_COUNTER_DISABLE};
 };
 
 #ifdef HAS_PCNT

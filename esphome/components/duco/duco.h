@@ -20,11 +20,14 @@ static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data
 static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
 static constexpr uint8_t FUNCTION_ERRORS = 0x30;     // the active errors of a node
 
-/// Set in a node type byte for a node on network type 3 (BS); the node type codes stay below it.
-static constexpr uint8_t NODE_TYPE_BS = 0x80;
+/// Network type of a virtual node, such as a box sensor (BS) built into the box.
+static constexpr uint8_t NETWORK_TYPE_VIRTUAL = 3;
 
-/// The name of a node type byte.
-const LogString *node_type_name(uint8_t type);
+/// The name of a node, taking its network type into account.
+const LogString *node_type_name(uint8_t type, uint8_t network_type);
+
+/// The network type of a node
+const LogString *network_type_name(uint8_t type);
 
 /// A received message; data points into the receive buffer and is valid only during the callback.
 struct DucoMessage {
@@ -33,10 +36,8 @@ struct DucoMessage {
   uint8_t size;
 };
 
-/// The node type byte of a non-empty node answer; a one-byte answer has no network type.
-inline uint8_t node_type_byte(const DucoMessage &message) {
-  return message.data[0] | (message.size >= 2 && message.data[1] == 3 ? NODE_TYPE_BS : 0);
-}
+/// The network type of a node answer; a one-byte answer has no network type.
+inline uint8_t node_network_type(const DucoMessage &message) { return message.size >= 2 ? message.data[1] : 0; }
 
 class DucoDevice;
 
@@ -103,7 +104,9 @@ class DucoDiscovery : public DucoDevice {
  protected:
   static constexpr uint8_t NODE_COUNT = 0x45;
 
-  std::array<uint8_t, NODE_COUNT> node_types_{};  // node type bytes, 0 when no node answered at that address
+  static constexpr uint8_t NODE_TYPE_MASK = 0x3F;
+  static constexpr uint8_t NETWORK_TYPE_SHIFT = 6;
+  std::array<uint8_t, NODE_COUNT> node_types_{};  // low six bits: node type; high two bits: network type
   uint8_t next_node_{0};
   uint8_t attempts_{0};
 };
