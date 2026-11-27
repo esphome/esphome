@@ -8,6 +8,7 @@ from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+CODEOWNERS = ["@docteurzoidberg"]
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
 DOMAIN = "e131"

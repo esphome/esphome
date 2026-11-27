@@ -54,7 +54,7 @@ struct E131Source {
   bool has_runner_up;
 };
 
-enum class E131Decision : uint8_t { IGNORE, APPLY, TAKE_OVER };
+enum class E131Decision : uint8_t { E131_DECISION_IGNORE, E131_DECISION_APPLY, E131_DECISION_TAKE_OVER };
 #endif
 
 struct UniverseConsumer {

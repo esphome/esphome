@@ -86,9 +86,9 @@ void E131Component::loop() {
     E131SourceInfo source;
     this->source_info_(buf, source);
     const E131Decision decision = this->arbitrate_(universe, source);
-    if (decision == E131Decision::IGNORE)
+    if (decision == E131Decision::E131_DECISION_IGNORE)
       continue;
-    if (decision == E131Decision::TAKE_OVER) {
+    if (decision == E131Decision::E131_DECISION_TAKE_OVER) {
       // A new source may send fewer slots than the previous one: blank the rest of the universe.
       memset(packet.values + packet.count, 0, E131_MAX_PROPERTY_VALUES_COUNT - packet.count);
       packet.count = E131_MAX_PROPERTY_VALUES_COUNT;
@@ -142,13 +142,13 @@ void E131Component::remove_effect(E131AddressableLightEffect *light_effect) {
 // always gives the same result (6.2.3.3).
 E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info) {
   if (info.options & E131_OPTION_PREVIEW_DATA)
-    return E131Decision::IGNORE;  // not for live output (6.2.6)
+    return E131Decision::E131_DECISION_IGNORE;  // not for live output (6.2.6)
   if (info.priority > E131_MAX_PRIORITY)
-    return E131Decision::IGNORE;  // never transmitted by a conforming source (6.2.3)
+    return E131Decision::E131_DECISION_IGNORE;  // never transmitted by a conforming source (6.2.3)
 
   auto *consumer = this->find_universe_(universe);
   if (consumer == nullptr || consumer->consumers == 0)
-    return E131Decision::IGNORE;  // no effect listens to this universe
+    return E131Decision::E131_DECISION_IGNORE;  // no effect listens to this universe
 
   // Logging may run automations that start effects and reallocate the universe entries, so the source state is
   // only used before the log calls at the end.
@@ -156,7 +156,7 @@ E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info)
   const uint32_t now = App.get_loop_component_start_time();
   uint8_t left_cid[E131_CID_SIZE];
   const char *left_reason = nullptr;
-  E131Decision decision = E131Decision::IGNORE;
+  E131Decision decision = E131Decision::E131_DECISION_IGNORE;
 
   // Network data loss (6.7.1): the winner, or the runner-up, sent nothing for the timeout.
   if (winner.active && now - winner.last_packet_ms >= E131_NETWORK_DATA_LOSS_TIMEOUT_MS) {
@@ -181,7 +181,7 @@ E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info)
         winner.priority = info.priority;
         winner.sequence = info.sequence;
         winner.last_packet_ms = now;
-        decision = E131Decision::APPLY;
+        decision = E131Decision::E131_DECISION_APPLY;
       }
     }
   } else if (terminated) {
@@ -208,12 +208,12 @@ E131Decision E131Component::arbitrate_(int universe, const E131SourceInfo &info)
     winner.sequence = info.sequence;
     winner.last_packet_ms = now;
     winner.active = true;
-    decision = E131Decision::TAKE_OVER;
+    decision = E131Decision::E131_DECISION_TAKE_OVER;
   }
 
   if (left_reason != nullptr)
     this->log_source_leaving_(universe, left_cid, left_reason);
-  if (decision == E131Decision::TAKE_OVER)
+  if (decision == E131Decision::E131_DECISION_TAKE_OVER)
     this->log_source_taking_over_(universe, info);
   return decision;
 }
