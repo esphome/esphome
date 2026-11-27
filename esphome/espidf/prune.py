@@ -1,48 +1,57 @@
-"""Remove ESP-IDF installs that have not been used recently."""
+"""Remove the ESP-IDF installs that ESPHome no longer builds with by default."""
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from contextlib import suppress
 import logging
 from pathlib import Path
-import time
 
-from esphome.espidf.framework import ESPHOME_LAST_USED_FILE, get_idf_tools_path
+from esphome.espidf.framework import _get_idf_tool_paths, get_idf_tools_path
 from esphome.framework_helpers import rename_with_retry
 from esphome.helpers import rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
 _PRUNING_SUFFIX = ".pruning"
-_SECONDS_PER_DAY = 86400
 
 
 def _subdirs(path: Path) -> list[Path]:
     try:
-        return sorted(
-            entry
-            for entry in path.iterdir()
-            if entry.is_dir() and not entry.is_symlink()
-        )
+        return sorted(entry for entry in path.iterdir() if entry.is_dir())
     except (FileNotFoundError, NotADirectoryError):
         return []
 
 
-def _is_leftover(path: Path) -> bool:
-    return path.name.endswith(_PRUNING_SUFFIX)
-
-
-def _unused(path: Path, cutoff: float, dry_run: bool) -> bool:
-    if _is_leftover(path):
-        return True
-    marker = path / ESPHOME_LAST_USED_FILE
-    with suppress(FileNotFoundError):
-        return marker.stat().st_mtime < cutoff
-    # Installed before last-use tracking existed: the clock starts now
-    if not dry_run:
-        with suppress(OSError):
-            marker.touch()
-    return False
+def _used_tools(frameworks: list[Path]) -> set[Path] | None:
+    """Tool version directories the frameworks build with, None if unknown."""
+    tools_path = get_idf_tools_path() / "tools"
+    env = {"IDF_TOOLS_PATH": str(get_idf_tools_path()), "IDF_PATH": ""}
+    used: set[Path] = set()
+    for framework in frameworks:
+        try:
+            paths_to_export, export_vars = _get_idf_tool_paths(framework, env)
+        except RuntimeError as err:
+            _LOGGER.warning(
+                "Keeping all ESP-IDF tools, could not tell which ones %s uses: %s",
+                framework,
+                err,
+            )
+            return None
+        found: set[Path] = set()
+        for value in (*paths_to_export, *export_vars.values()):
+            with suppress(ValueError):
+                parts = Path(value).relative_to(tools_path).parts
+                if len(parts) >= 2:
+                    found.add(tools_path / parts[0] / parts[1])
+        if not found:
+            _LOGGER.warning(
+                "Keeping all ESP-IDF tools, %s uses none of the installed ones",
+                framework,
+            )
+            return None
+        used |= found
+    return used
 
 
 def _remove(path: Path, dry_run: bool) -> None:
@@ -52,44 +61,52 @@ def _remove(path: Path, dry_run: bool) -> None:
     _LOGGER.info("Deleting %s", path)
     # Renamed first: an interrupted delete must not leave a partial tree
     # that still passes for an install
-    if not _is_leftover(path):
+    if not path.name.endswith(_PRUNING_SUFFIX):
         doomed = path.with_name(path.name + _PRUNING_SUFFIX)
         rename_with_retry(path, doomed)
         path = doomed
     rmtree(path)
 
 
-def prune_idf_installs(max_age_days: float, dry_run: bool = False) -> list[Path]:
-    """Remove ESP-IDF versions and tool versions unused for ``max_age_days``.
+def prune_idf_installs(
+    keep_versions: Collection[str], dry_run: bool = False
+) -> list[Path]:
+    """Remove every ESP-IDF version except ``keep_versions``.
 
-    A Python environment goes with its framework. Returns the removed
-    directories (the ones that would be removed on a dry run).
+    Python environments and tool versions that the kept versions do not use
+    go with them. Returns the removed directories (the ones that would be
+    removed on a dry run).
     """
     root = get_idf_tools_path()
-    cutoff = time.time() - max_age_days * _SECONDS_PER_DAY
 
-    frameworks = _subdirs(root / "frameworks")
-    removed = [path for path in frameworks if _unused(path, cutoff, dry_run)]
-    # A symlinked framework is not listed, so its environment is left alone
-    gone = {path.name for path in removed}
+    kept: list[Path] = []
+    removed: list[Path] = []
+    for framework in _subdirs(root / "frameworks"):
+        # A symlink is the user's own checkout
+        if framework.is_symlink() or framework.name in keep_versions:
+            kept.append(framework)
+        else:
+            removed.append(framework)
+
+    kept_versions = {framework.name for framework in kept}
     removed += [
         penv
         for penv in _subdirs(root / "penvs")
-        if _is_leftover(penv)
-        or penv.name in gone
-        or not (root / "frameworks" / penv.name).is_dir()
+        if not penv.is_symlink() and penv.name not in kept_versions
     ]
 
-    tools = _subdirs(root / "tools")
-    removed += [
-        version
-        for tool in tools
-        for version in _subdirs(tool)
-        if _unused(version, cutoff, dry_run)
-    ]
+    tools: list[Path] = []
+    if (used := _used_tools(kept)) is not None:
+        tools = [tool for tool in _subdirs(root / "tools") if not tool.is_symlink()]
+        removed += [
+            version
+            for tool in tools
+            for version in _subdirs(tool)
+            if not version.is_symlink() and version not in used
+        ]
 
     # Leftovers of an interrupted prune go first so no rename can collide
-    removed.sort(key=lambda path: not _is_leftover(path))
+    removed.sort(key=lambda path: not path.name.endswith(_PRUNING_SUFFIX))
     for path in removed:
         _remove(path, dry_run)
 

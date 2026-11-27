@@ -20,7 +20,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.espidf.framework import (
-    ESPHOME_LAST_USED_FILE,
     ESPHOME_STAMP_FILE,
     STAMP_SCHEMA_VERSION,
     _ccache_env,
@@ -1733,40 +1732,6 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
     assert "IDF_PYTHON_ENV_PATH" not in env
     assert env["PATH"]  # taken from os.environ
-
-
-def test_get_framework_env_records_last_use(tmp_path: Path) -> None:
-    """The framework and each tool version it exports get a fresh marker."""
-    install = tmp_path / "idf"
-    framework = install / "frameworks" / "6.1.1"
-    gcc = install / "tools" / "xtensa-esp-elf" / "esp-15.2.0"
-    rom_elfs = install / "tools" / "esp-rom-elfs" / "20260528"
-    unused = install / "tools" / "xtensa-esp-elf" / "esp-14.2.0"
-    for path in (framework, gcc / "xtensa-esp-elf" / "bin", rom_elfs, unused):
-        path.mkdir(parents=True)
-    stale = framework / ESPHOME_LAST_USED_FILE
-    stale.touch()
-    os.utime(stale, (0, 0))
-
-    with (
-        patch("esphome.espidf.framework.get_idf_tools_path", return_value=install),
-        patch("esphome.espidf.framework._get_idf_version", return_value="6.1.1"),
-        patch(
-            "esphome.espidf.framework._get_idf_tool_paths",
-            return_value=(
-                [str(gcc / "xtensa-esp-elf" / "bin"), "/usr/bin", str(install)],
-                {"ESP_ROM_ELF_DIR": f"{rom_elfs}{os.sep}", "IDF_X": "1"},
-            ),
-        ),
-        patch("esphome.espidf.framework._ccache_env", return_value={}),
-    ):
-        get_framework_env(framework, env={"PATH": "/usr/bin"})
-
-    assert stale.stat().st_mtime > 0
-    assert (gcc / ESPHOME_LAST_USED_FILE).is_file()
-    assert (rom_elfs / ESPHOME_LAST_USED_FILE).is_file()
-    assert not (unused / ESPHOME_LAST_USED_FILE).exists()
-    assert len(list(install.rglob(ESPHOME_LAST_USED_FILE))) == 3
 
 
 # ---------------------------------------------------------------------------
