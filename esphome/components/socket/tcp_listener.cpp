@@ -42,9 +42,10 @@ std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &link) {
   socklen_t peer_len = sizeof(peer);
   auto client = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
   if (client == nullptr) {
-    // Out of sockets or memory, or a reset/signal on that connection: try again next loop.
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR || errno == ENFILE ||
-        errno == EMFILE || errno == ENOBUFS || errno == ENOMEM) {
+    // Out of sockets or memory, or a reset/signal on that connection: try again next loop. lwIP reports a
+    // connection reset before it was accepted as ENOTCONN.
+    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == ENOTCONN || errno == EINTR ||
+        errno == ENFILE || errno == EMFILE || errno == ENOBUFS || errno == ENOMEM) {
       return nullptr;
     }
     // Rebuild the listener after the backoff instead of spinning on it.
