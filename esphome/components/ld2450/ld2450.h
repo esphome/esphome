@@ -30,6 +30,7 @@
 
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
@@ -40,12 +41,28 @@ namespace esphome::ld2450 {
 using namespace ld24xx;
 
 // Constants
-static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
+static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presence status 5 sec.
 // Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
 // lands inside the buffer during footer-based resynchronization after losing sync.
 static constexpr uint8_t MAX_LINE_LENGTH = 45;
 static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
 static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
+// Periodic frames: header, three targets of 8 bytes, footer; they carry no length
+using PeriodicFrameFormat = FrameFormat<FrameHeader<0xAA, 0xFF, 0x03, 0x00>, FrameFixedLength<30>>;
+
+// Silence after our own commands (restart, Bluetooth toggle, ...) is not a link loss; a restart takes about 2.3 s
+static constexpr uint32_t LINK_GRACE_MS = 5000;
+// Caps the windows, so retried commands cannot hide a real loss
+static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
+static constexpr uint32_t XY_UNFILTERED_DURATION_MS = 10000;
+// Scheduler ids of the component
+static constexpr uint32_t XY_UNFILTERED_TIMEOUT_ID = 0;
+
+enum class LinkState : uint8_t {
+  LINK_STATE_WAITING,  // no valid frame since boot
+  LINK_STATE_UP,       // valid frames arrive
+  LINK_STATE_LOST,     // no valid frame for the link timeout
+};
 
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
@@ -53,6 +70,23 @@ enum Direction : uint8_t {
   DIRECTION_STATIONARY = 2,
   DIRECTION_NA = 3,
   DIRECTION_UNDEFINED = 4,
+};
+
+enum BaudRate : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8
+};
+
+enum ZoneType : uint8_t {
+  ZONE_DISABLED = 0,
+  ZONE_DETECTION = 1,
+  ZONE_FILTER = 2,
 };
 
 // Target coordinate struct
@@ -81,6 +115,7 @@ struct ZoneOfNumbers {
 
 class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(connected)
   SUB_BINARY_SENSOR(moving_target)
   SUB_BINARY_SENSOR(still_target)
   SUB_BINARY_SENSOR(target)
@@ -108,6 +143,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_BUTTON
   SUB_BUTTON(factory_reset)
   SUB_BUTTON(restart)
+#ifdef USE_LD2450_XY_UNFILTERED
+  SUB_BUTTON(xy_unfiltered)
+#endif
 #endif
 
  public:
@@ -115,20 +153,31 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void set_presence_timeout();
+  void set_link_timeout(uint32_t timeout_ms) { this->link_timeout_ms_ = timeout_ms; }
   void read_all_info();
   void query_zone_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
+#ifdef USE_LD2450_XY_UNFILTERED
+  // Makes the xy text sensors publish every position, as if they had no filters, for XY_UNFILTERED_DURATION_MS;
+  // calling it again starts that time over
+  void start_xy_unfiltered();
+#endif
   void set_baud_rate(const char *state);
+  void set_baud_rate(BaudRate rate);
   void set_zone_type(const char *state);
+  void set_zone_type(ZoneType type);
   void publish_zone_type();
   void factory_reset();
 #ifdef USE_TEXT_SENSOR
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
+#ifdef USE_LD2450_TARGET_XY
+  void set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s);
+#endif
 #ifdef USE_NUMBER
-  void set_zone_coordinate(uint8_t zone);
+  void set_zone_coordinate(number::Number *n);
   void set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2, number::Number *y2);
 #endif
 #ifdef USE_SENSOR
@@ -156,10 +205,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
-  void handle_periodic_data_();
-  bool handle_ack_data_();
-  void process_zone_();
-  void readline_(int readch);
+  void handle_periodic_data_(const uint8_t *frame);
+  bool handle_ack_data_(const uint8_t *frame, uint8_t len);
+  bool handle_frame_(const uint8_t *frame, uint8_t len);
+  void process_zone_(const uint8_t *frame);
   void get_version_();
   void get_mac_();
   void query_target_tracking_mode_();
@@ -169,23 +218,48 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
+  void open_link_grace_();
+  void check_link_();
+  bool bytes_since_frame_() const {
+    return static_cast<int32_t>(this->last_rx_ - this->last_frame_ms_) > 0 || this->reader_.length() != 0;
+  }
+  void on_valid_frame_();
+  void on_link_lost_(uint32_t silent_ms, bool was_up);
+  void on_link_up_(bool restored);
+#ifdef USE_SENSOR
+  void publish_target_unknown_(uint8_t target);
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  void update_target_xy_(uint8_t target, bool changed);
+#ifdef USE_LD2450_XY_UNFILTERED
+  void set_xy_unfiltered_(bool unfiltered);
+#endif
+#endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
   uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
-  uint8_t buffer_data_[MAX_LINE_LENGTH];
+  uint32_t link_timeout_ms_{0};
+  uint32_t last_frame_ms_{0};     // last valid periodic frame; until the first one, when setup() ran
+  uint32_t last_rx_{0};           // last pass that read bytes
+  uint32_t link_deadline_ms_{0};  // the link is lost when the loop clock reaches this
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
-  uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
+  LengthFrameReader<MAX_LINE_LENGTH, ld24xx::CmdFrameFormat, PeriodicFrameFormat> reader_;
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
+  LinkState link_state_{LinkState::LINK_STATE_WAITING};
+  uint16_t invalid_frames_{0};  // since the last valid frame, saturating
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
 #ifdef USE_TEXT_SENSOR
   // Byte aligned, so it packs after zone_config_ instead of padding before data_callback_
   std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
+#endif
+#ifdef USE_LD2450_XY_UNFILTERED
+  bool xy_unfiltered_{false};  // the xy text sensors publish past their filters
 #endif
 
 #ifdef USE_NUMBER
@@ -193,18 +267,22 @@ class LD2450Component : public Component, public uart::UARTDevice {
   ZoneOfNumbers zone_numbers_[MAX_ZONES];
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
-  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
-  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
-  std::array<SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
-  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
-  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
+  std::array<sensor::SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
+  std::array<sensor::SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
+  std::array<sensor::SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
+  std::array<sensor::SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
+  std::array<sensor::SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
+  std::array<sensor::SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT

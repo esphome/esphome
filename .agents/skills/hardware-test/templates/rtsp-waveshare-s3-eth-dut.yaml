@@ -1,0 +1,105 @@
+esphome:
+  name: rtsp17990
+  on_boot:
+    # GPIO8 low enables the camera's power supply on the Waveshare ESP32-S3-ETH; give the sensor
+    # time to come up before esp32_camera (setup_priority 200) probes it
+    priority: 700
+    then:
+      - switch.turn_off: cam_power
+      - lambda: |-
+          delay(1200);
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: VERBOSE
+  hardware_uart: USB_SERIAL_JTAG
+  logs:
+    rtsp_server: VERBOSE
+    esp32_camera: DEBUG
+    camera: DEBUG
+    wifi: DEBUG
+    api: DEBUG
+    api.connection: DEBUG
+    api.socket: DEBUG
+    socket: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    app: DEBUG
+    mdns: DEBUG
+    ota: DEBUG
+    logger: DEBUG
+    psram: DEBUG
+    esp32: DEBUG
+    network: DEBUG
+    i2c: DEBUG
+    i2c.idf: DEBUG
+    preferences: DEBUG
+    debug: DEBUG
+    sensor: DEBUG
+    wifi_esp32: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+debug:
+  update_interval: 10s
+
+sensor:
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Largest Block"
+    psram:
+      name: "PSRAM Free"
+
+# Waveshare ESP32-S3-ETH camera header (Waveshare wiki, WIFI_Web_CAM table)
+i2c:
+  - id: cam_i2c
+    sda: GPIO48
+    scl: GPIO47
+    frequency: 400kHz
+
+switch:
+  - platform: gpio
+    id: cam_power
+    name: Camera Power
+    pin: GPIO8
+    restore_mode: ALWAYS_OFF
+    setup_priority: 800
+
+esp32_camera:
+  name: cam
+  setup_priority: 200
+  data_pins: [GPIO41, GPIO45, GPIO46, GPIO42, GPIO40, GPIO38, GPIO15, GPIO18]
+  vsync_pin: GPIO1
+  href_pin: GPIO2
+  pixel_clock_pin: GPIO39
+  external_clock:
+    pin: GPIO3
+    frequency: 20MHz
+  i2c_id: cam_i2c
+  resolution: 640X480
+  max_framerate: 10fps
+
+rtsp_server:
+  port: 554
+  max_connections: 2

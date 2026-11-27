@@ -96,7 +96,7 @@ void TMP102Component::setup_configured_() {
 #endif
   if (!this->write_configuration_()) {
     this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_SETUP_FAILED);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 #ifdef USE_TMP102_NUMBER
@@ -123,9 +123,6 @@ void TMP102Component::setup_configured_() {
 void TMP102Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TMP102:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this);
 #ifdef USE_TMP102_BINARY_SENSOR
@@ -337,13 +334,8 @@ bool TMP102Component::set_limit_temperature_(TMP102LimitType limit, float temper
 void TMP102Component::publish_threshold_status_(uint8_t status) {
   if (this->threshold_status_text_sensor_ == nullptr)
     return;
-  char text[40];
-  ESPHOME_strncpy_P(
-      text,
-      reinterpret_cast<ESPHOME_PGM_P>(ThresholdStatusStrings::get_progmem_str(status, TMP102_THRESHOLD_STATUS_OK)),
-      sizeof(text));
-  text[sizeof(text) - 1] = '\0';
-  this->threshold_status_text_sensor_->publish_state(text);
+  this->threshold_status_text_sensor_->publish_state(
+      ThresholdStatusStrings::get_progmem_str(status, TMP102_THRESHOLD_STATUS_OK));
 }
 
 void TMP102Component::publish_threshold_rejection_(bool high, float value, float other) {

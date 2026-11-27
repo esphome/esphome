@@ -41,7 +41,7 @@ class MockUARTComponent : public uart::UARTComponent {
   }
   size_t available() override { return this->rx.size(); }
 
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
 #if defined(USE_ESP8266) || defined(USE_ESP32)

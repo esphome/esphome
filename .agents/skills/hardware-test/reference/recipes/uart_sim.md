@@ -1,0 +1,152 @@
+# Simulated UART sensors on a classic ESP32 (#21449, #21446)
+
+No sensor needed. `templates/uart_sim/sim.hpp` (included with `esphome: includes:`) has frame builders for wts01,
+ds1603l, sm300d2 and ufm01, `sim::loopback(id(uart))` (ESP-IDF `uart_set_loop_back` on the component's own UART),
+`sim::send()` that logs the bytes, and `sim::probe`, a SEN0465 responder polled from a 10 ms interval. The run files
+`fra.yaml`, `frb.yaml` and `frc.yaml` set the name and include `fr-common.yaml` plus their `fr*-parts.yaml` as
+packages; copy them with a different name (`frabase` and so on) for the base build.
+
+- Push-style sensors: put the component on a UART, switch it to loopback in `on_boot`, and inject frames from
+  template buttons (`fra-parts.yaml`, `frb-parts.yaml`). ufm01 enters its active stream by itself when a 1 s
+  interval streams frames during its 2 s startup wait.
+- Request/response sensors: cross-wire two UARTs through the GPIO matrix (UART1 tx 25 rx 26, UART2 tx 26 rx 25,
+  `allow_other_uses: true` on all four pins); the second UART runs the simulated device (`frc-parts.yaml`).
+  A select sets the probe's misbehaviour (tail, FF tail, silent, split, wrong gas).
+- Polled readers: run `update()` from a script and log `micros()` around it to measure blocking
+  (sm300d2 on dev blocks about 104 ms on an empty buffer).
+- The logger stays on UART0, so three builds cover five components. Drive with `scripts/uart_sim/frdrive.py HOST
+  LOG press:NAME sel:NAME=OPT num:NAME=V wait:S @FILE` (`@FILE` reads one op per line), or
+  `scripts/uart_sim/run.sh NAME TREE SECONDS OPS...` (build and flash from TREE with `esphome run --no-logs`,
+  capture, drive; `PORT` and `SC` in the environment, `ERASE=1` erases the flash first, `DRIVER` picks another
+  API driver).
+
+## Particulate sensors: gcja5, pm1006, sds011 (#21939)
+
+`templates/uart_sim/pmsim.hpp` adds frame builders `sim::gcja5`, `sim::pm1006` and `sim::sds011`, each with a bad
+checksum or bad end flag. `fp-parts.yaml` puts gcja5 on UART1 (9600 8E1, with a template binary sensor that shows
+`status_has_warning()`) and pm1006 on UART2; `fs-parts.yaml` has sds011 alone. Write the run files the same way as
+`fra.yaml` (`fp.yaml`, `fs.yaml` with their own name).
+
+- Every button injects one case with its own PM value, so each published state names its case: good, two frames,
+  bad checksum, end or tail, garbage before a frame, a cut-off frame followed by a good one, a repeated first header
+  byte, and splits of 300 and 700 ms (either side of the 500 ms gap reset).
+- `run.sh NAME TREE 150 @fp-ops.txt` runs the op list from the file; `fs-ops.txt`, `fd-ops.txt` and `fj-ops.txt`
+  are the other lists.
+- The loopback also feeds each component its own writes (pm1006 request, sds011 setup and sleep/work commands),
+  which must not disturb the next frame.
+- The API coalesces two states published in the same loop pass, so "two frames" shows only the second value.
+- Found with it: on dev gcja5 published bad and misaligned frames as readings (268435456).
+
+## 4-byte distance sensors: a01nyub, a02yyuw, jsn_sr04t (#21948)
+
+`sim::ds1603l(mm, bad_ck)` builds the same `FF H L sum` frame; `fd-parts.yaml` (a01nyub on UART1, a02yyuw on UART2) and `fj-parts.yaml`
+(jsn_sr04t, polled every 15 s), with the same case list as above plus a reading below the minimum distance. With
+loopback the jsn_sr04t request byte `55` can land inside a split frame and break it; check the `Request read out`
+timestamps before calling a difference between builds.
+
+## LD6002B TinyFrame parser (#19836, #19837)
+
+`templates/uart_sim/ld6002b/`: `ld6sim.hpp` is a fake module on a UART cross-wired to the component's UART (UART1
+tx 25 rx 26, UART2 tx 26 rx 25), set up by the shared `ld6-base.yaml` package. It ACKs every command with an empty
+frame of the same type and logs the bytes it received (`MOD RX`), so the bytes on the wire can be diffed between
+builds. Target reports carry a distinct X per
+case, and `T1 X` shows which frames got through.
+
+- `ld6-parser-cases.yaml` (used by `ld6-common.yaml`, which turns the query answers off): good, byte by byte (one
+  byte per poll, so the component's loop runs in between), garbage before a frame, bad and lost header or data
+  checksums, an oversized payload, a burst of 20. The script runs by itself from `on_boot`; `ld6p.yaml` is the run file
+  (copy it with another name for the base build). `run.sh NAME TREE` builds, flashes over serial and captures,
+  and fails without a `CASE done` line.
+- Garbage that contains `01` right before a frame loses that frame on dev and on the PR (a false header, no rescan).
+- Full component A/B: `ld6sim.hpp` also answers every query with a fixed report (delay, sensitivity, trigger,
+  installation, Z range, low power, low power sleep, both area reports, version); `ld6x-common.yaml` has the full
+  entity set and runs the parser cases too (`ld6x.yaml` is its run file); `ld6drive.py HOST` presses every button,
+  sets every number and select and toggles every switch over the API. Run it with `ERASE=1 DRIVER=ld6drive.py
+  scripts/uart_sim/run.sh NAME TREE 100`: switch and select states and the area id are stored preferences, and a previous build's run changes the
+  next build's boot state.
+- `m4-common.yaml` and `m5-common.yaml` run the same fake against `ld6004`: target and area reports, work status and
+  radar on/off reports, malformed reports, and the point cloud and target display switches across a reboot
+  (`m5` reboots once and checks the restored switch states). `m4.yaml` and `m5.yaml` are the run files, and like
+  `ld6p.yaml` each can be copied with another name for the base build. Run m5 with `ERASE=1 run.sh NAME TREE 75`: the boot
+  counter and switch states are stored preferences that survive a flash, and the second boot's `CASE done` comes
+  about 49 s after reset. Only the second boot logs `CASE done`, so a skipped reboot fails the run.
+
+See `rs485_frame.md` for the same cross-wired UART trick on an ESP32-C3.
+
+## Duco ventilation box (#22560)
+
+`scripts/uart_sim/duco/`: `ducosim.hpp` is the box model from `tests/integration/fixtures/uart_mock_duco.yaml` (ack
+plus answer, AA 01 stuffing, CRC16) on a second UART of the same board; on an ESP32-C6 the hub used tx 18 rx 19 and
+the box tx 19 rx 18 at 57600, wired across. `gen.py NAME pr|dev` writes the config (every text sensor, sensors, mode,
+comfort, sntp clock) with an `on_value` log per entity (`STATE id = '...'`, newlines as `\n`); `DUCO_VERBOSE=1` shows
+`Found node`, `DUCO_SERIAL_SIZE=18` gives the dev fixture's short serial answer. `run.sh NAME KIND SECONDS` (env
+`TREE`, `DUCO_PORT`, `PY`, optional `BUILD_LOCK`), run from a scratch directory with a copy of `ducosim.hpp`,
+generates, builds through `scripts/pio_build.sh`, flashes and captures with `scripts/serial_capture.py`; a pr build
+ends with `check.py` against `expected.txt` (exit 1 on a mismatch), and the model logs requests it has no answer for.
+- Answer one request per poll call. Answering a 26 request burst in one pass blocks about 100 ms and overflows the
+  hub's 256 byte UART RX buffer, which silently drops the serial and version answers every round.
+- Dev's hub frame is 32 bytes: the PR model's 34 byte serial answer is dropped there and duco sets "No answer".
+- Error cases 7 (three long, 210 B) and 8 (four short, 148 B) check that the code-only fallback goes by length.
+
+## ESP8266 software serial byte checks
+
+The worst case for an unlock after a trailing run of high bits is a frame of bytes all below 0x80; a mixed frame
+hides it.
+
+## RP2 UART choice and loopback without wires (#22841)
+
+`scripts/rp2_uart_loop/`: `lb.hpp` `lb::check(label, uart, tx, rx, loop, inverted)` logs which peripheral owns each
+pin (`gpio_get_function`: UART0, UART1 or PIO0 to PIO2) and, with `loop`, feeds the bus back into itself: the PL011
+`LBE` bit on a hardware UART, or for SerialPIO the RX state machine's IN_BASE and JMP_PIN rewritten to the TX pin
+(plus `gpio_set_inover` on TX for an inverted bus). It compares 3 rounds of 64 bytes. `gen.py` writes three pin set
+configs per board (`ua`, `ub`, `uc` for the Pico W and Pico 2 W) next to `lb.hpp`.
+`run.sh NAME YAML USBSERIAL` (env `TREE`, `PY`) uploads over the 1200 baud touch, follows the board by its USB
+serial number, captures 30 s and counts the `CHOICE`, `LOOP` and `SETDONE` lines. Setup DEBUG lines are lost
+before USB CDC opens, so the boot lambda calls each bus's `dump_config()` again.
+
+## LengthFrameReader injection: ld2410 and tuya (#22884, #22885)
+
+`scripts/length_frame_reader/`: `lfh.hpp` builds ld2410 data frames (a unique moving distance per frame) and tuya dp
+101 reports (a unique int), with cases A (noise, a lone `55`, a whole `55 AA` before a frame), B (bad footer or
+checksum, a cut frame), C (announced lengths of 200, 28 and 31, or 200 and 1024, then 1 s of silence) and D (footer
+and header bytes inside the payload); the `LD_STEPS` and `TU_STEPS` tables list them and `lfh-base.yaml` plays one
+table per call. `lfh-common.yaml` is an ESP8266 harness with UART0 looped back inside the chip (the logger goes over
+the API), `lfh-common-bw.yaml` the BW15 kit with UART1 PA02 and PA03 jumpered. The parts files hold the component and
+the tables to play: `lfh-ld-parts.yaml` (ld2410), `lfh-tu-parts.yaml` (tuya, 9600 baud) and `lfh-raw-parts.yaml`
+(both through the bare reader in `lfhraw.hpp`, needs #22884). `lfh-ld.yaml` is a run file. Values are collected in
+`on_raw_value` or `on_datapoint_update` and logged once per case (`CASE LD A seen=...`), so API state coalescing
+hides nothing. `drive.py HOST LOG RUNS [GAP]` presses Run.
+
+- Results on #22885: tuya 8/15 on dev, 15/15 on the PR; ld2410 22/22 on both, since the ld24xx splitter on dev
+  already recovered.
+- On a real radar, `soak.py HOST SECONDS OUT` counts state updates per entity and keeps the W and E log lines across
+  reconnects; compare a soak per build. Use `ld2450/zonedrive.py` for LD2450 zone readbacks. LD2412 gate thresholds
+  are read back only at boot, so check a write by setting it, rebooting the ESP and reading it, then restore it.
+
+## PMS5003T fed from the host without wires, and UART RX under power management (#23038)
+
+`scripts/uart_sim/pms_feed/`: on an ESP32 devkit the USB adapter's TX also reaches GPIO3, so a second hardware UART
+with `rx_pin: GPIO3` (TX GPIO4) receives what the host writes while the logger stays on UART0 at 9600: one port at
+9600 reads the logs and carries the frames. `pmsfeed.py PORT SECONDS OUT --reset` sends one PMS5003T frame per
+second (PM1.0 = frame number), captures the log and prints the feed, parse and warning counts; `pms-common.yaml`
+counts the pm_1_0 publishes on the device. `pms-dut.yaml` is the plain build, `pms-dfs.yaml` adds frequency scaling
+(`enable_light_sleep: true` for the light sleep case) and `pms-manual-pm.yaml` calls `esp_pm_configure()` by hand
+(`pmh.hpp`) for a tree without `esp32_power_management`. Run both power management builds with `--expect-pm`,
+which fails unless the capture proves power management was on (add `--expect-light-sleep` for the light sleep
+case); an `esp_pm_configure()` failure always fails.
+
+- The plain build parses every frame (run it with `--expect-all 0`); frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
+  classic devkit, has the numbers and the REF_TICK workaround).
+
+## virtual_uart: sensors without any UART (#20428)
+
+`scripts/uart_sim/virtual_uart/`: `vu-common.yaml` and `vu.hpp` put an sds011 and an mhz19 on `virtual_uart` buses.
+`on_tx` models the mhz19 (collects 9 bytes, answers GET_PPM with 400 + n*37 ppm), and the sds011 gets a static frame
+and a lambda frame every 2 s. It also has an overflow round (21 B dropped, 20 B exact fit, 1 B dropped), a 128 B ring
+with no reader read back as 0..127 every 200 ms, and a write to the bus's own UART from `on_tx`. Counters are logged
+as `SUM` lines every 10 s, so early boot logs lost on a USB CDC port do not matter. `drive.py HOST SECONDS OUT`
+records API states and logs. No wiring; `vu-esp8266.yaml`, `vu-c3.yaml` and `vu-pico.yaml` build it per platform.
+
+- `discard_available()` is on `UARTDevice`, not on the component; drain with `read_array` in a harness.
+- A RP2040 build with only virtual buses still links arduino-pico `SerialUART` (about 2 KB flash, 400 B RAM),
+  because `uart_component_rp2.cpp` is compiled.

@@ -47,8 +47,8 @@ ImprovBLEComponent::ImprovBLEComponent() { global_improv_component = this; }
 
 void ImprovBLEComponent::setup() {
 #ifdef USE_BINARY_SENSOR
-  if (this->authorizer_ != nullptr) {
-    this->authorizer_->add_on_state_callback([this](bool state) {
+  if (this->authorizer_binary_sensor_ != nullptr) {
+    this->authorizer_binary_sensor_->add_on_state_callback([this](bool state) {
       if (state) {
         this->authorized_start_ = millis();
         this->identify_start_ = 0;
@@ -164,7 +164,7 @@ void ImprovBLEComponent::loop() {
       break;
     case improv::STATE_AWAITING_AUTHORIZATION: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ == nullptr ||
+      if (this->authorizer_binary_sensor_ == nullptr ||
           (this->authorized_start_ != 0 && ((now - this->authorized_start_) < this->authorized_duration_))) {
         this->set_state_(improv::STATE_AUTHORIZED);
       } else {
@@ -179,7 +179,7 @@ void ImprovBLEComponent::loop() {
     }
     case improv::STATE_AUTHORIZED: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ != nullptr && now - this->authorized_start_ > this->authorized_duration_) {
+      if (this->authorizer_binary_sensor_ != nullptr && now - this->authorized_start_ > this->authorized_duration_) {
         ESP_LOGD(TAG, "Authorization timeout");
         this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
         return;
@@ -342,7 +342,7 @@ float ImprovBLEComponent::get_setup_priority() const { return setup_priority::AF
 void ImprovBLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Improv BLE:");
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_);
+  LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_binary_sensor_);
 #endif
 #ifdef USE_OUTPUT
   ESP_LOGCONFIG(TAG, "  Status Indicator: '%s'", YESNO(this->status_indicator_ != nullptr));
@@ -425,7 +425,7 @@ void ImprovBLEComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
-  if (this->authorizer_ != nullptr)
+  if (this->authorizer_binary_sensor_ != nullptr)
     this->authorized_start_ = millis();
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
@@ -457,15 +457,7 @@ void ImprovBLEComponent::check_wifi_connection_() {
 #ifdef USE_WEBSERVER
     for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
       if (ip.is_ip4()) {
-        char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-        ip.str_to(ip_buf);
-        // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
-        char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
-        size_t len =
-            buf_append_printf(webserver_url, sizeof(webserver_url), 0, "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
-        if (!builder.add_string(webserver_url, len)) {
-          ESP_LOGW(TAG, "Response full; URL dropped");
-        }
+        this->add_webserver_url_(builder, ip);
         break;
       }
     }
@@ -527,6 +519,8 @@ void ImprovBLEComponent::request_advertising_() {
   if (this->advertising_requested_)
     return;
   this->advertising_requested_ = true;
+  // Passive scanners only see the advertising packet
+  esp32_ble::global_ble->advertising_set_priority_uuid(ESPBTUUID::from_raw(improv::SERVICE_UUID));
   esp32_ble::global_ble->advertising_start();
 }
 
@@ -534,13 +528,14 @@ void ImprovBLEComponent::release_advertising_() {
   if (!this->advertising_requested_)
     return;
   this->advertising_requested_ = false;
+  esp32_ble::global_ble->advertising_clear_priority_uuid();
   esp32_ble::global_ble->advertising_stop();
 }
 
 improv::State ImprovBLEComponent::get_initial_state_() const {
 #ifdef USE_BINARY_SENSOR
   // If we have an authorizer, start in awaiting authorization state
-  return this->authorizer_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
+  return this->authorizer_binary_sensor_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
 #else
   // No binary_sensor support = no authorizer possible, start as authorized
   return improv::STATE_AUTHORIZED;

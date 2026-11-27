@@ -1,11 +1,12 @@
 """Bounded, timestamped serial capture that always exits and closes the port.
 
-  serial_capture.py PORT SECONDS OUTFILE [--baud 115200] [--released] [--reset] [--append]
+  serial_capture.py PORT SECONDS OUTFILE [--baud 115200] [--released] [--reset] [--dtr-after S] [--append] [--ms]
 
   default      open with DTR/RTS as pyserial leaves them (asserted); fine for ESP devkits and the Pico.
   --released   drive DTR and RTS low before opening: the BW15 and BK7238 CH340 kits strap the boot pin
                (DTR) and reset (RTS), so a plain open holds the chip in reset.
   --reset      pulse reset after opening (DTR low, RTS high 100 ms, RTS low) to capture a fresh boot.
+  --dtr-after  assert DTR S seconds after the start (the BW15 kit holds PA00 low while DTR is released).
   --baud       115200 by default; 74880 shows the ESP8266 ROM boot messages.
   --append     keep what OUTFILE already holds; by default it is truncated so counts cover this run only.
 
@@ -56,6 +57,14 @@ def current_path(port: str, serial_number: str | None, index: int) -> str:
     return port
 
 
+def reset_pulse(s: serial.Serial) -> None:
+    """Pulse EN/RST through RTS with DTR (GPIO0) released."""
+    s.dtr = False
+    s.rts = True
+    time.sleep(0.1)
+    s.rts = False
+
+
 def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
     s = serial.Serial(port=None, baudrate=args.baud, timeout=0.2)
     s.port = path
@@ -65,10 +74,7 @@ def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
     s.open()
     if args.reset:
         try:
-            s.dtr = False
-            s.rts = True
-            time.sleep(0.1)
-            s.rts = False
+            reset_pulse(s)
             s.reset_input_buffer()
         except PORT_ERRORS:
             s.close()
@@ -76,14 +82,21 @@ def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
     return s
 
 
-def write_line(out, tag: bytes, data: bytes) -> None:
-    stamp = time.strftime("[%H:%M:%S]").encode()
+def write_line(out, tag: bytes, data: bytes, ms: bool = False) -> None:
+    if ms:
+        now = time.time()
+        stamp = (
+            time.strftime("[%H:%M:%S", time.localtime(now))
+            + f".{int(now * 1000) % 1000:03d}]"
+        ).encode()
+    else:
+        stamp = time.strftime("[%H:%M:%S]").encode()
     out.write(stamp + tag + ANSI.sub(b"", SECRET.sub(b"<secret>", data)) + b"\n")
     out.flush()
 
 
-def note(out, text: str) -> None:
-    write_line(out, b"[capture] ", text.encode())
+def note(out, text: str, ms: bool = False) -> None:
+    write_line(out, b"[capture] ", text.encode(), ms)
 
 
 def capture(args: argparse.Namespace, out) -> int:
@@ -93,7 +106,21 @@ def capture(args: argparse.Namespace, out) -> int:
     s = None
     received = 0
     serial_number, index = None, 0
+    dtr_at = None if args.dtr_after is None else time.time() + args.dtr_after
+    dtr_port = None  # the open port DTR was asserted on; a reopened port needs it again
     while time.time() < deadline:
+        if (
+            s is not None
+            and dtr_at is not None
+            and time.time() >= dtr_at
+            and dtr_port is not s
+        ):
+            try:
+                s.dtr = True
+                dtr_port = s
+                note(out, "DTR asserted", args.ms)
+            except PORT_ERRORS as err:  # kept pending, retried on the next pass
+                note(out, f"DTR assert failed: {err}", args.ms)
         if s is None:
             path = current_path(args.port, serial_number, index)
             try:
@@ -102,18 +129,18 @@ def capture(args: argparse.Namespace, out) -> int:
                 if serial_number is None:
                     serial_number, index = identify(path)
                 if path != args.port:
-                    note(out, f"reopened as {path}")
+                    note(out, f"reopened as {path}", args.ms)
             except PORT_ERRORS as err:
-                note(out, f"open failed: {err}")
+                note(out, f"open failed: {err}", args.ms)
                 time.sleep(1)
                 continue
         try:
             data = s.read(4096)
         except PORT_ERRORS as err:
             if buf:  # keep the cut-off line apart from the next boot's first line
-                write_line(out, b"[partial]", buf)
+                write_line(out, b"[partial]", buf, args.ms)
                 buf = b""
-            note(out, f"port lost: {err}")
+            note(out, f"port lost: {err}", args.ms)
             with contextlib.suppress(*PORT_ERRORS):
                 s.close()
             s = None
@@ -125,9 +152,9 @@ def capture(args: argparse.Namespace, out) -> int:
         buf += data
         while b"\n" in buf:
             line, buf = buf.split(b"\n", 1)
-            write_line(out, b"", line.rstrip(b"\r"))
+            write_line(out, b"", line.rstrip(b"\r"), args.ms)
     if buf:
-        write_line(out, b"[partial]", buf)
+        write_line(out, b"[partial]", buf, args.ms)
     if s is not None:
         s.close()
     return received
@@ -143,7 +170,9 @@ def main() -> int:
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--released", action="store_true")
     ap.add_argument("--reset", action="store_true")
+    ap.add_argument("--dtr-after", type=float)
     ap.add_argument("--append", action="store_true")
+    ap.add_argument("--ms", action="store_true", help="millisecond timestamps")
     args = ap.parse_args()
     with pathlib.Path(args.outfile).open("ab" if args.append else "wb") as out:
         received = capture(args, out)

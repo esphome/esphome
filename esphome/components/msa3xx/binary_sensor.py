@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_TAP
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_NAME, DEVICE_CLASS_VIBRATION, ICON_VIBRATE
 from esphome.types import ConfigType
@@ -9,7 +10,6 @@ from . import CONF_MSA3XX_ID, MSA_SENSOR_SCHEMA
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["msa3xx"]
 
-CONF_TAP = "tap"
 CONF_DOUBLE_TAP = "double_tap"
 
 ICON_TAP = "mdi:gesture-tap"

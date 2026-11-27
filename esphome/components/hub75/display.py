@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_CLK_PIN,
     CONF_GAMMA_CORRECT,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_OE_PIN,
     CONF_ROTATION,
     CONF_UPDATE_INTERVAL,
@@ -398,7 +397,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SHIFT_DRIVER): cv.enum(SHIFT_DRIVERS, upper=True),
             # Display configuration
             cv.Optional(CONF_DOUBLE_BUFFER): cv.boolean,
-            cv.Optional(CONF_BRIGHTNESS): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_BRIGHTNESS): cv.uint8_t,
             cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=4, max=12),
             cv.Optional(CONF_GAMMA_CORRECT): cv.enum(
                 {"LINEAR": 0, "CIE1931": 1, "GAMMA_2_2": 2}, upper=True
@@ -603,11 +602,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], hub75_config)
     await display.register_display(var, config)
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
 
 automation.register_apply_action(
@@ -615,7 +610,7 @@ automation.register_apply_action(
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HUB75Display),
-            cv.Required(CONF_BRIGHTNESS): cv.templatable(cv.int_range(min=0, max=255)),
+            cv.Required(CONF_BRIGHTNESS): cv.templatable(cv.uint8_t),
         },
         key=CONF_BRIGHTNESS,
     ),

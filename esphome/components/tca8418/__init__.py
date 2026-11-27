@@ -16,15 +16,6 @@ DOMAIN = "tca8418"
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 MULTI_CONF = True
 
-# Each keypad keeps its listeners in a fixed size list; the define is the largest count any one keypad needs
-_request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
-
-
-async def register_listener(keypad: cg.MockObj, var: cg.MockObj) -> None:
-    _request_listener_slot(str(keypad))
-    cg.add(keypad.register_listener(var))
-
-
 CONF_GPI_EVENTS = "gpi_events"
 CONF_KEYPAD_ID = "keypad_id"
 
@@ -44,6 +35,16 @@ tca8418_ns = cg.esphome_ns.namespace("tca8418")
 TCA8418Component = tca8418_ns.class_(
     "TCA8418Component", key_provider.KeyProvider, cg.Component, i2c.I2CDevice
 )
+
+# Publishes the binary sensors on each key event
+KEY_PUBLISHER = cg.HubFunction(
+    "key",
+    cg.void,
+    [(cg.uint8, "key"), (cg.bool_, "pressed")],
+    define="USE_TCA8418_KEY_PUBLISHER",
+)
+KEY = KEY_PUBLISHER.param("key")
+PRESSED = KEY_PUBLISHER.param("pressed")
 
 
 def _ascii_string(value: str) -> str:
@@ -145,8 +146,7 @@ async def to_code(config: ConfigType) -> None:
             array = cg.shared_progmem_array("tca8418_keys", cg.uint8, table)
             cg.add(var.set_keys(array, len(table)))
     cg.add(var.set_gpi_events(config[CONF_GPI_EVENTS]))
-    if (interrupt_pin := config.get(CONF_INTERRUPT_PIN)) is not None:
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
     for conf in config.get(CONF_ON_KEY, []):
         await automation.build_callback_automation(

@@ -5,3 +5,9 @@ cap1188:
   reset_pin: ${reset_pin}
   touch_threshold: 0x20
   allow_multiple_touches: true
+
+binary_sensor:
+  - platform: cap1188
+    cap1188_id: cap1188_component
+    name: CAP1188 Touch Key 0
+    channel: 0

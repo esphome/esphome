@@ -64,7 +64,7 @@ class UartTcpClient : public ::testing::Test {
     App.set_loop_interval(16);
     this->listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(this->listen_fd_, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     ASSERT_EQ(::bind(this->listen_fd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
@@ -78,7 +78,7 @@ class UartTcpClient : public ::testing::Test {
     this->bridge_.set_port(ntohs(addr.sin_port));
     // A zero interval lets a dropped link retry on the next pass.
     this->bridge_.set_reconnect_interval(0);
-    this->bridge_.set_connected_sensor(&this->sensor_);
+    this->bridge_.set_connected_binary_sensor(&this->sensor_);
     this->tick(0);
     this->bridge_.setup();
   }

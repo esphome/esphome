@@ -1,0 +1,66 @@
+# Needs packages/aux-2-pre-prod.yaml from NabuCasa/aux-2 at commit 283f2e64 next to this file (see
+# reference/recipes/usb_audio.md). The AUX-2 package with the package's speaker_source player swapped for the speaker
+# platform player, which is the one built on speaker/media_player/audio_pipeline.cpp, plus the task name probe.
+
+packages:
+  core: !include aux-2-pre-prod.yaml
+
+esphome:
+  name: aux-2-dut
+  name_add_mac_suffix: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_key
+
+logger:
+  level: DEBUG
+
+sendspin:
+  unpaired_access: true
+
+media_player:
+  - id: !remove external_media_player
+  - platform: speaker
+    id: speaker_media_player
+    name: Media Player
+    volume_increment: 0.05
+    volume_min: 0.4
+    volume_max: 0.85
+    announcement_pipeline:
+      speaker: announcement_resampling_speaker
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+    media_pipeline:
+      speaker: media_resampling_speaker
+      format: FLAC
+      num_channels: 2
+      sample_rate: 48000
+    on_announcement:
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 20
+          duration: 0.0s
+
+button:
+  - platform: template
+    name: Task names
+    on_press:
+      - lambda: |-
+          static const char *const NAMES[] = {"ann_read", "ann_decode", "med_read", "med_decode"};
+          for (const char *n : NAMES) {
+            TaskHandle_t h = xTaskGetHandle(n);
+            if (h == nullptr) {
+              ESP_LOGI("tasks", "%s: missing", n);
+            } else {
+              ESP_LOGI("tasks", "%s: found as '%s', stack high water %u", n, pcTaskGetName(h),
+                       (unsigned) uxTaskGetStackHighWaterMark(h));
+            }
+          }
+          ESP_LOGI("tasks", "internal free %u, largest block %u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));

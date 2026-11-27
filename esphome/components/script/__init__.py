@@ -7,13 +7,13 @@ from esphome.components.const import CONF_ON_STOP
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
+from esphome.cpp_generator import AssignmentExpression, call_lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "script"
 script_ns = cg.esphome_ns.namespace("script")
 Script = script_ns.class_("Script", automation.Trigger.template())
-ScriptExecuteAction = script_ns.class_("ScriptExecuteAction", automation.Action)
 ScriptWaitAction = script_ns.class_("ScriptWaitAction", automation.Action, cg.Component)
 SingleScript = script_ns.class_("SingleScript", Script)
 RestartScript = script_ns.class_("RestartScript", Script)
@@ -192,8 +192,7 @@ async def to_code(config):
         # Add a human-readable name to the script
         cg.add(trigger.set_name(cg.LogStringLiteral(conf[CONF_ID].id)))
 
-        if CONF_MAX_RUNS in conf:
-            cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
+        cg.add_optional(trigger.set_max_runs, conf.get(CONF_MAX_RUNS))
 
         if conf[CONF_MODE] == CONF_QUEUED:
             await cg.register_component(trigger, conf)
@@ -210,7 +209,7 @@ async def to_code(config):
 
 @automation.register_action(
     "script.execute",
-    ScriptExecuteAction,
+    automation.ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Script),
@@ -243,25 +242,31 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 raise EsphomeError(
                     f"Missing parameter: '{name}' in script.execute {config[CONF_ID]}"
                 )
-            arg = await cg.templatable(
-                config_args[name], args, type, convert(str(type))
-            )
+            value = config_args[name]
+            if cg.is_template(value):
+                arg = await automation.call_user_lambda(value, args, type)
+            else:
+                arg = call_lambda(
+                    await cg.templatable(value, args, type, convert(str(type)))
+                )
             script_args.append(arg)
         return script_args
 
     script = get_script(config[CONF_ID])
     params = script.get(CONF_PARAMETERS, [])
-    template, script_params = parameters_to_template(params)
+    _, script_params = parameters_to_template(params)
     script_args = await get_ordered_args(config, script_params)
 
-    # We need to use the parent class 'Script' as the template argument
-    # to match the partial specialization of the ScriptExecuteAction template
-    template_arg = cg.TemplateArguments(Script.template(template), *template_arg)
-
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_args(*script_args))
-    return var
+    parent = await automation.apply_parent(config)
+    # Separate statements, because the order of evaluation inside one call is not defined
+    names = [cg.MockObj(f"esphome__arg_{index}") for index in range(len(script_args))]
+    statements = [
+        str(cg.statement(AssignmentExpression("auto", "", name, arg)))
+        for name, arg in zip(names, script_args, strict=True)
+    ]
+    moved = ", ".join(str(cg.std_ns.move(name)) for name in names)
+    statements.append(f"{parent}->execute({moved});")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 def _require_script_stop_id(config: ConfigType) -> ConfigType:

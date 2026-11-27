@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <type_traits>
 
 namespace esphome::number {
 
@@ -10,6 +11,18 @@ enum NumberMode : uint8_t {
   NUMBER_MODE_BOX = 1,
   NUMBER_MODE_SLIDER = 2,
 };
+
+/// Boundaries and step for a number; codegen shares one PROGMEM table between numbers with the same values.
+struct NumberRange {
+  float min_value;
+  float max_value;
+  float step;
+};
+// Read straight from flash on ESP8266, so every field must stay a word.
+static_assert(std::is_same_v<decltype(NumberRange::min_value), float>, "NumberRange fields must stay float");
+static_assert(std::is_same_v<decltype(NumberRange::max_value), float>, "NumberRange fields must stay float");
+static_assert(std::is_same_v<decltype(NumberRange::step), float>, "NumberRange fields must stay float");
+static_assert(sizeof(NumberRange) == 3 * sizeof(float), "NumberRange is read from flash with word loads");
 
 class NumberTraits {
  public:

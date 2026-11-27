@@ -36,7 +36,7 @@ void RTSPServer::setup() {
     return;
   }
 
-  struct sockaddr_storage server {};
+  struct sockaddr_storage server{};
   socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0 || this->socket_->bind((struct sockaddr *) &server, sl) != 0) {
     this->socket_failed_("bind");

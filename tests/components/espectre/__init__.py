@@ -7,7 +7,15 @@ from tests.testing_helpers import ComponentManifestOverride
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     # The real schema needs an ESP32 target and Wi-Fi; the host test build has neither.
-    manifest.dependencies = ["binary_sensor", "sensor", "button", "select"]
+    manifest.dependencies = [
+        "binary_sensor",
+        "sensor",
+        "button",
+        "number",
+        "select",
+        "switch",
+        "text",
+    ]
     manifest.config_schema = cv.Schema({})
     manifest.final_validate_schema = None
 
@@ -15,10 +23,14 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # Resolve <espectre_sdk.h> to the test double copied next to the tests.
         cg.add_build_flag(f"-I{CORE.relative_src_path('espectre')}")
         cg.add_define("USE_ESPECTRE")
+        cg.add_define("USE_ESPECTRE_TARGET_MAC_TEXT")
         # No entity platforms are configured, so count them to emit USE_BINARY_SENSOR,
-        # USE_SENSOR and USE_SELECT for the entity code under test.
+        # USE_SENSOR, USE_SELECT, USE_NUMBER, USE_SWITCH and USE_TEXT for the entity code under test.
         CORE.platform_counts["binary_sensor"] += 2
         CORE.platform_counts["sensor"] += 1
         CORE.platform_counts["select"] += 1
+        CORE.platform_counts["number"] += 1
+        CORE.platform_counts["switch"] += 1
+        CORE.platform_counts["text"] += 1
 
     manifest.to_code = to_code_testing

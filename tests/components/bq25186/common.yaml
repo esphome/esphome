@@ -9,6 +9,49 @@ esphome:
           id: bq25186_charger
           battery_regulation_voltage: 4.1V
           fast_charge_current: 200mA
+      - bq25186.apply_configuration:
+          id: bq25186_charger
+          charge_enabled: false
+          flash_charging_mode: true
+          precharge_is_iterm: true
+          termination_percent: 5%
+          vindpm_mode: 4.7v
+          thermal_regulation: 80c
+          battery_ocp_limit: 1500ma
+          battery_uvlo: 3.0v
+          mask_charge_status_interrupt: false
+          mask_ilim_interrupt: false
+          mask_vindpm_interrupt: true
+          ts_auto_function: false
+          vlowv: 2.8v
+          recharge_threshold: 200mv
+          double_timer_during_dpm: true
+          safety_timer: 12h
+          watchdog: 160s_hardware_reset
+          long_press_duration: 15s
+          hw_reset_requires_vin: true
+          autowake: 2s
+          input_current_limit: 200ma
+      - bq25186.apply_configuration:
+          id: bq25186_charger
+          push_button_long_press_action: shutdown_mode
+          wake1_timer: 1s
+          wake2_timer: 3s
+          enable_push_button: false
+          system_regulation: 4.6v
+          sys_mode: battery_only
+          watchdog_15s_enable: false
+          disable_vdppm: true
+          ts_hot: 65c
+          ts_cold: 3c
+          ts_warm_disable: true
+          ts_cool_disable: true
+          ts_ichg: 0.2x
+          ts_vrcg: -200mv
+          mask_ts_interrupt: true
+          mask_treg_interrupt: false
+          mask_bat_interrupt: true
+          mask_pg_interrupt: true
 
 bq25186:
   - id: bq25186_charger

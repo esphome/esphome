@@ -100,8 +100,8 @@ namespace esphome::zhlt01 {
 static const uint32_t AC1_HDR_MARK = 6100;
 static const uint32_t AC1_HDR_SPACE = 7400;
 static const uint32_t AC1_BIT_MARK = 500;
-static const uint32_t AC1_ZERO_SPACE = 600;
-static const uint32_t AC1_ONE_SPACE = 1800;
+static constexpr remote_base::BitTimings AC1_BIT_TIMINGS{
+    .bit_mark = AC1_BIT_MARK, .one_space = 1800, .zero_space = 600};
 
 /********************************************************************************
  *

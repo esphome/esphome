@@ -117,17 +117,23 @@ class StringRef {
   int compare(const char *s) const { return compare(StringRef(s)); }
   int compare(const std::string &s) const { return compare(StringRef(s)); }
 
-  /// Find first occurrence of substring, returns std::string::npos if not found.
-  /// Note: Requires the underlying string to be null-terminated.
-  size_type find(const char *s, size_type pos = 0) const {
-    if (pos >= len_)
+  /// Find first occurrence of a substring, returns std::string::npos if not found.
+  /// Bounded by the lengths, so the view does not need a null terminator.
+  size_type find(const StringRef &s, size_type pos = 0) const {
+    if (pos > len_)
       return std::string::npos;
-    const char *result = std::strstr(base_ + pos, s);
-    // Verify entire match is within bounds (strstr searches to null terminator)
-    if (result && result + std::strlen(s) <= base_ + len_)
-      return static_cast<size_type>(result - base_);
+    if (s.len_ == 0)
+      return pos;
+    if (s.len_ > len_ - pos)
+      return std::string::npos;
+    for (size_type i = pos, last = len_ - s.len_; i <= last; i++) {
+      if (std::memcmp(base_ + i, s.base_, s.len_) == 0)
+        return i;
+    }
     return std::string::npos;
   }
+  size_type find(const char *s, size_type pos = 0) const { return this->find(StringRef(s), pos); }
+  size_type find(const std::string &s, size_type pos = 0) const { return this->find(StringRef(s), pos); }
   size_type find(char c, size_type pos = 0) const {
     if (pos >= len_)
       return std::string::npos;
@@ -226,7 +232,7 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
 }
 
 /// A string that may live in flash (on ESP8266): pointer and length, with no byte-reading operations.
-/// progmem_ptr() is safe as a "%s" log argument; compare the contents with equals().
+/// progmem_ptr() is safe as a "%s" log argument; read the contents with write_to() or equals().
 class ProgmemStringRef {
  public:
   constexpr ProgmemStringRef() = default;
@@ -239,6 +245,20 @@ class ProgmemStringRef {
   constexpr size_t size() const { return this->ref_.size(); }
   constexpr bool empty() const { return this->ref_.empty(); }
 
+  /// Copy into buf (null terminated, truncated to fit), returns the length copied.
+  size_t write_to(char *buf, size_t buf_size) const {
+    if (buf_size == 0)
+      return 0;
+    size_t len = std::min(this->ref_.size(), buf_size - 1);
+#ifdef USE_ESP8266
+    memcpy_P(buf, this->ref_.c_str(), len);
+#else
+    std::memcpy(buf, this->ref_.c_str(), len);
+#endif
+    buf[len] = '\0';
+    return len;
+  }
+
   bool equals(const StringRef &other) const {
 #ifdef USE_ESP8266
     // A StringRef may be {nullptr, 0}, and memcmp_P with a null pointer is undefined even for 0 bytes
@@ -248,6 +268,11 @@ class ProgmemStringRef {
     return other == this->ref_;
 #endif
   }
+
+#ifndef USE_ESP8266
+  /// The string is in RAM here, so it can be viewed directly.
+  constexpr const StringRef &ram_ref() const { return this->ref_; }
+#endif
 
   // Remove before 2027.5.0
   [[deprecated(
@@ -331,8 +356,16 @@ inline void convertToJson(const StringRef &src, JsonVariant dst) {
 }
 
 namespace json {
-// For a StringRef that outlives the document, see json_util.h. A null, empty view links "" too
+// For a view that outlives the document, see json_util.h. ArduinoJson keeps a linked string as a bare
+// pointer and reads it to its terminator on every platform, so the view must be a whole string, as the
+// entity getters' views are. A null, empty view links "" too
 inline JsonString linked(const StringRef &s) { return JsonString(s.empty() ? "" : s.c_str(), s.size(), true); }
+#ifdef USE_ESP8266
+// ArduinoJson copies a flash string into the document
+inline ProgmemStr linked(const ProgmemStringRef &s) { return reinterpret_cast<ProgmemStr>(s.progmem_ptr()); }
+#else
+inline JsonString linked(const ProgmemStringRef &s) { return JsonString(s.progmem_ptr(), s.size(), true); }
+#endif
 }  // namespace json
 #endif  // USE_JSON
 

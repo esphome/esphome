@@ -8,3 +8,9 @@ sensor:
       falling_edge: DECREMENT
     internal_filter: 13us
     update_interval: 15s
+  - platform: pulse_counter
+    name: Pulse Counter Rising
+    pin: 5
+    use_pcnt: false
+    internal_filter: 0us
+    update_interval: 15s

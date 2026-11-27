@@ -1,18 +1,15 @@
 #pragma once
 
 #include <list>
-#include <vector>
+#include <utility>
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/time.h"
-
-#ifdef USE_NEXTION_WAVEFORM
-#include "esphome/core/helpers.h"
-#endif  // USE_NEXTION_WAVEFORM
 
 #include "nextion_base.h"
 #include "nextion_component.h"
@@ -1049,23 +1046,24 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void register_touch_component(NextionComponentBase *obj) { this->touch_.push_back(obj); }
-  void register_switch_component(NextionComponentBase *obj) { this->switchtype_.push_back(obj); }
-  void register_binarysensor_component(NextionComponentBase *obj) { this->binarysensortype_.push_back(obj); }
-  void register_sensor_component(NextionComponentBase *obj) { this->sensortype_.push_back(obj); }
-  void register_textsensor_component(NextionComponentBase *obj) { this->textsensortype_.push_back(obj); }
+  SLOT_LIST(NextionComponentBase, touch_, register_touch_component, NEXTION_TOUCH_COUNT)
+  SLOT_LIST(NextionComponentBase, switchtype_, register_switch_component, NEXTION_SWITCH_COUNT)
+  SLOT_LIST(NextionComponentBase, binarysensortype_, register_binarysensor_component, NEXTION_BINARY_SENSOR_COUNT)
+  SLOT_LIST(NextionComponentBase, sensortype_, register_sensor_component, NEXTION_SENSOR_COUNT)
+  SLOT_LIST(NextionComponentBase, textsensortype_, register_textsensor_component, NEXTION_TEXT_SENSOR_COUNT)
 
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }
   void update() override;
   void loop() override;
-  void set_writer(const nextion_writer_t &writer);
+  void set_writer(nextion_writer_t writer) { this->writer_ = std::move(writer); }
 
   // This function has been deprecated
   void set_wait_for_ack(bool wait_for_ack);
 
   /**
    * Manually send a raw command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param command The pcommand, like "page 0"
    * @return Whether the send was successful.
    */
@@ -1073,6 +1071,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   /**
    * Manually send a raw formatted command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param format The printf-style command format, like "vis %s,0"
    * @param ... The format arguments
    * @return Whether the send was successful.
@@ -1087,6 +1086,19 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void set_tft_upload_http_timeout(uint16_t timeout_ms) { this->tft_upload_http_timeout_ = timeout_ms; }
 
 #ifdef USE_ESP32
+  /**
+   * @brief Set the HTTP client TX buffer size for TFT upload requests.
+   *
+   * The TX buffer must hold the request line, which carries the full URL. After a redirect
+   * to a long signed URL (e.g. a GitHub release asset, ~600+ characters) the ESP-IDF default
+   * is too small and the request fails with "HTTP_CLIENT: Out of buffer".
+   *
+   * A value of 0 keeps the ESP-IDF default (default).
+   *
+   * @param size Buffer size in bytes.
+   */
+  void set_tft_upload_http_buffer_size_tx(uint16_t size) { this->tft_upload_http_buffer_size_tx_ = size; }
+
   /**
    * @brief Set the watchdog timeout during TFT upload.
    *
@@ -1130,7 +1142,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * defaults to true, ensuring that the display is ready to receive and apply the new TFT file without needing
    * to manually reset or reconfigure. Exiting reparse mode is recommended for most upload scenarios to ensure
    * the display properly processes the uploaded file command.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_tft(uint32_t baud_rate = 0, bool exit_reparse = true);
 
@@ -1455,6 +1467,16 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * Called from loop() to retry sending commands that were delayed by spacing.
    */
   void process_pending_in_queue_();
+
+  /**
+   * @brief Whether the queue still holds a command that has not reached the wire.
+   *
+   * The queue is kept in transmit order, so anything still waiting sits at the back.
+   */
+  bool has_unsent_commands_() const {
+    return !this->nextion_queue_.empty() && this->nextion_queue_.back() != nullptr &&
+           !this->nextion_queue_.back()->pending_command.empty();
+  }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   std::list<NextionQueue *> nextion_queue_;
@@ -1469,6 +1491,21 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   bool remove_from_q_(bool report_empty = true);
   void release_queue_entry_(NextionQueue *nb);
   NextionQueue *make_no_result_entry_(const std::string &variable_name);
+
+  /// Payload for deliver_queue_response_(): either a numeric (0x71) or string (0x70) return value.
+  struct NextionQueueResponse {
+    bool is_string;
+    int int_value;
+    const std::string *str_value;
+  };
+  /// Deliver a 0x70/0x71 response to the first query in the queue that was sent and expects a value, then
+  /// remove that query. NO_RESULT entries are skipped (their own 0x01 ACK removes them), as are entries whose
+  /// command is still waiting to be sent. Invalid entries are dropped. If the first query has the wrong type
+  /// (for example a numeric return for a TEXT_SENSOR), it is removed without a state update. A raw "get" sent
+  /// with send_command() counts as a query, and its value is dropped.
+  void deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp);
+  void set_numeric_return_(int value);
+  void set_string_return_(const std::string &value);
 
   /**
    * @brief Status flags for Nextion display state management
@@ -1556,7 +1593,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   uint8_t tft_upload_http_retries_{5};      ///< HTTP retry count (default: 5)
 
 #ifdef USE_ESP32
-  uint32_t tft_upload_watchdog_timeout_{0};  ///< WDT timeout in ms (0 = no adjustment)
+  uint32_t tft_upload_watchdog_timeout_{0};     ///< WDT timeout in ms (0 = no adjustment)
+  uint16_t tft_upload_http_buffer_size_tx_{0};  ///< HTTP TX buffer in bytes (0 = ESP-IDF default)
 
   /**
    * will request 4096 bytes chunks from the web server
@@ -1580,8 +1618,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /**
    * Ends the upload process, restart Nextion and, if successful,
    * restarts ESP
-   * @param bool url successful True: Transfer completed successfuly, False: Transfer failed.
-   * @return bool True: Transfer completed successfuly, False: Transfer failed.
+   * @param bool url successful True: Transfer completed successfully, False: Transfer failed.
+   * @return bool True: Transfer completed successfully, False: Transfer failed.
    */
   bool upload_end_(bool successful);
 
@@ -1589,11 +1627,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   bool check_connect_();
 
-  std::vector<NextionComponentBase *> touch_;
-  std::vector<NextionComponentBase *> switchtype_;
-  std::vector<NextionComponentBase *> sensortype_;
-  std::vector<NextionComponentBase *> textsensortype_;
-  std::vector<NextionComponentBase *> binarysensortype_;
   CallbackManager<void()> setup_callback_{};
   CallbackManager<void()> sleep_callback_{};
   CallbackManager<void()> wake_callback_{};

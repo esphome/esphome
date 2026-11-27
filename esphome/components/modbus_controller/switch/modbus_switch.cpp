@@ -12,13 +12,7 @@ ESPHOME_LOG_TAG(TAG, "modbus_controller.switch");
 // Maximum bytes to log in verbose hex output
 static constexpr size_t MODBUS_SWITCH_MAX_LOG_BYTES = 64;
 
-void ModbusSwitch::setup() {
-  optional<bool> initial_state = Switch::get_initial_state_with_restore_mode();
-  if (initial_state.has_value()) {
-    // if it has a value, restore_mode is not "DISABLED", therefore act on the switch:
-    this->control(initial_state.value());
-  }
-}
+void ModbusSwitch::setup() { this->restore(); }
 void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", this); }
 
 bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
@@ -48,7 +42,7 @@ void ModbusSwitch::parse_and_publish(std::span<const uint8_t> data) {
     }
   }
 
-  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %zx", this->get_name().c_str(),
+  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %zx", LOG_STR_ARG(this->get_log_name()),
            ONOFF(value), (int) this->register_type, this->start_address, offset);
   this->publish_state(value);
 }
@@ -73,7 +67,8 @@ void ModbusSwitch::write_state(bool state) {
       ESP_LOGV_HEX(TAG, data.data(), data.size(), MODBUS_SWITCH_MAX_LOG_BYTES, "Modbus Switch write raw: %s");
       // The lambda filled a legacy raw frame (device address + function code + data).
       if (!this->send_raw_frame_deprecated_(data)) {
-        ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+        ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published",
+                 LOG_STR_ARG(this->get_log_name()));
         return;
       }
       this->publish_state(state);
@@ -89,8 +84,8 @@ void ModbusSwitch::write_state(bool state) {
     write_value = val.value();
   }
   ESP_LOGV(TAG, "write_state '%s': new value = %s (wire = %s) type = %d address = %X offset = %x",
-           this->get_name().c_str(), ONOFF(state), ONOFF(write_value), (int) this->register_type, this->start_address,
-           this->offset);
+           LOG_STR_ARG(this->get_log_name()), ONOFF(state), ONOFF(write_value), (int) this->register_type,
+           this->start_address, this->offset);
   bool queued;
   if (this->register_type == EntityType::COIL) {
     // offset for coil and discrete inputs is the coil/register number not bytes
@@ -109,7 +104,8 @@ void ModbusSwitch::write_state(bool state) {
     }
   }
   if (!queued) {
-    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published",
+             LOG_STR_ARG(this->get_log_name()));
     return;
   }
   this->publish_state(state);

@@ -6,18 +6,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_DISTANCE,
-    CONF_ID,
     CONF_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_RULER,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_MILLIMETER,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -42,7 +37,7 @@ def small_distance(value: Any) -> float:
 # empty and full distance values.
 # Format is - tank name: (empty distance in mm, full distance in mm)
 #
-CONF_SUPPORTED_TANKS_MAP = {
+SUPPORTED_TANKS_MAP = {
     TANK_TYPE_CUSTOM: (38, 100),
     "NORTH_AMERICA_20LB_VERTICAL": (38, 254),  # empty/full readings for 20lb US tank
     "NORTH_AMERICA_30LB_VERTICAL": (38, 381),
@@ -57,7 +52,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 mopeka_std_check_ns = cg.esphome_ns.namespace("mopeka_std_check")
 MopekaStdCheck = mopeka_std_check_ns.class_(
-    "MopekaStdCheck", ble_device_base.ESPBTDeviceListener, cg.Component
+    "MopekaStdCheck", ble_device_base.ESPBTDeviceListener
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -69,19 +64,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CUSTOM_DISTANCE_FULL): small_distance,
             cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
             cv.Optional(CONF_PROPANE_BUTANE_MIX, default="100%"): cv.percentage,
-            cv.Required(CONF_TANK_TYPE): cv.enum(CONF_SUPPORTED_TANKS_MAP, upper=True),
+            cv.Required(CONF_TANK_TYPE): cv.enum(SUPPORTED_TANKS_MAP, upper=True),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_PROPANE_TANK,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PERCENT, icon=ICON_PROPANE_TANK
             ),
             cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETER,
@@ -89,23 +77,14 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(kind=sensor.BATTERY),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
@@ -114,22 +93,21 @@ async def to_code(config: ConfigType) -> None:
         if CONF_CUSTOM_DISTANCE_EMPTY in config:
             cg.add(var.set_tank_empty(config[CONF_CUSTOM_DISTANCE_EMPTY]))
         else:
-            cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][0]))
+            cg.add(var.set_tank_empty(SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][0]))
         if CONF_CUSTOM_DISTANCE_FULL in config:
             cg.add(var.set_tank_full(config[CONF_CUSTOM_DISTANCE_FULL]))
         else:
-            cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][1]))
+            cg.add(var.set_tank_full(SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][1]))
     else:
         # Set the Tank empty and full based on map - User is requesting standard tank
         t = config[CONF_TANK_TYPE]
-        cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[t][0]))
-        cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[t][1]))
+        cg.add(var.set_tank_empty(SUPPORTED_TANKS_MAP[t][0]))
+        cg.add(var.set_tank_full(SUPPORTED_TANKS_MAP[t][1]))
 
-    if CONF_PROPANE_BUTANE_MIX in config:
-        cg.add(var.set_propane_butane_mix(config[CONF_PROPANE_BUTANE_MIX]))
+    cg.add_optional(var.set_propane_butane_mix, config.get(CONF_PROPANE_BUTANE_MIX))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_LEVEL, var.set_level)
-    await sensors(CONF_DISTANCE, var.set_distance)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_LEVEL, var.set_level_sensor)
+    await sensors(CONF_DISTANCE, var.set_distance_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

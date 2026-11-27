@@ -1,4 +1,5 @@
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "hdc2010.h"
 // https://github.com/vigsterkr/homebridge-hdc2010/blob/main/src/hdc2010.js
 // https://github.com/lime-labs/HDC2080-Arduino/blob/master/src/HDC2080.cpp
@@ -76,7 +77,7 @@ float HDC2010Component::read_temp() {
   this->read_register(REG_TEMPERATURE_LOW, &byte[0], 1);
   this->read_register(REG_TEMPERATURE_HIGH, &byte[1], 1);
 
-  uint16_t temp = encode_uint16(byte[1], byte[0]);
+  uint16_t temp = encode_value_le<uint16_t>(byte);
   return (float) temp * 0.0025177f - 40.0f;
 }
 
@@ -86,7 +87,7 @@ float HDC2010Component::read_humidity() {
   this->read_register(REG_HUMIDITY_LOW, &byte[0], 1);
   this->read_register(REG_HUMIDITY_HIGH, &byte[1], 1);
 
-  uint16_t humidity = encode_uint16(byte[1], byte[0]);
+  uint16_t humidity = encode_value_le<uint16_t>(byte);
   return (float) humidity * 0.001525879f;
 }
 

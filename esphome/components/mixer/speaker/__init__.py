@@ -124,8 +124,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
 
-    # Initialize FixedVector with exact count of source speakers
-    cg.add(var.init_source_speakers(len(config[CONF_SOURCE_SPEAKERS])))
+    storage = cg.static_storage(
+        config[CONF_ID],
+        SourceSpeaker.operator("ptr"),
+        len(config[CONF_SOURCE_SPEAKERS]),
+    )
+    cg.add(var.set_source_speaker_storage(storage))
 
     for speaker_config in config[CONF_SOURCE_SPEAKERS]:
         source_speaker = cg.new_Pvariable(speaker_config[CONF_ID])
@@ -147,9 +151,7 @@ automation.register_apply_action(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SourceSpeaker),
-            cv.Required(CONF_DECIBEL_REDUCTION): cv.templatable(
-                cv.int_range(min=0, max=255)
-            ),
+            cv.Required(CONF_DECIBEL_REDUCTION): cv.templatable(cv.uint8_t),
             cv.Optional(CONF_DURATION, default="0.0s"): cv.templatable(
                 cv.positive_time_period_milliseconds
             ),

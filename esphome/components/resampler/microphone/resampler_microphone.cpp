@@ -25,7 +25,7 @@ void ResamplerMicrophone::setup() {
     return;
   }
 
-  this->source_->add_data_callback([this](const std::vector<uint8_t> &data) { this->process_audio_(data); });
+  this->source_->add_data_callback([this](const microphone::AudioCapture &capture) { this->process_audio_(capture); });
 
   this->disable_loop();
 }
@@ -90,6 +90,7 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
 
   if (input_stream_info.get_sample_rate() == this->target_sample_rate_) {
     // The source already delivers the target sample rate, so its audio is passed through unchanged
+    this->output_buffer_.reserve(input_stream_info.ms_to_bytes(BUFFER_DURATION_MS));
     this->input_stream_info_ = input_stream_info;
     this->resampler_ready_ = true;
     return true;
@@ -98,8 +99,8 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
   const audio::AudioStreamInfo output_stream_info(input_stream_info.get_bits_per_sample(),
                                                   input_stream_info.get_channels(), this->target_sample_rate_);
 
-  auto resampler = make_unique<esp_audio_libs::resampler::Resampler>(
-      input_stream_info.ms_to_samples(BUFFER_DURATION_MS), output_stream_info.ms_to_samples(BUFFER_DURATION_MS));
+  auto resampler = make_unique<PositionResampler>(input_stream_info.ms_to_samples(BUFFER_DURATION_MS),
+                                                  output_stream_info.ms_to_samples(BUFFER_DURATION_MS));
 
   esp_audio_libs::resampler::ResamplerConfiguration resample_config = {
       .source_sample_rate = static_cast<float>(input_stream_info.get_sample_rate()),
@@ -127,8 +128,8 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
   return true;
 }
 
-void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
-  const audio::AudioStreamInfo input_stream_info = this->source_->get_audio_stream_info();
+void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture) {
+  const audio::AudioStreamInfo &input_stream_info = capture.stream_info;
   if (input_stream_info != this->input_stream_info_) {
     this->init_resampler_(input_stream_info);
   }
@@ -137,7 +138,23 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
   }
 
   if (this->resampler_ == nullptr) {
-    this->data_callbacks_.call(data);
+    if (this->mute_state_) {
+      // The source's buffer is shared with its other consumers, so publish zeros from our own buffer, in pieces that
+      // fit its reserved size so muting never allocates
+      const uint32_t max_frames = input_stream_info.ms_to_frames(BUFFER_DURATION_MS);
+      const uint32_t total_frames = input_stream_info.bytes_to_frames(capture.data.size());
+      for (uint32_t done = 0; done < total_frames;) {
+        const uint32_t frames = std::min(total_frames - done, max_frames);
+        this->output_buffer_.assign(input_stream_info.frames_to_bytes(frames), 0);
+        const int64_t time_us =
+            capture.capture_time_us == 0 ? 0 : capture.capture_time_us + input_stream_info.frames_to_microseconds(done);
+        this->publish_audio_(this->output_buffer_, input_stream_info, time_us);
+        done += frames;
+      }
+    } else {
+      // Needs a protected forwarding method once data_callbacks_ is made private in 2027.5.0
+      this->data_callbacks_.call(microphone::AudioCapture{capture.data, input_stream_info, capture.capture_time_us});
+    }
     return;
   }
 
@@ -146,8 +163,10 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
   // Both limits match the sizes the resampler's internal buffers were allocated with in init_resampler_
   const uint32_t max_output_frames = this->audio_stream_info_.ms_to_frames(BUFFER_DURATION_MS);
 
-  const uint8_t *input = data.data();
-  uint32_t input_frames = input_stream_info.bytes_to_frames(data.size());
+  const uint8_t *input = capture.data.data();
+  uint32_t input_frames = input_stream_info.bytes_to_frames(capture.data.size());
+  // Input frames of this chunk the resampler has taken in so far
+  int64_t frames_consumed = 0;
   while (input_frames > 0) {
     // Stays within the reserved capacity, so this never reallocates
     this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(max_output_frames));
@@ -159,10 +178,22 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
 
     input += results.frames_used * input_bytes_per_frame;
     input_frames -= results.frames_used;
+    frames_consumed += results.frames_used;
 
     if (results.frames_generated > 0) {
+      int64_t output_time_us = 0;
+      if (capture.capture_time_us != 0) {
+        // The resampler holds back half its taps of input, so its next output is near the input frame that far behind
+        // the last one taken in; its position gives the exact offset. The block's first output is one block duration
+        // before that. After a gap in the source, the few frames held back from before it are timed as if there were
+        // no gap.
+        const uint32_t input_rate = input_stream_info.get_sample_rate();
+        output_time_us = capture.capture_time_us + (frames_consumed - this->taps_ / 2) * 1000000 / input_rate +
+                         static_cast<int64_t>(this->resampler_->get_position() * 1000000.0f / input_rate) -
+                         static_cast<int64_t>(results.frames_generated) * 1000000 / this->target_sample_rate_;
+      }
       this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(results.frames_generated));
-      this->data_callbacks_.call(this->output_buffer_);
+      this->publish_audio_(this->output_buffer_, this->audio_stream_info_, output_time_us);
     } else if (results.frames_used == 0) {
       break;  // No progress; drop the rest of the chunk instead of spinning
     }

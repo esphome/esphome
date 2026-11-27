@@ -4,7 +4,6 @@
 
 #include <cinttypes>
 #include <cmath>
-#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
@@ -14,27 +13,6 @@
 namespace esphome::espectre {
 
 ESPHOME_LOG_TAG(TAG, "espectre");
-
-struct TrafficModeOption {
-  const char *name;
-  ::espectre::TrafficGeneratorMode mode;
-};
-// Option names match the traffic_generator_mode YAML values.
-static constexpr TrafficModeOption TRAFFIC_MODE_OPTIONS[] = {
-    {"ping", ::espectre::TrafficGeneratorMode::PING},
-    {"dns", ::espectre::TrafficGeneratorMode::DNS},
-    {"dns_tcp", ::espectre::TrafficGeneratorMode::DNS_TCP},
-    {"wifi_raw", ::espectre::TrafficGeneratorMode::WIFI_RAW},
-    {"external", ::espectre::TrafficGeneratorMode::EXTERNAL_HOST},
-};
-
-static const char *traffic_mode_name(::espectre::TrafficGeneratorMode mode) {
-  for (const auto &option : TRAFFIC_MODE_OPTIONS) {
-    if (option.mode == mode)
-      return option.name;
-  }
-  return nullptr;
-}
 
 static const char *csi_capture_profile_name(::espectre::CsiCapturePolicy profile) {
   switch (profile) {
@@ -49,12 +27,55 @@ static const char *csi_capture_profile_name(::espectre::CsiCapturePolicy profile
 
 #ifdef USE_SELECT
 void ESPectreComponent::request_traffic_generator_mode(const char *name) {
-  for (const auto &option : TRAFFIC_MODE_OPTIONS) {
-    if (strcmp(option.name, name) == 0) {
-      this->pending_traffic_mode_ = option.mode;
-      return;
-    }
+  this->pending_traffic_mode_ = ::espectre::parse_traffic_generator_mode(name);
+}
+
+void ESPectreComponent::request_detection_algorithm(const char *name) {
+  this->pending_detection_algorithm_ = ::espectre::parse_detection_algorithm(name);
+}
+
+void ESPectreComponent::request_csi_sample_spacing(const char *name) {
+  this->pending_csi_sample_spacing_ = ::espectre::parse_csi_sample_spacing(name);
+}
+#endif
+
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+static bool parse_target_mac(const std::string &value, TargetMac &mac) {
+  if (value == "auto") {
+    mac = {};
+    return true;
   }
+  if (value.size() != MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1)
+    return false;
+  for (size_t i = 0; i < mac.size(); i++) {
+    if ((i != 0 && value[i * 3 - 1] != ':') || parse_hex(value.data() + i * 3, 2, &mac[i], 1) != 2)
+      return false;
+  }
+  return mac != TargetMac{} && (mac[0] & 1) == 0;
+}
+
+static const char *format_target_mac(const TargetMac &mac, char (&buffer)[MAC_ADDRESS_PRETTY_BUFFER_SIZE]) {
+  return mac == TargetMac{} ? "auto" : format_hex_pretty_to(buffer, mac);
+}
+
+void ESPectreComponent::request_traffic_generator_target_mac(const std::string &target) {
+  if (!parse_target_mac(target, this->pending_target_mac_)) {
+    // A group address marks a rejected request until loop() republishes the active state.
+    this->pending_target_mac_[0] = 0xff;
+    ESP_LOGW(TAG, "Invalid target MAC");
+  }
+  this->target_mac_pending_ = true;
+}
+
+void ESPectreComponent::restore_target_mac_() {
+  if (this->target_mac_text_ == nullptr)
+    return;
+  this->target_mac_pref_ = this->target_mac_text_->make_entity_preference<TargetMac>(
+      fnv1a_hash(this->runtime_.config().traffic_generator_target_mac));
+  TargetMac saved;
+  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  if (this->target_mac_pref_.load(&saved))
+    this->runtime_.set_traffic_generator_target_mac(format_target_mac(saved, buffer));
 }
 #endif
 
@@ -76,9 +97,7 @@ static int log_level(::espectre::LogLevel level) {
 void ESPectreComponent::setup() {
   // ESPHome owns scan results, including scans requested by the SDK's CSI recovery.
   this->runtime_.config().wifi_scan_results_managed_externally = true;
-#ifdef USE_SELECT
-  this->restore_traffic_mode_();
-#endif
+  this->restore_controls_();
   this->start_runtime_();
 }
 
@@ -108,6 +127,7 @@ void ESPectreComponent::start_runtime_() {
 #ifdef USE_SELECT
   this->publish_traffic_mode_();
 #endif
+  this->publish_controls_();
 }
 
 void ESPectreComponent::schedule_restart_() {
@@ -120,44 +140,200 @@ void ESPectreComponent::schedule_restart_() {
 }
 
 #ifdef USE_SELECT
-void ESPectreComponent::restore_traffic_mode_() {
-  if (this->traffic_mode_select_ == nullptr)
+// Selections are saved as SDK enum values, so renumbering an enum would restore the wrong option.
+static_assert(static_cast<uint8_t>(::espectre::TrafficGeneratorMode::PING) == 0 &&
+                  static_cast<uint8_t>(::espectre::TrafficGeneratorMode::DNS) == 1 &&
+                  static_cast<uint8_t>(::espectre::TrafficGeneratorMode::DNS_TCP) == 2 &&
+                  static_cast<uint8_t>(::espectre::TrafficGeneratorMode::WIFI_RAW) == 3 &&
+                  static_cast<uint8_t>(::espectre::TrafficGeneratorMode::EXTERNAL_HOST) == 4,
+              "Saved traffic generator modes depend on these values");
+static_assert(static_cast<uint8_t>(::espectre::DetectionAlgorithm::LIGHTWEIGHT) == 0 &&
+                  static_cast<uint8_t>(::espectre::DetectionAlgorithm::HIGH_ACCURACY) == 1,
+              "Saved detection algorithms depend on these values");
+static_assert(static_cast<uint8_t>(::espectre::TemporalCsiSpacing::HALF_SLOT) == 0 &&
+                  static_cast<uint8_t>(::espectre::TemporalCsiSpacing::DISTINCT) == 1,
+              "Saved CSI sample spacings depend on these values");
+
+template<typename T, typename F>
+static void restore_select_choice(select::Select *select, ESPPreferenceObject &pref, T &value, F accept) {
+  if (select == nullptr)
     return;
-  // Keyed by the YAML mode, so changing it in YAML discards a mode saved from the select.
-  const auto yaml_mode = this->runtime_.config().traffic_generator_mode;
-  this->traffic_mode_pref_ =
-      this->traffic_mode_select_->make_entity_preference<uint8_t>(static_cast<uint32_t>(yaml_mode) + 1);
+  pref = select->make_entity_preference<uint8_t>(static_cast<uint32_t>(value) + 1);
   uint8_t saved;
-  if (!this->traffic_mode_pref_.load(&saved))
-    return;
-  const auto mode = static_cast<::espectre::TrafficGeneratorMode>(saved);
-  const char *name = traffic_mode_name(mode);
-  if (name != nullptr && this->traffic_mode_select_->has_option(name))
-    this->runtime_.config().traffic_generator_mode = mode;
+  if (pref.load(&saved) && accept(static_cast<T>(saved)))
+    value = static_cast<T>(saved);
+}
+
+// Returns false when no choice was queued; otherwise the caller republishes the active option.
+template<typename T>
+static bool apply_select_choice(::espectre::RuntimeFrontendController &runtime, optional<T> &pending,
+                                ESPPreferenceObject &pref, bool (::espectre::RuntimeFrontendController::*set)(T),
+                                const char *(*name)(T)) {
+  if (!pending.has_value())
+    return false;
+  const T value = *pending;
+  pending.reset();
+  if ((runtime.*set)(value)) {
+    const auto saved = static_cast<uint8_t>(value);
+    pref.save(&saved);
+  } else {
+    ESP_LOGW(TAG, "Option %s was rejected", name(value));
+  }
+  return true;
 }
 
 void ESPectreComponent::apply_pending_traffic_mode_() {
-  if (!this->pending_traffic_mode_.has_value())
-    return;
-  const auto mode = *this->pending_traffic_mode_;
-  this->pending_traffic_mode_.reset();
-  if (this->runtime_.set_traffic_generator_mode(mode)) {
-    const auto saved = static_cast<uint8_t>(mode);
-    this->traffic_mode_pref_.save(&saved);
-  } else {
-    ESP_LOGW(TAG, "Traffic generator mode %s was rejected", traffic_mode_name(mode));
-  }
-  this->publish_traffic_mode_();
+  if (apply_select_choice(this->runtime_, this->pending_traffic_mode_, this->traffic_mode_pref_,
+                          &::espectre::RuntimeFrontendController::set_traffic_generator_mode,
+                          ::espectre::traffic_generator_mode_name))
+    this->publish_traffic_mode_();
 }
 
 void ESPectreComponent::publish_traffic_mode_() {
   if (this->traffic_mode_select_ == nullptr)
     return;
-  const char *name = traffic_mode_name(this->runtime_.config().traffic_generator_mode);
-  if (name != nullptr)
-    this->traffic_mode_select_->publish_state(name);
+  this->traffic_mode_select_->publish_state(
+      ::espectre::traffic_generator_mode_name(this->runtime_.config().traffic_generator_mode));
 }
 #endif
+
+#ifdef USE_NUMBER
+static void restore_motion_hits(number::Number *number, ESPPreferenceObject &pref, uint8_t &hits) {
+  if (number == nullptr)
+    return;
+  pref = number->make_entity_preference<uint8_t>(hits);
+  uint8_t saved;
+  if (pref.load(&saved) && saved >= ::espectre::RUNTIME_MOTION_HITS_MIN && saved <= ::espectre::RUNTIME_MOTION_HITS_MAX)
+    hits = saved;
+}
+#endif
+
+void ESPectreComponent::restore_controls_() {
+  // Saved values are keyed by the YAML value, so a YAML change discards what the entities saved.
+  auto &config = this->runtime_.config();
+#ifdef USE_NUMBER
+  restore_motion_hits(this->motion_on_hits_number_, this->motion_on_hits_pref_, config.motion_on_hits);
+  restore_motion_hits(this->motion_off_hits_number_, this->motion_off_hits_pref_, config.motion_off_hits);
+#endif
+#ifdef USE_SELECT
+  restore_select_choice(this->traffic_mode_select_, this->traffic_mode_pref_, config.traffic_generator_mode,
+                        [this](::espectre::TrafficGeneratorMode mode) {
+                          return ::espectre::runtime_traffic_generator_mode_valid(mode) &&
+                                 this->traffic_mode_select_->has_option(::espectre::traffic_generator_mode_name(mode));
+                        });
+  // Without this the SDK rejects every detector change once the runtime runs.
+  if (this->detection_algorithm_select_ != nullptr)
+    config.runtime_detector_selection_enabled = true;
+  restore_select_choice(this->detection_algorithm_select_, this->detection_algorithm_pref_, config.detection_algorithm,
+                        ::espectre::runtime_detection_algorithm_valid);
+  restore_select_choice(this->csi_sample_spacing_select_, this->csi_sample_spacing_pref_, config.csi_sample_spacing,
+                        ::espectre::runtime_csi_sample_spacing_valid);
+#endif
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+  this->restore_target_mac_();
+#endif
+#ifdef USE_SWITCH
+  // Applied before the first runtime starts, so a disabled sensor never starts sensing.
+  if (this->sensing_switch_ != nullptr)
+    this->runtime_.set_services_armed(this->sensing_switch_->get_initial_state_with_restore_mode().value_or(true));
+#endif
+}
+
+void ESPectreComponent::apply_pending_controls_() {
+#ifdef USE_NUMBER
+  if (!std::isnan(this->pending_threshold_)) {
+    const float threshold = this->pending_threshold_;
+    this->pending_threshold_ = NAN;
+    if (!this->runtime_.set_threshold(threshold)) {
+      ESP_LOGW(TAG, "Threshold %.2f was rejected", threshold);
+    }
+    // Republished even when rejected, so the entity drops the value it was asked for.
+    PUBLISH_STATE(this->threshold_number_, this->runtime_.snapshot().threshold);
+  }
+  if (this->pending_motion_on_hits_ != 0 || this->pending_motion_off_hits_ != 0) {
+    const auto &config = this->runtime_.config();
+    const uint8_t on_hits = this->pending_motion_on_hits_ != 0 ? this->pending_motion_on_hits_ : config.motion_on_hits;
+    const uint8_t off_hits =
+        this->pending_motion_off_hits_ != 0 ? this->pending_motion_off_hits_ : config.motion_off_hits;
+    this->pending_motion_on_hits_ = 0;
+    this->pending_motion_off_hits_ = 0;
+    if (this->runtime_.set_motion_hits(on_hits, off_hits)) {
+      this->motion_on_hits_pref_.save(&on_hits);
+      this->motion_off_hits_pref_.save(&off_hits);
+    } else {
+      ESP_LOGW(TAG, "Motion on/off hits %u/%u were rejected", on_hits, off_hits);
+    }
+    PUBLISH_STATE(this->motion_on_hits_number_, config.motion_on_hits);
+    PUBLISH_STATE(this->motion_off_hits_number_, config.motion_off_hits);
+  }
+#endif
+#ifdef USE_SELECT
+  // Only the changed entity is republished, because numbers and selects run on_value on every publish.
+  // loop() republishes the threshold that a detector change replaces.
+  if (apply_select_choice(this->runtime_, this->pending_detection_algorithm_, this->detection_algorithm_pref_,
+                          &::espectre::RuntimeFrontendController::set_detection_algorithm,
+                          ::espectre::detection_algorithm_name)) {
+    PUBLISH_STATE(this->detection_algorithm_select_,
+                  ::espectre::detection_algorithm_name(this->runtime_.config().detection_algorithm));
+  }
+  if (apply_select_choice(this->runtime_, this->pending_csi_sample_spacing_, this->csi_sample_spacing_pref_,
+                          &::espectre::RuntimeFrontendController::set_csi_sample_spacing,
+                          ::espectre::csi_sample_spacing_name)) {
+    PUBLISH_STATE(this->csi_sample_spacing_select_,
+                  ::espectre::csi_sample_spacing_name(this->runtime_.config().csi_sample_spacing));
+  }
+#endif
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+  if (this->target_mac_pending_) {
+    this->target_mac_pending_ = false;
+    // An SDK log callback can queue the next request while this one is being applied.
+    const TargetMac target = this->pending_target_mac_;
+    char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    const char *value = (target[0] & 1) == 0 ? format_target_mac(target, buffer) : nullptr;
+    if (value != nullptr && this->runtime_.set_traffic_generator_target_mac(value)) {
+      this->target_mac_pref_.save(&target);
+      this->target_mac_text_->publish_state(value);
+    } else {
+      if (value != nullptr) {
+        ESP_LOGW(TAG, "Target MAC '%s' was rejected", value);
+      }
+      this->target_mac_text_->publish_state(this->target_mac_text_->state);
+    }
+  }
+#endif
+#ifdef USE_SWITCH
+  if (this->pending_sensing_.has_value()) {
+    this->runtime_.set_services_armed(*this->pending_sensing_);
+    this->pending_sensing_.reset();
+    PUBLISH_STATE(this->sensing_switch_, this->runtime_.services_armed());
+  }
+#endif
+}
+
+void ESPectreComponent::publish_controls_() {
+#ifdef USE_NUMBER
+  PUBLISH_STATE(this->threshold_number_, this->runtime_.snapshot().threshold);
+  PUBLISH_STATE(this->motion_on_hits_number_, this->runtime_.config().motion_on_hits);
+  PUBLISH_STATE(this->motion_off_hits_number_, this->runtime_.config().motion_off_hits);
+#endif
+#ifdef USE_SELECT
+  PUBLISH_STATE(this->detection_algorithm_select_,
+                ::espectre::detection_algorithm_name(this->runtime_.config().detection_algorithm));
+  PUBLISH_STATE(this->csi_sample_spacing_select_,
+                ::espectre::csi_sample_spacing_name(this->runtime_.config().csi_sample_spacing));
+#endif
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+  // The text shows the effective config until a command stages the next target.
+  const auto &value = this->runtime_.config().traffic_generator_target_mac;
+  TargetMac target;
+  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  PUBLISH_STATE(this->target_mac_text_,
+                parse_target_mac(value, target) ? format_target_mac(target, buffer) : value.c_str());
+#endif
+#ifdef USE_SWITCH
+  PUBLISH_STATE(this->sensing_switch_, this->runtime_.services_armed());
+#endif
+}
 
 void ESPectreComponent::loop() {
   if (this->runtime_fault_) {
@@ -184,12 +360,18 @@ void ESPectreComponent::loop() {
 #ifdef USE_SELECT
   this->apply_pending_traffic_mode_();
 #endif
+  this->apply_pending_controls_();
   this->runtime_.loop();
   if (this->runtime_fault_)
     return;
 
   // Read once after the SDK finishes dispatching callbacks, including readiness changes.
   const auto &snapshot = this->runtime_.snapshot();
+#ifdef USE_NUMBER
+  // Calibration and a detector change both replace the threshold.
+  if (this->threshold_number_ != nullptr && this->threshold_number_->state != snapshot.threshold)
+    this->threshold_number_->publish_state(snapshot.threshold);
+#endif
 #ifdef USE_BINARY_SENSOR
   if (this->calibrating_binary_sensor_ != nullptr &&
       (!this->calibrating_published_ || this->calibrating_state_ != snapshot.calibrating)) {
@@ -226,8 +408,7 @@ void ESPectreComponent::invalidate_sensing_() {
     this->motion_binary_sensor_->invalidate_state();
 #endif
 #ifdef USE_SENSOR
-  if (this->movement_sensor_ != nullptr)
-    this->movement_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->movement_sensor_, NAN);
 #endif
   this->ready_ = false;
 }
@@ -258,7 +439,7 @@ void ESPectreComponent::stop_() {
 #endif
   this->roaming_suppressed_ = false;
   this->running_ = false;
-  // The next runtime starts from the default threshold and publishes its calibration again.
+  // The next runtime reports its own calibration, so forget this one's.
   this->calibrated_ = false;
   this->calibrating_published_ = false;
   this->runtime_.shutdown();
@@ -282,12 +463,22 @@ void ESPectreComponent::dump_config() {
                 "  Detection algorithm: %s\n"
                 "  CSI capture profile: %s\n"
                 "  Traffic generator mode: %s\n"
-                "  Motion on/off hits: %u/%u",
-                config.detection_algorithm == ::espectre::DetectionAlgorithm::LIGHTWEIGHT
-                    ? LOG_STR_LITERAL("lightweight")
-                    : LOG_STR_LITERAL("high_accuracy"),
-                csi_capture_profile_name(config.csi_capture_policy), traffic_mode_name(config.traffic_generator_mode),
-                config.motion_on_hits, config.motion_off_hits);
+                "  Traffic generator target MAC: %s\n"
+                "  CSI sample spacing: %s\n"
+                "  Motion on/off hits: %u/%u\n"
+                "  Window size: %" PRIu32 " ms\n"
+                "  CSI target rate: %" PRIu32 " pps\n"
+                "  Evaluation interval: %" PRIu32 " ms\n"
+                "  Low-pass filter: %s (%.1f Hz)\n"
+                "  Hampel filter: %s (window %u, threshold %.1f)",
+                ::espectre::detection_algorithm_name(config.detection_algorithm),
+                csi_capture_profile_name(config.csi_capture_policy),
+                ::espectre::traffic_generator_mode_name(config.traffic_generator_mode),
+                config.traffic_generator_target_mac.c_str(),
+                ::espectre::csi_sample_spacing_name(config.csi_sample_spacing), config.motion_on_hits,
+                config.motion_off_hits, config.window_size_ms, config.csi_target_pps, config.evaluation_interval_ms,
+                ONOFF(config.lowpass_enabled), config.lowpass_cutoff, ONOFF(config.hampel_enabled),
+                config.hampel_window, config.hampel_threshold);
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Motion", this->motion_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Calibrating", this->calibrating_binary_sensor_);
@@ -295,8 +486,21 @@ void ESPectreComponent::dump_config() {
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Movement score", this->movement_sensor_);
 #endif
+#ifdef USE_NUMBER
+  LOG_NUMBER("  ", "Threshold", this->threshold_number_);
+  LOG_NUMBER("  ", "Motion on hits", this->motion_on_hits_number_);
+  LOG_NUMBER("  ", "Motion off hits", this->motion_off_hits_number_);
+#endif
 #ifdef USE_SELECT
   LOG_SELECT("  ", "Traffic generator mode", this->traffic_mode_select_);
+  LOG_SELECT("  ", "Detection algorithm", this->detection_algorithm_select_);
+  LOG_SELECT("  ", "CSI sample spacing", this->csi_sample_spacing_select_);
+#endif
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+  LOG_TEXT("  ", "Traffic generator target MAC", this->target_mac_text_);
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Sensing", this->sensing_switch_);
 #endif
 }
 

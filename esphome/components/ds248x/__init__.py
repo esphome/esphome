@@ -91,22 +91,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_active_pullup(config[CONF_ACTIVE_PULLUP]))
     cg.add(var.set_channel_count(get_channel_count(config)))
 
-    if CONF_BUS_SLEEP in config:
-        cg.add(var.set_bus_sleep(config[CONF_BUS_SLEEP]))
-    if CONF_HUB_SLEEP in config:
-        cg.add(var.set_hub_sleep(config[CONF_HUB_SLEEP]))
+    cg.add_optional(var.set_bus_sleep, config.get(CONF_BUS_SLEEP))
+    cg.add_optional(var.set_hub_sleep, config.get(CONF_HUB_SLEEP))
 
-    if CONF_RESET_LOW_TIME in config:
-        cg.add(var.set_val_trstl(config[CONF_RESET_LOW_TIME]))
-    if CONF_MASTER_SAMPLE_TIME in config:
-        cg.add(var.set_val_tmsp(config[CONF_MASTER_SAMPLE_TIME]))
-    if CONF_WRITE_0_LOW_TIME in config:
-        cg.add(var.set_val_tw0l(config[CONF_WRITE_0_LOW_TIME]))
-    if CONF_RECOVERY_TIME in config:
-        cg.add(var.set_val_trec0(config[CONF_RECOVERY_TIME]))
-    if CONF_ACTIVE_PULLUP_RESISTANCE in config:
-        cg.add(var.set_val_rwpu(config[CONF_ACTIVE_PULLUP_RESISTANCE]))
+    cg.add_optional(var.set_val_trstl, config.get(CONF_RESET_LOW_TIME))
+    cg.add_optional(var.set_val_tmsp, config.get(CONF_MASTER_SAMPLE_TIME))
+    cg.add_optional(var.set_val_tw0l, config.get(CONF_WRITE_0_LOW_TIME))
+    cg.add_optional(var.set_val_trec0, config.get(CONF_RECOVERY_TIME))
+    cg.add_optional(var.set_val_rwpu, config.get(CONF_ACTIVE_PULLUP_RESISTANCE))
 
-    if CONF_SLEEP_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_SLEEP_PIN])
-        cg.add(var.set_sleep_pin(pin))
+    await cg.add_pin(var.set_sleep_pin, config.get(CONF_SLEEP_PIN))

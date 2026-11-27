@@ -24,7 +24,8 @@ template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> 
   }
   // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Cs>
-  requires(sizeof...(Cs) == N) explicit AndCondition(Cs *...conditions) : conditions_{conditions...} {}
+    requires(sizeof...(Cs) == N)
+  explicit AndCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -45,7 +46,8 @@ template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
   }
   // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Cs>
-  requires(sizeof...(Cs) == N) explicit OrCondition(Cs *...conditions) : conditions_{conditions...} {}
+    requires(sizeof...(Cs) == N)
+  explicit OrCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -75,7 +77,8 @@ template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> 
   }
   // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Cs>
-  requires(sizeof...(Cs) == N) explicit XorCondition(Cs *...conditions) : conditions_{conditions...} {}
+    requires(sizeof...(Cs) == N)
+  explicit XorCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -142,46 +145,52 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
   uint32_t last_inactive_{0};
 };
 
-class StartupTrigger : public Trigger<>, public Component {
+/// Component whose setup priority is the float with bit pattern PRIORITY_BITS, since GCC 10 (ESP8266)
+/// has no float template parameters. Templated on the priority only, so each priority has one copy.
+template<uint32_t PRIORITY_BITS> class PriorityComponent : public Component {
  public:
-  explicit StartupTrigger(float setup_priority) : setup_priority_(setup_priority) {}
-  void setup() override { this->trigger(); }
-  float get_setup_priority() const override { return this->setup_priority_; }
-
- protected:
-  float setup_priority_;
+  float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
 };
 
-class ShutdownTrigger : public Trigger<>, public Component {
- public:
-  explicit ShutdownTrigger(float setup_priority) : setup_priority_(setup_priority) {}
-  void on_shutdown() override { this->trigger(); }
-  float get_setup_priority() const override { return this->setup_priority_; }
+/// Bit pattern of setup_priority::DATA (600.0f), the Component default.
+static constexpr uint32_t SETUP_PRIORITY_DATA_BITS = 0x44160000;
+// bit_cast is constexpr only where std::bit_cast exists, which GCC 10 (ESP8266) lacks
+#if __cpp_lib_bit_cast >= 201806
+static_assert(bit_cast<uint32_t>(setup_priority::DATA) == SETUP_PRIORITY_DATA_BITS);
+#endif
 
- protected:
-  float setup_priority_;
+/// The default priority needs no override.
+template<> class PriorityComponent<SETUP_PRIORITY_DATA_BITS> : public Component {};
+
+/// Calls Fn from setup(), for on_boot.
+template<auto Fn, uint32_t PRIORITY_BITS> class StartupCallback final : public PriorityComponent<PRIORITY_BITS> {
+ public:
+  void setup() override { Fn(); }
 };
 
-class LoopTrigger : public Trigger<>, public Component {
+/// Calls Fn from on_shutdown(), for on_shutdown.
+template<auto Fn, uint32_t PRIORITY_BITS> class ShutdownCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
-  void loop() override { this->trigger(); }
-  float get_setup_priority() const override { return setup_priority::DATA; }
+  void on_shutdown() override { Fn(); }
+};
+
+/// Calls Fn from loop(), for on_loop.
+template<auto Fn> class LoopCallback final : public Component {
+ public:
+  void loop() override { Fn(); }
 };
 
 #ifdef ESPHOME_PROJECT_NAME
-class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
+/// Stores the project version; runs Fn from setup() with the stored one when it was lower.
+template<auto Fn> class ProjectUpdateCallback final : public Component {
  public:
   void setup() override {
     uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
     ESPPreferenceObject pref = global_preferences->make_preference<char[30]>(hash, true);
     char previous_version[30];
     char current_version[30] = ESPHOME_PROJECT_VERSION_30;
-    if (pref.load(&previous_version)) {
-      int cmp = strcmp(previous_version, current_version);
-      if (cmp < 0) {
-        this->trigger(previous_version);
-      }
-    }
+    if (pref.load(&previous_version) && strcmp(previous_version, current_version) < 0)
+      Fn(previous_version);
     pref.save(&current_version);
     global_preferences->sync();
   }
@@ -210,10 +219,11 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     // Optimization: For no-argument delays (most common case), use direct lambda
     // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
+      auto f = [this]() { this->play_next_(); };
       App.scheduler.set_timer_common_(
           /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
-          [this]() { this->play_next_(); },
+          std::move(f),
           /* skip_cancel= */ this->num_running_ > 1,
           // Record the owning script (if any) so the blocking warning can name it; propagates across
           // chained delays via the scheduler.
@@ -234,8 +244,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override { App.scheduler.cancel_timeout(this); }
 };
@@ -272,6 +281,17 @@ template<auto Fn, typename... Ts> class ApplyAction final : public Action<Ts...>
   void play(const Ts &...x) override { Fn(x...); }
 };
 
+/// Runs several adjacent actions merged by codegen into one generated function. The function
+/// reads num_running_ between actions: a stop during one action zeroes it, and the rest must not run.
+template<auto Fn, typename... Ts> class ApplyRunAction final : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override {
+    // Any other type would bind the function's const int & to a temporary that never sees a stop
+    static_assert(std::is_same_v<decltype(this->num_running_), int>);
+    Fn(this->num_running_, x...);
+  }
+};
+
 /// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
 template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<Ts...> {
  public:
@@ -290,7 +310,9 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     this->then_.set_owner(this);
   }
 
-  void add_else(const std::initializer_list<Action<Ts...> *> &actions) requires(HasElse) {
+  void add_else(const std::initializer_list<Action<Ts...> *> &actions)
+    requires(HasElse)
+  {
     this->else_.add_actions(actions);
     this->else_.set_owner(this);
   }
@@ -299,8 +321,16 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   // would be a constant array in .rodata, which is RAM on ESP8266.
   void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
   void finish_then() { this->then_.set_owner(this); }
-  void add_else_action(Action<Ts...> *action) requires(HasElse) { this->else_.add_action(action); }
-  void finish_else() requires(HasElse) { this->else_.set_owner(this); }
+  void add_else_action(Action<Ts...> *action)
+    requires(HasElse)
+  {
+    this->else_.add_action(action);
+  }
+  void finish_else()
+    requires(HasElse)
+  {
+    this->else_.set_owner(this);
+  }
 
   void play_complex(const Ts &...x) final {
     this->num_running_++;
@@ -426,8 +456,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override { this->then_.stop(); }
 
@@ -510,8 +539,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
  protected:
   struct QueueItem {
@@ -571,54 +599,6 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   std::list<QueueItem> var_queue_{};
   // Bumped by stop() so process_queue_() can detect a stop from inside play_next_()
   uint8_t stop_generation_{0};
-};
-
-template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
- public:
-  UpdateComponentAction(PollingComponent *component) : component_(component) {}
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready())
-      return;
-    this->component_->update();
-  }
-
- protected:
-  PollingComponent *component_;
-};
-
-template<typename... Ts> class SuspendComponentAction : public Action<Ts...> {
- public:
-  SuspendComponentAction(PollingComponent *component) : component_(component) {}
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready())
-      return;
-    this->component_->stop_poller();
-  }
-
- protected:
-  PollingComponent *component_;
-};
-
-template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
- public:
-  ResumeComponentAction(PollingComponent *component) : component_(component) {}
-  TEMPLATABLE_VALUE(uint32_t, update_interval)
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready()) {
-      return;
-    }
-    optional<uint32_t> update_interval = this->update_interval_.optional_value(x...);
-    if (update_interval.has_value()) {
-      this->component_->set_update_interval(update_interval.value());
-    }
-    this->component_->start_poller();
-  }
-
- protected:
-  PollingComponent *component_;
 };
 
 }  // namespace esphome

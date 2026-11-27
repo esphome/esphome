@@ -1,6 +1,7 @@
 #include <algorithm>
 #include "common.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/frame_reader.h"
 
 namespace esphome::uart::testing {
 
@@ -139,6 +140,106 @@ TEST(UARTReadAvailableTest, ChunksWithCountStopEarly) {
       20));
   EXPECT_EQ(lens, (std::vector<size_t>{8, 8}));
   EXPECT_EQ(uart.remaining(), 14u);
+}
+
+TEST(UARTReadAvailableTest, DiscardDropsEveryWaitingByte) {
+  ::testing::NiceMock<FakeRxUART> uart(make_bytes(5));
+  UARTDevice dev(&uart);
+  dev.discard_available();
+  EXPECT_EQ(uart.remaining(), 0u);
+}
+
+TEST(UARTReadAvailableTest, DiscardWithNothingAvailableDoesNotRead) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{});
+  UARTDevice dev(&uart);
+  dev.discard_available();
+  EXPECT_TRUE(uart.read_sizes.empty());
+}
+
+TEST(UARTReadAvailableTest, DiscardDropsBytesThatArriveWhileDraining) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{1, 2});
+  bool appended = false;
+  ON_CALL(uart, available()).WillByDefault(Invoke([&]() -> size_t {
+    if (!appended && uart.read_sizes.size() == 1) {
+      uart.append({9, 9});
+      appended = true;
+    }
+    return uart.remaining();
+  }));
+  UARTDevice dev(&uart);
+  dev.discard_available();
+  EXPECT_TRUE(appended);
+  EXPECT_EQ(uart.remaining(), 0u);
+}
+
+TEST(UARTReadAvailableTest, DiscardStopsOnReadFailure) {
+  ::testing::NiceMock<FakeRxUART> uart(make_bytes(5));
+  uart.fail_after_reads = 2;
+  UARTDevice dev(&uart);
+  dev.discard_available();
+  EXPECT_EQ(uart.read_sizes.size(), 3u);
+}
+
+// Keeps a copy of each frame; takes every frame except those whose length byte is reject_len
+struct Collect {
+  std::vector<std::vector<uint8_t>> frames;
+  uint8_t reject_len{0};
+  bool operator()(const uint8_t *f, size_t len) {
+    this->frames.emplace_back(f, f + len);
+    return f[1] != this->reject_len;
+  }
+};
+
+// AA, length byte, then that many bytes
+using GapReader = LengthFrameReader<16, FrameFormat<FrameHeader<0xAA>, PayloadLengthU8<LengthField{.offset = 1}>>>;
+
+TEST(UARTReadFramesTest, FeedsTheReaderAndStampsTheTime) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{0xAA, 0x01, 0x07});
+  UARTDevice dev(&uart);
+  GapReader reader;
+  Collect handle;
+  uint32_t last_rx = 0;
+  EXPECT_TRUE(dev.read_frames(reader, handle, 500, last_rx));
+  EXPECT_EQ(last_rx, 500u);
+  EXPECT_EQ(handle.frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x01, 0x07}}));
+}
+
+TEST(UARTReadFramesTest, IdlePassAfterTheGapFlushesAStalledFrame) {
+  // A corrupt length of 9 holds the whole frame AA 01 07 behind it
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{0xAA, 0x09, 0xAA, 0x01, 0x07});
+  UARTDevice dev(&uart);
+  GapReader reader;
+  Collect handle{.reject_len = 0x09};
+  uint32_t last_rx = 0;
+  dev.read_frames(reader, handle, 1000, last_rx, 100);
+  dev.read_frames(reader, handle, 1099, last_rx, 100);
+  EXPECT_TRUE(handle.frames.empty());
+  dev.read_frames(reader, handle, 1100, last_rx, 100);
+  EXPECT_EQ(handle.frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x01, 0x07}}));
+  EXPECT_EQ(reader.length(), 0u);
+}
+
+TEST(UARTReadFramesTest, BytesAfterASlowLoopAreFedNotFlushed) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{0xAA, 0x02, 0x01});
+  UARTDevice dev(&uart);
+  GapReader reader;
+  Collect handle;
+  uint32_t last_rx = 0;
+  dev.read_frames(reader, handle, 1000, last_rx, 100);
+  // The rest of the frame waited out a 500 ms loop
+  uart.append({0x02});
+  dev.read_frames(reader, handle, 1500, last_rx, 100);
+  EXPECT_EQ(handle.frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x02, 0x01, 0x02}}));
+}
+
+TEST(UARTReadFramesTest, ReportsAFailedRead) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{0xAA, 0x01, 0x07});
+  uart.fail_after_reads = 0;
+  UARTDevice dev(&uart);
+  GapReader reader;
+  Collect handle;
+  uint32_t last_rx = 0;
+  EXPECT_FALSE(dev.read_frames(reader, handle, 500, last_rx));
 }
 
 }  // namespace esphome::uart::testing

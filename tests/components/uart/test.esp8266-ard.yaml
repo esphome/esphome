@@ -1,3 +1,6 @@
+packages:
+  tx_break: !include tx_break.yaml
+
 esphome:
   on_boot:
     then:
@@ -55,3 +58,17 @@ event:
     event_types:
       - "string_event_A": "*A#"
       - "bytes_event_B": [0x2A, 0x42, 0x23]
+
+binary_sensor:
+  - platform: uart
+    id: up
+    uart_id: uart_id
+    data: [0x1B, 0x5B, 0x41]
+  - platform: uart
+    id: down
+    uart_id: uart_id
+    data: [0x1B, 0x5B, 0x42]
+
+# set_tx_break() of the hardware bus too
+uart_tx_break_test:
+  - uart_id: uart_swapped

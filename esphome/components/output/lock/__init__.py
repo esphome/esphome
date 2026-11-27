@@ -22,5 +22,4 @@ async def to_code(config):
     var = await lock.new_lock(config)
     await cg.register_component(var, config)
 
-    output_ = await cg.get_variable(config[CONF_OUTPUT])
-    cg.add(var.set_output(output_))
+    await cg.add_variable(var.set_output, config[CONF_OUTPUT])

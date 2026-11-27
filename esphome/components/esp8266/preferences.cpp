@@ -48,7 +48,8 @@ static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
     return false;
   }
-  *dest = ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference,clang-analyzer-optin.core.FixedAddressDereference)
+  *dest = ESP_RTC_USER_MEM[index];
   return true;
 }
 
@@ -61,7 +62,8 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   }
 
   auto *ptr = &ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr)
-  *ptr = value;                          // NOLINT(clang-analyzer-core.FixedAddressDereference)
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference,clang-analyzer-optin.core.FixedAddressDereference)
+  *ptr = value;
   return true;
 }
 
@@ -205,13 +207,11 @@ bool ESP8266Preferences::sync() {
     return false;
 
   ESP_LOGD(TAG, "Saving");
-  SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
-  {
-    InterruptLock lock;
-    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-    if (erase_res == SPI_FLASH_RESULT_OK) {
-      write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
-    }
+  // Interrupts stay enabled: masking them for a whole sector erase drains the WiFi SDK heap
+  SpiFlashOpResult erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+  SpiFlashOpResult write_res = SPI_FLASH_RESULT_OK;
+  if (erase_res == SPI_FLASH_RESULT_OK) {
+    write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
   }
   if (erase_res != SPI_FLASH_RESULT_OK) {
     ESP_LOGE(TAG, "Erasing failed");
@@ -228,11 +228,7 @@ bool ESP8266Preferences::sync() {
 
 bool ESP8266Preferences::reset() {
   ESP_LOGD(TAG, "Erasing storage");
-  SpiFlashOpResult erase_res;
-  {
-    InterruptLock lock;
-    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-  }
+  SpiFlashOpResult erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
   if (erase_res != SPI_FLASH_RESULT_OK) {
     ESP_LOGE(TAG, "Erasing failed");
     return false;

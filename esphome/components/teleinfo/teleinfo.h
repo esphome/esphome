@@ -18,7 +18,9 @@ static const uint16_t MAX_TIMESTAMP_SIZE = 14;
 class TeleInfoListener {
  public:
   std::string tag;
-  virtual void publish_val(const std::string &val){};
+  virtual void publish_val(const std::string &val) {};
+  // Called from the hub's dump_config()
+  virtual void dump_child_config() {}
 };
 class TeleInfo final : public PollingComponent, public uart::UARTDevice {
  public:

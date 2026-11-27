@@ -1,7 +1,11 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, remote_base, remote_transmitter, sensor, uart
-from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
+from esphome.components.climate import (
+    CLIMATE_MODES,
+    CLIMATE_PRESETS,
+    CLIMATE_SWING_MODES,
+)
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -19,18 +23,9 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_USE_FAHRENHEIT,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_POWER,
     ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-    UNIT_WATT,
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
@@ -57,23 +52,13 @@ def templatize(value):
 
 
 ALLOWED_CLIMATE_MODES = {
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+    k: CLIMATE_MODES[k] for k in ("HEAT_COOL", "COOL", "HEAT", "DRY", "FAN_ONLY")
 }
 
-ALLOWED_CLIMATE_PRESETS = {
-    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
-}
+ALLOWED_CLIMATE_PRESETS = {k: CLIMATE_PRESETS[k] for k in ("ECO", "BOOST", "SLEEP")}
 
 ALLOWED_CLIMATE_SWING_MODES = {
-    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
-    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
-    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
+    k: CLIMATE_SWING_MODES[k] for k in ("BOTH", "VERTICAL", "HORIZONTAL")
 }
 
 CUSTOM_FAN_MODES = {
@@ -130,25 +115,13 @@ CONFIG_SCHEMA = cv.All(
                 validate_custom_fan_modes
             ),
             cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_POWER_USAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                icon=ICON_POWER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=0
             ),
             cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=0
             ),
         }
     )
@@ -221,21 +194,17 @@ async def to_code(config):
     if CONF_TRANSMITTER_ID in config:
         remote_base.request_protocol("midea")  # ir_transmitter.h uses it from C++
         cg.add_define("USE_REMOTE_TRANSMITTER")
-        transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
-        cg.add(var.set_transmitter(transmitter_))
+        await cg.add_variable(var.set_transmitter, config[CONF_TRANSMITTER_ID])
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
     cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
-    if CONF_SUPPORTED_SWING_MODES in config:
-        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
-    if CONF_SUPPORTED_PRESETS in config:
-        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
-    if CONF_CUSTOM_PRESETS in config:
-        cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
-    if CONF_CUSTOM_FAN_MODES in config:
-        cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
+    cg.add_optional(
+        var.set_supported_swing_modes, config.get(CONF_SUPPORTED_SWING_MODES)
+    )
+    cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
+    climate.set_custom_presets(var, config.get(CONF_CUSTOM_PRESETS, []))
+    climate.set_custom_fan_modes(var, config.get(CONF_CUSTOM_FAN_MODES, []))
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
     await sensors(CONF_POWER_USAGE, var.set_power_sensor)

@@ -48,8 +48,7 @@ class LineSim {
   }
 
   // Emit one frame at `start` with per edge `jitter` in ticks; returns the end tick.
-  uint32_t send(
-      uint8_t value, uint32_t start, const std::function<int32_t()> &jitter = [] { return 0; }) {
+  uint32_t send(uint8_t value, uint32_t start, const std::function<int32_t()> &jitter = [] { return 0; }) {
     std::vector<bool> bits;
     bits.push_back(false);
     int ones = 0;

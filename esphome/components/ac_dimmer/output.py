@@ -68,10 +68,8 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_MIN_POWER] = 0.1
     await output.register_output(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_GATE_PIN])
-    cg.add(var.set_gate_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
-    cg.add(var.set_zero_cross_pin(pin))
+    await cg.add_pin(var.set_gate_pin, config[CONF_GATE_PIN])
+    await cg.add_pin(var.set_zero_cross_pin, config[CONF_ZERO_CROSS_PIN])
     cg.add(var.set_zero_cross_interrupt_type(config[CONF_ZERO_CROSS_INTERRUPT_TYPE]))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
     cg.add(var.set_method(config[CONF_METHOD]))

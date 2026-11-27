@@ -63,3 +63,9 @@ button:
     id: ha_button
     name: HA Button
     entity_id: button.restart
+
+light:
+  - platform: homeassistant
+    id: ha_light
+    name: HA Light
+    entity_id: light.kitchen

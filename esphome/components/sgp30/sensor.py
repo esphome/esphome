@@ -9,14 +9,9 @@ from esphome.const import (
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
     CONF_TVOC,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_MOLECULE_CO2,
     ICON_RADIATOR,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
 )
 from esphome.types import ConfigType
 
@@ -38,19 +33,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SGP30Component),
             cv.Optional(CONF_ECO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
             cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
@@ -90,15 +75,16 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_ECO2_BASELINE, var.set_eco2_baseline_sensor)
     await sensors(CONF_TVOC_BASELINE, var.set_tvoc_baseline_sensor)
 
-    if (store_baseline := config.get(CONF_STORE_BASELINE)) is not None:
-        cg.add(var.set_store_baseline(store_baseline))
+    cg.add_optional(var.set_store_baseline, config.get(CONF_STORE_BASELINE))
 
     if baseline_config := config.get(CONF_BASELINE):
         cg.add(var.set_eco2_baseline(baseline_config[CONF_ECO2_BASELINE]))
         cg.add(var.set_tvoc_baseline(baseline_config[CONF_TVOC_BASELINE]))
 
     if compensation_config := config.get(CONF_COMPENSATION):
-        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
-        cg.add(var.set_humidity_sensor(sens))
-        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
-        cg.add(var.set_temperature_sensor(sens))
+        await cg.add_variable(
+            var.set_humidity_sensor, compensation_config[CONF_HUMIDITY_SOURCE]
+        )
+        await cg.add_variable(
+            var.set_temperature_sensor, compensation_config[CONF_TEMPERATURE_SOURCE]
+        )

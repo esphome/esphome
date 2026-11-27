@@ -8,13 +8,13 @@
 namespace esphome::htu31d {
 
 class HTU31DComponent final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+
  public:
   void setup() override;        /// Setup (reset) the sensor and check connection.
   void update() override;       /// Update the sensor values (temperature+humidity).
   void dump_config() override;  /// Dumps the configuration values.
-
-  void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
 
   void set_heater_state(bool desired);
   bool is_heater_enabled();
@@ -22,8 +22,5 @@ class HTU31DComponent final : public PollingComponent, public i2c::I2CDevice {
  protected:
   bool reset_();
   uint32_t read_serial_num_();
-
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
 };
 }  // namespace esphome::htu31d

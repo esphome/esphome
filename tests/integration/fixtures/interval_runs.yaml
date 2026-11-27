@@ -1,0 +1,46 @@
+esphome:
+  name: interval-runs
+
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: inline_count
+    type: int
+    initial_value: "0"
+  - id: action_count
+    type: int
+    initial_value: "0"
+  - id: startup_count
+    type: int
+    initial_value: "0"
+
+interval:
+  # All actions inline
+  - interval: 50ms
+    then:
+      - lambda: id(inline_count) += 1;
+      - lambda: |-
+          if (id(inline_count) == 1) {
+            ESP_LOGI("test", "INLINE first uptime=%u", (unsigned) millis());
+          } else if (id(inline_count) == 20) {
+            ESP_LOGI("test", "INLINE ran 20 times");
+          }
+  # A delay between the actions
+  - interval: 100ms
+    then:
+      - lambda: |-
+          id(action_count) += 1;
+          ESP_LOGI("test", "ACTION start %d", id(action_count));
+      - delay: 20ms
+      - lambda: ESP_LOGI("test", "ACTION end %d", id(action_count));
+  # First run waits for the startup delay
+  - interval: 50ms
+    startup_delay: 1000ms
+    then:
+      - lambda: |-
+          if (++id(startup_count) == 1) {
+            ESP_LOGI("test", "STARTUP first uptime=%u inline_count=%d", (unsigned) millis(), id(inline_count));
+          }

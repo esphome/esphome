@@ -167,7 +167,7 @@ class TcpUartServer : public ::testing::Test {
     this->uart_.on_shutdown();
   }
   static struct sockaddr_in loopback(uint16_t port) {
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(port);

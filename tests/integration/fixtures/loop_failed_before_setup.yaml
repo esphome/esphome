@@ -1,0 +1,21 @@
+esphome:
+  name: loop-failed-test
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+loop_test_component:
+  components:
+    - id: failed_early
+      name: "failed_early"
+      fail_before_setup: true
+
+    - id: healthy
+      name: "healthy"

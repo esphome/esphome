@@ -6,6 +6,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.adc import ATTENUATION_MODES
+from esphome.components.const import CONF_SAMPLE_INTERVAL
 from esphome.components.esp32 import get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
@@ -23,11 +24,9 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
     CONF_WARMUP_TIME,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
-    UNIT_VOLT,
 )
 from esphome.core import CORE
 from esphome.helpers import fnv1_hash
@@ -53,7 +52,6 @@ from . import (
     CONF_RL,
     CONF_RS_SENSOR,
     CONF_SAMPLE_COUNT,
-    CONF_SAMPLE_INTERVAL,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
@@ -143,25 +141,6 @@ def _preference_key(config: ConfigType) -> int:
     if (rl := config.get(CONF_RL)) is not None:
         parts.append(f"{rl:g}")
     return fnv1_hash(":".join(parts))
-
-
-def _validate_adc_keys(config: ConfigType) -> ConfigType:
-    """Reject the ADC keys where they would be accepted and ignored."""
-    if CONF_VOLTAGE_DIVIDER not in config and CONF_PIN not in config:
-        for key in (CONF_ADC_INPUT_MAX, CONF_ADC_PIN_MAX):
-            if key in config:
-                raise cv.Invalid(
-                    f"'{key}:' only checks a 'pin:' source or a 'voltage_divider:', "
-                    "so it has no effect here",
-                    path=[key],
-                )
-    if CONF_ADC_ATTENUATION in config and CONF_PIN not in config:
-        raise cv.Invalid(
-            "'adc_attenuation:' only applies to the ADC of a 'pin:' source - set "
-            "'attenuation:' on the adc sensor behind 'voltage:' instead",
-            path=[CONF_ADC_ATTENUATION],
-        )
-    return config
 
 
 def _validate_adc_range(config: ConfigType) -> ConfigType:
@@ -384,9 +363,8 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
             cv.Optional(CONF_VOLTAGE_SENSOR): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_RATIO_SENSOR): sensor.sensor_schema(
@@ -405,7 +383,17 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_most_one_key(CONF_VOLTAGE_DIVIDER, CONF_VOLTAGE_MULTIPLIER),
     cv.has_at_least_one_key(*GASES),
     cv.has_at_most_one_key(CONF_AIR_REFERENCE, CONF_R0, CONF_CALIBRATION),
-    _validate_adc_keys,
+    cv.key_requires(
+        (CONF_ADC_INPUT_MAX, CONF_ADC_PIN_MAX),
+        CONF_VOLTAGE_DIVIDER,
+        CONF_PIN,
+        any_of=True,
+    ),
+    cv.key_requires(
+        CONF_ADC_ATTENUATION,
+        CONF_PIN,
+        hint="Set 'attenuation:' on the adc sensor behind 'voltage:' instead",
+    ),
     _validate_adc_range,
     _validate_config,
     _validate_enable_pin,
@@ -427,15 +415,13 @@ async def to_code(config: ConfigType) -> None:
         # Only a build with a datasheet model links the power law and its libm
         cg.add_define("USE_MICS_5524_DATASHEET")
     cg.add(var.set_vcc(config[CONF_VCC]))
-    if (rl := config.get(CONF_RL)) is not None:
-        cg.add(var.set_rl(rl))
+    cg.add_optional(var.set_rl, config.get(CONF_RL))
     cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
     cg.add(var.set_preference_key(_preference_key(config)))
 
-    if (enable := config.get(CONF_ENABLE_PIN)) is not None:
-        cg.add(var.set_enable_pin(await cg.gpio_pin_expression(enable)))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
     if (reference := config.get(CONF_AIR_REFERENCE, config.get(CONF_R0))) is not None:
         cg.add(var.set_reference(reference))
     # A request on a hub without `calibration:` uses the schema defaults, never persisted.

@@ -5,26 +5,10 @@ from esphome.const import (
     CONF_APPARENT_POWER,
     CONF_CURRENT,
     CONF_ENERGY,
-    CONF_ID,
     CONF_POWER,
     CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_WATT,
-    UNIT_WATT_HOURS,
 )
 from esphome.types import ConfigType
 
@@ -38,45 +22,25 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(CSE7766Component),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT_HOURS,
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
+                kind=sensor.ENERGY_WH, accuracy_decimals=3
             ),
             cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_APPARENT_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.APPARENT_POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_REACTIVE_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.REACTIVE_POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER_FACTOR,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER_FACTOR, accuracy_decimals=2
             ),
         }
     )
@@ -94,9 +58,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

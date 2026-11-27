@@ -1,0 +1,15 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32c3
+  framework:
+    type: esp-idf
+
+remote_transmitter:
+  - pin: GPIO4
+    carrier_duty_percent: 50%
+  - pin: GPIO5
+    carrier_duty_percent: 50%
+  - pin: GPIO6
+    carrier_duty_percent: 50%

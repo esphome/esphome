@@ -55,10 +55,8 @@ void CameraWebServer::setup() {
   config.backlog_conn = 2;
   config.lru_purge_enable = true;
 
-  if (httpd_start(&this->httpd_, &config) != ESP_OK) {
-    this->mark_failed(LOG_STR("Failed to start the web server"));
+  if (!this->setup_check(httpd_start(&this->httpd_, &config) == ESP_OK, LOG_STR("Failed to start the web server")))
     return;
-  }
 
   httpd_uri_t uri = {
       .uri = "/",
@@ -83,8 +81,10 @@ void CameraWebServer::on_shutdown() {
   this->image_ = nullptr;
   httpd_stop(this->httpd_);
   this->httpd_ = nullptr;
-  vSemaphoreDelete(this->semaphore_);
-  this->semaphore_ = nullptr;
+  if (this->semaphore_ != nullptr) {
+    vSemaphoreDelete(this->semaphore_);
+    this->semaphore_ = nullptr;
+  }
 }
 
 void CameraWebServer::dump_config() {

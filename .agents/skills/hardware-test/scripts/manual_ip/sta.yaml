@@ -1,0 +1,62 @@
+# Station manual IP. The real network is the second table row and inherits the top level manual_ip; set ip to the
+# board's own DHCP lease and dns2 to a server DHCP does not hand out, so the logs prove the manual values are used.
+# run-sta.sh passes name, plat, ip, gateway, subnet and dns1 with -s; dns2 stays 9.9.9.9, which it checks for.
+substitutions:
+  name: mip-sta
+  plat: esp32
+  ip: 192.168.1.50
+  gateway: 192.168.1.1
+  subnet: 255.255.255.0
+  dns1: 192.168.1.1
+  dns2: 9.9.9.9
+
+esphome:
+  name: ${name}
+  includes:
+    - dnsprobe.hpp
+
+packages:
+  plat: !include plat-${plat}.yaml
+
+logger:
+  level: VERBOSE
+  logs:
+    scheduler: DEBUG
+    component: DEBUG
+    api.service: DEBUG
+    api.connection: DEBUG
+    api.socket: DEBUG
+    socket: DEBUG
+    mdns: DEBUG
+
+wifi:
+  manual_ip:
+    static_ip: ${ip}
+    gateway: ${gateway}
+    subnet: ${subnet}
+    dns1: ${dns1}
+    dns2: ${dns2}
+  networks:
+    - ssid: mip-nowhere
+      password: nowhere123
+      manual_ip:
+        static_ip: 10.9.9.9
+        gateway: 10.9.9.1
+        subnet: 255.255.255.0
+        dns1: 10.9.9.1
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+interval:
+  - interval: 20s
+    then:
+      - if:
+          condition: wifi.connected
+          then:
+            - lambda: dns_probe();

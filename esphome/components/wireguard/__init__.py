@@ -3,8 +3,9 @@ import re
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import time
-from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
+from esphome.components import network, time
+from esphome.components.esp32 import CORE, add_idf_component, add_idf_sdkconfig_option
+from esphome.components.noise import LIBSODIUM_VERSION, use_registry_libsodium
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -92,6 +93,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_LN882X,
         ]
     ),
+    network.require_ipv4("wireguard"),
 )
 
 
@@ -109,8 +111,7 @@ async def to_code(config):
     cg.add(var.set_keepalive(config[CONF_PEER_PERSISTENT_KEEPALIVE]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
-    if CONF_PEER_PRESHARED_KEY in config:
-        cg.add(var.set_preshared_key(config[CONF_PEER_PRESHARED_KEY]))
+    cg.add_optional(var.set_preshared_key, config.get(CONF_PEER_PRESHARED_KEY))
 
     allowed_ips = list(
         ipaddress.collapse_addresses(
@@ -137,7 +138,7 @@ async def to_code(config):
         )
     )
 
-    cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
+    await cg.add_variable(var.set_srctime, config[CONF_TIME_ID])
 
     if config[CONF_REQUIRE_CONNECTION_TO_PROCEED]:
         cg.add(var.disable_auto_proceed())
@@ -153,6 +154,10 @@ async def to_code(config):
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
     cg.add_library("esphome/wireguard", "0.4.8")
+    # Same rule as noise: the wireguard library then uses the registry libsodium
+    # instead of its own copy
+    if use_registry_libsodium():
+        add_idf_component(name="esphome/libsodium", ref=LIBSODIUM_VERSION)
 
     await cg.register_component(var, config)
 

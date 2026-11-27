@@ -49,7 +49,7 @@ class RTSPSessionTest : public ::testing::Test {
   void reopen_over_tcp() {
     int listener = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(listener, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     socklen_t len = sizeof(addr);

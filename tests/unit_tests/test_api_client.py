@@ -15,7 +15,10 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
+
+# These waits end as soon as the event is set; the bound only stops a hang
+EVENT_WAIT_TIMEOUT = 10
 
 
 def test_component_shim_reexports_runtime_client() -> None:
@@ -64,7 +67,7 @@ async def test_async_run_logs_full_flow(caplog) -> None:
         )
         # Let the task run up to the forever-wait; the timeout fails the
         # test instead of hanging it if the task dies early.
-        async with asyncio.timeout(1):
+        async with asyncio.timeout(EVENT_WAIT_TIMEOUT):
             await run_started.wait()
         on_log = mock_run.call_args.args[1]
         on_log(Mock(message=b"[I][main:001] hello world\nPC: 0x40104960"))
@@ -109,7 +112,7 @@ async def test_async_run_logs_never_resolves_without_crash_lines() -> None:
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"])
         )
-        async with asyncio.timeout(1):
+        async with asyncio.timeout(EVENT_WAIT_TIMEOUT):
             await run_started.wait()
         on_log = mock_run.call_args.args[1]
         on_log(Mock(message=b"[I][app:100] hello\n[C][wifi:200] connected"))
@@ -188,7 +191,7 @@ async def test_async_run_logs_mqtt_resolver_feeds_addresses(caplog) -> None:
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        async with asyncio.timeout(1):
+        async with asyncio.timeout(EVENT_WAIT_TIMEOUT):
             await fed.wait()
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -224,7 +227,7 @@ async def test_async_run_logs_mqtt_resolver_no_addresses_keeps_running() -> None
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.to_thread(resolver_ran.wait, EVENT_WAIT_TIMEOUT)
         await asyncio.sleep(0)
         assert not task.done()
         task.cancel()
@@ -262,7 +265,7 @@ async def test_async_run_logs_mqtt_resolver_stopped_on_teardown() -> None:
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        await asyncio.to_thread(resolver_started.wait, 1)
+        await asyncio.to_thread(resolver_started.wait, EVENT_WAIT_TIMEOUT)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -294,7 +297,7 @@ async def test_async_run_logs_mqtt_resolver_crash_still_stops_cleanly(caplog) ->
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.to_thread(resolver_ran.wait, EVENT_WAIT_TIMEOUT)
         await asyncio.sleep(0.05)
         assert not task.done()
         task.cancel()
@@ -331,7 +334,7 @@ async def test_async_run_logs_connect_cancels_mqtt_discovery() -> None:
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        await asyncio.to_thread(resolver_started.wait, 1)
+        await asyncio.to_thread(resolver_started.wait, EVENT_WAIT_TIMEOUT)
 
         # The runner reports a successful connection
         on_connect = mock_run.call_args.kwargs["on_connect"]
@@ -405,7 +408,7 @@ async def test_async_run_logs_mqtt_resolver_duplicate_addresses_logged(caplog) -
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        await asyncio.to_thread(fed.wait, 1)
+        await asyncio.to_thread(fed.wait, EVENT_WAIT_TIMEOUT)
         await asyncio.sleep(0.05)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -442,7 +445,7 @@ async def test_async_run_logs_base_exception_escape_logged_at_teardown(caplog) -
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.to_thread(resolver_ran.wait, EVENT_WAIT_TIMEOUT)
         await asyncio.sleep(0.05)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -477,10 +480,57 @@ async def test_async_run_logs_stubborn_worker_cancelled_at_teardown() -> None:
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
         )
-        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.to_thread(resolver_ran.wait, EVENT_WAIT_TIMEOUT)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
         release.set()
 
     stop.assert_awaited_once()
+
+
+def _store_yaml_client(supported: bool) -> Mock:
+    cli = Mock()
+    cli.log_name = "dev @ 1.2.3.4"
+    cli.connect = AsyncMock()
+    cli.disconnect = AsyncMock()
+    cli.device_capabilities = AsyncMock(
+        return_value=Mock(store_yaml=Mock(supported=supported))
+    )
+    cli.get_yaml = AsyncMock(return_value=b"blob")
+    return cli
+
+
+@pytest.mark.asyncio
+async def test_async_recover_yaml_fetches_and_disconnects() -> None:
+    cli = _store_yaml_client(True)
+    with patch.object(api_client, "APIClient", return_value=cli) as client_cls:
+        assert await api_client.async_recover_yaml(["1.2.3.4"], 6053, "key") == b"blob"
+    assert client_cls.call_args.kwargs["noise_psk"] == "key"
+    cli.connect.assert_awaited_once_with(login=True)
+    cli.disconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_recover_yaml_without_store_yaml() -> None:
+    cli = _store_yaml_client(False)
+    with (
+        patch.object(api_client, "APIClient", return_value=cli),
+        pytest.raises(EsphomeError, match="store_yaml is not enabled on dev"),
+    ):
+        await api_client.async_recover_yaml(["1.2.3.4"], 6053, None)
+    cli.get_yaml.assert_not_awaited()
+    cli.disconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_recover_yaml_turns_api_errors_into_esphome_errors() -> None:
+    from aioesphomeapi import InvalidEncryptionKeyAPIError
+
+    cli = _store_yaml_client(True)
+    cli.connect.side_effect = InvalidEncryptionKeyAPIError("bad key", "dev")
+    with (
+        patch.object(api_client, "APIClient", return_value=cli),
+        pytest.raises(EsphomeError, match="Could not fetch the YAML from 1.2.3.4"),
+    ):
+        await api_client.async_recover_yaml(["1.2.3.4"], 6053, "key")

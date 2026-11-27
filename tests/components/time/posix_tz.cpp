@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <ctime>
+#include <limits>
 #include <string>
 #include <tuple>
 #include "esphome/components/time/posix_tz.h"
@@ -106,33 +107,81 @@ static ParsedTimezone make_australia_sydney() {
 // Helper function tests
 // ============================================================================
 
-TEST(PosixTz, JulianDay60IsMarch1) {
-  // J60 is always March 1 (J format ignores leap years by design)
-  int month, day;
-  internal::julian_to_month_day(60, month, day);
-  EXPECT_EQ(month, 3);
-  EXPECT_EQ(day, 1);
+TEST(PosixTz, MonthWeekDayRuleMatchesGmtime) {
+  // Every week (1-4 = nth, 5 = last) of every weekday in every month, in years spread over 0 to 65535
+  for (int year = 0; year <= 65535; year += (year < 2200 ? 13 : 997)) {
+    for (int month = 1; month <= 12; month++) {
+      for (int week = 1; week <= 5; week++) {
+        for (int dow = 0; dow < 7; dow++) {
+          DSTRule rule{};
+          rule.type = DSTRuleType::MONTH_WEEK_DAY;
+          rule.month = month;
+          rule.week = week;
+          rule.day_of_week = dow;
+          time_t epoch = internal::calculate_dst_transition(year, rule, 0);
+          struct tm got{};
+          ASSERT_NE(::gmtime_r(&epoch, &got), nullptr);
+          ASSERT_EQ(got.tm_year + 1900, year);
+          ASSERT_EQ(got.tm_mon + 1, month);
+          EXPECT_EQ(got.tm_wday, dow) << year << "-" << month;
+          if (week < 5) {
+            EXPECT_EQ((got.tm_mday - 1) / 7 + 1, week) << year << "-" << month;
+          } else {
+            EXPECT_GT(got.tm_mday + 7, internal::days_in_month(year, month)) << year << "-" << month;
+          }
+        }
+      }
+    }
+  }
 }
 
-TEST(PosixTz, DayOfYear59DiffersByLeap) {
-  int month, day;
-  // Day 59 in leap year is Feb 29
-  internal::day_of_year_to_month_day(59, 2024, month, day);
-  EXPECT_EQ(month, 2);
-  EXPECT_EQ(day, 29);
-  // Day 59 in non-leap year is March 1
-  internal::day_of_year_to_month_day(59, 2025, month, day);
-  EXPECT_EQ(month, 3);
-  EXPECT_EQ(day, 1);
+TEST(PosixTz, DaysInMonthMatchesTable) {
+  static constexpr int DAYS[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  for (int month = 1; month <= 12; month++) {
+    EXPECT_EQ(internal::days_in_month(2023, month), DAYS[month - 1]) << month;
+    EXPECT_EQ(internal::days_in_month(2024, month), DAYS[month - 1] + (month == 2)) << month;
+  }
 }
 
-TEST(PosixTz, DayOfWeekKnownDates) {
-  // January 1, 1970 was Thursday (4)
-  EXPECT_EQ(internal::day_of_week(1970, 1, 1), 4);
-  // January 1, 2000 was Saturday (6)
-  EXPECT_EQ(internal::day_of_week(2000, 1, 1), 6);
-  // March 8, 2026 is Sunday (0) - US DST start
-  EXPECT_EQ(internal::day_of_week(2026, 3, 8), 0);
+TEST(PosixTz, LocalTimeJustBeforeYear0) {
+  // In UTC-1, the first second of year 0 UTC is still in year -1 local time; it must not overflow
+  ParsedTimezone tz{};
+  tz.std_offset_seconds = 3600;
+  struct tm tm{};
+  ASSERT_TRUE(epoch_to_local_tm(-62167219200, tz, &tm));
+  EXPECT_EQ(tm.tm_year + 1900, -1);
+  EXPECT_EQ(tm.tm_mon, 11);
+  EXPECT_EQ(tm.tm_mday, 31);
+  EXPECT_EQ(tm.tm_hour, 23);
+}
+
+TEST(PosixTz, EpochToLocalOutsideSixteenBitYearsFails) {
+  // Year -400 and the time_t limits fail at once instead of stalling the year search; the localtime_r() override
+  // on the embedded platforms then returns nullptr
+  ParsedTimezone tz{};
+  struct tm tm{};
+  for (time_t epoch :
+       {static_cast<time_t>(-74789913600), static_cast<time_t>(-62167219201), static_cast<time_t>(2005949145600),
+        std::numeric_limits<time_t>::min(), std::numeric_limits<time_t>::max()}) {
+    EXPECT_FALSE(epoch_to_local_tm(epoch, tz, &tm)) << epoch;
+  }
+}
+
+TEST(PosixTz, RecalcLocalOneSecondBeforeEpoch) {
+  // 1969-12-31 23:59:59 as UTC fields is -1, which is a real time, not an error
+  ParsedTimezone tz{};
+  tz.std_offset_seconds = 5 * 3600;  // EST5, no DST
+  set_global_tz(tz);
+  ESPTime t{};
+  t.year = 1969;
+  t.month = 12;
+  t.day_of_month = 31;
+  t.hour = 23;
+  t.minute = 59;
+  t.second = 59;
+  t.recalc_timestamp_local();
+  EXPECT_EQ(t.timestamp, 17999);
+  set_global_tz(ParsedTimezone{});
 }
 
 TEST(PosixTz, LeapYearDetection) {
@@ -142,82 +191,39 @@ TEST(PosixTz, LeapYearDetection) {
   EXPECT_FALSE(internal::is_leap_year(2025));  // Not divisible by 4
 }
 
-TEST(PosixTz, JulianDay1IsJan1) {
-  int month, day;
-  internal::julian_to_month_day(1, month, day);
-  EXPECT_EQ(month, 1);
-  EXPECT_EQ(day, 1);
+// {rule type, rule day, year, expected month, expected day}
+using DayRuleCase = std::tuple<DSTRuleType, int, int, int, int>;
+
+class DayRuleTransition : public ::testing::TestWithParam<DayRuleCase> {};
+
+TEST_P(DayRuleTransition, LandsOnDate) {
+  auto [type, rule_day, year, month, day] = GetParam();
+  DSTRule rule{};
+  rule.type = type;
+  rule.day = rule_day;
+  rule.time_seconds = 2 * 3600;
+  EXPECT_EQ(internal::calculate_dst_transition(year, rule, 3600), make_utc(year, month, day, 3));
 }
 
-TEST(PosixTz, JulianDay31IsJan31) {
-  int month, day;
-  internal::julian_to_month_day(31, month, day);
-  EXPECT_EQ(month, 1);
-  EXPECT_EQ(day, 31);
-}
-
-TEST(PosixTz, JulianDay32IsFeb1) {
-  int month, day;
-  internal::julian_to_month_day(32, month, day);
-  EXPECT_EQ(month, 2);
-  EXPECT_EQ(day, 1);
-}
-
-TEST(PosixTz, JulianDay59IsFeb28) {
-  int month, day;
-  internal::julian_to_month_day(59, month, day);
-  EXPECT_EQ(month, 2);
-  EXPECT_EQ(day, 28);
-}
-
-TEST(PosixTz, JulianDay365IsDec31) {
-  int month, day;
-  internal::julian_to_month_day(365, month, day);
-  EXPECT_EQ(month, 12);
-  EXPECT_EQ(day, 31);
-}
-
-TEST(PosixTz, DayOfYear0IsJan1) {
-  int month, day;
-  internal::day_of_year_to_month_day(0, 2025, month, day);
-  EXPECT_EQ(month, 1);
-  EXPECT_EQ(day, 1);
-}
-
-TEST(PosixTz, DaysInMonthRegular) {
-  // Test all 12 months to ensure switch coverage
-  EXPECT_EQ(internal::days_in_month(2025, 1), 31);   // Jan - default case
-  EXPECT_EQ(internal::days_in_month(2025, 2), 28);   // Feb - case 2
-  EXPECT_EQ(internal::days_in_month(2025, 3), 31);   // Mar - default case
-  EXPECT_EQ(internal::days_in_month(2025, 4), 30);   // Apr - case 4
-  EXPECT_EQ(internal::days_in_month(2025, 5), 31);   // May - default case
-  EXPECT_EQ(internal::days_in_month(2025, 6), 30);   // Jun - case 6
-  EXPECT_EQ(internal::days_in_month(2025, 7), 31);   // Jul - default case
-  EXPECT_EQ(internal::days_in_month(2025, 8), 31);   // Aug - default case
-  EXPECT_EQ(internal::days_in_month(2025, 9), 30);   // Sep - case 9
-  EXPECT_EQ(internal::days_in_month(2025, 10), 31);  // Oct - default case
-  EXPECT_EQ(internal::days_in_month(2025, 11), 30);  // Nov - case 11
-  EXPECT_EQ(internal::days_in_month(2025, 12), 31);  // Dec - default case
-}
-
-TEST(PosixTz, DaysInMonthLeapYear) {
-  EXPECT_EQ(internal::days_in_month(2024, 2), 29);
-  EXPECT_EQ(internal::days_in_month(2025, 2), 28);
-}
-
-TEST(PosixTz, PlainDay365LeapYear) {
-  int month, day;
-  internal::day_of_year_to_month_day(365, 2024, month, day);
-  EXPECT_EQ(month, 12);
-  EXPECT_EQ(day, 31);
-}
-
-TEST(PosixTz, PlainDay364NonLeapYear) {
-  int month, day;
-  internal::day_of_year_to_month_day(364, 2025, month, day);
-  EXPECT_EQ(month, 12);
-  EXPECT_EQ(day, 31);
-}
+INSTANTIATE_TEST_SUITE_P(PosixTz, DayRuleTransition,
+                         ::testing::Values(
+                             // J format never counts Feb 29, so J60 is March 1 in every year
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 1, 2025, 1, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 31, 2025, 1, 31},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 32, 2025, 2, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 59, 2024, 2, 28},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 60, 2024, 3, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 60, 2025, 3, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 365, 2024, 12, 31},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 365, 2025, 12, 31},
+                             // Plain format counts Feb 29 and starts at 0
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 0, 2025, 1, 1},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 59, 2024, 2, 29},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 59, 2025, 3, 1},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 365, 2024, 12, 31},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 364, 2025, 12, 31},
+                             // Day 365 in a non-leap year stays on Dec 31
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 365, 2025, 12, 31}));
 
 // ============================================================================
 // DST transition calculation tests
@@ -575,7 +581,7 @@ using esphome::ESPTime;
 
 // Helper to call libc mktime with same fields
 static time_t libc_mktime(int year, int month, int day, int hour, int min, int sec) {
-  struct tm tm {};
+  struct tm tm{};
   tm.tm_year = year - 1900;
   tm.tm_mon = month - 1;
   tm.tm_mday = day;
@@ -1066,7 +1072,7 @@ TEST_P(LibcVerificationTest, MatchesLibc) {
   ParsedTimezone tz = make_tz();
 
   // Our implementation
-  struct tm our_tm {};
+  struct tm our_tm{};
   ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &our_tm));
 
   // libc implementation

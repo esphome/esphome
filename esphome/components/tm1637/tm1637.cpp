@@ -124,10 +124,8 @@ constexpr uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b01100011,           // '~', ord 0x7E (degree symbol)
 };
 void TM1637Display::setup() {
-  this->clk_pin_->setup();               // OUTPUT
-  this->clk_pin_->digital_write(false);  // LOW
-  this->dio_pin_->setup();               // OUTPUT
-  this->dio_pin_->digital_write(false);  // LOW
+  setup_output_pin(this->clk_pin_, false);
+  setup_output_pin(this->dio_pin_, false);
 
   this->display();
 }
@@ -198,7 +196,7 @@ void TM1637Display::stop_() {
 }
 
 void TM1637Display::display() {
-  ESP_LOGVV(TAG, "Display %02X%02X%02X%02X", buffer_[0], buffer_[1], buffer_[2], buffer_[3]);
+  ESP_LOGVV_HEX(TAG, this->buffer_, 4, 4, "Display %s");
 
   // Write DATA CMND
   this->start_();

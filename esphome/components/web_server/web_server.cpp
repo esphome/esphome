@@ -8,13 +8,10 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-#include "StreamString.h"
-#endif
 
 #include <cstdlib>
 
@@ -63,23 +60,13 @@ ESPHOME_LOG_TAG(TAG, "web_server");
 
 using json::linked;
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
+#ifdef USE_ESP8266
+// A LogString is always in flash on ESP8266: view it as a ProgmemStr so ArduinoJson copies it PROGMEM-aware.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 #else
-// Without the define a LogString is in RAM and can be linked
+// Elsewhere a LogString is in RAM and can be linked
 [[maybe_unused]] static JsonString json_state_str(const LogString *s) { return linked(LOG_STR_ARG(s)); }
 #endif
-
-// get_icon_to() and get_device_class_to() return a table pointer, except on ESP8266 where they
-// copy out of PROGMEM into the caller's buffer
-[[maybe_unused]] static JsonString json_table_str(const char *s) {
-#ifdef USE_ESP8266
-  return JsonString(s);
-#else
-  return linked(s);
-#endif
-}
 
 // One action of a POST /{domain}/{entity}/{action} request, kept in PROGMEM with the name inline so the
 // table needs no RAM on ESP8266.
@@ -222,179 +209,12 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 #endif
 
   // Match by entity name
-  if (this->id == entity->get_name()) {
+  if (entity->name_equals(this->id)) {
     result.matched = true;
   }
 
   return result;
 }
-
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-// helper for allowing only unique entries in the queue
-void __attribute__((flatten))
-DeferredUpdateEventSource::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
-  DeferredEvent item(source, message_generator);
-
-  // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
-  for (auto &event : this->deferred_queue_) {
-    if (event == item) {
-      return;  // Already in queue, no need to update since items are equal
-    }
-  }
-  this->deferred_queue_.push_back(item);
-}
-
-void DeferredUpdateEventSource::process_deferred_queue_() {
-  while (!deferred_queue_.empty()) {
-    DeferredEvent &de = deferred_queue_.front();
-    json::JsonBuilder builder;
-    de.message_generator_(web_server_, de.source_, builder);
-    auto message = builder.serialize();
-    if (this->send(message.c_str(), "state") != DISCARDED) {
-      // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
-      deferred_queue_.erase(deferred_queue_.begin());
-      this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
-    } else {
-      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncEventSourceResponse::drain_tail_().
-      // The close mechanisms are platform-specific (this path calls close() directly; the IDF path is time-based and
-      // closes through HTTPD to preserve session ownership), but both drop a client after roughly 20 seconds without
-      // send progress. Keep that stall policy in sync when changing either side.
-      this->consecutive_send_failures_++;
-      if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
-        // Too many failures, connection is likely dead
-        ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu16 " failed sends",
-                 this->consecutive_send_failures_);
-        this->close();
-        this->deferred_queue_.clear();
-      }
-      break;
-    }
-  }
-}
-
-void DeferredUpdateEventSource::loop() {
-  process_deferred_queue_();
-  // One step per loop; refusals retry next pass
-  this->entities_iterator_.try_advance(1);
-}
-
-void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *event_type,
-                                                      message_generator_t *message_generator) {
-  // Skip if no connected clients to avoid unnecessary deferred queue processing
-  if (this->count() == 0)
-    return;
-
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI and reduces event load during initial connect
-  if (!entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
-    return;
-
-  if (source == nullptr)
-    return;
-  if (event_type == nullptr)
-    return;
-  if (message_generator == nullptr)
-    return;
-
-  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
-    ESP_LOGE(TAG, "Can't defer non-state event");
-  }
-
-  if (!deferred_queue_.empty())
-    process_deferred_queue_();
-  if (!deferred_queue_.empty()) {
-    // deferred queue still not empty which means downstream event queue full, no point trying to send first
-    deq_push_back_with_dedup_(source, message_generator);
-  } else {
-    json::JsonBuilder builder;
-    message_generator(web_server_, source, builder);
-    auto message = builder.serialize();
-    if (this->send(message.c_str(), "state") == DISCARDED) {
-      deq_push_back_with_dedup_(source, message_generator);
-    } else {
-      this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
-    }
-  }
-}
-
-// used for logs plus the initial ping/config
-void DeferredUpdateEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event,
-                                                 uint32_t id, uint32_t reconnect) {
-  // ESPAsyncWebServer's send() only accepts null-terminated strings
-  (void) message_len;
-  this->send(message, event, id, reconnect);
-}
-
-bool DeferredUpdateEventSourceList::loop() {
-  for (DeferredUpdateEventSource *dues : *this) {
-    dues->loop();
-  }
-  return !this->empty();
-}
-
-void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const char *event_type,
-                                                          message_generator_t *message_generator) {
-  // Skip if no event sources (no connected clients) to avoid unnecessary iteration
-  if (this->empty())
-    return;
-  for (DeferredUpdateEventSource *dues : *this) {
-    dues->deferrable_send_state(source, event_type, message_generator);
-  }
-}
-
-void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t message_len, const char *event,
-                                                     uint32_t id, uint32_t reconnect) {
-  for (DeferredUpdateEventSource *dues : *this) {
-    dues->try_send_nodefer(message, message_len, event, id, reconnect);
-  }
-}
-
-void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
-  DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
-  this->push_back(es);
-
-  es->onConnect([this, es](AsyncEventSourceClient *client) { this->on_client_connect_(es); });
-
-  es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
-
-  es->handleRequest(request);
-  ws->enable_loop_soon_any_context();
-}
-
-void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
-  WebServer *ws = source->web_server_;
-  ws->defer([ws, source]() {
-    // Configure reconnect timeout and send config
-    // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-    auto message = ws->get_config_json();
-    source->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
-
-#ifdef USE_WEBSERVER_SORTING
-    for (auto &group : ws->sorting_groups_) {
-      json::JsonBuilder builder;
-      JsonObject root = builder.root();
-      root[ESPHOME_F("name")] = linked(group.second.name);
-      root[ESPHOME_F("sorting_weight")] = group.second.weight;
-      auto group_msg = builder.serialize();
-
-      // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(group_msg.c_str(), group_msg.size(), "sorting_group");
-    }
-#endif
-
-    source->entities_iterator_.begin(ws->include_internal_);
-  });
-}
-
-void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSource *source) {
-  source->web_server_->defer([this, source]() {
-    // This method was called via WebServer->defer() and is no longer executing in the
-    // context of the network callback. The object is now dead and can be safely deleted.
-    this->remove(source);
-    delete source;  // NOLINT
-  });
-}
-#endif
 
 #ifdef USE_WEBSERVER_CAPTIVE
 WebServer *global_web_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -441,9 +261,6 @@ void WebServer::setup() {
   }
 #endif
 
-#ifdef USE_ESP32
-  this->base_->add_handler(&this->events_);
-#endif
   this->base_->add_handler(this);
 #ifdef USE_WEBSERVER_CAPTIVE
   // Not-found fallback (outside the auth middleware): the OS captive portal probes hit
@@ -518,6 +335,10 @@ void WebServer::handle_not_found_(AsyncWebServerRequest *request) {
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
+  // Sessions are main-loop state, so logs from network callbacks are dropped, web OTA progress among them
+  // (ESP8266's SYS context and RP2's network IRQ log here directly)
+  if (!is_main_loop_thread())
+    return;
   this->events_.try_send_nodefer(message, std::min(message_len, LOG_EVENT_MAX_LEN), "log", millis());
 }
 #endif
@@ -533,11 +354,7 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response = request->beginResponse(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
-#else
-  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
 #ifdef USE_WEBSERVER_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
 #else
@@ -547,74 +364,30 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #elif USE_WEBSERVER_VERSION >= 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), ESPHOME_WEBSERVER_INDEX_HTML,
+                                                            ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
   // No gzip header here because the HTML file is so small
   request->send(response);
 }
 #endif
 
-// Read a request header value portably across the Arduino and ESP-IDF web servers.
-// Returns an empty string when the header is absent (only allocates when a value is present).
-static std::string get_request_header(AsyncWebServerRequest *request, const char *name) {
-#ifdef USE_ESP32
-  // ESP32 (Arduino and ESP-IDF) uses the web_server_idf backend.
-  optional<std::string> value = request->get_header(name);
-  return value.has_value() ? std::move(*value) : std::string();
-#else
-  // ESP8266, RP2040 and LibreTiny use the Arduino ESPAsyncWebServer backend.
-  const AsyncWebHeader *header = request->getHeader(name);
-  return header != nullptr ? std::string(header->value().c_str()) : std::string();
-#endif
-}
-
-bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin) {
-  // No Origin header: not a browser cross-origin request (e.g. curl, native API client). Allow.
-  if (origin.empty())
-    return true;
-
-  // Same-origin: the Origin authority (scheme stripped) matches the Host the request was sent to.
-  // This covers the device's own IP, mDNS name, or DNS name without knowing any at compile time.
-  const size_t scheme_sep = origin.find("://");
-  if (scheme_sep != std::string::npos) {
-    const std::string host = get_request_header(request, "Host");
-    // Compare by hand: compare(pos, ...) carries an out_of_range throw path that can never fire here
-    const size_t authority = scheme_sep + 3;
-    if (!host.empty() && origin.size() - authority == host.size() &&
-        memcmp(origin.data() + authority, host.data(), host.size()) == 0)
-      return true;
-  }
-
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  // Otherwise the origin must be explicitly allowed via configuration.
-  for (const char *const *it = this->allowed_origins_; *it != nullptr; it++) {
-    const char *allowed_origin = *it;
-    // A single "*" entry allows any origin.
-    if (allowed_origin[0] == '*' && allowed_origin[1] == '\0')
-      return true;
-    if (origin == allowed_origin)
-      return true;
-  }
-#endif
-  return false;
-}
-
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
-  const std::string origin = get_request_header(request, "Origin");
-  if (!this->is_request_origin_allowed_(request, origin)) {
-    request->send(403);
-    return;
-  }
-
+  // WebServerBase's middleware already rejected an origin that is not allowed.
+#ifdef USE_ESP32
+  char origin_buf[web_server_base::MAX_ORIGIN_LENGTH + 1];
+  const size_t origin_len = request->get_header_to("Origin", origin_buf);
+  // Only an allow-any-origin build lets through an Origin too long for the buffer; it gets "*" instead
+  const bool has_origin = origin_len != 0 && origin_len != SIZE_MAX;
+  const char *origin = origin_buf;
+#else
+  const AsyncWebHeader *origin_header = request->getHeader("Origin");
+  const bool has_origin = origin_header != nullptr && origin_header->value().length() != 0;
+  const char *origin = has_origin ? origin_header->value().c_str() : nullptr;
+#endif
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   // Echo the specific origin back so the response is valid even when auth (credentials) is enabled.
-  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
+  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), has_origin ? origin : "*");
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -625,13 +398,8 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/css"), ESPHOME_WEBSERVER_CSS_INCLUDE,
+                                                            ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
@@ -639,13 +407,8 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(
+      200, ESPHOME_F("text/javascript"), ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
@@ -654,10 +417,9 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 // Helper functions to reduce code size by avoiding macro expansion
 // Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
 // Uses names (not object_id) to avoid UTF-8 collision issues
-static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  const StringRef &name = obj->get_name();
-  size_t prefix_len = strlen(prefix);
-  size_t name_len = name.size();
+static void set_json_id(JsonObject root, EntityBase *obj, ProgmemStr prefix, JsonDetail start_config) {
+  const char *prefix_p = reinterpret_cast<const char *>(prefix);  // in flash on ESP8266
+  size_t prefix_len = ESPHOME_strlen_P(prefix_p);
 
 #ifdef USE_DEVICES
   Device *device = obj->get_device();
@@ -676,7 +438,7 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
   static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #endif
   char id_buf[ID_BUF_SIZE];
-  memcpy(id_buf, prefix, prefix_len);  // NOLINT(bugprone-not-null-terminated-result)
+  progmem_memcpy(id_buf, prefix_p, prefix_len);
 
   char *p = id_buf + prefix_len;
   *p++ = '/';
@@ -687,21 +449,27 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
     *p++ = '/';
   }
 #endif
-  memcpy(p, name.c_str(), name_len);
-  p[name_len] = '\0';
+#ifdef USE_ESP8266
+  const char *name = p;
+#endif
+  obj->write_name_to(p, id_buf + ID_BUF_SIZE - p);
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("domain")] = linked(prefix, prefix_len);
-    root[ESPHOME_F("name")] = linked(name);
+    root[ESPHOME_F("domain")] = linked(prefix);
+#ifdef USE_ESP8266
+    root[ESPHOME_F("name")] = name;  // in id_buf on the stack, so copied
+#else
+    const StringRef &ram_name = obj->get_name_progmem().ram_ref();
+    root[ESPHOME_F("name")] = linked(ram_name.c_str(), ram_name.size());
+#endif
 #ifdef USE_DEVICES
     if (device_name) {
       root[ESPHOME_F("device")] = linked(device_name, device_len);
     }
 #endif
 #ifdef USE_ENTITY_ICON
-    char icon_buf[MAX_ICON_LENGTH];
-    root[ESPHOME_F("icon")] = json_table_str(obj->get_icon_to(icon_buf));
+    root[ESPHOME_F("icon")] = linked(obj->get_icon_progmem());
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -713,13 +481,13 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
 // Keep as separate function even though only used once: reduces code size by ~48 bytes
 // by allowing compiler to share code between template instantiations (bool, float, etc.)
 template<typename T>
-static void set_json_value(JsonObject root, EntityBase *obj, const char *prefix, T value, JsonDetail start_config) {
+static void set_json_value(JsonObject root, EntityBase *obj, ProgmemStr prefix, T value, JsonDetail start_config) {
   set_json_id(root, obj, prefix, start_config);
   root[ESPHOME_F("value")] = value;
 }
 
 template<typename S, typename T>
-static void set_json_icon_state_value(JsonObject root, EntityBase *obj, const char *prefix, S state, T value,
+static void set_json_icon_state_value(JsonObject root, EntityBase *obj, ProgmemStr prefix, S state, T value,
                                       JsonDetail start_config) {
   set_json_value(root, obj, prefix, value, start_config);
   root[ESPHOME_F("state")] = state;
@@ -730,12 +498,13 @@ static void set_json_icon_state_value(JsonObject root, EntityBase *obj, const ch
   return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
-#ifdef USE_SENSOR
-void WebServer::on_sensor_update(sensor::Sensor *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", sensor_state_json_generator);
+void WebServer::send_state_event_(void *source, const EntityBase *entity, message_generator_t *generator) {
+  if (!entity->is_internal() || this->include_internal_)
+    this->events_.deferrable_send_state(source, generator);
 }
+
+#ifdef USE_SENSOR
+void WebServer::on_sensor_update(sensor::Sensor *obj) { this->send_state_event_(obj, sensor_state_json_generator); }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
     auto entity_match = match.match_entity(obj);
@@ -766,7 +535,7 @@ void WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_
   const char *state = std::isnan(value)
                           ? "NA"
                           : (value_accuracy_with_uom_to_buf(buf, value, obj->get_accuracy_decimals(), uom_ref), buf);
-  set_json_icon_state_value(root, obj, "sensor", state, value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("sensor"), state, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
@@ -777,9 +546,7 @@ void WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", text_sensor_state_json_generator);
+  this->send_state_event_(obj, text_sensor_state_json_generator);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
@@ -811,7 +578,7 @@ void WebServer::text_sensor_json_(text_sensor::TextSensor *obj, const std::strin
 
   // Not linked: the main loop can rewrite the state before the document is serialized
   const JsonString state(value.c_str(), value.size());
-  set_json_icon_state_value(root, obj, "text_sensor", state, state, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("text_sensor"), state, state, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -837,11 +604,7 @@ static void execute_switch_action(switch_::Switch *obj, SwitchAction action) {
   }
 }
 
-void WebServer::on_switch_update(switch_::Switch *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", switch_state_json_generator);
-}
+void WebServer::on_switch_update(switch_::Switch *obj) { this->send_state_event_(obj, switch_state_json_generator); }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
     auto entity_match = match.match_entity(obj);
@@ -885,7 +648,7 @@ void WebServer::switch_all_json_generator(WebServer *web_server, void *source, j
 void WebServer::switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "switch", value ? "ON" : "OFF", value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("switch"), value ? "ON" : "OFF", value, start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("assumed_state")] = obj->assumed_state();
     this->add_sorting_info_(root, obj);
@@ -921,7 +684,7 @@ void WebServer::button_all_json_generator(WebServer *web_server, void *source, j
 void WebServer::button_json_(button::Button *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "button", start_config);
+  set_json_id(root, obj, ESPHOME_F("button"), start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -930,9 +693,7 @@ void WebServer::button_json_(button::Button *obj, JsonDetail start_config, json:
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", binary_sensor_state_json_generator);
+  this->send_state_event_(obj, binary_sensor_state_json_generator);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
@@ -962,7 +723,7 @@ void WebServer::binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value
                                     json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "binary_sensor", value ? "ON" : "OFF", value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("binary_sensor"), value ? "ON" : "OFF", value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -970,11 +731,7 @@ void WebServer::binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::Fan *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", fan_state_json_generator);
-}
+void WebServer::on_fan_update(fan::Fan *obj) { this->send_state_event_(obj, fan_state_json_generator); }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
     auto entity_match = match.match_entity(obj);
@@ -1034,7 +791,7 @@ void WebServer::fan_all_json_generator(WebServer *web_server, void *source, json
 void WebServer::fan_json_(fan::Fan *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "fan", obj->state ? "ON" : "OFF", obj->state, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("fan"), obj->state ? "ON" : "OFF", obj->state, start_config);
   const auto traits = obj->get_traits();
   if (traits.supports_speed()) {
     root[ESPHOME_F("speed_level")] = obj->speed;
@@ -1049,11 +806,7 @@ void WebServer::fan_json_(fan::Fan *obj, JsonDetail start_config, json::JsonBuil
 #endif
 
 #ifdef USE_LIGHT
-void WebServer::on_light_update(light::LightState *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", light_state_json_generator);
-}
+void WebServer::on_light_update(light::LightState *obj) { this->send_state_event_(obj, light_state_json_generator); }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
     auto entity_match = match.match_entity(obj);
@@ -1094,7 +847,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       if (is_on) {
         parse_cstr_param_(
             request, ESPHOME_F("effect"), call,
-            static_cast<light::LightCall &(light::LightCall::*) (const char *, size_t)>(&decltype(call)::set_effect));
+            static_cast<light::LightCall &(light::LightCall::*)(const char *, size_t)>(&decltype(call)::set_effect));
       }
 
       DEFER_ACTION(call, call.perform());
@@ -1113,7 +866,7 @@ void WebServer::light_all_json_generator(WebServer *web_server, void *source, js
 void WebServer::light_json_(light::LightState *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_value(root, obj, "light", obj->get_reported_values().is_on() ? "ON" : "OFF", start_config);
+  set_json_value(root, obj, ESPHOME_F("light"), obj->get_reported_values().is_on() ? "ON" : "OFF", start_config);
 
   light::LightJSONSchema::dump_json(*obj, root);
   if (start_config == DETAIL_ALL) {
@@ -1128,11 +881,7 @@ void WebServer::light_json_(light::LightState *obj, JsonDetail start_config, jso
 #endif
 
 #ifdef USE_COVER
-void WebServer::on_cover_update(cover::Cover *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", cover_state_json_generator);
-}
+void WebServer::on_cover_update(cover::Cover *obj) { this->send_state_event_(obj, cover_state_json_generator); }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
     auto entity_match = match.match_entity(obj);
@@ -1150,9 +899,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     auto call = obj->make_call();
 
     static constexpr ActionEntry<cover::CoverCall> ACTIONS[] PROGMEM = {
-        {"open", &cover::CoverCall::set_command_open},
-        {"close", &cover::CoverCall::set_command_close},
-        {"stop", &cover::CoverCall::set_command_stop},
+        {"open", &cover::CoverCall::set_command_open},     {"close", &cover::CoverCall::set_command_close},
+        {"stop", &cover::CoverCall::set_command_stop},     {"stop_tilt", &cover::CoverCall::set_command_stop_tilt},
         {"toggle", &cover::CoverCall::set_command_toggle},
     };
 
@@ -1186,8 +934,8 @@ void WebServer::cover_all_json_generator(WebServer *web_server, void *source, js
 void WebServer::cover_json_(cover::Cover *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "cover", linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"), obj->position,
-                            start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("cover"), linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"),
+                            obj->position, start_config);
   root[ESPHOME_F("current_operation")] = json_state_str(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
@@ -1202,11 +950,7 @@ void WebServer::cover_json_(cover::Cover *obj, JsonDetail start_config, json::Js
 #endif
 
 #ifdef USE_NUMBER
-void WebServer::on_number_update(number::Number *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", number_state_json_generator);
-}
+void WebServer::on_number_update(number::Number *obj) { this->send_state_event_(obj, number_state_json_generator); }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
     auto entity_match = match.match_entity(obj);
@@ -1261,7 +1005,7 @@ void WebServer::number_json_(number::Number *obj, JsonDetail start_config, json:
     val_str = JsonString(val_buf);
     state_str = JsonString(state_buf);
   }
-  set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("number"), state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
     // ArduinoJson copies the string immediately, so we can reuse val_buf
     root[ESPHOME_F("min_value")] = (value_accuracy_to_buf(val_buf, obj->traits.get_min_value(), accuracy), val_buf);
@@ -1276,11 +1020,7 @@ void WebServer::number_json_(number::Number *obj, JsonDetail start_config, json:
 #endif
 
 #ifdef USE_DATETIME_DATE
-void WebServer::on_date_update(datetime::DateEntity *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", date_state_json_generator);
-}
+void WebServer::on_date_update(datetime::DateEntity *obj) { this->send_state_event_(obj, date_state_json_generator); }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
     auto entity_match = match.match_entity(obj);
@@ -1327,7 +1067,7 @@ void WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_config, j
   // Format: YYYY-MM-DD (max 10 chars + null)
   char value[12];
   buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d", obj->year, obj->month, obj->day);
-  set_json_icon_state_value<const char *, const char *>(root, obj, "date", value, value, start_config);
+  set_json_icon_state_value<const char *, const char *>(root, obj, ESPHOME_F("date"), value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1335,11 +1075,7 @@ void WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_config, j
 #endif  // USE_DATETIME_DATE
 
 #ifdef USE_DATETIME_TIME
-void WebServer::on_time_update(datetime::TimeEntity *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", time_state_json_generator);
-}
+void WebServer::on_time_update(datetime::TimeEntity *obj) { this->send_state_event_(obj, time_state_json_generator); }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
     auto entity_match = match.match_entity(obj);
@@ -1385,7 +1121,7 @@ void WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_config, j
   // Format: HH:MM:SS (8 chars + null)
   char value[12];
   buf_append_printf(value, sizeof(value), 0, "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-  set_json_icon_state_value<const char *, const char *>(root, obj, "time", value, value, start_config);
+  set_json_icon_state_value<const char *, const char *>(root, obj, ESPHOME_F("time"), value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1394,9 +1130,7 @@ void WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_config, j
 
 #ifdef USE_DATETIME_DATETIME
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", datetime_state_json_generator);
+  this->send_state_event_(obj, datetime_state_json_generator);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
@@ -1444,7 +1178,7 @@ void WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_c
   char value[24];
   buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour,
                     obj->minute, obj->second);
-  set_json_icon_state_value<const char *, const char *>(root, obj, "datetime", value, value, start_config);
+  set_json_icon_state_value<const char *, const char *>(root, obj, ESPHOME_F("datetime"), value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1452,11 +1186,7 @@ void WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_c
 #endif  // USE_DATETIME_DATETIME
 
 #ifdef USE_TEXT
-void WebServer::on_text_update(text::Text *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", text_state_json_generator);
-}
+void WebServer::on_text_update(text::Text *obj) { this->send_state_event_(obj, text_state_json_generator); }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
     auto entity_match = match.match_entity(obj);
@@ -1478,7 +1208,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
     auto call = obj->make_call();
     parse_cstr_param_(
         request, ESPHOME_F("value"), call,
-        static_cast<text::TextCall &(text::TextCall::*) (const char *, size_t)>(&decltype(call)::set_value));
+        static_cast<text::TextCall &(text::TextCall::*)(const char *, size_t)>(&decltype(call)::set_value));
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1502,7 +1232,7 @@ void WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail
   // A password entity shows the mask and prefills the input with nothing, so the secret never
   // reaches the JSON and the mask cannot be written back as the value
   const bool password = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD;
-  set_json_icon_state_value(root, obj, "text", password ? linked("********") : copied_value,
+  set_json_icon_state_value(root, obj, ESPHOME_F("text"), password ? linked("********") : copied_value,
                             password ? linked("") : copied_value, start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
@@ -1515,11 +1245,7 @@ void WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail
 #endif
 
 #ifdef USE_SELECT
-void WebServer::on_select_update(select::Select *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", select_state_json_generator);
-}
+void WebServer::on_select_update(select::Select *obj) { this->send_state_event_(obj, select_state_json_generator); }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
     auto entity_match = match.match_entity(obj);
@@ -1542,7 +1268,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
     auto call = obj->make_call();
     parse_cstr_param_(
         request, ESPHOME_F("option"), call,
-        static_cast<select::SelectCall &(select::SelectCall::*) (const char *, size_t)>(&decltype(call)::set_option));
+        static_cast<select::SelectCall &(select::SelectCall::*)(const char *, size_t)>(&decltype(call)::set_option));
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1563,7 +1289,7 @@ void WebServer::select_json_(select::Select *obj, StringRef value, JsonDetail st
   JsonObject root = builder.root();
 
   const JsonString state = linked(value);
-  set_json_icon_state_value(root, obj, "select", state, state, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("select"), state, state, start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
@@ -1575,11 +1301,7 @@ void WebServer::select_json_(select::Select *obj, StringRef value, JsonDetail st
 #endif
 
 #ifdef USE_CLIMATE
-void WebServer::on_climate_update(climate::Climate *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", climate_state_json_generator);
-}
+void WebServer::on_climate_update(climate::Climate *obj) { this->send_state_event_(obj, climate_state_json_generator); }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
     auto entity_match = match.match_entity(obj);
@@ -1604,26 +1326,26 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     // Parse string mode parameters
     parse_cstr_param_(
         request, ESPHOME_F("mode"), call,
-        static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(&decltype(call)::set_mode));
+        static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(&decltype(call)::set_mode));
     parse_cstr_param_(request, ESPHOME_F("fan_mode"), call,
-                      static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(
+                      static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(
                           &decltype(call)::set_fan_mode));
     parse_cstr_param_(request, ESPHOME_F("swing_mode"), call,
-                      static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(
+                      static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(
                           &decltype(call)::set_swing_mode));
     parse_cstr_param_(request, ESPHOME_F("preset"), call,
-                      static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(
+                      static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(
                           &decltype(call)::set_preset));
 
     // Parse temperature parameters
     // static_cast needed to disambiguate overloaded setters (float vs optional<float>)
     using ClimateCall = decltype(call);
     parse_num_param_(request, ESPHOME_F("target_temperature_high"), call,
-                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_high));
+                     static_cast<ClimateCall &(ClimateCall::*)(float)>(&ClimateCall::set_target_temperature_high));
     parse_num_param_(request, ESPHOME_F("target_temperature_low"), call,
-                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_low));
+                     static_cast<ClimateCall &(ClimateCall::*)(float)>(&ClimateCall::set_target_temperature_low));
     parse_num_param_(request, ESPHOME_F("target_temperature"), call,
-                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature));
+                     static_cast<ClimateCall &(ClimateCall::*)(float)>(&ClimateCall::set_target_temperature));
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1642,7 +1364,7 @@ void WebServer::climate_all_json_generator(WebServer *web_server, void *source, 
 void WebServer::climate_json_(climate::Climate *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   JsonObject root = builder.root();
-  set_json_id(root, obj, "climate", start_config);
+  set_json_id(root, obj, ESPHOME_F("climate"), start_config);
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
@@ -1762,11 +1484,7 @@ static void execute_lock_action(lock::Lock *obj, LockAction action) {
   }
 }
 
-void WebServer::on_lock_update(lock::Lock *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", lock_state_json_generator);
-}
+void WebServer::on_lock_update(lock::Lock *obj) { this->send_state_event_(obj, lock_state_json_generator); }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
     auto entity_match = match.match_entity(obj);
@@ -1811,7 +1529,8 @@ void WebServer::lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail st
                            json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "lock", json_state_str(lock::lock_state_to_string(value)), value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("lock"), json_state_str(lock::lock_state_to_string(value)), value,
+                            start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1819,11 +1538,7 @@ void WebServer::lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail st
 #endif
 
 #ifdef USE_VALVE
-void WebServer::on_valve_update(valve::Valve *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", valve_state_json_generator);
-}
+void WebServer::on_valve_update(valve::Valve *obj) { this->send_state_event_(obj, valve_state_json_generator); }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
     auto entity_match = match.match_entity(obj);
@@ -1875,8 +1590,8 @@ void WebServer::valve_all_json_generator(WebServer *web_server, void *source, js
 void WebServer::valve_json_(valve::Valve *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "valve", linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"), obj->position,
-                            start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("valve"), linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"),
+                            obj->position, start_config);
   root[ESPHOME_F("current_operation")] = json_state_str(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
@@ -1889,9 +1604,7 @@ void WebServer::valve_json_(valve::Valve *obj, JsonDetail start_config, json::Js
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", alarm_control_panel_state_json_generator);
+  this->send_state_event_(obj, alarm_control_panel_state_json_generator);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
@@ -1910,8 +1623,8 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     auto call = obj->make_call();
     parse_cstr_param_(
         request, ESPHOME_F("code"), call,
-        static_cast<alarm_control_panel::AlarmControlPanelCall &(
-            alarm_control_panel::AlarmControlPanelCall::*) (const char *, size_t)>(&decltype(call)::set_code));
+        static_cast<alarm_control_panel::AlarmControlPanelCall &(alarm_control_panel::AlarmControlPanelCall::*)(
+            const char *, size_t)>(&decltype(call)::set_code));
 
     static constexpr ActionEntry<alarm_control_panel::AlarmControlPanelCall> ACTIONS[] PROGMEM = {
         {"disarm", &alarm_control_panel::AlarmControlPanelCall::disarm},
@@ -1949,7 +1662,7 @@ void WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel
                                           json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "alarm_control_panel",
+  set_json_icon_state_value(root, obj, ESPHOME_F("alarm_control_panel"),
                             json_state_str(alarm_control_panel_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1959,9 +1672,7 @@ void WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel
 
 #ifdef USE_WATER_HEATER
 void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", water_heater_state_json_generator);
+  this->send_state_event_(obj, water_heater_state_json_generator);
 }
 void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
@@ -1987,7 +1698,7 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
     // Parse mode parameter
     parse_cstr_param_(
         request, ESPHOME_F("mode"), base_call,
-        static_cast<water_heater::WaterHeaterCall &(water_heater::WaterHeaterCall::*) (const char *, size_t)>(
+        static_cast<water_heater::WaterHeaterCall &(water_heater::WaterHeaterCall::*)(const char *, size_t)>(
             &water_heater::WaterHeaterCall::set_mode));
 
     // Parse temperature parameters
@@ -2023,8 +1734,8 @@ void WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail st
   JsonObject root = builder.root();
 
   const auto mode = obj->get_mode();
-  set_json_icon_state_value(root, obj, "water_heater", json_state_str(water_heater::water_heater_mode_to_string(mode)),
-                            mode, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("water_heater"),
+                            json_state_str(water_heater::water_heater_mode_to_string(mode)), mode, start_config);
 
   auto traits = obj->get_traits();
 
@@ -2146,7 +1857,7 @@ void WebServer::infrared_all_json_generator(WebServer *web_server, void *source,
 void WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("infrared"), "", 0, start_config);
 
   root[ESPHOME_F("supports_transmitter")] = obj->get_supports_transmitter();
   root[ESPHOME_F("supports_receiver")] = obj->get_supports_receiver();
@@ -2235,7 +1946,7 @@ void WebServer::radio_frequency_json_(radio_frequency::RadioFrequency *obj, Json
                                       json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "radio_frequency", "", 0, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("radio_frequency"), "", 0, start_config);
 
   const auto &traits = obj->get_traits();
   auto caps = obj->get_capability_flags();
@@ -2254,11 +1965,7 @@ void WebServer::radio_frequency_json_(radio_frequency::RadioFrequency *obj, Json
 #endif
 
 #ifdef USE_EVENT
-void WebServer::on_event(event::Event *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
-  this->events_.deferrable_send_state(obj, "state", event_state_json_generator);
-}
+void WebServer::on_event(event::Event *obj) { this->send_state_event_(obj, event_state_json_generator); }
 
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (event::Event *obj : App.get_events()) {
@@ -2293,7 +2000,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
                             json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "event", start_config);
+  set_json_id(root, obj, ESPHOME_F("event"), start_config);
   if (!event_type.empty()) {
     root[ESPHOME_F("event_type")] = linked(event_type);
   }
@@ -2302,8 +2009,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(linked(event_type));
     }
-    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-    root[ESPHOME_F("device_class")] = json_table_str(obj->get_device_class_to(dc_buf));
+    root[ESPHOME_F("device_class")] = linked(obj->get_device_class_progmem());
     this->add_sorting_info_(root, obj);
   }
 }
@@ -2311,9 +2017,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
 #endif
 
 #ifdef USE_UPDATE
-void WebServer::on_update(update::UpdateEntity *obj) {
-  this->events_.deferrable_send_state(obj, "state", update_state_json_generator);
-}
+void WebServer::on_update(update::UpdateEntity *obj) { this->send_state_event_(obj, update_state_json_generator); }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
     auto entity_match = match.match_entity(obj);
@@ -2353,7 +2057,7 @@ void WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_config,
 
   // Not linked: the main loop can rewrite update_info before the document is serialized
   const auto &info = obj->update_info;
-  set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
+  set_json_icon_state_value(root, obj, ESPHOME_F("update"), json_state_str(update::update_state_to_string(obj->state)),
                             info.latest_version.c_str(), start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = info.current_version;
@@ -2381,10 +2085,8 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
   if (url == ESPHOME_F("/"))
     return true;
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == ESPHOME_F("/events"))
+  if (method == HTTP_GET && url == ESPHOME_F("/events"))
     return true;
-#endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (url == ESPHOME_F("/0.css"))
     return true;
@@ -2527,28 +2229,16 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_index_request(request);
     return;
   }
-
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  // Private Network Access preflight carries a cross-origin Origin by design; its handler does the
-  // origin check itself, so let it run before the general enforcement below.
   if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
     this->handle_pna_cors_request(request);
     return;
   }
 #endif
-
-  // Reject cross-origin browser requests unless the origin is explicitly allowed.
-  if (!this->is_request_origin_allowed_(request, get_request_header(request, "Origin"))) {
-    request->send(403);
-    return;
-  }
-
-#if !defined(USE_ESP32) && defined(USE_ARDUINO)
   if (url == ESPHOME_F("/events")) {
-    this->events_.add_new_client(this, request);
+    this->events_.handle_request(request, this);
     return;
   }
-#endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   if (url == ESPHOME_F("/0.css")) {
@@ -2694,10 +2384,10 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.contains(entity)) {
-    root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
-      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entitys_[entity].group_id].name);
+  if (this->sorting_entities_.contains(entity)) {
+    root[ESPHOME_F("sorting_weight")] = this->sorting_entities_[entity].weight;
+    if (this->sorting_groups_.contains(this->sorting_entities_[entity].group_id)) {
+      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entities_[entity].group_id].name);
     }
   }
 #endif
@@ -2705,7 +2395,7 @@ void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 
 #ifdef USE_WEBSERVER_SORTING
 void WebServer::add_entity_config(EntityBase *entity, float weight, uint64_t group) {
-  this->sorting_entitys_[entity] = SortingComponents{weight, group};
+  this->sorting_entities_[entity] = SortingComponents{weight, group};
 }
 
 void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {

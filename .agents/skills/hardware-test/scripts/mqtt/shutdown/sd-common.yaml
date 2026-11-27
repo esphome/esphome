@@ -1,0 +1,40 @@
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+
+mqtt:
+  broker: !secret broker_ip
+  reboot_timeout: 0s
+  discovery: false
+  birth_message: {topic: "${name}/status", payload: hello}
+  will_message: {topic: "${name}/status", payload: dead}
+  shutdown_message: {topic: "${name}/status", payload: bye}
+  on_message:
+    - topic: ${name}/cmd
+      payload: restart
+      then:
+        - button.press: restart_btn
+    - topic: ${name}/cmd
+      payload: disable
+      then:
+        - mqtt.disable:
+        - delay: 5s
+        - mqtt.enable:
+    - topic: ${name}/cmd
+      payload: sleep
+      then:
+        - deep_sleep.enter:
+            id: ds
+            sleep_duration: 5s
+
+ota:
+  - platform: esphome
+
+button:
+  - platform: restart
+    id: restart_btn
+    name: Restart

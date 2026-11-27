@@ -1,3 +1,5 @@
+import math
+
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
@@ -109,10 +111,11 @@ def _validate_exposure(cycles: int):
         if atime == 0 and astep == 0:
             raise cv.Invalid(f"{CONF_ATIME} and {CONF_ASTEP} must not both be 0")
         measurement = (atime + 1) * (astep + 1) * CYCLE_STEP_SECONDS * cycles
-        if measurement > config[CONF_UPDATE_INTERVAL].total_seconds:
+        if measurement * 1000 > config[CONF_UPDATE_INTERVAL].total_milliseconds:
             raise cv.Invalid(
-                f"A measurement takes {measurement:.1f}s with these {CONF_ATIME} and "
-                f"{CONF_ASTEP} values, longer than the {CONF_UPDATE_INTERVAL}"
+                f"A measurement takes {math.ceil(measurement * 1000)}ms with these "
+                f"{CONF_ATIME} and {CONF_ASTEP} values, longer than the "
+                f"{CONF_UPDATE_INTERVAL}"
             )
         return config
 
@@ -127,7 +130,7 @@ def _schema(
             {
                 cv.GenerateID(): cv.declare_id(AS734XComponent),
                 cv.Optional(CONF_GAIN, default="X8"): cv.enum(gains),
-                cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
+                cv.Optional(CONF_ATIME, default=29): cv.uint8_t,
                 cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
                 cv.Optional(CONF_CALIBRATION, default={}): _calibration_schema(bands),
                 cv.Optional(CONF_NORMALIZE_BASIC_COUNTS, default="NONE"): cv.enum(

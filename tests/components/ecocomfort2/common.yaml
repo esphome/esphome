@@ -57,3 +57,33 @@ text_sensor:
     ecocomfort2_id: ecocomfort2_hub_2
     version:
       name: Ecocomfort2 Firmware
+
+number:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    humidity_threshold:
+      name: Ecocomfort2 Humidity Threshold
+    luminosity_threshold:
+      name: Ecocomfort2 Luminosity Threshold
+    voc_threshold:
+      name: Ecocomfort2 VOC Threshold
+    temperature_offset:
+      name: Ecocomfort2 Temperature Offset
+    humidity_offset:
+      name: Ecocomfort2 Humidity Offset
+
+switch:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    humidity_advanced:
+      name: Ecocomfort2 Humidity Advanced
+    voc_advanced:
+      name: Ecocomfort2 VOC Advanced
+
+select:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    season:
+      name: Ecocomfort2 Season
+    free_cooling:
+      name: Ecocomfort2 Free Cooling

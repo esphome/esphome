@@ -33,8 +33,7 @@ async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
 
     if (interlock := config.get(CONF_INTERLOCK)) is not None:
         cg.add_define("USE_GPIO_SWITCH_INTERLOCK")
@@ -49,4 +48,5 @@ async def to_code(config: ConfigType) -> None:
                 constexpr=False,
             )
             cg.add(var.set_interlock(table, len(group)))
-        cg.add(var.set_interlock_wait_time(config[CONF_INTERLOCK_WAIT_TIME]))
+        if wait_time := config[CONF_INTERLOCK_WAIT_TIME].total_milliseconds:
+            cg.add(var.set_interlock_wait_time(wait_time))

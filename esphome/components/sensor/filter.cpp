@@ -32,18 +32,20 @@ void Filter::input(float value) {
     this->output(*out);
 }
 void Filter::output(float value) {
-  if (this->next_ == nullptr) {
+  if (this->link_.is_owner()) {
+    // Read before logging: a log callback could append a filter and replace this link
+    Sensor *sensor = this->link_.owner();
     ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> SENSOR", this, value);
-    this->parent_->internal_send_state_to_frontend(value);
+    sensor->internal_send_state_to_frontend(value);
   } else {
-    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, this->next_);
-    this->next_->input(value);
+    Filter *next = this->link_.next();
+    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, next);
+    next->input(value);
   }
 }
 void Filter::initialize(Sensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
-  this->parent_ = parent;
-  this->next_ = next;
+  this->link_.set(next, parent);
 }
 
 // SlidingWindowFilter
@@ -205,17 +207,6 @@ void ThrottleAverageFilter::initialize(Sensor *parent, Filter *next) {
   });
 }
 
-// LambdaFilter
-LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
-const lambda_filter_t &LambdaFilter::get_lambda_filter() const { return this->lambda_filter_; }
-void LambdaFilter::set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
-
-optional<float> LambdaFilter::new_value(float value) {
-  auto it = this->lambda_filter_(value);
-  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%f) -> %f", this, value, it.value_or(INFINITY));
-  return it;
-}
-
 // OffsetFilter
 OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(offset) {}
 
@@ -228,7 +219,7 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 
 // ValueListFilter
 bool ValueListFilter::value_matches_any_(float sensor_value) {
-  int8_t accuracy = this->parent_->get_accuracy_decimals();
+  int8_t accuracy = this->chain_owner_()->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
@@ -311,10 +302,11 @@ optional<float> DeltaFilter::new_value(float value) {
 
 // OrFilter helpers
 void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi) {
+  // Link the join node first, so the inner filters' chains reach the sensor when they are linked
+  phi->initialize(parent, nullptr);
   for (size_t i = 0; i < count; i++) {
     filters[i]->initialize(parent, phi);
   }
-  phi->initialize(parent, nullptr);
 }
 
 optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value) {
@@ -491,6 +483,48 @@ optional<float> ToNTCTemperatureFilter::new_value(float value) {
   double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
   double temp = float(1.0 / v - 273.15);
   return temp;
+}
+
+// RHCorrectionFilter
+static constexpr float MAGNUS_B = 17.67f, MAGNUS_C = 243.5f;
+
+static bool rh_correction_temp_in_band(float t) { return t >= -40.0f && t <= 50.0f; }
+
+optional<float> RHCorrectionFilter::new_value(float value) {
+  if (!this->temperature_sensor_->has_state()) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): no temperature yet, passing humidity through uncorrected", this);
+      this->warned_ = true;
+    }
+    return value;
+  }
+  float offset = this->temperature_offset_.value();
+  float tc = this->temperature_sensor_->get_state();
+  if (this->use_fahrenheit_) {
+    tc = fahrenheit_to_celsius(tc);
+    offset /= 1.8f;
+  }
+  const float tnc = tc - offset;
+  // A NaN temperature or offset is a faulted input: keep the last corrected value
+  if (std::isnan(tnc)) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): temperature or offset is NaN, dropping humidity updates", this);
+      this->warned_ = true;
+    }
+    return {};
+  }
+  if (!rh_correction_temp_in_band(tc) || !rh_correction_temp_in_band(tnc)) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): Temperature out of range -40..50 °C. Tc=%f Tnc=%f", this, tc, tnc);
+      this->warned_ = true;
+    }
+    return value;
+  }
+  this->warned_ = false;
+  const float rh =
+      clamp(value * std::exp(MAGNUS_B * MAGNUS_C * (tnc - tc) / ((tnc + MAGNUS_C) * (tc + MAGNUS_C))), 0.0f, 100.0f);
+  ESP_LOGVV(TAG, "RHCorrectionFilter(%p)::new_value(%f) -> %f", this, value, rh);
+  return rh;
 }
 
 // StreamingFilter (base class)

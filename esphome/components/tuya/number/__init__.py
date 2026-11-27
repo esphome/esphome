@@ -85,8 +85,7 @@ async def to_code(config):
     )
 
     cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))
-    parent = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(parent))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))
     if hidden_config := config.get(CONF_DATAPOINT_HIDDEN):

@@ -1,0 +1,22 @@
+substitutions:
+  cs_pin: GPIO12
+  dc_pin: GPIO13
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+display:
+  - platform: st7305
+    model: CUSTOM
+    width: 168
+    height: 384
+    portrait: true
+    column_start: 0x17
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    init_sequence:
+      - [0x01]
+      - [0x11, 0x00]
+      - [0x29]
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());

@@ -1,6 +1,8 @@
+from collections.abc import Callable
+from dataclasses import dataclass, field
+
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -18,7 +20,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
@@ -79,20 +80,27 @@ from esphome.const import (
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.types import ConfigType
+from esphome.cpp_generator import MockObj, MockObjClass, ProgmemAssignmentExpression
+from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "number"
+CONF_RANGE_ID = "range_id"
+
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -160,16 +168,11 @@ IS_PLATFORM_COMPONENT = True
 number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
+NumberRange = number_ns.struct("NumberRange")
+ApplyNumber = number_ns.class_("ApplyNumber", Number)
 
-# Triggers
-ValueRangeTrigger = number_ns.class_(
-    "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
-)
-
-# Conditions
-NumberInRangeCondition = number_ns.class_(
-    "NumberInRangeCondition", automation.Condition
-)
+# Automations
+ValueRangeBase = number_ns.class_("ValueRangeBase", automation.FiringComponent)
 
 NumberMode = number_ns.enum("NumberMode")
 
@@ -193,16 +196,19 @@ validate_unit_of_measurement = cv.All(
 )
 
 _NUMBER_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
-    .extend(zigbee.NUMBER_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_NUMBER_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTNumberComponent")
+            ),
+            cv.GenerateID(CONF_RANGE_ID): cv.declare_id(NumberRange),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeBase),
                     cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
                     cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
                 },
@@ -223,7 +229,7 @@ _NUMBER_SCHEMA = (
 
 
 _NUMBER_SCHEMA.add_extra(entity_duplicate_validator("number"))
-_NUMBER_SCHEMA.add_extra(zigbee.validate_number)
+_NUMBER_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_number"))
 
 
 def number_schema(
@@ -259,28 +265,77 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_number_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await cg.register_component(trigger, conf)
-        if CONF_ABOVE in conf:
-            template_ = await cg.templatable(
-                conf[CONF_ABOVE], [(float, "x")], cg.float_
-            )
-            cg.add(trigger.set_min(template_))
-        if CONF_BELOW in conf:
-            template_ = await cg.templatable(
-                conf[CONF_BELOW], [(float, "x")], cg.float_
-            )
-            cg.add(trigger.set_max(template_))
-        await automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_value_range_automation(conf, ValueRangeBase, var)
+
+
+# A shared table only pays for set_range() and the table itself once this many numbers use it.
+RANGE_TABLE_MIN_USERS = 3
+
+
+@dataclass
+class NumberData:
+    # (min, max, step) -> range_id of every number using it; the first one names the table.
+    ranges: dict[tuple[float, float, float], list[ID]] = field(default_factory=dict)
+
+
+def _get_data() -> NumberData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = NumberData()
+    return CORE.data[DOMAIN]
+
+
+@dataclass(slots=True)
+class _RenderTimeStatement(cg.Statement):
+    """Text chosen when main.cpp is written, after every number has been counted."""
+
+    render: Callable[[], str]
+
+    def __str__(self) -> str:
+        return self.render()
+
+
+def _add_range(
+    var: MockObj,
+    range_id: ID,
+    min_value: SafeExpType,
+    max_value: SafeExpType,
+    step: SafeExpType,
+) -> None:
+    setters = (
+        var.traits.set_min_value(min_value),
+        var.traits.set_max_value(max_value),
+        var.traits.set_step(step),
+    )
+    # Lambda bounds (e.g. lvgl arc/bar) are runtime expressions and can't go in a table.
+    if not all(isinstance(v, (int, float)) for v in (min_value, max_value, step)):
+        for expr in setters:
+            cg.add(expr)
+        return
+    key = (float(min_value), float(max_value), float(step))
+    users = _get_data().ranges.setdefault(key, [])
+    users.append(range_id)
+    table = users[0]
+
+    def render_table() -> str:
+        if len(users) < RANGE_TABLE_MIN_USERS:
+            return ""
+        return f"{ProgmemAssignmentExpression(NumberRange, table, cg.safe_exp([key]))};"
+
+    def render_call() -> str:
+        if len(users) < RANGE_TABLE_MIN_USERS:
+            return "\n".join(str(cg.statement(expr)) for expr in setters)
+        return str(cg.statement(var.set_range(MockObj(table, "."))))
+
+    if len(users) == 1:
+        cg.add_global(_RenderTimeStatement(render_table))
+    cg.add(_RenderTimeStatement(render_call))
 
 
 @setup_entity("number")
 async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: float
 ):
-    cg.add(var.traits.set_min_value(min_value))
-    cg.add(var.traits.set_max_value(max_value))
-    cg.add(var.traits.set_step(step))
+    _add_range(var, config[CONF_RANGE_ID], min_value, max_value, step)
 
     # Skip the setter when the config matches the C++ initializer (DEFAULT_MODE).
     # The validated value is the enum key string, not the C++ enum expression.
@@ -292,13 +347,11 @@ async def setup_number_core_(
     setup_device_class(config)
     setup_unit_of_measurement(config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
-    await zigbee.setup_number(var, config, min_value, max_value, step)
+    await lazy_load_setup(
+        "zigbee", "setup_number", var, config, min_value, max_value, step
+    )
 
 
 async def register_number(
@@ -321,11 +374,18 @@ async def new_number(config, *args, min_value: float, max_value: float, step: fl
     return var
 
 
+APPLY_ENTITY = ApplyEntity(
+    ApplyNumber,
+    ((NumberPtr, "entity"), (cg.float_, "value")),
+    "entity->publish_state(value);",
+)
+
+
 def sub_numbers(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_number."""
-    return SubEntities(new_number, config, parent)
+    """Return a SubEntities bound to new_number; ``apply`` statements can use ``entity`` and ``value``."""
+    return SubEntities(new_number, config, parent, APPLY_ENTITY)
 
 
 NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
@@ -338,19 +398,12 @@ NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
 )
 
 
-@automation.register_condition(
-    "number.in_range", NumberInRangeCondition, NUMBER_IN_RANGE_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "number.in_range",
+    NUMBER_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
 )
-async def number_in_range_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-
-    if (above := config.get(CONF_ABOVE)) is not None:
-        cg.add(var.set_min(above))
-    if (below := config.get(CONF_BELOW)) is not None:
-        cg.add(var.set_max(below))
-
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)

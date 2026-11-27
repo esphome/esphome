@@ -8,6 +8,9 @@ sensor:
     adc_range: 1
     temperature_coefficient: 50
     reset_on_boot: true
+    adc_time:
+      bus_voltage: 540us
+      shunt_voltage: 1052us
     shunt_voltage:
       id: ina2xx_i2c_shunt_voltage
       name: "INA2xx Shunt Voltage"

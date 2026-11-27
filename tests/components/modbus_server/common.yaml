@@ -58,3 +58,37 @@ modbus_server:
         write_lambda: |-
           printf("address=%d, value=%d\n", (int) address, (int) x);
           return true;
+      - address: 0x10
+        value_type: U_DWORD_R
+        read_lambda: |-
+          return 0xDEADBEEF;
+        write_lambda: |-
+          printf("address=%d, value=%" PRIu32 "\n", (int) address, x);
+          return true;
+      - address: 0x20
+        value_type: U_QWORD
+        read_lambda: |-
+          return 0xFEDCBA9876543210ULL;
+        write_lambda: |-
+          printf("address=%d, value=%" PRIu64 "\n", (int) address, x);
+          return true;
+      - address: 0x30
+        value_type: S_QWORD_R
+        read_lambda: |-
+          return -1234567890123LL;
+        write_lambda: |-
+          printf("address=%d, value=%" PRId64 "\n", (int) address, x);
+          return true;
+      - address: 0x40
+        value_type: FP32
+        read_lambda: |-
+          return 1.5f;
+        write_lambda: |-
+          printf("address=%d, value=%f\n", (int) address, x);
+          return x >= 0.0f;
+      - address: 0x50
+        value_type: U_WORD
+        read_lambda: |-
+          if (address == 0x50)
+            return {};
+          return 1;

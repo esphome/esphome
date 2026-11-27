@@ -36,7 +36,8 @@ void DewPointComponent::dump_config() {
                 "Sources\n"
                 "  Temperature: '%s'\n"
                 "  Humidity: '%s'",
-                this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
+                LOG_STR_ARG(this->temperature_sensor_->get_log_name()),
+                LOG_STR_ARG(this->humidity_sensor_->get_log_name()));
 }
 
 float DewPointComponent::get_setup_priority() const { return setup_priority::DATA; }
@@ -75,8 +76,8 @@ void DewPointComponent::loop() {
   // Publish the calculated dew point
   this->publish_state(dew_point);
 
-  ESP_LOGD(TAG, "'%s' >> %.1f°C (T: %.1f°C, RH: %.1f%%)", this->get_name().c_str(), dew_point, this->temperature_value_,
-           this->humidity_value_);
+  ESP_LOGD(TAG, "'%s' >> %.1f°C (T: %.1f°C, RH: %.1f%%)", LOG_STR_ARG(this->get_log_name()), dew_point,
+           this->temperature_value_, this->humidity_value_);
 }
 
 }  // namespace esphome::dew_point

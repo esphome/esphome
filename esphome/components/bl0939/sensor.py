@@ -2,23 +2,10 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
     CONF_MODE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_KILOWATT_HOURS,
-    UNIT_VOLT,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -31,6 +18,7 @@ CONF_ACTIVE_POWER_2 = "active_power_2"
 CONF_ENERGY_1 = "energy_1"
 CONF_ENERGY_2 = "energy_2"
 CONF_ENERGY_TOTAL = "energy_total"
+CONF_ANTI_CREEP_THRESHOLD = "anti_creep_threshold"
 
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
@@ -50,60 +38,29 @@ CONFIG_SCHEMA = (
                 MODE_OPTIONS, lower=True
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT_1): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             cv.Optional(CONF_CURRENT_2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             cv.Optional(CONF_ACTIVE_POWER_1): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=0
             ),
             cv.Optional(CONF_ACTIVE_POWER_2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=0
             ),
-            cv.Optional(CONF_ENERGY_1): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-            ),
-            cv.Optional(CONF_ENERGY_2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-            ),
+            cv.Optional(CONF_ENERGY_1): sensor.sensor_schema(kind=sensor.ENERGY_KWH),
+            cv.Optional(CONF_ENERGY_2): sensor.sensor_schema(kind=sensor.ENERGY_KWH),
             cv.Optional(CONF_ENERGY_TOTAL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
+                kind=sensor.ENERGY_KWH
             ),
             cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.TEMPERATURE, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
+            cv.Optional(CONF_ANTI_CREEP_THRESHOLD): cv.uint8_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -112,20 +69,20 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     if (mode := config[CONF_MODE]) != DEFAULT_MODE:
         cg.add(var.set_mode(mode))
 
+    cg.add_optional(var.set_anti_creep_threshold, config.get(CONF_ANTI_CREEP_THRESHOLD))
+
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
-    await sensors(CONF_CURRENT_1, var.set_current_sensor_1)
-    await sensors(CONF_CURRENT_2, var.set_current_sensor_2)
-    await sensors(CONF_ACTIVE_POWER_1, var.set_power_sensor_1)
-    await sensors(CONF_ACTIVE_POWER_2, var.set_power_sensor_2)
-    await sensors(CONF_ENERGY_1, var.set_energy_sensor_1)
-    await sensors(CONF_ENERGY_2, var.set_energy_sensor_2)
-    await sensors(CONF_ENERGY_TOTAL, var.set_energy_sensor_sum)
+    await sensors(CONF_CURRENT_1, var.set_current_1_sensor)
+    await sensors(CONF_CURRENT_2, var.set_current_2_sensor)
+    await sensors(CONF_ACTIVE_POWER_1, var.set_power_1_sensor)
+    await sensors(CONF_ACTIVE_POWER_2, var.set_power_2_sensor)
+    await sensors(CONF_ENERGY_1, var.set_energy_1_sensor)
+    await sensors(CONF_ENERGY_2, var.set_energy_2_sensor)
+    await sensors(CONF_ENERGY_TOTAL, var.set_energy_sum_sensor)
     await sensors(CONF_INTERNAL_TEMPERATURE, var.set_internal_temperature_sensor)

@@ -2,10 +2,13 @@
 
 # pylint: disable=protected-access
 
+import ctypes
 import json
 import logging
 import os
 from pathlib import Path
+import shlex
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -126,6 +129,65 @@ def test_pick_entry_prefers_esphome_tu() -> None:
         _entry("/b", "/b/src/esphome/core/app.cpp", "g++ -c app.cpp"),
     ]
     assert idedata._pick_entry(entries)["file"].endswith("app.cpp")
+
+
+def test_pick_entry_without_cxx_tu_raises() -> None:
+    """A compile DB holding only C files has no usable translation unit."""
+    entries = [_entry(f"{ABS}build", f"{ABS}build/src/a.c", "gcc -c a.c")]
+    with pytest.raises(ValueError, match="no C\\+\\+ translation unit"):
+        idedata._pick_entry(entries)
+
+
+def test_expand_response_files_absolute_path(tmp_path: Path) -> None:
+    """An absolute response file path is read as is, not joined to the directory."""
+    rsp = tmp_path / "flags.rsp"
+    rsp.write_text("-DFROM_RSP=1")
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+
+    assert idedata._expand_response_files([f"@{rsp}"], other) == ["-DFROM_RSP=1"]
+
+
+def test_parse_entry_drops_bare_input_files() -> None:
+    """A source file given without -c is not kept as a compiler flag."""
+    entry = _entry(
+        f"{ABS}build",
+        f"{ABS}build/src/esphome/x.cpp",
+        "g++ -DFOO x.cpp -std=gnu++20",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    assert cxx_flags == ["-std=gnu++20"]
+
+
+@pytest.mark.parametrize(
+    ("cxx_path", "expected"),
+    [
+        pytest.param("g++", "gcc", id="bare"),
+        pytest.param("/usr/bin/g++", "/usr/bin/gcc", id="path"),
+        pytest.param("xtensa-esp32-elf-g++.exe", "xtensa-esp32-elf-gcc.exe", id="exe"),
+        pytest.param("C:\\tools\\g++.exe", "C:\\tools\\gcc.exe", id="backslash"),
+        pytest.param("/usr/bin/clang++", "/usr/bin/clang++", id="clang"),
+    ],
+)
+def test_cc_path_from_cxx(cxx_path: str, expected: str) -> None:
+    """Only a g++ program name is rewritten to gcc."""
+    assert idedata._cc_path_from_cxx(cxx_path) == expected
+
+
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [
+        pytest.param("-includefoo.h", True, id="joined"),
+        pytest.param("-include", False, id="separate"),
+        pytest.param("-include-pch", False, id="pch"),
+        pytest.param("-DFOO", False, id="other"),
+    ],
+)
+def test_is_joined_include(token: str, expected: bool) -> None:
+    """Only the joined ``-includefoo.h`` spelling counts."""
+    assert idedata.is_joined_include(token) is expected
 
 
 def test_pick_entry_falls_back_to_any_cxx_tu() -> None:
@@ -343,6 +405,48 @@ def test_split_command_empty_returns_empty() -> None:
     """
     assert idedata._split_command("") == []
     assert idedata._split_command("   ") == []
+
+
+@pytest.fixture(name="fake_windows_argv")
+def fixture_fake_windows_argv(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
+    """Run ``_split_command`` down its Windows branch on any host.
+
+    ``CommandLineToArgvW`` is replaced by a shlex based stand-in; the returned
+    list records whether ``LocalFree`` released the argv block.
+    """
+    freed: list[bool] = []
+
+    def command_line_to_argv(command: str, argc_ref: object) -> list[str]:
+        tokens = shlex.split(command)
+        argc_ref._obj.value = len(tokens)  # type: ignore[attr-defined]
+        return tokens
+
+    windll = SimpleNamespace(
+        shell32=SimpleNamespace(CommandLineToArgvW=command_line_to_argv),
+        kernel32=SimpleNamespace(LocalFree=lambda _ptr: freed.append(True)),
+    )
+    monkeypatch.setattr(ctypes, "windll", windll, raising=False)
+    monkeypatch.setattr(idedata.os, "name", "nt")
+    return freed
+
+
+def test_split_command_windows_branch(fake_windows_argv: list[bool]) -> None:
+    """On Windows the command is tokenized by the OS parser and freed after."""
+    assert idedata._split_command("g++ -DFOO=1 -c x.cpp") == [
+        "g++",
+        "-DFOO=1",
+        "-c",
+        "x.cpp",
+    ]
+    assert fake_windows_argv == [True]
+
+
+def test_split_command_windows_branch_blank_command(
+    fake_windows_argv: list[bool],
+) -> None:
+    """A blank command yields no tokens without calling the OS parser."""
+    assert idedata._split_command("  ") == []
+    assert fake_windows_argv == []
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")

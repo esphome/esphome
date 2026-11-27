@@ -7,6 +7,7 @@
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/media_source/media_source.h"
 #include "esphome/components/media_player/media_player.h"
+#include "esphome/components/speaker/announcement_volume.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/automation.h"
@@ -28,7 +29,8 @@ namespace esphome::speaker_source {
 //
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
 //   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
-//   set_volume_(), set_mute_state_(), control(), get_source_state_(),
+//   set_volume_(), apply_speaker_volume_(), set_announcement_volume(), is_media_playing_(), set_mute_state_(),
+//   control(), get_source_state_(),
 //   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
 //   process_control_queue_(), handle_player_command_(), queue_command_(), queue_play_current_()
 //
@@ -168,6 +170,9 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
+  /// @brief Sets the volume for announcements that start while nothing else is playing.
+  void set_announcement_volume(float announcement_volume);
+
   /// @brief Adds a media source to a pipeline and registers this player as its listener
   void add_media_source(uint8_t pipeline, media_source::MediaSource *media_source);
 
@@ -200,6 +205,17 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
 
   /// @brief Updates this->volume and saves volume/mute state to flash for restoration if publish is true.
   void set_volume_(float volume, bool publish = true);
+
+  /// @brief Remaps a volume to the configured limits and sends it to the speakers.
+  void apply_speaker_volume_(float volume);
+
+  /// @brief Returns a callable that sends a volume to the speakers, for announcement_volume_ to apply its changes.
+  auto speaker_volume_applier_() {
+    return [this](float volume) { this->apply_speaker_volume_(volume); };
+  }
+
+  /// @brief Whether media is audible: the active source plays, or the speaker plays what an idle source left.
+  bool is_media_playing_() const;
 
   /// @brief Sets the mute state.
   /// @param mute_state If true, audio will be muted. If false, audio will be unmuted
@@ -254,6 +270,8 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
 
   float volume_max_;
   float volume_min_;
+
+  speaker::AnnouncementVolume announcement_volume_;
 
   bool is_muted_{false};
 };

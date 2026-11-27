@@ -1,0 +1,15 @@
+ds3231:
+  - id: ds3231_component
+    i2c_id: i2c_bus
+    address: 0x68
+    interrupt_pin:
+      number: ${interrupt_pin}
+      mode:
+        input: true
+        pullup: true
+    output_32khz: true
+    auto_clear_alarms: false
+    on_alarm_1:
+      - logger.log: "DS3231 alarm 1"
+      - ds3231.clear_alarm:
+          alarm: 1
