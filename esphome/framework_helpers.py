@@ -40,8 +40,8 @@ _LOGGER = logging.getLogger(__name__)
 _MIRROR_ATTEMPTS = 3
 
 # Passes over the whole mirror list when a transient network error is in
-# the mix; shares net_retry's policy (3 tries, 2s/4s backoff), which in
-# turn matches git.py's _NETWORK_MAX_ATTEMPTS.
+# the mix; shares net_retry's policy (NETWORK_MAX_ATTEMPTS tries with
+# doubling backoff from 2s), as git.py does.
 _MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
