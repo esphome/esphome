@@ -36,7 +36,7 @@ void DerivativeSensorBase::process_sensor_value_(float value, float ms_per_unit)
   this->last_value_ = value;
   this->last_update_ = now;
 
-  this->publish_state((value - old_value) * ms_per_unit / dt_ms);
+  this->publish_state((value - old_value) / dt_ms * ms_per_unit);
 }
 
 }  // namespace esphome::derivative
