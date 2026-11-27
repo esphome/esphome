@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <string>
 #include <system_error>
 
 #include <gtest/gtest.h>
@@ -159,6 +160,50 @@ TEST_F(CalibrationPersistenceTest, ADifferentKeyDoesNotRestoreTheReference) {
   rewired.setup();
 
   EXPECT_FALSE(rewired.has_r0());
+}
+
+TEST_F(CalibrationPersistenceTest, AFailedManualRunKeepsTheReferenceUntilTheNextReading) {
+  CalibrationSampler sampler;
+  MQGasSensor sensor{&sampler};
+  CalibrationTimerGuard guard(sensor);
+  configure(sensor);
+  sensor.set_r0(10.0f);
+  sensor.setup();
+
+  sampler.value = 0.0f;  // no usable sample, so the run fails
+  sensor.start_calibration();
+  sensor.loop();
+  sensor.loop();
+  EXPECT_FLOAT_EQ(10.0f, sensor.get_r0());
+  EXPECT_TRUE(sensor.status_has_warning());
+
+  sampler.value = 1.0f;
+  sensor.update();
+  EXPECT_TRUE(std::isfinite(sensor.state));
+  EXPECT_FALSE(sensor.status_has_warning());
+}
+
+TEST_F(CalibrationPersistenceTest, AFailedSyncIsReportedAndStaysVisible) {
+  CalibrationSampler sampler;
+  MQGasSensor sensor{&sampler};
+  configure(sensor);
+  text_sensor::TextSensor log;
+  std::string messages;
+  log.add_on_state_callback([&messages](const std::string &message) { messages += message + "\n"; });
+  sensor.set_log_sensor(&log);
+  sensor.setup();
+  // A directory where the preferences file belongs makes the write fail.
+  fs::create_directory(this->prefdir_ / (std::string(App.get_name().c_str()) + ".prefs"));
+
+  sensor.start_calibration();
+  for (int i = 0; i < 8 && !sensor.has_r0(); i++)
+    sensor.loop();
+
+  ASSERT_TRUE(sensor.has_r0());
+  EXPECT_NE(std::string::npos, messages.find("may not survive a reboot"));
+  EXPECT_NE(std::string::npos, messages.find("not stored"));
+  sensor.update();
+  EXPECT_TRUE(sensor.status_has_warning());
 }
 
 }  // namespace esphome::mq_gas_sensors::testing

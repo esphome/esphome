@@ -11,9 +11,11 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # references their symbols.
     manifest.auto_load = ["sensor", "voltage_sampler", "text_sensor"]
 
-    # The calibration is compiled in only when a configuration asks for it; the
-    # tests exercise it, so the build turns it on.
+    # The optional parts are compiled in only when a configuration asks for them;
+    # the tests exercise them, so the build turns them on.
     async def to_code_testing(config: ConfigType) -> None:
         cg.add_define("USE_MQ_GAS_SENSORS_CALIBRATION")
+        cg.add_define("USE_MQ_GAS_SENSORS_CORRECTION")
+        cg.add_define("USE_MQ_GAS_SENSORS_LOG_SENSOR")
 
     manifest.to_code = to_code_testing
