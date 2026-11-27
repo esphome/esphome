@@ -2405,6 +2405,12 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     return run(args, config)
 
 
+def command_prune(args: ArgsProtocol) -> int | None:
+    from esphome.cli.prune import command_prune as run
+
+    return run(args)
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -2412,6 +2418,7 @@ PRE_CONFIG_ACTIONS = {
     "vscode": command_vscode,
     "update-all": command_update_all,
     "clean-all": command_clean_all,
+    "prune": command_prune,
     "recover-yaml": command_recover_yaml,
 }
 
@@ -2826,6 +2833,24 @@ def parse_args(argv):
     )
     parser_clean_all.add_argument(
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
+    )
+
+    parser_prune = subparsers.add_parser(
+        "prune",
+        help="Remove ESP-IDF versions that this ESPHome version does not build "
+        "with by default and that no build has used recently, along with the "
+        "toolchains and Python environments only they needed.",
+    )
+    parser_prune.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="Keep versions used within this many days. Default: %(default)s.",
+    )
+    parser_prune.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List what would be removed without removing it.",
     )
 
     # The dashboard moved to ESPHome Device Builder; the command is kept only to

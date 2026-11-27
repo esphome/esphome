@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.espidf.framework import (
+    ESPHOME_LAST_USED_FILE,
     ESPHOME_STAMP_FILE,
     STAMP_SCHEMA_VERSION,
     _ccache_env,
@@ -484,6 +485,19 @@ def test_check_esp_idf_install_already_installed(espidf_mocks: SimpleNamespace) 
 
     espidf_mocks.extract.assert_not_called()
     espidf_mocks.venv.assert_not_called()
+
+
+def test_check_esp_idf_install_records_last_use(espidf_mocks: SimpleNamespace) -> None:
+    """Each use refreshes the marker ``esphome prune`` ages installs by."""
+    framework_path = _get_framework_path(_IDF_VERSION)
+    (framework_path / ".esphome_extracted").touch()
+    marker = framework_path / ESPHOME_LAST_USED_FILE
+    marker.touch()
+    os.utime(marker, (0, 0))
+
+    check_esp_idf_install(_IDF_VERSION)
+
+    assert marker.stat().st_mtime > 0
 
 
 def test_corrupt_tarball_removed_when_extraction_fails(

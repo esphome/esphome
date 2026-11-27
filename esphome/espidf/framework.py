@@ -1,6 +1,7 @@
 """ESP-IDF framework tools for ESPHome."""
 
 from collections.abc import Callable
+from contextlib import suppress
 from ctypes.util import find_library
 from dataclasses import dataclass, field
 import json
@@ -61,6 +62,8 @@ def _cache() -> _FrameworkCache:
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
+# Touched on every use of a framework; its mtime is what ``esphome prune`` ages
+ESPHOME_LAST_USED_FILE = ".esphome_last_used"
 
 # Cache-buster baked into the stamp file. Bump this whenever a change would
 # make pre-existing stamped installs invalid, e.g.:
@@ -1298,6 +1301,8 @@ def check_esp_idf_install(
     framework_path, fresh_extract = _check_esphome_idf_framework_install(
         version, targets, tools, force=force, env=env, source_url=source_url
     )
+    with suppress(OSError):
+        (framework_path / ESPHOME_LAST_USED_FILE).touch()
 
     features = features or ESPHOME_IDF_DEFAULT_FEATURES
 
