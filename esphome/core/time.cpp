@@ -82,9 +82,16 @@ void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   out_tm->tm_year = year - 1900;
   out_tm->tm_yday = days;
 
-  const MonthDay md = yday_to_month_day(year, days);
-  out_tm->tm_mon = md.month - 1;
-  out_tm->tm_mday = md.day;
+  // Calculate month and day
+  int month = 1;
+  int dim;
+  while (days >= (dim = days_in_month(year, month))) {
+    days -= dim;
+    month++;
+  }
+
+  out_tm->tm_mon = month - 1;
+  out_tm->tm_mday = days + 1;
   out_tm->tm_isdst = 0;
 }
 

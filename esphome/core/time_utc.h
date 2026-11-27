@@ -26,23 +26,6 @@ inline int days_before_month(int year, int month) {
   return days;
 }
 
-/// A month (1-12) and day of month (1-31)
-struct MonthDay {
-  int month;
-  int day;
-};
-
-/// Month and day of a day of the year (0 = Jan 1); yday must be within the year
-inline MonthDay yday_to_month_day(int year, int yday) {
-  int month = 1;
-  int dim;
-  while (yday >= (dim = days_in_month(year, month))) {
-    yday -= dim;
-    month++;
-  }
-  return {month, yday + 1};
-}
-
 /// Day of the week (0 = Sunday) of a day counted from the epoch, which may be negative
 constexpr int days_to_weekday(int32_t days) {
   const int wday = (days + 4) % 7;  // Jan 1, 1970 was a Thursday
