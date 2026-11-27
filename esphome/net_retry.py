@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# 3 tries with 2s/4s backoff, matching git.py's _NETWORK_MAX_ATTEMPTS.
-# Callers memoize failures so a flaky host pays this once per file per run.
-NETWORK_MAX_ATTEMPTS = 3
+# 5 tries with 2s/4s/8s/16s backoff, so an outage of up to ~30s (a GitHub raw file 504) does not fail a
+# build; git.py uses it too. Callers memoize failures so a flaky host pays this once per file per run.
+NETWORK_MAX_ATTEMPTS = 5
 
 
 def _is_permanent_dns_failure(e: BaseException) -> bool:
@@ -93,7 +93,7 @@ def is_transient_download_error(e: Exception) -> bool:
 
 
 def fetch_with_retry[T](url: str, fetch: Callable[[], T], what: str = "Download") -> T:
-    """Run ``fetch``, retrying transient failures with 2s/4s backoff.
+    """Run ``fetch``, retrying transient failures with doubling backoff from 2s.
 
     Permanent failures and the final attempt propagate to the caller;
     ``what`` names the operation in the retry warning.
