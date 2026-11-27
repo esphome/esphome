@@ -102,8 +102,19 @@ SENSORS = {
     ),
     CONF_FLOW_LEVEL: (
         DucoReading.DUCO_READING_FLOW_LEVEL,
-        BOX_NODE,
-        _schema(unit_of_measurement=UNIT_PERCENT, accuracy_decimals=0),
+        None,
+        cv.ensure_list(
+            _schema(
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=0,
+            ).extend(
+                {
+                    cv.Optional(
+                        CONF_ADDRESS, default=BOX_NODE
+                    ): cv.int_range(0, 68),
+                }
+            )
+        ),
     ),
     CONF_FLOW_LEVEL_REQUEST: (
         DucoReading.DUCO_READING_FLOW_LEVEL_REQUEST,
