@@ -9,6 +9,7 @@ from esphome.cpp_generator import (
     RawStatement,
     add_define,
     add_global,
+    is_static_pointer,
     static_pointer_address,
 )
 
@@ -31,7 +32,9 @@ def use_define(platform: str) -> str:
 
 @dataclass
 class AppListsState:
-    lists: dict[str, list[str]] = field(default_factory=dict)
+    # The variables in each list; their addresses are read when the lists are emitted, after any
+    # LatePvariable.define()
+    lists: dict[str, list[MockObj]] = field(default_factory=dict)
     emitted: bool = False
 
 
@@ -51,12 +54,12 @@ def _check_not_emitted(what: str) -> AppListsState:
 
 def add_to_list(upper: str, var: MockObj) -> None:
     state = _check_not_emitted(f"{var} was added to the {upper} list")
-    if (address := static_pointer_address(var)) is None:
+    if static_pointer_address(var) is None and not is_static_pointer(var):
         raise EsphomeError(
             f"{var} must be created with cg.new_Pvariable to be added to the {upper} list; "
             "entities cannot be added at run time"
         )
-    state.lists.setdefault(upper, []).append(address)
+    state.lists.setdefault(upper, []).append(var)
 
 
 def add_entity(platform: str, var: MockObj) -> None:
@@ -91,10 +94,10 @@ def _add_count_define(
     add_define(name, value)
 
 
-def _emit_list(upper: str, objs: list[str], count_define: str) -> None:
+def _emit_list(upper: str, objs: list[MockObj], count_define: str) -> None:
     name = f"esphome::app_lists::APP_{upper}_LIST"
     # An empty list still needs a definition; it is never read
-    items = ", ".join(objs) or "nullptr"
+    items = ", ".join(str(static_pointer_address(var)) for var in objs) or "nullptr"
     add_global(RawStatement(f"decltype({name}) {name} PROGMEM = {{{items}}};"))
     # Also catches a count defined after the check above
     add_global(

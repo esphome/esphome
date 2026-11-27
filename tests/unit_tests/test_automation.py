@@ -3521,6 +3521,17 @@ async def test_plan_run_function() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
+async def test_plan_run_function_rejects_a_deferring_plan() -> None:
+    """A plan with a delay cannot run as a function: run_function() refuses it instead of dropping the rest."""
+    plan = await plan_automation(
+        [], _automation_conf(_action("my.a", "act_a"), _delay("act_d"))
+    )
+    with pytest.raises(EsphomeError, match="direct plan"):
+        plan.run_function(_run_trigger(), lambda _st: None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
 @pytest.mark.parametrize(
     ("then", "is_manual", "direct"),
     [
