@@ -16,6 +16,10 @@
 
 namespace esphome::ssocr_reader {
 
+namespace testing {
+class SSOCRReaderTestAccess;
+}  // namespace testing
+
 /// Reads a seven-segment display out of esp32_camera frames. The camera delivers
 /// JPEG; a shared camera::Decoder decodes each frame once, the configured
 /// rectangle is cropped out of that buffer as grayscale, and seven_segment_ocr
@@ -49,6 +53,8 @@ class SSOCRReader final : public PollingComponent, public camera::CameraListener
   SUB_SENSOR(confidence)
 
  protected:
+  friend class testing::SSOCRReaderTestAccess;
+
   static constexpr uint32_t FRAME_TIMEOUT_ID = 0;
   static constexpr uint32_t FRAME_TIMEOUT_MS = 5000;
 
