@@ -326,7 +326,7 @@ float full_strtof(const char *str, char **end) {
   return bit_cast<float>(negative ? bits | FLOAT_SIGN_BIT : bits);
 }
 #else
-float full_strtof(const char *str, char **end) { return ::strtof(str, end); }
+float full_strtof(const char *str, char **end) { return str_to_float(str, end); }
 #endif  // ESPHOME_PARSE_FLOAT_LIBC
 
 }  // namespace
