@@ -13,7 +13,7 @@ class PulseMeterSensor final : public sensor::Sensor, public Component {
   SUB_SENSOR(total)
 
  public:
-  enum InternalFilterMode {
+  enum InternalFilterMode : uint8_t {
     FILTER_EDGE = 0,
     FILTER_PULSE,
   };
@@ -36,12 +36,8 @@ class PulseMeterSensor final : public sensor::Sensor, public Component {
   InternalGPIOPin *pin_{nullptr};
   uint32_t filter_us_ = 0;
   uint32_t timeout_us_ = 1000000UL * 60UL * 5UL;
-  InternalFilterMode filter_mode_{FILTER_EDGE};
 
   // Variables used in the loop
-  enum class MeterState { INITIAL, RUNNING, TIMED_OUT };
-  MeterState meter_state_ = MeterState::INITIAL;
-  bool peeked_edge_ = false;
   uint32_t total_pulses_ = 0;
   uint32_t last_processed_edge_us_ = 0;
 
@@ -59,9 +55,6 @@ class PulseMeterSensor final : public sensor::Sensor, public Component {
   // Only use the following variables in the ISR or while guarded by an InterruptLock
   ISRInternalGPIOPin isr_pin_;
 
-  /// The last pin value seen
-  bool last_pin_val_ = false;
-
   /// Filter state for edge mode
   struct EdgeState {
     uint32_t last_sent_edge_us_ = 0;
@@ -74,6 +67,13 @@ class PulseMeterSensor final : public sensor::Sensor, public Component {
     bool latched_ = false;
   };
   PulseState pulse_state_{};
+
+  // Byte fields packed together; last_pin_val_ (the last pin value seen) is ISR or InterruptLock only
+  enum class MeterState : uint8_t { INITIAL, RUNNING, TIMED_OUT };
+  InternalFilterMode filter_mode_{FILTER_EDGE};
+  MeterState meter_state_ = MeterState::INITIAL;
+  bool peeked_edge_ = false;
+  bool last_pin_val_ = false;
 };
 
 }  // namespace esphome::pulse_meter
