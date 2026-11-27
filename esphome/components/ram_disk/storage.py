@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import storage
 from esphome.components.storage import CONF_BLOCK_SIZE
 import esphome.config_validation as cv
-from esphome.const import CONF_SIZE
+from esphome.const import CONF_ID, CONF_SIZE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
@@ -34,4 +34,5 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     block_size = config[CONF_BLOCK_SIZE]
-    await storage.new_block_device(config, block_size, config[CONF_SIZE] // block_size)
+    var = cg.new_Pvariable(config[CONF_ID], block_size, config[CONF_SIZE] // block_size)
+    await cg.register_component(var, config)

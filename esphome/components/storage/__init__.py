@@ -3,10 +3,9 @@ import re
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.core import CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.types import ConfigType, SafeExpType
+from esphome.cpp_generator import MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 DOMAIN = "storage"
@@ -73,13 +72,6 @@ def block_device_schema(class_: MockObjClass) -> cv.Schema:
             cv.GenerateID(): cv.declare_id(class_),
         }
     ).extend(cv.COMPONENT_SCHEMA)
-
-
-async def new_block_device(config: ConfigType, *args: SafeExpType) -> MockObj:
-    """Create a block device platform component and register it."""
-    var = cg.new_Pvariable(config[CONF_ID], *args)
-    await cg.register_component(var, config)
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
