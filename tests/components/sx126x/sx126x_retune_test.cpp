@@ -86,6 +86,20 @@ TEST(SX126xRetune, KeepsAReceivedPacketForTheLoop) {
   EXPECT_EQ(listener.packets, std::vector<std::vector<uint8_t>>{hw.packet});
 }
 
+TEST(SX126xRetune, FailureWarnsAndTheRetryUsesTheNewFrequency) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.clear_trace();
+  // BUSY stays high for the frequency command: standby, clear IRQs, then the frequency
+  hw.fail_at = 3;
+  hw.radio.retune(FREQUENCY);
+  EXPECT_TRUE(hw.radio.status_has_warning());
+  hw.clear_trace();
+  hw.radio.configure();
+  EXPECT_FALSE(hw.radio.status_has_warning());
+  EXPECT_NE(std::find(hw.transactions.begin(), hw.transactions.end(), set_frequency_command()), hw.transactions.end());
+}
+
 TEST(SX126xRetune, IgnoredBeforeSetup) {
   RadioHardware hw;
   hw.radio.retune(FREQUENCY);

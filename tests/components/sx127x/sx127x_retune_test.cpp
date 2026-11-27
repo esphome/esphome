@@ -42,6 +42,36 @@ TEST_P(SX127xRetune, LaterConfigurationKeepsTheFrequency) {
 
 INSTANTIATE_TEST_SUITE_P(ModulationAndMode, SX127xRetune, ::testing::Combine(::testing::Bool(), ::testing::Bool()));
 
+class SX127xRetuneModulation : public ::testing::TestWithParam<bool> {};
+
+TEST_P(SX127xRetuneModulation, KeepsAReceivedPacketForTheLoop) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(GetParam(), true);
+  hw.radio.register_listener(&listener);
+  hw.receive({0x44, 0x55, 0x66});
+  hw.radio.retune(FREQUENCY);
+  EXPECT_EQ(frf(hw), FRF);
+  EXPECT_TRUE(listener.packets.empty());
+  hw.radio.loop();
+  hw.radio.loop();
+  EXPECT_EQ(listener.packets, (std::vector<std::vector<uint8_t>>{{0x44, 0x55, 0x66}}));
+}
+
+TEST_P(SX127xRetuneModulation, FailureWarnsAndTheRetryUsesTheNewFrequency) {
+  RadioHardware hw;
+  hw.configure(GetParam(), true);
+  hw.stuck = true;
+  hw.radio.retune(FREQUENCY);
+  EXPECT_TRUE(hw.radio.status_has_warning());
+  hw.stuck = false;
+  hw.radio.configure();
+  EXPECT_FALSE(hw.radio.status_has_warning());
+  EXPECT_EQ(frf(hw), FRF);
+}
+
+INSTANTIATE_TEST_SUITE_P(LoraOrFsk, SX127xRetuneModulation, ::testing::Bool());
+
 TEST(SX127xRetune, IgnoredWhileSending) {
   RadioHardware hw;
   TransmitListener listener;

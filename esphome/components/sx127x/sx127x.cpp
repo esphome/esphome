@@ -487,6 +487,11 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX127x::loop() {
+  // A packet read before a retune, which cleared its flag
+  if (this->packet_held_) {
+    this->packet_held_ = false;
+    this->call_listeners_(this->packet_, this->held_rssi_, this->held_snr_);
+  }
   switch (this->state_) {
     case RadioState::RADIO_STATE_TRANSMITTING: {
       SX127xError result;
@@ -518,9 +523,25 @@ void SX127x::loop() {
 
 void SX127x::receive_() {
   const bool holding = this->state_ == RadioState::RADIO_STATE_HOLDING_RX;
+  float rssi;
+  float snr;
+  const bool received = this->read_packet_(rssi, snr);
+  if (holding) {
+    if (this->restore_()) {
+      this->state_ = RadioState::RADIO_STATE_IDLE;
+    } else {
+      this->fail_(set_mode_failure());
+    }
+  }
+  if (received) {
+    this->call_listeners_(this->packet_, rssi, snr);
+  }
+}
+
+bool SX127x::read_packet_(float &rssi, float &snr) {
   bool received = false;
-  float rssi = 0.0f;
-  float snr = NAN;  // FSK and OOK have no SNR
+  rssi = 0.0f;
+  snr = NAN;  // FSK and OOK have no SNR
   if (this->applied_.modulation == MOD_LORA) {
     uint8_t status = this->read_register_(REG_IRQ_FLAGS);
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
@@ -545,16 +566,7 @@ void SX127x::receive_() {
     this->read_fifo_(this->packet_);
     received = true;
   }
-  if (holding) {
-    if (this->restore_()) {
-      this->state_ = RadioState::RADIO_STATE_IDLE;
-    } else {
-      this->fail_(set_mode_failure());
-    }
-  }
-  if (received) {
-    this->call_listeners_(this->packet_, rssi, snr);
-  }
+  return received;
 }
 
 const LogString *SX127x::image_cal_() {
@@ -656,12 +668,20 @@ void SX127x::retune(uint32_t frequency) {
     ESP_LOGW(TAG, "Radio unavailable, frequency change ignored");
     return;
   }
+  // Kept even if the change fails, so the configuration retried after a failure uses it
+  this->frequency_ = frequency;
+  // Going back to RX clears a received packet's flag, so one not yet read is read now, for the next loop()
+  if (!this->packet_held_ && this->packet_waiting_()) {
+    this->packet_held_ = this->read_packet_(this->held_rssi_, this->held_snr_);
+  }
+  if (this->packet_held_) {
+    this->enable_loop();
+  }
   // The frequency registers are written in standby
   if (!this->set_mode_(this->applied_.modulation, MODE_STDBY)) {
     this->fail_(set_mode_failure());
     return;
   }
-  this->frequency_ = frequency;
   this->applied_.frequency = frequency;
   uint64_t frf = ((uint64_t) frequency << 19) / FXOSC;
   uint8_t frf_bytes[3];

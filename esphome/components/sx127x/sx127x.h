@@ -166,6 +166,8 @@ class SX127x final : public Component,
   void fail_(const LogString *reason);
   bool packet_waiting_();
   void receive_();
+  // Reads a packet the chip has received into packet_; false if there is none, or it failed its CRC
+  bool read_packet_(float &rssi, float &snr);
   SX127xError start_transmit_(SX127xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
   // True once the send has ended, with its outcome in result
   bool poll_transmit_(uint32_t now, SX127xError &result);
@@ -208,6 +210,10 @@ class SX127x final : public Component,
   bool packet_mode_{false};
   bool rx_start_{false};
   bool reconfigure_pending_{false};
+  // A packet read by retune() and not yet given to the listeners
+  bool packet_held_{false};
+  float held_rssi_{0.0f};
+  float held_snr_{NAN};
   RadioState state_{RadioState::RADIO_STATE_NEEDS_CONFIGURATION};
 };
 
