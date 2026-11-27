@@ -12,6 +12,9 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
+#ifdef USE_BK72XX
+  this->setup_wakeup_pins_();
+#endif
   this->schedule_sleep_();
 }
 
@@ -26,6 +29,45 @@ void DeepSleepComponent::schedule_sleep_() {
     ESP_LOGD(TAG, "Not scheduling; no run duration configured");
   }
 }
+
+#ifdef USE_TIME
+void DeepSleepComponent::set_sleep_until(time::RealTimeClock *clock, uint8_t hour, uint8_t minute, uint8_t second) {
+  auto time = clock->now();
+  const uint32_t timestamp_now = time.timestamp;
+
+  bool after_time = false;
+  if (time.hour > hour) {
+    after_time = true;
+  } else {
+    if (time.hour == hour) {
+      if (time.minute > minute) {
+        after_time = true;
+      } else {
+        if (time.minute == minute) {
+          if (time.second > second) {
+            after_time = true;
+          }
+        }
+      }
+    }
+  }
+
+  time.hour = hour;
+  time.minute = minute;
+  time.second = second;
+  time.recalc_timestamp_utc();
+
+  time_t timestamp = time.timestamp;  // timestamp in local time zone
+
+  if (after_time)
+    timestamp += 60 * 60 * 24;
+
+  int32_t offset = ESPTime::timezone_offset();
+  timestamp -= offset;  // Change timestamp to utc
+  const uint32_t ms_left = (timestamp - timestamp_now) * 1000;
+  this->set_sleep_duration(ms_left);
+}
+#endif
 
 void DeepSleepComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Deep sleep:");

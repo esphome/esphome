@@ -45,8 +45,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_VALUE,
     CONF_WIFI,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     Platform,
     PlatformFramework,
 )
@@ -77,6 +75,17 @@ def request_ethernet_ip_state_listener() -> None:
     CORE.data[ETHERNET_IP_STATE_LISTENERS_KEY] = (
         CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0) + 1
     )
+
+
+_register_connect_state_listener = cg.slot_list(
+    "ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS", "add_connect_state_listener", DOMAIN
+)
+
+
+async def register_connect_state_listener(listener: cg.MockObj) -> None:
+    """Register an EthernetConnectStateListener; call from to_code()."""
+    ethernet = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(_register_connect_state_listener(ethernet, listener))
 
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
@@ -137,6 +146,7 @@ ETHERNET_TYPES = EthernetType.options(
     "YT8531",
     "CH390",
     "KSZ8851SNL",
+    "USB",
     prefix="ETHERNET_TYPE_",
 )
 
@@ -161,6 +171,7 @@ _PHY_TYPE_TO_DEFINE = {
     "YT8531": "USE_ETHERNET_YT8531",
     "CH390": "USE_ETHERNET_CH390",
     "KSZ8851SNL": "USE_ETHERNET_KSZ8851SNL",
+    "USB": "USE_ETHERNET_USB",
 }
 
 
@@ -193,16 +204,19 @@ _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60", "CH390"}
 
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
 SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60", "CH390", "KSZ8851SNL"}
-# RP2-supported ethernet types (SPI and PIO QSPI). Applies to the whole
-# RP2 family (RP2040 and RP2350); the chip-specific W5100 caveat in the
-# comment above is about ESP-IDF driver coverage, not the RP2 platform.
+# RP2 SPI and PIO QSPI ethernet types. Applies to the whole RP2 family
+# (RP2040 and RP2350); the chip-specific W5100 caveat in the comment above
+# is about ESP-IDF driver coverage, not the RP2 platform.
 RP2_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
-_RP2_SPI_LIBRARIES = {
+# Every type RP2 accepts, including USB NCM
+_RP2_ALL_ETHERNET_TYPES = RP2_ETHERNET_TYPES | {"USB"}
+_RP2_ETHERNET_LIBRARIES = {
     "W5100": "lwIP_w5100",
     "W5500": "lwIP_w5500",
     "ENC28J60": "lwIP_enc28j60",
     "W6100": "lwIP_w6100",
     "W6300": "lwIP_w6300",
+    "USB": "lwIP_USB_NCM",
 }
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
@@ -346,13 +360,13 @@ def _validate(config: ConfigType) -> ConfigType:
                 if CONF_POLLING_INTERVAL in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_POLLING_INTERVAL}' is not supported."
                     )
                 if CONF_INTERRUPT_PIN not in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
         elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
@@ -385,9 +399,9 @@ def _validate(config: ConfigType) -> ConfigType:
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif CORE.is_rp2 and config[CONF_TYPE] not in RP2_ETHERNET_TYPES:
+    elif CORE.is_rp2 and config[CONF_TYPE] not in _RP2_ALL_ETHERNET_TYPES:
         raise cv.Invalid(
-            f"Only {', '.join(sorted(RP2_ETHERNET_TYPES))} are supported on the RP2 "
+            f"Only {', '.join(sorted(_RP2_ALL_ETHERNET_TYPES))} are supported on the RP2 "
             f"platform, not {config[CONF_TYPE]}"
         )
     return config
@@ -551,6 +565,7 @@ CONFIG_SCHEMA = cv.All(
             "LAN8670": RMII_SCHEMA,
             "GENERIC": GENERIC_SCHEMA,
             "YT8531": GENERIC_SCHEMA,
+            "USB": cv.All(BASE_SCHEMA, cv.only_on([Platform.RP2])),
         },
         upper=True,
     ),
@@ -792,15 +807,17 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
-    cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
-    cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
-    cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
-    cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
-    cg.add_optional(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
-    cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    if config[CONF_TYPE] in RP2_ETHERNET_TYPES:
+        cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
+        cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
+        cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+        cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
+        cg.add_optional(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+        cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
-    cg.add_define("USE_ETHERNET_SPI")
-    cg.add_library(_RP2_SPI_LIBRARIES[config[CONF_TYPE]], None)
+        cg.add_define("USE_ETHERNET_SPI")
+
+    cg.add_library(_RP2_ETHERNET_LIBRARIES[config[CONF_TYPE]], None)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:

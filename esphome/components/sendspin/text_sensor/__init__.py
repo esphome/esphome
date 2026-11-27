@@ -40,7 +40,7 @@ def _request_roles(config: ConfigType) -> ConfigType:
         # A display surface for the dynamic code, so advertise dynamic_pairing_code.
         request_pairing_code_display_support()
     else:
-        request_metadata_support()
+        request_metadata_support(config[CONF_TYPE])
 
     return config
 

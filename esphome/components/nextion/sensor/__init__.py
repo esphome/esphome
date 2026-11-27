@@ -4,7 +4,13 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_COMPONENT_ID, CONF_ID, CONF_STATE
 
-from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from .. import (
+    CONF_NEXTION_ID,
+    CONF_PUBLISH_STATE,
+    CONF_SEND_TO_NEXTION,
+    nextion_ns,
+    register_sensor_component,
+)
 from ..base_component import (
     CONF_COMPONENT_NAME,
     CONF_PRECISION,
@@ -61,7 +67,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    cg.add(hub.register_sensor_component(var))
+    cg.add(register_sensor_component(hub, var))
 
     await setup_component_core_(var, config, ".val")
 
@@ -72,10 +78,7 @@ async def to_code(config):
     if CONF_WAVE_CHANNEL_ID in config:
         cg.add_define("USE_NEXTION_WAVEFORM")
         cg.add(var.set_wave_channel_id(config[CONF_WAVE_CHANNEL_ID]))
-        if CONF_WAVEFORM_SEND_LAST_VALUE in config:
-            cg.add(
-                var.set_waveform_send_last_value(config[CONF_WAVEFORM_SEND_LAST_VALUE])
-            )
+        cg.add(var.set_waveform_send_last_value(config[CONF_WAVEFORM_SEND_LAST_VALUE]))
         cg.add_optional(var.set_wave_max_value, config.get(CONF_WAVE_MAX_VALUE))
         cg.add_optional(var.set_wave_max_length, config.get(CONF_WAVE_MAX_LENGTH))
 

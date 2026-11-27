@@ -84,6 +84,22 @@ uint16_t LibreTinyUARTComponent::get_config() {
   return config;
 }
 
+void LibreTinyUARTComponent::open_hardware_port_([[maybe_unused]] pin_size_t tx_pin,
+                                                 [[maybe_unused]] pin_size_t rx_pin) {
+  SerialClass *hardware = hardware_serial(this->hardware_idx_);
+  if (hardware == nullptr)
+    return;
+  // LN882x: the port needs its SDK handle, at boot and after an end()
+  libretiny::ensure_serial_handle(this->hardware_idx_);
+#ifdef USE_UART_LIBRETINY_PIN_ROUTING
+  // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen). setPins()
+  // replaces a left-out pin (PIN_INVALID) with the port's default, so default-pin ports start as before.
+  hardware->begin(this->baud_rate_, this->get_config(), rx_pin, tx_pin);
+#else
+  hardware->begin(this->baud_rate_, this->get_config());
+#endif
+}
+
 void LibreTinyUARTComponent::setup() {
   const pin_size_t tx_pin = this->tx_pin_ == nullptr ? PIN_INVALID : this->tx_pin_->get_pin();
   const pin_size_t rx_pin = this->rx_pin_ == nullptr ? PIN_INVALID : this->rx_pin_->get_pin();
@@ -112,14 +128,7 @@ void LibreTinyUARTComponent::setup() {
   SerialClass *hardware = should_fallback_to_software_serial() ? nullptr : hardware_serial(this->hardware_idx_);
   if (hardware != nullptr) {
     this->serial_ = hardware;
-    libretiny::ensure_serial_handle(this->hardware_idx_);
-#ifdef USE_UART_LIBRETINY_PIN_ROUTING
-    // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen). setPins()
-    // replaces a left-out pin (PIN_INVALID) with the port's default, so default-pin ports start as before.
-    hardware->begin(this->baud_rate_, this->get_config(), rx_pin, tx_pin);
-#else
-    hardware->begin(this->baud_rate_, this->get_config());
-#endif
+    this->open_hardware_port_(tx_pin, rx_pin);
     return;
   }
   this->hardware_idx_ = -1;
@@ -221,6 +230,45 @@ void LibreTinyUARTComponent::check_logger_conflict() {
   }
 #endif
 }
+
+#ifdef USE_UART_TX_BREAK
+bool LibreTinyUARTComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr || this->serial_ == nullptr || this->is_failed())
+    return false;
+  SerialClass *hardware = hardware_serial(this->hardware_idx_);
+  // software serial sends from a timer and its flush() does not wait for TX: the pin cannot be held
+  if (hardware == nullptr)
+    return false;
+  // a hardware port does not invert its TX signal, the pin level would be the idle level
+  if (this->tx_pin_->is_inverted())
+    return false;
+#ifdef USE_LOGGER
+  // a logger that writes to this port would use it while it is closed
+  if (logger::global_logger->get_baud_rate() != 0 && this->serial_ == logger::global_logger->get_hw_serial())
+    return false;
+#endif
+  if (enable == this->tx_break_)
+    return true;
+  this->tx_break_ = enable;
+  if (enable) {
+    // the Arduino API has no break: the port is closed and the pin driven as a GPIO
+    hardware->end();
+    this->tx_pin_->setup();
+    this->tx_pin_->digital_write(false);
+    return true;
+  }
+#ifndef USE_BK72XX
+  // BK72xx: giving the pin back pulls it down, so it stays low until the port drives it: one edge
+  this->tx_pin_->digital_write(true);
+#endif
+  // The GPIO driver gives the pin back: RTL8720C begin() cannot take a pin it still holds,
+  // and LibreTiny would skip the setup of the next break for a pin on record as an output
+  const pin_size_t tx_pin = this->tx_pin_->get_pin();
+  pinModeRemove(tx_pin, PIN_GPIO);
+  this->open_hardware_port_(tx_pin, this->rx_pin_ == nullptr ? PIN_INVALID : this->rx_pin_->get_pin());
+  return true;
+}
+#endif
 
 }  // namespace esphome::uart
 #endif  // USE_LIBRETINY

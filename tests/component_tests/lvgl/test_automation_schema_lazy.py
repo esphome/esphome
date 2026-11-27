@@ -14,7 +14,7 @@ from esphome.components.lvgl.schemas import (
 from esphome.components.lvgl.widgets import WidgetType
 from esphome.config_validation import GenerateID, declare_id
 from esphome.const import CONF_TRIGGER_ID
-from esphome.core.config import StartupTrigger
+from esphome.core.config import StartupCallback
 
 
 def _widget_type(name: str = "obj") -> WidgetType:
@@ -24,7 +24,7 @@ def _widget_type(name: str = "obj") -> WidgetType:
 
 
 def _trigger_extra_schema() -> dict:
-    return {GenerateID(CONF_TRIGGER_ID): declare_id(StartupTrigger)}
+    return {GenerateID(CONF_TRIGGER_ID): declare_id(StartupCallback)}
 
 
 def test_lazy_validator_defers_build_until_first_call() -> None:

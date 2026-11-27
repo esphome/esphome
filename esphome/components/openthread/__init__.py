@@ -1,9 +1,10 @@
+import logging
 import re
 from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import wifi
+from esphome.components import ethernet, wifi
 from esphome.components.const import CONF_BORDER_ROUTER, CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
     VARIANT_ESP32,
@@ -15,6 +16,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
     VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
@@ -46,6 +48,7 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
     CONF_ENABLE_ON_BOOT,
+    CONF_ETHERNET,
     CONF_FRAMEWORK,
     CONF_HARDWARE_UART,
     CONF_ID,
@@ -61,8 +64,6 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
     CONF_WIFI,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PlatformFramework,
 )
@@ -74,10 +75,12 @@ from esphome.core import (
 )
 import esphome.final_validate as fv
 from esphome.helpers import write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build
 
 from .const import (
+    CONF_BACKBONE,
     CONF_CORE_OPTIONS,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
@@ -93,6 +96,8 @@ from .const import (
     CONF_TLV,
     OPENTHREAD_CONFIG_PREFIX,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrene"]
 DOMAIN = "openthread"
@@ -117,6 +122,7 @@ DEVICE_TYPES = [
 NATIVE_BORDER_ROUTER_VARIANTS = {
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32S31,
 }
 # Variants with Wi-Fi, for an external RCP
 RCP_BORDER_ROUTER_VARIANTS = {
@@ -153,6 +159,22 @@ BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
+# Derived from poll_period at run time. Each core_options value, or the OpenThread default, is the
+# floor of its derived value and is restored when polling stops.
+MTD_POLL_PERIOD_OPTIONS: dict[str, tuple[str, int]] = {
+    "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT": (
+        "ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN",
+        240,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_CHECK_TIMEOUT_MIN",
+        190,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN",
+        129,
+    ),
+}
 
 
 def _validate_txpower(value: Any) -> int | float:
@@ -171,6 +193,10 @@ def _validate_txpower(value: Any) -> int | float:
 
 def _get_rcp(config: ConfigType) -> ConfigType | None:
     return config.get(CONF_BORDER_ROUTER, {}).get(CONF_RCP)
+
+
+def _ethernet_backbone(config: ConfigType) -> bool:
+    return config.get(CONF_BORDER_ROUTER, {}).get(CONF_BACKBONE) == CONF_ETHERNET
 
 
 def set_sdkconfig_options(config: ConfigType) -> None:
@@ -240,11 +266,12 @@ def set_sdkconfig_options(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     if border_router:
-        # Border routing follows the Wi-Fi link
-        wifi.request_wifi_connect_state_listener()
+        if not _ethernet_backbone(config):
+            # Border routing follows the Wi-Fi link
+            wifi.request_wifi_connect_state_listener()
         for name, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
             add_idf_sdkconfig_option(name, value)
-        if not rcp:
+        if not rcp and CONF_WIFI in CORE.config:
             # The native 802.15.4 radio shares the RF frontend with Wi-Fi
             request_software_coexistence()
 
@@ -298,10 +325,20 @@ _RCP_SCHEMA = cv.Schema(
     }
 )
 
-_BORDER_ROUTER_SCHEMA = cv.Schema({cv.Optional(CONF_RCP): _RCP_SCHEMA})
+_BORDER_ROUTER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_RCP): _RCP_SCHEMA,
+        cv.Optional(CONF_BACKBONE, default=CONF_WIFI): cv.one_of(
+            CONF_WIFI, CONF_ETHERNET, lower=True
+        ),
+    }
+)
 
 
+@schema_extractor("schema")
 def _validate_border_router(value: object) -> ConfigType:
+    if value is SCHEMA_EXTRACT:
+        return _BORDER_ROUTER_SCHEMA
     # ESP-IDF's border router library resolves DNS and runs DHCP over IPv4
     return require_ipv4(CONF_OPENTHREAD, CONF_BORDER_ROUTER)(
         _BORDER_ROUTER_SCHEMA({} if value is None else value)
@@ -331,14 +368,23 @@ def _validate(config: ConfigType) -> ConfigType:
         )
     device_type = config.get(CONF_DEVICE_TYPE)
     poll_period = config.get(CONF_POLL_PERIOD)
-    if (
-        device_type == "FTD"
-        and poll_period
-        and poll_period > TimePeriodMilliseconds(milliseconds=0)
-    ):
+    polling = poll_period is not None and poll_period > TimePeriodMilliseconds(
+        milliseconds=0
+    )
+    if device_type == "FTD" and polling:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
+    # ESPHome's code cannot see the OpenThread config header, so these must not be expressions
+    if device_type == "MTD" and (core_options := config.get(CONF_CORE_OPTIONS)):
+        for name in sorted(MTD_POLL_PERIOD_OPTIONS.keys() & core_options.keys()):
+            try:
+                int(core_options[name], 0)
+            except ValueError:
+                raise cv.Invalid(
+                    f"'{name}' must be a whole number of seconds with {CONF_DEVICE_TYPE}: MTD",
+                    path=[CONF_CORE_OPTIONS, name],
+                ) from None
     if CONF_BORDER_ROUTER in config and device_type != "FTD":
         raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
@@ -366,9 +412,12 @@ def _validate_platform(config: ConfigType) -> ConfigType:
     if CONF_BORDER_ROUTER in config:
         variant = get_esp32_variant()
         if _get_rcp(config) is not None:
-            if variant not in RCP_BORDER_ROUTER_VARIANTS:
+            if variant not in RCP_BORDER_ROUTER_VARIANTS and not (
+                variant == VARIANT_ESP32P4 and _ethernet_backbone(config)
+            ):
                 raise cv.Invalid(
-                    "OpenThread Border Router RCP mode requires a Wi-Fi-capable ESP32 variant."
+                    "OpenThread Border Router RCP mode requires a Wi-Fi-capable ESP32 "
+                    "variant, or an ESP32-P4 with 'backbone: ethernet'."
                 )
         elif variant not in NATIVE_BORDER_ROUTER_VARIANTS:
             raise cv.Invalid(
@@ -430,6 +479,25 @@ def _validate_tlv_hex(value: Any) -> str:
     return s
 
 
+# The child timeout is 4 * poll_period, and OpenThread limits it to 8 hours.
+MAX_POLL_PERIOD = TimePeriodMilliseconds(seconds=7200)
+
+
+def _limit_poll_period(value: TimePeriodMilliseconds) -> TimePeriodMilliseconds:
+    # Remove before 2027.6.0: reject with cv.Range(max=MAX_POLL_PERIOD)
+    if value > MAX_POLL_PERIOD:
+        _LOGGER.warning(
+            "%s above %s is deprecated and now limited to it. "
+            "This will be an error in 2027.6.0",
+            CONF_POLL_PERIOD,
+            MAX_POLL_PERIOD,
+        )
+        return MAX_POLL_PERIOD
+    return value
+
+
+_POLL_PERIOD = cv.All(cv.positive_time_period_milliseconds, _limit_poll_period)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -449,7 +517,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POLL_PERIOD): _POLL_PERIOD,
             cv.Optional(CONF_CORE_OPTIONS): cv.All(
                 cv.only_on_esp32,
                 {cv.string_strict: _validate_core_option_value},
@@ -476,17 +544,29 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 "OpenThread can only be used with Wi-Fi when 'border_router:' is configured."
             )
     else:
-        if wifi_config is None:
-            raise cv.Invalid("OpenThread Border Router requires a Wi-Fi STA backbone.")
-        if CONF_AP in wifi_config:
+        if wifi_config is not None and CONF_AP in wifi_config:
             raise cv.Invalid(
                 "OpenThread Border Router does not support Wi-Fi AP or fallback AP mode."
             )
-        if not wifi_config.get(CONF_NETWORKS):
+        if _ethernet_backbone(config):
+            if CONF_ETHERNET not in full_config:
+                raise cv.Invalid(
+                    "OpenThread Border Router with 'backbone: ethernet' requires the "
+                    "'ethernet' component."
+                )
+            # The Ethernet netif only exists once Ethernet has started
+            if not full_config[CONF_ETHERNET][CONF_ENABLE_ON_BOOT]:
+                raise cv.Invalid(
+                    "OpenThread Border Router with 'backbone: ethernet' requires "
+                    "Ethernet 'enable_on_boot: true'."
+                )
+        elif wifi_config is None:
+            raise cv.Invalid("OpenThread Border Router requires a Wi-Fi STA backbone.")
+        elif not wifi_config.get(CONF_NETWORKS):
             raise cv.Invalid(
                 "OpenThread Border Router requires at least one configured Wi-Fi STA network."
             )
-        if not wifi_config[CONF_ENABLE_ON_BOOT]:
+        elif not wifi_config[CONF_ENABLE_ON_BOOT]:
             raise cv.Invalid(
                 "OpenThread Border Router requires Wi-Fi 'enable_on_boot: true'."
             )
@@ -541,9 +621,12 @@ async def to_code(config: ConfigType) -> None:
         # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
         require_mbedtls_ecp()
 
+    ethernet_backbone = border_router and _ethernet_backbone(config)
     cg.add_define("USE_OPENTHREAD")
     if border_router:
         cg.add_define("USE_OPENTHREAD_BORDER_ROUTER")
+        if ethernet_backbone:
+            cg.add_define("USE_OPENTHREAD_BACKBONE_ETHERNET")
     else:
         # The SRP client registers the mDNS services with the Thread network
         cg.add_define("USE_OPENTHREAD_SRP")
@@ -553,6 +636,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
     if tlv := config.get(CONF_TLV):
         cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+    if config[CONF_DEVICE_TYPE] == "MTD":
+        core_options = config.get(CONF_CORE_OPTIONS, {})
+        for option, (define, default) in MTD_POLL_PERIOD_OPTIONS.items():
+            value = core_options.get(option)
+            cg.add_define(define, default if value is None else int(value, 0))
 
     if not border_router:
         # OpenThread SRP needs access to mDNS services after setup
@@ -575,6 +663,8 @@ async def to_code(config: ConfigType) -> None:
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
+    if ethernet_backbone:
+        await ethernet.register_connect_state_listener(ot)
     cg.add_optional(ot.set_poll_period, config.get(CONF_POLL_PERIOD))
 
     if not border_router:
@@ -592,7 +682,7 @@ async def to_code(config: ConfigType) -> None:
         # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
         include_west_project("mbedtls")
         include_west_project("openthread")
-        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+        if CORE.framework_version >= cv.Version(2, 7, 0):
             include_west_project("oberon-psa-crypto")
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
@@ -608,9 +698,7 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OpenThreadComponent),
-            cv.Required(CONF_POLL_PERIOD): cv.templatable(
-                cv.positive_time_period_milliseconds
-            ),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(_POLL_PERIOD),
         }
     ),
 )

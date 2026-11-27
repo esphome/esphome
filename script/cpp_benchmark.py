@@ -35,6 +35,15 @@ BUILD_FLAGS = [
     "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
     f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
     f"-I{HELPERS_DIR}",  # shared test doubles such as fake_uart.h
+    # Firmware toolchains add no hardening; distro compilers (Ubuntu in CI) do by
+    # default, putting a stack canary or endbr64 in every small function
+    "-fno-stack-protector",
+    "-fcf-protection=none",
+    "-U_FORTIFY_SOURCE",
+]
+
+CXX_BUILD_FLAGS = [
+    "-fno-rtti",  # as ESP8266 and ESP32 firmware builds
 ]
 
 
@@ -77,6 +86,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         label="benchmarks",
         build_only=build_only,
         extra_include_dirs=[CORE_BENCHMARKS_DIR],
+        cxx_build_flags=CXX_BUILD_FLAGS,
     )
 
 

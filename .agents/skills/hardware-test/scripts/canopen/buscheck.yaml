@@ -1,0 +1,43 @@
+substitutions:
+  me: "1"
+  name: canbus-check  # give the second board me: "2" and its own name
+packages:
+  c3: !include c3-can.yaml
+esphome:
+  name: ${name}
+globals:
+  - id: tx_n
+    type: uint32_t
+    initial_value: "0"
+  - id: rx_n
+    type: uint32_t
+    initial_value: "0"
+  - id: tx_fail
+    type: uint32_t
+    initial_value: "0"
+canbus:
+  - id: !extend can_bus
+    on_frame:
+      - can_id: 0x100
+        can_id_mask: 0x700
+        then:
+          - lambda: |-
+              id(rx_n)++;
+              uint32_t v = x.size() >= 4 ? (x[0] | x[1] << 8 | x[2] << 16 | (uint32_t) x[3] << 24) : 0;
+              if (id(rx_n) <= 3 || id(rx_n) % 20 == 0)
+                ESP_LOGI("bus", "RX id 0x%03x seq %u (rx total %u)", (unsigned) can_id, (unsigned) v, (unsigned) id(rx_n));
+interval:
+  - interval: 500ms
+    then:
+      - lambda: |-
+          uint32_t n = id(tx_n)++;
+          uint8_t d[4] = {(uint8_t) n, (uint8_t) (n >> 8), (uint8_t) (n >> 16), (uint8_t) (n >> 24)};
+          if (id(can_bus).send_data(0x100 + ${me}, false, false, d, 4) != canbus::ERROR_OK) id(tx_fail)++;
+  - interval: 5s
+    then:
+      - lambda: |-
+          auto s = id(can_bus).get_status();
+          ESP_LOGI("bus", "STAT tx %u txfail %u rx %u | bus_off %d tec %u rec %u tx_failed %u rx_missed %u arb_lost %u bus_err %u",
+                   (unsigned) id(tx_n), (unsigned) id(tx_fail), (unsigned) id(rx_n), s.bus_off, s.tx_error_counter,
+                   s.rx_error_counter, (unsigned) s.tx_failed_count, (unsigned) s.rx_missed_count,
+                   (unsigned) s.arb_lost_count, (unsigned) s.bus_error_count);

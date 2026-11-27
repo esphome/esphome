@@ -8,6 +8,7 @@ climate:
     protocol: hOn
     name: Haier AC
     wifi_signal: true
+    hvac_action: true
     answer_timeout: 200ms
     visual:
       min_temperature: 16 °C
@@ -30,6 +31,7 @@ climate:
     supported_presets:
       - AWAY
       - BOOST
+      - ECO
       - SLEEP
     on_alarm_start:
       then:
@@ -91,6 +93,8 @@ binary_sensor:
       name: Haier Indoor Fan Status
     outdoor_fan_status:
       name: Haier Outdoor Fan Status
+    alarm_active:
+      name: Haier Alarm Active
 
 button:
   - platform: haier
@@ -109,6 +113,10 @@ text_sensor:
       name: Haier cleaning status
     protocol_version:
       name: Haier protocol version
+    active_alarms_text:
+      name: Haier Active Alarms
+      filters:
+        - throttle: 60s
 
 switch:
   - platform: haier

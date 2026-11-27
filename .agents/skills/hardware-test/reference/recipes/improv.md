@@ -44,3 +44,56 @@ When posting results:
 - Mask IP addresses in the result URLs.
 - Cover a long password too: provision once against a network whose password is 20 characters or more (the client
   prints the length).
+
+## Improv serial scan reply over the logger UART (#22758)
+
+- `scripts/improv/improvscan.py PORT OUT [--settle S]` (on `improvcli.py`'s frame parser) sends an Improv RPC request
+  scan (command 0x04) and records each reply frame (checksum, strings, auth field bytes and length) until the
+  end-of-list reply. Opening the port resets a D1 mini and a classic ESP32 (see `reference/boards.md`), so it waits
+  30 s before sending.
+- A connected device frees its scan list, so the reply is just the end-of-list frame. Add a `wifi_info:`
+  `scan_results:` text sensor to keep the list.
+- For an auth `NO` entry you need an open network in range: run an AP-only build without a password on a second board
+  (`scripts/improv/openap32.yaml`).
+- Scan replies list the neighbours' SSIDs; filter them out of anything you post.
+
+## USB Serial/JTAG RX ring heap check (#23171)
+
+`scripts/improv/usj-heap-common.yaml` (with `usj-heap-c3.yaml` and `usj-heap-s3.yaml`) logs the free internal heap
+and largest block from an `on_boot` priority 800 lambda and every 10 s, plus a 20 lines/s `SEQ` burst, with
+`logger: hardware_uart: USB_SERIAL_JTAG` and no `improv_serial`. Reset from the host and capture each boot for about
+36 s; compare the boot values of five boots per build.
+
+- The `on_boot` priority 800 value is the same to the byte on every boot of one image (a second value 132 B lower
+  shows up now and then on every build), far cleaner than a reading 30 s in. A 512 B to 65 B ring saved 444 B on the
+  S3 (ESP-IDF rounds 65 up to 68) but 312 B on the C3, both the same on every boot.
+- `usjstress.py PORT OUT SECONDS` writes text lines and random bytes into the console while capturing it; host
+  writes into a console nobody reads (about 41 KB) never timed out. `burstchk.py RAW...` then checks every `SEQ`
+  number per boot for gaps, duplicates and broken lines; it also serves the log burst check in the logger console
+  stack section below.
+- Opening a C3 or S3 USB Serial/JTAG port with DTR and RTS low resets the chip once (`rst:0x15
+  USB_UART_CHIP_RESET`); start host writes 10 s after opening.
+
+## Logger console stack (#22596, #22597)
+
+- Log burst during Improv: an interval that logs 10 numbered `SEQ <n>` lines plus 10 lines without arguments per
+  second. Check the raw capture for gaps, duplicates and broken lines, ignoring a partial first or last line.
+- Console echo without Improv: `esphome: platformio_options: build_flags: [-DUSE_LOGGER_CONSOLE]` plus a 20 ms
+  interval calling `logger::global_logger->console_read()` and `console_write()`. Host writes of up to 300 bytes echo
+  exactly on ESP32 UART0 (ESP-IDF and Arduino), ESP8266 UART0, C3 and S3 USB_SERIAL_JTAG and RP2040 USB_CDC. Only
+  the S3 USB_CDC (OTG) console keeps just the first 91 bytes of one larger write (the ESP-IDF RX buffer).
+- ESP32-S3 `hardware_uart: USB_CDC` with `improv_serial` is refused by config validation; use USB_SERIAL_JTAG.
+- ESP32-C3 `hardware_uart: USB_CDC` with Improv: the device never reads its USB Serial/JTAG port, so a host
+  `flush()` (tcdrain) blocks forever. Send requests without a flush and with a `write_timeout`.
+- A right password that fails right after the wrong password case is a Wi-Fi retry race (the connect fails at once
+  after the new settings and RETRY_HIDDEN does not resolve within 30 s); rerun before blaming the change. For a clean
+  start on every run, reflash and call `global_preferences->reset()` from an `on_boot` priority 800 lambda.
+- The device logs the Improv password at DEBUG; keep raw captures local.
+
+## Log macro rewrites, A/B by log text (#22758)
+
+`scripts/log_macros/`: `lm-common.yaml` (one entity of every common platform plus `improv_serial` and `web_server`),
+`drive.py HOST OUT` (presses the exercise button, reads API sensor states and web_server JSON) and `norm.py SERIAL`
+(keeps config dump lines, `lm` lines and state lines, and replaces addresses, the device name, signal, setup times
+and per-boot values with placeholders instead of dropping the lines) so two builds' captures diff cleanly. Recent ESPHome logs sensor states and switch, light and fan calls only at VERBOSE; at
+DEBUG a log diff sees none of them, so `lm-common.yaml` logs at VERBOSE.

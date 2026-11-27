@@ -27,6 +27,8 @@ esphome:
       - component.update: uptime
       - component.update: node_type
       - component.update: comfort_temperature
+      - component.update: comfort_temperature_zone_1
+      - component.update: comfort_temperature_zone_2
 
 host:
 api:
@@ -58,6 +60,8 @@ uart_mock:
             static std::vector<uint8_t> rx;
             static uint8_t mode = 0x04;
             static uint8_t comfort = 210;
+            static uint8_t comfort_zone_1 = 211;
+            static uint8_t comfort_zone_2 = 212;
             rx.insert(rx.end(), data.begin(), data.end());
             while (rx.size() >= 3) {
               if (rx[0] != 0xAA || rx[1] != 0x55) {
@@ -136,9 +140,15 @@ uart_mock:
                   reply(0x32, {});
               } else if (function == 0x24 && d[0] == 0x00) {
                 int16_t value = 0;
-                if (d[2] == 0x0a && d[1] == 0x12)
-                  value = comfort;
-                else if (d[1] == 0x00)
+                if (d[2] == 0x0a && d[1] >= 0x12 && d[1] <= 0x14) {
+                  ESP_LOGI("sim", "Comfort read address %02X", d[1]);
+                  if (d[1] == 0x12)
+                    value = comfort;
+                  else if (d[1] == 0x13)
+                    value = comfort_zone_1;
+                  else
+                    value = comfort_zone_2;
+                } else if (d[1] == 0x00)
                   value = -35;
                 else if (d[1] == 0x01)
                   value = 195;
@@ -152,8 +162,16 @@ uart_mock:
                   value = 120;
                 reply(0x26, {0x01, d[1], d[2], uint8_t(value & 0xFF), uint8_t((value >> 8) & 0xFF), 0, 0});
               } else if (function == 0x24 && d[0] == 0x01) {
-                comfort = d[3];
-                ESP_LOGI("sim", "Comfort set to %u", comfort);
+                if (d[2] == 0x0a && d[1] == 0x12) {
+                  comfort = d[3];
+                  ESP_LOGI("sim", "Comfort set to %u", comfort);
+                } else if (d[2] == 0x0a && d[1] == 0x13) {
+                  comfort_zone_1 = d[3];
+                  ESP_LOGI("sim", "Comfort address 13 set to %u", comfort_zone_1);
+                } else if (d[2] == 0x0a && d[1] == 0x14) {
+                  comfort_zone_2 = d[3];
+                  ESP_LOGI("sim", "Comfort address 14 set to %u", comfort_zone_2);
+                }
                 reply(0x26, {0x01, d[1], d[2], d[3], 0, 0, 0});
               } else if (function == 0x24 && d[0] == 0x05) {
                 ESP_LOGI("sim", "Time set to %u", encode_uint32(d[4], d[3], d[2], d[1]));
@@ -178,6 +196,16 @@ number:
     id: comfort_temperature
     name: Comfort Temperature
     update_interval: never
+  - platform: duco
+    comfort_temperature:
+      - id: comfort_temperature_zone_1
+        name: Comfort Temperature Zone 1
+        address: 0x13
+        update_interval: never
+      - id: comfort_temperature_zone_2
+        name: Comfort Temperature Zone 2
+        address: 0x14
+        update_interval: never
 
 text_sensor:
   - platform: duco

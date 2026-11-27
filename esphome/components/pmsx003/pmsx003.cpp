@@ -7,9 +7,6 @@ namespace esphome::pmsx003 {
 
 ESPHOME_LOG_TAG(TAG, "pmsx003");
 
-static const uint8_t START_CHARACTER_1 = 0x42;
-static const uint8_t START_CHARACTER_2 = 0x4D;
-
 static const uint16_t STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on in ms
 
 static const uint16_t CMD_MEASUREMENT_MODE_PASSIVE =
@@ -83,8 +80,9 @@ void PMSX003Component::loop() {
         // wait for the sensor to be stable
         if (now - this->fan_on_time_ < STABILISING_MS)
           return;
-        // consume any command responses that are in the serial buffer
+        // consume any command responses that are in the serial buffer, and any partial frame from before the sleep
         this->discard_available();
+        this->reader_.reset();
         // Trigger a new read
         this->send_command_(Command::MANUAL_MEASUREMENT, 0);
         this->state_ = State::WAITING;
@@ -95,82 +93,38 @@ void PMSX003Component::loop() {
     }
   }
 
-  if (now - this->last_transmission_ >= 500) {
-    // last transmission too long ago. Reset RX index.
-    this->data_index_ = 0;
-  }
-
-  const size_t avail = this->available();
-  if (avail == 0)
-    return;
-
-  this->last_transmission_ = now;
-  this->read_available(
-      [this, now](uint8_t byte) {
-        this->data_[this->data_index_] = byte;
-        auto check = this->check_byte_();
-        if (!check.has_value()) {
-          if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
-            this->parse_data_();
-            this->last_update_ = now;
-          }
-          this->data_index_ = 0;
-        } else if (!*check) {
-          // wrong data
-          this->data_index_ = 0;
-        } else {
-          // next byte
-          this->data_index_++;
-        }
-      },
-      avail);
+  auto handle = [this, now](const uint8_t *frame, size_t len) {
+    if (!this->check_frame_(frame, len))
+      return false;
+    if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
+      this->parse_data_(frame);
+      this->last_update_ = now;
+    }
+    return true;
+  };
+  this->read_frames(this->reader_, handle, now, this->last_transmission_);
 }
 
-optional<bool> PMSX003Component::check_byte_() {
-  const uint8_t index = this->data_index_;
-  const uint8_t byte = this->data_[index];
+void warn_too_long(size_t len) {
+  ESP_LOGW(TAG, "Payload length %u doesn't match. Are you using the correct PMSX003 type?",
+           static_cast<unsigned>(len - PayloadLength::PAYLOAD_AT));
+}
 
-  if (index == 0 || index == 1) {
-    const uint8_t start_char = index == 0 ? START_CHARACTER_1 : START_CHARACTER_2;
-    if (byte == start_char) {
-      return true;
-    }
-
-    ESP_LOGW(TAG, "Start character %u mismatch: 0x%02X != 0x%02X", index + 1, byte, start_char);
+bool PMSX003Component::check_frame_(const uint8_t *frame, size_t total_size) {
+  const uint16_t payload_length = total_size - PayloadLength::PAYLOAD_AT;
+  if (!this->check_payload_length_(payload_length)) {
+    ESP_LOGW(TAG, "Payload length %u doesn't match. Are you using the correct PMSX003 type?", payload_length);
     return false;
   }
 
-  if (index == 2) {
-    return true;
-  }
-
-  const uint16_t payload_length = this->get_16_bit_uint_(2);
-  if (index == 3) {
-    if (this->check_payload_length_(payload_length)) {
-      return true;
-    } else {
-      ESP_LOGW(TAG, "Payload length %u doesn't match. Are you using the correct PMSX003 type?", payload_length);
-      return false;
-    }
-  }
-
-  // start (16bit) + length (16bit) + DATA (payload_length - 16bit) + checksum (16bit)
-  const uint16_t total_size = 4 + payload_length;
-
-  if (index < total_size - 1) {
-    return true;
-  }
-
   // checksum is without checksum bytes
-  const uint16_t checksum = sum16_bytes(this->data_, total_size - 2);
-
-  const uint16_t check = this->get_16_bit_uint_(total_size - 2);
+  const uint16_t checksum = sum16_bytes(frame, total_size - 2);
+  const uint16_t check = encode_uint16(frame[total_size - 2], frame[total_size - 1]);
   if (checksum != check) {
     ESP_LOGW(TAG, "PMSX003 checksum mismatch! 0x%02X != 0x%02X", checksum, check);
     return false;
   }
-
-  return {};
+  return true;
 }
 
 bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
@@ -196,6 +150,8 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
 }
 
 void PMSX003Component::send_command_(Command cmd, uint16_t data) {
+  // Kept bytes of an earlier reply must not merge into this command's
+  this->reader_.drop_kept();
   uint8_t send_data[7] = {
       START_CHARACTER_1,            // Start Byte 1
       START_CHARACTER_2,            // Start Byte 2
@@ -214,11 +170,11 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
   }
 }
 
-void PMSX003Component::parse_data_() {
+void PMSX003Component::parse_data_(const uint8_t *frame) {
   // PM mass concentrations
-  const uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
-  const uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
-  const uint16_t pm_10_0_std_concentration = this->get_16_bit_uint_(8);
+  const uint16_t pm_1_0_std_concentration = encode_value<uint16_t>(frame + 4);
+  const uint16_t pm_2_5_std_concentration = encode_value<uint16_t>(frame + 6);
+  const uint16_t pm_10_0_std_concentration = encode_value<uint16_t>(frame + 8);
 
   PUBLISH_STATE(this->pm_1_0_std_sensor_, pm_1_0_std_concentration);
   PUBLISH_STATE(this->pm_2_5_std_sensor_, pm_2_5_std_concentration);
@@ -234,9 +190,9 @@ void PMSX003Component::parse_data_() {
   const uint8_t pc_offset = is_luftmy ? 10 : 16;
 
   if (!is_luftmy) {
-    const uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
-    const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
-    const uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
+    const uint16_t pm_1_0_concentration = encode_value<uint16_t>(frame + 10);
+    const uint16_t pm_2_5_concentration = encode_value<uint16_t>(frame + 12);
+    const uint16_t pm_10_0_concentration = encode_value<uint16_t>(frame + 14);
 
     ESP_LOGD(TAG, "Got PM1.0 Concentration: %u µg/m³, PM2.5 Concentration %u µg/m³, PM10.0 Concentration: %u µg/m³",
              pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration);
@@ -247,10 +203,10 @@ void PMSX003Component::parse_data_() {
   }
 
   // Particle counts at pc_offset: >0.3, >0.5, >1.0, >2.5µm
-  const uint16_t pm_particles_03um = this->get_16_bit_uint_(pc_offset);
-  const uint16_t pm_particles_05um = this->get_16_bit_uint_(pc_offset + 2);
-  const uint16_t pm_particles_10um = this->get_16_bit_uint_(pc_offset + 4);
-  const uint16_t pm_particles_25um = this->get_16_bit_uint_(pc_offset + 6);
+  const uint16_t pm_particles_03um = encode_value<uint16_t>(frame + pc_offset);
+  const uint16_t pm_particles_05um = encode_value<uint16_t>(frame + pc_offset + 2);
+  const uint16_t pm_particles_10um = encode_value<uint16_t>(frame + pc_offset + 4);
+  const uint16_t pm_particles_25um = encode_value<uint16_t>(frame + pc_offset + 6);
 
   PUBLISH_STATE(this->pm_particles_03um_sensor_, pm_particles_03um);
   PUBLISH_STATE(this->pm_particles_05um_sensor_, pm_particles_05um);
@@ -263,8 +219,8 @@ void PMSX003Component::parse_data_() {
 
   // PMS5003T uses pc_offset+8 and pc_offset+10 for temperature/humidity, not particle counts
   if (this->type_ != Type::PMS5003T) {
-    const uint16_t pm_particles_50um = this->get_16_bit_uint_(pc_offset + 8);
-    const uint16_t pm_particles_100um = this->get_16_bit_uint_(pc_offset + 10);
+    const uint16_t pm_particles_50um = encode_value<uint16_t>(frame + pc_offset + 8);
+    const uint16_t pm_particles_100um = encode_value<uint16_t>(frame + pc_offset + 10);
 
     ESP_LOGD(TAG, "Got PM5.0 Particles: %u Count/0.1L, PM10.0 Particles: %u Count/0.1L", pm_particles_50um,
              pm_particles_100um);
@@ -275,7 +231,7 @@ void PMSX003Component::parse_data_() {
 
   // Formaldehyde
   if (this->type_ == Type::PMS5003S || this->type_ == Type::PMS5003ST) {
-    const uint16_t formaldehyde = this->get_16_bit_uint_(28);
+    const uint16_t formaldehyde = encode_value<uint16_t>(frame + 28);
 
     ESP_LOGD(TAG, "Got Formaldehyde: %u µg/m^3", formaldehyde);
 
@@ -286,8 +242,8 @@ void PMSX003Component::parse_data_() {
   if (this->type_ == Type::PMS5003T || this->type_ == Type::PMS5003ST) {
     const uint8_t temperature_offset = (this->type_ == Type::PMS5003T) ? 24 : 30;
 
-    const float temperature = static_cast<int16_t>(this->get_16_bit_uint_(temperature_offset)) / 10.0f;
-    const float humidity = this->get_16_bit_uint_(temperature_offset + 2) / 10.0f;
+    const float temperature = encode_value<int16_t>(frame + temperature_offset) / 10.0f;
+    const float humidity = encode_value<uint16_t>(frame + temperature_offset + 2) / 10.0f;
 
     ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%%", temperature, humidity);
 
@@ -298,8 +254,8 @@ void PMSX003Component::parse_data_() {
   // Firmware Version and Error Code
   if (this->type_ == Type::PMS1003 || this->type_ == Type::PMS5003ST || this->type_ == Type::PMS9003M) {
     const uint8_t firmware_error_code_offset = (this->type_ == Type::PMS5003ST) ? 36 : 28;
-    const uint8_t firmware_version = this->data_[firmware_error_code_offset];
-    const uint8_t error_code = this->data_[firmware_error_code_offset + 1];
+    const uint8_t firmware_version = frame[firmware_error_code_offset];
+    const uint8_t error_code = frame[firmware_error_code_offset + 1];
 
     ESP_LOGD(TAG, "Got Firmware Version: 0x%02X, Error Code: 0x%02X", firmware_version, error_code);
   }

@@ -6,70 +6,32 @@ namespace esphome::siemens_ira211 {
 
 using namespace remote_base;
 
-struct PresetMapping {
-  climate::ClimatePreset preset;
-  IRA211Mode mode;
+// Presets map to IRA211Mode and fan modes to IRA211Fan. Values the other side does not know fall back to comfort
+// and auto.
+static constexpr climate_ir::IRCode PRESETS[] PROGMEM = {
+    {climate::CLIMATE_PRESET_COMFORT, static_cast<uint8_t>(IRA211Mode::IRA211_MODE_COMFORT)},
+    {climate::CLIMATE_PRESET_ECO, static_cast<uint8_t>(IRA211Mode::IRA211_MODE_TIMER)},
+};
+static constexpr climate_ir::IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, static_cast<uint8_t>(IRA211Fan::IRA211_FAN_AUTO)},
+    {climate::CLIMATE_FAN_LOW, static_cast<uint8_t>(IRA211Fan::IRA211_FAN_LOW)},
+    {climate::CLIMATE_FAN_MEDIUM, static_cast<uint8_t>(IRA211Fan::IRA211_FAN_MEDIUM)},
+    {climate::CLIMATE_FAN_HIGH, static_cast<uint8_t>(IRA211Fan::IRA211_FAN_HIGH)},
 };
 
-static const PresetMapping PRESETS[] PROGMEM = {
-    {climate::CLIMATE_PRESET_COMFORT, IRA211Mode::IRA211_MODE_COMFORT},
-    {climate::CLIMATE_PRESET_ECO, IRA211Mode::IRA211_MODE_TIMER},
-};
-
-struct FanMapping {
-  climate::ClimateFanMode fan_mode;
-  IRA211Fan fan;
-};
-
-static const FanMapping FANS[] PROGMEM = {
-    {climate::CLIMATE_FAN_AUTO, IRA211Fan::IRA211_FAN_AUTO},
-    {climate::CLIMATE_FAN_LOW, IRA211Fan::IRA211_FAN_LOW},
-    {climate::CLIMATE_FAN_MEDIUM, IRA211Fan::IRA211_FAN_MEDIUM},
-    {climate::CLIMATE_FAN_HIGH, IRA211Fan::IRA211_FAN_HIGH},
-};
-
-// The tables live in flash, so entries are copied out before use
-template<typename T> static T load_entry(const T &slot) {
-  T entry;
-  progmem_memcpy(&entry, &slot, sizeof(T));
-  return entry;
-}
-
-// The first entry of each table is the fallback for values the other side does not know
 static IRA211Mode to_ira211_mode(climate::ClimatePreset preset) {
-  for (const auto &slot : PRESETS) {
-    const auto entry = load_entry(slot);
-    if (entry.preset == preset)
-      return entry.mode;
-  }
-  return load_entry(PRESETS[0]).mode;
+  return static_cast<IRA211Mode>(
+      climate_ir::to_ir_code(PRESETS, preset, static_cast<uint8_t>(IRA211Mode::IRA211_MODE_COMFORT)));
 }
-
 static climate::ClimatePreset to_climate_preset(IRA211Mode mode) {
-  for (const auto &slot : PRESETS) {
-    const auto entry = load_entry(slot);
-    if (entry.mode == mode)
-      return entry.preset;
-  }
-  return load_entry(PRESETS[0]).preset;
+  return climate_ir::from_ir_code(PRESETS, static_cast<uint8_t>(mode), climate::CLIMATE_PRESET_COMFORT);
 }
-
 static IRA211Fan to_ira211_fan(climate::ClimateFanMode fan_mode) {
-  for (const auto &slot : FANS) {
-    const auto entry = load_entry(slot);
-    if (entry.fan_mode == fan_mode)
-      return entry.fan;
-  }
-  return load_entry(FANS[0]).fan;
+  return static_cast<IRA211Fan>(
+      climate_ir::to_ir_code(FANS, fan_mode, static_cast<uint8_t>(IRA211Fan::IRA211_FAN_AUTO)));
 }
-
 static climate::ClimateFanMode to_climate_fan_mode(IRA211Fan fan) {
-  for (const auto &slot : FANS) {
-    const auto entry = load_entry(slot);
-    if (entry.fan == fan)
-      return entry.fan_mode;
-  }
-  return load_entry(FANS[0]).fan_mode;
+  return climate_ir::from_ir_code(FANS, static_cast<uint8_t>(fan), climate::CLIMATE_FAN_AUTO);
 }
 
 void SiemensIRA211Climate::setup() {
