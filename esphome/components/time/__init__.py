@@ -295,21 +295,18 @@ def validate_time_at(value):
 
 
 def validate_cron_keys(value):
-    for option in (CONF_CRON, CONF_AT):
-        if option not in value:
-            continue
-        for key in value:
-            if key in CRON_KEYS:
-                raise cv.Invalid(
-                    f"Cannot use option {key} when {option}: is specified."
-                )
-        if option == CONF_CRON and CONF_AT in value:
-            raise cv.Invalid("Cannot use option at with cron!")
-        parsed = value[option]
-        value = {x: value[x] for x in value if x != option}
-        value.update(parsed)
-        return value
-    return cv.has_at_least_one_key(*CRON_KEYS)(value)
+    option = next((o for o in (CONF_CRON, CONF_AT) if o in value), None)
+    if option is None:
+        return cv.has_at_least_one_key(*CRON_KEYS)(value)
+    for key in value:
+        if key in CRON_KEYS:
+            raise cv.Invalid(f"Cannot use option {key} when {option}: is specified.")
+    if CONF_CRON in value and CONF_AT in value:
+        raise cv.Invalid("Cannot use option at with cron!")
+    parsed = value[option]
+    value = {x: value[x] for x in value if x != option}
+    value.update(parsed)
+    return value
 
 
 def cron_field_check(field: CronField, values: list[int]) -> str | None:
