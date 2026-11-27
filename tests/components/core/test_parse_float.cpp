@@ -285,8 +285,8 @@ TEST(StrToFloat, NineDigitTiesGoToEven) {
     expect_picolibc(c);
 }
 
-// RP2350 flushes float denormals in its double to float conversion; #22677 bench. The parser builds the bits
-// with integer operations, so every denormal parses to its own value.
+// Every denormal parses to its own value: the bits come from integer operations, so a chip that flushes
+// denormals in its double to float conversion (RP2350) cannot change them.
 TEST(StrToFloat, DenormalsParseWithoutFlushing) {
   char buf[64];
   const auto check = [&buf](uint32_t k) {
@@ -300,24 +300,20 @@ TEST(StrToFloat, DenormalsParseWithoutFlushing) {
     check(k);
 }
 
-// Pico W and Pico 2 W bench, #22677: the RP2040 and RP2350 libcs flush float denormals to 0 in their double to
-// float conversion, and the RP2040 one turns a NaN into +infinity
-TEST(StrToFloat, Rp2040LibcFlushesAndNanToInfinity) {
-  static const PicolibcCase CASES[] = {
-      {"1e-40", 0x000116C2, 5},          {"1.4e-45", 0x00000001, 7},  {"1e-38", 0x006CE3EE, 5},
-      {"1.1754942e-38", 0x007FFFFF, 13}, {"0x1p-149", 0x00000001, 8}, {"1.17549435e-38", 0x00800000, 14},
-      {"nan(12)", 0x7FC00000, 7},        {"nan", 0x7FC00000, 3},
-  };
-  for (const PicolibcCase &c : CASES)
-    expect_picolibc(c);
-}
-
-// RP2350 bench: libc returned 0 and the first parser stalled stepping up from a flushed guess; #22677 bench
-TEST(StrToFloat, DenormalsAndFltMinMatchStrtof) {
+// Decimal denormals and the edges around FLT_MIN and the smallest denormal, plus hex denormals and NaN, which
+// RP2040/RP2350 libcs flush to 0 or turn into infinity
+TEST(StrToFloat, DenormalEdgesAndNan) {
   for (const char *str : {"1.4e-45", "-1.4e-45", "1e-40", "1e-38", "1.17549435e-38", "1.1754942e-38", "1.17549421e-38",
                           "1.1754945e-38", "7.0064923e-46", "7.0064924e-46"}) {
     expect_str_to_float_matches(str);
   }
+  static const PicolibcCase CASES[] = {
+      {"0x1p-149", 0x00000001, 8},
+      {"nan(12)", 0x7FC00000, 7},
+      {"nan", 0x7FC00000, 3},
+  };
+  for (const PicolibcCase &c : CASES)
+    expect_picolibc(c);
 }
 
 // Home Assistant's non-numeric states; CodSpeed HomeassistantSensor_StateResponse_Unavailable on #22677
