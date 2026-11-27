@@ -1909,7 +1909,31 @@ class MemoryAnalyzer:
         if not (inputs := _parse_map_input_sections(self._map_text)):
             _LOGGER.warning("No input sections in the linker map; is it from GNU ld?")
             return False
-        inputs.sort(key=lambda s: s.address)
+        build_dir = self.elf_path.parent.resolve()
+        scanned_names = {path.name for path in self._rodata_scanned_objects}
+
+        @cache
+        def rodata_charged(source: str) -> bool:
+            if not scanned_names:
+                return False
+            # Archive members are matched by name inside archives built here
+            archive, _, member = source.rstrip(")").partition("(")
+            path = (build_dir / archive).resolve()
+            if member:
+                return member in scanned_names and build_dir in path.parents
+            return path in self._rodata_scanned_objects
+
+        mapped = {
+            output: map_section_name(output) for output in {s.output for s in inputs}
+        }
+        # Where merged sections share an address, the bytes the .rodata pass
+        # charged are placed first, so they are not charged again
+        inputs.sort(
+            key=lambda s: (
+                s.address,
+                not (mapped[s.output] == ".rodata" and rodata_charged(s.source)),
+            )
+        )
         starts = [s.address for s in inputs]
         spans = sorted(self._symbol_spans)
 
@@ -1922,21 +1946,6 @@ class MemoryAnalyzer:
                     size, 1
                 )
 
-        build_dir = self.elf_path.parent.resolve()
-        scanned_names = {path.name for path in self._rodata_scanned_objects}
-
-        @cache
-        def rodata_charged(source: str) -> bool:
-            # Archive members are matched by name inside archives built here
-            archive, _, member = source.rstrip(")").partition("(")
-            path = (build_dir / archive).resolve()
-            if member:
-                return member in scanned_names and build_dir in path.parents
-            return path in self._rodata_scanned_objects
-
-        mapped = {
-            output: map_section_name(output) for output in {s.output for s in inputs}
-        }
         covered_spans = _merge_spans(spans)
         span_starts = [start for start, _ in covered_spans]
         # Merged string sections share an address; count their bytes once
@@ -1959,7 +1968,10 @@ class MemoryAnalyzer:
                 continue
             obj = Path(section.source).name
             if obj_weights := weights.get(section.source):
-                component = obj_weights.most_common(1)[0][0]
+                # A named component wins over "other" (switch tables stay there)
+                component = max(
+                    obj_weights.items(), key=lambda item: (item[0] != "other", item[1])
+                )[0]
             elif "(" in obj:
                 archive = obj.partition("(")[0].removesuffix(".a").removeprefix("lib")
                 component = f"{_COMPONENT_PREFIX_LIB}{archive}"

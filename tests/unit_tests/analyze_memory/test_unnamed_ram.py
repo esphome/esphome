@@ -236,3 +236,42 @@ def test_parse_sections_skips_placeholders() -> None:
         analyzer._parse_sections()
     assert analyzer.sections[".data"].total_size == 0x4DE0
     assert analyzer.sections[".rodata"].total_size == 0x3AA20
+
+
+def test_attribute_unnamed_ram_prefers_named_component() -> None:
+    """An object's unnamed RAM goes to a named component even when "other" weighs more."""
+    analyzer = _analyzer(rodata_in_ram=False)
+    analyzer.__dict__["_map_text"] = f"""\
+Linker script and memory map
+
+.bss            0x000000003ffe8000       0x40
+ .bss           0x000000003ffe8000       0x40 {SDK}/libpp.a(pp.o)
+"""
+    analyzer._symbol_spans = [
+        (0x3FFE8000, 0x10, "CSWTCH.5"),
+        (0x3FFE8010, 0x4, "ppTask"),
+    ]
+    analyzer._symbol_components = {"CSWTCH.5": "other", "ppTask": "wifi_phy_pp"}
+    analyzer._attribute_unnamed_ram()
+    assert analyzer.get_unnamed_ram() == [
+        ("libpp.a(pp.o)", ".bss", "wifi_phy_pp", 0x2C)
+    ]
+
+
+def test_attribute_unnamed_ram_merged_with_charged_rodata() -> None:
+    """Bytes an SDK string section shares with one the .rodata pass read are not charged again."""
+    analyzer = _analyzer(rodata_in_ram=True)
+    build_dir = analyzer.elf_path.parent.resolve()
+    analyzer._rodata_scanned_objects = {build_dir / "obj" / "src" / "main.cpp.o"}
+    analyzer.__dict__["_map_text"] = f"""\
+Linker script and memory map
+
+.rodata         0x000000003ffe8000       0x30
+ .rodata.str1.1
+                0x000000003ffe8000       0x20 {SDK}/libc.a(lib_a-ctype_.o)
+ .rodata.str1.1
+                0x000000003ffe8000       0x30 obj/src/main.cpp.o
+"""
+    analyzer._symbol_spans = []
+    analyzer._attribute_unnamed_ram()
+    assert analyzer.get_unnamed_ram() == []
