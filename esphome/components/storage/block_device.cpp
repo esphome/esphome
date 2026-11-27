@@ -42,35 +42,36 @@ StorageError BlockDevice::check_range_(uint32_t block, uint32_t count) const {
 }
 
 StorageError BlockDevice::read(uint32_t block, uint32_t offset, void *buf, uint32_t len) {
+  // A single filesystem call, such as a format, can make thousands of transfers. Only a task the watchdog watches
+  // feeds it: the main loop, also during setup(), but not a task using a filesystem through the C library. The feed
+  // can run other code, such as a status LED, so it comes before the lock.
+  App.feed_wdt_if_watched();
   const std::scoped_lock lock{this->mutex_};
   if (len == 0)
     return StorageError::STORAGE_ERROR_NONE;
   StorageError err = this->check_access_(block, offset, len, this->geometry_.read_size, false);
   if (err != StorageError::STORAGE_ERROR_NONE)
     return err;
-  // A single filesystem call, such as a format, can make thousands of transfers. Only a task the watchdog watches
-  // feeds it: the main loop, also during setup(), but not a task using a filesystem through the C library.
-  App.feed_wdt_if_watched();
   return this->device_read(block, offset, buf, len);
 }
 
 StorageError BlockDevice::program(uint32_t block, uint32_t offset, const void *buf, uint32_t len) {
+  App.feed_wdt_if_watched();
   const std::scoped_lock lock{this->mutex_};
   if (len == 0)
     return StorageError::STORAGE_ERROR_NONE;
   StorageError err = this->check_access_(block, offset, len, this->geometry_.program_size, true);
   if (err != StorageError::STORAGE_ERROR_NONE)
     return err;
-  App.feed_wdt_if_watched();
   return this->device_program(block, offset, buf, len);
 }
 
 StorageError BlockDevice::erase(uint32_t block, uint32_t count) {
+  App.feed_wdt_if_watched();
   const std::scoped_lock lock{this->mutex_};
   StorageError err = this->check_range_(block, count);
   if (err != StorageError::STORAGE_ERROR_NONE)
     return err;
-  App.feed_wdt_if_watched();
   return this->device_erase(block, count);
 }
 
