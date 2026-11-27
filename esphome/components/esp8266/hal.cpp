@@ -73,15 +73,18 @@ uint32_t IRAM_ATTR HOT millis() {
 }
 
 // Arduino's os_timer-based esp_delay() suspends the cont task, so the SDK and WiFi run freely while
-// we wait. Use the predicate form: the 1-arg form returns on the first esp_schedule() from anywhere
-// (wake_loop(), lwIP callbacks), which can cut a wait to microseconds. Its millis() calls happen
-// outside Arduino's wiring object, so --wrap=millis still catches them (#15662).
+// we wait. It returns on the first esp_schedule() from anywhere (wake_loop(), lwIP callbacks), so
+// suspend again for the rest of the time, measured with micros() so the wait never ends early.
 void HOT delay(uint32_t ms) {
   if (ms == 0) {
     optimistic_yield(1000);
     return;
   }
-  esp_delay(ms, []() { return true; });
+  const uint32_t start = micros();
+  const uint32_t total_us = ms * 1000;
+  uint32_t elapsed;
+  while ((elapsed = micros() - start) < total_us)
+    esp_delay((total_us - elapsed + 999) / 1000);
 }
 
 void arch_restart() {
