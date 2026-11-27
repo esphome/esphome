@@ -25,7 +25,7 @@ static constexpr uint8_t NETWORK_TYPE_VIRTUAL = 3;
 /// The name of a node, taking its network type into account.
 const LogString *node_type_name(uint8_t type, uint8_t network_type);
 
-/// The netork type of a node
+/// The network type of a node
 const LogString *network_type_name(uint8_t type);
 
 /// A received message; data points into the receive buffer and is valid only during the callback.
