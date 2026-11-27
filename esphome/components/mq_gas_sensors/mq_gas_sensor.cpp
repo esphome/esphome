@@ -164,18 +164,19 @@ void MQGasSensor::setup() {
   }
 
 #ifdef USE_MQ_GAS_SENSORS_CORRECTION
-  // Track when the correction sources last delivered a finite state. A sensor
-  // keeps `has_state()` after it stops updating, so the timestamp is what tells
-  // a live source from a frozen one.
+  // Track when the correction sources last delivered a state. A sensor keeps
+  // `has_state()` after it stops updating, so the timestamp is what tells a live
+  // source from a frozen one. The filtered state is the one the correction reads:
+  // a publication that a filter drops must not make an old value look fresh.
   const uint32_t now = App.get_loop_component_start_time();
   if (this->temperature_source_ != nullptr) {
-    this->temperature_source_->add_on_raw_state_callback(
+    this->temperature_source_->add_on_state_callback(
         [this](float value) { this->temperature_tracker_.record(value, App.get_loop_component_start_time()); });
     if (this->temperature_source_->has_state())
       this->temperature_tracker_.record(this->temperature_source_->state, now);
   }
   if (this->humidity_source_ != nullptr) {
-    this->humidity_source_->add_on_raw_state_callback(
+    this->humidity_source_->add_on_state_callback(
         [this](float value) { this->humidity_tracker_.record(value, App.get_loop_component_start_time()); });
     if (this->humidity_source_->has_state())
       this->humidity_tracker_.record(this->humidity_source_->state, now);

@@ -13,6 +13,12 @@ class CorrectionSampler : public voltage_sampler::VoltageSampler {
   float value{1.0f};
 };
 
+/// Filter that lets no publication through, like `filter_out:` on a fault value.
+class DropEverything : public sensor::Filter {
+ public:
+  optional<float> new_value(float value) override { return {}; }
+};
+
 class CorrectionTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -68,6 +74,25 @@ TEST_F(CorrectionTest, ASourceWithoutAReadingIsNotUsedAndIsReported) {
   // The source keeps `has_state()`, but its value is no longer a measurement.
   this->temperature_.publish_state(NAN);
   this->sensor_.update();
+  EXPECT_FLOAT_EQ(1.0f, this->correction_.state);
+  EXPECT_TRUE(this->sensor_.status_has_warning());
+}
+
+TEST_F(CorrectionTest, APublicationDroppedByAFilterDoesNotRefreshASource) {
+  this->enable_compensation_();
+  this->sensor_.setup();
+  // Values the compensation never saw arrive: only a delivered state counts.
+  this->temperature_.state = 20.0f;
+  this->humidity_.state = 50.0f;
+  DropEverything temperature_filter;
+  DropEverything humidity_filter;
+  this->temperature_.add_filter(&temperature_filter);
+  this->humidity_.add_filter(&humidity_filter);
+
+  this->temperature_.publish_state(85.0f);
+  this->humidity_.publish_state(85.0f);
+  this->sensor_.update();
+
   EXPECT_FLOAT_EQ(1.0f, this->correction_.state);
   EXPECT_TRUE(this->sensor_.status_has_warning());
 }
