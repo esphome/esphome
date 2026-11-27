@@ -268,7 +268,7 @@ bool HOT EPaperUC8179Gray4::transfer_mono_() {
     this->cmd_data(CMD_CDI, {0xA9, 0x07});
     this->cmd_data(CMD_CCSET, {0x02});
     this->cmd_data(CMD_TSSET, {0x6E});
-    this->set_partial_window_(0, this->width_ - 1, 0, this->height_ - 1);
+    this->set_partial_window(0, this->width_ - 1, 0, this->height_ - 1);
   }
 
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
