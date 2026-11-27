@@ -69,6 +69,13 @@ bool tensor_value(const TfLiteTensor *tensor, size_t index, float *out) {
 
 bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   this->detection_count_ = 0;
+  if (this->format_ != DetectionFormat::DETECTION_FORMAT_SSD) {
+    if (count != 1) {
+      ESP_LOGE(TAG, "A YOLO model needs 1 output, this one has %zu", count);
+      return false;
+    }
+    return this->decode_yolo_(outputs[0]);
+  }
   if (count != 4) {
     ESP_LOGE(TAG, "A detection model needs 4 outputs, this one has %zu", count);
     return false;
@@ -113,6 +120,36 @@ bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return false;
   }
   this->detection_count_ = selected;
+  return true;
+}
+
+bool DetectionDecoder::decode_yolo_(const TfLiteTensor *tensor) {
+  const bool v5 = this->format_ == DetectionFormat::DETECTION_FORMAT_YOLOV5;
+  const size_t fields_before_classes = v5 ? 5 : 4;
+  if (tensor->dims == nullptr || tensor->dims->size != 3 || tensor->dims->data[0] != 1 || tensor->dims->data[1] <= 0 ||
+      tensor->dims->data[2] <= 0) {
+    ESP_LOGE(TAG, "The candidate tensor does not have 3 dimensions");
+    return false;
+  }
+  // yolov5 stores one candidate per row, yolov8 one per column.
+  const size_t fields = tensor->dims->data[v5 ? 2 : 1];
+  const size_t candidates = tensor->dims->data[v5 ? 1 : 2];
+  float probe = 0.0f;
+  if (fields <= fields_before_classes || !tensor_value(tensor, 0, &probe)) {
+    ESP_LOGE(TAG, "The candidate tensor has no class scores or an unsupported type");
+    return false;
+  }
+  auto get = [&](size_t index, Detection &detection) {
+    auto value = [&](size_t field) {
+      // The shape and type were checked above, so the read cannot fail.
+      float out = 0.0f;
+      tensor_value(tensor, v5 ? index * fields + field : field * candidates + index, &out);
+      return out;
+    };
+    return yolo_candidate(value, fields - fields_before_classes, v5, this->score_threshold_, detection);
+  };
+  this->detection_count_ =
+      select_detections(this->detections_.get(), this->max_detections_, this->iou_threshold_, candidates, get);
   return true;
 }
 
