@@ -47,45 +47,27 @@ static bool is_powered_on(const uint8_t *state) {
   return get_field(state, POWER_1) == POWER_ON && get_field(state, POWER_2) == POWER_ON;
 }
 
-struct Code {
-  uint8_t value;  // a climate enum, all of which are uint8_t
-  uint8_t code;
-};
-// The first entry of each table is the fallback in both directions
-static constexpr Code MODES[] PROGMEM = {
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// Codes not listed fall back to auto (mode and fan) and to swing off
+static constexpr IRCode MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, 0}, {climate::CLIMATE_MODE_COOL, 1}, {climate::CLIMATE_MODE_DRY, 2},
     {climate::CLIMATE_MODE_FAN_ONLY, 3},  {climate::CLIMATE_MODE_HEAT, 4},
 };
-static constexpr Code FANS[] PROGMEM = {
+static constexpr IRCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, 0},
     {climate::CLIMATE_FAN_LOW, 2},
     {climate::CLIMATE_FAN_MEDIUM, 4},
     {climate::CLIMATE_FAN_HIGH, 5},
 };
-static constexpr Code SWINGS[] PROGMEM = {
+static constexpr IRCode SWINGS[] PROGMEM = {
     {climate::CLIMATE_SWING_OFF, 0b111},
     {climate::CLIMATE_SWING_VERTICAL, 0b010},
     {climate::CLIMATE_SWING_HORIZONTAL, 0b011},
     {climate::CLIMATE_SWING_BOTH, 0b100},
 };
-
-// Returns the entry whose value (or code) matches key, else the first entry. Entries are copied out of PROGMEM.
-static Code find_entry(const Code *table, size_t count, uint8_t key, bool match_code) {
-  Code entry{};
-  for (size_t i = 0; i < count; i++) {
-    progmem_memcpy(&entry, &table[i], sizeof(entry));
-    if ((match_code ? entry.code : entry.value) == key)
-      return entry;
-  }
-  progmem_memcpy(&entry, table, sizeof(entry));
-  return entry;
-}
-template<size_t N> static uint8_t to_code(const Code (&table)[N], uint8_t value) {
-  return find_entry(table, N, value, false).code;
-}
-template<typename T, size_t N> static T from_code(const Code (&table)[N], uint8_t code) {
-  return static_cast<T>(find_entry(table, N, code, true).value);
-}
 
 // Inverted count of the one bits in a section, skipping the two nibbles that hold the checksum itself.
 // See https://github.com/crankyoldgit/IRremoteESP8266/issues/1538#issuecomment-894645947
@@ -123,13 +105,13 @@ void SamsungClimate::transmit_state() {
 
   if (on) {
     progmem_memcpy(state, RESET_STATE, SAMSUNG_AC_STATE_LENGTH);
-    set_field(state, MODE, to_code(MODES, this->mode));
+    set_field(state, MODE, to_ir_code(MODES, this->mode, 0));
   }  // else keep the last mode so the power off frame still carries a valid state
 
   const uint8_t temp = clamp<uint8_t>(this->target_temperature, SAMSUNG_AC_TEMP_MIN, SAMSUNG_AC_TEMP_MAX);
   set_field(state, TEMP, temp - SAMSUNG_AC_TEMP_MIN);
-  set_field(state, SWING, to_code(SWINGS, this->swing_mode));
-  set_field(state, FAN, to_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)));
+  set_field(state, SWING, to_ir_code(SWINGS, this->swing_mode, 0b111));
+  set_field(state, FAN, to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), 0));
   set_field(state, POWER_1, on ? POWER_ON : 0);
   set_field(state, POWER_2, on ? POWER_ON : 0);
 
@@ -212,11 +194,11 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   memcpy(state, frame, SAMSUNG_AC_SECTION_LENGTH);
   memcpy(state + SAMSUNG_AC_SECTION_LENGTH, frame + length - SAMSUNG_AC_SECTION_LENGTH, SAMSUNG_AC_SECTION_LENGTH);
 
-  this->swing_mode = from_code<climate::ClimateSwingMode>(SWINGS, get_field(state, SWING));
+  this->swing_mode = from_ir_code(SWINGS, get_field(state, SWING), climate::CLIMATE_SWING_OFF);
   this->target_temperature = get_field(state, TEMP) + SAMSUNG_AC_TEMP_MIN;
-  this->fan_mode = from_code<climate::ClimateFanMode>(FANS, get_field(state, FAN));
-  this->mode =
-      is_powered_on(state) ? from_code<climate::ClimateMode>(MODES, get_field(state, MODE)) : climate::CLIMATE_MODE_OFF;
+  this->fan_mode = from_ir_code(FANS, get_field(state, FAN), climate::CLIMATE_FAN_AUTO);
+  this->mode = is_powered_on(state) ? from_ir_code(MODES, get_field(state, MODE), climate::CLIMATE_MODE_HEAT_COOL)
+                                    : climate::CLIMATE_MODE_OFF;
 
   ESP_LOGD(TAG, "Received %u byte frame, power %s", length, ONOFF(is_powered_on(state)));
   this->publish_state();

@@ -30,7 +30,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
+from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns, register_sensor
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor)
 
@@ -209,4 +209,4 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await sensor.register_sensor(var, config)
     hub = await cg.get_variable(config[CONF_EMONTX_ID])
-    cg.add(hub.register_sensor(config[CONF_TAG_NAME], var))
+    cg.add(register_sensor(hub, config[CONF_TAG_NAME], var))

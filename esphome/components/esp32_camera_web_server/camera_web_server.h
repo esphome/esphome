@@ -41,7 +41,7 @@ class CameraWebServer final : public Component, public camera::CameraListener {
 
   uint16_t port_{0};
   void *httpd_{nullptr};
-  SemaphoreHandle_t semaphore_;
+  SemaphoreHandle_t semaphore_{nullptr};
   std::shared_ptr<camera::CameraImage> image_;
   bool running_{false};
   Mode mode_{STREAM};

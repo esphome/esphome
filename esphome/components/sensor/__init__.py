@@ -309,10 +309,8 @@ def sensor_entity_category(value):
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
-# Triggers
-ValueRangeTrigger = sensor_ns.class_(
-    "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
-)
+# Automations
+ValueRangeBase = sensor_ns.class_("ValueRangeBase", automation.FiringComponent)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
@@ -412,7 +410,7 @@ _SENSOR_SCHEMA = (
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeBase),
                     cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
                     cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
                 },
@@ -1200,11 +1198,7 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = await automation.new_value_range_trigger(
-            conf[CONF_TRIGGER_ID], var, conf
-        )
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_value_range_automation(conf, ValueRangeBase, var)
 
 
 @setup_entity("sensor")
