@@ -67,6 +67,7 @@ BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
 TIME_WRAPS = {
     FAMILY_RTL8710B: ("millis", "micros", "delay", "delayMicroseconds"),
     FAMILY_RTL8720C: ("micros", "delayMicroseconds"),
+    FAMILY_LN882H: ("micros", "delayMicroseconds", "vApplicationTickHook"),
 }
 
 
