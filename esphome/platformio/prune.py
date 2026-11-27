@@ -25,19 +25,11 @@ LIBRETINY = "libretiny"
 DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266, NORDICNRF52)
 # Installed from a URL that changes with every version. PlatformIO moves the
 # copy a new install replaces to "<name>@src-<hash>", so a directory of that
-# form is never the one in use. LibreTiny's packages are not listed: its chip
-# families build with different versions of the same package at once, so
-# those copies are checked one by one (_unused_libretiny_packages).
+# form is never the one in use. The RP2 packages need no such rule, a new
+# version overwrites them in place. LibreTiny's packages are moved aside too,
+# but its chip families build with different versions of one package at once,
+# so those copies are checked one by one (_unused_libretiny_packages).
 _SUPERSEDED_PLATFORMS = ("raspberrypi", LIBRETINY)
-# The RP2 framework, and the tools its platform downloads from URLs it sets
-# itself; `pio system prune` skips every package that came from a URL
-_SUPERSEDED_PACKAGES = (
-    "framework-arduinopico",
-    "toolchain-rp2040-earlephilhower",
-    "tool-picotool-rp2040-earlephilhower",
-    "tool-pioasm-rp2040-earlephilhower",
-    "tool-openocd-rp2040-earlephilhower",
-)
 _SUPERSEDED_MARK = "@src-"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
 # downloads, directly in PlatformIO's core directory
@@ -53,12 +45,18 @@ def _superseded(path: Path, names: Collection[str]) -> bool:
     return _SUPERSEDED_MARK in path.name and _name(path) in names
 
 
-def _package_names(platform: Path) -> set[str] | None:
-    """Names of the packages a platform installs, None if they cannot be read."""
+def _packages(platform: Path) -> dict[str, bool] | None:
+    """The packages a platform lists and whether it marks each one optional.
+
+    None if they cannot be read.
+    """
     manifest = platform / "platform.json"
     try:
-        return set(json.loads(manifest.read_text(encoding="utf-8"))["packages"])
-    except (OSError, ValueError, KeyError, TypeError) as err:
+        packages = json.loads(manifest.read_text(encoding="utf-8"))["packages"]
+        return {
+            name: bool(package.get("optional")) for name, package in packages.items()
+        }
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as err:
         _LOGGER.debug("Could not read the packages of %s: %s", manifest, err)
         return None
 
@@ -82,7 +80,7 @@ def _unused_libretiny_packages(platforms_dir: Path, packages_dir: Path) -> list[
     from esphome.components.libretiny.prune import package_uris
 
     platform = platforms_dir / LIBRETINY
-    if (names := _package_names(platform)) is None:
+    if (names := _packages(platform)) is None:
         return []
     if (uris := package_uris(platform)) is None:
         return []
@@ -101,9 +99,9 @@ def prune_platformio_installs(
     """Remove the named PlatformIO platforms and the packages only they use.
 
     A package that PlatformIO itself or a remaining platform needs is kept.
-    The copies of the RP2 and LibreTiny platforms and of the RP2 framework
-    and tools that a newer install replaced are removed too, and so are the
-    replaced LibreTiny packages in a version it no longer builds with.
+    The copies of the RP2 and LibreTiny platforms that a newer install
+    replaced are removed too, and so are the replaced LibreTiny packages in a
+    version it no longer builds with.
     Returns the removed directories (the ones that would be removed on a dry
     run). Does nothing when PlatformIO is not installed.
     """
@@ -126,28 +124,39 @@ def prune_platformio_installs(
         else:
             kept.append(platform)
 
-    owned: set[str] = set()
+    # Package name -> the removed platforms that list it
+    owners: dict[str, set[str]] = {}
     for platform in doomed:
-        owned |= _package_names(platform) or set()
-    owned -= set(get_core_dependencies())
+        for package in _packages(platform) or ():
+            owners.setdefault(package, set()).add(_name(platform))
+    for package in get_core_dependencies():
+        owners.pop(package, None)
     for platform in kept:
-        if (names := _package_names(platform)) is None:
+        if (packages := _packages(platform)) is None:
             _LOGGER.warning(
                 "Keeping all PlatformIO packages, could not tell which ones %s uses",
                 platform,
             )
-            owned = set()
+            owners = {}
             break
-        owned -= names
+        name = _name(platform)
+        for package, optional in packages.items():
+            if not optional or name in platforms:
+                owners.pop(package, None)
+            elif package in owners:
+                # Optional here: kept if only this platform's own replaced
+                # copies list it, removed if another removed platform does.
+                # The RP2 platform lists cmake and ninja this way, for a
+                # framework ESPHome never builds with.
+                owners[package].discard(name)
+    owned = {package for package, names in owners.items() if names}
 
     # Packages go before the platforms: the platforms say which packages are theirs
     packages_dir = Path(config.get("platformio", "packages_dir"))
     removed = [
         package
         for package in subdirs(packages_dir)
-        if is_leftover(package)
-        or _name(package) in owned
-        or _superseded(package, _SUPERSEDED_PACKAGES)
+        if is_leftover(package) or _name(package) in owned
     ]
     removed += [
         package

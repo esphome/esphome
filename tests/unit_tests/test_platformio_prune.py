@@ -36,12 +36,15 @@ def core_dir(tmp_path: Path) -> Generator[Path]:
         yield core_dir
 
 
-def _platform(core_dir: Path, name: str, packages: list[str]) -> Path:
+def _platform(
+    core_dir: Path, name: str, packages: list[str], optional: tuple[str, ...] = ()
+) -> Path:
     platform = core_dir / "platforms" / name
     platform.mkdir(parents=True)
+    manifest = {package: {} for package in packages}
+    manifest |= {package: {"optional": True} for package in optional}
     (platform / "platform.json").write_text(
-        json.dumps({"packages": {package: {} for package in packages}}),
-        encoding="utf-8",
+        json.dumps({"packages": manifest}), encoding="utf-8"
     )
     return platform
 
@@ -97,21 +100,23 @@ def test_prune_removes_the_platforms_and_their_packages(core_dir: Path) -> None:
 
 
 def test_prune_removes_copies_a_newer_install_replaced(core_dir: Path) -> None:
-    rp2 = _platform(core_dir, "raspberrypi", ["framework-arduinopico", "rp2-gcc"])
+    """The packages of the copy in use stay, optional ones included."""
+    rp2 = _platform(
+        core_dir, "raspberrypi", ["rp2-gcc"], optional=("framework-arduinopico",)
+    )
     old_rp2 = _platform(
-        core_dir, "raspberrypi@src-0123", ["framework-arduinopico", "old-rp2-gcc"]
+        core_dir,
+        "raspberrypi@src-0123",
+        ["old-rp2-gcc"],
+        optional=("framework-arduinopico",),
     )
     libretiny = _platform(core_dir, "libretiny", ["framework-beken-bdk"])
     old_libretiny = _platform(core_dir, "libretiny@src-4567", ["framework-beken-bdk"])
-    framework = _package(core_dir, "framework-arduinopico")
-    old_framework = _package(core_dir, "framework-arduinopico@src-89ab")
-    old_toolchain = _package(core_dir, "toolchain-rp2040-earlephilhower@src-89ab")
     # Only the replaced platform copy lists it
     old_gcc = _package(core_dir, "old-rp2-gcc")
     stay = [
-        framework,
+        _package(core_dir, "framework-arduinopico"),
         _package(core_dir, "rp2-gcc"),
-        _package(core_dir, "toolchain-rp2040-earlephilhower"),
         # LibreTiny families build with different versions at once
         _package(core_dir, "framework-beken-bdk"),
         _package(core_dir, "framework-beken-bdk@src-cdef"),
@@ -119,15 +124,31 @@ def test_prune_removes_copies_a_newer_install_replaced(core_dir: Path) -> None:
 
     removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
 
-    assert set(removed) == {
-        old_rp2,
-        old_libretiny,
-        old_framework,
-        old_toolchain,
-        old_gcc,
-    }
+    assert set(removed) == {old_rp2, old_libretiny, old_gcc}
     for path in (rp2, libretiny, *stay):
         assert path.is_dir()
+
+
+def test_prune_is_not_held_back_by_an_optional_listing(core_dir: Path) -> None:
+    """A removed platform's package goes even if a kept one lists it as optional."""
+    nrf52 = _platform(
+        core_dir, "nordicnrf52", ["tool-cmake", "toolchain-gccarmnoneeabi"]
+    )
+    old_rp2 = _platform(core_dir, "raspberrypi@src-0123", [], optional=("tool-cmake",))
+    _platform(
+        core_dir,
+        "raspberrypi",
+        ["toolchain-gccarmnoneeabi"],
+        optional=("tool-cmake", "tool-jlink"),
+    )
+    cmake = _package(core_dir, "tool-cmake")
+    cmake_copy = _package(core_dir, "tool-cmake@src-0123")
+    toolchain = _package(core_dir, "toolchain-gccarmnoneeabi")
+
+    removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
+
+    assert removed == [cmake, cmake_copy, nrf52, old_rp2]
+    assert toolchain.is_dir()
 
 
 def test_prune_removes_the_nrf52_platform(core_dir: Path) -> None:
@@ -286,7 +307,8 @@ def test_prune_leaves_a_symlinked_platform_and_what_it_uses(core_dir: Path) -> N
     checkout = core_dir / "my-platform-espressif32"
     checkout.mkdir(parents=True)
     (checkout / "platform.json").write_text(
-        json.dumps({"packages": {"framework-espidf": {}}}), encoding="utf-8"
+        json.dumps({"packages": {"framework-espidf": {"optional": True}}}),
+        encoding="utf-8",
     )
     old = _platform(core_dir, "espressif32@src-0123", ["framework-espidf", "old-gcc"])
     link = core_dir / "platforms" / "espressif32"
