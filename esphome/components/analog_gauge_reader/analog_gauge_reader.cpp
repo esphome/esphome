@@ -181,17 +181,11 @@ bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
     this->readings_.push_back({&dial, val, display_angle, result.confidence});
   }
 
-  // Publish the per-dial states only now, so a dropped frame leaves every sensor untouched.
-  for (const auto &r : this->readings_) {
-    PUBLISH_STATE(r.dial->angle_sensor, r.angle);
-    PUBLISH_STATE(r.dial->confidence_sensor, r.confidence);
-  }
-
   // Round away float noise; stacked digits keep the finest dial's resolution.
   float total_value = 0.0f;
   float precision = DECIMAL_PRECISION;
 #ifdef USE_ANALOG_GAUGE_READER_STACKED_DIGITS
-  total_value = combine_stacked_digits(this->readings_.begin(), this->readings_.size(), this->order_.data(),
+  total_value = combine_stacked_digits(this->readings_.data(), this->readings_.size(), this->order_.data(),
                                        this->phase_.data(), this->digits_.data());
   if (!std::isfinite(total_value)) {
     ESP_LOGE(TAG, "Stacked dial values cannot be combined; dropping this frame");
@@ -206,6 +200,12 @@ bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
     PUBLISH_STATE(r.dial->value_sensor, r.value);
   }
 #endif
+  // Publish the per-dial states only now, so a dropped frame leaves every sensor untouched.
+  for (const auto &r : this->readings_) {
+    PUBLISH_STATE(r.dial->angle_sensor, r.angle);
+    PUBLISH_STATE(r.dial->confidence_sensor, r.confidence);
+  }
+
   total_value = roundf(total_value * precision) / precision;
   PUBLISH_STATE(this->value_sensor_, total_value);
   return true;
