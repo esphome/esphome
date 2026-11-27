@@ -27,9 +27,11 @@ TEST_P(SX126xRetune, MovesFrequencyWithoutConfiguringAgain) {
   ASSERT_FALSE(hw.radio.is_failed());
   hw.clear_trace();
   hw.radio.retune(FREQUENCY);
-  ASSERT_GE(hw.transactions.size(), 3u);
+  ASSERT_GE(hw.transactions.size(), 4u);
   EXPECT_EQ(hw.transactions[0], (std::vector<uint8_t>{RADIO_SET_STANDBY, STDBY_XOSC}));
-  EXPECT_EQ(hw.transactions[1], set_frequency_command());
+  EXPECT_EQ(hw.transactions[1],
+            (std::vector<uint8_t>{RADIO_CLR_IRQSTATUS, 0x00, IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID}));
+  EXPECT_EQ(hw.transactions[2], set_frequency_command());
   EXPECT_EQ(hw.transactions.back()[0], rx ? RADIO_SET_RX : RADIO_SET_SLEEP);
   // Nothing a configuration sends besides
   for (const auto &command : hw.transactions) {
@@ -62,6 +64,26 @@ TEST(SX126xRetune, IgnoredWhileSending) {
   hw.radio.retune(FREQUENCY);
   EXPECT_TRUE(hw.transactions.empty());
   EXPECT_TRUE(hw.radio.is_transmitting());
+}
+
+TEST(SX126xRetune, AbandonsAPacketBegunOnTheOldFrequency) {
+  RadioHardware hw;
+  hw.configure(true, true);
+  hw.irq = IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID;
+  ASSERT_TRUE(hw.radio.is_receiving());
+  hw.radio.retune(FREQUENCY);
+  EXPECT_FALSE(hw.radio.is_receiving());
+}
+
+TEST(SX126xRetune, KeepsAReceivedPacketForTheLoop) {
+  RadioHardware hw;
+  PacketListener listener;
+  hw.configure(true, true);
+  hw.radio.register_listener(&listener);
+  hw.irq = IRQ_RX_DONE;
+  hw.radio.retune(FREQUENCY);
+  hw.radio.loop();
+  EXPECT_EQ(listener.packets, std::vector<std::vector<uint8_t>>{hw.packet});
 }
 
 TEST(SX126xRetune, IgnoredBeforeSetup) {

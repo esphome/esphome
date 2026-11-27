@@ -56,6 +56,9 @@ RadioEffects SX126xRadio::retune(uint32_t frequency) {
   this->busy_ = true;
   this->bus().begin();
   this->commands_.standby(STDBY_XOSC);
+  // A packet begun on the old frequency is abandoned, and its header or sync word flag would keep is_receiving() true.
+  // A packet already received stays flagged for loop().
+  this->commands_.clear_irqs(IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID);
   this->commands_.set_frequency(frequency);
   if (this->applied_.rx_start) {
     this->commands_.receive();
