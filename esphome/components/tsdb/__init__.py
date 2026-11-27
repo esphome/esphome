@@ -232,11 +232,16 @@ def _validate_page_geometry(config: ConfigType) -> None:
             )
 
 
-def _validate_memory(value: str) -> str:
-    mode = cv.one_of(*MEMORY_MODES, lower=True)(value)
+def _require_psram_component(mode: str) -> str:
     if mode == "psram":
         return cv.requires_component("psram")(mode)
     return mode
+
+
+# Composed, so the language schema dumper sees the choices.
+_validate_memory = cv.All(
+    cv.one_of(*MEMORY_MODES, lower=True), _require_psram_component
+)
 
 
 def _validate_config(config: ConfigType) -> ConfigType:
@@ -326,25 +331,34 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PARTITION, default="littlefs"): cv.All(
                 cv.string_strict, cv.Length(min=1, max=15)
             ),
-            cv.Optional(CONF_PARTITION_SIZE, default="512KB"): _validate_partition_size,
+            # cv.string ahead of each size validator types it for the language schema.
+            cv.Optional(CONF_PARTITION_SIZE, default="512KB"): cv.All(
+                cv.string, _validate_partition_size
+            ),
             cv.Optional(CONF_FORMAT_ON_FIRST_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_RECREATE_ON_SCHEMA_CHANGE, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_FILE_SIZE, default="224KB"): _validate_size,
+            cv.Optional(CONF_MAX_FILE_SIZE, default="224KB"): cv.All(
+                cv.string, _validate_size
+            ),
             cv.Optional(
                 CONF_INDEX_STRIDE, default=TSDB_DEFAULT_INDEX_STRIDE
             ): cv.int_range(min=1, max=100000),
             cv.Optional(CONF_BUFFER_POOL_SIZE, default="4KB"): cv.All(
-                _validate_buffer_pool_size, cv.Range(max=256 * 1024)
+                cv.string, _validate_buffer_pool_size, cv.Range(max=256 * 1024)
             ),
             cv.Optional(CONF_MEMORY, default="auto"): _validate_memory,
             cv.Optional(CONF_PAGED_ALLOCATION, default=False): cv.boolean,
             cv.Optional(CONF_PAGE_SIZE, default=TSDB_DEFAULT_PAGE_SIZE): cv.All(
-                _validate_size, cv.Range(min=TSDB_BLOCK_BYTES, max=64 * 1024)
+                cv.string,
+                _validate_size,
+                cv.Range(min=TSDB_BLOCK_BYTES, max=64 * 1024),
             ),
             cv.Optional(
                 CONF_SYNC_INTERVAL, default="15min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_MIN_FREE_BYTES, default="32KB"): _validate_min_free_bytes,
+            cv.Optional(CONF_MIN_FREE_BYTES, default="32KB"): cv.All(
+                cv.string, _validate_min_free_bytes
+            ),
             cv.Optional(CONF_REQUIRE_TIME, default=True): cv.boolean,
             cv.Optional(CONF_TIME_ID): cv.use_id(RealTimeClock),
             cv.Optional(CONF_ON_MISSING, default="skip"): cv.one_of(
@@ -356,7 +370,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_AGGREGATE_INTERVAL, default="5min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_DUMP_ROWS, default=60): cv.int_range(min=1, max=1000),
+            # No default: setting it also compiles the dump in for lambda users.
+            cv.Optional(CONF_DUMP_ROWS): cv.int_range(min=1, max=1000),
             cv.Required(CONF_COLUMNS): cv.All(
                 cv.ensure_list(COLUMN_SCHEMA),
                 cv.Length(min=1, max=TSDB_MAX_BASE_PARAMS),
@@ -449,9 +464,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_TSDB_AGGREGATES")
         cg.add(var.set_aggregate_window(config[CONF_AGGREGATE_WINDOW]))
         cg.add(var.set_aggregate_interval(config[CONF_AGGREGATE_INTERVAL]))
-    if _contains_key(CORE.config, "tsdb.dump"):
+    if CONF_DUMP_ROWS in config or _contains_key(CORE.config, "tsdb.dump"):
         cg.add_define("USE_TSDB_DUMP")
-        cg.add(var.set_dump_rows(config[CONF_DUMP_ROWS]))
+        if (dump_rows := config.get(CONF_DUMP_ROWS)) is not None:
+            cg.add(var.set_dump_rows(dump_rows))
     await cg.add_variable(var.set_time_source, config.get(CONF_TIME_ID))
 
     cg.add_define("TSDB_COLUMN_COUNT", len(config[CONF_COLUMNS]))

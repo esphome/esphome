@@ -140,6 +140,9 @@ static bool header_is_sane(const tsdb_header_t &header) {
     return false;
   if (header.index_stride == 0)
     return false;
+  if (header.extra_param_count > 0 && (header.extra_param_count > 48 || header.overflow_record_size == 0 ||
+                                       header.overflow_record_size > TSDB_BLOCK_SIZE))
+    return false;
   return header.max_records <= 100000000UL;
 }
 
@@ -704,6 +707,10 @@ void TsdbComponent::handle_requests_() {
       }
       this->publish_log_("clearing the history did not persist");
       this->status_set_warning(LOG_STR("clearing the history did not persist"));
+      // The engine has already reset its counters: a record written now would land on top
+      // of the history the disk still describes. Drop the handle and reopen from disk.
+      if (err == ESP_OK)
+        this->invalidate_database_(LOG_STR("a clear did not persist"));
     } else {
       this->records_ = 0;
       this->writes_ = 0;
@@ -820,7 +827,7 @@ bool TsdbComponent::collect_values_(const LogString *&degraded) {
       column.hold_warned = false;
       column.sentinel_warned = false;  // so a later outage logs again
       bool saturated = false;
-      column.held = tsdbmath::encode(column.source->state, column.scale, column.offset, &saturated);
+      const int16_t raw = tsdbmath::encode(column.source->state, column.scale, column.offset, &saturated);
       if (saturated) {
         this->saturated_++;
         // Per column, so the first clamp of every column is named even when another one clamps on every record.
@@ -835,7 +842,7 @@ bool TsdbComponent::collect_values_(const LogString *&degraded) {
       } else {
         column.saturated_warned = false;  // a value that fits re-arms the log
       }
-      this->values_.push_back(column.held);
+      this->values_.push_back(raw);
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_HOLD && column.held != tsdbmath::RAW_UNKNOWN) {
@@ -904,6 +911,11 @@ bool TsdbComponent::write_record_() {
   const bool durable = this->sidecar_advanced_();
   if (durable) {
     this->writes_++;
+    // "hold" repeats the last stored value, so a dropped or failed record must not change it.
+    for (size_t index = 0; index < this->columns_.size(); index++) {
+      if (this->values_[index] != tsdbmath::RAW_UNKNOWN)
+        this->columns_[index].held = this->values_[index];
+    }
     if (this->warned_time_)
       this->uptime_timestamps_++;
     // Only a clean record clears the warning: a held, sentinel or clamped value is not healthy.
@@ -1230,7 +1242,6 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
   this->values_.resize(this->columns_.size());
   uint32_t seen = 0;
   uint32_t count = 0;
-  bool warned_truncation = false;
   while (count < rows && tsdb_query_next(&query, &timestamp, this->values_.data()) == ESP_OK) {
     if (seen++ < skip)
       continue;
@@ -1242,17 +1253,16 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
           tsdbmath::decode(this->values_[index], this->columns_[index].scale, this->columns_[index].offset);
       length += snprintf(line + length, sizeof(line) - static_cast<size_t>(length), ",%.4f", value);
     }
-    // snprintf() reports the length it would have written, so an overflowing
-    // line is detectable and must not pass as a complete row.
-    if (length >= static_cast<int>(sizeof(line)) && !warned_truncation) {
-      warned_truncation = true;
-      ESP_LOGW(TAG,
-               "%s: csv-dump line longer than %" PRIu32 " bytes - truncated, lower the column count or the name length",
-               this->file_.c_str(), static_cast<uint32_t>(sizeof(line)));
+    // snprintf() reports the length it would have written, so a row the buffer or a log
+    // line would cut is detectable: stop rather than export fewer columns than the header.
+    if (length <= 0 || length >= static_cast<int>(sizeof(line)) || length >= static_cast<int>(CSV_HEADER_LIMIT)) {
+      ESP_LOGE(
+          TAG,
+          "%s: csv-dump row does not fit a log line - stopping, shorten the column names or lower the column count",
+          this->file_.c_str());
+      break;
     }
-    if (length > 0) {
-      ESP_LOGI(TAG, "%s", line);
-    }
+    ESP_LOGI(TAG, "%s", line);
     count++;
   }
   tsdb_query_close(&query);
