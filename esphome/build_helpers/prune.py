@@ -52,7 +52,7 @@ def remove_trees(paths: list[Path], dry_run: bool) -> None:
             doomed = path.with_name(path.name + PRUNING_SUFFIX)
             rename_with_retry(path, doomed)
             path = doomed
-        if path.is_dir():
+        if path.is_dir() and not path.is_symlink():
             rmtree(path)
         else:
             path.unlink(missing_ok=True)

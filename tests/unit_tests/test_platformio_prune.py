@@ -285,10 +285,53 @@ def test_prune_keeps_a_python_environment_that_is_not_pioarduinos(
     pio = get_python_env_executable_path(penv, "pio")
     pio.parent.mkdir(parents=True)
     pio.touch()
+    # The official ESP32 platform kept one environment per ESP-IDF version in it
+    espidf = penv / ".espidf-4.4.7"
+    espidf.mkdir()
     leftover = _pioarduino_penv(core_dir, "penv.pruning")
 
-    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [leftover]
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == [leftover, espidf]
     assert pio.is_file()
+
+
+def test_prune_keeps_the_libretiny_environment_inside_pioarduinos(
+    core_dir: Path,
+) -> None:
+    """LibreTiny keeps its Python environment in a hidden folder of the same directory."""
+    penv = _pioarduino_penv(core_dir)
+    for name in ("pyvenv.cfg", ".gitignore", ".lock"):
+        (penv / name).touch()
+    (penv / "lib").mkdir()
+    try:
+        (penv / "lib64").symlink_to("lib", target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks not available")
+    libretiny = penv / ".libretiny"
+    (libretiny / "bin").mkdir(parents=True)
+    interrupted = penv / "include.pruning"
+    interrupted.mkdir()
+
+    removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
+
+    assert set(removed) == {
+        interrupted,
+        *(
+            penv / name
+            for name in ("bin", "lib", "lib64", "pyvenv.cfg", ".gitignore", ".lock")
+        ),
+    }
+    assert [path.name for path in penv.iterdir()] == [".libretiny"]
+    assert (libretiny / "bin").is_dir()
+
+    # Nothing of pioarduino's is left to find
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+
+
+def test_prune_leaves_an_empty_python_environment_directory(core_dir: Path) -> None:
+    (core_dir / "penv").mkdir(parents=True)
+
+    assert prune_platformio_installs(DEPRECATED_PLATFORMS) == []
+    assert (core_dir / "penv").is_dir()
 
 
 def test_prune_keeps_pioarduinos_files_for_a_symlinked_espressif32(

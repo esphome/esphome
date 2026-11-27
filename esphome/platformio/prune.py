@@ -36,10 +36,9 @@ _SUPERSEDED_MARK = "@src-"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
 # downloads and records, directly in PlatformIO's core directory
 _ESPRESSIF32_CORE_ENTRIES = ("tools", "dist", "root_managed_components", "idf-env.json")
-# It also makes a Python environment there. PlatformIO's own installer uses
-# the same directory, but only pioarduino puts esptool in it.
 _PENV = "penv"
 _PENV_PIOARDUINO_TOOL = "esptool"
+_PENV_ESPIDF_PREFIX = ".espidf-"
 
 
 def _name(path: Path) -> str:
@@ -49,6 +48,35 @@ def _name(path: Path) -> str:
 
 def _superseded(path: Path, names: Collection[str]) -> bool:
     return _SUPERSEDED_MARK in path.name and _name(path) in names
+
+
+def _espressif32_python_environments(core_dir: Path) -> list[Path]:
+    """What the ESP32 platforms left in PlatformIO's ``penv`` directory.
+
+    That directory is shared. pioarduino makes it its own environment, and is
+    the only one to put esptool in it. Both it and the official platform keep
+    one environment per ESP-IDF version in ``.espidf-<version>``. Others keep
+    theirs in a hidden folder of their own (LibreTiny in ``.libretiny``), and
+    PlatformIO's own installer puts PlatformIO itself there. Only what the
+    ESP32 platforms made is removed; the directory goes with it when nothing
+    else is in it.
+    """
+    penv = core_dir / _PENV
+    removed = [path for path in with_leftover(penv) if is_leftover(path)]
+    if not penv.is_dir() or penv.is_symlink():
+        return removed
+    pioarduino = get_python_env_executable_path(penv, _PENV_PIOARDUINO_TOOL).is_file()
+    entries = sorted(penv.iterdir())
+    doomed = [
+        entry
+        for entry in entries
+        if is_leftover(entry)
+        or entry.name.startswith(_PENV_ESPIDF_PREFIX)
+        or (pioarduino and not (entry.name.startswith(".") and entry.is_dir()))
+    ]
+    if entries and len(doomed) == len(entries):
+        return [*removed, penv]
+    return removed + doomed
 
 
 def _packages(platform: Path) -> dict[str, bool] | None:
@@ -181,12 +209,7 @@ def prune_platformio_installs(
         core_dir = Path(config.get("platformio", "core_dir"))
         for name in _ESPRESSIF32_CORE_ENTRIES:
             removed += with_leftover(core_dir / name)
-        removed += [
-            path
-            for path in with_leftover(core_dir / _PENV)
-            if is_leftover(path)
-            or get_python_env_executable_path(path, _PENV_PIOARDUINO_TOOL).is_file()
-        ]
+        removed += _espressif32_python_environments(core_dir)
     removed += doomed
 
     remove_trees(removed, dry_run)

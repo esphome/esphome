@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from esphome.__main__ import parse_args
+from esphome.__main__ import PRE_CONFIG_ACTIONS, parse_args
 from esphome.arduino8266.framework import FRAMEWORK_RELEASES
 from esphome.cli.prune import (
     _recommended_arduino8266_frameworks,
@@ -125,6 +125,13 @@ def test_command_prune_oserror(
 
     assert command_prune(MockArgs()) == 1
     assert "Error pruning installs: denied" in caplog.text
+
+
+def test_prune_is_dispatched_without_a_configuration(pruners: dict[str, Mock]) -> None:
+    args = parse_args(["esphome", "prune", "--dry-run"])
+
+    assert PRE_CONFIG_ACTIONS[args.command](args) == 0
+    pruners["idf"].assert_called_once_with(_recommended_idf_versions(), dry_run=True)
 
 
 def test_parse_args_prune() -> None:
