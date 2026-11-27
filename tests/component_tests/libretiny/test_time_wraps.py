@@ -9,7 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.components.libretiny import FILTER_SOURCE_FILES, TIME_WRAPS
+from esphome.components.libretiny import (
+    FILTER_SOURCE_FILES,
+    TIME_WRAPS,
+    time_wrap_source,
+)
 from esphome.components.libretiny.const import (
     FAMILY_RTL8710B,
     FAMILY_RTL8720C,
@@ -35,13 +39,13 @@ def test_time_wraps(
     family: str | None,
 ) -> None:
     generate_main(component_config_path(config))
-    wrapped = set(TIME_WRAPS[family][1]) if family else set()
-    for _, funcs in TIME_WRAPS.values():
+    wrapped = TIME_WRAPS.get(family, ())
+    for funcs in TIME_WRAPS.values():
         for func in funcs:
             assert (f"-Wl,--wrap={func}" in CORE.build_flags) is (func in wrapped)
     excluded = FILTER_SOURCE_FILES()
-    for other, (source, _) in TIME_WRAPS.items():
-        assert (source in excluded) is (other != family)
+    for other in TIME_WRAPS:
+        assert (time_wrap_source(other) in excluded) is (other != family)
 
 
 @pytest.mark.parametrize("core_data", [{}, {KEY_LIBRETINY: {}}])

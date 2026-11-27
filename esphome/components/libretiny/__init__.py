@@ -63,14 +63,18 @@ from .gpio import lookup_board_pins
 _LOGGER = logging.getLogger(__name__)
 # Fault handlers the crash handler wraps (BK7238, BK7231N)
 BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
-# Timing functions a family replaces, and the file that replaces them; other families leave the file out
+# Timing functions <family>_micros.c replaces
 TIME_WRAPS = {
-    FAMILY_RTL8710B: (
-        "rtl8710b_micros.c",
-        ("millis", "micros", "delay", "delayMicroseconds"),
-    ),
-    FAMILY_RTL8720C: ("rtl8720c_micros.c", ("micros", "delayMicroseconds")),
+    FAMILY_RTL8710B: ("millis", "micros", "delay", "delayMicroseconds"),
+    FAMILY_RTL8720C: ("micros", "delayMicroseconds"),
 }
+
+
+def time_wrap_source(family: str) -> str:
+    """The file that replaces a family's timing functions."""
+    return f"{family.lower()}_micros.c"
+
+
 # Families with a crash handler; the Cortex-M ones install it at run time (no wraps).
 CRASH_HANDLER_FAMILIES = (
     FAMILY_BK7231N,
@@ -174,7 +178,7 @@ def FILTER_SOURCE_FILES() -> list[str]:
         family := data.get(KEY_FAMILY)
     ) is None:
         return []
-    return [source for other, (source, _) in TIME_WRAPS.items() if other != family]
+    return [time_wrap_source(other) for other in TIME_WRAPS if other != family]
 
 
 def get_libretiny_component(core_obj=None):
@@ -619,10 +623,9 @@ async def component_to_code(config):
     # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
         cg.add_platformio_option("custom_versions.freertos", "8.2.3")
-    # Timing on a timer that keeps counting while interrupts are masked (rtl87*_micros.c)
-    if wraps := TIME_WRAPS.get(config[CONF_FAMILY]):
-        for func in wraps[1]:
-            cg.add_build_flag(f"-Wl,--wrap={func}")
+    # Timing functions replaced by <family>_micros.c
+    for func in TIME_WRAPS.get(config[CONF_FAMILY], ()):
+        cg.add_build_flag(f"-Wl,--wrap={func}")
 
     # LibreTiny bundles BDK 3.0.33 for these two but already builds BK7238 with 3.0.78,
     # where STA+AP works (esphome#19430), the web server OTA does not trip the watchdog

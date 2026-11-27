@@ -1,5 +1,5 @@
 // RTL8710B: the FreeRTOS tick is 1/1024 s, so millis(), micros() and delay() use the 32.768 kHz system timer instead
-// and delayMicroseconds() the DWT cycle counter. Linked with -Wl,--wrap (RTL8710B_TIME_WRAPS in __init__.py).
+// and delayMicroseconds() the DWT cycle counter. Linked with -Wl,--wrap (TIME_WRAPS in __init__.py).
 
 #ifdef USE_LIBRETINY_VARIANT_RTL8710B
 
