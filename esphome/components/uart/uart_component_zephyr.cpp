@@ -3,6 +3,8 @@
 
 #include <zephyr/drivers/uart.h>
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/wake.h"
 
@@ -31,15 +33,15 @@ bool ZephyrUARTComponent::configure_() {
   struct uart_config config{};
   config.baudrate = this->baud_rate_;
   switch (this->parity_) {
+    case UART_CONFIG_PARITY_NONE:
+      config.parity = UART_CFG_PARITY_NONE;
+      break;
     case UART_CONFIG_PARITY_EVEN:
       config.parity = UART_CFG_PARITY_EVEN;
       break;
-    case UART_CONFIG_PARITY_ODD:
-      config.parity = UART_CFG_PARITY_ODD;
-      break;
     default:
-      config.parity = UART_CFG_PARITY_NONE;
-      break;
+      ESP_LOGE(TAG, "Parity %s is not supported", LOG_STR_ARG(parity_to_str(this->parity_)));
+      return false;
   }
   config.stop_bits = this->stop_bits_ == 2 ? UART_CFG_STOP_BITS_2 : UART_CFG_STOP_BITS_1;
   config.data_bits = static_cast<uint8_t>(UART_CFG_DATA_BITS_5 + (this->data_bits_ - 5));
@@ -54,9 +56,8 @@ bool ZephyrUARTComponent::configure_() {
 }
 
 void ZephyrUARTComponent::load_settings(bool dump_config) {
-  if (this->device_ == nullptr || !device_is_ready(this->device_))
+  if (this->is_failed() || this->device_ == nullptr || !device_is_ready(this->device_) || !this->configure_())
     return;
-  this->configure_();
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
     this->dump_config();
@@ -106,14 +107,21 @@ void ZephyrUARTComponent::dump_config() {
 }
 
 void ZephyrUARTComponent::write_array(const uint8_t *data, size_t len) {
-  if (this->device_ == nullptr || this->tx_pin_ == nullptr)
+  if (this->is_failed() || this->device_ == nullptr || this->tx_pin_ == nullptr || len == 0)
     return;
+  // uart_poll_out() waits for the previous byte, so a long write at a low baud rate outlasts the watchdog
   for (size_t i = 0; i < len; i++) {
     uart_poll_out(this->device_, data[i]);
-#ifdef USE_UART_DEBUGGER
-    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
-#endif
+    App.feed_wdt();
   }
+  this->last_tx_start_us_ = micros();
+  this->tx_pending_ = true;
+#ifdef USE_UART_DEBUGGER
+  // After the whole array, so that a slow callback does not split it
+  for (size_t i = 0; i < len; i++) {
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
+  }
+#endif
 }
 
 bool ZephyrUARTComponent::peek_byte(uint8_t *data) {
@@ -161,7 +169,17 @@ size_t ZephyrUARTComponent::available() {
 }
 
 UARTFlushResult ZephyrUARTComponent::flush() {
-  // uart_poll_out() returns only when each byte is in the transmitter
+  if (!this->tx_pending_)
+    return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+  this->tx_pending_ = false;
+  // uart_poll_out() returns once the last byte has started: wait for its start, data, parity and stop bits,
+  // plus one bit
+  const uint32_t bits =
+      1 + this->data_bits_ + (this->parity_ == UART_CONFIG_PARITY_NONE ? 0 : 1) + this->stop_bits_ + 1;
+  const uint32_t frame_us = (bits * 1000000 + this->baud_rate_ - 1) / this->baud_rate_;
+  const uint32_t elapsed = micros() - this->last_tx_start_us_;
+  if (elapsed < frame_us)
+    delayMicroseconds(frame_us - elapsed);
   return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
 }
 

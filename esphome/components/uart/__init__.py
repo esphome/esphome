@@ -40,12 +40,15 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_DUMMY_RECEIVER_ID,
     CONF_FLOW_CONTROL_PIN,
+    CONF_HARDWARE_UART,
     CONF_ID,
     CONF_INVERTED,
     CONF_LAMBDA,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
+    CONF_OTA,
+    CONF_PLATFORM,
     CONF_PORT,
     CONF_PULLDOWN,
     CONF_PULLUP,
@@ -243,6 +246,11 @@ def validate_nrf52_config(config: ConfigType) -> ConfigType:
     if config[CONF_PARITY] not in ("NONE", "EVEN"):
         raise cv.Invalid(
             "The nRF52 UART supports only NONE or EVEN parity", path=[CONF_PARITY]
+        )
+    if CONF_RX_PIN in config and config[CONF_RX_BUFFER_SIZE] == 0:
+        raise cv.Invalid(
+            "The nRF52 UART needs an rx_buffer_size above 0 to receive",
+            path=[CONF_RX_BUFFER_SIZE],
         )
     for key in (CONF_TX_PIN, CONF_RX_PIN):
         if (pin := config.get(key)) is None:
@@ -446,6 +454,23 @@ def _final_validate(config: ConfigType) -> None:
         if others:
             raise cv.Invalid(
                 f"Only one hardware UART is supported on the nRF52; {others[0][CONF_ID]} already uses it"
+            )
+        if CONF_TX_PIN in config or CONF_RX_PIN in config:
+            _validate_nrf52_uart_free(fv.full_config.get())
+
+
+def _validate_nrf52_uart_free(full_config: ConfigType) -> None:
+    """Refuse other users of the UARTE that the hardware UART takes."""
+    from esphome.components.nrf52.const import CONF_TRANSPORT
+
+    for ota in full_config.get(CONF_OTA, []):
+        if (
+            ota.get(CONF_PLATFORM) == "zephyr_mcumgr"
+            and ota.get(CONF_TRANSPORT, {}).get(CONF_HARDWARE_UART) == "UART1"
+        ):
+            raise cv.Invalid(
+                "The nRF52 hardware UART uses UART1, which zephyr_mcumgr OTA also uses for its transport; "
+                "set the OTA transport's hardware_uart to another port"
             )
 
 

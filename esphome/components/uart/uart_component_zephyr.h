@@ -40,8 +40,11 @@ class ZephyrUARTComponent final : public UARTComponent, public Component {
   // Bytes dropped because the RX buffer was full; written in the ISR, reported from loop()
   volatile uint32_t rx_overflow_{0};
   uint32_t rx_overflow_reported_{0};
+  // When the last byte written started; flush() waits for it to finish
+  uint32_t last_tx_start_us_{0};
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
+  bool tx_pending_{false};
 };
 
 }  // namespace esphome::uart
