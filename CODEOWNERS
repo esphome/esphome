@@ -539,6 +539,7 @@ esphome/components/qwiic_pir/* @kahrendt
 esphome/components/radio_frequency/* @kbx81
 esphome/components/radon_eye_ble/* @jeffeb3
 esphome/components/radon_eye_rd200/* @jeffeb3
+esphome/components/ram_disk/* @clydebarrow
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
@@ -656,6 +657,7 @@ esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
 esphome/components/stcc4/* @j9brown
 esphome/components/stm32/* @rwrozelle
+esphome/components/storage/* @clydebarrow
 esphome/components/store_yaml/* @bdraco
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core

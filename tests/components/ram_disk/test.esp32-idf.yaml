@@ -1,0 +1,2 @@
+packages:
+  ram_disk: !include common.yaml

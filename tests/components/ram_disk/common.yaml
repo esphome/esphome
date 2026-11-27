@@ -1,0 +1,8 @@
+storage:
+  - platform: ram_disk
+    id: ram_disk_small
+    size: 16KB
+  - platform: ram_disk
+    id: ram_disk_large_blocks
+    size: 64KB
+    block_size: 4096
