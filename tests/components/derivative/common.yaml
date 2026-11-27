@@ -2,20 +2,6 @@ sensor:
   - platform: template
     id: derivative_my_sensor
     lambda: return 1.0;
-    unit_of_measurement: W
-    accuracy_decimals: 1
-    icon: mdi:flash
-  # The derivative inherits the metadata from `derivative_copied_sensor` even though the copy
-  # that provides it is declared after it.
-  - platform: derivative
-    id: derivative_before_copy
-    sensor: derivative_copied_sensor
-    name: Derivative Before Copy
-    time_unit: h
-  - platform: copy
-    id: derivative_copied_sensor
-    source_id: derivative_my_sensor
-    name: Copied Source
   - platform: derivative
     id: derivative_sensor
     sensor: derivative_my_sensor
