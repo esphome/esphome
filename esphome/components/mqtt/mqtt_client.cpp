@@ -632,8 +632,11 @@ bool MQTTClientComponent::resubscribe_subscriptions_() {
 #ifdef USE_MQTT_SESSION_PERSISTENCE
 // Out of line so the topic buffer is not part of loop()'s stack frame
 __attribute__((noinline)) uint32_t MQTTClientComponent::subscriptions_fingerprint_() {
-  // Seeded with the config hash, so a new firmware config sends every subscription once
-  uint32_t fingerprint = App.get_config_hash();
+  // Seeded with the config hash and broker identity, so a new firmware config or
+  // switching to a different broker/client ID does not trust another session's subscriptions.
+  uint32_t fingerprint = fnv1a_hash_extend(App.get_config_hash(), this->credentials_.address);
+  fingerprint = fnv1a_hash_extend(fingerprint, this->credentials_.port);
+  fingerprint = fnv1a_hash_extend(fingerprint, this->credentials_.client_id);
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   for (const auto &subscription : this->subscriptions_)
     fingerprint = add_subscription_fingerprint(fingerprint, subscription.topic.build(buf).c_str(), subscription.qos);

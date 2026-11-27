@@ -77,7 +77,7 @@ esp_mqtt_client_config_t MQTTBackendESP32::build_config_() const {
       break;
   }
   // Only set for the WebSocket transports
-  mqtt_cfg.broker.address.path = this->ws_path_;
+  mqtt_cfg.broker.address.path = this->ws_path_.empty() ? nullptr : this->ws_path_.c_str();
   return mqtt_cfg;
 }
 
@@ -128,9 +128,10 @@ bool MQTTBackendESP32::initialize_() {
 }
 
 void MQTTBackendESP32::destroy_client_() {
-  if (!this->is_initialized_) {
+  if (!this->is_initialized_ || this->destroying_) {
     return;
   }
+  this->destroying_ = true;
   this->is_connected_.store(0, std::memory_order_release);
   this->is_initialized_ = false;
 
@@ -141,9 +142,12 @@ void MQTTBackendESP32::destroy_client_() {
     while (xSemaphoreTake(this->client_mutex_, pdMS_TO_TICKS(1000)) != pdTRUE) {
       App.feed_wdt();
     }
+    // Bump generation under client_mutex_ so any already-popped item for the old client is discarded
+    this->client_generation_++;
     old_client = std::move(this->handler_);
     xSemaphoreGive(this->client_mutex_);
   } else {
+    this->client_generation_++;
     old_client = std::move(this->handler_);
   }
   // Wake the outbound task so it drains any stale queued items as the sole consumer
@@ -164,10 +168,21 @@ void MQTTBackendESP32::destroy_client_() {
   }
 
   // Drain inbound events after the ESP-IDF MQTT task has exited so no late events arrive after draining
+  bool saw_connected = false;
+  bool saw_disconnected = false;
   Event *event;
   while ((event = this->mqtt_event_queue_.pop()) != nullptr) {
+    if (event->event_id == MQTT_EVENT_CONNECTED) {
+      saw_connected = true;
+    } else if (event->event_id == MQTT_EVENT_DISCONNECTED) {
+      saw_disconnected = true;
+    }
     this->mqtt_event_pool_.release(event);
   }
+  const bool had_active_link =
+      this->task_link_state_.load(std::memory_order_relaxed) == LinkState::LINK_STATE_CONNECTED;
+  const bool needs_disconnect_notify = saw_disconnected || (had_active_link && !saw_connected);
+
   this->task_link_state_.store(LinkState::LINK_STATE_DISCONNECTED, std::memory_order_relaxed);
   this->cached_topic_.clear();
   this->subacks_.reset();
@@ -175,6 +190,11 @@ void MQTTBackendESP32::destroy_client_() {
   this->tracked_msg_id_.store(0, std::memory_order_relaxed);
   this->acked_msg_id_.store(0, std::memory_order_relaxed);
   this->tracked_acked_.store(0, std::memory_order_relaxed);
+  this->destroying_ = false;
+
+  if (needs_disconnect_notify) {
+    this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
+  }
 }
 
 void MQTTBackendESP32::loop() {
@@ -414,10 +434,13 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
     struct QueueElement *elem;
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
       bool sent = false;
+      bool stale = false;
       if (this_mqtt->connected()) {
         xSemaphoreTake(this_mqtt->client_mutex_, portMAX_DELAY);
         esp_mqtt_client_handle_t client = this_mqtt->handler_.get();
-        if (client != nullptr && this_mqtt->connected()) {
+        if (elem->generation != this_mqtt->client_generation_) {
+          stale = true;
+        } else if (client != nullptr && this_mqtt->connected()) {
           sent = true;
           switch (elem->type) {
             case MQTT_QUEUE_TYPE_SUBSCRIBE:
@@ -440,7 +463,7 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
         }
         xSemaphoreGive(this_mqtt->client_mutex_);
       }
-      if (!sent && elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
+      if (!sent && !stale && elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
         this_mqtt->count_lost_subscribe_();
       }
       this_mqtt->mqtt_outbound_pool_.release(elem);
@@ -466,6 +489,7 @@ bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos,
   elem->type = type;
   elem->qos = qos;
   elem->retain = retain;
+  elem->generation = this->client_generation_;
 
   // Use the helper to allocate and copy data
   if (!elem->set_data(topic, payload, len)) {

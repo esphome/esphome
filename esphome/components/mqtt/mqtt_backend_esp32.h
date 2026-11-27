@@ -72,8 +72,9 @@ struct QueueElement {
   uint8_t qos : 2;  // QoS only needs values 0-2
   uint8_t retain : 1;
   uint8_t reserved : 3;  // Reserved for future use
+  uint8_t generation;    // Client generation to discard stale items after recreation
 
-  QueueElement() : topic(nullptr), payload(nullptr), payload_len(0), qos(0), retain(0), reserved(0) {}
+  QueueElement() : topic(nullptr), payload(nullptr), payload_len(0), qos(0), retain(0), reserved(0), generation(0) {}
 
   // Helper to set topic/payload (uses RAMAllocator)
   bool set_data(const char *topic_str, const char *payload_data, size_t len) {
@@ -133,8 +134,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   static constexpr uint8_t MQTT_EVENT_QUEUE_LENGTH = 32;  // Inbound events from broker
   static constexpr uint32_t EVENT_DRAIN_BUDGET_MS = 10;
   static constexpr uint8_t MQTT_EVENT_POOL_SIZE = MQTT_EVENT_QUEUE_LENGTH - 1;
-  // ESP-IDF default network.timeout_ms is 10 s; add 5 s margin for esp_mqtt_client_destroy()
-  static constexpr uint32_t DESTROY_WDT_TIMEOUT_MS = 15000;
+  // esp_mqtt_client_destroy() waits for the API lock across TCP connect (10 s) and CONNACK (10 s) timeouts
+  static constexpr uint32_t DESTROY_WDT_TIMEOUT_MS = 25000;
 
   void set_keep_alive(uint16_t keep_alive) final { this->update_config_(this->keep_alive_, keep_alive); }
   void set_client_id(const char *client_id) final { this->update_config_string_(this->client_id_, client_id); }
@@ -180,6 +181,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool connected() const final { return this->is_connected_.load(std::memory_order_acquire) != 0; }
 
   void connect() final {
+    if (this->destroying_) {
+      return;
+    }
     if (this->is_initialized_ && this->config_changed_) {
       this->destroy_client_();
     }
@@ -266,9 +270,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void set_skip_cert_cn_check(bool skip_check) { this->update_config_(this->skip_cert_cn_check_, skip_check); }
 #endif
   void set_transport(MQTTTransport transport) { this->update_config_(this->transport_, transport); }
-  void set_ws_path(const char *path) { this->update_config_(this->ws_path_, path); }
+  void set_ws_path(const char *path) { this->update_config_string_(this->ws_path_, path); }
   MQTTTransport get_transport() const { return this->transport_; }
-  const char *get_ws_path() const { return this->ws_path_; }
+  const char *get_ws_path() const { return this->ws_path_.c_str(); }
 
   // No destructor needed: ESPHome components live for the entire device runtime.
   // The MQTT task and queue will run until the device reboots or loses power,
@@ -320,6 +324,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // uint8_t, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
   std::atomic<uint8_t> is_connected_{0};
   bool is_initialized_{false};
+  bool destroying_{false};
   bool config_changed_{false};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   // Queued SUBSCRIBEs the task could not send
@@ -362,7 +367,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool skip_cert_cn_check_{false};
 #endif
   MQTTTransport transport_{MQTTTransport::MQTT_TRANSPORT_TCP};
-  const char *ws_path_{nullptr};
+  std::string ws_path_;
 #if defined(USE_MQTT_IDF_ENQUEUE)
   static void esphome_mqtt_task(void *params);
   // Pool sized to queue capacity (SIZE-1) — see mqtt_event_pool_ comment.
@@ -370,6 +375,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   StaticSemaphore_t client_mutex_storage_{};
   SemaphoreHandle_t client_mutex_{nullptr};
+  uint8_t client_generation_{0};
   TaskHandle_t task_handle_{nullptr};
   // Only the task writes, so no atomic read-modify-write is needed
   void count_lost_subscribe_() {
