@@ -6,8 +6,13 @@
 #ifdef USE_LIBRETINY_VARIANT_LN882H
 
 #include <stdint.h>
+#include <FreeRTOS.h>
 #include "hal/hal_clock.h"
 #include "hal/hal_timer.h"
+
+#if !configUSE_TICK_HOOK
+#error "micros() needs the FreeRTOS tick hook to see every 24-bit timer wrap"
+#endif
 
 #define US_TIMER TIMER2_BASE
 #define US_TIMER_MASK 0xFFFFFFUL
