@@ -8,6 +8,14 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_UNIT_OF_MEASUREMENT,
     STATE_CLASS_MEASUREMENT,
+    UNIT_AMPERE,
+    UNIT_KILOVOLT_AMPS,
+    UNIT_KILOVOLT_AMPS_REACTIVE,
+    UNIT_KILOWATT,
+    UNIT_MILLIAMP,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
 )
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
@@ -28,7 +36,18 @@ CONF_TIME_UNIT = "time_unit"
 
 
 # Rates that integration turns into a total by appending the time unit (W + h = Wh).
-RATE_UNITS = frozenset({"W", "kW", "MW", "VA", "kVA", "var", "kvar", "A", "mA"})
+RATE_UNITS = frozenset(
+    {
+        UNIT_AMPERE,
+        UNIT_KILOVOLT_AMPS,
+        UNIT_KILOVOLT_AMPS_REACTIVE,
+        UNIT_KILOWATT,
+        UNIT_MILLIAMP,
+        UNIT_VOLT_AMPS,
+        UNIT_VOLT_AMPS_REACTIVE,
+        UNIT_WATT,
+    }
+)
 
 
 def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:

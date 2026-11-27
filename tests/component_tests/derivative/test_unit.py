@@ -18,6 +18,8 @@ from esphome.components.derivative.sensor import inherit_unit_of_measurement
         ("mph", "h", "mph/h"),
         ("lbs", "s", "lbs/s"),
         ("rad", "d", "rad/d"),
+        ("kvarh", "h", "kvar"),
+        ("VAh", "h", "VA"),
     ],
 )
 def test_inherit_unit_of_measurement(uom: str, time_unit: str, expected: str) -> None:
