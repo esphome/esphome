@@ -37,7 +37,7 @@ DucoSelect = duco_ns.class_("DucoSelect", DucoDevice, select.Select)
 
 MODE_SCHEMA = (
     select.select_schema(DucoSelect)
-    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(0, 68)})
+    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(1, 68)})
     .extend(cv.polling_component_schema("3s"))
 )
 CONFIG_SCHEMA = cv.Any(
