@@ -14,8 +14,8 @@ namespace fs = std::filesystem;
 class TestSwitch : public Switch {
  public:
   void write_state(bool state) override {}
-  /// The preference key is derived from object_id_hash_; two instances with the same value share stored state.
-  void set_test_id(uint32_t hash) { this->object_id_hash_ = hash; }
+  /// The preference key is derived from entity_key_; two instances with the same value share stored state.
+  void set_test_id(uint32_t hash) { this->entity_key_ = hash; }
 };
 
 class SwitchRestoreStorageTest : public ::testing::Test {

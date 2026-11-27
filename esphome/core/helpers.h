@@ -1115,6 +1115,22 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 /// FNV-1 32-bit prime
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
+/// FNV-1 hash over len raw bytes, each hashed as an unsigned value so results do not depend on the
+/// signedness of char. read_byte(i) returns byte i, so a name in flash can be hashed through progmem_read_byte().
+/// IMPORTANT: Must match Python fnv1_hash_name() in esphome/helpers.py, which hashes the UTF-8 bytes
+/// of the name. Used to compute entity keys from raw names.
+template<typename ReadByte> inline uint32_t fnv1_hash_bytes(size_t len, ReadByte read_byte) {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i < len; i++) {
+    hash *= FNV1_PRIME;
+    hash ^= static_cast<uint8_t>(read_byte(i));
+  }
+  return hash;
+}
+inline uint32_t fnv1_hash_bytes(const char *str, size_t len) {
+  return fnv1_hash_bytes(len, [str](size_t i) { return str[i]; });
+}
+
 /// Extend a FNV-1 hash with an integer (hashes each byte).
 template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
   using UnsignedT = std::make_unsigned_t<T>;
@@ -1442,21 +1458,30 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 }
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
-/// This computes object_id hashes directly from names without creating an intermediate buffer.
-/// read_byte(i) returns character i, so a name in flash can be hashed through progmem_read_byte().
-/// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
-/// If you modify this function, update the Python version and tests in both places.
-template<typename ReadByte> inline uint32_t fnv1_hash_object_id(size_t len, ReadByte read_byte) {
+/// This is the LEGACY entity hash, kept to reconstruct the values existing devices already have stored;
+/// see https://github.com/esphome/backlog/issues/85. read_byte(i) returns character i, so a name in
+/// flash can be hashed through progmem_read_byte().
+/// With per_code_point set, UTF-8 continuation bytes are skipped so each multi-byte character
+/// contributes one underscore; this matches Python fnv1_hash_object_id() in esphome/helpers.py,
+/// which produced the hash for named entities. The per-byte form (default) matches the old
+/// runtime hash for entities without their own name. Do not change either behavior.
+/// Known limitation: Python's lower() is Unicode aware, so the rare code points it maps to a
+/// different number of characters or to ASCII (e.g. 'İ', the Kelvin sign) reconstruct wrong.
+template<typename ReadByte>
+inline uint32_t fnv1_hash_object_id(size_t len, ReadByte read_byte, bool per_code_point = false) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
+    char c = read_byte(i);
+    if (per_code_point && (static_cast<uint8_t>(c) & 0xC0) == 0x80)
+      continue;  // UTF-8 continuation byte, already counted via its lead byte
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(read_byte(i))));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(c)));
   }
   return hash;
 }
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
-  return fnv1_hash_object_id(len, [str](size_t i) { return str[i]; });
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len, bool per_code_point = false) {
+  return fnv1_hash_object_id(len, [str](size_t i) { return str[i]; }, per_code_point);
 }
 
 #ifdef USE_ESP8266

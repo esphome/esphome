@@ -10,10 +10,11 @@
 namespace esphome::host::testing {
 namespace fs = std::filesystem;
 
-/// Same object_id_hash_ means same preference key.
+/// Same entity_key_ means same preference key.
 class TestEntity : public EntityBase {
  public:
-  void set_test_id(uint32_t hash) { this->object_id_hash_ = hash; }
+  void set_test_id(uint32_t hash) { this->entity_key_ = hash; }
+  void configure(const char *name) { this->configure_entity_(name, 0, 0); }
 };
 
 class EntityPreferenceTest : public ::testing::Test {
@@ -65,6 +66,36 @@ TEST_F(EntityPreferenceTest, InFlashOverloadStillAppliesTheVersion) {
   uint32_t loaded = 0;
   auto v2 = entity.make_entity_preference<uint32_t>(2, true);
   EXPECT_FALSE(v2.load(&loaded)) << "a different version must give a different key";
+}
+
+// Data under the legacy object_id-hash key moves to the raw-name key on first use
+TEST_F(EntityPreferenceTest, LegacyKeyDataIsMigrated) {
+  TestEntity entity;
+  entity.configure("Test Switch");
+  const uint32_t legacy_key = fnv1_hash_object_id("Test Switch", 11, true) ^ 3;
+  const uint32_t new_key = fnv1_hash_bytes("Test Switch", 11) ^ 3;
+  const uint32_t saved = 0xBEEF;
+  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(legacy_key).save(&saved));
+
+  uint32_t loaded = 0;
+  ASSERT_TRUE(entity.make_entity_preference<uint32_t>(3).load(&loaded));
+  EXPECT_EQ(loaded, saved);
+  loaded = 0;
+  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(new_key).load(&loaded));
+  EXPECT_EQ(loaded, saved) << "the data must now be stored under the new key";
+}
+
+TEST_F(EntityPreferenceTest, NewKeyDataIsNeverOverwritten) {
+  TestEntity entity;
+  entity.configure("Test Switch");
+  const uint32_t stale = 1;
+  const uint32_t current = 2;
+  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(fnv1_hash_object_id("Test Switch", 11, true)).save(&stale));
+  ASSERT_TRUE(global_preferences->make_preference<uint32_t>(fnv1_hash_bytes("Test Switch", 11)).save(&current));
+
+  uint32_t loaded = 0;
+  ASSERT_TRUE(entity.make_entity_preference<uint32_t>(0, true).load(&loaded));
+  EXPECT_EQ(loaded, current);
 }
 
 }  // namespace esphome::host::testing

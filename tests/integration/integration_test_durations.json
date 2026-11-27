@@ -120,7 +120,7 @@
   "tests/integration/test_online_image_bmp.py": 19.93,
   "tests/integration/test_online_image_stalled_download.py": 14.86,
   "tests/integration/test_oversized_payloads.py": 26.62,
-  "tests/integration/test_preference_key_stability.py": 11.49,
+  "tests/integration/test_preference_key_migration.py": 11.49,
   "tests/integration/test_reboot_hook_order.py": 15.25,
   "tests/integration/test_runtime_stats.py": 11.56,
   "tests/integration/test_safe_mode_loop_runs.py": 7.28,

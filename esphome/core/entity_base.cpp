@@ -41,7 +41,15 @@ const StringRef &EntityBase::get_name() const {
 }
 #endif
 
-void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
+namespace {
+// Reads name byte i; the name is in flash on ESP8266, and progmem_read_byte() also reads the RAM fallback name
+auto name_reader(const ProgmemStringRef &name) {
+  const auto *p = reinterpret_cast<const uint8_t *>(name.progmem_ptr());
+  return [p](size_t i) { return static_cast<char>(progmem_read_byte(p + i)); };
+}
+}  // namespace
+
+void EntityBase::configure_entity_(const char *name, uint32_t entity_key, uint32_t entity_fields) {
   this->name_ = ProgmemStringRef(name, ESPHOME_strlen_P(name));
   if (this->name_.empty()) {
     StringRef fallback;
@@ -66,18 +74,11 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
     this->name_ = ProgmemStringRef(fallback);
     this->flags_.has_own_name = false;
     // Dynamic name in RAM - hash it at runtime
-    this->object_id_hash_ = fnv1_hash_object_id(fallback.c_str(), fallback.size());
+    this->entity_key_ = fnv1_hash_bytes(fallback.c_str(), fallback.size());
   } else {
     this->flags_.has_own_name = true;
-    // Static name - codegen precomputes the hash; external register_* callers may pass 0
-    if (object_id_hash == 0) {
-      // The name is in flash on ESP8266, so read it byte by byte through progmem_read_byte()
-      const char *name_p = this->name_.progmem_ptr();
-      object_id_hash = fnv1_hash_object_id(this->name_.size(), [name_p](size_t i) {
-        return static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(name_p + i)));
-      });
-    }
-    this->object_id_hash_ = object_id_hash;
+    // Static name - codegen precomputes the key; callers that set up entities by hand may pass 0
+    this->entity_key_ = entity_key != 0 ? entity_key : fnv1_hash_bytes(this->name_.size(), name_reader(this->name_));
   }
   // Unpack entity string table indices and flags from entity_fields.
 #ifdef USE_ENTITY_DEVICE_CLASS
@@ -165,24 +166,45 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-uint32_t EntityBase::entity_preference_key_(uint32_t version) {
-  // The key hashes the sanitized object_id, so multiple entity names can collide on one
-  // key and overwrite each other's stored preferences ("Living Room" and "living_room",
-  // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
-  // fix this, but they change the entity key API clients track, which the Home Assistant
-  // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->get_preference_hash() ^ version;
-#pragma GCC diagnostic pop
+// Named entities historically got this hash from Python codegen, which sanitized per UTF-8 code
+// point; entities without their own name hashed their fallback name per byte at runtime.
+uint32_t EntityBase::calc_old_object_id_hash_() const {
+  return fnv1_hash_object_id(this->name_.size(), name_reader(this->name_), this->flags_.has_own_name);
+}
+
+// The legacy key hashed the sanitized object_id, so several entity names could collide on one key
+// and overwrite each other's stored preferences; the raw-name key fixes that.
+// See: https://github.com/esphome/backlog/issues/85
+uint32_t EntityBase::entity_preference_key_(uint32_t version) const {
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+  return this->preference_key_base_() ^ version;
+#else
+  // Slot-based backends keep the legacy key: it only tags a positional slot, so collisions
+  // cannot corrupt data there, and keeping it preserves stored state.
+  return this->old_preference_key_base_() ^ version;
+#endif
+}
+
+void EntityBase::migrate_entity_preference_([[maybe_unused]] ESPPreferenceObject &pref, [[maybe_unused]] size_t size,
+                                            [[maybe_unused]] uint32_t version) const {
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+  // All in-tree entity preferences fit the stack buffer, so migration never hits the heap
+  SmallBufferWithHeapFallback<64> buffer(size);
+  migrate_preference(pref, buffer.get(), size, this->old_preference_key_base_() ^ version,
+                     this->entity_preference_key_(version));
+#endif
 }
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
-  return global_preferences->make_preference(size, this->entity_preference_key_(version));
+  auto pref = global_preferences->make_preference(size, this->entity_preference_key_(version));
+  this->migrate_entity_preference_(pref, size, version);
+  return pref;
 }
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version, bool in_flash) {
-  return global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
+  auto pref = global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
+  this->migrate_entity_preference_(pref, size, version);
+  return pref;
 }
 
 bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {

@@ -120,7 +120,7 @@ bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
 #else
     uint32_t device_id = 0;
 #endif
-    api::global_api_server->send_infrared_rf_receive_event(device_id, this->get_object_id_hash(), data.get_raw_data());
+    api::global_api_server->send_infrared_rf_receive_event(device_id, this->get_entity_key(), data.get_raw_data());
   }
 #endif
   return false;  // Don't consume the event, allow other listeners to process it
@@ -160,7 +160,7 @@ void IrRfEntity::refuse_api_call_(api::APIConnection *conn) {
   device_id = this->get_device_id();
 #endif
   // no slot to retry from; a drop here is covered by the client's own timeout
-  if (!conn->send_infrared_rf_transmit_complete(device_id, this->get_object_id_hash(), false)) {
+  if (!conn->send_infrared_rf_transmit_complete(device_id, this->get_entity_key(), false)) {
     API_LOG_MSG_DROPPED(TAG, "IR/RF reply");
   }
 }
@@ -180,7 +180,7 @@ bool IrRfEntity::send_api_reply_() {
 #endif
   // Refused by a full TCP buffer: the reply stays owed and loop() retries it, since a lost
   // reply would stall the client's pacing for good (same shape as bluetooth_proxy)
-  if (!this->api_reply_connection_->send_infrared_rf_transmit_complete(device_id, this->get_object_id_hash(),
+  if (!this->api_reply_connection_->send_infrared_rf_transmit_complete(device_id, this->get_entity_key(),
                                                                        this->api_reply_ == ApiReply::API_REPLY_OWED_OK))
     return false;
   this->clear_api_reply_();
