@@ -102,14 +102,16 @@ def _pinned_context(pinned: str) -> ssl.SSLContext:
     class _PinnedSSLSocket(ssl.SSLSocket):  # pylint: disable=abstract-method
         def do_handshake(self, block: bool = False) -> None:
             super().do_handshake(block)
-            cert = self.getpeercert(binary_form=True)
-            if (fingerprint := hashlib.sha1(cert or b"").hexdigest()) != pinned:
-                # Two arguments, or str() prints the message as a tuple
-                raise ssl.SSLCertVerificationError(
-                    ssl.SSL_ERROR_SSL,
-                    f"MQTT broker certificate fingerprint {fingerprint} does not "
-                    "match ssl_fingerprints; refusing to send credentials",
-                )
+            if (cert := self.getpeercert(binary_form=True)) is None:
+                reason = "presented no certificate"
+            elif (fingerprint := hashlib.sha1(cert).hexdigest()) != pinned:
+                reason = f"certificate fingerprint {fingerprint} does not match ssl_fingerprints"
+            else:
+                return
+            # Two arguments, or str() prints the message as a tuple
+            raise ssl.SSLCertVerificationError(
+                ssl.SSL_ERROR_SSL, f"MQTT broker {reason}; refusing to send credentials"
+            )
 
     context = _unverified_context()
     context.sslsocket_class = _PinnedSSLSocket

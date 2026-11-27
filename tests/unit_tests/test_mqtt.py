@@ -956,29 +956,29 @@ def test_prepare_fingerprint_pins_the_paho_socket() -> None:
 
 
 @pytest.mark.parametrize(
-    ("peer_cert", "matches"),
+    ("peer_cert", "error"),
     [
-        (_BROKER_CERT, True),
-        (b"other certificate", False),
-        (None, False),
+        (_BROKER_CERT, None),
+        (
+            b"other certificate",
+            "^MQTT broker certificate fingerprint [0-9a-f]{40} does not match",
+        ),
+        (None, "^MQTT broker presented no certificate;"),
     ],
     ids=["match", "mismatch", "no certificate"],
 )
 def test_pinned_socket_checks_the_certificate_after_the_handshake(
-    peer_cert: bytes | None, matches: bool
+    peer_cert: bytes | None, error: str | None
 ) -> None:
     _, context = _pinned_context_from_prepare()
     sock = MagicMock(spec=context.sslsocket_class)
     sock.getpeercert.return_value = peer_cert
 
     with patch.object(ssl.SSLSocket, "do_handshake") as base_handshake:
-        if matches:
+        if error is None:
             context.sslsocket_class.do_handshake(sock)
         else:
-            with pytest.raises(
-                ssl.SSLCertVerificationError,
-                match="^MQTT broker certificate fingerprint [0-9a-f]{40} does not match",
-            ):
+            with pytest.raises(ssl.SSLCertVerificationError, match=error):
                 context.sslsocket_class.do_handshake(sock)
 
     base_handshake.assert_called_once_with(False)
