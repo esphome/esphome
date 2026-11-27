@@ -89,13 +89,16 @@ class HonClimate final : public HaierClimateBase {
 #ifdef USE_BINARY_SENSOR
  public:
   enum class SubBinarySensorType {
-    OUTDOOR_FAN_STATUS = 0,
+    ALARM_ACTIVE = 0,
+    // From here on, the entities need the big data frame
+    OUTDOOR_FAN_STATUS,
     DEFROST_STATUS,
     COMPRESSOR_STATUS,
     INDOOR_FAN_STATUS,
     FOUR_WAY_VALVE_STATUS,
     INDOOR_ELECTRIC_HEATING_STATUS,
     SUB_BINARY_SENSOR_TYPE_COUNT,
+    BIG_DATA_FRAME_SUB_BINARY_SENSORS = OUTDOOR_FAN_STATUS,
   };
   void set_sub_binary_sensor(SubBinarySensorType type, binary_sensor::BinarySensor *sens);
 
@@ -109,6 +112,7 @@ class HonClimate final : public HaierClimateBase {
     CLEANING_STATUS = 0,
     PROTOCOL_VERSION,
     APPLIANCE_NAME,
+    ACTIVE_ALARMS_TEXT,
     SUB_TEXT_SENSOR_TYPE_COUNT,
   };
   void set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSensor *sens);
@@ -119,8 +123,9 @@ class HonClimate final : public HaierClimateBase {
 #endif
 #ifdef USE_SWITCH
  public:
-  void set_beeper_switch(switch_::Switch *sw);
-  void set_quiet_mode_switch(switch_::Switch *sw);
+  // initialization() publishes their state once the saved settings are restored
+  void set_beeper_switch(switch_::Switch *sw) { this->beeper_switch_ = sw; }
+  void set_quiet_mode_switch(switch_::Switch *sw) { this->quiet_mode_switch_ = sw; }
 
  protected:
   switch_::Switch *beeper_switch_{nullptr};
@@ -156,6 +161,7 @@ class HonClimate final : public HaierClimateBase {
   void set_extra_sensors_packet_bytes_size(size_t size) { this->extra_sensors_packet_bytes_ = size; };
   void set_status_message_header_size(size_t size) { this->status_message_header_size_ = size; };
   void set_control_method(HonControlMethod method) { this->control_method_ = method; };
+  void set_hvac_action(bool state);
   template<typename F> void add_alarm_start_callback(F &&callback) {
     this->alarm_start_callback_.add(std::forward<F>(callback));
   }
@@ -195,8 +201,15 @@ class HonClimate final : public HaierClimateBase {
   // Helper functions
   haier_protocol::HandlerError process_status_message_(const uint8_t *packet, uint8_t size);
   void process_alarm_message_(const uint8_t *packet, uint8_t size, bool check_new);
+  void publish_alarm_entities_();
+  bool update_hvac_action_(const hon_protocol::HaierPacketBigData *bd_packet);
   void fill_control_messages_queue_();
+  // Applies an ECO preset request to quiet mode when ECO is supported; returns the quiet mode to send
+  bool update_quiet_mode_from_preset_(const optional<climate::ClimatePreset> &preset, bool quiet_mode);
   void clear_control_messages_queue_();
+  void clear_quiet_mode_pending_() {
+    this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
+  }
 
   static constexpr size_t HARDWARE_INFO_STR_SIZE = 9;
   struct HardwareInfo {
@@ -226,6 +239,7 @@ class HonClimate final : public HaierClimateBase {
   std::chrono::steady_clock::time_point last_alarm_request_;
   int big_data_sensors_{0};
   uint8_t big_data_counter_{0};
+  bool hvac_action_enabled_{false};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
   // millis() of the last user-set position per axis, 0 when none

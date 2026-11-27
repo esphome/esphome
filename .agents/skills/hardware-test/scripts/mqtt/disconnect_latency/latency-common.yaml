@@ -1,0 +1,46 @@
+# Package for a LibreTiny board (BK72xx, RTL87xx): logs how long on_disconnect waits after AsyncMqttClient's own
+# disconnect callback (lat_us), the task each automation runs in (ctx) and on_connect with session_present.
+# lat.hpp reaches the private backend and client members through explicitly instantiated member pointers and adds a
+# second onDisconnect callback (runs after the component's own) from an on_boot lambda at priority 700.
+# Host serial timestamps cannot measure this: pyserial reads with a 0.2 s timeout quantize them.
+# Device file: substitutions name, broker; bk72xx: or rtl87xx: board; packages: common: !include latency-common.yaml
+esphome:
+  name: ${name}
+  includes:
+    - lat.hpp
+  on_boot:
+    - priority: 700
+      then:
+        - lambda: 'hwt_hook(id(mqttc));'
+    - priority: -100
+      then:
+        - lambda: 'ESP_LOGI("mq", "BOOT ${name} loopctx=%s", mq_ctx());'
+globals:
+  - id: nconn
+    type: uint32_t
+    initial_value: "0"
+  - id: ndisc
+    type: uint32_t
+    initial_value: "0"
+logger:
+  level: DEBUG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  reboot_timeout: 0s
+  power_save_mode: none
+mqtt:
+  id: mqttc
+  broker: ${broker}
+  clean_session: false
+  discovery: false
+  log_topic: null
+  reboot_timeout: 0s
+  on_connect:
+    - logger.log:
+        format: "ONCONNECT n=%u session_present=%d ctx=%s t=%u"
+        args: ['++id(nconn)', '(int) session_present', 'mq_ctx()', '(unsigned) millis()']
+  on_disconnect:
+    - logger.log:
+        format: "ONDISCONNECT n=%u reason=%d ctx=%s t=%u lat_us=%u cbn=%u"
+        args: ['++id(ndisc)', '(int) reason', 'mq_ctx()', '(unsigned) millis()', '(unsigned) hwt_lat_us()', '(unsigned) hwt_cb_n']

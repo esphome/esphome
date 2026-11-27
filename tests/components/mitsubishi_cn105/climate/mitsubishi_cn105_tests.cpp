@@ -589,7 +589,7 @@ TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
   EXPECT_EQ(ctx.sut.operation_start_ms_, 2000);
 }
 
-TEST(MitsubishiCN105Tests, RxWatchdogLimitsProcessingPerUpdate) {
+TEST(MitsubishiCN105Tests, RxNoiseIsDrainedWithoutStateChange) {
   MitsubishiCN105TestsContext ctx;
 
   ctx.sut.initialize();
@@ -602,22 +602,26 @@ TEST(MitsubishiCN105Tests, RxWatchdogLimitsProcessingPerUpdate) {
                     0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
                     0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46});
 
-  // Make sure we have enough bytes in buffer.
-  ASSERT_GT(ctx.uart.rx.size(), 64);
-
   // No valid response, no state change expected
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_TRUE(ctx.uart.tx.empty());
-
-  // Watchdog interrupts reading (max. 64 bytes at once) so we do not spend the whole loop draining UART
-  EXPECT_FALSE(ctx.uart.rx.empty());
-
-  // Next update will read remaining bytes, no state change expected
-  ASSERT_FALSE(ctx.sut.update());
-  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
-  EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_TRUE(ctx.uart.rx.empty());
+}
+
+TEST(MitsubishiCN105Tests, ResponseAfterStrayPreambleIsFound) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.sut.initialize();
+
+  // A stray preamble byte right before the real connect response
+  ctx.uart.push_rx({0xFC});
+  push_frame(ctx.uart, std::array<uint8_t, 5>{0xFC, 0x7A, 0x01, 0x30, 0x00});
+
+  ctx.sut.set_current_time(200);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_TRUE(ctx.uart.rx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
 }
 
 TEST(MitsubishiCN105Tests, ParserHandlesMixedRxStream) {

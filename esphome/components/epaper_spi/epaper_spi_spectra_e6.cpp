@@ -20,6 +20,17 @@ uint8_t EPaperSpectraE6::color_to_native(Color color) {
   return color_to_bwyrgb<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE);
 }
 
+// The controller needs time to come out of reset before the init sequence is sent
+static constexpr uint16_t RESET_SETTLE_MS = 50;
+
+bool EPaperSpectraE6::reset() {
+  if (!EPaperBase::reset()) {
+    return false;
+  }
+  this->next_delay_ = RESET_SETTLE_MS;
+  return true;
+}
+
 void EPaperSpectraE6::power_on() {
   ESP_LOGV(TAG, "Power on");
   this->command(0x04);

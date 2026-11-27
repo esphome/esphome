@@ -859,17 +859,11 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 uint8_t HighFrequencyLoopRequester::num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-void HighFrequencyLoopRequester::start() {
-  if (this->started_)
+void HighFrequencyLoopRequester::set(bool active) {
+  if (this->started_ == active)
     return;
-  num_requests++;
-  this->started_ = true;
-}
-void HighFrequencyLoopRequester::stop() {
-  if (!this->started_)
-    return;
-  num_requests--;
-  this->started_ = false;
+  this->started_ = active;
+  num_requests += active ? 1 : -1;
 }
 
 void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {

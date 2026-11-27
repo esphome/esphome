@@ -19,15 +19,15 @@ from esphome.framework_helpers import (
 
 _LOGGER = logging.getLogger(__name__)
 
-ARM_TOOLCHAIN: str = "arm-zephyr-eabi"
+ARM_TOOLCHAIN = "arm-zephyr-eabi"
 
 # SDK 0.x archives
-_TOOLCHAIN_DEFAULT_MIRROR: str = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_{toolchain}.{extension}"
+_TOOLCHAIN_DEFAULT_MIRROR = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_{toolchain}.{extension}"
 SDK_NG_TOOLCHAIN_MIRRORS: list[str] = str_to_lst_of_str(
     os.environ.get("ESPHOME_SDK_NG_TOOLCHAIN_MIRRORS", _TOOLCHAIN_DEFAULT_MIRROR)
 )
 # SDK 1.0+ archives
-_TOOLCHAIN_GNU_DEFAULT_MIRROR: str = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_gnu_{sysname}-{machine}_{toolchain}.{extension}"
+_TOOLCHAIN_GNU_DEFAULT_MIRROR = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_gnu_{sysname}-{machine}_{toolchain}.{extension}"
 SDK_NG_TOOLCHAIN_GNU_MIRRORS: list[str] = str_to_lst_of_str(
     os.environ.get(
         "ESPHOME_SDK_NG_TOOLCHAIN_GNU_MIRRORS", _TOOLCHAIN_GNU_DEFAULT_MIRROR
