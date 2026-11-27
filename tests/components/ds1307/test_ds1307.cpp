@@ -55,8 +55,7 @@ class DS1307Test : public ::testing::Test {
     this->rtc_.add_on_time_sync_callback([this]() { ++this->syncs_; });
   }
 
-  // Returns the time it loaded.
-  ESPTime load_current_time_(bool halted) {
+  void load_current_time_(bool halted) {
     const ESPTime now = ESPTime::from_epoch_utc(::time(nullptr));
     auto &reg = this->bus_.registers;
     reg[SECONDS_REG] = to_bcd(now.second) | (halted ? CLOCK_HALT_BIT : 0);
@@ -67,7 +66,6 @@ class DS1307Test : public ::testing::Test {
     reg[0x05] = to_bcd(now.month);
     reg[0x06] = to_bcd(now.year - 2000);
     reg[CONTROL_REG] = CONTROL_OUT_SQWE_RS;
-    return now;
   }
 
   RegisterBus bus_;
@@ -136,21 +134,37 @@ TEST_F(DS1307Test, WriteTimeKeepsTheControlRegister) {
   EXPECT_EQ(this->bus_.registers[CONTROL_REG], CONTROL_OUT_SQWE_RS);
 }
 
-// Another library may have left the chip in 12-hour mode; the host's time written that way reads back as the same
-// time, so the sync finds the clock already set and does not log a new one.
-TEST_F(DS1307Test, TwelveHourModeReadsBack) {
-  const uint8_t hour = this->load_current_time_(false).hour;
-  const uint8_t hour_12 = hour % 12 == 0 ? 12 : hour % 12;
-  this->bus_.registers[HOURS_REG] = HOURS_12H | (hour >= 12 ? HOURS_PM : 0) | to_bcd(hour_12);
+// Another library may have left the chip in 12-hour mode. The date is 2018, which is_valid() rejects, so the time
+// is only logged and never set on the host.
+TEST_F(DS1307Test, TwelveHourModeDecodes) {
+  static constexpr struct {
+    uint8_t hours_reg;
+    const char *logged;
+  } CASES[] = {
+      {HOURS_12H | HOURS_PM | 0x03, "2018-06-15 15:20:00"},  // 3 PM
+      {HOURS_12H | 0x12, "2018-06-15 00:20:00"},             // 12 AM
+      {HOURS_12H | HOURS_PM | 0x12, "2018-06-15 12:20:00"},  // 12 PM
+      {HOURS_12H | 0x11, "2018-06-15 11:20:00"},             // 11 AM
+  };
   this->rtc_.setup();
-  const uint32_t baud_rate = logger::global_logger->get_baud_rate();
-  logger::global_logger->set_baud_rate(115200);
-  ::testing::internal::CaptureStdout();
-  this->rtc_.read_time();
-  const std::string log = ::testing::internal::GetCapturedStdout();
-  logger::global_logger->set_baud_rate(baud_rate);
-  EXPECT_EQ(this->syncs_, 1u);
-  EXPECT_EQ(log.find("Synchronized time"), std::string::npos) << log;
+  for (const auto &c : CASES) {
+    auto &reg = this->bus_.registers;
+    reg[SECONDS_REG] = 0x00;
+    reg[0x01] = 0x20;
+    reg[HOURS_REG] = c.hours_reg;
+    reg[0x03] = 6;  // Friday
+    reg[0x04] = 0x15;
+    reg[0x05] = 0x06;
+    reg[0x06] = 0x18;
+    const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+    logger::global_logger->set_baud_rate(115200);
+    ::testing::internal::CaptureStdout();
+    this->rtc_.read_time();
+    const std::string log = ::testing::internal::GetCapturedStdout();
+    logger::global_logger->set_baud_rate(baud_rate);
+    EXPECT_NE(log.find(c.logged), std::string::npos) << log;
+  }
+  EXPECT_EQ(this->syncs_, 0u);
 }
 
 }  // namespace esphome::ds1307::testing
