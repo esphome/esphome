@@ -13,8 +13,10 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#include <algorithm>
 #include <cerrno>
 #include <cinttypes>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <new>
@@ -75,7 +77,10 @@ namespace esphome::api {
 static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 10;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
-static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
+// Ping answer grace: 1.5x keepalive, at most 5 min so a vanished client frees its slot
+static constexpr uint32_t KEEPALIVE_PONG_GRACE_MS = 300000;
+static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
+    KEEPALIVE_TIMEOUT_MS + std::min<uint32_t>((KEEPALIVE_TIMEOUT_MS * 3) / 2, KEEPALIVE_PONG_GRACE_MS);
 // Timeout for completing the handshake (Noise transport + HelloRequest).
 // A stalled handshake from a buggy client or network glitch holds a connection
 // slot, which can prevent legitimate clients from reconnecting. Also hardens
@@ -85,6 +90,8 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
+// A shorter keepalive would ping a client still in its handshake
+static_assert(KEEPALIVE_TIMEOUT_MS >= HANDSHAKE_TIMEOUT_MS);
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
@@ -250,6 +257,9 @@ void APIConnection::destroy_active_iterator_() {
       this->iterator_storage_.initial_state.~InitialStateIterator();
       break;
     case ActiveIterator::NONE:
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+    case ActiveIterator::CLIENT_SYNCED_PENDING:
+#endif
       break;
   }
   this->active_iterator_ = ActiveIterator::NONE;
@@ -366,12 +376,18 @@ void APIConnection::loop() {
   // (missing a frame is fine, missing a state update is not)
   this->try_send_camera_image_();
 #endif
+
+#ifdef USE_STORE_YAML
+  // Guard inline so the idle hot path pays a compare, not a function call.
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE) {
+    this->try_send_store_yaml_();
+  }
+#endif
 }
 
 void APIConnection::check_keepalive_(uint32_t now) {
   // Caller guarantees: now - last_traffic_ > KEEPALIVE_TIMEOUT_MS
   if (this->flags_.sent_ping) {
-    // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
       this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
@@ -407,10 +423,25 @@ void APIConnection::process_active_iterator_() {
     } else {
       this->process_iterator_batch_(this->iterator_storage_.list_entities);
     }
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  } else if (this->active_iterator_ == ActiveIterator::CLIENT_SYNCED_PENDING) {
+    // Fired after the sync and the batch drain, so subscriptions are active and queued states go first.
+    // Skipped once a disconnect or shutdown has started (next_close is set before remove).
+    if (this->deferred_batch_.empty() && !this->flags_.remove && !this->flags_.next_close &&
+        !this->parent_->is_shutting_down()) {
+      this->active_iterator_ = ActiveIterator::NONE;
+      char peername[socket::SOCKADDR_STR_LEN];
+      this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),
+                                                       StringRef(this->helper_->get_peername_to(peername)));
+    }
+#endif
   } else {  // INITIAL_STATE
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
       this->finalize_iterator_sync_();
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+      this->active_iterator_ = ActiveIterator::CLIENT_SYNCED_PENDING;
+#endif
     } else {
       this->process_iterator_batch_(this->iterator_storage_.initial_state);
     }
@@ -1222,6 +1253,36 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 }
 #endif
 
+#ifdef USE_STORE_YAML
+void APIConnection::on_get_yaml_request() {
+  // A re-request while a transfer is in flight is ignored (see api.proto)
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE)
+    return;
+  this->store_yaml_pos_ = 0;
+  this->try_send_store_yaml_();
+}
+
+void APIConnection::try_send_store_yaml_() {
+  // Advance only after a successful send, so a full TX buffer retries the same chunk from loop()
+  while (this->helper_->can_write_without_blocking()) {
+    const size_t to_send = std::min(STORE_YAML_DATA_SIZE - this->store_yaml_pos_, MAX_BATCH_PACKET_SIZE);
+    GetYamlResponse resp;
+    resp.data = STORE_YAML_DATA + this->store_yaml_pos_;
+    resp.data_len = to_send;
+    if (this->store_yaml_pos_ == 0)
+      resp.total_size = STORE_YAML_DATA_SIZE;
+    resp.done = this->store_yaml_pos_ + to_send == STORE_YAML_DATA_SIZE;
+    if (!this->send_message(resp))
+      return;
+    if (resp.done) {
+      this->store_yaml_pos_ = STORE_YAML_IDLE;
+      return;
+    }
+    this->store_yaml_pos_ += to_send;
+  }
+}
+#endif
+
 #ifdef USE_HOMEASSISTANT_TIME
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1316,7 +1377,7 @@ bool APIConnection::check_voice_assistant_api_connection_() const {
 
 void APIConnection::on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
-    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe, msg.flags);
   }
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
@@ -1426,7 +1487,7 @@ bool APIConnection::send_sendspin_pairing_token_response_() {
   auto token = sendspin_::global_sendspin_hub->get_pairing_token();
   if (token.has_value()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK;
-    resp.token = StringRef(*token);
+    resp.token = StringRef(token->data(), token->size());
   } else if (sendspin_::global_sendspin_hub->status_has_error()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED;
   } else if (sendspin_::global_sendspin_hub->is_disabled()) {
@@ -1555,8 +1616,17 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 // Event is a special case - unlike other entities with simple state fields,
 // events store their state in a member accessed via obj->get_last_event_type()
 void APIConnection::send_event(event::Event *event) {
-  this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE,
-                            event->get_last_event_type_index());
+  const uint8_t type_index = event->get_last_event_type_index();
+  const size_t size_before = this->deferred_batch_.size();
+  if (this->deferred_batch_.contains(event, EventResponse::MESSAGE_TYPE)) {
+    // Sending now would overtake the older event of this entity that still waits in the batch
+    this->schedule_message_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
+  } else {
+    this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
+  }
+  // Events are rare, so a queued one sends the batch now rather than after batch_delay
+  if (this->deferred_batch_.size() > size_before)
+    this->make_batch_due_now_();
 }
 uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                                 uint32_t remaining_size) {
@@ -1578,7 +1648,8 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
   // Clients on API 1.18+ are told when the frame has left the transmitter; the entity owns that reply
   const bool want_reply = this->client_supports_api_version(1, 18);
   // Dispatch by key: infrared entities are checked first, then radio frequency entities.
-  // The key is unique across all entity instances on a device, so at most one lookup will succeed.
+  // ir_rf_base validation keeps keys unique across both platforms, so at most one lookup succeeds.
+  // Adding the entity's domain to these messages is the agreed long-term fix, welcome as a follow-up.
 #ifdef USE_INFRARED
   ENTITY_COMMAND_LOOKUP(infrared::Infrared, infrared, infrared);
   if (infrared != nullptr) {
@@ -1888,8 +1959,8 @@ void APIConnection::complete_authentication_() {
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   {
     char peername[socket::SOCKADDR_STR_LEN];
-    this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
-                                                           std::string(this->helper_->get_peername_to(peername)));
+    this->parent_->get_client_connected_callback().call(StringRef(this->helper_->get_client_name()),
+                                                        StringRef(this->helper_->get_peername_to(peername)));
   }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
@@ -1922,10 +1993,13 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 19;
+  resp.api_version_minor = 20;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
+#ifdef USE_API_KEEPALIVE_INTERVAL
+  resp.keepalive_interval = KEEPALIVE_TIMEOUT_MS / 1000;
+#endif
 
 #ifdef USE_PROVISIONING
   if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
@@ -2114,6 +2188,14 @@ bool APIConnection::send_device_capabilities_response_() {
   resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
   resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
+#ifdef USE_STORE_YAML
+  resp.store_yaml.supported = true;
+#endif
+#ifdef USE_CRASH_REPORT
+  CrashReport report;
+  if (crash_report_get(report))
+    resp.crash_report.flags = report.flags;
+#endif
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {
@@ -2142,6 +2224,34 @@ void APIConnection::on_device_capabilities_request() {
     this->on_fatal_error();
   }
 }
+#ifdef USE_CRASH_REPORT
+void APIConnection::on_crash_report_request() {
+  CrashReport report;
+  CrashReportResponse resp;
+  if (crash_report_get(report)) {
+    resp.flags = report.flags;
+    resp.reason = static_cast<uint32_t>(report.reason);
+    resp.pc = report.pc;
+    resp.cause = report.cause;
+    resp.fault_address = report.fault_address;
+    resp.build_time = report.build_time;
+    resp.crashed_core = report.crashed_core;
+    for (uint8_t i = 0; i < report.core_count; i++) {
+      auto &core = resp.cores[i];
+      core.core = report.cores[i].core;
+      core.backtrace = report.cores[i].addresses;
+      core.backtrace_len = report.cores[i].count;
+    }
+    resp.cores_len = report.core_count;
+  }
+  if (!this->send_message(resp)) {
+    this->on_fatal_error();
+    return;
+  }
+  if (resp.flags & CRASH_REPORT_FLAG_PRESENT)
+    crash_report_clear();
+}
+#endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
@@ -2159,19 +2269,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
   }
 
-  for (auto &it : this->parent_->get_state_subs()) {
-    if (msg.entity_id != it.entity_id) {
-      continue;
-    }
-
-    // If subscriber has attribute filter (non-null), message attribute must match it;
-    // if subscriber has no filter (nullptr), message must have no attribute.
-    if (it.attribute != nullptr ? msg.attribute != it.attribute : !msg.attribute.empty()) {
-      continue;
-    }
-
-    it.callback(msg.state);
-  }
+  this->parent_->dispatch_home_assistant_state(msg);
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
@@ -2211,8 +2309,8 @@ void APIConnection::on_execute_service_request(const ExecuteServiceRequest &msg)
     ESP_LOGV(TAG, "Could not find service");
   }
   // Note: For services with supports_response != none, the call is unregistered
-  // by an automatically appended APIUnregisterServiceCallAction at the end of
-  // the action list. This ensures async actions (delays, waits) complete first.
+  // by statements generated after the last action, so async actions (delays,
+  // waits) complete first.
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
 void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message) {
@@ -2355,10 +2453,14 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
 bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
+  // Skip dump for log messages (recursive logging risk), camera frames (high-frequency noise)
+  // and YAML chunks (may contain secrets)
   if (message_type != SubscribeLogsResponse::MESSAGE_TYPE
 #ifdef USE_CAMERA
       && message_type != CameraImageResponse::MESSAGE_TYPE
+#endif
+#ifdef USE_STORE_YAML
+      && message_type != GetYamlResponse::MESSAGE_TYPE
 #endif
   ) {
     auto *proto_msg = static_cast<const ProtoMessage *>(msg);
@@ -2768,30 +2870,29 @@ uint16_t APIConnection::try_send_ping_request(EntityBase *entity, APIConnection 
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::process_state_subscriptions_() {
-  const auto &subs = this->parent_->get_state_subs();
-  if (this->state_subs_at_ >= static_cast<int>(subs.size())) {
+  const auto *it = this->parent_->get_state_sub(this->state_subs_at_);
+  if (it == nullptr) {
     this->state_subs_at_ = -1;
     return;
   }
-
-  const auto &it = subs[this->state_subs_at_];
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   // An entity id that is not set yet (a wizard input) has nothing to subscribe to; it is sent once it is set
-  if (it.entity_id[0] == '\0') {
+  if (it->entity_id[0] == '\0') {
     this->state_subs_at_++;
     return;
   }
 #endif
-  SubscribeHomeAssistantStateResponse resp;
-  resp.entity_id = StringRef(it.entity_id);
-
-  // Avoid string copy by using the const char* pointer if it exists
-  resp.attribute = it.attribute != nullptr ? StringRef(it.attribute) : StringRef("");
-
-  resp.once = it.once;
-  if (this->send_message(resp)) {
+  if (this->send_state_subscription_(it->entity_id, it->attribute, it->once)) {
     this->state_subs_at_++;
   }
+}
+
+bool APIConnection::send_state_subscription_(const char *entity_id, const char *attribute, bool once) {
+  SubscribeHomeAssistantStateResponse resp;
+  resp.entity_id = StringRef(entity_id);
+  resp.attribute = StringRef::from_maybe_nullptr(attribute);
+  resp.once = once;
+  return this->send_message(resp);
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
 

@@ -19,11 +19,7 @@ import asyncio
 
 import pytest
 
-from .state_utils import (
-    SensorTracker,
-    build_key_to_entity_mapping,
-    subscribe_after_initial_states,
-)
+from .state_utils import SensorTracker, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Time to let the host-mode main loop run so status_led_light.loop() can
@@ -67,9 +63,7 @@ async def test_status_flags(
                 "status_led_last_state",
             ]
         )
-        tracker.key_to_sensor.update(
-            build_key_to_entity_mapping(entities, list(tracker.sensor_states.keys()))
-        )
+        tracker.map_entities(entities)
 
         # Swallow initial state broadcasts so the test only reacts to
         # state changes triggered by our service calls.

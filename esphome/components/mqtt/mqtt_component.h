@@ -107,11 +107,11 @@ class MQTTComponent : public Component {
   bool is_internal() const { return this->is_internal_; }
 
   /// Set QOS for state messages.
-  void set_qos(uint8_t qos);
+  void set_qos(uint8_t qos) { this->qos_ = qos; }
   uint8_t get_qos() const { return this->qos_; }
 
   /// Set whether state message should be retained.
-  void set_retain(bool retain);
+  void set_retain(bool retain) { this->retain_ = retain; }
   bool get_retain() const { return this->retain_; }
 
   /// Disable discovery. Sets friendly name to "".
@@ -119,7 +119,7 @@ class MQTTComponent : public Component {
   bool is_discovery_enabled() const;
 
   /// Set the QOS for subscribe messages (used in discovery).
-  void set_subscribe_qos(uint8_t qos);
+  void set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }
 
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual const char *component_type() const = 0;
@@ -133,7 +133,7 @@ class MQTTComponent : public Component {
     this->custom_command_topic_ = std::forward<T>(custom_command_topic);
   }
   /// Set whether command message should be retained.
-  void set_command_retain(bool command_retain);
+  void set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
   /// MQTT_COMPONENT setup priority.
   float get_setup_priority() const override;
@@ -238,21 +238,38 @@ class MQTTComponent : public Component {
    * @param topic The topic.
    * @param f The Json Message builder.
    */
-  bool publish_json(const std::string &topic, const json::json_build_t &f);
+  bool publish_json(const std::string &topic, const json::json_build_t &f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
+  template<json::JsonBuildCallable F> bool publish_json(const std::string &topic, F &&f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
 
   /** Construct and send a JSON MQTT message (no heap allocation for topic).
    *
    * @param topic The topic as C string.
    * @param f The Json Message builder.
    */
-  bool publish_json(const char *topic, const json::json_build_t &f);
+  bool publish_json(const char *topic, const json::json_build_t &f) {
+    return this->publish_json(topic, json::json_build_ref(f));
+  }
+  /// A JsonBuildCallable; it is not copied, so its captures never allocate
+  template<json::JsonBuildCallable F> bool publish_json(const char *topic, F &&f) {
+    return this->publish_json(topic, json::json_build_ref(f));
+  }
+  bool publish_json(const char *topic, json::JsonBuildRef f);
 
   /** Construct and send a JSON MQTT message (no heap allocation for topic).
    *
    * @param topic The topic as StringRef (for use with get_state_topic_to_()).
    * @param f The Json Message builder.
    */
-  bool publish_json(StringRef topic, const json::json_build_t &f) { return this->publish_json(topic.c_str(), f); }
+  bool publish_json(StringRef topic, const json::json_build_t &f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
+  template<json::JsonBuildCallable F> bool publish_json(StringRef topic, F &&f) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f));
+  }
 
   /** Subscribe to a MQTT topic.
    *

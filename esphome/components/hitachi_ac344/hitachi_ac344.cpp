@@ -142,8 +142,7 @@ void HitachiClimate::set_mildew_proof(bool on) {
 
 void HitachiClimate::publish_mildew_proof_() {
 #ifdef USE_SWITCH
-  if (this->mildew_proof_switch_ != nullptr)
-    this->mildew_proof_switch_->publish_state(this->get_mildew_proof());
+  PUBLISH_STATE(this->mildew_proof_switch_, this->get_mildew_proof());
 #endif
 }
 
@@ -155,12 +154,9 @@ void HitachiClimate::setup() {
     set_swing_v_(swing_vertical(restore->swing_mode));
   }
 #ifdef USE_SWITCH
-  // The restored value is the switch state, which an inverted switch flips relative to the frame bit
   if (this->mildew_proof_switch_ != nullptr) {
-    if (auto initial = this->mildew_proof_switch_->get_initial_state_with_restore_mode()) {
-      assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET,
-                  *initial != this->mildew_proof_switch_->is_inverted());
-    }
+    if (auto initial = this->mildew_proof_switch_->get_initial_write_state())
+      assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET, *initial);
   }
 #endif
   this->setup_(restore);
@@ -381,12 +377,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
-  for (uint16_t i = 0; i < HITACHI_AC344_STATE_LENGTH - 10; i += 10) {
-    ESP_LOGV(TAG, "%s: %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X", action, state[i + 0], state[i + 1],
-             state[i + 2], state[i + 3], state[i + 4], state[i + 5], state[i + 6], state[i + 7], state[i + 8],
-             state[i + 9]);
-  }
-  ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
+  ESP_LOGV_HEX(TAG, state, HITACHI_AC344_STATE_LENGTH, HITACHI_AC344_STATE_LENGTH, "%s: %s", action);
 }
 
 }  // namespace esphome::hitachi_ac344

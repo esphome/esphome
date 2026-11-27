@@ -27,6 +27,17 @@ TEST(XiaomiBodyScale, HighImpedancePacketCompletesTheMeasurement) {
   EXPECT_TRUE(h.stabilized.state);
 }
 
+TEST(XiaomiBodyScale, S400ProNoWeightMarkerIsTheHighImpedancePacket) {
+  Harness h(SCALE_PRO, KEY_PRO);
+  ASSERT_TRUE(h.scale.parse_device(advert(SCALE_PRO, PRO_PACKET_2)));
+  EXPECT_FLOAT_EQ(h.impedance_high.state, 498.0f);
+  EXPECT_FLOAT_EQ(h.profile_id.state, 1.0f);
+  // 0x7FF is not a 204.7 kg reading, and the 50 kHz impedance is left untouched
+  EXPECT_FALSE(h.weight.has_state());
+  EXPECT_FALSE(h.impedance_low.has_state());
+  EXPECT_TRUE(h.stabilized.state);
+}
+
 TEST(XiaomiBodyScale, StabilizedClearsAfterOneSecond) {
   Harness h(SCALE_A, KEY_A);
   ASSERT_TRUE(h.scale.parse_device(advert(SCALE_A, PACKET_2)));

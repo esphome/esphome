@@ -1,9 +1,6 @@
-import logging
-
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -22,8 +19,6 @@ from esphome.const import (
     CONF_TILT,
     CONF_TILT_COMMAND_TOPIC,
     CONF_TILT_STATE_TOPIC,
-    CONF_TRIGGER_ID,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
     DEVICE_CLASS_CURTAIN,
@@ -36,14 +31,22 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import (
+    AssignmentExpression,
+    MockObj,
+    MockObjClass,
+    Statement,
+    VariableDeclarationExpression,
+    statement,
+)
 from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
@@ -64,8 +67,6 @@ DEVICE_CLASSES = [
 ]
 DOMAIN = "cover"
 
-_LOGGER = logging.getLogger(__name__)
-
 cover_ns = cg.esphome_ns.namespace("cover")
 
 Cover = cover_ns.class_("Cover", cg.EntityBase)
@@ -85,15 +86,6 @@ COVER_OPERATIONS = CoverOperation.options(
 )
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
-# Actions
-CoverOpenedTrigger = cover_ns.class_(
-    "CoverOpenedTrigger", automation.Trigger.template()
-)
-CoverClosedTrigger = cover_ns.class_(
-    "CoverClosedTrigger", automation.Trigger.template()
-)
-CoverTrigger = cover_ns.class_("CoverTrigger", automation.Trigger.template())
-
 # Cover-specific constants
 CONF_ON_CLOSED = "on_closed"
 CONF_ON_OPENED = "on_opened"
@@ -101,22 +93,24 @@ CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
 CONF_STOP_TILT = "stop_tilt"
 
-TRIGGERS = {
-    CONF_ON_OPEN: CoverOpenedTrigger,  # Deprecated, use on_opened
-    CONF_ON_OPENED: CoverOpenedTrigger,
-    CONF_ON_CLOSED: CoverClosedTrigger,
-    CONF_ON_CLOSING: CoverTrigger.template(CoverOperation.COVER_OPERATION_CLOSING),
-    CONF_ON_OPENING: CoverTrigger.template(CoverOperation.COVER_OPERATION_OPENING),
-    CONF_ON_IDLE: CoverTrigger.template(CoverOperation.COVER_OPERATION_IDLE),
+# The cover member and value each trigger fires on entering.
+_STATE_TRIGGERS = {
+    CONF_ON_OPENED: ("position", COVER_OPEN),
+    CONF_ON_CLOSED: ("position", COVER_CLOSED),
+    CONF_ON_CLOSING: ("current_operation", CoverOperation.COVER_OPERATION_CLOSING),
+    CONF_ON_OPENING: ("current_operation", CoverOperation.COVER_OPERATION_OPENING),
+    CONF_ON_IDLE: ("current_operation", CoverOperation.COVER_OPERATION_IDLE),
 }
 
 
 _COVER_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTCoverComponent")
+            ),
             cv.Optional(CONF_MQTT_JSON_STATE_PAYLOAD): cv.All(
                 cv.requires_component("mqtt"), cv.boolean
             ),
@@ -136,13 +130,14 @@ _COVER_SCHEMA = (
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
             **{
-                cv.Optional(conf): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
-                    }
-                )
-                for conf, trigger_class in TRIGGERS.items()
+                cv.Optional(conf): automation.validate_automation({})
+                for conf in _STATE_TRIGGERS
             },
+            # Removed in 2026.12.0 - kept to provide helpful error message
+            cv.Optional(CONF_ON_OPEN): cv.invalid(
+                "The 'on_open' trigger was removed in ESPHome 2026.12.0, "
+                "use 'on_opened' instead."
+            ),
         }
     )
 )
@@ -193,19 +188,10 @@ def cover_schema(
 async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
-    if CONF_ON_OPEN in config:
-        _LOGGER.warning(
-            "'on_open' is deprecated, use 'on_opened'. Will be removed in 2026.8.0"
-        )
-    for trigger_conf in TRIGGERS:
-        for conf in config.get(trigger_conf, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, [], conf)
+    await _build_state_triggers(var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None:
         if (position_state_topic := config.get(CONF_POSITION_STATE_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_position_state_topic(position_state_topic))
         if (
@@ -220,8 +206,31 @@ async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
         if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_tilt_command_topic(tilt_command_topic))
 
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+
+async def _build_state_triggers(var: MockObj, config: ConfigType) -> None:
+    """Register one state callback that runs each state trigger once on entering its state.
+
+    Each automation keeps its own flag of whether it saw its state on the last publish, so a
+    publish from an action is seen the same way as with one callback per trigger.
+    """
+    parent = automation.parent_ref(var)
+    seen: list[Statement] = []
+    checks: list[Statement] = []
+    for conf_key, (member, value) in _STATE_TRIGGERS.items():
+        for conf in config.get(conf_key, []):
+            flag = MockObj(f"seen_{len(seen)}")
+            declaration = VariableDeclarationExpression(cg.bool_, "", flag, static=True)
+            seen.append(statement(AssignmentExpression(None, None, declaration, False)))
+            entered = cover_ns.state_entered(flag, getattr(parent, member) == value)
+            target = await automation.build_trigger_callback([], conf, [])
+            run = statement(MockObj(target)())
+            checks.append(cg.RawStatement(f"if ({entered})\n  {run}"))
+    if not checks:
+        return
+    callback = automation.apply_static_function(
+        config[CONF_ID], cg.void, [], seen + checks, suffix="state_triggers"
+    )
+    cg.add(var.add_on_state_callback(callback))
 
 
 async def register_cover(var: MockObj, config: ConfigType) -> None:

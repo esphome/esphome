@@ -1,0 +1,22 @@
+# Same as hr32.yaml plus the otaflash action otadrive.py calls; pass -s name hrota32base for the base build.
+substitutions: {name: hrota32, bufsize: "32768"}
+esp32:
+  board: esp32dev
+  framework: {type: esp-idf}
+logger:
+packages: {hr: !include hr-common.yaml}
+ota:
+  - platform: http_request
+    id: ota_http
+api:
+  actions:
+    - action: otaflash
+      variables:
+        url: string
+        sum: string
+      then:
+        - lambda: 'ESP_LOGI("hrt", "OTAFLASH start %s", url.c_str());'
+        - ota.http_request.flash:
+            url: !lambda return url;
+            md5: !lambda return sum;
+        - lambda: 'ESP_LOGI("hrt", "OTAFLASH returned (failed)");'

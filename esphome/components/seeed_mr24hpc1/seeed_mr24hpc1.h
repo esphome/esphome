@@ -24,6 +24,7 @@
 #endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 
 #include "seeed_mr24hpc1_constants.h"
@@ -31,19 +32,6 @@
 #include <map>
 
 namespace esphome::seeed_mr24hpc1 {
-
-enum FrameState {
-  FRAME_IDLE,
-  FRAME_HEADER2,
-  FRAME_CTL_WORD,
-  FRAME_CMD_WORD,
-  FRAME_DATA_LEN_H,
-  FRAME_DATA_LEN_L,
-  FRAME_DATA_BYTES,
-  FRAME_DATA_CRC,
-  FRAME_TAIL1,
-  FRAME_TAIL2,
-};
 
 enum PollingState {
   STANDARD_FUNCTION_QUERY_PRODUCT_MODE = 0,
@@ -79,18 +67,8 @@ enum PollingState {
 enum OutputSwitch {
   OUTPUT_SWITCH_INIT,
   OUTPUT_SWITCH_ON,
-  OUTPUT_SWTICH_OFF,
+  OUTPUT_SWITCH_OFF,
 };
-
-static const char *const S_SCENE_STR[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
-static const bool S_SOMEONE_EXISTS_STR[2] = {false, true};
-static const char *const S_MOTION_STATUS_STR[3] = {"None", "Motionless", "Active"};
-static const char *const S_KEEP_AWAY_STR[3] = {"None", "Close", "Away"};
-static const char *const S_UNMANNED_TIME_STR[9] = {"None", "10s",   "30s",   "1min", "2min",
-                                                   "5min", "10min", "30min", "60min"};
-static const char *const S_BOUNDARY_STR[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
-                                               "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};                // uint: m
-static const float S_PRESENCE_OF_DETECTION_RANGE_STR[7] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f};  // uint: m
 
 class MR24HPC1Component final : public Component,
                                 public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
@@ -99,7 +77,7 @@ class MR24HPC1Component final : public Component,
   SUB_TEXT_SENSOR(product_model)
   SUB_TEXT_SENSOR(product_id)
   SUB_TEXT_SENSOR(hardware_model)
-  SUB_TEXT_SENSOR(firware_version)
+  SUB_TEXT_SENSOR(firmware_version)
   SUB_TEXT_SENSOR(keep_away)
   SUB_TEXT_SENSOR(motion_status)
   SUB_TEXT_SENSOR(custom_mode_end)
@@ -144,24 +122,24 @@ class MR24HPC1Component final : public Component,
   char c_product_id_[PRODUCT_BUF_MAX_SIZE + 1];
   char c_hardware_model_[PRODUCT_BUF_MAX_SIZE + 1];
   char c_firmware_version_[PRODUCT_BUF_MAX_SIZE + 1];
-  uint8_t s_output_info_switch_flag_;
-  uint8_t sg_recv_data_state_;
-  uint8_t sg_frame_len_;
-  uint8_t sg_data_len_;
-  uint8_t sg_frame_buf_[FRAME_BUF_MAX_SIZE];
-  uint8_t sg_frame_prase_buf_[FRAME_BUF_MAX_SIZE];
+  uint32_t last_rx_{0};
+  // 53 59, control, command, payload length (2, BE), payload (at least 1), sum, 54 43
+  using PayloadLength = PayloadLengthU16BE<LengthField{.offset = 4, .trailer = 3}>;
+  using Frame =
+      FrameFormat<FrameHeader<FRAME_HEADER1_VALUE, FRAME_HEADER2_VALUE>, PayloadLength, FrameMinLength<MIN_FRAME_SIZE>>;
+  LengthFrameReader<FRAME_BUF_MAX_SIZE, Frame> reader_;
   int sg_start_query_data_;
+  uint8_t s_output_info_switch_flag_;
   bool check_dev_inf_sign_;
   bool poll_time_base_func_check_;
   bool module_ready_{false};
 
   void update_();
-  void r24_split_data_frame_(uint8_t value);
-  void r24_parse_data_frame_(uint8_t *data, uint8_t len);
-  void r24_frame_parse_open_underlying_information_(uint8_t *data);
-  void r24_frame_parse_work_status_(uint8_t *data);
-  void r24_frame_parse_product_information_(uint8_t *data);
-  void r24_frame_parse_human_information_(uint8_t *data);
+  void r24_parse_data_frame_(const uint8_t *data, uint8_t len);
+  void r24_frame_parse_open_underlying_information_(const uint8_t *data);
+  void r24_frame_parse_work_status_(const uint8_t *data);
+  void r24_frame_parse_product_information_(const uint8_t *data);
+  void r24_frame_parse_human_information_(const uint8_t *data);
   void send_query_(const uint8_t *query, size_t string_length);
 
  public:

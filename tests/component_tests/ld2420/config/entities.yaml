@@ -1,0 +1,28 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+uart:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
+  baud_rate: 115200
+
+ld2420:
+  id: radar
+
+sensor:
+  - platform: ld2420
+    moving_distance:
+      name: Distance
+
+binary_sensor:
+  - platform: ld2420
+    has_target:
+      name: Presence
+
+text_sensor:
+  - platform: ld2420
+    fw_version:
+      name: Firmware

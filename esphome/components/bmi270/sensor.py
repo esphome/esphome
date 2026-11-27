@@ -2,16 +2,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_TEMPERATURE,
-    CONF_TYPE,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_MAGNET,
-    ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_MICROTESLA,
-)
+from esphome.const import CONF_TEMPERATURE, CONF_TYPE, ICON_THERMOMETER
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -34,29 +25,18 @@ def _parent_schema() -> cv.Schema:
     return cv.Schema({cv.GenerateID(CONF_BMI270_ID): cv.use_id(BMI270Component)})
 
 
-def _temperature_sensor_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_THERMOMETER,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-    ).extend(_parent_schema())
-
-
 def _magnetic_field_sensor_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_MICROTESLA,
-        icon=ICON_MAGNET,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ).extend(_parent_schema())
+    return sensor.sensor_schema(kind=sensor.MAGNETIC_FIELD, accuracy_decimals=2).extend(
+        _parent_schema()
+    )
 
 
 # `type` defaults to temperature so existing configs that omit it keep working unchanged.
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_TEMPERATURE: _temperature_sensor_schema(),
+        CONF_TEMPERATURE: sensor.sensor_schema(
+            kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
+        ).extend(_parent_schema()),
         **{x: _magnetic_field_sensor_schema() for x in _MAGNETIC_FIELDS},
     },
     default_type=CONF_TEMPERATURE,
@@ -66,9 +46,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] not in _MAGNETIC_FIELDS:
         return
-    full_config = fv.full_config.get()
-    bmi270_path = full_config.get_path_for_id(config[CONF_BMI270_ID])[:-1]
-    bmi270_config = full_config.get_config_for_path(bmi270_path)
+    bmi270_config = fv.get_declaring_config(config[CONF_BMI270_ID])
     if bmi270_config.get(CONF_AUX_DEVICE) != "BMM150":
         raise cv.Invalid(
             "This sensor requires the parent bmi270's 'aux_device' to be set to 'BMM150'",

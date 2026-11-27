@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.11.0-dev"
+__version__ = "2026.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -21,6 +21,7 @@ class Toolchain(StrEnum):
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
     SDK_NRF = "sdk-nrf"
+    ZEPHYR = "zephyr"
     # ESP8266: the Arduino core built directly (no PlatformIO)
     ARDUINO = "arduino"
     # host: the system C/C++ compiler driven by ninja (no PlatformIO)
@@ -37,9 +38,9 @@ class ErrorFormat(StrEnum):
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
-# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
-# platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
+NATIVE_TOOLCHAINS = frozenset(
+    {Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST, Toolchain.SDK_NRF}
+)
 
 
 class Platform(StrEnum):
@@ -59,6 +60,7 @@ class Platform(StrEnum):
     # Scheduled for removal in 2027.7.0.
     RP2040 = "rp2"
     RTL87XX = "rtl87xx"
+    STM32 = "stm32"
 
 
 class Framework(StrEnum):
@@ -138,6 +140,7 @@ PLATFORM_RP2 = Platform.RP2
 # scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
+PLATFORM_STM32 = Platform.STM32
 
 
 BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
@@ -1168,9 +1171,6 @@ CONF_Y = "y"
 CONF_Y_GRID = "y_grid"
 CONF_YEAR = "year"
 CONF_ZERO = "zero"
-CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
-CONF_ZIGBEE_ID = "zigbee_id"
-CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 
 TYPE_GIT = "git"
 TYPE_LOCAL = "local"
@@ -1269,6 +1269,7 @@ UNIT_DECIBEL_MILLIWATT = "dBm"
 UNIT_DEGREE_PER_SECOND = "°/s"
 UNIT_DEGREES = "°"
 UNIT_EMPTY = ""
+UNIT_FAHRENHEIT = "°F"
 UNIT_G = "G"
 UNIT_GRAMS_PER_CUBIC_METER = "g/m³"
 UNIT_HECTOPASCAL = "hPa"

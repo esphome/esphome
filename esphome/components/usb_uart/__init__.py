@@ -47,13 +47,9 @@ def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     )
 
 
-UART_PARITY_OPTIONS = {
-    "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
-    "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
-    "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
-    "MARK": UARTParityOptions.UART_CONFIG_PARITY_MARK,
-    "SPACE": UARTParityOptions.UART_CONFIG_PARITY_SPACE,
-}
+UART_PARITY_OPTIONS = UARTParityOptions.options(
+    "NONE", "EVEN", "ODD", "MARK", "SPACE", prefix="UART_CONFIG_PARITY_"
+)
 
 UARTStopBitsOptions = usb_uart_ns.enum("UARTStopBitsOptions")
 UART_STOP_BITS_OPTIONS = UARTStopBitsOptions.options(
@@ -243,6 +239,9 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
+_add_channel = cg.slot_list("USB_UART_CHANNEL_COUNT", "add_channel", DOMAIN)
+
+
 async def to_code(config: list[ConfigType]) -> None:
     # The output chunk pool/queue are compile-time-sized templates shared by all
     # USBUartChannel instances, so use the largest buffer_size across every channel
@@ -275,6 +274,6 @@ async def to_code(config: list[ConfigType]) -> None:
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
             if channel[CONF_DEBUG_PREFIX]:
                 cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
-            cg.add(var.add_channel(chvar))
+            cg.add(_add_channel(var, chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")

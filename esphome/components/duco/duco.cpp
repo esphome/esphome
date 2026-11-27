@@ -1,7 +1,9 @@
 #include "duco.h"
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::duco {
 
@@ -42,7 +44,6 @@ void Duco::reset_frame_() {
 }
 
 void Duco::close_request(DucoDevice *device) {
-#ifdef DUCO_DEVICE_COUNT
   for (auto &pending : this->pending_) {
     if (pending.device == device) {
       pending.function = 0;
@@ -51,13 +52,12 @@ void Duco::close_request(DucoDevice *device) {
       return;
     }
   }
-#endif
 }
 
 bool Duco::parse_byte_(uint8_t byte) {
   const size_t at = this->rx_size_;
   if (at >= MAX_FRAME_SIZE) {
-    ESP_LOGV(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
+    ESP_LOGW(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
     return false;
   }
   const uint8_t prev = at > 0 ? this->rx_buffer_[at - 1] : 0;
@@ -104,7 +104,8 @@ void Duco::finalize_message_() {
     ESP_LOGV(TAG, "CRC check failed, ignored: %04X != %04X", computed_crc, remote_crc);
   }
 
-#ifdef DUCO_DEVICE_COUNT
+  if (this->pending_.empty())  // no device, no answer to match
+    return;
   // The box first acknowledges a request with function + 1, then answers with function + 2
   const DucoMessage message{raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
   for (auto &pending : this->pending_) {
@@ -120,10 +121,8 @@ void Duco::finalize_message_() {
   if ((raw[1] & 1) == 0) {
     ESP_LOGV(TAG, "Answer %02X with id %u matches no open request", raw[1], message.id);
   }
-#endif
 }
 
-#ifdef DUCO_DEVICE_COUNT
 void Duco::update_warning_() {
   for (const auto &pending : this->pending_) {
     if (pending.missed) {
@@ -133,7 +132,6 @@ void Duco::update_warning_() {
   }
   this->status_clear_warning();
 }
-#endif
 
 void Duco::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -161,13 +159,10 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   const uint8_t id = this->next_id_();
   uint8_t frame[5 + MAX_REQUEST_DATA + 2] = {HEADER_START, HEADER_END, static_cast<uint8_t>(size + 2), function, id};
   std::copy_n(data.begin(), size, frame + 5);
-  const uint16_t crc = crc16(frame + 2, size + 3);
-  frame[size + 5] = crc & 0xFF;
-  frame[size + 6] = crc >> 8;
+  put_le16(frame + size + 5, crc16(frame + 2, size + 3));
   this->write_array(frame, size + 7);
   this->flush();
 
-#ifdef DUCO_DEVICE_COUNT
   for (auto &pending : this->pending_) {
     if (pending.device == device) {
       pending.missed = pending.function != 0;
@@ -180,30 +175,25 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
       break;
     }
   }
-#endif
 
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
-static const LogString *node_type_name(uint8_t type) {
-  switch (type) {
-    case 8:
-      return LOG_STR("UCBAT");
-    case 9:
-      return LOG_STR("UC");
-    case 10:
-      return LOG_STR("UCRH");
-    case 12:
-      return LOG_STR("UCCO2");
-    case 13:
-      return LOG_STR("VLV");
-    case 17:
-      return LOG_STR("BOX");
-    case 18:
-      return LOG_STR("SWITCH");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+// Indexed by node type - 1 (types 1-49); type 0 wraps to a huge index and falls back to UNKNOWN too
+PROGMEM_STRING_TABLE(NodeTypeStrings, "IQ", "CO2", "RH", "KLEP", "TOP", "COMB", "CLIMA", "UCBAT", "UC", "UCRH", "UCVOC",
+                     "UCCO2", "VLV", "VLVRH", "VLVVOC", "VLVCO2", "BOX", "SWITCH", "ACTUAT", "UCBATRH", "PWMIN", "IAV",
+                     "IAVRH", "IAVVOC", "IAVCO2", "BOILER", "TRONIC", "VLVCO2RH", "UCSUN", "UCVENT", "EAV", "EAVRH",
+                     "EAVVOC", "EAVCO2", "BSRH", "BSVOC", "BSCO2", "MOTORRLY", "WXSENSOR", "MOTORMB", "DI", "DO",
+                     "COMM", "RLYMB", "PERILEX", "RO", "HEATODA", "AO", "CSCO2", "UNKNOWN");
+
+static_assert(NodeTypeStrings::LAST_INDEX == 49);
+
+const LogString *node_type_name(uint8_t type) {
+  uint8_t base_type = type & ~NODE_TYPE_BS;
+  // A box sensor reports the UC type it is built on; BSRH and BSCO2 are types 35 and 37
+  if ((type & NODE_TYPE_BS) && (base_type == 10 || base_type == 12))
+    base_type += 25;
+  return NodeTypeStrings::get_log_str(base_type - 1);
 }
 
 void DucoDiscovery::setup() {
@@ -237,8 +227,9 @@ void DucoDiscovery::receive_response(const DucoMessage &message) {
   if (message.size >= 1 && this->next_node_ < NODE_COUNT) {
     if (message.data[0] != 0) {
       ESP_LOGV(TAG, "Found node %u: type %u", this->next_node_, message.data[0]);
+      this->node_types_[this->next_node_] = node_type_byte(message);
     }
-    this->node_types_[this->next_node_++] = message.data[0];
+    this->next_node_++;
     this->attempts_ = 0;
   }
 }
@@ -248,7 +239,7 @@ void DucoDiscovery::dump_config() {
   for (uint8_t node = 0; node < NODE_COUNT; node++) {
     const uint8_t type = this->node_types_[node];
     if (type != 0) {
-      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s)", node, type, LOG_STR_ARG(node_type_name(type)));
+      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s)", node, type & ~NODE_TYPE_BS, LOG_STR_ARG(node_type_name(type)));
     }
   }
   if (this->next_node_ < NODE_COUNT) {

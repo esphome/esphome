@@ -42,10 +42,8 @@ void LP5562Output::setup() {
   // power up the chip and enable the internal 32 kHz oscillator, see
   // https://github.com/m5stack/M5GFX/blob/b2422cdb4735159209c2097d425c0756505b9a81/src/M5GFX.cpp#L566
   const uint8_t enable = LP5562_ENABLE_CHIP_EN | (this->logarithmic_dimming_ ? LP5562_ENABLE_LOG_EN : 0);
-  if (!this->write_byte(LP5562_REG_ENABLE, enable)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(LP5562_REG_ENABLE, enable)))
     return;
-  }
   delay(1);
   // use the internal clock, and drive every channel directly from its PWM register instead of the
   // internal blink/fade engines
@@ -55,10 +53,8 @@ void LP5562Output::setup() {
     return;
   }
   for (size_t channel = 0; channel < this->currents_.size(); channel++) {
-    if (!this->write_byte(progmem_read_byte(&LP5562_REG_CURRENT[channel]), this->currents_[channel])) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->setup_check(this->write_byte(progmem_read_byte(&LP5562_REG_CURRENT[channel]), this->currents_[channel])))
       return;
-    }
   }
 }
 
@@ -70,16 +66,11 @@ void LP5562Output::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-void LP5562Output::set_channel_value_(uint8_t channel, uint8_t value) {
+void LP5562Output::write_channel(uint8_t channel, float state) {
   if (this->is_failed())
     return;
-  this->status_comm_result(this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), value));
-}
-
-void LP5562Channel::write_state(float state) {
-  const uint8_t max_duty = 255;
-  const auto duty = static_cast<uint8_t>(roundf(state * max_duty));
-  this->parent_->set_channel_value_(this->channel_, duty);
+  const auto duty = static_cast<uint8_t>(roundf(state * 255));
+  this->status_comm_result(this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), duty));
 }
 
 }  // namespace esphome::lp5562

@@ -1,11 +1,11 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 import functools
 from importlib import import_module
 from importlib.util import find_spec
 import logging
 import re
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from esphome.automation import apply_static_function, parent_ref
 import esphome.codegen as cg
@@ -20,26 +20,29 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_PLATFORM,
     CONF_REPORT,
     CONF_SORTING_GROUP_ID,
     CONF_SORTING_WEIGHT,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_USE_DEVICE_TYPE,
+    CONF_VISUAL,
     CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
-    CONF_ZIGBEE_BINARY_SENSOR,
-    CONF_ZIGBEE_ID,
-    CONF_ZIGBEE_SENSOR,
+    UNIT_CELSIUS,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, app_lists, coroutine_with_priority
 from esphome.core.config import (
     DEVICE_CLASS_MAX_LENGTH,
     ICON_MAX_LENGTH,
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import (
+    LambdaExpression,
     MockObj,
     MockObjClass,
     RawExpression,
@@ -47,7 +50,7 @@ from esphome.cpp_generator import (
     add,
     get_variable,
 )
-from esphome.cpp_types import App
+from esphome.cpp_types import TEMPERATURE_UNITS
 import esphome.final_validate as fv
 from esphome.helpers import (
     cpp_string_escape,
@@ -56,6 +59,7 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
+from esphome.loader import get_component, get_platform
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
@@ -84,11 +88,8 @@ _KEY_INTERNAL = "_entity_internal"
 _KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
 _KEY_ENTITY_CATEGORY = "_entity_category"
 
-# Private config key for the App.register_<method> entry point.
-# When set, finalize_entity_strings() emits a single combined call
-# `App.register_<method>(var, name, hash, packed)` instead of separate
-# `App.register_<method>(var)` and `var->configure_entity_(...)` calls.
-_KEY_REGISTER_METHOD = "_entity_register_method"
+_APPLICATION = MockObj("esphome::Application", "::")
+_KEY_APP_LIST = "_entity_app_list"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)
 _MAX_DEVICE_CLASSES = 0xFF  # 255
@@ -310,14 +311,8 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
 
 
 def queue_entity_register(method_name: str, config: ConfigType) -> None:
-    """Defer ``App.register_<method_name>(var)`` emission to ``finalize_entity_strings``.
-
-    When the deferred call is emitted, it is folded with ``configure_entity_`` into
-    a single ``App.register_<method_name>(var, name, hash, packed)`` call site,
-    which removes one statement and one method dispatch per entity from the
-    generated ``main.cpp``.
-    """
-    config[_KEY_REGISTER_METHOD] = method_name
+    """Add the entity to the ``App`` list of ``method_name`` in ``finalize_entity_strings``."""
+    config[_KEY_APP_LIST] = method_name
 
 
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
@@ -326,9 +321,8 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
 
-    If queue_entity_register() was called for this entity, emits one combined call
-    ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
-    standalone ``var->configure_entity_(name, hash, packed)``.
+    Emits ``Application::configure_<entity>(var, ...)`` and adds the entity to its ``App`` list
+    when queue_entity_register() was called for it, otherwise ``var->configure_entity_(...)``.
     """
     entity_name = RawExpression(
         f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
@@ -350,9 +344,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
-    register_method = config.get(_KEY_REGISTER_METHOD)
-    if register_method is not None:
-        expr = getattr(App, f"register_{register_method}")(
+    if (app_list := config.get(_KEY_APP_LIST)) is not None:
+        app_lists.add_entity(app_list, var)
+        expr = getattr(_APPLICATION, f"configure_{app_list}")(
             var, entity_name, object_id_hash, packed
         )
     else:
@@ -494,7 +488,8 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
-ApplyPublish = Literal["before", "after"] | None
+ApplyPublishMode = Literal["before", "after", "momentary", "on_success"]
+ApplyPublish = ApplyPublishMode | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -502,15 +497,36 @@ class ApplyEntity:
     """A domain's ``Apply*`` class, its generated function's parameters and its publish statement.
 
     ``locals`` are (name, declaration) pairs, declared only when the body uses the name.
+    ``momentary`` is (acknowledge statement, condition) for ``publish="momentary"``.
     """
 
     cls: MockObjClass
     params: tuple[tuple[SafeExpType, str], ...]
     publish: str | None = None
     locals: tuple[tuple[str, str], ...] = ()
+    momentary: tuple[str, str] | None = None
 
 
 _APPLY_DOMAIN = "entity_apply"
+
+
+@dataclass(frozen=True, slots=True)
+class FollowEntity:
+    """A state callback, its parameters and the value an entity republishes from it."""
+
+    callback: str
+    params: tuple[tuple[SafeExpType, str], ...]
+    value: str
+
+    def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
+        """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
+        publish = cg.statement(
+            parent_ref(entity).publish_state(RawExpression(self.value))
+        )
+        callback = LambdaExpression(
+            [publish], list(self.params), capture="", return_type=cg.void
+        )
+        add(getattr(source, self.callback)(*args, callback))
 
 
 @dataclass(frozen=True, slots=True)
@@ -549,7 +565,10 @@ class SubEntities:
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
         ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
-        ``publish`` ("before"/"after") placing the domain's publish.
+        ``publish`` ("before"/"after") placing the domain's publish; ``"on_success"`` publishes only when
+        ``apply`` returns true. ``publish="momentary"`` instead
+        acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
+        legacy action switches; a new action entity is a button.
         """
         entity_id: ID = conf[CONF_ID]
         is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
@@ -570,8 +589,10 @@ class SubEntities:
             )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
-        if publish not in (None, "before", "after"):
-            raise ValueError(f'{entity_id}: publish= must be "before" or "after"')
+        if publish is not None and publish not in (modes := get_args(ApplyPublishMode)):
+            raise ValueError(f"{entity_id}: publish= must be one of {', '.join(modes)}")
+        if publish == "momentary" and self.apply_entity.momentary is None:
+            raise ValueError(f'{entity_id}: publish="momentary" is not supported here')
 
         if apply is None:
             var = await self.new_entity(conf, *args, **kwargs)
@@ -592,11 +613,26 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        body = [f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"]
+        expr = apply if parent is None else f"{parent_ref(parent)}->{apply}"
+        call = f"{expr};"
         if publish == "before":
-            body.insert(0, apply_entity.publish)
+            body = [apply_entity.publish, call]
         elif publish == "after":
-            body.append(apply_entity.publish)
+            body = [call, apply_entity.publish]
+        elif publish == "on_success":
+            # An esp_err_t or int would convert to bool silently and flip the meaning
+            body = [
+                (
+                    f"static_assert(std::is_same_v<decltype({expr}), bool>, "
+                    '"publish=\\"on_success\\" needs a hub call that returns bool");'
+                ),
+                f"if ({expr}) {{ {apply_entity.publish} }}",
+            ]
+        elif publish == "momentary":
+            acknowledge, condition = apply_entity.momentary
+            body = [acknowledge, f"if ({condition}) {{ {call} }}"]
+        else:
+            body = [call]
         for name, decl in apply_entity.locals:
             # Declared right before its first use, so calls keep their order.
             uses = (i for i, line in enumerate(body) if re.search(rf"\b{name}\b", line))
@@ -621,12 +657,6 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
                           [CONF_SENSOR, 1, CONF_POWER_ID].
     """
 
-    def _walk_config(config, path):
-        walk = [path] if not isinstance(path, list) else path
-        for item_or_index in walk:
-            config = config[item_or_index]
-        return config
-
     def inherit_property(config):
         # Split the property into its path and name
         if not isinstance(property_to_inherit, list):
@@ -646,14 +676,12 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
             # Get config for the parent entity
             parent_id = _walk_config(config, parent_id_property)
-            parent_path = fconf.get_path_for_id(parent_id)[:-1]
-            parent_config = fconf.get_config_for_path(parent_path)
+            parent_config = fv.get_declaring_config(parent_id, fconf)
 
             # If parent sensor has the property set, inherit it
             if property in parent_config:
-                path = fconf.get_path_for_id(config[CONF_ID])[:-1]
                 this_config = _walk_config(
-                    fconf.get_config_for_path(path), property_path
+                    fv.get_declaring_config(config[CONF_ID], fconf), property_path
                 )
                 value = parent_config[property]
                 if transform:
@@ -662,16 +690,185 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
         return config
 
+    inherit_property.inherits = (property_to_inherit, parent_id_property, transform)
     return inherit_property
 
 
-def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:
+def _walk_config(config: ConfigType, path: str | list) -> Any:
+    for item_or_index in path if isinstance(path, list) else [path]:
+        config = config[item_or_index]
+    return config
+
+
+def _inherit_validators(validator: Any) -> Iterator[Callable]:
+    """The inherit_property_from validators in a FINAL_VALIDATE_SCHEMA, also inside cv.All."""
+    if hasattr(validator, "inherits"):
+        yield validator
+    for inner in getattr(validator, "validators", ()):
+        yield from _inherit_validators(inner)
+
+
+def _inherits(manifest: Any, property_: str) -> tuple | None:
+    """What ``inherit_property_from`` gives ``property_`` in a component's final validation."""
+    validators = _inherit_validators(manifest.final_validate_schema)
+    return next((v.inherits for v in validators if v.inherits[0] == property_), None)
+
+
+# Returned by resolve_inherited_property when the chain cannot be followed
+UNRESOLVED_PROPERTY = object()
+
+
+def resolve_inherited_property(entity_id: ID, property_: str) -> Any:
+    """The value of ``property_`` for the entity that declares ``entity_id``, following the
+    ``inherit_property_from`` chain (a copy of a copy) the way final validation fills it in, so
+    the result does not depend on which component validates first. None when it is not set;
+    ``UNRESOLVED_PROPERTY`` when the chain cannot be followed (a cycle, an unknown component or
+    an entity nested under a component that is not a platform)."""
+    fconf = fv.full_config.get()
+    seen: set[ID] = set()
+    steps: list[tuple[Callable | None, ConfigType]] = []
+    value = None
+    while entity_id not in seen:
+        seen.add(entity_id)
+        path = fconf.get_path_for_id(entity_id)[:-1]
+        config = fconf.get_config_for_path(path)
+        if property_ in config:
+            value = config[property_]
+            break
+        if (platform := config.get(CONF_PLATFORM)) is not None:
+            manifest = get_platform(path[0], platform)
+        elif len(path) <= 2:
+            manifest = get_component(path[0])
+        else:
+            return UNRESOLVED_PROPERTY
+        if manifest is None:
+            return UNRESOLVED_PROPERTY
+        if (inherits := _inherits(manifest, property_)) is None:
+            return None
+        _, parent_id_property, transform = inherits
+        steps.append((transform, config))
+        entity_id = _walk_config(config, parent_id_property)
+    else:
+        return UNRESOLVED_PROPERTY
+    for transform, config in reversed(steps):
+        if transform:
+            value = transform(value, config)
+    return value
+
+
+# Takes the entity config and the full config, and returns the unit the entity reports in
+TemperatureUnitResolver = Callable[[ConfigType, ConfigType], str]
+
+# Platforms whose entities report in one unit only, set by their traits, or a resolver for those
+# whose unit follows their own (or their hub's) config; keyed by the C++ class name
+_FIXED_TEMPERATURE_UNITS: dict[str, str | TemperatureUnitResolver] = {}
+
+
+def declare_fixed_temperature_unit(
+    class_: MockObjClass, unit: str | TemperatureUnitResolver
+) -> None:
+    """Record the unit every entity of ``class_`` reports in, or a resolver that reads it from the
+    config; nothing is stored in the config, so the unit never appears in a config dump."""
+    _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
+
+
+def _declared_temperature_unit(type_: Any) -> str | TemperatureUnitResolver:
+    """The unit declared for ``type_`` or its closest declared parent class, else Celsius, so a
+    platform built on a declared class (an external component) reports in the same unit."""
+    classes = [type_, *type_.parents] if isinstance(type_, MockObjClass) else [type_]
+    for class_ in classes:
+        if (declared := _FIXED_TEMPERATURE_UNITS.get(str(class_))) is not None:
+            return declared
+    return UNIT_CELSIUS
+
+
+def entity_temperature_unit(
+    config: ConfigType, full_config: ConfigType | None = None
+) -> str | None:
+    """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
+    the option through its schema factory, the platform's fixed or resolved unit when it declared
+    one, else Celsius (anova's option of that name is unrelated). A resolver needs ``full_config``;
+    without it the unit is not known yet and this returns None."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        return unit
+    entity_id = config.get(CONF_ID)
+    declared = _declared_temperature_unit(
+        entity_id.type if entity_id is not None else None
+    )
+    if isinstance(declared, str):
+        return declared
+    if full_config is None:
+        return None
+    return declared(config, full_config)
+
+
+def entity_temperature_unit_of_id(entity_id: ID) -> str:
+    """The unit of the entity with this id, for actions that take static temperatures."""
+    return entity_temperature_unit(
+        fv.get_declaring_config(entity_id, CORE.config), CORE.config
+    )
+
+
+def convert_temperature_keys(
+    section: ConfigType, keys: tuple[str, ...], unit: str, *, delta: bool = False
+) -> None:
+    """Convert the ``(value, unit)`` temperatures under ``keys`` into ``unit``; absent or already
+    converted values are left alone."""
+    for key in keys:
+        if isinstance(value := section.get(key), tuple):
+            section[key] = cv.convert_temperature(*value, unit, delta=delta)
+
+
+def convert_visual_temperatures(
+    config: ConfigType,
+    delta_keys: tuple[str, ...],
+    delta_section: str | None = None,
+    full_config: ConfigType | None = None,
+) -> ConfigType:
+    """Convert a climate's or water heater's ``visual`` temperatures into the entity's unit. The
+    step keys are differences, found under ``delta_section`` when the domain nests them. A unit
+    that needs ``full_config`` is left for final validation, which runs this again with it."""
+    if (unit := entity_temperature_unit(config, full_config)) is None:
+        return config
+    # A platform entry that only holds nested entities has no visual section of its own
+    if (visual := config.get(CONF_VISUAL)) is None:
+        return config
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
+    section = visual if delta_section is None else visual.get(delta_section)
+    if section is not None:
+        convert_temperature_keys(section, delta_keys, unit, delta=True)
+    return config
+
+
+def temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    """Render a static action temperature in the unit of the entity the action targets."""
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+
+
+def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
+    """Pass the unit an entity reports in to its platform, which took the option; a platform with a
+    fixed unit sets it in its own traits."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
+
+
+def entity_duplicate_validator(
+    platform: str, key_namespace: str | None = None
+) -> Callable[[ConfigType], ConfigType]:
     """Create a validator function to check for duplicate entity names.
 
     This validator is meant to be used with schema.add_extra() for entity base schemas.
 
     Args:
         platform: The platform name (e.g., "sensor", "binary_sensor")
+        key_namespace: Scope in which entity keys must be unique; defaults to the
+            platform. Platforms whose API messages identify an entity by key alone
+            must share one.
 
     Returns:
         A validator function that checks for duplicate names
@@ -710,7 +907,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         # key that routes state to API clients. This rejects names that sanitize to the
         # same object_id, and also two different object_ids whose 32-bit hashes collide.
         name_hash = fnv1_hash(name_key)
-        unique_key = (device_id, platform, name_hash)
+        unique_key = (device_id, key_namespace or platform, name_hash)
         if unique_key in CORE.unique_ids:
             # Get the existing entity metadata
             existing = CORE.unique_ids[unique_key]
@@ -733,6 +930,13 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                 conflict_msg += f" (id: {existing_id})"
             if existing_component != "unknown":
                 conflict_msg += f" from component '{existing_component}'"
+
+            existing_platform = existing.get("platform", platform)
+            scope = (
+                "within its platform"
+                if existing_platform == platform
+                else f"across the {existing_platform} and {platform} platforms"
+            )
 
             # Distinguish names that sanitize to the same object_id from a genuine
             # 32-bit hash collision between two different object_ids
@@ -761,7 +965,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                 raise cv.Invalid(
                     f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
                     f"{conflict_msg}. "
-                    "Each entity on a device must have a unique name within its platform."
+                    f"Each entity on a device must have a unique name {scope}."
                     f"{collision_msg}"
                 )
 
@@ -877,7 +1081,6 @@ def mqtt_component_class(name: str) -> MockObjClass:
 ZIGBEE_MAX_EP_NUMBER = 239
 
 _zigbee_ns = cg.esphome_ns.namespace("zigbee")
-_ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
 ZIGBEE_REPORT = _zigbee_ns.enum("ZigbeeReportT").options(
     "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
 )
@@ -903,7 +1106,6 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
             ),
             cv.Optional(CONF_ENDPOINT): cv.All(
                 cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
                 cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
             ),
             cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
@@ -929,36 +1131,13 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
 
 
 ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
-
-# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
-# unit test checks each class against the owning declaration in zigbee_zephyr.
-_ZIGBEE_ENTITY_CLASSES = {
-    "binary_sensor": (
-        CONF_ZIGBEE_BINARY_SENSOR,
-        "ZigbeeBinarySensor",
-        ["generic", "device_class"],
-    ),
-    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
-}
-
-
-def _zigbee_entity_schema(platform: str) -> cv.Schema:
-    conf_key, class_name, cluster_options = _ZIGBEE_ENTITY_CLASSES[platform]
-    return zigbee_base_entity_schema(cluster_options).extend(
-        {
-            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
-                _ZigbeeComponent
-            ),
-            cv.OnlyWith(conf_key, ["nrf52", "zigbee"]): cv.declare_id(
-                _zigbee_ns.class_(class_name, cg.Component)
-            ),
-        }
-    )
-
-
-ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
-
-ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
+ZIGBEE_BINARY_SENSOR_SCHEMA = zigbee_base_entity_schema(["generic", "device_class"])
+ZIGBEE_SENSOR_SCHEMA = zigbee_base_entity_schema(
+    ["generic", "device_class", "power_config"]
+)
+ZIGBEE_SWITCH_SCHEMA = zigbee_base_entity_schema(["generic", "on_off"])
+ZIGBEE_NUMBER_SCHEMA = zigbee_base_entity_schema(["generic"])
+ZIGBEE_LIGHT_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA
 
 
 def lazy_load_validator(
@@ -977,6 +1156,16 @@ def lazy_load_validator(
         return delegate(config)
 
     return validator
+
+
+async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
+    """Await ``components.<component>.<name>(*args)`` when the component is loaded."""
+    if component not in CORE.loaded_integrations:
+        return
+    module = import_module(f"esphome.components.{component}")
+    if (hook := getattr(module, name, None)) is None:
+        raise ValueError(f"{component} has no setup hook {name!r}")
+    await hook(*args)
 
 
 async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:

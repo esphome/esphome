@@ -10,9 +10,12 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from esphome import const, cpp_helpers as ch
+from esphome import codegen as cg, const, cpp_helpers as ch, cpp_types as ct
 from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.coroutine import FakeAwaitable
+from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import ComponentSourcePool, register_component_source
+from tests.testing_helpers import get_define_value
 
 
 @pytest.mark.asyncio
@@ -177,21 +180,13 @@ def test_register_component_source_overflow_suppressed_in_testing_mode(
     assert "Too many unique component source names" not in caplog.text
 
 
-def _define_value(name: str) -> str | None:
-    for define in ch.CORE.defines:
-        if define.name == name:
-            # Values are codegen expressions (IntLiteral); compare rendered.
-            return str(define.value)
-    return None
-
-
 def test_slot_counter_emits_requested_count() -> None:
     """Each request bumps the count; the self-scheduled FINAL job emits it."""
     request = ch.slot_counter("TEST_SLOT_COUNT")
     request()
     request()
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT") == "2"
+    assert get_define_value("TEST_SLOT_COUNT") == "2"
 
 
 def test_slot_counter_keyed_emits_largest_count() -> None:
@@ -204,7 +199,7 @@ def test_slot_counter_keyed_emits_largest_count() -> None:
     request("rx_b")
     assert ch.get_slot_count("TEST_SLOT_COUNT_KEYED") == 3
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_KEYED") == "3"
+    assert get_define_value("TEST_SLOT_COUNT_KEYED") == "3"
 
 
 def test_slot_counter_rejects_mixed_keyed_and_unkeyed_requests() -> None:
@@ -223,7 +218,7 @@ def test_slot_counter_without_requests_emits_nothing() -> None:
     """No requests, no job, no define — the guarded storage compiles out."""
     ch.slot_counter("TEST_SLOT_COUNT_UNUSED")
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_UNUSED") is None
+    assert get_define_value("TEST_SLOT_COUNT_UNUSED") is None
 
 
 def test_slot_counter_request_from_final_job_still_emits() -> None:
@@ -238,7 +233,7 @@ def test_slot_counter_request_from_final_job_still_emits() -> None:
 
     ch.CORE.add_job(late_requester)
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_LATE") == "1"
+    assert get_define_value("TEST_SLOT_COUNT_LATE") == "1"
 
 
 def test_slot_counter_request_after_emit_raises() -> None:
@@ -247,9 +242,114 @@ def test_slot_counter_request_after_emit_raises() -> None:
     request = ch.slot_counter("TEST_SLOT_COUNT_TOO_LATE")
     request()
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
+    assert get_define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
     with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
         request()
+
+
+def _component_var(id_: str, cpp_type: str = "foo::Bar") -> Mock:
+    base = Mock()
+    base.__str__ = lambda self: id_
+    base.type = Mock()
+    base.type.__str__ = lambda self: cpp_type
+    return Mock(base=base)
+
+
+def _looping_count_statement() -> str:
+    lines = [
+        str(s)
+        for s in ch.CORE.global_statements
+        if "constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(lines) == 1
+    return lines[0]
+
+
+@pytest.fixture
+def stub_component_codegen(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the real CORE (jobs, defines) but skip emitting C++ statements."""
+    monkeypatch.setattr(ch, "add", Mock())
+    monkeypatch.setattr(ch, "App", Mock())
+
+
+@pytest.mark.usefixtures("stub_component_codegen")
+@pytest.mark.parametrize(
+    ("declared", "registered", "expected"),
+    [
+        ({"comp_a", "comp_b", "declared_only"}, ["comp_a", "comp_b"], "2"),
+        ({"declared_only"}, [], "0"),
+    ],
+)
+def test_component_count_skips_unregistered_ids(
+    declared: set[str], registered: list[str], expected: str
+) -> None:
+    """An id declared with a Component type but never registered takes no slot."""
+    ch.CORE.component_ids.update(declared)
+
+    async def registrar() -> None:
+        for id_ in registered:
+            await ch.register_component(_component_var(id_), {})
+
+    ch.CORE.add_job(ch.add_component_counts)
+    ch.CORE.add_job(registrar)
+    ch.CORE.flush_tasks()
+    assert get_define_value("ESPHOME_COMPONENT_COUNT") == expected
+
+
+@pytest.mark.usefixtures("stub_component_codegen")
+def test_looping_component_count_without_components_is_zero() -> None:
+    """With no components the constexpr is still valid C++ (`= 0;`, not `= ;`)."""
+    ch.CORE.add_job(ch.add_component_counts)
+    ch.CORE.flush_tasks()
+    rhs = _looping_count_statement().split("=", 1)[1]
+    assert rhs.replace("\\\n", "").strip() == "0;"
+    # The storage is sized at least 1 so a zero count is not a zero-length array
+    assert any(
+        "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];"
+        in str(s)
+        for s in ch.CORE.global_statements
+    )
+
+
+@pytest.mark.usefixtures("stub_component_codegen")
+def test_component_counts_include_final_and_waiting_registrations() -> None:
+    """Registrations from FINAL jobs, and from tasks that waited long enough
+    to sink below FINAL, land in both counts before they are emitted."""
+    ch.CORE.component_ids.update({"final_comp", "slow_comp", "slow_comp_2"})
+
+    @coroutine_with_priority(CoroPriority.FINAL)
+    async def final_registrar() -> None:
+        await ch.register_component(_component_var("final_comp", "foo::Final"), {})
+
+    async def slow_registrar() -> None:
+        # Each yield lowers the task's priority by one, 1500 puts it below FINAL.
+        for _ in range(1500):
+            await FakeAwaitable(iter([None]))
+        await ch.register_component(_component_var("slow_comp", "foo::Slow"), {})
+        await ch.register_component(_component_var("slow_comp_2", "foo::Slow"), {})
+
+    ch.CORE.add_job(ch.add_component_counts)
+    ch.CORE.add_job(final_registrar)
+    ch.CORE.add_job(slow_registrar)
+    ch.CORE.flush_tasks()
+    assert get_define_value("ESPHOME_COMPONENT_COUNT") == "3"
+    # Summed per type, so each type is checked once at compile time.
+    looping = _looping_count_statement()
+    assert "(1 * HasLoopOverride<foo::Final>::value)" in looping
+    assert "(2 * HasLoopOverride<foo::Slow>::value)" in looping
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("stub_component_codegen")
+async def test_component_count_register_after_emit_raises() -> None:
+    """A registration after the counts were emitted would be dropped from
+    App.components_ at run time, so it fails loudly and leaves the id alone."""
+    ch.CORE.component_ids.add("too_late")
+    ch.CORE.add_job(ch.add_component_counts)
+    ch.CORE.flush_tasks()
+    with pytest.raises(ValueError, match="after ESPHOME_COMPONENT_COUNT"):
+        await ch.register_component(_component_var("too_late"), {})
+    assert "too_late" in ch.CORE.component_ids
 
 
 def _load_module(
@@ -403,3 +503,230 @@ async def test_register_component_without_module_has_no_source(
     assert await ch.register_component(var, {}) is var
 
     app_mock.register_component_.assert_called_once_with(var)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_slot_list_domains(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ch, "_SLOT_LIST_DOMAINS", {})
+
+
+def _emit_slot_lists(config: dict[str, Any]) -> None:
+    ch.CORE.config = config
+    ch.CORE.add_job(ch.emit_empty_slot_lists)
+    ch.CORE.flush_tasks()
+
+
+def test_slot_list_sizes_for_the_busiest_hub() -> None:
+    """Hubs with 3, 1 and 0 children: the define is 3 (the max, not the sum or the
+    first hub's count) and each call targets only its own hub."""
+    register_item = ch.slot_list("TEST_SLOT_LIST_COUNT", "register_listener", "wiegand")
+    hub_a = MockObj("hub_a", "->")
+    hub_b = MockObj("hub_b", "->")
+    calls = [
+        register_item(hub_b, MockObj("listener_b1"), 7),
+        register_item(hub_a, MockObj("listener_a1")),
+        register_item(hub_a, MockObj("listener_a2")),
+        register_item(hub_a, MockObj("listener_a3")),
+    ]
+    assert [str(c) for c in calls] == [
+        "hub_b->register_listener(listener_b1, 7)",
+        "hub_a->register_listener(listener_a1)",
+        "hub_a->register_listener(listener_a2)",
+        "hub_a->register_listener(listener_a3)",
+    ]
+    assert ch.get_slot_count("TEST_SLOT_LIST_COUNT") == 3
+    _emit_slot_lists({"wiegand": []})
+    assert get_define_value("TEST_SLOT_LIST_COUNT") == "3"
+
+
+def test_slot_list_without_registrations_emits_zero() -> None:
+    """A hub in the build that nothing registered into still gets its define, as 0."""
+    ch.slot_list("TEST_SLOT_LIST_EMPTY", "register_listener", "wiegand")
+    _emit_slot_lists({"wiegand": []})
+    assert get_define_value("TEST_SLOT_LIST_EMPTY") == "0"
+
+
+def test_slot_list_of_a_domain_not_in_the_build_emits_nothing() -> None:
+    ch.slot_list("TEST_SLOT_LIST_UNUSED", "register_listener", "rc522")
+    _emit_slot_lists({"wiegand": []})
+    assert get_define_value("TEST_SLOT_LIST_UNUSED") is None
+
+
+def test_slot_list_of_a_platform_domain_follows_the_platform() -> None:
+    """A hub that is a platform (display: - platform: nextion) is built with it."""
+    ch.slot_list("TEST_SLOT_LIST_PLATFORM", "register_listener", "uart")
+    _emit_slot_lists({"binary_sensor": [{"platform": "uart"}]})
+    assert get_define_value("TEST_SLOT_LIST_PLATFORM") == "0"
+
+
+def test_slot_list_keeps_a_define_set_by_hand() -> None:
+    ch.slot_list("TEST_SLOT_LIST_MANUAL", "register_listener", "wiegand")
+    ch.add_define("TEST_SLOT_LIST_MANUAL", 3)
+    _emit_slot_lists({"wiegand": []})
+    values = [
+        str(d.value) for d in ch.CORE.defines if d.name == "TEST_SLOT_LIST_MANUAL"
+    ]
+    assert values == ["3"]
+
+
+def test_slot_list_declared_for_two_domains_raises() -> None:
+    """Two components claiming one define would emit it for the wrong one."""
+    ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "wiegand")
+    with pytest.raises(ValueError, match="already belongs to wiegand"):
+        ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "rc522")
+
+
+_REGS = cg.esphome_ns.namespace("hub").class_("Regs")
+
+
+def _status_function(define: str | None = "USE_HUB_STATUS") -> ch.HubFunction:
+    return ch.HubFunction(
+        "status", ct.void, [(_REGS.const_ref(), "status")], define=define
+    )
+
+
+def _after_includes() -> list[str]:
+    return [str(st) for st in ch.CORE.global_statements_after_includes]
+
+
+def _main() -> list[str]:
+    return [str(st) for st in ch.CORE.main_statements]
+
+
+def test_hub_function_one_function_per_hub_in_add_order() -> None:
+    """Each hub that got items gets its own function, items in the order added."""
+    fn = _status_function()
+    status = fn.param("status")
+    hub_a, hub_b = cg.MockObj("hub_a", "->"), cg.MockObj("hub_b", "->")
+    fn.add(hub_a, cg.MockObj("x", "->").publish_state(status[0]))
+    fn.add(hub_b, cg.MockObj("y", "->").publish_state(status[1]))
+    fn.add(hub_a, cg.statement(cg.MockObj("z", "->").publish_state(status[2])))
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        (
+            "static void esphome__hub_a__status_fn(const hub::Regs & esphome__arg_status) {\n"
+            "  x->publish_state(esphome__arg_status[0]);\n"
+            "  z->publish_state(esphome__arg_status[2]);\n}"
+        ),
+        (
+            "static void esphome__hub_b__status_fn(const hub::Regs & esphome__arg_status) {\n"
+            "  y->publish_state(esphome__arg_status[1]);\n}"
+        ),
+    ]
+    assert _main() == [
+        "hub_a->set_status_publisher(esphome__hub_a__status_fn);",
+        "hub_b->set_status_publisher(esphome__hub_b__status_fn);",
+    ]
+    assert [d.name for d in ch.CORE.defines].count("USE_HUB_STATUS") == 1
+
+
+def test_hub_function_without_items_emits_nothing() -> None:
+    _status_function()
+    ch.CORE.flush_tasks()
+    assert _after_includes() == []
+    assert _main() == []
+    assert get_define_value("USE_HUB_STATUS") is None
+
+
+def test_hub_functions_on_one_hub_stay_apart() -> None:
+    """Two functions on one hub, such as press and release, keep their own items."""
+    press = ch.HubFunction("press", ct.void, [(ct.uint8, "key")])
+    release = ch.HubFunction("release", ct.void, [(ct.uint8, "key")])
+    hub = cg.MockObj("keys", "->")
+    press.add(hub, cg.MockObj("on")(press.param("key")))
+    release.add(hub, cg.MockObj("off")(release.param("key")))
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        "static void esphome__keys__press_fn(uint8_t esphome__arg_key) {\n  on(esphome__arg_key);\n}",
+        "static void esphome__keys__release_fn(uint8_t esphome__arg_key) {\n  off(esphome__arg_key);\n}",
+    ]
+    assert _main() == [
+        "keys->set_press_publisher(esphome__keys__press_fn);",
+        "keys->set_release_publisher(esphome__keys__release_fn);",
+    ]
+
+
+def test_hub_function_bool_returns_whether_any_item_was_true() -> None:
+    fn = ch.HubFunction("claim", ct.bool_, [(ct.uint32, "id")])
+    hub = cg.MockObj("reader", "->")
+    fn.add(hub, cg.MockObj("card_a", "->").process(fn.param("id")))
+    fn.add(hub, cg.MockObj("card_b", "->").process(fn.param("id")))
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        (
+            "static bool esphome__reader__claim_fn(uint32_t esphome__arg_id) {\n"
+            "  bool esphome__found = false;\n"
+            "  (esphome__found |= card_a->process(esphome__arg_id));\n"
+            "  (esphome__found |= card_b->process(esphome__arg_id));\n"
+            "  return esphome__found;\n}"
+        )
+    ]
+
+
+def test_hub_function_rejects_other_return_types() -> None:
+    with pytest.raises(ValueError, match="void or bool"):
+        ch.HubFunction("value", ct.int32, [])
+
+
+def test_hub_function_items_cannot_be_hidden_by_their_names() -> None:
+    """Parameters and the bool result are prefixed, so entity ids like status or any stay visible."""
+    fn = ch.HubFunction("claim", ct.bool_, [(ct.bool_, "any")])
+    fn.add(cg.MockObj("reader", "->"), cg.MockObj("any", "->").process(fn.param("any")))
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        (
+            "static bool esphome__reader__claim_fn(bool esphome__arg_any) {\n"
+            "  bool esphome__found = false;\n"
+            "  (esphome__found |= any->process(esphome__arg_any));\n"
+            "  return esphome__found;\n}"
+        )
+    ]
+
+
+def test_hub_function_param_must_exist() -> None:
+    with pytest.raises(ValueError, match="no parameter 'regs'"):
+        _status_function().param("regs")
+
+
+def test_hub_function_add_after_emit_raises() -> None:
+    fn = _status_function()
+    hub = cg.MockObj("hub_a", "->")
+    fn.add(hub, cg.MockObj("x", "->").publish_state(1))
+    ch.CORE.flush_tasks()
+    with pytest.raises(ValueError, match="after the functions were emitted"):
+        fn.add(hub, cg.MockObj("x", "->").publish_state(2))
+
+
+def test_hub_function_without_define() -> None:
+    fn = _status_function(define=None)
+    fn.add(cg.MockObj("hub_a", "->"), cg.MockObj("x", "->").publish_state(1))
+    ch.CORE.flush_tasks()
+    assert not ch.CORE.defines
+    assert _main() == ["hub_a->set_status_publisher(esphome__hub_a__status_fn);"]
+
+
+def test_hub_function_emits_again_in_the_next_run() -> None:
+    """A module-level instance starts empty in every run."""
+    fn = _status_function()
+    fn.add(cg.MockObj("hub_a", "->"), cg.MockObj("x", "->").publish_state(1))
+    ch.CORE.flush_tasks()
+    ch.CORE.reset()
+    fn.add(cg.MockObj("hub_b", "->"), cg.MockObj("y", "->").publish_state(2))
+    ch.CORE.flush_tasks()
+    assert _main() == ["hub_b->set_status_publisher(esphome__hub_b__status_fn);"]
+
+
+def test_hub_function_bool_rejects_statements() -> None:
+    fn = ch.HubFunction("claim", ct.bool_, [(ct.uint32, "id")])
+    with pytest.raises(ValueError, match="takes bool expressions"):
+        fn.add(cg.MockObj("reader", "->"), cg.statement(cg.MockObj("f")()))
+
+
+def test_hub_functions_with_one_name_on_one_hub_raise() -> None:
+    hub = cg.MockObj("hub_a", "->")
+    for fn in (_status_function(), _status_function(define=None)):
+        fn.add(hub, cg.MockObj("x", "->").publish_state(1))
+    with pytest.raises(
+        ValueError, match="two functions named esphome__hub_a__status_fn"
+    ):
+        ch.CORE.flush_tasks()

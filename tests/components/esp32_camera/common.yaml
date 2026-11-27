@@ -1,1 +1,29 @@
 # ESP32 camera hardware configuration comes from the camera package
+esp32_camera:
+  capture_delay: 500ms
+  on_capture_start:
+    - logger.log: Capture start
+  on_capture_end:
+    - logger.log: Capture end
+  window:
+    offset_x: 100
+    offset_y: 80
+    width: 320
+    height: 240
+
+esphome:
+  on_boot:
+    then:
+      - esp32_camera.set_window:
+          id: test_camera
+          offset_x: 0
+          offset_y: 0
+          width: 480
+          height: 320
+      - esp32_camera.set_window:
+          id: test_camera
+          offset_x: 0
+          offset_y: 0
+          width: !lambda "return 320;"
+          height: 240
+      - esp32_camera.reset_window: test_camera

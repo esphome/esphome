@@ -1,0 +1,40 @@
+dlms_meter:
+  - id: dlms_meter_hub_1
+    uart_id: uart_bus
+    receive_timeout: 50ms
+    decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
+  - id: dlms_meter_hub_2
+    uart_id: uart_bus_2
+    receive_timeout: 100ms
+
+sensor:
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub_1
+    obis_code: "1.0.32.7.0.255"
+    name: "Meter 1 Voltage L1"
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub_1
+    obis_code: "1.0.1.8.0.255"
+    name: "Meter 1 Active energy taken from grid"
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub_1
+    obis_code: "1.0.1.7.0.255"
+    name: "Meter 1 Active power"
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub_2
+    obis_code: "1.0.32.7.0.255"
+    name: "Meter 2 Voltage L1"
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub_2
+    obis_code: "1.0.1.8.0.255"
+    name: "Meter 2 Active energy taken from grid"
+
+text_sensor:
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub_1
+    obis_code: "0.0.96.1.0.255"
+    name: "Meter 1 ID"
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub_2
+    obis_code: "0.0.96.1.0.255"
+    name: "Meter 2 ID"

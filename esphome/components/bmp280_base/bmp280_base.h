@@ -50,14 +50,18 @@ enum BMP280IIRFilter {
 
 /// This class implements support for the BMP280 Temperature+Pressure sensor.
 class BMP280Component : public PollingComponent {
- public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
 
+ public:
   /// Set the oversampling value for the temperature sensor. Default is 16x.
-  void set_temperature_oversampling(BMP280Oversampling temperature_over_sampling);
+  void set_temperature_oversampling(BMP280Oversampling temperature_over_sampling) {
+    this->temperature_oversampling_ = temperature_over_sampling;
+  }
   /// Set the oversampling value for the pressure sensor. Default is 16x.
-  void set_pressure_oversampling(BMP280Oversampling pressure_over_sampling);
+  void set_pressure_oversampling(BMP280Oversampling pressure_over_sampling) {
+    this->pressure_oversampling_ = pressure_over_sampling;
+  }
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
   void set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
@@ -83,8 +87,6 @@ class BMP280Component : public PollingComponent {
   BMP280Oversampling temperature_oversampling_{BMP280_OVERSAMPLING_16X};
   BMP280Oversampling pressure_oversampling_{BMP280_OVERSAMPLING_16X};
   BMP280IIRFilter iir_filter_{BMP280_IIR_FILTER_OFF};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
 };
 
 }  // namespace esphome::bmp280_base

@@ -232,8 +232,6 @@ class EntityBase {
  protected:
   friend void ::setup();
   friend void ::original_setup();
-  // Application's register_<entity>(obj, name, hash, fields) overloads call configure_entity_
-  // before push_back, so codegen can emit a single combined call per entity.
   friend class Application;
 
   /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
@@ -295,6 +293,21 @@ void log_entity_device_class(const char *tag, const char *prefix, const EntityBa
 /// Log entity unit of measurement if set (for use in dump_config)
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
 void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
+
+/// Call `entity->publish_state(...)` when `entity` is not null. `entity` is evaluated once and the
+/// arguments only when it is set.
+#define PUBLISH_STATE(entity, ...) \
+  do { \
+    auto *const esphome_publish_state_entity_ = (entity); \
+    if (esphome_publish_state_entity_ != nullptr) \
+      esphome_publish_state_entity_->publish_state(__VA_ARGS__); \
+  } while (0)
+
+/// Publish `value` to `entity` when the entity is configured and the value is set.
+template<typename E, typename V> inline void publish_optional(E *entity, const optional<V> &value) {
+  if (entity != nullptr && value.has_value())
+    entity->publish_state(*value);
+}
 
 /** Base class for entities that track a typed state value with change-detection and callbacks.
  *
@@ -358,9 +371,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     }
     // Capture old_state before set_state_value — current pointer aliases subclass storage
     bool has_full_cbs = !this->full_state_callbacks_.empty();
-    optional<T> old_state;
-    if (has_full_cbs)
-      old_state = current != nullptr ? optional<T>(*current) : nullopt;
+    // Initialized in one step: assigning it later trips a GCC 10 -Wmaybe-uninitialized false positive
+    const optional<T> old_state = has_full_cbs && current != nullptr ? optional<T>(*current) : nullopt;
     // Update storage before firing callbacks so callback code can inspect current state
     this->flags_.has_state = new_state.has_value();
     if (new_state.has_value()) {

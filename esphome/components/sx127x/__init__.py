@@ -4,11 +4,21 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.const import (
+    CONF_BANDWIDTH,
     CONF_BITRATE,
     CONF_CRC_ENABLE,
+    CONF_DEVIATION,
     CONF_MODULATION,
     CONF_ON_PACKET,
+    CONF_PA_POWER,
+    CONF_PA_RAMP,
+    CONF_PACKET_MODE,
+    CONF_PAYLOAD_LENGTH,
+    CONF_PREAMBLE_SIZE,
     CONF_RST_PIN,
+    CONF_RX_START,
+    CONF_SHAPING,
+    CONF_SYNC_VALUE,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY
@@ -21,26 +31,17 @@ DEPENDENCIES = ["spi"]
 
 CONF_SX127X_ID = "sx127x_id"
 
+CONF_AFC_BANDWIDTH = "afc_bandwidth"
 CONF_AUTO_CAL = "auto_cal"
-CONF_BANDWIDTH = "bandwidth"
 CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
-CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
 CONF_PA_PIN = "pa_pin"
-CONF_PA_POWER = "pa_power"
-CONF_PA_RAMP = "pa_ramp"
-CONF_PACKET_MODE = "packet_mode"
-CONF_PAYLOAD_LENGTH = "payload_length"
 CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_ERRORS = "preamble_errors"
 CONF_PREAMBLE_POLARITY = "preamble_polarity"
-CONF_PREAMBLE_SIZE = "preamble_size"
 CONF_RX_FLOOR = "rx_floor"
-CONF_RX_START = "rx_start"
-CONF_SHAPING = "shaping"
 CONF_SPREADING_FACTOR = "spreading_factor"
-CONF_SYNC_VALUE = "sync_value"
 
 sx127x_ns = cg.esphome_ns.namespace("sx127x")
 SX127x = sx127x_ns.class_("SX127x", cg.Component, spi.SPIDevice)
@@ -156,6 +157,10 @@ def validate_config(config: ConfigType) -> ConfigType:
     else:
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is only available with LORA")
+        if config.get(CONF_AFC_BANDWIDTH) == "500_0kHz":
+            raise cv.Invalid(
+                "500_0kHz is only available with LORA", path=[CONF_AFC_BANDWIDTH]
+            )
         if CONF_BITSYNC not in config:
             raise cv.Invalid("Config 'bitsync' required with FSK/OOK")
         if CONF_PACKET_MODE not in config:
@@ -164,6 +169,10 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
         if config[CONF_PAYLOAD_LENGTH] > 64:
             raise cv.Invalid("Payload length must be <= 64 with FSK/OOK")
+    if CONF_AFC_BANDWIDTH in config and config[CONF_MODULATION] != "FSK":
+        raise cv.Invalid(
+            "Config 'afc_bandwidth' only available with FSK", path=[CONF_AFC_BANDWIDTH]
+        )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")
     if config[CONF_PA_PIN] == "BOOST" and config[CONF_PA_POWER] < 2:
@@ -175,6 +184,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SX127x),
+            cv.Optional(CONF_AFC_BANDWIDTH): cv.enum(BW),
             cv.Optional(CONF_AUTO_CAL, default=True): cv.boolean,
             cv.Optional(CONF_BANDWIDTH, default="125_0kHz"): cv.enum(BW),
             cv.Optional(CONF_BITRATE, default=4800): cv.int_range(min=500, max=300000),
@@ -233,6 +243,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
     cg.add(var.set_auto_cal(config[CONF_AUTO_CAL]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
+    cg.add_optional(var.set_afc_bandwidth, config.get(CONF_AFC_BANDWIDTH))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
     cg.add(var.set_deviation(config[CONF_DEVIATION]))
     cg.add(var.set_modulation(config[CONF_MODULATION]))

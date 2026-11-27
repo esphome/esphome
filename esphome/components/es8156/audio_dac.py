@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
-from esphome.components.speaker import DOMAIN as SPEAKER_DOMAIN
+from esphome.components.speaker import DOMAIN as SPEAKER_DOMAIN, get_audio_dac_ids
 import esphome.config_validation as cv
-from esphome.const import CONF_AUDIO_DAC, CONF_BITS_PER_SAMPLE, CONF_ID
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -30,10 +30,8 @@ def _final_validate(config: ConfigType) -> None:
     # Check all speaker configurations for ones that reference this es8156
     speaker_configs = full_config.get(SPEAKER_DOMAIN, [])
     for speaker_config in speaker_configs:
-        audio_dac_id = speaker_config.get(CONF_AUDIO_DAC)
         if (
-            audio_dac_id is not None
-            and audio_dac_id == config[CONF_ID]
+            config[CONF_ID] in get_audio_dac_ids(speaker_config)
             and (bits_per_sample := speaker_config.get(CONF_BITS_PER_SAMPLE))
             is not None
             and bits_per_sample > 24

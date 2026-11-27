@@ -40,7 +40,7 @@ class TSL2561Sensor final : public sensor::Sensor, public PollingComponent, publ
    *
    * @param integration_time The new integration time.
    */
-  void set_integration_time(TSL2561IntegrationTime integration_time);
+  void set_integration_time(TSL2561IntegrationTime integration_time) { this->integration_time_ = integration_time; }
 
   /** Set the internal gain of the sensor. Can be useful for low-light conditions
    *

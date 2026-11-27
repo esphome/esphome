@@ -315,7 +315,8 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 // return correct values in automations.
 bool WiFiComponent::wifi_loop_() {
   // Handle scan completion
-  if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
+  // An OTA hold keeps a finished scan in STA_SCANNING; report it once
+  if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !this->scan_done_ && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     bool needs_full = this->needs_full_scan_results_();
     ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", s_scan_result_count, this->scan_result_.size(),
@@ -342,7 +343,7 @@ bool WiFiComponent::wifi_loop_() {
 #endif
     // For static IP configurations, notify IP listeners immediately as the IP is already configured
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip()) {
       s_sta_had_ip = true;
       this->notify_ip_state_listeners_();
     }

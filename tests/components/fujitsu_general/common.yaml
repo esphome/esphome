@@ -2,3 +2,14 @@ climate:
   - platform: fujitsu_general
     name: Fujitsu General Climate
     transmitter_id: xmitr
+    id: fujitsu_ac
+
+button:
+  - platform: fujitsu_general
+    fujitsu_general_id: fujitsu_ac
+    step_horizontal:
+      name: "Step Horizontal"
+    step_vertical:
+      name: "Step Vertical"
+    economy:
+      name: "Toggle Economy Mode"

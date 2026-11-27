@@ -1,4 +1,5 @@
 #include "toshiba.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -25,6 +26,24 @@ const uint8_t TOSHIBA_MODE_DRY = 0x02;
 const uint8_t TOSHIBA_MODE_HEAT = 0x03;
 const uint8_t TOSHIBA_MODE_FAN_ONLY = 0x04;
 const uint8_t TOSHIBA_MODE_OFF = 0x07;
+
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// Generic frame codes, shared by every model that uses the F2 0D frame
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_OFF, TOSHIBA_MODE_OFF},   {climate::CLIMATE_MODE_HEAT_COOL, TOSHIBA_MODE_AUTO},
+    {climate::CLIMATE_MODE_COOL, TOSHIBA_MODE_COOL}, {climate::CLIMATE_MODE_DRY, TOSHIBA_MODE_DRY},
+    {climate::CLIMATE_MODE_HEAT, TOSHIBA_MODE_HEAT}, {climate::CLIMATE_MODE_FAN_ONLY, TOSHIBA_MODE_FAN_ONLY},
+};
+// Speeds 2 and 4 are not exposed and are only received, as the nearest mode
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, TOSHIBA_FAN_SPEED_AUTO}, {climate::CLIMATE_FAN_QUIET, TOSHIBA_FAN_SPEED_QUIET},
+    {climate::CLIMATE_FAN_LOW, TOSHIBA_FAN_SPEED_1},     {climate::CLIMATE_FAN_MEDIUM, TOSHIBA_FAN_SPEED_3},
+    {climate::CLIMATE_FAN_HIGH, TOSHIBA_FAN_SPEED_5},    {climate::CLIMATE_FAN_MEDIUM, TOSHIBA_FAN_SPEED_2},
+    {climate::CLIMATE_FAN_HIGH, TOSHIBA_FAN_SPEED_4},
+};
 
 // RAC-PT1411HWRU temperature code flag bits
 const uint8_t RAC_PT1411HWRU_FLAG_FAH = 0x01;
@@ -516,38 +535,10 @@ void ToshibaClimate::transmit_generic_() {
   transmit.perform();
 }
 
-uint8_t ToshibaClimate::encode_mode_() const {
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_OFF:
-      return TOSHIBA_MODE_OFF;
-    case climate::CLIMATE_MODE_HEAT:
-      return TOSHIBA_MODE_HEAT;
-    case climate::CLIMATE_MODE_COOL:
-      return TOSHIBA_MODE_COOL;
-    case climate::CLIMATE_MODE_DRY:
-      return TOSHIBA_MODE_DRY;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return TOSHIBA_MODE_FAN_ONLY;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    default:
-      return TOSHIBA_MODE_AUTO;
-  }
-}
+uint8_t ToshibaClimate::encode_mode_() const { return to_ir_code(MODES, this->mode, TOSHIBA_MODE_AUTO); }
 
 uint8_t ToshibaClimate::encode_fan_() const {
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_QUIET:
-      return TOSHIBA_FAN_SPEED_QUIET;
-    case climate::CLIMATE_FAN_LOW:
-      return TOSHIBA_FAN_SPEED_1;
-    case climate::CLIMATE_FAN_MEDIUM:
-      return TOSHIBA_FAN_SPEED_3;
-    case climate::CLIMATE_FAN_HIGH:
-      return TOSHIBA_FAN_SPEED_5;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      return TOSHIBA_FAN_SPEED_AUTO;
-  }
+  return to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), TOSHIBA_FAN_SPEED_AUTO);
 }
 
 uint8_t ToshibaClimate::seiya_swing_code_() const {
@@ -610,7 +601,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   message[3] = ~message[2];
   // Byte 4u: Temp
   if (this->model_ == MODEL_RAC_PT1411HWRU_F) {
-    temperature = (temperature * 1.8f) + 32;
+    temperature = celsius_to_fahrenheit(temperature);
     temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN;
   }
 
@@ -775,14 +766,9 @@ void ToshibaClimate::transmit_ras_2819t_() {
     auto swing_transmit = this->transmitter_->transmit();
     auto *swing_data = swing_transmit.get_data();
 
-    // Convert toggle command to bytes for transmission
     uint8_t swing_message[RAS_2819T_MESSAGE_LENGTH];
-    swing_message[0] = (RAS_2819T_SWING_TOGGLE >> 40) & 0xFF;
-    swing_message[1] = (RAS_2819T_SWING_TOGGLE >> 32) & 0xFF;
-    swing_message[2] = (RAS_2819T_SWING_TOGGLE >> 24) & 0xFF;
-    swing_message[3] = (RAS_2819T_SWING_TOGGLE >> 16) & 0xFF;
-    swing_message[4] = (RAS_2819T_SWING_TOGGLE >> 8) & 0xFF;
-    swing_message[5] = RAS_2819T_SWING_TOGGLE & 0xFF;
+    put_be16(swing_message, RAS_2819T_SWING_TOGGLE >> 32);
+    put_be32(swing_message + 2, static_cast<uint32_t>(RAS_2819T_SWING_TOGGLE));
 
     // Use single packet transmission WITH repeat (like regular commands)
     this->encode_(swing_data, swing_message, RAS_2819T_MESSAGE_LENGTH, 1);
@@ -807,16 +793,11 @@ void ToshibaClimate::transmit_ras_2819t_() {
       clamp<float>(this->target_temperature, TOSHIBA_RAS_2819T_TEMP_C_MIN, TOSHIBA_RAS_2819T_TEMP_C_MAX);
 
   // Build first packet (RAS_2819T_HEADER1 + 4 bytes)
-  message1[0] = (RAS_2819T_HEADER1 >> 8) & 0xFF;
-  message1[1] = RAS_2819T_HEADER1 & 0xFF;
+  put_be16(message1, RAS_2819T_HEADER1);
 
   // Handle OFF mode
   if (this->mode == climate::CLIMATE_MODE_OFF) {
-    // Extract bytes from power off command constant
-    message1[2] = (RAS_2819T_POWER_OFF_COMMAND >> 24) & 0xFF;
-    message1[3] = (RAS_2819T_POWER_OFF_COMMAND >> 16) & 0xFF;
-    message1[4] = (RAS_2819T_POWER_OFF_COMMAND >> 8) & 0xFF;
-    message1[5] = RAS_2819T_POWER_OFF_COMMAND & 0xFF;
+    put_be32(message1 + 2, static_cast<uint32_t>(RAS_2819T_POWER_OFF_COMMAND));
     // No second packet for OFF
   } else {
     // Get temperature and fan encoding
@@ -839,16 +820,14 @@ void ToshibaClimate::transmit_ras_2819t_() {
     switch (this->mode) {
       case climate::CLIMATE_MODE_COOL:
         // All cooling temperatures support fan speed control
-        message1[2] = (fan_code >> 8) & 0xFF;
-        message1[3] = fan_code & 0xFF;
+        put_be16(message1 + 2, fan_code);
         message1[4] = temp_code;
         message1[5] = ~temp_code;
         break;
 
       case climate::CLIMATE_MODE_HEAT:
         // Heating supports fan speed control
-        message1[2] = (fan_code >> 8) & 0xFF;
-        message1[3] = fan_code & 0xFF;
+        put_be16(message1 + 2, fan_code);
         // Heat mode adds offset to temperature code
         message1[4] = temp_code | RAS_2819T_HEAT_TEMP_OFFSET;
         message1[5] = ~(temp_code | RAS_2819T_HEAT_TEMP_OFFSET);
@@ -872,16 +851,14 @@ void ToshibaClimate::transmit_ras_2819t_() {
 
       case climate::CLIMATE_MODE_FAN_ONLY:
         // Fan only mode supports fan speed control
-        message1[2] = (fan_code >> 8) & 0xFF;
-        message1[3] = fan_code & 0xFF;
+        put_be16(message1 + 2, fan_code);
         message1[4] = RAS_2819T_FAN_ONLY_TEMP;
         message1[5] = RAS_2819T_FAN_ONLY_TEMP_INV;
         break;
 
       default:
         // Default case supports fan speed control
-        message1[2] = (fan_code >> 8) & 0xFF;
-        message1[3] = fan_code & 0xFF;
+        put_be16(message1 + 2, fan_code);
         message1[4] = temp_code;
         message1[5] = ~temp_code;
         break;
@@ -1352,50 +1329,11 @@ void ToshibaClimate::decode_mode_fan_temperature_(const uint8_t *message) {
 }
 
 void ToshibaClimate::decode_mode_(const uint8_t *message) {
-  switch (message[6] & 0x0F) {
-    case TOSHIBA_MODE_OFF:
-      this->mode = climate::CLIMATE_MODE_OFF;
-      break;
-
-    case TOSHIBA_MODE_COOL:
-      this->mode = climate::CLIMATE_MODE_COOL;
-      break;
-
-    case TOSHIBA_MODE_DRY:
-      this->mode = climate::CLIMATE_MODE_DRY;
-      break;
-
-    case TOSHIBA_MODE_FAN_ONLY:
-      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-      break;
-
-    case TOSHIBA_MODE_HEAT:
-      this->mode = climate::CLIMATE_MODE_HEAT;
-      break;
-
-    case TOSHIBA_MODE_AUTO:
-    default:
-      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-  }
+  this->mode = from_ir_code(MODES, message[6] & 0x0F, climate::CLIMATE_MODE_HEAT_COOL);
 }
 
 climate::ClimateFanMode ToshibaClimate::decode_fan(uint8_t code) {
-  // Speeds 2 and 4 are not exposed; report the nearest mode
-  switch (code) {
-    case TOSHIBA_FAN_SPEED_QUIET:
-      return climate::CLIMATE_FAN_QUIET;
-    case TOSHIBA_FAN_SPEED_1:
-      return climate::CLIMATE_FAN_LOW;
-    case TOSHIBA_FAN_SPEED_2:
-    case TOSHIBA_FAN_SPEED_3:
-      return climate::CLIMATE_FAN_MEDIUM;
-    case TOSHIBA_FAN_SPEED_4:
-    case TOSHIBA_FAN_SPEED_5:
-      return climate::CLIMATE_FAN_HIGH;
-    case TOSHIBA_FAN_SPEED_AUTO:
-    default:
-      return climate::CLIMATE_FAN_AUTO;
-  }
+  return from_ir_code(FANS, code, climate::CLIMATE_FAN_AUTO);
 }
 
 void ToshibaClimate::seiya_decode_swing_(uint8_t code) {

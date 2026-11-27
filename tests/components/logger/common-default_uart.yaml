@@ -5,6 +5,10 @@ esphome:
           level: warn
           format: "Warning: Logger level is %d"
           args: [id(logger_id).get_log_level()]
+      - logger.log:
+          tag: custom.tag
+          level: info
+          format: "Tagged log entry"
       - logger.set_level: WARN
       - logger.set_level:
           level: ERROR
@@ -16,6 +20,22 @@ logger:
   initial_level: INFO
   logs:
     mqtt.component: WARN
+  on_message:
+    - level: WARN
+      then:
+        - lambda: |-
+            static uint32_t custom_tag_lines = 0;
+            if (strcmp(tag, "custom.tag") == 0 && message[0] != '\0')
+              custom_tag_lines++;
+    - level: ERROR
+      then:
+        - delay: 1s
+        # message points at a later line by now, so only level and tag are read
+        - lambda: |-
+            static uint8_t last_level = 0;
+            static char last_tag_start = 0;
+            last_level = level;
+            last_tag_start = tag[0];
 
 select:
   - platform: logger

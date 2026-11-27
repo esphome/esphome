@@ -36,7 +36,7 @@ void I2SAudioSpeakerBase::setup() {
     return;
   }
 
-  // Initialize volume control. When audio_dac is configured, this sets the DAC volume and mute state.
+  // Initialize volume control. When audio_dac is configured, this sets every DAC's volume and mute state.
   // When no audio_dac is configured, this initializes software volume control.
   this->set_volume(this->volume_);
   this->set_mute_state(this->mute_state_);
@@ -101,9 +101,7 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_RUNNING;
 #ifdef USE_AUDIO_DAC
     // The task raises TASK_RUNNING only after enabling the channel, so the clocks are already running
-    if (this->audio_dac_ != nullptr) {
-      this->audio_dac_->on_audio_started();
-    }
+    this->notify_audio_dacs_started_();
 #endif  // USE_AUDIO_DAC
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
@@ -204,7 +202,7 @@ void I2SAudioSpeakerBase::set_mute_state(bool mute_state) {
 
 void I2SAudioSpeakerBase::post_software_gain_(uint32_t rate_samples) {
 #ifdef USE_AUDIO_DAC
-  if (this->audio_dac_ != nullptr) {
+  if (this->has_audio_dac_()) {
     return;  // Hardware volume; the ramp stays at unity
   }
 #endif  // USE_AUDIO_DAC
@@ -427,7 +425,7 @@ void I2SAudioSpeakerBase::drain_lockstep_(uint32_t extra_frames) {
 
 void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {
 #ifdef USE_AUDIO_DAC
-  if (this->audio_dac_ != nullptr) {
+  if (this->has_audio_dac_()) {
     return;  // Hardware volume; the ramp is never targeted
   }
 #endif  // USE_AUDIO_DAC

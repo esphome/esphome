@@ -100,7 +100,7 @@ async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 
-    await cg.add_variable(var.set_sensor, config[CONF_SENSOR])
+    await cg.add_variable(var.set_temperature_sensor, config[CONF_SENSOR])
     await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
     await cg.add_variable(var.set_cool_output, config.get(CONF_COOL_OUTPUT))
     await cg.add_variable(var.set_heat_output, config.get(CONF_HEAT_OUTPUT))

@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 #include <gmock/gmock.h>
@@ -6,30 +7,46 @@
 #include "esphome/components/ld2460/ld2460.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart_component.h"
+#include "esphome/core/application.h"
 
 namespace esphome::ld2460::testing {
 
-// Mock UART component to satisfy UARTDevice parent requirement.
+// Mock UART component; bytes in rx are what the hub reads.
 class MockUARTComponent : public uart::UARTComponent {
  public:
   MOCK_METHOD(void, write_array, (const uint8_t *data, size_t len), (override));
-  MOCK_METHOD(bool, read_array, (uint8_t *data, size_t len), (override));
+  bool read_array(uint8_t *data, size_t len) override {
+    if (this->rx.size() < len)
+      return false;
+    std::copy(this->rx.begin(), this->rx.begin() + len, data);
+    this->rx.erase(this->rx.begin(), this->rx.begin() + len);
+    return true;
+  }
+  size_t available() override { return this->rx.size(); }
   MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
-  MOCK_METHOD(size_t, available, (), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
 #endif
+
+  std::vector<uint8_t> rx;
 };
 
 class TestableLD2460 : public LD2460Component {
  public:
+  // Delivers data through the UART parent, which must be a MockUARTComponent, and one pass of loop()
   void feed(const std::vector<uint8_t> &data) {
-    for (uint8_t byte : data) {
-      this->readline_(byte);
-    }
+    auto &rx = static_cast<MockUARTComponent *>(this->parent_)->rx;
+    rx.insert(rx.end(), data.begin(), data.end());
+    this->loop();
   }
+  // One pass of loop() at the given loop time, with whatever bytes are waiting
+  void loop_at(uint32_t now) {
+    LoopBlockingGuard{nullptr, nullptr, now};
+    this->loop();
+  }
+  InstallationMode installation_mode() const { return this->installation_mode_; }
 };
 
 struct Point {

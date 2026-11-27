@@ -67,7 +67,25 @@ async def test_uart_mock_duco(
         }
         mode = require_entity(entities, "mode", SelectInfo)
         comfort = require_entity(entities, "comfort_temperature", NumberInfo)
-        serial = require_entity(entities, "serial_number", TextSensorInfo)
+        comfort_zone_1 = require_entity(
+            entities, "comfort_temperature_zone_1", NumberInfo
+        )
+        comfort_zone_2 = require_entity(
+            entities, "comfort_temperature_zone_2", NumberInfo
+        )
+        serial = require_entity(entities, "serial_number", TextSensorInfo, exact=True)
+        node_serial = require_entity(entities, "serial_number_node_2", TextSensorInfo)
+        invalid_serial = require_entity(
+            entities, "invalid_serial_number", TextSensorInfo
+        )
+        version = require_entity(entities, "version", TextSensorInfo)
+        node_error = require_entity(entities, "node_error", TextSensorInfo)
+        node_no_error = require_entity(entities, "node_without_errors", TextSensorInfo)
+        zero_errors = require_entity(entities, "node_zero_errors", TextSensorInfo)
+        short_errors = require_entity(entities, "node_short_errors", TextSensorInfo)
+        many_errors = require_entity(entities, "node_many_errors", TextSensorInfo)
+        uptime = require_entity(entities, "uptime", TextSensorInfo)
+        node_type = require_entity(entities, "node_type", TextSensorInfo)
 
         client.subscribe_states(lambda state: states.__setitem__(state.key, state))
 
@@ -82,7 +100,35 @@ async def test_uart_mock_duco(
             )
         await wait_for(lambda: state_of(mode) == "MAN1", "mode")
         await wait_for(lambda: state_of(comfort) == pytest.approx(21.0), "comfort")
+        await wait_for(
+            lambda: state_of(comfort_zone_1) == pytest.approx(21.1), "zone 1 comfort"
+        )
+        await wait_for(
+            lambda: state_of(comfort_zone_2) == pytest.approx(21.2), "zone 2 comfort"
+        )
         await wait_for(lambda: state_of(serial) == "SN1234", "serial number")
+        await wait_for(lambda: state_of(node_serial) == "SN2234", "node serial number")
+        await wait_for(lambda: state_of(version) == "1.2.3.4", "version")
+        await wait_for(
+            lambda: (
+                state_of(node_error)
+                == "E31.19.01  Filters need replacement.\nE99.99.99  Unknown DUCO error\n"
+            ),
+            "node error",
+        )
+        await wait_for(lambda: state_of(node_no_error) == "No errors", "no errors")
+        await wait_for(lambda: state_of(zero_errors) == "No errors", "zero errors")
+        # four descriptions do not fit the 255 character state, so only the codes are listed
+        await wait_for(
+            lambda: (
+                state_of(many_errors) == "E03.01.04\nE04.01.04\nE06.01.04\nE16.01.04\n"
+            ),
+            "many errors",
+        )
+        await wait_for(lambda: state_of(uptime) == "1d 12h 30m", "uptime")
+        await wait_for(lambda: state_of(node_type) == "BSRH", "node type")
+        assert state_of(invalid_serial) is None
+        assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")
 
         client.select_command(mode.key, "CNT2")
@@ -92,6 +138,23 @@ async def test_uart_mock_duco(
         client.number_command(comfort.key, 22.3)
         await waiter.wait_for("Comfort set to 223")
         await wait_for(lambda: state_of(comfort) == pytest.approx(22.3), "new comfort")
+
+        client.number_command(comfort_zone_1.key, 23.1)
+        await waiter.wait_for("Comfort address 13 set to 231")
+        await wait_for(
+            lambda: state_of(comfort_zone_1) == pytest.approx(23.1),
+            "new zone 1 comfort",
+        )
+        assert state_of(comfort_zone_2) == pytest.approx(21.2)
+
+        client.number_command(comfort_zone_2.key, 24.2)
+        await waiter.wait_for("Comfort address 14 set to 242")
+        await wait_for(
+            lambda: state_of(comfort_zone_2) == pytest.approx(24.2),
+            "new zone 2 comfort",
+        )
+        assert state_of(comfort_zone_1) == pytest.approx(23.1)
+        assert state_of(comfort) == pytest.approx(22.3)
 
         await waiter.wait_for_each(
             "Found node 1: type 17", "Found node 3: type 12", timeout=40.0

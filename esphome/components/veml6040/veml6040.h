@@ -29,23 +29,16 @@ class VEML6040Component final : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  void set_red_sensor(sensor::Sensor *sensor) { this->red_sensor_ = sensor; }
-  void set_green_sensor(sensor::Sensor *sensor) { this->green_sensor_ = sensor; }
-  void set_blue_sensor(sensor::Sensor *sensor) { this->blue_sensor_ = sensor; }
-  void set_white_sensor(sensor::Sensor *sensor) { this->white_sensor_ = sensor; }
-  void set_illuminance_sensor(sensor::Sensor *sensor) { this->illuminance_sensor_ = sensor; }
-  void set_color_temperature_sensor(sensor::Sensor *sensor) { this->color_temperature_sensor_ = sensor; }
+  SUB_SENSOR(red)
+  SUB_SENSOR(green)
+  SUB_SENSOR(blue)
+  SUB_SENSOR(white)
+  SUB_SENSOR(illuminance)
+  SUB_SENSOR(color_temperature)
 
  protected:
-  bool read_channel_(uint8_t reg, uint16_t &counts);
   uint32_t integration_time_ms_() const { return 40u << this->integration_time_; }
 
-  sensor::Sensor *red_sensor_{nullptr};
-  sensor::Sensor *green_sensor_{nullptr};
-  sensor::Sensor *blue_sensor_{nullptr};
-  sensor::Sensor *white_sensor_{nullptr};
-  sensor::Sensor *illuminance_sensor_{nullptr};
-  sensor::Sensor *color_temperature_sensor_{nullptr};
   const float glass_attenuation_factor_;
   const float color_temperature_offset_;
   const VEML6040IntegrationTime integration_time_;

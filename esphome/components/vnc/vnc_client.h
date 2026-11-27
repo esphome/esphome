@@ -4,9 +4,13 @@
 #include "esphome/components/socket/tcp_client_link.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_VNC_TOUCHSCREEN
+#include "esphome/components/touchscreen/touchscreen.h"
+#endif
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace esphome::vnc {
 
@@ -16,10 +20,18 @@ enum class VncPixelFormat : uint8_t {
   VNC_PIXEL_FORMAT_RGB332,
 };
 
+enum class VncKeyAction : uint8_t {
+  VNC_KEY_ACTION_PRESS,
+  VNC_KEY_ACTION_DOWN,
+  VNC_KEY_ACTION_UP,
+};
+
 enum class VncState : uint8_t {
   VNC_STATE_IDLE,
   VNC_STATE_HANDSHAKE,
   VNC_STATE_RUNNING,
+  VNC_STATE_STOPPED,
+  VNC_STATE_AUTH_FAILED,
 };
 
 enum class VncStep : uint8_t {
@@ -27,6 +39,9 @@ enum class VncStep : uint8_t {
   VNC_STEP_SECURITY_COUNT,
   VNC_STEP_SECURITY_LIST,
   VNC_STEP_SECURITY_TYPE_33,
+#ifdef USE_VNC_AUTH
+  VNC_STEP_CHALLENGE,
+#endif
   VNC_STEP_SECURITY_RESULT,
   VNC_STEP_REASON_LENGTH,
   VNC_STEP_REASON,
@@ -52,10 +67,17 @@ enum class VncParse : uint8_t {
 enum class VncFailure : uint8_t {
   VNC_FAILURE_TRANSIENT,
   VNC_FAILURE_CONFIG,
+  VNC_FAILURE_AUTH,
+  VNC_FAILURE_AUTH_AMBIGUOUS,
 };
 
 /// RFB (VNC) client that draws the remote framebuffer into a display.
-class VncClient : public Component {
+class VncClient : public Component
+#ifdef USE_VNC_TOUCHSCREEN
+    ,
+                  public touchscreen::TouchListener
+#endif
+{
  public:
   explicit VncClient(display::Display *display, bool big_endian = false) : display_(display), big_endian_(big_endian) {}
 
@@ -65,6 +87,19 @@ class VncClient : public Component {
   void set_update_delay(uint32_t ms) { this->update_delay_ms_ = ms; }
   void set_max_update_delay(uint32_t ms) { this->max_update_delay_ms_ = ms; }
   void set_pixel_format(VncPixelFormat format) { this->pixel_format_ = format; }
+#ifdef USE_VNC_AUTH
+  /// 8 bytes, already bit-reversed for VNC, may live in PROGMEM.
+  void set_auth_key(const uint8_t *key) { this->auth_key_ = key; }
+#endif
+#ifdef USE_VNC_TOUCHSCREEN
+  void register_touchscreen(touchscreen::Touchscreen *touchscreen) {
+    touchscreen->register_listener(this);
+    this->has_touchscreen_ = true;
+  }
+  void touch(touchscreen::TouchPoint tp) override;
+  void update(const touchscreen::TouchPoints_t &tpoints) override;
+  void release() override;
+#endif
 
   void setup() override;
   void loop() override;
@@ -73,8 +108,19 @@ class VncClient : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   bool is_connected() const { return this->state_ == VncState::VNC_STATE_RUNNING; }
+  /// Retry now, also after an authentication failure or disconnect().
+  void connect();
+  /// Close the session and stop retrying until connect().
+  void disconnect();
   /// Ask the server for the whole screen again.
   void refresh();
+
+#ifdef USE_VNC_INPUT
+  bool send_pointer(uint16_t x, uint16_t y, uint8_t buttons);
+  void send_key(uint32_t keysym, VncKeyAction action);
+  void type_text(const char *text, size_t len);
+  void type_text(const std::string &text) { this->type_text(text.data(), text.size()); }
+#endif
 
   template<typename F> void add_on_connect_callback(F &&callback) {
     this->connect_callback_.add(std::forward<F>(callback));
@@ -86,6 +132,13 @@ class VncClient : public Component {
  protected:
   static constexpr size_t RX_BUFFER_SIZE = 512;
   static constexpr size_t TILE_BUFFER_SIZE = 16 * 16 * 2;
+#ifdef USE_VNC_INPUT
+  // For this long after input, frames are painted as soon as they arrive: the reaction matters more than a calm panel.
+  static constexpr uint32_t INPUT_BOOST_MS = 2000;
+  static constexpr size_t KEY_EVENT_SIZE = 8;
+  static constexpr size_t POINTER_EVENT_SIZE = 6;
+  static constexpr size_t MAX_PENDING_RELEASES = 4;
+#endif
 
   void connect_step_(uint32_t now);
   void start_handshake_(uint32_t now);
@@ -94,6 +147,14 @@ class VncClient : public Component {
   void pace_(uint32_t now);
   bool start_session_(uint32_t now);
   bool send_client_init_();
+  bool select_security_(uint8_t type);
+  bool has_auth_key_() const {
+#ifdef USE_VNC_AUTH
+    return this->auth_key_ != nullptr;
+#else
+    return false;
+#endif
+  }
   void frame_done_();
   void rect_done_();
   void next_tile_();
@@ -107,15 +168,31 @@ class VncClient : public Component {
   bool budget_exhausted_() const;
   bool send_(const uint8_t *data, size_t len);
   bool send_update_request_(bool incremental, uint32_t now);
+#ifdef USE_VNC_INPUT
+  bool send_key_event_(uint32_t keysym, VncKeyAction action);
+  bool send_input_(const uint8_t *msg, size_t len, bool release);
+  bool send_pending_();
+  void note_input_();
+#endif
+#ifdef USE_VNC_TOUCHSCREEN
+  /// Touch input in display coordinates.
+  void handle_touch_(uint16_t x, uint16_t y);
+  void handle_release_();
+#endif
   VncParse fail_(VncFailure failure, const LogString *reason);
   VncParse fail_send_() { return this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Send failed")); }
   VncFailure lost_failure_() const;
   void session_lost_(uint32_t now);
   void session_end_(uint32_t now, VncFailure failure, const LogString *reason);
+  void schedule_retry_(uint32_t now, VncFailure failure, const LogString *reason, bool was_running);
   void reset_session_();
+  void clear_link_warning_();
 
   display::Display *display_;
   socket::TcpClientLink link_;
+#ifdef USE_VNC_AUTH
+  const uint8_t *auth_key_{nullptr};
+#endif
   LazyCallbackManager<void()> connect_callback_;
   LazyCallbackManager<void()> disconnect_callback_;
   HighFrequencyLoopRequester high_freq_;
@@ -135,6 +212,9 @@ class VncClient : public Component {
   // The first and the latest frame drawn since the display last refreshed.
   uint32_t first_change_ms_{0};
   uint32_t last_change_ms_{0};
+#ifdef USE_VNC_INPUT
+  uint32_t last_input_ms_{0};
+#endif
   uint32_t rx_total_{0};
   uint32_t update_start_bytes_{0};
   uint32_t last_request_ms_{0};
@@ -161,12 +241,27 @@ class VncClient : public Component {
   uint16_t hash_capacity_{0};
   uint16_t hash_cols_{0};
   uint16_t hash_rows_{0};
+#ifdef USE_VNC_INPUT
+  uint16_t ptr_x_{0};
+  uint16_t ptr_y_{0};
+#endif
+#ifdef USE_VNC_TOUCHSCREEN
+  uint16_t press_x_{0};
+  uint16_t press_y_{0};
+#endif
 
+#ifdef USE_VNC_INPUT
+  uint8_t ptr_buttons_{0};  // as the server will see them once the waiting releases are sent
+  uint8_t pending_count_{0};
+#endif
   uint8_t tile_w_{0};
   uint8_t tile_h_{0};
   uint8_t subrects_left_{0};
   uint8_t bpp_{2};
   uint8_t minor_{8};
+#ifdef USE_VNC_AUTH
+  uint8_t sec_type_{0};
+#endif
   uint8_t sec_count_{0};
   uint8_t text_len_{0};  // clamped to MAX_TEXT_LEN
   // The display rotation the cached tiles were drawn at, in quarter turns.
@@ -181,6 +276,11 @@ class VncClient : public Component {
   VncFailure reason_failure_{VncFailure::VNC_FAILURE_TRANSIENT};
 
   bool rx_pending_{false};
+#ifdef USE_VNC_AUTH
+  // Set by the one retry after a drop left the password's fate unknown; hold_ms_ is then the wait before it
+  bool auth_retried_{false};
+  bool auth_hold_{false};  // hold_ms_ is the wait after an unanswered password, which survives a network drop
+#endif
   bool in_update_{false};
   bool request_outstanding_{false};
   bool refresh_pending_{false};
@@ -193,9 +293,18 @@ class VncClient : public Component {
   bool busy_warned_{false};
   bool refresh_retried_{false};  // one retry per refresh the driver abandoned
   bool network_was_up_{false};
+#ifdef USE_VNC_TOUCHSCREEN
+  bool has_touchscreen_{false};
+  bool dragging_{false};
+  bool touching_{false};
+#endif
   bool big_endian_;  // the pixel order the display takes
 
   uint8_t rx_[RX_BUFFER_SIZE];
+#ifdef USE_VNC_INPUT
+  // Key-up and button-release messages waiting for room, oldest first.
+  uint8_t pending_[MAX_PENDING_RELEASES][KEY_EVENT_SIZE];
+#endif
   alignas(4) uint8_t tile_[TILE_BUFFER_SIZE];
 };
 

@@ -12,7 +12,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_BEATS_PER_MINUTE,
     UNIT_KILOGRAM,
-    UNIT_OHM,
 )
 from esphome.types import ConfigType
 
@@ -30,10 +29,7 @@ XiaomiBodyScale = xiaomi_body_scale_ns.class_(
 )
 
 IMPEDANCE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_OHM,
-    icon=ICON_OMEGA,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.RESISTANCE, icon=ICON_OMEGA, accuracy_decimals=1
 )
 
 CONFIG_SCHEMA = (
@@ -76,10 +72,10 @@ async def to_code(config: ConfigType) -> None:
     )
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_WEIGHT, var.set_weight)
-    await sensors(CONF_IMPEDANCE_LOW, var.set_impedance_low)
-    await sensors(CONF_IMPEDANCE_HIGH, var.set_impedance_high)
-    await sensors(CONF_HEART_RATE, var.set_heart_rate)
-    await sensors(CONF_PROFILE_ID, var.set_profile_id)
+    await sensors(CONF_WEIGHT, var.set_weight_sensor)
+    await sensors(CONF_IMPEDANCE_LOW, var.set_impedance_low_sensor)
+    await sensors(CONF_IMPEDANCE_HIGH, var.set_impedance_high_sensor)
+    await sensors(CONF_HEART_RATE, var.set_heart_rate_sensor)
+    await sensors(CONF_PROFILE_ID, var.set_profile_id_sensor)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_STABILIZED, var.set_stabilized)
+    await binary_sensors(CONF_STABILIZED, var.set_stabilized_binary_sensor)

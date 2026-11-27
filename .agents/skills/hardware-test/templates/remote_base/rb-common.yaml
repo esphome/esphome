@@ -1,0 +1,33 @@
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+  actions:
+    - action: tx_all
+      then:
+        - script.execute: tx_all
+
+ota:
+  - platform: esphome
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // A dumper registered at runtime, the way external components do it from setup()
+          struct ExtDumper : remote_base::RemoteReceiverDumperBase {
+            bool dump(remote_base::RemoteReceiveData src) override {
+              ESP_LOGI("rbt", "ext dumper saw %d", (int) src.size());
+              return false;
+            }
+          };
+          static ExtDumper ext;
+          id(rx_all).register_dumper(&ext);
+          ESP_LOGI("rbt", "ext dumper register called");

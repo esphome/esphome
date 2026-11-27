@@ -1,0 +1,57 @@
+# Stream, RTR, TX objects, idle SPI cost, chip reset and two refused REQOP writes in LOOPBACK
+substitutions:
+  name: canlb-loopback
+  classic: "false"
+
+packages:
+  common: !include common-can.yaml
+
+canbus:
+  - platform: mcp251xfd
+    id: can0
+    cs_pin: GPIO32
+    interrupt_pin: GPIO33
+    can_id: 0x7FF
+    mode: LOOPBACK
+    clock: 20MHZ
+    bit_rate: 1000KBPS
+    data_bit_rate: 5000KBPS
+
+script:
+  - id: phases
+    then:
+      - delay: 20s
+      - lambda: canlb::report();
+      # Pause the stream and let the frame in flight drain before the queue checks
+      - lambda: canlb::phase = canlb::PAUSED;
+      - delay: 200ms
+      - lambda: canlb::rtr_test();
+      - delay: 500ms
+      - lambda: canlb::queue_report("rtr");
+      - lambda: canlb::txcheck_start();
+      - delay: 3s
+      - lambda: canlb::queue_report("txcheck");
+      - lambda: canlb::phase = canlb::PAUSED; canlb::cs_mark();
+      - delay: 20s
+      - lambda: canlb::cs_report("idle");
+      - lambda: canlb::resume();
+      - delay: 5s
+      - lambda: canlb::timing("pre-reset");
+      - lambda: canlb::chip_reset();
+      - lambda: canlb::watch_start(2);
+      - delay: 10s
+      - lambda: canlb::timing("reset+10s");
+      - lambda: canlb::regs("reset+10s");
+      - lambda: canlb::report();
+      - repeat:
+          count: 2
+          then:
+            - lambda: canlb::force_mode(3);
+            - lambda: canlb::watch_start(2);
+            - wait_until:
+                condition:
+                  lambda: return !canlb::watching;
+                timeout: 15s
+      - delay: 10s
+      - lambda: canlb::report();
+      - lambda: ESP_LOGI("canlb", "PHASES DONE");

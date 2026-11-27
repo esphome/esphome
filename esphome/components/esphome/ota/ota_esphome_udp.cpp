@@ -79,11 +79,6 @@ static uint16_t slot_copy(OtaUdpDatagram *p, void *dst, uint16_t len, uint16_t o
 static void slot_free(OtaUdpDatagram *p) { delete p; }
 #endif
 
-static void put_u16(uint8_t *at, uint16_t value) {
-  at[0] = value >> 8;
-  at[1] = value & 0xFF;
-}
-
 ESPHomeOTAComponent::UdpLink::~UdpLink() { this->release(); }
 
 void ESPHomeOTAComponent::UdpLink::release() {
@@ -114,9 +109,9 @@ void ESPHomeOTAComponent::udp_send_ack(UdpLink &link, uint16_t prompted_by) {
 #endif
   ack[0] = UDP_MSG_ACK;
   memcpy(ack + 1, link.reply, 4);
-  put_u16(ack + 5, link.received);
-  put_u16(ack + 7, prompted_by);
-  put_u16(ack + 9, link.out_base);
+  put_be16(ack + 5, link.received);
+  put_be16(ack + 7, prompted_by);
+  put_be16(ack + 9, link.out_base);
   uint8_t window = (UDP_WINDOW - static_cast<uint16_t>(link.received - link.consumed)) << 4;
   for (uint8_t k = 1; k < UDP_WINDOW; k++) {
     if (link.queue[(link.received + k) % UDP_WINDOW] != nullptr)

@@ -2,14 +2,27 @@
 
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/finite_set_mask.h"
+#include "esphome/core/frame_reader.h"
 
 #include <cmath>
-#include <optional>
 #include <span>
 
 namespace esphome::mitsubishi_cn105 {
 
 uint32_t get_loop_time_ms();
+
+// PREAMBLE, packet type, HEADER_BYTE_1, HEADER_BYTE_2, payload length, payload, checksum
+static constexpr size_t MAX_FRAME_SIZE = 32;
+static constexpr size_t HEADER_LEN = 5;
+static constexpr uint8_t PREAMBLE = 0xFC;
+static constexpr uint8_t HEADER_BYTE_1 = 0x01;
+static constexpr uint8_t HEADER_BYTE_2 = 0x30;
+
+// The type byte sits between PREAMBLE and the fixed header bytes, so FrameHeader cannot check them
+inline bool frame_header_valid(const uint8_t *frame) { return frame[2] == HEADER_BYTE_1 && frame[3] == HEADER_BYTE_2; }
+// One checksum byte follows the payload
+using PayloadLength = PayloadLengthU8<LengthField{.offset = HEADER_LEN - 1, .trailer = 1}>;
+using Frame = FrameFormat<FrameHeader<PREAMBLE>, PayloadLength, CheckFirstBytes<HEADER_LEN, frame_header_valid>>;
 
 class MitsubishiCN105 {
  public:
@@ -43,21 +56,30 @@ class MitsubishiCN105 {
     UNKNOWN,
   };
 
+  // Positions are numbered from the far left (1) to the far right (5).
   enum class WideVaneMode : uint8_t {
-    FAR_LEFT,
-    LEFT,
-    CENTER,
-    RIGHT,
-    FAR_RIGHT,
-    LEFT_RIGHT,
+    POSITION_1,  // far left
+    POSITION_2,  // left
+    POSITION_3,  // center
+    POSITION_4,  // right
+    POSITION_5,  // far right
+    SPLIT,       // left and right
     SWING,
     UNKNOWN,
+  };
+
+  // Direction of the current run. 0x06 does not report it, so in AUTO it is inferred when the run starts.
+  enum class RunDirection : uint8_t {
+    RUN_DIRECTION_NONE,
+    RUN_DIRECTION_HEATING,
+    RUN_DIRECTION_COOLING,
   };
 
   struct Status {
     float target_temperature{NAN};
     float room_temperature{NAN};
     bool power_on{false};
+    bool operating{false};  // held false while the unit winds down after a run ended
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
     VaneMode vane_mode{VaneMode::UNKNOWN};
@@ -93,6 +115,7 @@ class MitsubishiCN105 {
   void set_wide_vane_mode(WideVaneMode mode);
   void set_remote_temperature(float temperature);
   void clear_remote_temperature();
+  RunDirection run_direction() const { return this->run_direction_; }
 
  protected:
   enum class State : uint8_t {
@@ -107,21 +130,6 @@ class MitsubishiCN105 {
     APPLYING_SETTINGS,
     SETTINGS_APPLIED,
     READ_TIMEOUT
-  };
-
-  class FrameParser {
-   public:
-    template<typename Callback> bool read_and_parse(uart::UARTDevice &device, Callback &&callback);
-    void reset() { read_pos_ = 0; }
-    static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
-
-   protected:
-    void reset_and_dump_buffer_(const char *prefix);
-
-   private:
-    static constexpr size_t READ_BUFFER_SIZE = 32;
-    uint8_t read_buffer_[READ_BUFFER_SIZE];
-    uint8_t read_pos_{0};
   };
 
   enum class PropertyId : uint8_t {
@@ -147,9 +155,16 @@ class MitsubishiCN105 {
     Mask mask_;
   };
 
+  // An early refresh reads 0x06 after a mode or power change; it is spent until the next regular telemetry read.
+  enum class TelemetryRefresh : uint8_t {
+    TELEMETRY_REFRESH_NONE,
+    TELEMETRY_REFRESH_REQUESTED,
+    TELEMETRY_REFRESH_SPENT,
+  };
+
   struct PropertyContext {
-    bool use_temperature_encoding_b{false};
-    bool set_wide_vane_high_bit{false};
+    bool use_temperature_encoding_b : 1 {false};
+    bool set_wide_vane_high_bit : 1 {false};
   };
 
   friend struct Property;
@@ -162,6 +177,18 @@ class MitsubishiCN105 {
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
   bool should_request_telemetry_() const;
+  bool is_telemetry_interval_elapsed_() const;
+  bool is_early_telemetry_refresh_() const;
+  bool is_refresh_due_() const;
+  void request_telemetry_refresh_();
+  uint8_t next_status_msg_type_() const;
+  bool take_status_changed_();
+  bool is_operating_status_unsupported_() const {
+    return this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES;
+  }
+  bool hold_if_run_ended_(bool was_on, Mode was_mode);
+  void save_unsent_power_and_mode_();
+  void update_run_direction_(bool was_operating);
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -177,16 +204,32 @@ class MitsubishiCN105 {
   // Default 60s; legacy climate-owned hub compatibility relies on this when current_temperature_min_interval is
   // omitted. Remove legacy note in 2027.2.0.
   uint32_t telemetry_request_min_interval_ms_{60000};
-  std::optional<uint32_t> last_telemetry_update_ms_;
+  uint32_t last_telemetry_update_ms_{0};
+  uint32_t wind_down_read_ms_{0};
+  uint32_t last_rx_ms_{0};
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
   PropertyContext property_context_;
-  FrameParser frame_parser_;
+  LengthFrameReader<MAX_FRAME_SIZE, Frame> reader_;
   uint8_t current_status_msg_type_{0};
 
   static constexpr uint8_t REMOTE_TEMPERATURE_DISABLED = 0;
   uint8_t remote_temperature_half_deg_{REMOTE_TEMPERATURE_DISABLED};
+  bool status_changed_ : 1 {false};
+  bool has_telemetry_update_ : 1 {false};  // last_telemetry_update_ms_ is set
+  TelemetryRefresh telemetry_refresh_ : 2 {TelemetryRefresh::TELEMETRY_REFRESH_NONE};
+  // Consecutive 0x06 timeouts; 0x06 is no longer requested once it reaches the maximum.
+  uint8_t operating_status_misses_ : 2 {0};
+  static constexpr uint8_t OPERATING_STATUS_MAX_MISSES = 3;
+  RunDirection run_direction_ : 2 {RunDirection::RUN_DIRECTION_NONE};
+  // Non-zero while a "running" 0x06 report is taken as wind-down from the previous mode or power state: one plus the
+  // number of 0x06 reads since the hold started. The last read was at wind_down_read_ms_.
+  uint8_t wind_down_reads_ : 4 {0};
+  // Power and mode before the first local change that has not been sent yet; the hold starts from what is sent.
+  bool unsent_from_power_on_ : 1 {false};
+  Mode unsent_from_mode_ : 3 {Mode::UNKNOWN};
+  static constexpr uint8_t WIND_DOWN_HELD_READS = 9;
 };
 
 }  // namespace esphome::mitsubishi_cn105

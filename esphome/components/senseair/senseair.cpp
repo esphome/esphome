@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::senseair {
 
 ESPHOME_LOG_TAG(TAG, "senseair");
@@ -13,8 +15,6 @@ static const uint8_t SENSEAIR_COMMAND_GET_PPM_STATUS[] = {0xFE, 0x04, 0x00, 0x00
 static const uint8_t SENSEAIR_COMMAND_CLEAR_ACK_REGISTER[] = {0xFE, 0x06, 0x00, 0x00, 0x00, 0x00, 0x9D, 0xC5};
 static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CAL[] = {0xFE, 0x06, 0x00, 0x01, 0x7C, 0x06, 0x6C, 0xC7};
 static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CAL_RESULT[] = {0xFE, 0x03, 0x00, 0x00, 0x00, 0x01, 0x90, 0x05};
-static const uint8_t SENSEAIR_COMMAND_ABC_ENABLE[] = {0xFE, 0x06, 0x00, 0x1F, 0x00, 0xB4, 0xAC, 0x74};  // 180 hours
-static const uint8_t SENSEAIR_COMMAND_ABC_DISABLE[] = {0xFE, 0x06, 0x00, 0x1F, 0x00, 0x00, 0xAC, 0x03};
 static const uint8_t SENSEAIR_COMMAND_ABC_GET_PERIOD[] = {0xFE, 0x03, 0x00, 0x1F, 0x00, 0x01, 0xA1, 0xC3};
 
 void SenseAirComponent::update() {
@@ -26,19 +26,13 @@ void SenseAirComponent::update() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x04) {
-    ESP_LOGW(TAG, "Invalid preamble from SenseAir! %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x",
-             response[0], response[1], response[2], response[3], response[4], response[5], response[6], response[7],
-             response[8], response[9], response[10], response[11], response[12]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(sizeof(response))];
+    ESP_LOGW(TAG, "Invalid preamble from SenseAir! %s", format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
 
     this->status_set_warning();
-    while (this->available()) {
-      uint8_t b;
-      if (this->read_byte(&b)) {
-        ESP_LOGV(TAG, "    ... %02x", b);
-      } else {
-        ESP_LOGV(TAG, "    ... nothing read");
-      }
-    }
+    this->discard_available();
     return;
   }
 
@@ -58,8 +52,7 @@ void SenseAirComponent::update() {
     ESP_LOGD(TAG, "Discarding 0 ppm reading with out-of-range status.");
     return;
   }
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(ppm);
+  PUBLISH_STATE(this->co2_sensor_, ppm);
 }
 
 void SenseAirComponent::background_calibration() {
@@ -81,31 +74,37 @@ void SenseAirComponent::background_calibration_result() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x03) {
-    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x", response[0], response[1], response[2],
-             response[3], response[4], response[5], response[6]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+    char hex_buf[format_hex_pretty_size(sizeof(response))];
+    ESP_LOGE(TAG, "Invalid reply from SenseAir! %s", format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
     return;
   }
 
   // Check if 5th bit (register CI6) is set
-  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)",
-           (response[4] & 0b100000) != 0 ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("NOT_OK"), response[0], response[1],
-           response[2], response[3], response[4], response[5], response[6]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+  char hex_buf[format_hex_pretty_size(sizeof(response))];
+  ESP_LOGI(TAG, "SenseAir Result=%s (%s)",
+           (response[4] & 0b100000) != 0 ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("NOT_OK"),
+           format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
 }
 
-void SenseAirComponent::abc_enable() {
-  // Response is just an echo but must be read to clear the buffer
-  ESP_LOGD(TAG, "SenseAir Enabling automatic baseline calibration");
-  uint8_t command_length = sizeof(SENSEAIR_COMMAND_ABC_ENABLE) / sizeof(SENSEAIR_COMMAND_ABC_ENABLE[0]);
-  uint8_t response[command_length];
-  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_ENABLE, response, command_length);
-}
+void SenseAirComponent::abc_enable() { this->abc_set_period(180); }
 
-void SenseAirComponent::abc_disable() {
-  // Response is just an echo but must be read to clear the buffer
-  ESP_LOGD(TAG, "SenseAir Disabling automatic baseline calibration");
-  uint8_t command_length = sizeof(SENSEAIR_COMMAND_ABC_DISABLE) / sizeof(SENSEAIR_COMMAND_ABC_DISABLE[0]);
-  uint8_t response[command_length];
-  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_DISABLE, response, command_length);
+void SenseAirComponent::abc_disable() { this->abc_set_period(0); }
+
+void SenseAirComponent::abc_set_period(uint16_t hours) {
+  ESP_LOGD(TAG, "SenseAir Setting ABC period to %u hours", hours);
+  uint8_t command[SENSEAIR_REQUEST_LENGTH] = {0xFE, 0x06, 0x00, 0x1F};
+  put_be16(command + 4, hours);
+  put_le16(command + 6, crc16(command, 6));
+  // Response is an echo of the command
+  uint8_t response[SENSEAIR_REQUEST_LENGTH];
+  if (!this->status_comm_check(this->senseair_write_command_(command, response, SENSEAIR_REQUEST_LENGTH) &&
+                               memcmp(command, response, SENSEAIR_REQUEST_LENGTH) == 0)) {
+    ESP_LOGE(TAG, "Setting ABC period on SenseAir failed!");
+  }
 }
 
 void SenseAirComponent::abc_get_period() {
@@ -117,12 +116,14 @@ void SenseAirComponent::abc_get_period() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x03) {
-    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x", response[0], response[1], response[2],
-             response[3], response[4], response[5], response[6]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+    char hex_buf[format_hex_pretty_size(sizeof(response))];
+    ESP_LOGE(TAG, "Invalid reply from SenseAir! %s", format_hex_pretty_to(hex_buf, response, sizeof(response), ' '));
+#endif
     return;
   }
 
-  const uint16_t hours = (uint16_t(response[3]) << 8) | response[4];
+  const uint16_t hours = encode_uint16(response[3], response[4]);
   ESP_LOGD(TAG, "SenseAir Read ABC Period: %u hours", hours);
 }
 

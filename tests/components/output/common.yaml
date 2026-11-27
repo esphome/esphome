@@ -15,6 +15,12 @@ esphome:
       - output.set_max_power:
           id: output_light_output_1
           max_power: 80%
+      - output.set_min_power:
+          id: output_light_output_1
+          min_power: !lambda return 0.1f;
+      - output.set_max_power:
+          id: output_light_output_1
+          max_power: !lambda return 0.9f;
 
 output:
   - platform: ${output_platform}

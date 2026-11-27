@@ -10,19 +10,11 @@ ESPHOME_LOG_TAG(TAG, "ax15231.touchscreen");
 constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x8};
 
 #define ERROR_CHECK(err) \
-  if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning(LOG_STR("Failed to communicate")); \
-    return; \
-  }
+  if (!this->status_comm_check((err) == i2c::ERROR_OK)) \
+    return;
 
 void AXS15231Touchscreen::setup() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
-    delay(10);
-  }
+  pulse_reset(this->reset_pin_, {.low_ms = 5, .high_after_ms = 10});
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
     this->interrupt_pin_->setup();
@@ -47,8 +39,8 @@ void AXS15231Touchscreen::update_touches() {
   this->status_clear_warning();
   if (data[0] != 0 || data[1] == 0)  // no touches
     return;
-  uint16_t x = encode_uint16(data[2] & 0xF, data[3]);
-  uint16_t y = encode_uint16(data[4] & 0xF, data[5]);
+  uint16_t x = encode_uint16(low_nibble(data[2]), data[3]);
+  uint16_t y = encode_uint16(low_nibble(data[4]), data[5]);
   this->add_raw_touch_position_(0, x, y);
 }
 

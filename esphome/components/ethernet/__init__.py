@@ -7,7 +7,6 @@ from esphome.components.network import (
     add_use_address,
     get_network_priority,
     get_priority_interfaces_from_full_config,
-    ip_address_literal,
     require_ipv4,
 )
 from esphome.config_helpers import (
@@ -23,7 +22,6 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_ON_BOOT,
-    CONF_ETHERNET,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -47,8 +45,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_VALUE,
     CONF_WIFI,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     Platform,
     PlatformFramework,
 )
@@ -79,6 +75,17 @@ def request_ethernet_ip_state_listener() -> None:
     CORE.data[ETHERNET_IP_STATE_LISTENERS_KEY] = (
         CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0) + 1
     )
+
+
+_register_connect_state_listener = cg.slot_list(
+    "ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS", "add_connect_state_listener", DOMAIN
+)
+
+
+async def register_connect_state_listener(listener: cg.MockObj) -> None:
+    """Register an EthernetConnectStateListener; call from to_code()."""
+    ethernet = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(_register_connect_state_listener(ethernet, listener))
 
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
@@ -139,6 +146,7 @@ ETHERNET_TYPES = EthernetType.options(
     "YT8531",
     "CH390",
     "KSZ8851SNL",
+    "USB",
     prefix="ETHERNET_TYPE_",
 )
 
@@ -163,6 +171,7 @@ _PHY_TYPE_TO_DEFINE = {
     "YT8531": "USE_ETHERNET_YT8531",
     "CH390": "USE_ETHERNET_CH390",
     "KSZ8851SNL": "USE_ETHERNET_KSZ8851SNL",
+    "USB": "USE_ETHERNET_USB",
 }
 
 
@@ -176,17 +185,17 @@ class IDFRegistryComponent:
 
 # IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry.
 _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
-    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.0.0"),
-    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.0.1"),
-    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.0.0"),
-    "IP101": IDFRegistryComponent("espressif/ip101", "1.0.0"),
-    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
-    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
+    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.1.0"),
+    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.1.0"),
+    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.1.0"),
+    "IP101": IDFRegistryComponent("espressif/ip101", "1.1.0"),
+    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
+    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
     "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
-    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.0"),
-    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
-    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
-    "CH390": IDFRegistryComponent("espressif/ch390", "0.3.0"),
+    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.1"),
+    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.1.0"),
+    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.1.0"),
+    "CH390": IDFRegistryComponent("espressif/ch390", "0.4.1"),
     "KSZ8851SNL": IDFRegistryComponent("espressif/ksz8851snl", "1.2.0"),
 }
 
@@ -195,16 +204,19 @@ _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60", "CH390"}
 
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
 SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60", "CH390", "KSZ8851SNL"}
-# RP2-supported ethernet types (SPI and PIO QSPI). Applies to the whole
-# RP2 family (RP2040 and RP2350); the chip-specific W5100 caveat in the
-# comment above is about ESP-IDF driver coverage, not the RP2 platform.
+# RP2 SPI and PIO QSPI ethernet types. Applies to the whole RP2 family
+# (RP2040 and RP2350); the chip-specific W5100 caveat in the comment above
+# is about ESP-IDF driver coverage, not the RP2 platform.
 RP2_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
-_RP2_SPI_LIBRARIES = {
+# Every type RP2 accepts, including USB NCM
+_RP2_ALL_ETHERNET_TYPES = RP2_ETHERNET_TYPES | {"USB"}
+_RP2_ETHERNET_LIBRARIES = {
     "W5100": "lwIP_w5100",
     "W5500": "lwIP_w5500",
     "ENC28J60": "lwIP_enc28j60",
     "W6100": "lwIP_w6100",
     "W6300": "lwIP_w6300",
+    "USB": "lwIP_USB_NCM",
 }
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
@@ -239,7 +251,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 )
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
-ManualIP = ethernet_ns.struct("ManualIP")
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -349,13 +360,13 @@ def _validate(config: ConfigType) -> ConfigType:
                 if CONF_POLLING_INTERVAL in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_POLLING_INTERVAL}' is not supported."
                     )
                 if CONF_INTERRUPT_PIN not in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
         elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
@@ -388,9 +399,9 @@ def _validate(config: ConfigType) -> ConfigType:
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif CORE.is_rp2 and config[CONF_TYPE] not in RP2_ETHERNET_TYPES:
+    elif CORE.is_rp2 and config[CONF_TYPE] not in _RP2_ALL_ETHERNET_TYPES:
         raise cv.Invalid(
-            f"Only {', '.join(sorted(RP2_ETHERNET_TYPES))} are supported on the RP2 "
+            f"Only {', '.join(sorted(_RP2_ALL_ETHERNET_TYPES))} are supported on the RP2 "
             f"platform, not {config[CONF_TYPE]}"
         )
     return config
@@ -399,9 +410,9 @@ def _validate(config: ConfigType) -> ConfigType:
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EthernetComponent),
-        cv.Optional(
-            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
-        ): MANUAL_IP_SCHEMA,
+        cv.Optional(CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED): cv.All(
+            MANUAL_IP_SCHEMA, require_ipv4(DOMAIN, CONF_MANUAL_IP)
+        ),
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
@@ -554,11 +565,11 @@ CONFIG_SCHEMA = cv.All(
             "LAN8670": RMII_SCHEMA,
             "GENERIC": GENERIC_SCHEMA,
             "YT8531": GENERIC_SCHEMA,
+            "USB": cv.All(BASE_SCHEMA, cv.only_on([Platform.RP2])),
         },
         upper=True,
     ),
     _validate,
-    require_ipv4(CONF_ETHERNET),
 )
 
 
@@ -625,15 +636,10 @@ def _final_validate_spi(config: ConfigType) -> None:
                     )
 
 
-def manual_ip(config: ConfigType) -> cg.StructInitializer:
-    return cg.StructInitializer(
-        ManualIP,
-        ("static_ip", ip_address_literal(config[CONF_STATIC_IP])),
-        ("gateway", ip_address_literal(config[CONF_GATEWAY])),
-        ("subnet", ip_address_literal(config[CONF_SUBNET])),
-        ("dns1", ip_address_literal(config[CONF_DNS1])),
-        ("dns2", ip_address_literal(config[CONF_DNS2])),
-    )
+def _manual_ip_table(config: ConfigType) -> list[int]:
+    """Pack manual_ip in the ETHERNET_MANUAL_IP layout."""
+    keys = (CONF_STATIC_IP, CONF_GATEWAY, CONF_SUBNET, CONF_DNS1, CONF_DNS2)
+    return [octet for key in keys for octet in config[key].packed]
 
 
 def phy_register(address: int, value: int, page: int) -> cg.StructInitializer:
@@ -685,7 +691,11 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_MANUAL_IP in config:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
-        cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
+        cg.extern_progmem_array(
+            "esphome::ethernet::ETHERNET_MANUAL_IP",
+            cg.uint8,
+            _manual_ip_table(config[CONF_MANUAL_IP]),
+        )
 
     # Add compile-time define for PHY types with specific code
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
@@ -797,15 +807,17 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
-    cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
-    cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
-    cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
-    cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
-    cg.add_optional(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
-    cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    if config[CONF_TYPE] in RP2_ETHERNET_TYPES:
+        cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
+        cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
+        cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+        cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
+        cg.add_optional(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+        cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
-    cg.add_define("USE_ETHERNET_SPI")
-    cg.add_library(_RP2_SPI_LIBRARIES[config[CONF_TYPE]], None)
+        cg.add_define("USE_ETHERNET_SPI")
+
+    cg.add_library(_RP2_ETHERNET_LIBRARIES[config[CONF_TYPE]], None)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:

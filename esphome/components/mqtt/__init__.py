@@ -2,7 +2,7 @@ from collections.abc import Iterator
 import logging
 from typing import Any
 
-from esphome import automation
+from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import logger, network, socket
 from esphome.components.const import CONF_VERIFY_SSL
@@ -85,8 +85,8 @@ from esphome.const import (
     Framework,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import sanitize, snake_case
 from esphome.mqtt_topics import (
@@ -94,7 +94,7 @@ from esphome.mqtt_topics import (
     per_board_suffix,
     prefix_gets_mac_suffix,
 )
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["network"]
 DOMAIN = "mqtt"
@@ -110,8 +110,10 @@ CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SUB_DEVICE_TOPICS = "sub_device_topics"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_PERSIST_SUBSCRIPTIONS = "persist_subscriptions"
 CONF_TRANSPORT = "transport"
 CONF_WS_PATH = "ws_path"
+CONF_MAX_PAYLOAD_SIZE = "max_payload_size"
 
 MQTT_TRANSPORT_TCP = "tcp"
 MQTT_TRANSPORT_WS = "ws"
@@ -169,7 +171,6 @@ def _topic_source(topic: str) -> cg.MockObj:
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
-MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
 # A topic the firmware builds from a suffix, unless the config key replaces the whole topic
@@ -314,6 +315,10 @@ def validate_config(value):
         raise cv.Invalid(
             f"'{CONF_WS_PATH}' is only valid when 'transport' is 'ws' or 'wss'"
         )
+    if value.get(CONF_PERSIST_SUBSCRIPTIONS) and value.get(CONF_CLEAN_SESSION):
+        raise cv.Invalid(
+            f"'{CONF_PERSIST_SUBSCRIPTIONS}' requires '{CONF_CLEAN_SESSION}: false'"
+        )
 
     # Populate default fields
     out = value.copy()
@@ -404,11 +409,20 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
+            cv.Optional(CONF_PERSIST_SUBSCRIPTIONS, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.Optional(
                 CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
             ): _validate_transport,
             cv.Optional(CONF_WS_PATH): cv.string,
+            cv.SplitDefault(
+                CONF_MAX_PAYLOAD_SIZE,
+                esp8266=8192,
+                esp32=32768,
+                bk72xx=16384,
+                rtl87xx=16384,
+                ln882x=16384,
+            ): cv.All(cv.validate_bytes, cv.int_range(min=512, max=1048576)),
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
@@ -790,6 +804,7 @@ async def to_code(config):
         request_tls()
 
     cg.add_define("USE_MQTT")
+    cg.add_define("MQTT_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
     cg.add_global(mqtt_ns.using)
 
     cg.add(var.set_broker_address(config[CONF_BROKER]))
@@ -798,6 +813,10 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
+    if config[CONF_PERSIST_SUBSCRIPTIONS]:
+        cg.add_define("USE_MQTT_SESSION_PERSISTENCE")
+        # The session fingerprint, a uint32_t kept in RTC memory
+        preferences.reserve_preferences(1, 4, in_flash=False)
     cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]
@@ -983,24 +1002,44 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 @automation.register_action(
     "mqtt.publish_json",
-    MQTTPublishJsonAction,
+    automation.ApplyAction,
     MQTT_PUBLISH_JSON_ACTION_SCHEMA,
     synchronous=True,
 )
-async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(var.set_topic(template_))
-
-    args_ = args + [(cg.JsonObject, "root")]
-    lambda_ = await cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
-    cg.add(var.set_payload(lambda_))
-    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
-    cg.add(var.set_retain(template_))
-    return var
+async def mqtt_publish_json_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    parent = await automation.apply_parent(config)
+    # Lambdas are bound in order before the publish
+    statements: list[str] = []
+    values: dict[str, str] = {}
+    for key, type_, const_fn in (
+        (CONF_TOPIC, cg.std_string, automation.flash_string),
+        (CONF_QOS, cg.uint8, None),
+        (CONF_RETAIN, cg.bool_, None),
+    ):
+        if isinstance(value := config[key], Lambda):
+            statements.append(
+                await automation.bind_lambda(value, args, type_, f"esphome__{key}")
+            )
+            values[key] = f"esphome__{key}"
+        else:
+            values[key] = (
+                const_fn(config, value) if const_fn else str(cg.safe_exp(value))
+            )
+    # The payload gets its own copies of the trigger args, as any lambda does
+    payload = await cg.process_lambda(
+        config[CONF_PAYLOAD], [*args, (cg.JsonObject, "root")], return_type=cg.void
+    )
+    build = (
+        f"[&]({cg.JsonObject} root) {{ {automation.immediate_lambda_call(payload)}; }}"
+    )
+    topic, qos, retain = (values[key] for key in (CONF_TOPIC, CONF_QOS, CONF_RETAIN))
+    statements.append(f"{parent}->publish_json({topic}, {build}, {qos}, {retain});")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 def get_default_topic_for(data, component_type, name, suffix):
