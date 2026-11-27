@@ -63,6 +63,7 @@ def test_transmit_codegen(
     assert any(define.name == "USE_VBUS_TX" for define in CORE.defines)
     assert "vbus::VBusTransmitter(test_bus);" in code
     assert "test_bus->set_transmitter(" in code
+    assert code.count("->set_uart_parent(test_uart);") == 2
     assert any(define.name == "USE_VBUS_SEND_ACTION" for define in CORE.defines)
     assert "test_bus->request_datagram(" in code
 
@@ -124,25 +125,6 @@ def test_tx_final_validation(
         assert any(error in message for message in errors), errors
 
 
-@pytest.mark.parametrize("tx_baud", [9600, 19200])
-def test_separate_tx_uart_is_validated(tx_baud: int, tmp_path: Path) -> None:
-    path = tmp_path / "separate.yaml"
-    path.write_text(
-        "esphome:\n  name: vbus-separate\nesp8266:\n  board: d1_mini\n"
-        "uart:\n  - id: receive\n    baud_rate: 9600\n    rx_pin: GPIO13\n"
-        f"  - id: transmit\n    baud_rate: {tx_baud}\n    tx_pin: GPIO1\n"
-        "vbus:\n  uart_id: receive\n  transmit:\n    uart_id: transmit\n    destination: 0x2211\n",
-        encoding="utf-8",
-    )
-    CORE.config_path = path
-    result = config.validate_config(yaml_util.load_yaml(path), {})
-    errors = [str(err) for err in result.errors]
-    if tx_baud == 9600:
-        assert not errors
-    else:
-        assert any("requires baud rate 9600" in message for message in errors), errors
-
-
 def test_action_validation_state_is_cleared_between_configurations(
     tmp_path: Path,
 ) -> None:
@@ -167,19 +149,18 @@ def test_action_validation_state_is_cleared_between_configurations(
 
 
 @pytest.mark.parametrize(
-    ("rx", "tx", "threshold", "loop_ms", "error"),
+    ("uart_id", "transmit", "threshold", "loop_ms", "error"),
     [
-        ("wire", "wire", None, 50, None),
-        ("wire", "wire", 120, 16, "rx_full_threshold"),
-        ("wire", "wire", 1, 51, "loop_interval"),
-        ("bridge", "wire", None, 16, "serial line timing"),
-        ("wire", "bridge", None, 16, "serial line timing"),
-        ("bridge", None, 120, 100, None),  # Passive reception has no grant deadline.
+        ("wire", True, None, 50, None),
+        ("wire", True, 120, 16, "rx_full_threshold"),
+        ("wire", True, 1, 51, "loop_interval"),
+        ("bridge", True, None, 16, "serial line timing"),
+        ("bridge", False, 120, 100, None),  # Passive reception has no grant deadline.
     ],
 )
 def test_transmit_timing(
-    rx: str,
-    tx: str | None,
+    uart_id: str,
+    transmit: bool,
     threshold: int | None,
     loop_ms: int,
     error: str | None,
@@ -192,8 +173,8 @@ def test_transmit_timing(
         "tcp_uart:\n  id: bridge\n  role: server\n  port: 5000\n"
         "uart:\n  id: wire\n  rx_pin: GPIO16\n  tx_pin: GPIO17\n  baud_rate: 9600\n"
         + (f"  rx_full_threshold: {threshold}\n" if threshold else "")
-        + f"vbus:\n  uart_id: {rx}\n"
-        + (f"  transmit:\n    uart_id: {tx}\n    destination: 0x2211\n" if tx else ""),
+        + f"vbus:\n  uart_id: {uart_id}\n"
+        + ("  transmit:\n    destination: 0x2211\n" if transmit else ""),
         encoding="utf-8",
     )
     CORE.config_path = path
@@ -202,4 +183,4 @@ def test_transmit_timing(
         assert any(error in str(err) for err in result.errors), result.errors
     else:
         assert not result.errors
-        assert result["uart"][0]["rx_full_threshold"] == (1 if tx else threshold)
+        assert result["uart"][0]["rx_full_threshold"] == (1 if transmit else threshold)

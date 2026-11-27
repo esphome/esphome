@@ -793,4 +793,81 @@ TEST(PanasonicClimate, HearsItsOwnTransmissions) {
   }
 }
 
+TEST(PanasonicClimate, SendsAndReceivesTheRegularFanSpeeds) {
+  // PKE_20C_AUTO with only the fan nibble of byte 16 changed (raw speed + 3)
+  struct FanCase {
+    climate::ClimateFanMode fan;
+    uint8_t byte16;
+  };
+  static constexpr FanCase CASES[] = {
+      {climate::CLIMATE_FAN_LOW, 0x4F},
+      {climate::CLIMATE_FAN_MEDIUM, 0x5F},
+      {climate::CLIMATE_FAN_HIGH, 0x6F},
+      {climate::CLIMATE_FAN_AUTO, 0xAF},
+  };
+  for (const auto &c : CASES) {
+    SCOPED_TRACE(static_cast<int>(c.fan));
+    uint8_t expected[STATE_LENGTH];
+    memcpy(expected, PKE_20C_AUTO, STATE_LENGTH);
+    expected[16] = c.byte16;
+    expected[STATE_LENGTH - 1] = calc_checksum(expected, STATE_LENGTH);
+
+    Fixture f;
+    f.command([&c](auto &call) {
+      call.set_mode(climate::CLIMATE_MODE_HEAT);
+      call.set_target_temperature(20.0f);
+      call.set_fan_mode(c.fan);
+      call.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+    });
+    EXPECT_EQ(f.last_state(), frame(expected));
+
+    Fixture g;
+    ASSERT_TRUE(g.receive(expected));
+    EXPECT_EQ(g.climate.mode, climate::CLIMATE_MODE_HEAT);
+    EXPECT_EQ(g.climate.preset, climate::CLIMATE_PRESET_NONE);
+    EXPECT_FALSE(g.climate.has_custom_fan_mode());
+    EXPECT_EQ(g.climate.fan_mode, c.fan);
+  }
+}
+
+TEST(PanasonicClimate, SendsAndReceivesEveryMode) {
+  // PKE_20C_AUTO with only the mode bits of byte 13 changed (PKE bit 3 and power bit 0 set); fan only always sends 27 C
+  struct ModeCase {
+    climate::ClimateMode mode;
+    uint8_t byte13;
+    uint8_t byte14;
+  };
+  static constexpr ModeCase CASES[] = {
+      {climate::CLIMATE_MODE_HEAT_COOL, 0x09, 0x28}, {climate::CLIMATE_MODE_DRY, 0x29, 0x28},
+      {climate::CLIMATE_MODE_COOL, 0x39, 0x28},      {climate::CLIMATE_MODE_HEAT, 0x49, 0x28},
+      {climate::CLIMATE_MODE_FAN_ONLY, 0x69, 0x36},
+  };
+  for (const auto &c : CASES) {
+    SCOPED_TRACE(static_cast<int>(c.mode));
+    uint8_t expected[STATE_LENGTH];
+    memcpy(expected, PKE_20C_AUTO, STATE_LENGTH);
+    expected[13] = c.byte13;
+    expected[14] = c.byte14;
+    expected[STATE_LENGTH - 1] = calc_checksum(expected, STATE_LENGTH);
+
+    Fixture f;
+    f.command([&c](auto &call) {
+      call.set_mode(c.mode);
+      call.set_target_temperature(20.0f);
+      call.set_fan_mode(climate::CLIMATE_FAN_AUTO);
+      call.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+    });
+    EXPECT_EQ(f.last_state(), frame(expected));
+
+    Fixture g;
+    ASSERT_TRUE(g.receive(expected));
+    EXPECT_EQ(g.climate.mode, c.mode);
+    EXPECT_EQ(g.climate.preset, climate::CLIMATE_PRESET_NONE);
+    EXPECT_EQ(g.climate.fan_mode, climate::CLIMATE_FAN_AUTO);
+    // The fixed fan only temperature says nothing about the set-point
+    if (c.mode != climate::CLIMATE_MODE_FAN_ONLY)
+      EXPECT_FLOAT_EQ(g.climate.target_temperature, 20.0f);
+  }
+}
+
 }  // namespace esphome::panasonic_ir::testing

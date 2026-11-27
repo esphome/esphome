@@ -37,8 +37,6 @@ CONF_ON_READY = "on_ready"
 alarm_control_panel_ns = cg.esphome_ns.namespace("alarm_control_panel")
 AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.EntityBase)
 
-StateAnyForwarder = alarm_control_panel_ns.class_("StateAnyForwarder")
-StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")
 AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
 
@@ -109,7 +107,6 @@ def _on_state_enter(conf_key: str, state: cg.MockObj) -> automation.CallbackAuto
     return automation.CallbackAutomation(
         conf_key,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(state),
         params=[(AlarmControlPanelState, "state")],
         forward=[],
         when=f"state == {state}",
@@ -120,7 +117,6 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_STATE,
         "add_on_state_callback",
-        forwarder=StateAnyForwarder,
         params=[(AlarmControlPanelState, "state")],
         forward=[],
     ),

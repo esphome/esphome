@@ -1,0 +1,48 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+i2c:
+  sda: 4
+  scl: 5
+
+sx1509:
+  - id: sx_a
+    address: 0x3E
+  - id: sx_b
+    address: 0x3F
+
+output:
+  - platform: sx1509
+    id: plain
+    sx1509_id: sx_a
+    pin: 5
+  - platform: sx1509
+    id: inverted
+    sx1509_id: sx_a
+    pin: 3
+    inverted: true
+  - platform: sx1509
+    id: min_power
+    sx1509_id: sx_a
+    pin: 7
+    min_power: 10%
+  - platform: sx1509
+    id: inverted_min_power
+    sx1509_id: sx_a
+    pin: 8
+    inverted: true
+    min_power: 10%
+  - platform: sx1509
+    id: zero_means_zero
+    sx1509_id: sx_a
+    pin: 9
+    inverted: true
+    min_power: 10%
+    zero_means_zero: true
+  - platform: sx1509
+    id: other_hub
+    sx1509_id: sx_b
+    pin: 5

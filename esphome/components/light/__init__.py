@@ -32,8 +32,8 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_RESTORE_STATE,
     CONF_RGB_ORDER,
+    CONF_SETUP_PRIORITY,
     CONF_STATE,
-    CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
 from esphome.core import (
@@ -48,11 +48,18 @@ from esphome.core import (
 from esphome.core.entity_helpers import (
     RESTORE_STATE_NONE,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import Expression, MockObj, MockObjClass
+from esphome.cpp_generator import (
+    Expression,
+    MockObj,
+    MockObjClass,
+    VariableDeclarationExpression,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -86,9 +93,6 @@ from .types import (  # noqa: F401
     LightOutput,
     LightState,
     LightStateRTCState,
-    LightStateTrigger,
-    LightTurnOffTrigger,
-    LightTurnOnTrigger,
     PowerEstimation,
     light_ns,
 )
@@ -101,6 +105,7 @@ IS_PLATFORM_COMPONENT = True
 DOMAIN = "light"
 CONF_GAMMA_TABLE_ID = "gamma_table_id"
 CONF_RESUME_EFFECT = "resume_effect"
+CONF_WRITE_ON_SETUP = "write_on_setup"
 
 CONF_POWER_ESTIMATION = "power_estimation"
 CONF_MA_PER_LED_RED = "ma_per_led_red"
@@ -440,6 +445,8 @@ INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_LIGHT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
@@ -451,28 +458,18 @@ LIGHT_SCHEMA = (
                 *LEGACY_RESTORE_MODES, upper=True, space="_"
             ),
             cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
-            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(),
+            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(),
+            cv.Optional(CONF_ON_STATE): auto.validate_automation(),
             cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
             cv.Optional(CONF_RESUME_EFFECT, default=False): cv.boolean,
+            cv.Optional(CONF_WRITE_ON_SETUP, default=False): cv.boolean,
         }
     )
 )
 
 LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
+LIGHT_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_light"))
 
 
 def _validate_initial_state_effect(config: ConfigType) -> ConfigType:
@@ -632,6 +629,73 @@ def _effects_table(effects: list[MockObj]) -> MockObj:
     )
 
 
+def _register_callbacks(
+    light_var: MockObj, light_id: ID, method: str, suffix: str, callbacks: list[MockObj]
+) -> None:
+    """Register the callbacks as one: alone, or called in order from a generated function."""
+    if not callbacks:
+        return
+    callback = callbacks[0]
+    if len(callbacks) > 1:
+        callback = auto.apply_static_function(
+            light_id,
+            cg.void,
+            [],
+            [cg.statement(MockObj(cb)()) for cb in callbacks],
+            suffix=suffix,
+        )
+    cg.add(getattr(light_var, method)(callback))
+
+
+async def _light_triggers_to_code(
+    light_var: MockObj, light_id: ID, config: ConfigType
+) -> None:
+    """Build on_turn_on, on_turn_off and on_state as callbacks on the light's two callback lists.
+
+    Built in that order, as the Trigger objects were, so a lambda can name an automation built
+    before it. Each on_turn_on keeps the state it last saw in a static of its own.
+    """
+    light = auto.parent_ref(light_var)
+    on_turn_on: list[MockObj] = []
+    for index, conf in enumerate(config.get(CONF_ON_TURN_ON, [])):
+        last_id = cg.unique_global_id(f"{light_var}_on_turn_on_{index}_last", cg.bool_)
+        last = MockObj(last_id)
+        CORE.register_variable(last_id, last)
+        cg.add_global(VariableDeclarationExpression(cg.bool_, "", last, static=True))
+        when = light_ns.update_turned_on(last, light.remote_values.is_on())
+        on_turn_on.append(
+            await auto.build_trigger_callback([], conf, [], when=str(when))
+        )
+    on_turn_off = [
+        await auto.build_trigger_callback(
+            [],
+            conf,
+            [],
+            when="!{parent}->current_values.is_on()",
+            parent=light_var,
+        )
+        for conf in config.get(CONF_ON_TURN_OFF, [])
+    ]
+    on_state = [
+        await auto.build_trigger_callback([], conf, [])
+        for conf in config.get(CONF_ON_STATE, [])
+    ]
+    _register_callbacks(
+        light_var,
+        light_id,
+        "add_remote_values_callback",
+        "remote_values",
+        on_turn_on + on_state,
+    )
+    _register_callbacks(
+        light_var,
+        light_id,
+        "add_target_state_reached_callback",
+        "target_state_reached",
+        on_turn_off,
+    )
+
+
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     # All 8 legacy restore_mode values, and the restore_state key, are just different
@@ -644,6 +708,9 @@ async def setup_light_core_(light_var, config, output_var):
     if config[CONF_RESUME_EFFECT]:
         cg.add_define("USE_LIGHT_RESUME_EFFECT")
         cg.add(light_var.set_resume_effect(True))
+    if config[CONF_WRITE_ON_SETUP]:
+        cg.add_define("USE_LIGHT_WRITE_ON_SETUP")
+        cg.add(light_var.set_write_on_setup(True))
 
     restore_mode = config.get(CONF_RESTORE_MODE)
     restore_state_config = config.get(CONF_RESTORE_STATE)
@@ -701,17 +768,10 @@ async def setup_light_core_(light_var, config, output_var):
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
+        cg.add_define("USE_LIGHT_EFFECTS")
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
+    await _light_triggers_to_code(light_var, config[CONF_ID], config)
 
     if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:
         cg.add(output_var.set_correction(*color_correct))
@@ -734,13 +794,23 @@ async def setup_light_core_(light_var, config, output_var):
             cg.add(output_var.set_max_current_ma(max_current_ma))
 
     await entity_helpers.setup_entity_integrations(light_var, config)
+    await lazy_load_setup("zigbee", "setup_light", light_var, config)
+
+
+def _light_component_config(config: ConfigType) -> ConfigType:
+    """An addressable light's output takes setup_priority from the same config, and must be set up first."""
+    is_addressable = config[CONF_ID].type.inherits_from(AddressableLightState)
+    if (priority := config.get(CONF_SETUP_PRIORITY)) is None or not is_addressable:
+        return config
+    # The same gap as the defaults, HARDWARE and HARDWARE - 1
+    return {**config, CONF_SETUP_PRIORITY: priority - 1}
 
 
 async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], output_var)
     queue_entity_register("light", config)
     CORE.register_platform_component("light", light_var)
-    await cg.register_component(light_var, config)
+    await cg.register_component(light_var, _light_component_config(config))
     await setup_light_core_(light_var, config, output_var)
 
 

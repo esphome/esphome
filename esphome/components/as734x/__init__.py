@@ -1,3 +1,5 @@
+import math
+
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
@@ -109,10 +111,11 @@ def _validate_exposure(cycles: int):
         if atime == 0 and astep == 0:
             raise cv.Invalid(f"{CONF_ATIME} and {CONF_ASTEP} must not both be 0")
         measurement = (atime + 1) * (astep + 1) * CYCLE_STEP_SECONDS * cycles
-        if measurement > config[CONF_UPDATE_INTERVAL].total_seconds:
+        if measurement * 1000 > config[CONF_UPDATE_INTERVAL].total_milliseconds:
             raise cv.Invalid(
-                f"A measurement takes {measurement:.1f}s with these {CONF_ATIME} and "
-                f"{CONF_ASTEP} values, longer than the {CONF_UPDATE_INTERVAL}"
+                f"A measurement takes {math.ceil(measurement * 1000)}ms with these "
+                f"{CONF_ATIME} and {CONF_ASTEP} values, longer than the "
+                f"{CONF_UPDATE_INTERVAL}"
             )
         return config
 
