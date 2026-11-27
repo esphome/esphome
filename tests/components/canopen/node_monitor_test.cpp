@@ -96,6 +96,48 @@ TEST_F(NodeMonitorTest, BootupBeforeTheFirstLoop) {
   EXPECT_EQ(this->events_.front().event, NodeEvent::NODE_EVENT_RESET);
 }
 
+// CiA 301 keeps error control running while this node is stopped: CANopenNode's CO_process() would clear the entries
+// (no event) and report ONLINE again after a start.
+TEST_F(NodeMonitorTest, MonitoringContinuesWhileStopped) {
+  this->start_(1000);
+  this->hub_.frame(0x721, {0x05});
+  ASSERT_TRUE(this->hub_.is_node_online(0x21));
+  this->events_.clear();
+  this->hub_.frame(0x000, {0x02, 0x10});  // an NMT master stops us
+  this->hub_.loop();
+  ASSERT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  EXPECT_TRUE(this->hub_.is_node_online(0x21));
+  EXPECT_EQ(this->hub_.get_node_state(0x21), NMTState::NMT_STATE_OPERATIONAL);
+  EXPECT_TRUE(this->events_.empty());
+  // heartbeats are still followed
+  this->hub_.frame(0x721, {0x7F});
+  ASSERT_EQ(this->events_.size(), 1u);
+  EXPECT_EQ(this->events_.front(),
+            (Event{0x21, NodeEvent::NODE_EVENT_NMT_CHANGED, NMTState::NMT_STATE_PRE_OPERATIONAL}));
+  // started again: no new ONLINE
+  this->events_.clear();
+  this->hub_.frame(0x000, {0x01, 0x10});
+  this->hub_.loop();
+  this->hub_.frame(0x721, {0x7F});
+  ASSERT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+  EXPECT_TRUE(this->events_.empty());
+  EXPECT_TRUE(this->hub_.is_node_online(0x21));
+}
+
+TEST_F(NodeMonitorTest, TimeoutWhileStopped) {
+  this->start_(30);
+  this->hub_.frame(0x721, {0x05});
+  this->hub_.frame(0x000, {0x02, 0x10});
+  this->hub_.loop();
+  ASSERT_EQ(this->hub_.get_nmt_state(), NMTState::NMT_STATE_STOPPED);
+  this->events_.clear();
+  std::this_thread::sleep_for(std::chrono::milliseconds(60));
+  this->hub_.loop();
+  ASSERT_FALSE(this->events_.empty());
+  EXPECT_EQ(this->events_.front(), (Event{0x21, NodeEvent::NODE_EVENT_OFFLINE, NMTState::NMT_STATE_UNKNOWN}));
+  EXPECT_FALSE(this->hub_.is_node_online(0x21));
+}
+
 // The node is processed on the real clock (micros()), so the test waits out a short timeout.
 TEST_F(NodeMonitorTest, TimeoutReportsOffline) {
   this->start_(30);

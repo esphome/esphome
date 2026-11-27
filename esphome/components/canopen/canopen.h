@@ -292,6 +292,8 @@ class CANopenComponent : public Component {
   void add_node_monitor_od_();
   void config_node_monitor_(CO_config_t &cfg);
   void init_node_monitor_();
+  // the heartbeat consumer, in every NMT state after initialisation (see init_node_monitor_())
+  void process_node_monitor_(uint32_t dt_us);
   void dump_node_monitor_config_();
   static void on_hb_started(uint8_t node_id, uint8_t idx, void *object);
   static void on_hb_nmt_changed(uint8_t node_id, uint8_t idx, CO_NMT_internalState_t state, void *object);

@@ -80,9 +80,14 @@ void CANopenComponent::init_node_monitor_() {
   CO_HBconsumer_t *hb = this->co_->HBcons;
   if (hb == nullptr)
     return;  // no monitored nodes
-  // The first CO_process() takes the node from initialising to (pre-)operational, which the consumer handles as a state
-  // change: it would drop a heartbeat received before (from the bus, or a local node's boot-up queued before our
-  // first loop()). The entries are as that pass would leave them (state unknown, no frame), so it can start monitoring.
+  // CO_process() runs the consumer only while this node is pre-operational or operational, and clears every entry
+  // when it stops (no events; ONLINE again for each node after a start). CiA 301 keeps error control running in
+  // stopped, so process_node_monitor_() runs it instead, as (pre-)operational after initialisation: CO_process() skips
+  // it with the count 0 (read there through config_; allocation and init are done).
+  this->config_.CNT_HB_CONS = 0;
+  // The entries are as a first pass would leave them (state unknown, no frame), so that pass doesn't handle the end of
+  // initialisation as a state change, which would drop a heartbeat received before it (from the bus, or a local
+  // node's boot-up queued before our first loop()).
   hb->NMTisPreOrOperationalPrev = true;
   this->pending_node_events_.init(2 * this->hb_cons_.size());
   for (uint8_t i = 0, n = this->hb_cons_.size(); i < n; i++) {
@@ -91,6 +96,11 @@ void CANopenComponent::init_node_monitor_() {
     CO_HBconsumer_initCallbackTimeout(hb, i, this, on_hb_timeout);
     CO_HBconsumer_initCallbackRemoteReset(hb, i, this, on_hb_remote_reset);
   }
+}
+
+void CANopenComponent::process_node_monitor_(uint32_t dt_us) {
+  if (this->co_->HBcons != nullptr)
+    CO_HBconsumer_process(this->co_->HBcons, true, dt_us, nullptr);
 }
 
 void CANopenComponent::dump_node_monitor_config_() {

@@ -225,6 +225,7 @@ void CANopenComponent::process_node_() {
   this->last_us_ = now;
   CO_NMT_reset_cmd_t reset = CO_process(this->co_, false, dt, nullptr);
 #ifdef USE_CANOPEN_NODE_MONITOR
+  this->process_node_monitor_(dt);
   this->dispatch_node_events_();
 #endif
   const uint32_t now_ms = App.get_loop_component_start_time();
