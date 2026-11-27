@@ -108,10 +108,10 @@ static ParsedTimezone make_australia_sydney() {
 // ============================================================================
 
 TEST(PosixTz, MonthWeekDayRuleMatchesGmtime) {
-  // First and last occurrence of every weekday in every month, in years spread over 0 to 65535
+  // Every week (1-4 = nth, 5 = last) of every weekday in every month, in years spread over 0 to 65535
   for (int year = 0; year <= 65535; year += (year < 2200 ? 13 : 997)) {
     for (int month = 1; month <= 12; month++) {
-      for (int week : {1, 5}) {
+      for (int week = 1; week <= 5; week++) {
         for (int dow = 0; dow < 7; dow++) {
           DSTRule rule{};
           rule.type = DSTRuleType::MONTH_WEEK_DAY;
@@ -124,8 +124,8 @@ TEST(PosixTz, MonthWeekDayRuleMatchesGmtime) {
           ASSERT_EQ(got.tm_year + 1900, year);
           ASSERT_EQ(got.tm_mon + 1, month);
           EXPECT_EQ(got.tm_wday, dow) << year << "-" << month;
-          if (week == 1) {
-            EXPECT_LE(got.tm_mday, 7) << year << "-" << month;
+          if (week < 5) {
+            EXPECT_EQ((got.tm_mday - 1) / 7 + 1, week) << year << "-" << month;
           } else {
             EXPECT_GT(got.tm_mday + 7, internal::days_in_month(year, month)) << year << "-" << month;
           }

@@ -1,5 +1,6 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
+#include "esphome/core/time_utc.h"
 #ifdef USE_TIME_TRIGGERS
 #include "esphome/core/application.h"
 #endif
