@@ -17,6 +17,7 @@
 #include <sys/time.h>
 #endif
 #include <cinttypes>
+#include <cstdlib>
 
 namespace esphome::time {
 
@@ -27,14 +28,15 @@ ESPTime __attribute__((noinline)) RealTimeClock::now() { return ESPTime::from_ep
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
   const auto &tz = get_global_tz();
-  char std_buf[6];  // "+HHMM"
-  format_designation(tz.std_offset_seconds, std_buf, sizeof(std_buf));
+  // POSIX offset is positive west, negate for conventional UTC+X display
+  int std_h = -tz.std_offset_seconds / 3600;
+  int std_m = (std::abs(tz.std_offset_seconds) % 3600) / 60;
   if (tz.has_dst()) {
-    char dst_buf[6];
-    format_designation(tz.dst_offset_seconds, dst_buf, sizeof(dst_buf));
-    ESP_LOGCONFIG(TAG, "Timezone: UTC%s (DST UTC%s)", std_buf, dst_buf);
+    int dst_h = -tz.dst_offset_seconds / 3600;
+    int dst_m = (std::abs(tz.dst_offset_seconds) % 3600) / 60;
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d (DST UTC%+d:%02d)", std_h, std_m, dst_h, dst_m);
   } else {
-    ESP_LOGCONFIG(TAG, "Timezone: UTC%s", std_buf);
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_h, std_m);
   }
 #endif
   auto time = this->now();
@@ -103,20 +105,17 @@ void RealTimeClock::start_on_time_checks() {
 }
 
 void RealTimeClock::check_time_() {
-  const time_t timestamp = this->timestamp_now();
-  const uint32_t epoch = static_cast<uint32_t>(timestamp);
-  const uint32_t last = this->last_check_;
-  // Same second again or a small step back: skip before the local time conversion
-  if (last != 0 && last >= epoch && last - epoch <= MAX_TIMESTAMP_DRIFT)
-    return;
-
-  ESPTime time = ESPTime::from_epoch_local(timestamp);
+  ESPTime time = this->now();
   if (!time.is_valid())
     return;
 
+  const uint32_t epoch = static_cast<uint32_t>(time.timestamp);
+  const uint32_t last = this->last_check_;
   if (last != 0) {
-    if (last > epoch) {
+    if (last > epoch && last - epoch > MAX_TIMESTAMP_DRIFT) {
       ESP_LOGW(TAG, "Time has jumped back!");
+    } else if (last >= epoch) {
+      return;
     } else if (epoch - last > MAX_TIMESTAMP_DRIFT) {
       ESP_LOGW(TAG, "Time has jumped ahead!");
       this->last_check_ = epoch;
