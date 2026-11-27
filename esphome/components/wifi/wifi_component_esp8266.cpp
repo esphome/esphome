@@ -426,16 +426,14 @@ static_assert(AUTH_OPEN == 0 && AUTH_WEP == 1 && AUTH_WPA_PSK == 2 && AUTH_WPA2_
               "AUTH_* constants are not contiguous");
 PROGMEM_STRING_TABLE(AuthModeStrings, "OPEN", "WEP", "WPA PSK", "WPA2 PSK", "WPA/WPA2 PSK", "UNKNOWN");
 
-const LogString *get_auth_mode_str(uint8_t mode) {
-  return AuthModeStrings::get_log_str(mode, AuthModeStrings::LAST_INDEX);
-}
+const LogString *get_auth_mode_str(uint8_t mode) { return AuthModeStrings::get_log_str(mode); }
 
 // WiFi op mode strings indexed by WIFI_* constants (0-3), with UNKNOWN at last index
 static_assert(WIFI_OFF == 0 && WIFI_STA == 1 && WIFI_AP == 2 && WIFI_AP_STA == 3,
               "WIFI_* op mode constants are not contiguous");
 PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
 
-const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode, OpModeStrings::LAST_INDEX); }
+const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode); }
 
 // Use if-chain instead of switch to avoid jump tables in RODATA (wastes RAM on ESP8266).
 // A single switch would generate a sparse lookup table with ~175 default entries, wasting 700 bytes of RAM.
@@ -1013,5 +1011,20 @@ void WiFiComponent::process_pending_callbacks_() {
 }
 
 }  // namespace esphome::wifi
+
+// Linked with -Wl,--wrap=rijndaelKeySetupEnc unless a network uses EAP, so the SDK's 768 B libcrypto copy is
+// dropped. The boot ROM's copy is AES-128 only and returns nothing, while aes_encrypt_init() stores the return
+// value as the round count, so wrap it in the SDK's signature.
+static constexpr uint32_t ROM_RIJNDAEL_KEY_SETUP_ENC_ADDR = 0x40009300;
+
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" int __wrap_rijndaelKeySetupEnc(uint32_t rk[], const uint8_t cipher_key[], int key_bits) {
+  if (key_bits != 128)
+    return -1;
+  using RomKeySetup = void (*)(uint32_t[], const uint8_t[]);
+  reinterpret_cast<RomKeySetup>(ROM_RIJNDAEL_KEY_SETUP_ENC_ADDR)(rk, cipher_key);  // NOLINT(performance-no-int-to-ptr)
+  return 10;
+}
+
 #endif
 #endif

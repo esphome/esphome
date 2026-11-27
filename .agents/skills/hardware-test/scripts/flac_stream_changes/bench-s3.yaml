@@ -1,0 +1,6 @@
+# The flac-dut.yaml media player plus the benchmark button. -s media /absolute/path/to/media
+substitutions:
+  media: /path/to/media
+packages:
+  dut: !include flac-dut.yaml
+  bench: !include bench-button.yaml

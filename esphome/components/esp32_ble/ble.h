@@ -14,6 +14,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_ESP32_BLE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include "ble_event.h"
 #include "esphome/core/lock_free_queue.h"
@@ -104,6 +107,10 @@ class ESP32BLE final : public Component {
 
   void enable() { this->request_state_(true); }
   void disable() { this->request_state_(false); }
+  void set_enabled(bool enabled) { this->request_state_(enabled); }
+#ifdef USE_ESP32_BLE_SWITCH
+  SUB_SWITCH(enabled)
+#endif
   ESPHOME_ALWAYS_INLINE bool is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
   void setup() override;
   void loop() override;
@@ -112,7 +119,7 @@ class ESP32BLE final : public Component {
   void get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
   float get_setup_priority() const override;
   void set_name(const char *name) { this->name_ = name; }
-  // BLE device names are limited to 20 characters
+  // BLE device names are limited to 20 bytes (UTF-8)
   static constexpr size_t DEVICE_NAME_BUFFER_SIZE = 21;
   /// The device name; written to `buffer` unless the configured name is used as is.
   const char *device_name(char *buffer) const;

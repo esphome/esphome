@@ -1,0 +1,9 @@
+substitutions:
+  name: tbn
+packages:
+  base: !include p4-wifi6-base.yaml
+external_components:
+  - source:
+      type: local
+      path: components
+tcpbench:

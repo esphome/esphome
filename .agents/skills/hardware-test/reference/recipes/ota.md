@@ -104,3 +104,76 @@ Gotchas: an ESP-IDF image can contain `E7 02` at a 4 KiB boundary by chance; fin
 instead of "no signature block": the partition still holds the old signature sector past the new image's end.
 
 Results: https://github.com/esphome/esphome/pull/22398#issuecomment-6716330334
+
+## ESP8266 web_server OTA interruption and SSE (#22682)
+
+`scripts/web_server/async_bump/otacases.py` (README there). Facts from a D1 mini on dev and on ESPAsyncWebServer 3.12.1:
+- A cut upload logs `OTA upload interrupted; aborting`, keeps the old image and serves again within a second; the
+  next full upload works without waiting for a lock release. No heap lost per cut.
+- Uploads stop by themselves on the network about 1 in 6 to 1 in 15 (curl `000`, old image kept), and about 1 in 25
+  boots the new image while curl never gets the reply (it waits 30 to 60 s). Both builds; classify, do not fail on it.
+- At OTA reboot the device does not close `/events`: a held client sees silence, rarely a FIN. Detect by idle time.
+- Max free block drops from about 45 kB to about 37 kB after the first OTA and stays (both builds).
+
+## Rollback self-test and ESP-IDF 6 TLS (#22902, #22930, #22931)
+
+- App rollback can be tested without a bad build: a `crash_major` global with `restore_value: true`, set over the API,
+  and an `on_boot` priority 700 lambda `if (id(crash_major) == ESP_IDF_VERSION_MAJOR) abort();` (priority 800 runs
+  before globals are restored). Arm it, OTA a build of the other IDF major, and the new image aborts before it is
+  marked valid, so the bootloader must go back to the old one. `esp_ota_get_bootloader_description()` reports which
+  IDF built the flashed bootloader; an OTA never replaces it.
+- ESP-IDF 6 trims SHA-384 from mbedTLS by default, so https to any server whose chain is signed with SHA-384 fails
+  verification (-0x3000 or -0x2700) unless `CONFIG_MBEDTLS_SHA384_C: y` is in `sdkconfig_options`.
+- A local TLS 1.3 test server: a threaded Python `ssl` server with `minimum_version = TLSv1_3`; for a server that
+  offers only FFDHE groups, point `OPENSSL_CONF` at a config with `Groups = ffdhe2048`.
+- Classic ESP32 boards on a busy network can lose 0 to 98 % of pings from run to run with either build while C3, C6
+  and S3 boards answer every ping; compare builds there only with both runs at the same time on two boards.
+
+## RP2 preference write after a successful OTA (#23179)
+
+Config with a raw `ESPPreferenceObject` in a global (made in `on_boot`), saved plus `global_preferences->sync()` in
+`on_end` (runs in the main loop before `safe_reboot()`), a probe save at the first `on_progress` (`on_begin` fires
+before the backend `begin()`, so it is not blocked yet), and a rewrite in `on_error`. Pico CDC misses the boot lines:
+store the boot values in globals and print them from a 10 s interval with a per-image `-s marker` substitution.
+Staging is LittleFS (1 MB, ends at `_EEPROM_start`, the last 4 KB sector); a 500 KB random `PAD_BLOB` header gives a
+~970 KB image, ~820 KB compressed. Dev: `on_end` sync false every time; PR true. A killed upload on rp2 can wait
+105 s for `No data received` before `on_error`. Result: https://github.com/esphome/esphome/pull/23179#issuecomment-7108892214
+
+## Damaged web_server OTA uploads (#23225)
+
+`scripts/web_ota/shortpost.py HOST IMAGE MODE [CUT] [OFFSET]` sends a curl-shaped multipart POST to `/update`. MODE
+`full`, `close`/`hold` (stop CUT bytes early), `dropmid` (drop CUT bytes at OFFSET, still send the closing boundary,
+which is what a lossy relay produces), `shortcl` (Content-Length matches the short body), `flip` (one bit at OFFSET).
+`runcase.sh LOG HOST IMAGE LABEL MODE...` runs one case while `serial_capture.py` writes LOG, retries uploads that
+Wi-Fi cut before the final chunk, and greps the serial log.
+
+- ESPAsyncWebServer fires `final` on the closing boundary even with bytes missing, so only the backend check stops it.
+  On dev before #23225 an ESP8266 flashes the short image, eboot prints `@cp:B0` `e:3`, and the board is silent until a
+  serial reflash. ESP-IDF rejects the same uploads in `esp_ota_end` (0x1503). A gzip image still skips the ESP8266 check.
+- A close is seen by the device a few seconds late, so wait about 30 s before the next upload or it is refused as busy.
+- `cp.yaml` starts the captive portal on the station network (`global_captive_portal->start()`), so its upload path
+  can be tested without an AP client.
+
+## OTA over a relay with network drops (#23218)
+
+`scripts/ota_relay/` puts the host on a network only a board can reach: `relay.hpp` relays TCP from a serial link
+(USB Serial/JTAG, or UART0 at 921600 with `-DRELAY_UART`) to one address, two channels, and `relay_host.py PORT
+LPORT:TPORT:RATE [SPEC]` serves each channel on `127.0.0.1:LPORT`, paced to RATE bytes per second (8 to 15 KB/s makes
+an upload last about a minute).
+
+- Upload through a fallback AP: `relay-sta.yaml` (classic ESP32) joins the AP of `dut-ap.yaml` (an ESP8266 that never
+  finds its network) and relays to 192.168.4.1. `webrun.sh` starts each upload a few seconds after the DUT's retry
+  line, so the next retry falls due mid upload; `windows.py` counts retry and warning lines per upload.
+- Network drop under an upload: `relay-ap.yaml` (S3) is the open test network and relays to `dut-sta.yaml` (C3,
+  static address, own AP always on). Writing a number of ms to `drop-ms` next to `relay_host.py` renames the AP for
+  that long (stations are kicked and cannot find it, the relay side stays up); `droprun.sh` drops it mid upload,
+  `dropana.py` prints the time from each drop to the upload end, disconnect, first scan and reconnect.
+- On ESP32 a station drop ends an upload at once: the web upload aborts (or after the 5 s receive timeout) and native
+  OTA fails its next write with errno 113, so the OTA is over before Wi-Fi handles the disconnect.
+- A WPA2 test AP with protected management frames delays drop detection by 6 to 11 s (`SA query timeout`); use an
+  open AP for crisp drops.
+- Native OTA blocks the main loop for its whole data phase, so Wi-Fi cannot retry during a native upload either way.
+- The relay once lost a 1 KB frame and the ESP8266 flashed the short image as a good web OTA (boot loader `e:3`,
+  serial reflash), which is the bug #23225 fixes, so every DATA frame now carries a sequence number and checksum and a
+  lost frame closes the upload.
+- Result: https://github.com/esphome/esphome/pull/23218

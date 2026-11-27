@@ -13,6 +13,7 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#include <algorithm>
 #include <cerrno>
 #include <cinttypes>
 #include <cstring>
@@ -76,7 +77,10 @@ namespace esphome::api {
 static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 10;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
-static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
+// Ping answer grace: 1.5x keepalive, at most 5 min so a vanished client frees its slot
+static constexpr uint32_t KEEPALIVE_PONG_GRACE_MS = 300000;
+static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT =
+    KEEPALIVE_TIMEOUT_MS + std::min<uint32_t>((KEEPALIVE_TIMEOUT_MS * 3) / 2, KEEPALIVE_PONG_GRACE_MS);
 // Timeout for completing the handshake (Noise transport + HelloRequest).
 // A stalled handshake from a buggy client or network glitch holds a connection
 // slot, which can prevent legitimate clients from reconnecting. Also hardens
@@ -86,6 +90,8 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
+// A shorter keepalive would ping a client still in its handshake
+static_assert(KEEPALIVE_TIMEOUT_MS >= HANDSHAKE_TIMEOUT_MS);
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
@@ -251,6 +257,9 @@ void APIConnection::destroy_active_iterator_() {
       this->iterator_storage_.initial_state.~InitialStateIterator();
       break;
     case ActiveIterator::NONE:
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+    case ActiveIterator::CLIENT_SYNCED_PENDING:
+#endif
       break;
   }
   this->active_iterator_ = ActiveIterator::NONE;
@@ -379,7 +388,6 @@ void APIConnection::loop() {
 void APIConnection::check_keepalive_(uint32_t now) {
   // Caller guarantees: now - last_traffic_ > KEEPALIVE_TIMEOUT_MS
   if (this->flags_.sent_ping) {
-    // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
       this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
@@ -415,10 +423,25 @@ void APIConnection::process_active_iterator_() {
     } else {
       this->process_iterator_batch_(this->iterator_storage_.list_entities);
     }
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  } else if (this->active_iterator_ == ActiveIterator::CLIENT_SYNCED_PENDING) {
+    // Fired after the sync and the batch drain, so subscriptions are active and queued states go first.
+    // Skipped once a disconnect or shutdown has started (next_close is set before remove).
+    if (this->deferred_batch_.empty() && !this->flags_.remove && !this->flags_.next_close &&
+        !this->parent_->is_shutting_down()) {
+      this->active_iterator_ = ActiveIterator::NONE;
+      char peername[socket::SOCKADDR_STR_LEN];
+      this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),
+                                                       StringRef(this->helper_->get_peername_to(peername)));
+    }
+#endif
   } else {  // INITIAL_STATE
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
       this->finalize_iterator_sync_();
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+      this->active_iterator_ = ActiveIterator::CLIENT_SYNCED_PENDING;
+#endif
     } else {
       this->process_iterator_batch_(this->iterator_storage_.initial_state);
     }
@@ -1464,7 +1487,7 @@ bool APIConnection::send_sendspin_pairing_token_response_() {
   auto token = sendspin_::global_sendspin_hub->get_pairing_token();
   if (token.has_value()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK;
-    resp.token = StringRef(*token);
+    resp.token = StringRef(token->data(), token->size());
   } else if (sendspin_::global_sendspin_hub->status_has_error()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED;
   } else if (sendspin_::global_sendspin_hub->is_disabled()) {
@@ -1936,8 +1959,8 @@ void APIConnection::complete_authentication_() {
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   {
     char peername[socket::SOCKADDR_STR_LEN];
-    this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
-                                                           std::string(this->helper_->get_peername_to(peername)));
+    this->parent_->get_client_connected_callback().call(StringRef(this->helper_->get_client_name()),
+                                                        StringRef(this->helper_->get_peername_to(peername)));
   }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
@@ -1974,6 +1997,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
+#ifdef USE_API_KEEPALIVE_INTERVAL
+  resp.keepalive_interval = KEEPALIVE_TIMEOUT_MS / 1000;
+#endif
 
 #ifdef USE_PROVISIONING
   if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
@@ -2243,21 +2269,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
   }
 
-  for (auto &it : this->parent_->get_state_subs()) {
-    // The stored length rejects most entries without reading the entity id
-    if (msg.entity_id.size() != it.entity_id_len ||
-        memcmp(msg.entity_id.c_str(), it.entity_id, it.entity_id_len) != 0) {
-      continue;
-    }
-
-    // If subscriber has attribute filter (non-null), message attribute must match it;
-    // if subscriber has no filter (nullptr), message must have no attribute.
-    if (it.attribute != nullptr ? msg.attribute != it.attribute : !msg.attribute.empty()) {
-      continue;
-    }
-
-    it.callback(msg.state);
-  }
+  this->parent_->dispatch_home_assistant_state(msg);
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
@@ -2297,8 +2309,8 @@ void APIConnection::on_execute_service_request(const ExecuteServiceRequest &msg)
     ESP_LOGV(TAG, "Could not find service");
   }
   // Note: For services with supports_response != none, the call is unregistered
-  // by an automatically appended APIUnregisterServiceCallAction at the end of
-  // the action list. This ensures async actions (delays, waits) complete first.
+  // by statements generated after the last action, so async actions (delays,
+  // waits) complete first.
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
 void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message) {
@@ -2858,30 +2870,29 @@ uint16_t APIConnection::try_send_ping_request(EntityBase *entity, APIConnection 
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::process_state_subscriptions_() {
-  const auto &subs = this->parent_->get_state_subs();
-  if (this->state_subs_at_ >= static_cast<int>(subs.size())) {
+  const auto *it = this->parent_->get_state_sub(this->state_subs_at_);
+  if (it == nullptr) {
     this->state_subs_at_ = -1;
     return;
   }
-
-  const auto &it = subs[this->state_subs_at_];
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   // An entity id that is not set yet (a wizard input) has nothing to subscribe to; it is sent once it is set
-  if (it.entity_id[0] == '\0') {
+  if (it->entity_id[0] == '\0') {
     this->state_subs_at_++;
     return;
   }
 #endif
-  SubscribeHomeAssistantStateResponse resp;
-  resp.entity_id = StringRef(it.entity_id);
-
-  // Avoid string copy by using the const char* pointer if it exists
-  resp.attribute = it.attribute != nullptr ? StringRef(it.attribute) : StringRef("");
-
-  resp.once = it.once;
-  if (this->send_message(resp)) {
+  if (this->send_state_subscription_(it->entity_id, it->attribute, it->once)) {
     this->state_subs_at_++;
   }
+}
+
+bool APIConnection::send_state_subscription_(const char *entity_id, const char *attribute, bool once) {
+  SubscribeHomeAssistantStateResponse resp;
+  resp.entity_id = StringRef(entity_id);
+  resp.attribute = StringRef::from_maybe_nullptr(attribute);
+  resp.once = once;
+  return this->send_message(resp);
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
 

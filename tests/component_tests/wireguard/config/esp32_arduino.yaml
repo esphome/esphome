@@ -1,0 +1,7 @@
+packages:
+  common: !include libsodium_common.yaml
+
+esp32:
+  variant: esp32
+  framework:
+    type: arduino

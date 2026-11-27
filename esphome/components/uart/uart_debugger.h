@@ -2,8 +2,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_UART_DEBUGGER
 
+#include <span>
 #include <vector>
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/string_ref.h"
 #include "uart.h"
@@ -18,7 +18,7 @@ namespace esphome::uart {
 /// 'appropriate time' means exactly, is determined by a number of
 /// configurable constraints. E.g. when a given number of bytes is gathered
 /// and/or when no more data has been seen for a given time interval.
-class UARTDebugger final : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, StringRef> {
+class UARTDebugger : public FiringComponent<UARTDirection, const std::vector<uint8_t> &, StringRef> {
  public:
   explicit UARTDebugger(UARTComponent *parent);
   void loop() override;
@@ -88,20 +88,20 @@ class UARTDebug {
  public:
   /// Log the bytes as hex values, separated by the provided separator
   /// character.
-  static void log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+  static void log_hex(UARTDirection direction, std::span<const uint8_t> bytes, uint8_t separator,
                       StringRef prefix = StringRef());
 
   /// Log the bytes as string values, escaping unprintable characters.
-  static void log_string(UARTDirection direction, std::vector<uint8_t> bytes, StringRef prefix = StringRef());
+  static void log_string(UARTDirection direction, std::span<const uint8_t> bytes, StringRef prefix = StringRef());
 
   /// Log the bytes as integer values, separated by the provided separator
   /// character.
-  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+  static void log_int(UARTDirection direction, std::span<const uint8_t> bytes, uint8_t separator,
                       StringRef prefix = StringRef());
 
   /// Log the bytes as '<binary> (<hex>)' values, separated by the provided
   /// separator.
-  static void log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator,
+  static void log_binary(UARTDirection direction, std::span<const uint8_t> bytes, uint8_t separator,
                          StringRef prefix = StringRef());
 };
 

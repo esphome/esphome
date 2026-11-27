@@ -6,12 +6,14 @@
 namespace esphome::adafruit_ble {
 
 // The update itself is served by the Adafruit bootloader; this component only
-// hosts the BLE trigger service defined in ota_adafruit_ble.cpp.
+// requests entry, optionally hosting an application BLE trigger service.
 class OTAComponent : public ota::OTAComponent {
  public:
+#ifdef USE_ADAFRUIT_BLE_TRIGGER
   OTAComponent();
+#endif
   void dump_config() override;
-  // Called from the Bluetooth thread when the trigger is written
+  // Called by a YAML action or the Bluetooth trigger; always deferred to the main loop.
   void request_dfu_mode();
 };
 

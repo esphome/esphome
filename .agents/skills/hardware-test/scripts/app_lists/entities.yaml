@@ -1,0 +1,70 @@
+# Package: template entities of 17 types on the main device and two sub-devices in three areas, the names that
+# drive.py looks up.
+esphome:
+  area:
+    id: main_area
+    name: Main Area
+  areas:
+    - id: kitchen
+      name: Kitchen
+    - id: garage
+      name: Garage
+  devices:
+    - id: sub1
+      name: Sub Device One
+      area_id: kitchen
+      relation: via
+    - id: sub2
+      name: Sub Device Two
+      area_id: garage
+      relation: child
+output:
+  - platform: template
+    id: out1
+    type: float
+    write_action:
+      - logger.log: {format: "out1 %.3f", args: [state]}
+sensor:
+  - {platform: template, name: Temp, id: temp, lambda: "return 21.5;", update_interval: 5s}
+  - {platform: template, name: Temp, id: temp_sub1, device_id: sub1, lambda: "return 22.5;", update_interval: 5s}
+  - {platform: template, name: Humidity, id: hum_sub2, device_id: sub2, lambda: "return 55.0;", update_interval: 5s}
+  - {platform: uptime, name: Uptime, update_interval: 10s}
+binary_sensor:
+  - {platform: template, name: Door, id: door, lambda: "return id(sw1).state;"}
+  - {platform: template, name: Motion, device_id: sub1, lambda: "return true;"}
+switch:
+  - {platform: template, name: Relay, id: sw1, optimistic: true}
+  - {platform: template, name: Relay, id: sw_sub2, device_id: sub2, optimistic: true}
+light:
+  - {platform: monochromatic, name: Lamp, id: lamp, output: out1, default_transition_length: 0s}
+text_sensor:
+  - {platform: template, name: Status, id: status, lambda: "return {\"ok\"};", update_interval: 5s}
+  - {platform: version, name: Version, device_id: sub1}
+button:
+  - platform: template
+    name: Press Me
+    id: btn
+    on_press:
+      - logger.log: "BUTTON pressed"
+      - switch.toggle: sw_sub2
+  - {platform: restart, name: Restart, device_id: sub2}
+number:
+  - {platform: template, name: Level, optimistic: true, min_value: 0, max_value: 100, step: 1}
+select:
+  - {platform: template, name: Mode, optimistic: true, options: [a, b, c], initial_option: a, device_id: sub1}
+fan:
+  - {platform: template, name: Fan, speed_count: 3}
+cover:
+  - {platform: template, name: Shade, optimistic: true}
+text:
+  - {platform: template, name: Note, optimistic: true, mode: text}
+lock:
+  - {platform: template, name: Latch, optimistic: true}
+valve:
+  - {platform: template, name: Tap, optimistic: true}
+datetime:
+  - {platform: template, name: Day, type: date, optimistic: true}
+  - {platform: template, name: Clock, type: time, optimistic: true}
+  - {platform: template, name: Stamp, type: datetime, optimistic: true}
+event:
+  - {platform: template, name: Ding, event_types: [ring]}
