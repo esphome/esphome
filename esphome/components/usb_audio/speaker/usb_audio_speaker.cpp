@@ -53,32 +53,35 @@ void USBAudioSpeaker::loop() {
   if (commands & COMMAND_STOP) {
     this->stop_();
   }
-  if (this->state_ == speaker::STATE_STOPPED && this->writes_in_flight_ != 0) {
-    // A write from before the stop may still count its bytes; start once it has, unless a stop() came since.
-    // A finish() that came with the start is held with it.
-    if ((commands & COMMAND_START) &&
-        this->update_commands_(commands & (COMMAND_START | COMMAND_FINISH), 0, COMMAND_STOP)) {
-      // Not disabled, so loop() retries at its normal pace.
-      return;
-    }
-  } else if (this->state_ == speaker::STATE_STOPPED) {
-    // A write that finished after the stop counted bytes the suspend dropped; report them before any new stream.
-    if (this->ring_bytes_ != 0) {
-      this->credit_dropped_();
-    }
-    if (commands & COMMAND_START) {
-      portENTER_CRITICAL(&this->taken_lock_);
-      // Resuming resets the driver's accumulator, then prepares every transfer, which advances it by their packets.
-      this->packet_frac_accum_ = CONFIG_UAC_NUM_ISOC_URBS * CONFIG_UAC_NUM_PACKETS_PER_URB * this->packet_frac_ % 1000;
-      this->last_finish_us_ = 0;
-      // Idle windows start now, not at the previous stream's last transfer.
-      const uint32_t now_us = micros();
-      this->last_taken_us_ = now_us;
-      this->last_event_us_ = now_us;
-      portEXIT_CRITICAL(&this->taken_lock_);
-      this->state_ = speaker::STATE_STARTING;
-      // Answers through on_stream_state() now or once the device connects.
-      this->parent_->resume(Endpoint::SPEAKER);
+  if (this->state_ == speaker::STATE_STOPPED) {
+    if (this->writes_in_flight_ != 0) {
+      // A write from before the stop may still count its bytes; start once it has, unless a stop() came since.
+      // A finish() that came with the start is held with it.
+      if ((commands & COMMAND_START) &&
+          this->update_commands_(commands & (COMMAND_START | COMMAND_FINISH), 0, COMMAND_STOP)) {
+        // Not disabled, so loop() retries at its normal pace.
+        return;
+      }
+    } else {
+      // A write that finished after the stop counted bytes the suspend dropped; report them before any new stream.
+      if (this->ring_bytes_ != 0) {
+        this->credit_dropped_();
+      }
+      if (commands & COMMAND_START) {
+        portENTER_CRITICAL(&this->taken_lock_);
+        // Resuming resets the driver's accumulator, then prepares every transfer, which advances it by their packets.
+        this->packet_frac_accum_ =
+            CONFIG_UAC_NUM_ISOC_URBS * CONFIG_UAC_NUM_PACKETS_PER_URB * this->packet_frac_ % 1000;
+        this->last_finish_us_ = 0;
+        // Idle windows start now, not at the previous stream's last transfer.
+        const uint32_t now_us = micros();
+        this->last_taken_us_ = now_us;
+        this->last_event_us_ = now_us;
+        portEXIT_CRITICAL(&this->taken_lock_);
+        this->state_ = speaker::STATE_STARTING;
+        // Answers through on_stream_state() now or once the device connects.
+        this->parent_->resume(Endpoint::SPEAKER);
+      }
     }
   }
 
