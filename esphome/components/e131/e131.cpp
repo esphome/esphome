@@ -88,8 +88,8 @@ void E131Component::loop() {
     const E131Decision decision = this->arbitrate_(universe, source);
     if (decision == E131Decision::E131_DECISION_IGNORE)
       continue;
-    if (decision == E131Decision::E131_DECISION_TAKE_OVER) {
-      // A new source may send fewer slots than the previous one: blank the rest of the universe.
+    if (packet.count < E131_MAX_PROPERTY_VALUES_COUNT) {
+      // Clear omitted slots for all consumers, including effects that joined after the source took over.
       memset(packet.values + packet.count, 0, E131_MAX_PROPERTY_VALUES_COUNT - packet.count);
       packet.count = E131_MAX_PROPERTY_VALUES_COUNT;
     }
