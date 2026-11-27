@@ -31,6 +31,10 @@ class ImageInputPipeline final : public tflite_micro_runtime::InputPipeline {
     this->frame_width_ = width;
     this->frame_height_ = height;
   }
+  void get_frame_geometry(int *width, int *height) const override {
+    *width = this->frame_width_;
+    *height = this->frame_height_;
+  }
   void set_channel_order(ChannelOrder order) { this->channel_order_ = order; }
   void set_normalize(bool normalize) { this->normalize_ = normalize; }
   void set_invert(bool invert) { this->invert_ = invert; }

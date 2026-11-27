@@ -44,7 +44,7 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
   }
   const size_t pixels = static_cast<size_t>(this->width_) * this->height_;
   const size_t needed = pixels * this->channels_ * (input->type == kTfLiteFloat32 ? 4 : 1);
-  if (static_cast<size_t>(input->bytes) < needed) {
+  if (static_cast<size_t>(input->bytes) != needed) {
     ESP_LOGE(TAG, "The input tensor is %zu bytes, the configured %dx%dx%d needs %zu", static_cast<size_t>(input->bytes),
              this->width_, this->height_, this->channels_, needed);
     return false;

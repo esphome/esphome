@@ -121,9 +121,22 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
         CONF_NORMALIZE: False,
         CONF_INVERT: False,
     }
-    for key in values:
-        if (value := entry.get(key)) is not None:
-            values[key] = value
+    # These describe the fixed input tensor, so a different value cannot work.
+    fixed = (
+        CONF_INPUT_TYPE,
+        CONF_INPUT_CHANNELS,
+        CONF_INPUT_WIDTH,
+        CONF_INPUT_HEIGHT,
+    )
+    for key, default in values.items():
+        if (value := entry.get(key)) is None:
+            continue
+        if key in fixed and value != default:
+            raise cv.Invalid(
+                f"{key} is {value}, but the model's input tensor has {default}; "
+                f"use frame_width and frame_height for a frame of another size"
+            )
+        values[key] = value
     if bool(values[CONF_FRAME_WIDTH]) != bool(values[CONF_FRAME_HEIGHT]):
         raise cv.Invalid(
             "frame_width and frame_height must be set together; the pipeline scales "
@@ -163,6 +176,10 @@ def build_pipeline(config: ConfigType, model_path: Path) -> cg.MockObj:
 async def configure(var: cg.MockObj, config: ConfigType, model_path: Path) -> None:
     """Create the image pipeline and the classification decoder for one model."""
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
+    # The runtime processes the output itself in run_inference(), so it needs the
+    # same settings as the decoder.
+    cg.add(var.set_output_processing(str(config[CONF_OUTPUT_PROCESSING])))
+    cg.add(var.set_scale_factor(config[CONF_SCALE_FACTOR]))
     decoder = cg.new_Pvariable(
         config[CONF_DECODER_ID],
         config[CONF_OUTPUT_PROCESSING],
