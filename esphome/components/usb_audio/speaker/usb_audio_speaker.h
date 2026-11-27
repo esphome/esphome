@@ -57,6 +57,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   void deliver_reports_();
   void begin_finishing_();
   void stop_();
+  void credit_dropped_();
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
   /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
   void pad_with_silence_();

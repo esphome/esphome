@@ -66,14 +66,11 @@ void USBAudioSpeaker::loop() {
         }
       }
     } else {
-      // Suspending flushed the driver's ring buffer, and resuming restarts its packet sizing.
+      // A write that finished after the stop counted bytes the suspend dropped.
+      this->credit_dropped_();
       portENTER_CRITICAL(&this->taken_lock_);
-      this->ring_bytes_ = 0;
-      this->ring_padding_ = 0;
       // Resuming resets the driver's accumulator, then prepares every transfer, which advances it by their packets.
       this->packet_frac_accum_ = CONFIG_UAC_NUM_ISOC_URBS * CONFIG_UAC_NUM_PACKETS_PER_URB * this->packet_frac_ % 1000;
-      this->unreported_frames_ = 0;
-      this->report_frames_pending_ = 0;
       this->last_finish_us_ = 0;
       // Idle windows start now, not at the previous stream's last transfer.
       const uint32_t now_us = micros();
@@ -255,6 +252,20 @@ void USBAudioSpeaker::stop_() {
   }
   this->parent_->suspend(Endpoint::SPEAKER);
   this->state_ = speaker::STATE_STOPPED;
+  this->credit_dropped_();
+}
+
+// Reports the audio a suspend dropped as played, like the I2S speaker: the mixer waits for every frame it wrote.
+void USBAudioSpeaker::credit_dropped_() {
+  portENTER_CRITICAL(&this->taken_lock_);
+  const uint32_t ring = this->ring_bytes_;
+  this->unreported_frames_ +=
+      this->usb_stream_info_.bytes_to_frames(ring - std::min<uint32_t>(this->ring_padding_, ring));
+  this->ring_bytes_ = 0;
+  this->ring_padding_ = 0;
+  this->queue_report_(esp_timer_get_time());
+  portEXIT_CRITICAL(&this->taken_lock_);
+  this->deliver_reports_();
 }
 
 void USBAudioSpeaker::on_stream_state(StreamEvent event) {
