@@ -1,0 +1,24 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+api:
+  wizard:
+    pages:
+      - entities:
+          - id: ble_switch
+
+esp32_ble:
+
+switch:
+  - platform: ble
+    type: enabled
+    id: ble_switch
+    name: Bluetooth

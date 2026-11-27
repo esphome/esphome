@@ -11,6 +11,7 @@ class EPaperSpectraE6 final : public EPaper4bpp {
  protected:
   uint8_t color_to_native(Color color) override;
 
+  bool reset() override;
   void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;

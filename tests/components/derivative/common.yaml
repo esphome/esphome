@@ -1,0 +1,9 @@
+sensor:
+  - platform: template
+    id: derivative_my_sensor
+    lambda: return 1.0;
+  - platform: derivative
+    id: derivative_sensor
+    sensor: derivative_my_sensor
+    name: Derivative Sensor
+    time_unit: s

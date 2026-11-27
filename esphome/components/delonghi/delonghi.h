@@ -51,8 +51,6 @@ class DelonghiClimate final : public climate_ir::ClimateIR {
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
-  uint8_t operation_mode_();
-  uint16_t fan_speed_();
   uint8_t temperature_();
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
