@@ -204,8 +204,10 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
       return false;
     }
   } else if (at > FRAME_HEADER_SIZE && at > FRAME_HEADER_SIZE + this->rx_buffer_[FRAME_HEADER_SIZE - 1]) {
-    // Past the checksum, where the parser rejects the byte without reading it
-    return false;
+    // Past the checksum the frame is complete, so the byte starts the next one; a host that sends requests back to
+    // back without a newline would otherwise lose every second request
+    this->reset_rx_buffer_();
+    return this->parse_improv_serial_byte_(byte);
   }
   this->rx_buffer_[at] = byte;
   this->rx_len_ = at + 1;
