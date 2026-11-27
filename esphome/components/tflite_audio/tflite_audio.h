@@ -27,7 +27,8 @@ struct AudioModelConfig {
 /// does not carry them.
 class TFLiteAudio final : public tflite_micro_runtime::TFLiteMicroHelper {
  public:
-  void set_probability_cutoff(float f);  // 0.0-1.0, quantized internally
+  /// Quantized to 0-255 by code generation.
+  void set_probability_cutoff(uint8_t cutoff) { this->audio_config_.probability_cutoff = cutoff; }
   void set_sliding_window_size(size_t n);
   void set_features_step_size(uint8_t ms);
   void set_feature_count(size_t n);

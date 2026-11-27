@@ -122,13 +122,18 @@ async def configure(var: cg.MockObj, config: ConfigType, model_path: Path) -> No
     model_feature_count = validate_model_io(model_path, config)
     cg.add(var.set_defer_load(True))
     if (cutoff := config.get(CONF_PROBABILITY_CUTOFF)) is not None:
-        cg.add(var.set_probability_cutoff(cutoff))
+        # The consumer compares quantized probabilities, 0-255.
+        cg.add(var.set_probability_cutoff(int(cutoff * 255)))
     if (window := config.get(CONF_SLIDING_WINDOW_SIZE)) is not None:
         cg.add(var.set_sliding_window_size(window))
     if (step := config.get(CONF_FEATURES_STEP_SIZE)) is not None:
         cg.add(var.set_features_step_size(step))
     # The consumer needs the model's feature dimension, not a generic default.
     cg.add(var.set_feature_count(config.get(CONF_FEATURE_COUNT, model_feature_count)))
+    # The runtime processes the output itself in run_inference(), so it needs the
+    # same settings as the decoder.
+    cg.add(var.set_output_processing(str(config[CONF_OUTPUT_PROCESSING])))
+    cg.add(var.set_scale_factor(config[CONF_SCALE_FACTOR]))
     decoder = cg.new_Pvariable(
         config[CONF_DECODER_ID],
         config[CONF_OUTPUT_PROCESSING],
