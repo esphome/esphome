@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import socket, uart
+from esphome.components import noise, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
     CONF_HOST,
@@ -8,14 +8,21 @@ from esphome.components.const import (
 )
 from esphome.components.tcp_uart import DOMAIN as TCP_UART_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PORT, CONF_TIMEOUT, CONF_UART_ID
+from esphome.const import (
+    CONF_ENCRYPTION,
+    CONF_ID,
+    CONF_KEY,
+    CONF_PORT,
+    CONF_TIMEOUT,
+    CONF_UART_ID,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DOMAIN = "uart_tcp"
 DEPENDENCIES = ["network", "uart"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = noise.stream_auto_load(DOMAIN, ["socket"])
 MULTI_CONF = True
 
 CONF_UART_TCP_ID = "uart_tcp_id"
@@ -33,6 +40,7 @@ BASE_SCHEMA = cv.Schema(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ENCRYPTION): noise.STREAM_ENCRYPTION_SCHEMA,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -77,7 +85,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = cv.All(socket.final_validate_idle_timeout, _final_validate)
+FINAL_VALIDATE_SCHEMA = cv.All(
+    socket.final_validate_idle_timeout,
+    noise.final_validate_stream_key(DOMAIN),
+    _final_validate,
+)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -95,3 +107,9 @@ async def to_code(config: ConfigType) -> None:
     if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
         cg.add(var.set_idle_timeout(timeout))
     cg.add_optional(var.set_host, config.get(CONF_HOST))
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        # The TCP client starts the handshake
+        stream = noise.new_stream(
+            config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client", DOMAIN
+        )
+        cg.add(var.set_noise_stream(stream))

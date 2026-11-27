@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <vector>
 
+#include "common.h"
 #include "esphome/components/uart_tcp/uart_tcp.h"
 #include "esphome/core/application.h"
 #include "esphome/core/wake.h"
@@ -17,43 +18,6 @@
 #ifdef USE_HOST
 
 namespace esphome::uart_tcp::testing {
-
-// A UART the test fills and drains directly; available_for_write() is settable.
-class FakeUart : public uart::UARTComponent {
- public:
-  FakeUart() { this->set_baud_rate(9600); }
-  void write_array(const uint8_t *data, size_t len) override {
-    this->tx.insert(this->tx.end(), data, data + len);
-    this->writes.push_back(len);
-  }
-  bool peek_byte(uint8_t *data) override {
-    if (this->rx.empty())
-      return false;
-    *data = this->rx.front();
-    return true;
-  }
-  bool read_array(uint8_t *data, size_t len) override {
-    if (len > this->rx.size())
-      return false;
-    std::copy(this->rx.begin(), this->rx.begin() + len, data);
-    this->rx.erase(this->rx.begin(), this->rx.begin() + len);
-    return true;
-  }
-  size_t available() override { return this->rx.size(); }
-  size_t available_for_write() override { return this->room; }
-  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
-  void check_logger_conflict() override {}
-
-  void feed(const char *text) {
-    for (const char *p = text; *p != '\0'; p++)
-      this->rx.push_back(static_cast<uint8_t>(*p));
-  }
-
-  std::vector<uint8_t> rx;
-  std::vector<uint8_t> tx;
-  std::vector<size_t> writes;
-  size_t room{SIZE_MAX};
-};
 
 // Client role against a loopback listener the test owns.
 class UartTcpClient : public ::testing::Test {
