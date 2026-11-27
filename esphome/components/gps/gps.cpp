@@ -5,7 +5,7 @@ namespace esphome::gps {
 
 ESPHOME_LOG_TAG(TAG, "gps");
 
-TinyGPSPlus &GPSListener::get_tiny_gps() { return this->parent_->get_tiny_gps(); }
+const GPSData &GPSListener::get_data() const { return this->parent_->get_data(); }
 
 void GPS::dump_config() {
   ESP_LOGCONFIG(TAG, "GPS:");
@@ -19,60 +19,32 @@ void GPS::dump_config() {
 }
 
 void GPS::update() {
-  PUBLISH_STATE(this->latitude_sensor_, this->latitude_);
-
-  PUBLISH_STATE(this->longitude_sensor_, this->longitude_);
-
-  PUBLISH_STATE(this->speed_sensor_, this->speed_);
-
-  PUBLISH_STATE(this->course_sensor_, this->course_);
-
-  PUBLISH_STATE(this->altitude_sensor_, this->altitude_);
-
-  PUBLISH_STATE(this->satellites_sensor_, this->satellites_);
-
-  PUBLISH_STATE(this->hdop_sensor_, this->hdop_);
+  const GPSData &d = this->data_;
+  PUBLISH_STATE(this->latitude_sensor_, d.has(GPS_FIELD_LOCATION) ? d.latitude() : NAN);
+  PUBLISH_STATE(this->longitude_sensor_, d.has(GPS_FIELD_LOCATION) ? d.longitude() : NAN);
+  PUBLISH_STATE(this->speed_sensor_, d.has(GPS_FIELD_SPEED) ? d.speed_kmh() : NAN);
+  PUBLISH_STATE(this->course_sensor_, d.has(GPS_FIELD_COURSE) ? d.course() : NAN);
+  PUBLISH_STATE(this->altitude_sensor_, d.has(GPS_FIELD_ALTITUDE) ? d.altitude() : NAN);
+  PUBLISH_STATE(this->satellites_sensor_, d.has(GPS_FIELD_SATELLITES) ? d.satellites : NAN);
+  PUBLISH_STATE(this->hdop_sensor_, d.has(GPS_FIELD_HDOP) ? d.hdop() : NAN);
 }
 
 void GPS::loop() {
-  while (this->available() > 0 && !this->has_time_) {
-    if (!this->tiny_gps_.encode(this->read())) {
-      continue;
-    }
-    if (this->tiny_gps_.location.isUpdated()) {
-      this->latitude_ = this->tiny_gps_.location.lat();
-      this->longitude_ = this->tiny_gps_.location.lng();
-      ESP_LOGV(TAG, "Latitude, Longitude: %.6f°, %.6f°", this->latitude_, this->longitude_);
-    }
+  this->read_available([this](uint8_t c) {
+    if (char *line = this->line_reader_.feed(c))
+      this->handle_line_(line);
+  });
+}
 
-    if (this->tiny_gps_.speed.isUpdated()) {
-      this->speed_ = this->tiny_gps_.speed.kmph();
-      ESP_LOGV(TAG, "Speed: %.3f km/h", this->speed_);
-    }
-
-    if (this->tiny_gps_.course.isUpdated()) {
-      this->course_ = this->tiny_gps_.course.deg();
-      ESP_LOGV(TAG, "Course: %.2f°", this->course_);
-    }
-
-    if (this->tiny_gps_.altitude.isUpdated()) {
-      this->altitude_ = this->tiny_gps_.altitude.meters();
-      ESP_LOGV(TAG, "Altitude: %.2f m", this->altitude_);
-    }
-
-    if (this->tiny_gps_.satellites.isUpdated()) {
-      this->satellites_ = this->tiny_gps_.satellites.value();
-      ESP_LOGV(TAG, "Satellites: %d", this->satellites_);
-    }
-
-    if (this->tiny_gps_.hdop.isUpdated()) {
-      this->hdop_ = this->tiny_gps_.hdop.hdop();
-      ESP_LOGV(TAG, "HDOP: %.3f", this->hdop_);
-    }
-
-    for (auto *listener : this->listeners_) {
-      listener->on_update(this->tiny_gps_);
-    }
+void GPS::handle_line_(char *line) {
+  if (!parse_nmea_sentence(line, this->data_))
+    return;
+  const GPSData &d = this->data_;
+  if (d.is_updated(GPS_FIELD_LOCATION)) {
+    ESP_LOGV(TAG, "Latitude, Longitude: %.7f, %.7f", d.latitude_e7 * 1e-7, d.longitude_e7 * 1e-7);
+  }
+  for (auto *listener : this->listeners_) {
+    listener->on_update(d);
   }
 }
 
