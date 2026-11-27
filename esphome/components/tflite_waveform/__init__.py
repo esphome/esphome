@@ -58,8 +58,8 @@ def _is_waveform(spec: TensorSpec) -> bool:
     )
 
 
-def validate_model_io(model_path: Path) -> None:
-    """Reject a model that does not turn one waveform frame into another."""
+def validate_model_io(model_path: Path) -> int:
+    """Reject a model that does not turn one frame into another; return its output size."""
     try:
         model_io = read_model_io(model_path)
     except ValueError as err:
@@ -77,6 +77,7 @@ def validate_model_io(model_path: Path) -> None:
                 f"{list(tensors[0].shape)}; a waveform model needs [1, samples] or "
                 f"[1, samples, 1] of type {', '.join(SAMPLE_TYPES)}"
             )
+    return model_io.outputs[0].shape[1]
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -91,8 +92,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     """Create the runtime helper from this entry, then the pipeline and decoder."""
-    var, _ = await declare_model(config)
+    var, model_path = await declare_model(config)
+    samples = validate_model_io(model_path)
     pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
     cg.add(var.set_input_pipeline(pipeline))
-    decoder = cg.new_Pvariable(config[CONF_DECODER_ID])
+    # Sized now, so decoding never allocates.
+    buffer = cg.static_buffer(config[CONF_DECODER_ID], cg.int16, samples)
+    decoder = cg.new_Pvariable(config[CONF_DECODER_ID], buffer, samples)
     cg.add(var.set_output_decoder(decoder))

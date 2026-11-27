@@ -48,6 +48,7 @@ bool WaveformInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t
 }
 
 bool WaveformDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
+  this->count_ = 0;
   if (count != 1) {
     ESP_LOGE(TAG, "A waveform model needs 1 output, this one has %zu", count);
     return false;
@@ -58,18 +59,9 @@ bool WaveformDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return false;
   }
   const size_t samples = tensor->type == kTfLiteFloat32 ? tensor->bytes / sizeof(float) : tensor->bytes;
-  if (samples == 0) {
-    ESP_LOGE(TAG, "The output tensor is empty");
+  if (samples == 0 || samples > this->capacity_) {
+    ESP_LOGE(TAG, "The output has %zu samples, the buffer holds %zu", samples, this->capacity_);
     return false;
-  }
-  if (this->count_ != samples) {
-    this->samples_ = RAMAllocator<int16_t>().make_unique_array_for_overwrite(samples);
-    if (!this->samples_) {
-      this->count_ = 0;
-      ESP_LOGE(TAG, "Could not allocate %zu samples", samples);
-      return false;
-    }
-    this->count_ = samples;
   }
   for (size_t i = 0; i < samples; i++) {
     float value;
@@ -79,6 +71,7 @@ bool WaveformDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     }
     this->samples_[i] = float_to_pcm(value);
   }
+  this->count_ = samples;
   return true;
 }
 

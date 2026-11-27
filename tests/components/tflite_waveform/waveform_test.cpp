@@ -32,4 +32,11 @@ TEST(WaveformTest, QuantizationAppliesTheZeroPointAndClamps) {
   EXPECT_EQ(quantize(-2.0f, 1.0f / 128.0f, 0, -128, 127), -128);
 }
 
+TEST(WaveformTest, HalfStepsRoundBeforeTheZeroPoint) {
+  const float scale = 1.0f / 128.0f;
+  const float half_step = pcm_to_float(-128);  // half a quantization step below zero
+  EXPECT_EQ(quantize(half_step, scale, 0, -128, 127), -1);
+  EXPECT_EQ(quantize(half_step, scale, 128, 0, 255), 127);
+}
+
 }  // namespace esphome::tflite_waveform::testing
