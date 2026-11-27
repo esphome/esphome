@@ -58,7 +58,7 @@ uart_mock:
     - then:
         - lambda: |-
             static std::vector<uint8_t> rx;
-            static uint8_t mode = 0x04;
+            static uint8_t modes[69] = {0, 0x04, 0x05, 0x06, 0x00};
             static uint8_t comfort = 210;
             static uint8_t comfort_zone_1 = 211;
             static uint8_t comfort_zone_2 = 212;
@@ -101,14 +101,16 @@ uart_mock:
                 reply(0x0e, {type, network_type, 0, 0, 0, 0, 0});
               } else if (function == 0x0c && d[0] == 0x02) {
                 std::vector<uint8_t> status(20, 0);
-                status[0] = mode;
+                status[0] = d[1] < sizeof(modes) ? modes[d[1]] : 0;
                 status[2] = 45;
                 status[12] = 0xAA;  // 21930 s, sent as AA 01 55: an escaped header inside the data
                 status[13] = 0x55;
                 reply(0x0e, status);
               } else if (function == 0x0c && d[0] == 0x04) {
-                mode = d[2];
-                ESP_LOGI("sim", "Mode set to %02X", mode);
+                if (d[1] < sizeof(modes)) {
+                  modes[d[1]] = d[2];
+                  ESP_LOGI("sim", "Mode address %u set to %02X", d[1], d[2]);
+                }
                 reply(0x0e, {0x01});
               } else if (function == 0x10 && d[3] == 0x49) {
                 // temperature 21.5, CO2 682 (0x02AA exercises the byte stuffing), humidity 54.32
@@ -189,6 +191,17 @@ duco:
 select:
   - platform: duco
     name: Mode
+  - platform: duco
+    mode:
+      - name: Mode Node 2
+        address: 2
+        update_interval: 1s
+      - name: Mode Node 3
+        address: 3
+        update_interval: 1s
+      - name: Mode Node 4
+        address: 4
+        update_interval: 1s
     update_interval: 1s
 
 number:
