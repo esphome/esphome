@@ -197,6 +197,7 @@ duco:
 select:
   - platform: duco
     name: Mode
+    update_interval: 1s
   - platform: duco
     mode:
       - name: Mode Node 2
@@ -208,7 +209,6 @@ select:
       - name: Mode Node 4
         address: 4
         update_interval: 1s
-    update_interval: 1s
 
 number:
   - platform: duco
