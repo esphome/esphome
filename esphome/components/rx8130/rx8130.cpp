@@ -39,7 +39,9 @@ void RX8130Component::setup() {
   if (this->time_lost_) {
     ESP_LOGW(TAG, "The RTC lost its time; it is not read until the time is written");
   }
-  if (!this->setup_check(this->write_register(RX8130_REG_FLAG, &RX8130_CLEAR_FLAGS, 1) == i2c::ERROR_OK))
+  // The other flags are cleared; VLF stays set until the time is written, so that a restart still sees it
+  const uint8_t keep = this->time_lost_ ? RX8130_BIT_FLAG_VLF : RX8130_CLEAR_FLAGS;
+  if (!this->setup_check(this->write_register(RX8130_REG_FLAG, &keep, 1) == i2c::ERROR_OK))
     return;
   // Clear test flag and disable interrupts
   if (!this->setup_check(this->write_register(RX8130_REG_CTRL0, &RX8130_CLEAR_FLAGS, 1) == i2c::ERROR_OK))
@@ -87,7 +89,10 @@ void RX8130Component::write_time() {
   time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buff);
   this->stop_(true);
   if (this->status_comm_check(this->write_register(RX8130_REG_SEC, buff, 7) == i2c::ERROR_OK)) {
-    this->time_lost_ = false;
+    if (this->time_lost_ &&
+        this->status_comm_check(this->write_register(RX8130_REG_FLAG, &RX8130_CLEAR_FLAGS, 1) == i2c::ERROR_OK)) {
+      this->time_lost_ = false;
+    }
     ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
              now.minute, now.second);
   }
