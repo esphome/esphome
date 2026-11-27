@@ -69,6 +69,7 @@ file_types = (
     "",
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
+esphome_cpp_include = [f"esphome/{pattern}" for pattern in cpp_include]
 py_include = ("*.py",)
 ignore_types = (
     ".ico",
@@ -188,16 +189,17 @@ def _nolint_in_match(content, haystack, match, mask):
 def lint_re_check(regex, mask=False, prefilter=None, **kwargs):
     """mask=True blanks comments and string literals first so prose about the pattern is not reported;
     the masked text keeps its length, so match offsets still index the original content.
-    prefilter is a literal every match must contain, checked before the costlier masking."""
+    prefilter is a literal (or tuple of literals) a match must contain, checked before the costlier masking."""
     flags = kwargs.pop("flags", re.MULTILINE)
     prog = re.compile(regex, flags)
     decor = lint_content_check(**kwargs)
+    prefilters = (prefilter,) if isinstance(prefilter, str) else prefilter
 
     def decorator(func):
         @functools.wraps(func)
         def new_func(fname, content):
             errs = []
-            if prefilter is not None and prefilter not in content:
+            if prefilters is not None and not any(p in content for p in prefilters):
                 return errs
             haystack = _mask_cpp_comments_strings(content) if mask else content
             for match in prog.finditer(haystack):
@@ -1349,9 +1351,28 @@ def lint_no_scanf(fname, match):
         f"need this code.\n"
         f"Please use alternatives:\n"
         f"  - {highlight('parse_number<T>(str)')} for parsing integers/floats from strings\n"
-        f"  - {highlight('strtol()/strtof()')} for C-style number parsing with error checking\n"
+        f"  - {highlight('strtol()')} or {highlight('str_to_float()')} for C-style number parsing with error checking\n"
         f"  - {highlight('parse_hex()')} for hex string parsing\n"
         f"  - Manual parsing for simple fixed formats\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # The name, not only a call: a function pointer (parse_number(str, pos, std::strtod)) links it too
+    r"(?<!\w)(strto(?:f|l?d)|atof|std\s*::\s*sto(?:f|l?d))\b" + CPP_RE_EOL,
+    mask=True,
+    prefilter=("strto", "atof", "stof", "stod", "stold"),
+    include=esphome_cpp_include,
+    exclude=["esphome/core/parse_float.cpp", "esphome/core/parse_float.h"],
+)
+def lint_no_libc_float_parse(fname, match):
+    return (
+        f"{highlight(match.group(1))} is not allowed in ESPHome code. On newlib platforms it links libc's strtod "
+        f"(4 to 11 KB flash) next to ESPHome's own float parser, and its rounding differs between platforms.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('parse_number<float>(str)')} for a whole string\n"
+        f"  - {highlight('str_to_float(str, &end)')} (esphome/core/parse_float.h), a drop-in for strtof\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 

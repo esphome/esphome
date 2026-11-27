@@ -190,6 +190,69 @@ def test_nothrow_nolint_inside_a_string_does_not_suppress() -> None:
     assert len(_lint_nothrow('auto *p = new (std::nothrow) Foo; log("NOLINT");\n')) == 1
 
 
+# --- libc float parsing ---
+
+
+def _lint_float_parse(content: str) -> list:
+    return ci_custom.lint_no_libc_float_parse("test.cpp", content)
+
+
+@pytest.mark.parametrize(
+    "use",
+    [
+        "strtof(s, &end)",
+        "strtod(s, nullptr)",
+        "strtold(s, nullptr)",
+        "atof(s)",
+        "std :: strtof (s, nullptr)",
+        "std::stof(text)",
+        "parse_number<double>(str, pos, std::strtod)",
+    ],
+)
+def test_libc_float_parse_is_reported(use: str) -> None:
+    errors = _lint_float_parse(f"int a;\n  auto v = {use};\n")
+    assert [line for line, _col, _msg in errors] == [2]
+    assert "str_to_float" in errors[0][2]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "float v = str_to_float(s, &end);\n",
+        "auto v = parse_number<float>(s);\n",
+        "long v = strtol(s, nullptr, 10);\n",
+        "float v = stof(ref);\n",
+        "float v = my_strtof(s);\n",
+        'extern "C" float __wrap_strtof(const char *s, char **e);\n',
+        "// strtof(s, nullptr) links strtod\n",
+    ],
+)
+def test_libc_float_parse_allowed(content: str) -> None:
+    assert not _lint_float_parse(content)
+
+
+@pytest.mark.parametrize(
+    ("fname", "covered"),
+    [
+        ("esphome/components/x/x.cpp", True),
+        ("esphome/components/x/x.c", True),
+        ("esphome/core/parse_float.cpp", False),
+        ("esphome/core/parse_float.h", False),
+        ("tests/components/core/test_parse_float.cpp", False),
+    ],
+)
+def test_libc_float_parse_scope(fname: str, covered: bool) -> None:
+    lint = next(
+        c
+        for c in ci_custom.LINT_CONTENT_CHECKS
+        if c["func"].__name__ == "lint_no_libc_float_parse"
+    )
+    assert (
+        bool(ci_custom.run_check(lint, fname, fname, "float v = strtof(s, nullptr);\n"))
+        is covered
+    )
+
+
 # --- rule: UNIT_ constants must not be redefined (mirror of the CONF_ check) ---
 
 # Real UNIT_ constants that live in each canonical home.
