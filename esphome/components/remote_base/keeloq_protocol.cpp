@@ -140,8 +140,10 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
             src.peek(7), src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
             src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
 
-  // Some transmitters send a longer carrier burst first. Skip it; the full preamble still has to follow.
-  if (src.peek_mark_at_least(2 * BIT_TIME_US) && src.peek_space(BIT_TIME_US, 1)) {
+  // Some transmitters send a longer carrier burst first. Skip it when a whole frame still follows; a mark that also
+  // fits a preamble pulse (at a wide tolerance) is not a burst.
+  if (src.size() >= (1 + NBITS_PREAMBLE + NBITS_DATA) * 2 && src.peek_mark_at_least(2 * BIT_TIME_US) &&
+      !src.peek_mark(BIT_TIME_US) && src.peek_space(BIT_TIME_US, 1)) {
     src.advance(2);
   }
 

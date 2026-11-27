@@ -252,6 +252,13 @@ TEST(KeeloqProtocolTest, LeadingCarrierNeedsTheFullPreamble) {
   EXPECT_FALSE(decode(timings).has_value());
 }
 
+TEST(KeeloqProtocolTest, LeadingCarrierNeedsAWholeFrameAfterIt) {
+  // Two entries short after the burst: long enough for the size check, too short to decode.
+  RawTimings timings = jarolift_emulator_frame();
+  timings.resize(156);  // (12 preamble + 66 data bits) * 2
+  EXPECT_FALSE(decode(timings).has_value());
+}
+
 TEST(KeeloqProtocolTest, HcsWordStillEndsWithRepeatOne) {
   // 32 code bits, 28 address bits, 4 command bits, vlow, repeat.
   std::vector<bool> bits = sent_bits(encode(frame(0, 0)));
