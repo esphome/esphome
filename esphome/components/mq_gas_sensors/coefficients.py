@@ -174,6 +174,15 @@ def requires_coefficients(type_key: str) -> bool:
     return type_key == CUSTOM_TYPE or type_key in TYPES_REQUIRING_COEFFICIENTS
 
 
+#: LPG has no single molar mass; an equal-parts propane / butane mix is assumed.
+_LPG_MOLAR_MASS = (44.10 + 58.12) / 2
+
+
+def _mg_per_l_to_ppm(a: float, molar_mass: float) -> float:
+    """Scale the ``a`` of a fit in mg/L to ppm by volume at 25 C and 1 atm."""
+    return a * 1000.0 * 24.45 / molar_mass
+
+
 # ---------------------------------------------------------------------------
 # type key -> sensor definition
 #   label                 canonical datasheet name ("MQ-8")
@@ -207,14 +216,13 @@ SENSOR_TYPES: dict[str, dict] = {
         "primary_gas": "ALCOHOL",
         "max_ppm": 10000.0,
         "gases": {  # alcohol
-            "LPG": (44771.0, -3.245),
-            "CO": (521853.0, -3.821),
-            # The reference fit is in mg/L (the MQ-3 output is reported that way);
-            # 1 mg/L of ethanol is 1000 * 24.45 / 46.07 = 531 ppm at 25 C, so the
-            # curve is scaled to the ppm the sensor publishes.
-            "ALCOHOL": (208.9, -1.504),
-            "BENZENE": (4.8387, -2.68),
-            "HEXANE": (7585.3, -2.849),
+            # The reference fits give mg/L, the unit of the datasheet chart, so
+            # every `a` is scaled to the ppm the sensor publishes.
+            "LPG": (_mg_per_l_to_ppm(44771.0, _LPG_MOLAR_MASS), -3.245),
+            "CO": (_mg_per_l_to_ppm(521853.0, 28.01), -3.821),
+            "ALCOHOL": (_mg_per_l_to_ppm(0.3934, 46.07), -1.504),
+            "BENZENE": (_mg_per_l_to_ppm(4.8387, 78.11), -2.68),
+            "HEXANE": (_mg_per_l_to_ppm(7585.3, 86.18), -2.849),
         },
     },
     "MQ4": {
@@ -302,14 +310,16 @@ SENSOR_TYPES: dict[str, dict] = {
     },
     "MQ131": {
         "label": "MQ-131",
-        "method": "exponential",
-        "ratio_in_clean_air": 15.0,  # RatioMQ131CleanAir of the reference examples
+        "method": "linear",
+        # The reference library fits this curve against RS = R0 in clean air.
+        "ratio_in_clean_air": 1.0,
         "primary_gas": "O3",
-        # The datasheet range is 10 - 1000 ppb, i.e. 0.01 - 1 ppm. The curve gives
-        # 0.12 ppm at the clean-air ratio of 15, so the top of the range is 1 ppm.
+        # The datasheet range is 10 - 1000 ppb, i.e. 0.01 - 1 ppm.
         "max_ppm": 1.0,
         "gases": {  # ozone
-            "O3": (0.41195, -0.4708),
+            # SolderedElectronics: linear, a = 0.41195, b = -0.4708, in ppb. RS rises
+            # with the concentration; b + 3 * a moves the result to ppm.
+            "O3": (0.41195, 0.76505),
         },
     },
     "MQ135": {

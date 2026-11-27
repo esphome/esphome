@@ -161,6 +161,8 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   /// the readings.
   bool in_warmup_();
   void publish_diagnostics_();
+  /// Publish a valid reading, unless a calibration started in the meantime.
+  void publish_reading_(float ppm);
   /// Publish the diagnostics of an update that could not produce a reading: the
   /// voltage is a real measurement, RS and the ratio are unknown.
   void publish_fault_diagnostics_();
@@ -256,6 +258,7 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_rejected_high_{0};
   uint32_t calibration_rejected_nonfinite_{0};
   uint32_t calibration_rejected_rs_{0};
+  uint32_t calibration_rejected_correction_{0};  ///< no usable ambient correction
   /// Windows in which the sampler answered only part of the conversions: a
   /// degrading sampler that never fails outright.
   uint32_t calibration_partial_{0};

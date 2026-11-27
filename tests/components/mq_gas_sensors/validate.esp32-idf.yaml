@@ -49,6 +49,8 @@ sensor:
     r0: 9.5
     ratio_in_clean_air: 70.0
     ratio_mode: r0_rs
+    coefficient_a: 976.97
+    coefficient_b: 0.688
     correction_mode: none
     sample_count: 4
     sample_interval: 50ms
@@ -97,8 +99,8 @@ sensor:
     min_ppm: 1.0
     max_ppm: 200.0
     correction_factor: 0.5
-    adc_input_max: 6.144
-    adc_pin_max: 6.144
+    adc_input_max: 5.0
+    adc_pin_max: 5.3
     calibration:
       ratio_in_clean_air: 1.0
       delay: 5s

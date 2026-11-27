@@ -19,6 +19,7 @@ from esphome.components.const import CONF_SAMPLE_INTERVAL
 from esphome.components.esp32 import VARIANT_ESP32S31, get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_ATTENUATION,
     CONF_CALIBRATION,
     CONF_DELAY,
@@ -516,6 +517,18 @@ def _validate_config(config: ConfigType) -> ConfigType:
 
     _validate_coefficients(resolved.label, resolved.method, resolved.a, resolved.b)
 
+    # The built-in curves are fitted against RS/R0: fed R0/RS they run backwards.
+    if config[CONF_RATIO_MODE] == "r0_rs" and not (
+        CONF_COEFFICIENT_A in config and CONF_COEFFICIENT_B in config
+    ):
+        raise cv.Invalid(
+            f"'{CONF_RATIO_MODE}: r0_rs' needs a curve fitted against R0/RS - set "
+            f"'{CONF_COEFFICIENT_A}:' and '{CONF_COEFFICIENT_B}:'"
+        )
+
+    # The MQ-131 range is 0.01 - 1 ppm, which one decimal cannot show.
+    config.setdefault(CONF_ACCURACY_DECIMALS, 3 if type_key == "MQ131" else 1)
+
     calibration = config.get(CONF_CALIBRATION)
     if (
         calibration is not None
@@ -830,7 +843,6 @@ CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         MQGasSensor,
         unit_of_measurement=UNIT_PARTS_PER_MILLION,
-        accuracy_decimals=1,
         state_class=STATE_CLASS_MEASUREMENT,
         icon="mdi:molecule",
     )

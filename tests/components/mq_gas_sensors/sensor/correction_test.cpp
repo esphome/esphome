@@ -72,4 +72,41 @@ TEST_F(CorrectionTest, ASourceWithoutAReadingIsNotUsedAndIsReported) {
   EXPECT_TRUE(this->sensor_.status_has_warning());
 }
 
+TEST_F(CorrectionTest, ACalibrationWithoutAmbientReadingsStoresNoReference) {
+  this->enable_compensation_();
+  this->sensor_.set_calibration(true, 70.0f, 0, 0, 2, false);
+  this->sensor_.set_sample_interval(0);
+  this->sensor_.setup();
+
+  this->sensor_.start_calibration();
+  for (int i = 0; i < 4; i++)
+    this->sensor_.loop();
+  this->temperature_.publish_state(20.0f);
+  this->humidity_.publish_state(65.0f);
+  this->sensor_.update();
+
+  // The configured R0 of 10 kOhm is still in use: RS = 40 kOhm against it.
+  sensor::Sensor ratio;
+  this->sensor_.set_ratio_sensor(&ratio);
+  this->sensor_.update();
+  EXPECT_FLOAT_EQ(4.0f, ratio.state);
+}
+
+TEST_F(CorrectionTest, ACalibrationStartedByADiagnosticKeepsThePpmUnknown) {
+  this->sensor_.set_calibration(true, 70.0f, 0, 0, 2, false);
+  this->sensor_.setup();
+  bool started = false;
+  this->correction_.add_on_state_callback([this, &started](float) {
+    if (!started) {
+      started = true;
+      this->sensor_.start_calibration();
+    }
+  });
+
+  this->sensor_.update();
+
+  EXPECT_TRUE(started);
+  EXPECT_TRUE(std::isnan(this->sensor_.state));
+}
+
 }  // namespace esphome::mq_gas_sensors::testing

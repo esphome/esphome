@@ -540,8 +540,7 @@ void MQGasSensor::update() {
     this->log_message_(LogSeverity::LOG_SEVERITY_DEBUG,
                        LOG_STR("V=%.4f V is at the supply - the sensor is saturated, reporting the top of the range"),
                        this->sensor_voltage_);
-    this->publish_diagnostics_();
-    this->publish_state(ppm);
+    this->publish_reading_(ppm);
     return;
   }
 
@@ -577,7 +576,17 @@ void MQGasSensor::update() {
                      LOG_STR("V=%.4f V, RS=%.4f kOhm, ratio=%.4f (correction=%.4f) -> %.1f ppm"), this->sensor_voltage_,
                      this->rs_, this->ratio_, this->correction_, ppm);
 
+  this->publish_reading_(ppm);
+}
+
+void MQGasSensor::publish_reading_(float ppm) {
   this->publish_diagnostics_();
+#ifdef USE_MQ_GAS_SENSORS_CALIBRATION
+  // An automation on a diagnostic or on the log can start a calibration, which
+  // has published unknown by now: the value of the old R0 must not replace it.
+  if (this->calibrating_)
+    return;
+#endif
   this->publish_state(ppm);
 }
 
@@ -712,6 +721,7 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_rejected_nonfinite_ = 0;
   this->calibration_rejected_rs_ = 0;
   this->calibration_partial_ = 0;
+  this->calibration_rejected_correction_ = 0;
   this->calibration_sum_ = 0.0f;
   this->calibration_min_ = 0.0f;
   this->calibration_max_ = 0.0f;
@@ -753,14 +763,20 @@ void MQGasSensor::process_calibration_() {
     this->sensor_voltage_ = voltage;
     this->rs_ = this->current_rs_();
     const float correction = this->compute_correction_();
+    // An R0 that was not normalized for the ambient conditions would bias every
+    // reading once the compensation works again.
+    const bool uncompensated = this->correction_degraded_ || !(correction > 0.0f);
     const float r0 =
-        mqmath::r0_from_clean_air(this->rs_ / (correction > 0.0f ? correction : 1.0f), this->ratio_in_clean_air_);
+        uncompensated ? 0.0f : mqmath::r0_from_clean_air(this->rs_ / correction, this->ratio_in_clean_air_);
     // The wiring is being watched through the voltage and RS diagnostics while the
     // run samples; the ratio, correction and PPM stay unknown until an R0 exists.
     this->ratio_ = NAN;
     this->correction_ = NAN;
     this->publish_diagnostics_();
-    if (r0 > 0.0f) {
+    if (uncompensated) {
+      this->calibration_rejected_correction_++;
+      rejected = true;
+    } else if (r0 > 0.0f) {
       if (this->calibration_count_ == 0) {
         this->calibration_min_ = r0;
         this->calibration_max_ = r0;
@@ -804,12 +820,13 @@ void MQGasSensor::finish_calibration_() {
     // Name the reason each rejected sample failed, so a wrong `vcc:` is not
     // mistaken for a wiring fault just because the generic message says so.
     this->log_message_(LogSeverity::LOG_SEVERITY_ERROR,
-                       LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32 " valid RS: %" PRIu32
-                               " below %.2f V, %" PRIu32 " at/above vcc, %" PRIu32 " non-finite, %" PRIu32
-                               " bad RS, %" PRIu32 " partial windows - check AO wiring and supply"),
+                       LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32 " valid: %" PRIu32
+                               " below %.2f V, %" PRIu32 " >=vcc, %" PRIu32 " non-finite, %" PRIu32 " bad RS, %" PRIu32
+                               " no T/RH, %" PRIu32 " partial - check wiring and T/RH"),
                        valid, attempts, this->calibration_rejected_low_, MIN_VALID_VOLTAGE,
                        this->calibration_rejected_high_, this->calibration_rejected_nonfinite_,
-                       this->calibration_rejected_rs_, this->calibration_partial_);
+                       this->calibration_rejected_rs_, this->calibration_rejected_correction_,
+                       this->calibration_partial_);
     if (!this->has_r0()) {
       this->schedule_calibration_retry_();
     } else {
