@@ -58,13 +58,19 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
 };
 #endif  // HAS_PCNT
 
-PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
+// The backends this build's sensors use; use_pcnt on a chip without PCNT falls back to the basic one
+#if defined(USE_PULSE_COUNTER_HW) && defined(HAS_PCNT)
+#define PULSE_COUNTER_HW_STORAGE
+#endif
+#if defined(USE_PULSE_COUNTER_BASIC) || !defined(PULSE_COUNTER_HW_STORAGE)
+#define PULSE_COUNTER_BASIC_STORAGE
+#endif
 
 class PulseCounterSensor final : public sensor::Sensor, public PollingComponent {
   SUB_SENSOR(total)
 
  public:
-  explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
+  explicit PulseCounterSensor(bool hw_pcnt = false);
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(PulseCounterCountMode mode);
@@ -80,8 +86,20 @@ class PulseCounterSensor final : public sensor::Sensor, public PollingComponent 
 
  protected:
   bool before_setup_();
+  PulseCounterStorageBase &make_storage_(bool hw_pcnt);
 
   InternalGPIOPin *pin_;
+  // Holds the storage in place instead of on the heap
+  union StorageSlot {
+    StorageSlot() {}
+    ~StorageSlot() {}
+#ifdef PULSE_COUNTER_BASIC_STORAGE
+    BasicPulseCounterStorage basic;
+#endif
+#ifdef PULSE_COUNTER_HW_STORAGE
+    HwPulseCounterStorage hw;
+#endif
+  } storage_slot_;
   PulseCounterStorageBase &storage_;
   uint32_t last_time_{0};
   uint32_t current_total_{0};

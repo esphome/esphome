@@ -128,6 +128,7 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32 and use_pcnt:
         include_builtin_idf_component("esp_driver_pcnt")
 
+    cg.add_define("USE_PULSE_COUNTER_HW" if use_pcnt else "USE_PULSE_COUNTER_BASIC")
     var = await sensor.new_sensor(config, use_pcnt)
     await cg.register_component(var, config)
 

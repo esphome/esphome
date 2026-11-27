@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#include <new>
+
 #ifdef HAS_PCNT
 #include <driver/gpio.h>
 #include <esp_private/esp_clk.h>
@@ -14,14 +16,19 @@ ESPHOME_LOG_TAG(TAG, "pulse_counter");
 
 PROGMEM_STRING_TABLE(EdgeModeStrings, "DISABLE", "INCREMENT", "DECREMENT");
 
-#ifdef HAS_PCNT
-PulseCounterStorageBase *get_storage(bool hw_pcnt) {
-  return (hw_pcnt ? (PulseCounterStorageBase *) (new HwPulseCounterStorage)
-                  : (PulseCounterStorageBase *) (new BasicPulseCounterStorage));
+PulseCounterSensor::PulseCounterSensor(bool hw_pcnt) : storage_(this->make_storage_(hw_pcnt)) {}
+
+PulseCounterStorageBase &PulseCounterSensor::make_storage_([[maybe_unused]] bool hw_pcnt) {
+#ifdef PULSE_COUNTER_HW_STORAGE
+#ifdef PULSE_COUNTER_BASIC_STORAGE
+  if (!hw_pcnt)
+    return *new (&this->storage_slot_.basic) BasicPulseCounterStorage;
+#endif
+  return *new (&this->storage_slot_.hw) HwPulseCounterStorage;
+#else
+  return *new (&this->storage_slot_.basic) BasicPulseCounterStorage;
+#endif
 }
-#else   // HAS_PCNT
-PulseCounterStorageBase *get_storage(bool) { return new BasicPulseCounterStorage; }
-#endif  // HAS_PCNT
 
 void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg) {
   const uint32_t now = micros();
