@@ -97,10 +97,7 @@ async def test_uart_mock_duco(
             entities, "node_network_type", TextSensorInfo
         )
 
-        def on_state(state: EntityState) -> None:
-            states[state.key] = state
-
-        client.subscribe_states(on_state)
+        client.subscribe_states(lambda state: states.__setitem__(state.key, state))
 
         def state_of(entity):
             state = states.get(entity.key)
@@ -119,12 +116,11 @@ async def test_uart_mock_duco(
         await wait_for(
             lambda: state_of(comfort_zone_2) == pytest.approx(21.2), "zone 2 comfort"
         )
-        await wait_for(
-            lambda: state_of(co2_setpoint) == pytest.approx(800), "CO2 setpoint"
-        )
-        await wait_for(
-            lambda: state_of(rh_setpoint) == pytest.approx(70), "RH setpoint"
-        )
+        for entity, value in ((co2_setpoint, 800), (rh_setpoint, 70)):
+            await wait_for(
+                lambda e=entity, v=value: state_of(e) == pytest.approx(v),
+                f"{entity.object_id} {value}",
+            )
         await wait_for(lambda: state_of(serial) == "SN1234", "serial number")
         await wait_for(lambda: state_of(node_serial) == "SN2234", "node serial number")
         await wait_for(lambda: state_of(version) == "1.2.3.4", "version")
@@ -153,16 +149,18 @@ async def test_uart_mock_duco(
         assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")
 
-        client.number_command(co2_setpoint.key, 900)
-        await waiter.wait_for("Setpoint write node 3 item 3 value 900")
-        await wait_for(
-            lambda: state_of(co2_setpoint) == pytest.approx(900), "new CO2 setpoint"
-        )
-        client.number_command(rh_setpoint.key, 75)
-        await waiter.wait_for("Setpoint write node 2 item 4 value 75")
-        await wait_for(
-            lambda: state_of(rh_setpoint) == pytest.approx(75), "new RH setpoint"
-        )
+        for entity, value, node, item in (
+            (co2_setpoint, 900, 3, 3),
+            (rh_setpoint, 75, 2, 4),
+        ):
+            client.number_command(entity.key, value)
+            await waiter.wait_for(
+                f"Setpoint write node {node} item {item} value {value}"
+            )
+            await wait_for(
+                lambda e=entity, v=value: state_of(e) == pytest.approx(v),
+                f"new {entity.object_id} {value}",
+            )
 
         client.select_command(mode.key, "CNT2")
         await waiter.wait_for("Mode set to 09")

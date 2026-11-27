@@ -6,7 +6,7 @@
 
 namespace esphome::duco {
 
-class DucoSetpoint : public DucoDevice, public number::Number {
+class DucoSetpoint final : public DucoDevice, public number::Number {
  public:
   DucoSetpoint(uint8_t address, uint8_t item) : address_(address), item_(item) {}
   void update() override;

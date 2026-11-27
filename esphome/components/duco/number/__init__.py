@@ -50,8 +50,14 @@ COMFORT_TEMPERATURE_SCHEMA = (
 )
 
 
+# key: (item, unit, min, max, step) of a node setting read and written with FUNCTION_NODE_SETTING
+SETPOINTS = {
+    CONF_CO2_SETPOINT: (0x03, UNIT_PARTS_PER_MILLION, 0, 2000, 10),
+    CONF_RH_SETPOINT: (0x04, UNIT_PERCENT, 0, 90, 5),
+}
+
+
 def _setpoint_schema(unit: str) -> cv.Schema:
-    # A setting of the node, so Home Assistant shows it under Configuration
     return (
         number.number_schema(
             DucoSetpoint,
@@ -63,9 +69,6 @@ def _setpoint_schema(unit: str) -> cv.Schema:
     )
 
 
-CO2_SCHEMA = _setpoint_schema(UNIT_PARTS_PER_MILLION)
-RH_SCHEMA = _setpoint_schema(UNIT_PERCENT)
-
 CONFIG_SCHEMA = cv.Any(
     COMFORT_TEMPERATURE_SCHEMA.extend(DUCO_COMPONENT_SCHEMA),
     cv.All(
@@ -74,13 +77,13 @@ CONFIG_SCHEMA = cv.Any(
                 cv.Optional(CONF_COMFORT_TEMPERATURE): cv.ensure_list(
                     COMFORT_TEMPERATURE_SCHEMA
                 ),
-                cv.Optional(CONF_CO2_SETPOINT): cv.ensure_list(CO2_SCHEMA),
-                cv.Optional(CONF_RH_SETPOINT): cv.ensure_list(RH_SCHEMA),
+                **{
+                    cv.Optional(key): cv.ensure_list(_setpoint_schema(unit))
+                    for key, (_, unit, _, _, _) in SETPOINTS.items()
+                },
             }
         ),
-        cv.has_at_least_one_key(
-            CONF_COMFORT_TEMPERATURE, CONF_CO2_SETPOINT, CONF_RH_SETPOINT
-        ),
+        cv.has_at_least_one_key(CONF_COMFORT_TEMPERATURE, *SETPOINTS),
     ),
 )
 
@@ -96,10 +99,7 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_address(entity_config[CONF_ADDRESS]))
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
-    for key, item, minimum, maximum, step in (
-        (CONF_CO2_SETPOINT, 0x03, 0, 2000, 10),
-        (CONF_RH_SETPOINT, 0x04, 0, 90, 5),
-    ):
+    for key, (item, _, minimum, maximum, step) in SETPOINTS.items():
         for entity in config.get(key, []):
             var = await number.new_number(
                 entity,
