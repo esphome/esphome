@@ -56,9 +56,11 @@ void USBAudioSpeaker::loop() {
   if ((commands & COMMAND_START) && this->state_ == speaker::STATE_STOPPED) {
     if (this->writes_in_flight_ != 0) {
       // A write from before the stop may still count its bytes; reset once it has, unless a stop() came since.
+      // A finish() that came with the start is held with it.
+      const uint8_t held = commands & (COMMAND_START | COMMAND_FINISH);
       uint8_t pending = this->commands_;
       while (!(pending & COMMAND_STOP)) {
-        if (this->commands_.compare_exchange_weak(pending, pending | COMMAND_START)) {
+        if (this->commands_.compare_exchange_weak(pending, pending | held)) {
           this->enable_loop_soon_any_context();
           break;
         }
