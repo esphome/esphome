@@ -26,7 +26,15 @@ DEPRECATED_PLATFORMS = (ESPRESSIF32, ESPRESSIF8266)
 # form is never the one in use. LibreTiny's packages are left out: its chip
 # families build with different versions of the same package at once.
 _SUPERSEDED_PLATFORMS = ("raspberrypi", "libretiny")
-_SUPERSEDED_PACKAGES = ("framework-arduinopico",)
+# The RP2 framework, and the tools its platform downloads from URLs it sets
+# itself; `pio system prune` skips every package that came from a URL
+_SUPERSEDED_PACKAGES = (
+    "framework-arduinopico",
+    "toolchain-rp2040-earlephilhower",
+    "tool-picotool-rp2040-earlephilhower",
+    "tool-pioasm-rp2040-earlephilhower",
+    "tool-openocd-rp2040-earlephilhower",
+)
 _SUPERSEDED_MARK = "@src-"
 # pioarduino's espressif32 installs its ESP-IDF tools, and keeps their
 # downloads, directly in PlatformIO's core directory
@@ -59,7 +67,7 @@ def prune_platformio_installs(
 
     A package that PlatformIO itself or a remaining platform needs is kept.
     The copies of the RP2 and LibreTiny platforms and of the RP2 framework
-    that a newer install replaced are removed too.
+    and tools that a newer install replaced are removed too.
     Returns the removed directories (the ones that would be removed on a dry
     run). Does nothing when PlatformIO is not installed.
     """

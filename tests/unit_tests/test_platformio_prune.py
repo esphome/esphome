@@ -105,11 +105,13 @@ def test_prune_removes_copies_a_newer_install_replaced(core_dir: Path) -> None:
     old_libretiny = _platform(core_dir, "libretiny@src-4567", ["framework-beken-bdk"])
     framework = _package(core_dir, "framework-arduinopico")
     old_framework = _package(core_dir, "framework-arduinopico@src-89ab")
+    old_toolchain = _package(core_dir, "toolchain-rp2040-earlephilhower@src-89ab")
     # Only the replaced platform copy lists it
     old_gcc = _package(core_dir, "old-rp2-gcc")
     stay = [
         framework,
         _package(core_dir, "rp2-gcc"),
+        _package(core_dir, "toolchain-rp2040-earlephilhower"),
         # LibreTiny families build with different versions at once
         _package(core_dir, "framework-beken-bdk"),
         _package(core_dir, "framework-beken-bdk@src-cdef"),
@@ -117,7 +119,13 @@ def test_prune_removes_copies_a_newer_install_replaced(core_dir: Path) -> None:
 
     removed = prune_platformio_installs(DEPRECATED_PLATFORMS)
 
-    assert set(removed) == {old_rp2, old_libretiny, old_framework, old_gcc}
+    assert set(removed) == {
+        old_rp2,
+        old_libretiny,
+        old_framework,
+        old_toolchain,
+        old_gcc,
+    }
     for path in (rp2, libretiny, *stay):
         assert path.is_dir()
 
