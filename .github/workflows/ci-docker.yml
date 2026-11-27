@@ -217,8 +217,21 @@ jobs:
         run: docker load --input compile-test-image.tar.zst
       - name: Compile ${{ matrix.id }}
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}/docker/test_configs:/config" \
-            -e ESPHOME_LDGEN_STRICT=1 \
-            "ghcr.io/esphome/esphome-amd64:${{ needs.check-docker.outputs.tag }}" \
-            compile "${{ matrix.id }}.yaml"
+          set -o pipefail
+          # Retry only when a download failed (e.g. GitHub refusing a clone with 403); a compile error fails at once
+          for attempt in 1 2 3; do
+            if docker run --rm \
+                -v "${{ github.workspace }}/docker/test_configs:/config" \
+                -e ESPHOME_LDGEN_STRICT=1 \
+                "ghcr.io/esphome/esphome-amd64:${{ needs.check-docker.outputs.tag }}" \
+                compile "${{ matrix.id }}.yaml" 2>&1 | tee compile.log; then
+              exit 0
+            fi
+            if [ "$attempt" = 3 ] || ! grep -qE "$TRANSIENT" compile.log; then
+              exit 1
+            fi
+            echo "::warning::Download failed on attempt $attempt, retrying in $((attempt * 60)) s"
+            sleep $((attempt * 60))
+          done
+        env:
+          TRANSIENT: "returned error: (403|429|5[0-9][0-9])|HTTP Error (429|5[0-9][0-9])|Could not resolve host|Connection (reset|refused|timed out)|Read timed out|Operation timed out"

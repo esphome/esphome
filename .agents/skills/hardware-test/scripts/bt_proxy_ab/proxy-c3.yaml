@@ -1,0 +1,11 @@
+# ESP32-C3 proxy
+substitutions: {name: bpab-c3}
+packages: {common: !include proxy-common.yaml}
+esp32:
+  variant: ESP32C3
+  board: esp32-c3-devkitm-1
+  framework: {type: esp-idf, log_level: WARN}
+logger: {hardware_uart: USB_SERIAL_JTAG}
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password

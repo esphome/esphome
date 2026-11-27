@@ -1,0 +1,133 @@
+# Ethernet backbone loss without touching the cable (esphome#22929): phy.hpp powers the PHY down (BMCR bit 11) and
+# back up with autonegotiation restarted. API actions drop(secs) and race(delay_ms); race takes the link down
+# race_delay ms after "border routing restarts" is logged.
+esphome:
+  includes:
+    - phy.hpp
+globals:
+  - id: race_delay
+    type: int
+    initial_value: '-1'
+  - id: race_gen  # bumped by every race action, so a late timeout cannot disarm a newer arm
+    type: int
+    initial_value: '0'
+  # the power-down of each script took effect, so its power-up and marker belong to it
+  - id: drop_down
+    type: bool
+    initial_value: 'false'
+  - id: race_down
+    type: bool
+    initial_value: 'false'
+logger:
+  on_message:
+    - level: INFO
+      then:
+        - lambda: |-
+            if (id(race_delay) >= 0 && strstr(message, "border routing restarts") != nullptr) {
+              id(race_fire).execute();
+            }
+script:
+  # the 15 s drop plus time for the restart: an arm of this generation still set by then never fired
+  - id: race_timeout
+    mode: parallel
+    parameters:
+      gen: int
+    then:
+      - delay: 75s
+      - lambda: |-
+          if (id(race_gen) == gen && id(race_delay) >= 0) {
+            ESP_LOGW("hwt", "HWT race not fired");
+            id(race_delay) = -1;
+          }
+  - id: link_drop
+    parameters:
+      secs: int
+    then:
+      # the start and end markers only when the PHY really changed ("HWT phy failed" otherwise)
+      - lambda: |-
+          id(drop_down) = hwt_phy_power(false);
+          if (id(drop_down))
+            ESP_LOGI("hwt", "HWT link drop start");
+          else
+            ESP_LOGW("hwt", "HWT link drop none");
+      - delay: !lambda 'return secs * 1000;'
+      - lambda: |-
+          if (id(drop_down) && hwt_phy_up_retry())
+            ESP_LOGI("hwt", "HWT link drop end");
+  - id: race_fire
+    mode: single
+    then:
+      - delay: !lambda 'return id(race_delay);'
+      - lambda: |-
+          // the race action's timeout may have disarmed it during the delay
+          if (id(race_delay) < 0) {
+            id(race_down) = false;
+            ESP_LOGW("hwt", "HWT race disarmed during its delay, nothing done");
+            return;
+          }
+          // a link_drop still running would power the PHY up in the middle of this race: keep it armed
+          id(race_down) = !id(link_drop).is_running() && hwt_phy_power(false);
+          if (id(race_down)) {
+            ESP_LOGI("hwt", "HWT race link down after %d ms", id(race_delay));
+            id(race_delay) = -1;
+          } else {
+            ESP_LOGW("hwt", "HWT race link drop none");
+          }
+      - delay: 20s
+      - lambda: |-
+          if (id(race_down) && hwt_phy_up_retry())
+            ESP_LOGI("hwt", "HWT race link up");
+api:
+  actions:
+    - action: drop
+      variables:
+        secs: int
+      then:
+        - if:
+            condition:
+              # a link_drop still running would skip this one without a marker
+              # nor during a race's power-down: the two would power the PHY up under each other
+              lambda: |-
+                return !hwt_phy_stuck && !id(link_drop).is_running() && !id(race_fire).is_running() && secs >= 1 &&
+                       secs <= 600;
+            then:
+              - script.execute:
+                  id: link_drop
+                  secs: !lambda 'return secs;'
+            else:
+              # name the condition that failed, so the log does not point at one that did not apply
+              - lambda: |-
+                  ESP_LOGW("hwt", "HWT drop refused: %s",
+                           hwt_phy_stuck                     ? "the PHY is stuck down"
+                           : id(link_drop).is_running()      ? "a drop is still running"
+                           : id(race_fire).is_running()      ? "a race is powering the PHY down"
+                                                             : "secs must be 1-600");
+    - action: race
+      variables:
+        delay_ms: int
+      then:
+        - if:
+            condition:
+              # a link_drop still running would swallow this race's 15 s drop and leave it armed with no stimulus
+              lambda: |-
+                // nor while an earlier race is armed or firing: its callback would run into this one
+                return !hwt_phy_stuck && !id(link_drop).is_running() && id(race_delay) < 0 &&
+                       !id(race_fire).is_running() && delay_ms >= 0 && delay_ms <= 10000;
+            then:
+              - lambda: |-
+                  id(race_delay) = delay_ms;
+                  id(race_gen)++;
+              - script.execute:
+                  id: link_drop
+                  secs: 15
+              - script.execute:
+                  id: race_timeout
+                  gen: !lambda 'return id(race_gen);'
+            else:
+              - lambda: |-
+                  ESP_LOGW("hwt", "HWT race refused: %s",
+                           hwt_phy_stuck                     ? "the PHY is stuck down"
+                           : id(link_drop).is_running()      ? "a drop is still running"
+                           : id(race_delay) >= 0             ? "an earlier race is still armed"
+                           : id(race_fire).is_running()      ? "an earlier race is still firing"
+                                                             : "delay_ms must be 0-10000");

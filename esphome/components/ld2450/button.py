@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import button, text_sensor
+from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FACTORY_RESET,
@@ -61,7 +61,6 @@ async def to_code(config: ConfigType) -> None:
     )
     if CONF_XY_UNFILTERED in config:
         cg.add_define("USE_LD2450_XY_UNFILTERED")
-        text_sensor.request_filter_reset()
     await buttons(
         CONF_XY_UNFILTERED, hub.set_xy_unfiltered_button, apply="start_xy_unfiltered()"
     )
