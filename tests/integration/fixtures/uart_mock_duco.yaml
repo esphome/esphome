@@ -153,6 +153,7 @@ uart_mock:
                 else if (d[1] == 2 && d[2] == 0x04)
                   rh_setpoint = value;
                 ESP_LOGI("sim", "Setpoint write node %u item %u value %u", d[1], d[2], value);
+                reply(0x1a, {0x01});
               } else if (function == 0x24 && d[0] == 0x00) {
                 int16_t value = 0;
                 if (d[2] == 0x0a && d[1] >= 0x12 && d[1] <= 0x14) {
@@ -222,10 +223,11 @@ number:
         address: 0x14
         update_interval: never
     co2_setpoint:
+      # Not polled: after a write the value comes from the readback on the acknowledgement
       - id: co2_setpoint
         name: CO2 Setpoint
         address: 3
-        update_interval: 1s
+        update_interval: never
     rh_setpoint:
       - id: rh_setpoint
         name: RH Setpoint
