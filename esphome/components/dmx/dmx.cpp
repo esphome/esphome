@@ -13,8 +13,6 @@
 #include "driver/uart.h"
 #endif
 
-extern "C" size_t rdm_read_pd(dmx_port_t dmx_num, const char *format, void *data, uint32_t data_len);
-
 namespace esphome::dmx {
 
 ESPHOME_LOG_TAG(TAG, "dmx");
@@ -167,7 +165,7 @@ void DMXComponent::setup_rdm_() {
       std::string description;
 
       if (channel.sensor_entity != nullptr) {
-        description = "ESPHome RX sensor: " + channel.sensor_entity->get_name();
+        description = "ESPHome RX sensor: " + channel.sensor_entity->get_log_name();
       } else {
         char channel_index[UINT32_MAX_STR_SIZE];
         uint32_to_str(channel_index, static_cast<uint32_t>(i + 1));
