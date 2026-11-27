@@ -65,7 +65,8 @@ void ImprovSerialComponent::loop() {
   uint8_t byte;
   while (this->read_byte_(byte)) {
     if (this->parse_improv_serial_byte_(byte)) {
-      this->last_read_byte_ = now;
+      // The timeout only covers a frame still arriving
+      this->last_read_byte_ = this->rx_len_ != 0 ? now : 0;
     } else {
       this->last_read_byte_ = 0;
       this->reset_rx_buffer_();
@@ -214,8 +215,8 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
         ESP_LOGW(TAG, "Error decoding payload");
         this->send_state_byte_(improv::TYPE_ERROR_STATE, error);
       });
-  // Frame complete: free it so the next 'I' starts a new one without waiting for the timeout
-  if (ok && at >= FRAME_HEADER_SIZE && at == FRAME_HEADER_SIZE + this->rx_buffer_[FRAME_HEADER_SIZE - 1])
+  // Frame complete, valid or not: free it so the next 'I' starts a new one without waiting for the timeout
+  if (at >= FRAME_HEADER_SIZE && at == FRAME_HEADER_SIZE + this->rx_buffer_[FRAME_HEADER_SIZE - 1])
     this->reset_rx_buffer_();
   return ok;
 }
