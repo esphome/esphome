@@ -8,10 +8,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_DUCO_CONFIGURATION_SWITCH
-#include "esphome/components/switch/switch.h"
-#endif
-
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
@@ -55,16 +51,10 @@ struct DucoPendingRequest {
 
 class Duco : public uart::UARTDevice, public Component {
  public:
-#ifdef USE_DUCO_CONFIGURATION_SWITCH
-  SUB_SWITCH(allow_system_configuration)
-  void setup() override;
-#endif
   void loop() override;
   void dump_config() override;
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
-  void set_allow_system_configuration(bool allowed) { this->allow_system_configuration_ = allowed; }
-  bool allows_system_configuration() const { return this->allow_system_configuration_; }
 
   SLOT_LIST_REQUIRES(DUCO_DEVICE_COUNT)
   void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
@@ -95,7 +85,6 @@ class Duco : public uart::UARTDevice, public Component {
   uint8_t last_id_{10};
   bool escaped_{false};  // the last 0xAA was followed by a stuffing byte, so it starts no header
   bool disable_crc_{false};
-  bool allow_system_configuration_{false};
 };
 
 /// Every entity polls the box; deriving from PollingComponent shares its vtable.

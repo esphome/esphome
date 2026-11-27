@@ -3,6 +3,7 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_DISABLED_BY_DEFAULT,
     DEVICE_CLASS_TEMPERATURE,
     UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
@@ -48,17 +49,21 @@ COMFORT_TEMPERATURE_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
 )
 
-CO2_SCHEMA = (
-    number.number_schema(DucoSetpoint, unit_of_measurement=UNIT_PARTS_PER_MILLION)
-    .extend({cv.Required(CONF_ADDRESS): cv.int_range(min=2, max=0x44)})
-    .extend(cv.polling_component_schema("60s"))
-)
+def _setpoint_schema(unit):
+    return (
+        number.number_schema(DucoSetpoint, unit_of_measurement=unit)
+        .extend(
+            {
+                cv.Required(CONF_ADDRESS): cv.int_range(min=2, max=68),
+                cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
+            }
+        )
+        .extend(cv.polling_component_schema("60s"))
+    )
 
-RH_SCHEMA = (
-    number.number_schema(DucoSetpoint, unit_of_measurement=UNIT_PERCENT)
-    .extend({cv.Required(CONF_ADDRESS): cv.int_range(min=2, max=0x44)})
-    .extend(cv.polling_component_schema("60s"))
-)
+
+CO2_SCHEMA = _setpoint_schema(UNIT_PARTS_PER_MILLION)
+RH_SCHEMA = _setpoint_schema(UNIT_PERCENT)
 
 CONFIG_SCHEMA = cv.Any(
     COMFORT_TEMPERATURE_SCHEMA.extend(DUCO_COMPONENT_SCHEMA),

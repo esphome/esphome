@@ -20,18 +20,10 @@ void DucoSetpoint::receive_response(const DucoMessage &message) {
 }
 
 void DucoSetpoint::control(float value) {
-  if (!this->parent_->allows_system_configuration()) {
-    ESP_LOGW(TAG, "Setpoint change rejected: system configuration is locked");
-    if (this->has_state())
-      this->publish_state(this->state);
-    return;
-  }
   const auto setpoint = static_cast<uint16_t>(lroundf(value));
   this->parent_->send(
       nullptr, FUNCTION_NODE_SETTING,
       {0x01, this->address_, this->item_, static_cast<uint8_t>(setpoint >> 8), static_cast<uint8_t>(setpoint)});
-  // Update state immediately
-  this->publish_state(setpoint);
 }
 
 }  // namespace esphome::duco

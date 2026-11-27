@@ -15,7 +15,6 @@ from aioesphomeapi import (
     NumberInfo,
     SelectInfo,
     SensorInfo,
-    SwitchInfo,
     TextSensorInfo,
 )
 import pytest
@@ -77,9 +76,10 @@ async def test_uart_mock_duco(
         )
         co2_setpoint = require_entity(entities, "co2_setpoint", NumberInfo)
         rh_setpoint = require_entity(entities, "rh_setpoint", NumberInfo)
-        configuration = require_entity(
-            entities, "allow_system_configuration", SwitchInfo
-        )
+
+        assert co2_setpoint.disabled_by_default
+        assert rh_setpoint.disabled_by_default
+
         serial = require_entity(entities, "serial_number", TextSensorInfo, exact=True)
         node_serial = require_entity(entities, "serial_number_node_2", TextSensorInfo)
         invalid_serial = require_entity(
@@ -154,37 +154,6 @@ async def test_uart_mock_duco(
         assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")
 
-        count = len(updates)
-        client.number_command(co2_setpoint.key, 900)
-        await waiter.wait_count("Setpoint change rejected", 1)
-        await wait_for(
-            lambda: any(
-                state.key == co2_setpoint.key and state.state == 800
-                for state in updates[count:]
-            ),
-            "CO2 setpoint restored in GUI",
-        )
-        assert state_of(co2_setpoint) == pytest.approx(800)
-        count = len(updates)
-        client.number_command(rh_setpoint.key, 75)
-        await waiter.wait_count("Setpoint change rejected", 2)
-        await wait_for(
-            lambda: any(
-                state.key == rh_setpoint.key and state.state == 70
-                for state in updates[count:]
-            ),
-            "RH setpoint restored in GUI",
-        )
-        assert state_of(rh_setpoint) == pytest.approx(70)
-
-        client.switch_command(configuration.key, True)
-        await wait_for(
-            lambda: (
-                states.get(configuration.key) is not None
-                and states[configuration.key].state
-            ),
-            "configuration unlocked",
-        )
         client.number_command(co2_setpoint.key, 900)
         await waiter.wait_for("Setpoint write node 3 item 3 value 900")
         await wait_for(

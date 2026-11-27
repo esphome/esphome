@@ -35,11 +35,6 @@ text_sensor:
       - name: Node 2 Network Type
         address: 2
 
-switch:
-  - platform: duco
-    allow_system_configuration:
-      name: Allow System Configuration
-
 select:
   - platform: duco
     name: Mode
