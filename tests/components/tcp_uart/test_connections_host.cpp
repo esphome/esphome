@@ -440,6 +440,23 @@ TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseRequestWaits) {
   EXPECT_EQ(this->read_all(), "hi");
 }
 
+TEST_F(TcpUartThreeSlots, FullPoolSparesAWaitingClientOverOneThatJustConnected) {
+  // A holds the turn; B's request waits. C and D connect in the same millisecond, so C and B were both last active
+  // then. C is idle and B waits, so C is closed.
+  this->a_asks_and_holds();
+  send(this->b_, "hi");
+  this->loops(3);
+  this->at(2000);
+  this->c_ = this->connect_client();
+  this->d_ = this->connect_client();
+  EXPECT_EQ(received(this->c_), "<closed>");
+  EXPECT_EQ(received(this->b_), "");
+
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
+}
+
 TEST_F(TcpUartThreeSlots, NextTurnWaitsUntilTheLastReplyLeftTheSharedBuffer) {
   const uint16_t turn_of_c = this->stall_c_then_b_asks();
 
@@ -464,8 +481,8 @@ TEST_F(TcpUartThreeSlots, NextTurnWaitsUntilTheLastReplyLeftTheSharedBuffer) {
 
 TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseReplyIsStillInTheSharedBuffer) {
   // The first slot belongs to a client S that asks, then stops reading while its reply fills its socket, until a part
-  // stays in the TX buffer that all clients share. B and a new client A wait with requests, so all connections count
-  // as equally busy, and a tie closes the first slot.
+  // stays in the TX buffer that all clients share. B and a new client A wait with requests, so every candidate waits
+  // and the one quiet longest would be closed; S must not be that one.
   ::close(this->a_);
   this->loops(3);
   ASSERT_EQ(this->uart_.open_connections(), 1);
