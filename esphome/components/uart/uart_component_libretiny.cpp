@@ -184,14 +184,19 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
   }
   // Bytes still to be sent would otherwise go out at the new settings. flush() returns once the FIFO is empty, and
   // on BK72xx it waits for the other port too, so this waits for the FIFO of this port, then one more character.
-#ifdef USE_BK72XX
+  // A character is a start bit, up to 8 data bits, parity and 2 stop bits.
+  const uint32_t char_us = 12 * 1000000 / this->port_baud_rate_ + 1;
+#if defined(USE_BK72XX)
   while (!uart_is_tx_fifo_empty(this->hardware_idx_ - 1)) {
   }
+  delayMicroseconds(char_us);
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+  // flush() here gives up after about 1 ms: wait for the 16-byte FIFO and the shift register instead
+  delayMicroseconds(17 * char_us);
 #else
   hardware->flush();
+  delayMicroseconds(char_us);
 #endif
-  // start bit, up to 8 data bits, parity and 2 stop bits
-  delayMicroseconds(12 * 1000000 / this->port_baud_rate_ + 1);
   this->port_baud_rate_ = this->baud_rate_;
 #if defined(USE_LN882X)
   // The LN882x core keeps 8N1. Its configure() zeroes the port while its RX interrupt is live, which a byte arriving
@@ -202,8 +207,7 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
     ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
   }
 #elif defined(USE_BK72XX)
-  // The BK72xx configure() registers the port with the SDK again on every call, and each call grows the SDK's device
-  // table on the heap.
+  // BK72xx configure() registers the port with the SDK again on every call, growing its device table on the heap;
   // uart_hw_set_change() only rewrites the port's registers, the way configure() ends.
   bk_uart_config_t cfg{};
   cfg.baud_rate = this->baud_rate_;

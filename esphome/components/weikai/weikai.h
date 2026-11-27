@@ -308,7 +308,7 @@ class WeikaiChannel final : public uart::UARTComponent {
   /// we wait until all bytes are gone with a timeout of 100 ms
   uart::UARTFlushResult flush() override;
 
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_LIBRETINY)
   /// @brief Re-apply the current line settings (baud, parity, etc) to the channel.
   void load_settings(bool dump_config) override {
     this->set_line_param_();
