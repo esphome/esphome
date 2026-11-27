@@ -4,7 +4,6 @@
 #include "esphome/components/esp32/crash_handler.h"
 #include <esp_log.h>
 #include <esp_idf_version.h>
-#include <algorithm>
 
 #include <driver/uart.h>
 #include <soc/soc_caps.h>
