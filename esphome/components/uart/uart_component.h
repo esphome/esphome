@@ -14,7 +14,7 @@
 
 namespace esphome::uart {
 
-enum UARTParityOptions {
+enum UARTParityOptions : uint8_t {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
@@ -32,7 +32,7 @@ enum UARTFlowControl : uint8_t {
 };
 
 #ifdef USE_UART_DEBUGGER
-enum UARTDirection {
+enum UARTDirection : uint8_t {
   UART_DIRECTION_RX,
   UART_DIRECTION_TX,
   UART_DIRECTION_BOTH,
@@ -120,6 +120,14 @@ class UARTComponent {
   // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
   // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
   virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
+
+#ifdef USE_UART_TX_BREAK
+  // Holds the TX line at the level opposite to idle (low for a pin that is not inverted) until released.
+  // flush() before it; no read or write on the bus meanwhile: a LibreTiny hardware port is closed for it and
+  // loses its RX buffer. load_settings() applies a held break again. Needs uart.request_tx_break() in codegen.
+  // @return false when the bus cannot do it, e.g. no TX pin of the microcontroller (see the platform files).
+  virtual bool set_tx_break(bool enable) { return false; }
+#endif
 
   // Sets the TX (transmit) pin for the UART bus.
   // @param tx_pin Pointer to the internal GPIO pin used for transmission.

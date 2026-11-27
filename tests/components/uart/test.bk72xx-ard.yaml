@@ -1,3 +1,6 @@
+packages:
+  tx_break: !include tx_break.yaml
+
 esphome:
   on_boot:
     then:

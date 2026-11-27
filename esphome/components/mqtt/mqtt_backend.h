@@ -71,6 +71,8 @@ class MQTTBackend {
   virtual void set_on_message(std::function<on_message_callback_t> &&callback) = 0;
   virtual void set_on_publish(std::function<on_publish_user_callback_t> &&callback) = 0;
   virtual bool connected() const = 0;
+  // The transport is still open, which can outlast connected() while a disconnect finishes
+  virtual bool link_open() const { return this->connected(); }
   virtual void connect() = 0;
   virtual void disconnect() = 0;
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;

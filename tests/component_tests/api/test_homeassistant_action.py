@@ -1,5 +1,7 @@
 """Tests for arg-type selection of api user-defined services with homeassistant.action."""
 
+import re
+
 CONFIG = "tests/component_tests/api/test_homeassistant_action.yaml"
 
 
@@ -7,9 +9,10 @@ def test_synchronous_chain_keeps_zero_copy_args(generate_main):
     """A chain of synchronous actions keeps the non-owning StringRef arg type."""
     main_cpp = generate_main(CONFIG)
 
-    assert (
-        "api::UserServiceTrigger<api::enums::SUPPORTS_RESPONSE_NONE, StringRef>"
-        "(api_action0_strings," in main_cpp
+    assert re.search(
+        r"api::UserServiceCallback<esphome__\w+__fn, "
+        r"api::enums::SUPPORTS_RESPONSE_NONE, StringRef>\(api_action0_strings,",
+        main_cpp,
     )
 
 
@@ -20,9 +23,10 @@ def test_response_callback_args_are_owning(generate_main):
     receive buffer, which is reused before the response arrives."""
     main_cpp = generate_main(CONFIG)
 
-    assert (
-        "api::UserServiceTrigger<api::enums::SUPPORTS_RESPONSE_NONE, std::string>"
-        "(api_action1_strings," in main_cpp
+    assert re.search(
+        r"api::UserServiceCallback<esphome__\w+__fn, "
+        r"api::enums::SUPPORTS_RESPONSE_NONE, std::string>\(api_action1_strings,",
+        main_cpp,
     )
     assert "api::HomeAssistantServiceCallAction<std::string>" in main_cpp
     assert "api::HomeAssistantServiceCallAction<StringRef>" not in main_cpp

@@ -1,0 +1,15 @@
+esphome:
+  name: vl53l4cx-no-pins
+
+esp32:
+  board: esp32dev
+
+i2c:
+  id: i2c_bus
+  sda: GPIO21
+  scl: GPIO22
+  frequency: 400kHz
+
+sensor:
+  - platform: vl53l4cx
+    name: Distance

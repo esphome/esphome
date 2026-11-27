@@ -22,7 +22,7 @@ ESPHOME_LOG_TAG(TAG, "logger");
 #ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
 // lwIP code run under the core lock (tcpip_api_call, netif callbacks) can log. A listener that writes to a socket would
 // take that lock again and deadlock, so such a line is queued for loop() instead. It can print after later inline
-// lines, and is lost if loop() never runs again (safe_reboot()).
+// lines; on_powerdown() prints what is still queued at a restart.
 static inline bool HOT ESPHOME_ALWAYS_INLINE under_lwip_core_lock() {
   return sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED);
 }
@@ -248,11 +248,22 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #endif
 }
 
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_ZEPHYR_CDC_LOOP)
 void Logger::loop() {
   this->process_messages_();
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef USE_LOGGER_ZEPHYR_CDC_LOOP
   this->cdc_loop_();
+#endif
+}
+#endif
+
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_WAIT_TX_DONE)
+void Logger::on_powerdown() {
+  // The loop no longer runs, so print what other tasks logged; not when a log listener itself restarted
+  if (!this->main_task_recursion_guard_)
+    this->process_messages_();
+#ifdef USE_LOGGER_WAIT_TX_DONE
+  this->wait_tx_done_();
 #endif
 }
 #endif
@@ -278,7 +289,7 @@ void Logger::process_messages_() {
     }
   }
   // Zephyr with USB CDC keeps the loop running for cdc_loop_()
-#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#ifndef USE_LOGGER_ZEPHYR_CDC_LOOP
   else {
     // A concurrent enable_loop_soon_any_context() still wakes the next iteration
     this->disable_loop();
@@ -367,17 +378,32 @@ void Logger::set_boot_log_level(const char *tag, uint8_t log_level) { this->boot
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
 
-static const LogString *get_log_level_str(uint8_t level) {
-  return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
+#ifndef USE_HOST
+const LogString *Logger::get_uart_selection_() {
+#ifdef USE_LOGGER_UART_SELECTION_DEFAULT
+  // LibreTiny resolves DEFAULT to the board's port only when serial logging is on
+  if (this->baud_rate_ > 0) {
+    switch (this->get_uart()) {
+      case UART_SELECTION_UART0:
+        return LOG_STR("UART0");
+      case UART_SELECTION_UART1:
+        return LOG_STR("UART1");
+      default:
+        return LOG_STR("UART2");
+    }
+  }
+#endif
+  return LOG_STR(ESPHOME_LOGGER_UART_NAME);
 }
+#endif
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)),
-                LOG_STR_ARG(get_log_level_str(this->current_level_)));
+                LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)),
+                LOG_STR_ARG(LogLevelStrings::get_log_str(this->current_level_)));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
@@ -397,12 +423,12 @@ void Logger::dump_config() {
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
   }
 #endif
 #ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
   for (auto &it : this->boot_log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
   }
 #endif
 #ifdef USE_ZEPHYR
@@ -430,7 +456,7 @@ void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s",
-             LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)));
+             LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)));
   }
   this->current_level_ = level;
 #ifdef USE_LOGGER_LEVEL_LISTENERS

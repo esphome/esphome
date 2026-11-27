@@ -68,9 +68,6 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-    KEY_TARGET_FRAMEWORK,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
@@ -301,6 +298,8 @@ RESERVED_IDS = [
     "xor",
     "xor_eq",
     "App",
+    "app_lists",
+    "AppList",
     "pinMode",
     "delay",
     "delayMicroseconds",
@@ -2114,6 +2113,38 @@ def enum(mapping, **kwargs):
     return validator
 
 
+_TIME_PERIOD_TO_INT: dict[str, Callable[[typing.Any], int]] = {
+    "ms": lambda value: positive_time_period_milliseconds(value).total_milliseconds,
+    "us": lambda value: positive_time_period_microseconds(value).total_microseconds,
+}
+
+
+def time_period_enum(
+    mapping: dict[int, typing.Any], unit: typing.Literal["ms", "us"] = "ms"
+) -> Callable[[typing.Any], core.EnumValue]:
+    """Validate a time period that must be one of the keys of ``mapping``.
+
+    The keys are whole numbers of ``unit``. Returns the same value as
+    ``enum(mapping, int=True)`` given that number.
+    """
+    to_int = _TIME_PERIOD_TO_INT[unit]
+    enum_validator = enum(mapping, int=True)
+
+    @schema_extractor("enum")
+    def validator(value: typing.Any) -> core.EnumValue | dict[str, None]:
+        if value is SCHEMA_EXTRACT:
+            return {f"{key}{unit}": None for key in mapping}
+        number = to_int(value)
+        if number not in mapping:
+            options = ", ".join(f"{key}{unit}" for key in mapping)
+            raise Invalid(
+                f"Unknown value '{number}{unit}', valid options are {options}"
+            )
+        return enum_validator(number)
+
+    return validator
+
+
 LAMBDA_ENTITY_ID_PROG = re.compile(r"\Wid\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)")
 
 
@@ -2937,8 +2968,7 @@ def require_framework_version(
     """
 
     def validator(value):
-        core_data = CORE.data[KEY_CORE]
-        framework = core_data[KEY_TARGET_FRAMEWORK]
+        framework = CORE.target_framework
 
         keys_to_try: list[str] = []
         if CORE.is_host and framework == "host":
@@ -2984,14 +3014,14 @@ def require_framework_version(
         required = kwargs[key]
 
         if max_version:
-            if core_data[KEY_FRAMEWORK_VERSION] > required:
+            if CORE.framework_version > required:
                 msg = f"This feature requires framework version {required} or lower"
                 if extra_message:
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             return value
 
-        if core_data[KEY_FRAMEWORK_VERSION] < required:
+        if CORE.framework_version < required:
             msg = f"This feature requires at least framework version {required}"
             if extra_message:
                 msg += f". {extra_message}"

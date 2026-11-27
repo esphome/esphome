@@ -258,6 +258,7 @@ void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
   for (const auto &sensor_pair : this->sensors_) {
     ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor_pair.first);
+    LOG_SENSOR("  ", "EmonTx Sensor", sensor_pair.second);
   }
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");
@@ -281,18 +282,5 @@ void EmonTx::send_command(const char *command) {
   this->write_str(command);
   this->write_byte('\n');
 }
-
-#ifdef USE_SENSOR
-/**
- * @brief Registers a sensor to receive updates for a specific JSON tag.
- *
- * @param tag_name The JSON key to monitor for this sensor (must be a string literal).
- * @param sensor Pointer to the sensor that will receive value updates.
- */
-void EmonTx::register_sensor(const char *tag_name, sensor::Sensor *sensor) {
-  ESP_LOGCONFIG(TAG, "Registering sensor for tag: %s", tag_name);
-  this->sensors_.emplace_back(tag_name, sensor);
-}
-#endif
 
 }  // namespace esphome::emontx

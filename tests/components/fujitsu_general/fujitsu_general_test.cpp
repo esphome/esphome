@@ -352,4 +352,22 @@ TEST(FujitsuGeneralTransmitTest, OffIsAUtilFrameAndTheNextStateFrameTurnsTheUnit
   EXPECT_EQ(f.sent(), captured("on at 16"));
 }
 
+TEST(FujitsuGeneralTransmitTest, SendsEveryCapturedStateFrame) {
+  // Covers every mode and every fan speed
+  for (const auto &frame : CAPTURED_FRAMES) {
+    SCOPED_TRACE(frame.label);
+    Fixture f;
+    // A frame without the turn on flag is one the remote sends while the unit is already on
+    if (!frame.turn_on)
+      f.send_mode(frame.mode);
+    f.sut.make_call()
+        .set_mode(frame.mode)
+        .set_target_temperature(frame.temperature)
+        .set_fan_mode(frame.fan_mode)
+        .set_swing_mode(frame.swing_mode)
+        .perform();
+    EXPECT_EQ(f.sent(), std::vector<uint8_t>(std::begin(frame.bytes), std::end(frame.bytes)));
+  }
+}
+
 }  // namespace esphome::fujitsu_general::testing

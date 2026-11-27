@@ -1,0 +1,26 @@
+# Shared package: OTA and liveness log lines that webrun.sh, dropana.py, windows.py and web_ota/runcase.sh read.
+substitutions:
+  marker: "-"
+ota:
+  - platform: esphome
+    on_begin:
+      - lambda: ESP_LOGI("test", "OTAEV begin");
+    on_end:
+      - lambda: ESP_LOGI("test", "OTAEV end");
+    on_error:
+      - lambda: ESP_LOGI("test", "OTAEV error %u", (unsigned) x);
+    on_abort:
+      - lambda: ESP_LOGI("test", "OTAEV abort");
+  - platform: web_server
+    on_begin:
+      - lambda: ESP_LOGI("test", "OTAEV web begin");
+    on_end:
+      - lambda: ESP_LOGI("test", "OTAEV web end");
+    on_error:
+      - lambda: ESP_LOGI("test", "OTAEV web error %u", (unsigned) x);
+    on_abort:
+      - lambda: ESP_LOGI("test", "OTAEV web abort");
+interval:
+  - interval: 5s
+    then:
+      - lambda: ESP_LOGI("test", "alive build=${marker} %u s", (unsigned) (millis() / 1000));
