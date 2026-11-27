@@ -38,6 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "logger"
 _CONSOLE_RX_BUFFER_SIZE = "console_rx_buffer_size"
+_CONSOLE_RX_EMITTED = "console_rx_emitted"
 logger_ns = cg.esphome_ns.namespace("logger")
 LOG_LEVELS = {
     "NONE": cg.global_ns.ESPHOME_LOG_LEVEL_NONE,
@@ -911,21 +912,26 @@ _request_log_listener_slot = cg.slot_counter("ESPHOME_LOG_MAX_LISTENERS")
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _emit_console_rx_buffer_size() -> None:
+    data = CORE.data[DOMAIN]
+    data[_CONSOLE_RX_EMITTED] = True
     cg.add_define(
-        "ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE",
-        CORE.data[DOMAIN][_CONSOLE_RX_BUFFER_SIZE],
+        "ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE", data[_CONSOLE_RX_BUFFER_SIZE]
     )
 
 
 def request_console(rx_buffer_size: int) -> None:
     """Compile in Logger::console_read() and console_write(); call from to_code.
 
-    rx_buffer_size: bytes the caller lets arrive before it reads; the largest request wins, raised to the platform
-    minimum. LibreTiny and RP2 USB CDC keep their framework buffers. On ESP32 a USB_CDC logger only has a console
+    rx_buffer_size: bytes the caller lets arrive before it reads; the largest request wins. ESP32 raises it to the
+    driver minimum, and LibreTiny and RP2 USB CDC keep their framework buffers. On ESP32 a USB_CDC logger only has a console
     where ESP-IDF sets CONFIG_ESP_CONSOLE_USB_CDC (targets with USB OTG); elsewhere, such as the C3, C6 or H2, both
     do nothing. Host and Zephyr have no console API.
     """
     data = CORE.data.setdefault(DOMAIN, {})
+    if data.get(_CONSOLE_RX_EMITTED):
+        raise ValueError(
+            "request_console() after the buffer size was emitted; call it from to_code"
+        )
     if _CONSOLE_RX_BUFFER_SIZE not in data:
         cg.add_define("USE_LOGGER_CONSOLE")
         CORE.add_job(_emit_console_rx_buffer_size)

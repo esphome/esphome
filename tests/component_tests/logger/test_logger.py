@@ -12,6 +12,7 @@ from esphome.components.logger import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     _validate_libretiny_uart_pins,
+    request_console,
     request_tag_log_level,
     validate_task_log_buffer_alignment,
 )
@@ -402,3 +403,22 @@ def test_request_tag_log_level(
     assert tag == "lib"
     # MockObj's == builds a C++ expression, so compare the text
     assert str(level) == f"ESPHOME_LOG_LEVEL_{expected}"
+
+
+@pytest.mark.parametrize(
+    "sizes", [(128, 512), (512, 128)], ids=["growing", "shrinking"]
+)
+def test_request_console_emits_largest_size_once(sizes: tuple[int, int]) -> None:
+    """Every caller's request is in before the FINAL job writes one define."""
+    for size in sizes:
+        request_console(size)
+    CORE.flush_tasks()
+
+    values = [
+        str(d.value)
+        for d in CORE.defines
+        if d.name == "ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE"
+    ]
+    assert values == ["512"]
+    with pytest.raises(ValueError, match="request_console"):
+        request_console(1024)
