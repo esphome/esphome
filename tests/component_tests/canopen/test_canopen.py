@@ -193,6 +193,17 @@ def test_local_nodes(
         "node_c->set_next_local(node_a);",
     ]
     assert "node_d->set_next_local(" not in main_cpp
+    assert "USE_CANOPEN_LOCAL_NODES" in _defines()
+
+
+def test_single_node_has_no_local_queue(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """One node per canbus: the queue between local nodes isn't compiled."""
+    main_cpp = generate_main(component_config_path("canopen.yaml"))
+    assert "set_next_local(" not in main_cpp
+    assert "USE_CANOPEN_LOCAL_NODES" not in _defines()
 
 
 def test_local_nodes_same_id(

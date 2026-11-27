@@ -54,9 +54,12 @@ class CANopenComponent : public Component {
   // after canbus, before on_boot (600)
   float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
 
-  // Other canopen nodes on the same canbus, as a ring (codegen): a frame one of them sends is also received by the
-  // others, since a CAN controller doesn't receive its own frames. nullptr = no other local node.
+#ifdef USE_CANOPEN_LOCAL_NODES
+  // Other canopen nodes on the same canbus, as a ring (codegen; USE_CANOPEN_LOCAL_NODES only when a canbus has two or
+  // more): a frame one of them sends is also received by the others, since a CAN controller doesn't receive its own
+  // frames. nullptr = no other local node.
   void set_next_local(CANopenComponent *next) { this->next_local_ = next; }
+#endif
 #ifdef USE_CANOPEN_NODE
   void set_heartbeat_interval(uint16_t ms) { this->hb_producer_ms_ = ms; }
   // NMT reset node: once CANopenNode's queue is empty, how long the CAN controller gets to put the frames it holds on
@@ -202,6 +205,7 @@ class CANopenComponent : public Component {
   void handle_frame_(uint16_t ident, const uint8_t *data, uint8_t len);
   /// Returns whether a CANopenNode object took the frame
   bool receive_(uint16_t ident, const uint8_t *data, uint8_t len);
+#ifdef USE_CANOPEN_LOCAL_NODES
   // Frames other local nodes sent, waiting for this node's loop(), oldest first (local_queue_): like a controller's
   // receive FIFO, so that back-to-back frames to one CANopenNode object (it keeps one per object) don't overwrite each
   // other. Allocated in setup() when there are other local nodes. A frame that finds it full is lost, as on a bus, and
@@ -218,6 +222,7 @@ class CANopenComponent : public Component {
   // before it handles it, so what it sends in reply lands behind the frame in their queues, as on a bus. The others
   // then take it from their queue instead of handling it directly (bus_frame_staged_).
   void stage_bus_frame_(uint16_t ident, const uint8_t *data, uint8_t len);
+#endif
   // A client-only hub with no request queued or running and no frame waiting to be resent. A node always has work
   // (heartbeat).
   bool idle_() const;
@@ -236,18 +241,20 @@ class CANopenComponent : public Component {
   // config_*_() fill in their CO_config_t counts and entries, init_*_() run once CANopenNode is initialised.
 
   canbus::Canbus *canbus_;
-  CANopenComponent *next_local_{nullptr};
   CO_t *co_{nullptr};
   CO_config_t config_{};  // must outlive co_
   ObjectDictionary od_;
-  FixedRingBuffer<LocalFrame, LOCAL_QUEUE_SIZE> local_queue_;
   uint16_t response_timeout_ms_{500};
-  uint16_t local_dropped_{0};  // frames lost on a full local_queue_, logged by deliver_local_()
   uint8_t node_id_;
   bool hold_flush_{false};
+#ifdef USE_CANOPEN_LOCAL_NODES
+  CANopenComponent *next_local_{nullptr};
+  FixedRingBuffer<LocalFrame, LOCAL_QUEUE_SIZE> local_queue_;
+  uint16_t local_dropped_{0};  // frames lost on a full local_queue_, logged by deliver_local_()
   // the current bus frame is already in local_queue_ (staged by the local node whose callback ran first); set and
   // cleared within one frame, since canbus calls all callbacks for a frame before it reads the next
   bool bus_frame_staged_{false};
+#endif
 
 #ifdef USE_CANOPEN_NODE
   // --- Identity and device information (device_info.cpp) ---

@@ -403,6 +403,8 @@ async def to_code(config: ConfigType) -> None:
     # other nodes on this canbus: a ring in config order (each call closes it again)
     local = _get_data().local_nodes.setdefault(str(config[CONF_CANBUS_ID]), [])
     if local:
+        # the queue between local nodes (and its code) only with two or more on a canbus
+        cg.add_define("USE_CANOPEN_LOCAL_NODES")
         cg.add(local[-1].set_next_local(var))
         cg.add(var.set_next_local(local[0]))
     local.append(var)

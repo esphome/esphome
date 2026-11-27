@@ -21,6 +21,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         enable_node_monitor()
         cg.add_define("USE_CANOPEN_HEARTBEAT")
         cg.add_define("USE_CANOPEN_EMCY")
+        # loopback_test.cpp: nodes on one canbus
+        cg.add_define("USE_CANOPEN_LOCAL_NODES")
 
     manifest.enable_codegen()
     manifest.to_code = to_code_testing
