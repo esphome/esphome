@@ -90,6 +90,8 @@ class ObjectDictionary {
       OD_extension_t extension;
     };
     std::vector<PendingExtension> extensions;
+    // set by set_object(), so a node without handlers doesn't link attach_handlers_()
+    bool (ObjectDictionary::*attach)(std::vector<PendingEntry> &){nullptr};
   };
 
   // nullptr once finalized: CANopenNode then holds pointers into the arrays below

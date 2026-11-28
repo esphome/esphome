@@ -81,7 +81,7 @@ bool ObjectDictionary::finalize() {
       ok = false;
     }
   }
-  if (!this->attach_handlers_(pending))
+  if (auto attach = this->pending_storage_->attach; attach != nullptr && !(this->*attach)(pending))
     ok = false;
   copy_exact(this->vars_, this->pending_storage_->vars);
   copy_exact(this->arrays_, this->pending_storage_->arrays);

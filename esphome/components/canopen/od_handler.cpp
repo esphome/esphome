@@ -14,6 +14,7 @@ void ObjectDictionary::set_extension_(uint16_t index, const OD_extension_t &exte
   if (p == nullptr)
     return;
   p->extensions.push_back({index, extension});
+  p->attach = &ObjectDictionary::attach_handlers_;
 }
 
 bool ObjectDictionary::attach_handlers_(std::vector<PendingEntry> &entries) {
