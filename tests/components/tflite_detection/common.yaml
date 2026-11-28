@@ -1,0 +1,12 @@
+# ESPHome build test: the detection kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. The pinned model is a build
+# fixture: this test compiles the component, its frame pipeline and its decoder.
+tflite_detection:
+  - id: test_detection
+    model: "../../components/tflite_detection/model.tflite"
+    input_width: 32
+    input_height: 20
+    input_channels: 3
+    score_threshold: 0.5
+    max_detections: 10
+    iou_threshold: 0.5
