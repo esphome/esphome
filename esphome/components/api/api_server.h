@@ -14,6 +14,9 @@
 #include "api_outgoing_connection.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/automation.h"
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#include "esphome/components/json/json_util.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/entity_includes.h"
 #include "esphome/core/log.h"
@@ -29,8 +32,10 @@
 #endif
 
 #include <array>
+#include <cstring>
 #include <memory>
 #include <span>
+#include <type_traits>
 #include <vector>
 
 namespace esphome::api {
@@ -185,6 +190,17 @@ class APIServer final : public Component
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
   void send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
                             const uint8_t *response_data, size_t response_data_len);
+  /// Send a response whose data `build` writes into a JSON root; with `with_data` false (an optional response the
+  /// client did not ask for), only the status. api.respond passes its data: lambda; the template only forwards it
+  /// to one shared out-of-line body.
+  template<typename F>
+  void send_action_response_json(uint32_t action_call_id, bool success, StringRef error_message, F &&build,
+                                 bool with_data = true) {
+    this->send_action_response_json_(
+        action_call_id, success, error_message,
+        [](void *ctx, JsonObject root) { (*static_cast<std::remove_reference_t<F> *>(ctx))(root); },
+        const_cast<void *>(static_cast<const void *>(std::addressof(build))), with_data);
+  }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
@@ -217,6 +233,7 @@ class APIServer final : public Component
   bool is_connected(bool state_subscription_only) const {
     return state_subscription_only ? this->is_connected_with_state_subscription() : this->is_connected();
   }
+  bool is_shutting_down() const { return this->shutting_down_; }
 
   // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
   // to ownership; callers get `const unique_ptr&` so they can invoke non-const methods on the
@@ -237,25 +254,26 @@ class APIServer final : public Component
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
-    const char *entity_id;  // Pointer to flash (internal) or heap (external)
-    const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
-    std::function<void(StringRef)> callback;
+    const char *entity_id;  // Flash, a wizard input buffer, or the strings of an owned subscription
+    const char *attribute;  // nullptr means no attribute
+    Callback<void(StringRef)> callback;
     bool once;
-    // strlen(entity_id), so a state is matched without measuring every entry; fits in the padding after once.
-    // Home Assistant entity ids are at most 255 bytes.
+    // strlen(entity_id), so a state is matched without measuring every entry; Home Assistant ids are at most 255 bytes
     uint16_t entity_id_len;
-
-    // Dynamic storage for external components using std::string API (custom_api_device.h)
-    // These are only allocated when using the std::string overload (nullptr for const char* overload)
-    std::unique_ptr<std::string> entity_id_dynamic_storage;
-    std::unique_ptr<std::string> attribute_dynamic_storage;
   };
+  // The extra list is grown with a byte copy
+  static_assert(std::is_trivially_copyable_v<HomeAssistantStateSubscription>);
 
-  // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+  /// For internal components: entity_id and attribute must live as long as the server.
+  /// A [this] lambda is stored inline, without std::function or heap.
+  template<typename F> void subscribe_home_assistant_state(const char *entity_id, const char *attribute, F &&f) {
+    this->add_state_subscription_(entity_id, attribute, Callback<void(StringRef)>::create(std::forward<F>(f)), false);
+  }
+  template<typename F> void get_home_assistant_state(const char *entity_id, const char *attribute, F &&f) {
+    this->add_state_subscription_(entity_id, attribute, Callback<void(StringRef)>::create(std::forward<F>(f)), true);
+  }
 
-  // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
+  // std::string overloads (for custom_api_device.h); the strings and callback are copied to the heap
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(StringRef)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
@@ -267,7 +285,33 @@ class APIServer final : public Component
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(const std::string &)> &&f);
 
-  const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+  /// Call every subscription that matches a state from Home Assistant; state must be null-terminated
+  ESPHOME_ALWAYS_INLINE void dispatch_home_assistant_state(const HomeAssistantStateResponse &msg) {
+    // Counted subscriptions first, then the extra ones
+    bool extra = this->state_sub_list_(false).empty();
+    for (;; extra = true) {
+      std::span<const HomeAssistantStateSubscription> subs = this->state_sub_list_(extra);
+      for (const auto *it = subs.data(), *end = it + subs.size(); it != end; ++it) {
+        // A subscription without an attribute only takes states without one
+        // The stored length rejects most entries without reading the entity id
+        if (msg.entity_id.size() != it->entity_id_len ||
+            memcmp(msg.entity_id.c_str(), it->entity_id, it->entity_id_len) != 0 ||
+            (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()))
+          continue;
+        const size_t pos = it - subs.data();
+        it->callback.call(msg.state);
+        // A callback may subscribe, which can move or grow the list
+        subs = this->state_sub_list_(extra);
+        it = subs.data() + pos;
+        end = subs.data() + subs.size();
+      }
+      if (extra)
+        return;
+    }
+  }
+  /// The subscription at index in the order they are sent, or nullptr past the last one.
+  /// Adding a subscription can move the list, so do not keep the pointer across one.
+  const HomeAssistantStateSubscription *get_state_sub(size_t index) const;
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   /// Measure again the subscriptions whose entity id is this buffer, after the wizard wrote a new id into it.
   void update_state_subscription_entity_id(const char *entity_id);
@@ -282,14 +326,34 @@ class APIServer final : public Component
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
 
+#if defined(USE_API_CLIENT_CONNECTED_TRIGGER) || defined(USE_API_CLIENT_DISCONNECTED_TRIGGER) || \
+    defined(USE_API_CLIENT_SYNCED_TRIGGER)
+  /// Called with the client name and address, which are only valid during the call
+  using ClientCallback = Callback<void(StringRef, StringRef)>;
+#endif
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
+  template<typename F> void set_on_client_connected_callback(F &&callback) {
+    this->client_connected_callback_ = ClientCallback::create(std::forward<F>(callback));
+  }
+  const ClientCallback &get_client_connected_callback() const { return this->client_connected_callback_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
+  template<typename F> void set_on_client_disconnected_callback(F &&callback) {
+    this->client_disconnected_callback_ = ClientCallback::create(std::forward<F>(callback));
+  }
+#endif
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  template<typename F> void set_on_client_synced_callback(F &&callback) {
+    this->client_synced_callback_ = ClientCallback::create(std::forward<F>(callback));
+  }
+  const ClientCallback &get_client_synced_callback() const { return this->client_synced_callback_; }
 #endif
 
  protected:
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_action_response_json_(uint32_t action_call_id, bool success, StringRef error_message,
+                                  void (*build)(void *ctx, JsonObject root), void *ctx, bool with_data);
+#endif
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
   /// Takes the socket into a new connection and starts it; callers must have
@@ -327,14 +391,19 @@ class APIServer final : public Component
 #endif  // USE_API_NOISE_PSK_FROM_YAML
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
-  // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, Callback<void(StringRef)> callback,
                                bool once);
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(StringRef)> &&f, bool once);
-  // Legacy helper: wraps std::string callback and delegates to StringRef version
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(const std::string &)> &&f, bool once);
+  void add_extra_state_subscription_(const HomeAssistantStateSubscription &sub);
+  // The counted subscriptions (none without a count), or the extra ones
+  ESPHOME_ALWAYS_INLINE std::span<const HomeAssistantStateSubscription> state_sub_list_(bool extra) const {
+    if (extra)
+      return {this->extra_state_subs_, this->extra_state_sub_count_};
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+    return this->state_subs_;
+#else
+    return {};
+#endif
+  }
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
   // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
@@ -348,10 +417,13 @@ class APIServer final : public Component
   // Pointers and pointer-like types first (4 bytes each)
   socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> client_connected_trigger_;
+  ClientCallback client_connected_callback_;
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> client_disconnected_trigger_;
+  ClientCallback client_disconnected_callback_;
+#endif
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  ClientCallback client_synced_callback_;
 #endif
 
   // 4-byte aligned types
@@ -367,7 +439,14 @@ class APIServer final : public Component
   // since the buffer would almost always reallocate on first use.
   APIBuffer shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
-  std::vector<HomeAssistantStateSubscription> state_subs_;
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  // The homeassistant entities' subscriptions, counted at build time
+  StaticVector<HomeAssistantStateSubscription, HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT> state_subs_;
+#endif
+  // Every other subscription (CustomAPIDevice, or beyond the count), sent after state_subs_. Grown to fit
+  // during setup, never freed.
+  HomeAssistantStateSubscription *extra_state_subs_{nullptr};
+  uint16_t extra_state_sub_count_{0};
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;

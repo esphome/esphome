@@ -83,16 +83,24 @@ void LightState::setup() {
   call.set_color_temperature_if_supported(recovered.color_temp);
   call.set_cold_white_if_supported(recovered.cold_white);
   call.set_warm_white_if_supported(recovered.warm_white);
-  if (recovered.state && recovered.effect != 0) {
+  if (recovered.state && recovered.effect != 0 && this->supports_effects()) {
     call.set_effect(recovered.effect);
   } else {
 #ifdef USE_LIGHT_RESUME_EFFECT
     // An off light cannot start its effect now; keep it for the first turn-on instead
-    this->previous_effect_index_ = recovered.effect;
+    this->previous_effect_index_ = this->supports_effects() ? recovered.effect : 0;
 #endif  // USE_LIGHT_RESUME_EFFECT
-    call.set_transition_length_if_supported(0);
+    // Not set_transition_length_if_supported(): without a known color mode it would leave the default transition,
+    // a fade that only runs from loop(). perform() drops a 0 transition, also for lights without transitions.
+    call.set_transition_length(0);
   }
   call.perform();
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  // Otherwise the output is first written from loop(), which only runs once every component is set up. A restored
+  // effect is first applied there, once whatever it uses is set up.
+  if (this->write_on_setup_)
+    this->write_start_up_state();
+#endif  // USE_LIGHT_WRITE_ON_SETUP
 }
 void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", LOG_STR_ARG(this->get_log_name()));
@@ -170,11 +178,7 @@ void LightState::apply_effect_and_transformer_() {
         this->publish_state();
       }
 #endif
-      if (this->target_state_reached_listeners_) {
-        for (auto *listener : *this->target_state_reached_listeners_) {
-          listener->on_light_target_state_reached();
-        }
-      }
+      this->target_state_reached_callback_.call();
 
       // Disable loop if idle (no transformer and no effect)
       this->disable_loop_if_idle_();
@@ -205,21 +209,14 @@ bool LightState::set_external_state(const LightColorValues &values) {
   this->remote_values = values;
   // Reached at once, as after an instant call, and told before the publish like there: an
   // automation run by the publish may change the light again, and its own call reports that
-  if (this->target_state_reached_listeners_) {
-    for (auto *listener : *this->target_state_reached_listeners_) {
-      listener->on_light_target_state_reached();
-    }
-  }
+  this->target_state_reached_callback_.call();
   this->publish_state();
   return true;
 }
 
-void LightState::publish_state() {
-  if (this->remote_values_listeners_) {
-    for (auto *listener : *this->remote_values_listeners_) {
-      listener->on_light_remote_values_update();
-    }
-  }
+// Flattened so the listener loop runs inline here, not in the call_all copy the other lists share
+__attribute__((flatten)) void LightState::publish_state() {
+  this->remote_values_callback_.call();
 #if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_light_update(this);
 #endif
@@ -235,16 +232,10 @@ StringRef LightState::get_effect_name() {
 }
 
 void LightState::add_remote_values_listener(LightRemoteValuesListener *listener) {
-  if (!this->remote_values_listeners_) {
-    this->remote_values_listeners_ = make_unique<std::vector<LightRemoteValuesListener *>>();
-  }
-  this->remote_values_listeners_->push_back(listener);
+  this->remote_values_callback_.add([listener]() { listener->on_light_remote_values_update(); });
 }
 void LightState::add_target_state_reached_listener(LightTargetStateReachedListener *listener) {
-  if (!this->target_state_reached_listeners_) {
-    this->target_state_reached_listeners_ = make_unique<std::vector<LightTargetStateReachedListener *>>();
-  }
-  this->target_state_reached_listeners_->push_back(listener);
+  this->target_state_reached_callback_.add([listener]() { listener->on_light_target_state_reached(); });
 }
 
 void LightState::current_values_as_brightness(float *brightness) {
@@ -377,6 +368,7 @@ float LightState::gamma_uncorrect_lut(float value) const {
 
 void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();
+#ifdef USE_LIGHT_EFFECTS
   if (effect_index == 0)
     return;
 
@@ -385,6 +377,7 @@ void LightState::start_effect_(uint32_t effect_index) {
   effect->start_internal();
   // Enable loop while effect is active
   this->enable_loop();
+#endif
 }
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0) {
@@ -398,7 +391,9 @@ void LightState::stop_effect_() {
   if (effect != nullptr) {
     effect->stop();
   }
+#ifdef USE_LIGHT_EFFECTS
   this->active_effect_index_ = 0;
+#endif
   // Disable loop if idle (no effect and no transformer)
   this->disable_loop_if_idle_();
 }

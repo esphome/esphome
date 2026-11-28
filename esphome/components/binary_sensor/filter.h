@@ -1,11 +1,12 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+
+#include <type_traits>
 #ifdef USE_BINARY_SENSOR_FILTER
 
-#include <array>
-
 #include "esphome/core/automation.h"
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -13,7 +14,7 @@ namespace esphome::binary_sensor {
 
 class BinarySensor;
 
-class Filter {
+class Filter : public ChainNode<Filter, BinarySensor> {
  public:
   virtual optional<bool> new_value(bool value) = 0;
 
@@ -27,8 +28,6 @@ class Filter {
   /// Forget the last value and drop any pending scheduled output; called when the sensor's state is invalidated.
   virtual void reset();
 
-  Filter *next_{nullptr};
-  BinarySensor *parent_{nullptr};
   Deduplicator<bool> dedup_;
 };
 
@@ -78,50 +77,35 @@ struct AutorepeatFilterTiming {
   uint32_t time_off;
   uint32_t time_on;
 };
+// Read straight from flash on ESP8266, so every field must stay a word.
+static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::delay), uint32_t>,
+              "AutorepeatFilterTiming fields must stay uint32_t");
+static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::time_off), uint32_t>,
+              "AutorepeatFilterTiming fields must stay uint32_t");
+static_assert(std::is_same_v<decltype(AutorepeatFilterTiming::time_on), uint32_t>,
+              "AutorepeatFilterTiming fields must stay uint32_t");
+static_assert(sizeof(AutorepeatFilterTiming) == 3 * sizeof(uint32_t),
+              "AutorepeatFilterTiming is read from flash with word loads");
 
-/// Non-template base for AutorepeatFilter — all methods in filter.cpp.
-/// Lambdas capture this base pointer, so set_timeout/cancel_timeout are instantiated once.
+/// Timings live in a PROGMEM table emitted by codegen, ended by an entry whose delay is
+/// SCHEDULER_DONT_RUN (a step that could never advance anyway). Aligned loads are ESP8266 safe.
 /// The two scheduled timers are keyed off `this` and `&active_timing_`; since the address
 /// of `active_timing_` is taken as a scheduler key, the class must not be copied or moved.
-class AutorepeatFilterBase : public Filter {
+class AutorepeatFilter : public Filter {
  public:
+  explicit AutorepeatFilter(const AutorepeatFilterTiming *timings) : timings_(timings) {}
+  AutorepeatFilter(const AutorepeatFilter &) = delete;
+  AutorepeatFilter &operator=(const AutorepeatFilter &) = delete;
+
   optional<bool> new_value(bool value) override;
-  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
-  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
  protected:
-  AutorepeatFilterBase() = default;
   void reset() override;
   void next_timing_();
   void next_value_(bool val);
 
-  const AutorepeatFilterTiming *timings_{nullptr};
-  uint8_t timings_count_{0};
-  uint8_t active_timing_{0};
-};
-
-/// Template wrapper that provides inline std::array storage for timings.
-/// N is set by code generation to match the exact number of timings configured in YAML.
-template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
- public:
-  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
-    init_array_from(this->timings_storage_, timings);
-    this->timings_ = this->timings_storage_.data();
-    this->timings_count_ = N;
-  }
-
- protected:
-  std::array<AutorepeatFilterTiming, N> timings_storage_{};
-};
-
-class LambdaFilter : public Filter {
- public:
-  explicit LambdaFilter(std::function<optional<bool>(bool)> f);
-
-  optional<bool> new_value(bool value) override;
-
- protected:
-  std::function<optional<bool>(bool)> f_;
+  uint8_t active_timing_{0};  // before timings_ so it fills the padding after the Filter base
+  const AutorepeatFilterTiming *timings_;
 };
 
 /// Codegen use only: output `value` from `filter` after `delay` ms, replacing its pending output, and return empty

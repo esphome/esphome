@@ -21,3 +21,12 @@ instead.
    device-built `GET_NETWORK_IDS` frame was accepted at boot).
 4. Pre-existing: one `zwave_proxy took a long time for an operation` warning on the first frame after the
    log client connects, caused by VERY_VERBOSE logging; it appears on dev too.
+
+## UART list and a software unplug (#23159)
+
+Without a Z-Wave stick: a P4 Module DEV KIT (usb_host) with a bare CP2102 checks that `uart_id: [cdc, cp210x]` picks
+the connected adapter and follows reconnects. `scripts/zwave_proxy/usb_unplug/unplug-common.yaml` turns the USB root
+port power off and on 8 times (`usb_host_lib_set_root_port_power`), a software unplug: expect "Input transfer
+failed", "Modem disconnected", then a reconnect about 0.6 s after power returns, and five `01 03 00 20 DC` queries
+per connect ending in "Failed to read Home ID after 5 attempts" since nothing answers. A real Home ID read needs a
+responder behind the adapter answering `06` plus `01 08 01 20 <home id x4> 01 <xor>`.

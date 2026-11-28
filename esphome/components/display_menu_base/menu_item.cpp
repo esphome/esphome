@@ -1,31 +1,15 @@
 #include "menu_item.h"
+#include "esphome/core/progmem.h"
 
 #include <cstdio>
 
 namespace esphome::display_menu_base {
 
-const LogString *menu_item_type_to_string(MenuItemType type) {
-  switch (type) {
-    case MenuItemType::MENU_ITEM_LABEL:
-      return LOG_STR("MENU_ITEM_LABEL");
-    case MenuItemType::MENU_ITEM_MENU:
-      return LOG_STR("MENU_ITEM_MENU");
-    case MenuItemType::MENU_ITEM_BACK:
-      return LOG_STR("MENU_ITEM_BACK");
-    case MenuItemType::MENU_ITEM_SELECT:
-      return LOG_STR("MENU_ITEM_SELECT");
-    case MenuItemType::MENU_ITEM_NUMBER:
-      return LOG_STR("MENU_ITEM_NUMBER");
-    case MenuItemType::MENU_ITEM_SWITCH:
-      return LOG_STR("MENU_ITEM_SWITCH");
-    case MenuItemType::MENU_ITEM_COMMAND:
-      return LOG_STR("MENU_ITEM_COMMAND");
-    case MenuItemType::MENU_ITEM_CUSTOM:
-      return LOG_STR("MENU_ITEM_CUSTOM");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
+// Indexed by MenuItemType
+PROGMEM_STRING_TABLE(MenuItemTypeStrings, "MENU_ITEM_LABEL", "MENU_ITEM_MENU", "MENU_ITEM_BACK", "MENU_ITEM_SELECT",
+                     "MENU_ITEM_NUMBER", "MENU_ITEM_SWITCH", "MENU_ITEM_COMMAND", "MENU_ITEM_CUSTOM", "UNKNOWN");
+
+const LogString *menu_item_type_to_string(MenuItemType type) { return MenuItemTypeStrings::get_log_str(type); }
 
 void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }
 
@@ -35,18 +19,12 @@ void MenuItem::on_value_() { this->on_value_callbacks_.call(); }
 
 #ifdef USE_SELECT
 std::string MenuItemSelect::get_value_text() const {
-  std::string result;
-
-  if (this->value_getter_.has_value()) {
-    result = this->value_getter_.value()(this);
-  } else {
-    if (this->variable_select_ != nullptr) {
-      auto option = this->variable_select_->current_option();
-      result.assign(option.c_str(), option.size());
-    }
-  }
-
-  return result;
+  if (this->value_getter_ != nullptr)
+    return this->value_getter_(this);
+  if (this->variable_select_ == nullptr)
+    return {};
+  auto option = this->variable_select_->current_option();
+  return {option.c_str(), option.size()};
 }
 
 bool MenuItemSelect::select_next() {
@@ -76,17 +54,11 @@ bool MenuItemSelect::select_prev() {
 
 #ifdef USE_NUMBER
 std::string MenuItemNumber::get_value_text() const {
-  std::string result;
-
-  if (this->value_getter_.has_value()) {
-    result = this->value_getter_.value()(this);
-  } else {
-    char data[32];
-    snprintf(data, sizeof(data), this->format_, get_number_value_());
-    result = data;
-  }
-
-  return result;
+  if (this->value_getter_ != nullptr)
+    return this->value_getter_(this);
+  char data[32];
+  snprintf(data, sizeof(data), this->format_, this->get_number_value_());
+  return data;
 }
 
 bool MenuItemNumber::select_next() {
@@ -141,15 +113,9 @@ float MenuItemNumber::get_number_value_() const {
 
 #ifdef USE_SWITCH
 std::string MenuItemSwitch::get_value_text() const {
-  std::string result;
-
-  if (this->value_getter_.has_value()) {
-    result = this->value_getter_.value()(this);
-  } else {
-    result = this->get_switch_state_() ? this->switch_on_text_ : this->switch_off_text_;
-  }
-
-  return result;
+  if (this->value_getter_ != nullptr)
+    return this->value_getter_(this);
+  return this->get_switch_state_() ? this->switch_on_text_ : this->switch_off_text_;
 }
 
 bool MenuItemSwitch::select_next() { return this->toggle_switch_(); }
@@ -174,7 +140,7 @@ bool MenuItemSwitch::toggle_switch_() {
 #endif  // USE_SWITCH
 
 std::string MenuItemCustom::get_value_text() const {
-  return (this->value_getter_.has_value()) ? this->value_getter_.value()(this) : "";
+  return (this->value_getter_ != nullptr) ? this->value_getter_(this) : "";
 }
 
 bool MenuItemCommand::select_next() {

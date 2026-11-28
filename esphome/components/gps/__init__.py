@@ -127,11 +127,3 @@ async def to_code(config: ConfigType) -> None:
     for sens, conf, setter in sensors:
         await sensor.register_sensor(sens, conf)
         cg.add(getattr(var, setter)(sens))
-
-    # https://platformio.org/lib/show/1655/TinyGPSPlus
-    # Using fork of TinyGPSPlus patched to build on ESP-IDF
-    cg.add_library(
-        "TinyGPSPlus",
-        None,
-        "https://github.com/esphome/TinyGPSPlus.git#v1.1.0",
-    )

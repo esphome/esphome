@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
@@ -17,6 +18,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIANT,
 )
+from esphome.core import CORE
 from esphome.cpp_generator import add_build_flag, add_define
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -30,6 +32,23 @@ DOMAIN = "esp32_hosted"
 AUTO_LOAD = ["watchdog"]
 
 _SDIO_RX_STAGING_TARGET = "eh_host_bus_sdio_set_rx_staging_target"
+
+
+@dataclass
+class ESP32HostedData:
+    variant: str | None = None
+
+
+def _get_data() -> ESP32HostedData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ESP32HostedData()
+    return CORE.data[DOMAIN]
+
+
+def get_coprocessor_variant() -> str | None:
+    """The co-processor's variant (``esp32.VARIANT_*``), known from final validation on."""
+    return _get_data().variant
+
 
 CONF_BUS_WIDTH = "bus_width"
 CONF_CMD_PIN = "cmd_pin"
@@ -197,6 +216,7 @@ def _final_validate(config: ConfigType) -> None:
             "recommended version, or pin a version at or above 5.5."
         )
     _warn_esp32c5_update(config)
+    _get_data().variant = config.get(CONF_VARIANT)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
