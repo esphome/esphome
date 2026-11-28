@@ -5,6 +5,12 @@ display:
     panel_height: 32
     double_buffer: true
     brightness: 128
+    scan_rate: 4
+    scan_segment_width: 16
+    scan_flags:
+      - reverse_slots
+      - alternate_segments
+    row_decoder: binary
     r1_pin: GPIO25
     g1_pin: GPIO26
     b1_pin: GPIO27

@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from esphome import automation, pins
@@ -20,9 +21,12 @@ from esphome.const import (
 from esphome.core import EnumValue
 import esphome.final_validate as fv
 from esphome.helpers import add_class_to_obj
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from . import boards, hub75_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@stuartparmenter"]
@@ -44,7 +48,11 @@ CONF_LAYOUT = "layout"
 
 # Panel hardware
 CONF_SCAN_WIRING = "scan_wiring"
+CONF_SCAN_RATE = "scan_rate"
+CONF_SCAN_SEGMENT_WIDTH = "scan_segment_width"
+CONF_SCAN_FLAGS = "scan_flags"
 CONF_SHIFT_DRIVER = "shift_driver"
+CONF_ROW_DECODER = "row_decoder"
 
 # RGB pins
 CONF_R1_PIN = "r1_pin"
@@ -116,17 +124,67 @@ PANEL_LAYOUTS = Hub75PanelLayout.options(
 Hub75ScanWiring = cg.global_ns.enum("Hub75ScanWiring", is_class=True)
 SCAN_WIRINGS = Hub75ScanWiring.options(
     "STANDARD_TWO_SCAN",
-    "SCAN_1_4_16PX_HIGH",
-    "SCAN_1_8_32PX_HIGH",
+    "SCAN_1_4_16PX_FULL",
+    "SCAN_1_8_32PX_INTERLEAVED",
     "SCAN_1_8_32PX_FULL",
-    "SCAN_1_8_40PX_HIGH",
-    "SCAN_1_8_64PX_HIGH",
+    "SCAN_1_10_40PX_FULL",
+    "SCAN_1_16_64PX_BITSWAP",
 )
 
+# Remove before 2027.6.0
+DEPRECATED_SCAN_WIRINGS = {
+    "SCAN_1_4_16PX_HIGH": "SCAN_1_4_16PX_FULL",
+    "SCAN_1_8_32PX_HIGH": "SCAN_1_8_32PX_INTERLEAVED",
+    "SCAN_1_8_40PX_HIGH": "SCAN_1_10_40PX_FULL",
+    "SCAN_1_8_64PX_HIGH": "SCAN_1_16_64PX_BITSWAP",
+}
 
+Hub75RowDecoder = cg.global_ns.enum("Hub75RowDecoder", is_class=True)
+ROW_DECODERS = Hub75RowDecoder.options("BINARY", "SM5368", "DIRECT")
+
+# Same bit values as Hub75ScanFlags in the library
+SCAN_FLAGS = {
+    "REVERSE_SLOTS": 1 << 0,
+    "ALTERNATE_SEGMENTS": 1 << 1,
+    "REVERSE_EVEN_SLOTS": 1 << 2,
+    "REVERSE_ODD_SLOTS": 1 << 3,
+    "REVERSE_BLOCK_ROWS": 1 << 4,
+}
+
+# Rows per row block and whether bits 3 and 4 of y are swapped, for each scan_wiring
+# other than STANDARD_TWO_SCAN (from resolve_scan_geometry() in the library)
+SCAN_WIRING_BLOCKS = {
+    "SCAN_1_4_16PX_FULL": (4, False),
+    "SCAN_1_8_32PX_INTERLEAVED": (8, False),
+    "SCAN_1_8_32PX_FULL": (8, False),
+    "SCAN_1_10_40PX_FULL": (10, False),
+    "SCAN_1_16_64PX_BITSWAP": (8, True),
+}
+
+# Limits from the library's scan_patterns.h
+MAX_BINARY_ROW_ADDRESSES = 32
+MAX_FOLDED_ROWS = 256
+MAX_DMA_WIDTH = 65535
+
+
+@schema_extractor("enum")
 def _validate_scan_wiring(value: Any) -> str:
     """Validate scan_wiring against the allowed names."""
+    if value is SCHEMA_EXTRACT:
+        return SCAN_WIRINGS
+
     value = cv.string(value).upper().replace(" ", "_")
+
+    # Remove before 2027.6.0
+    if (new_value := DEPRECATED_SCAN_WIRINGS.get(value)) is not None:
+        _LOGGER.warning(
+            "[hub75] '%s: %s' is deprecated, use '%s: %s'. Will be removed in 2027.6.0",
+            CONF_SCAN_WIRING,
+            value,
+            CONF_SCAN_WIRING,
+            new_value,
+        )
+        value = new_value
 
     # Validate against allowed values
     if value not in SCAN_WIRINGS:
@@ -242,6 +300,9 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 )
             )
 
+    if (err := _validate_scan_mapping(config)) is not None:
+        errs.append(err)
+
     # Validate layout configuration (validate effective config including C++ defaults)
     layout = config.get(CONF_LAYOUT, "HORIZONTAL")
     layout_rows = config.get(CONF_LAYOUT_ROWS, 1)
@@ -305,6 +366,165 @@ def _validate_config(config: ConfigType) -> ConfigType:
         raise cv.MultipleInvalid(errs)
 
     return config
+
+
+def _scan_flags_mask(config: ConfigType) -> int:
+    """Combine the scan_flags list into the library's Hub75ScanFlags bits."""
+    mask = 0
+    for flag in config.get(CONF_SCAN_FLAGS, []):
+        mask |= flag.enum_value
+    return mask
+
+
+def _scan_rows_fit(
+    height: int, rows_per_address: int, block_rows: int, bitswap: bool, flags: int
+) -> bool:
+    """Check that every panel row gets its own place in the shift chain.
+
+    Follows ScanPatternRemap::remap() in the library for column 0, which is all
+    the library itself checks.
+    """
+    slots = rows_per_address // 2
+    slot_shift = 1 if slots == 2 else 2
+    chain_rows = 2 * height // rows_per_address
+    seen: set[tuple[int, int]] = set()
+    for y in range(height):
+        if bitswap and (y & 8) != ((y & 16) >> 1):
+            y = ((y & 0b11000) ^ 0b11000) + (y & 0b11100111)
+        block_index, row = divmod(y, block_rows)
+        block = block_index & (slots - 1)
+        slot = slots - 1 - block if slots == 2 else block
+        if flags & SCAN_FLAGS["REVERSE_SLOTS"]:
+            slot = slots - 1 - slot
+        if flags & SCAN_FLAGS["REVERSE_BLOCK_ROWS"]:
+            row = block_rows - 1 - row
+        chain_row = (block_index >> slot_shift) * block_rows + row
+        if chain_row >= chain_rows or (slot, chain_row) in seen:
+            return False
+        seen.add((slot, chain_row))
+    return True
+
+
+def _validate_scan_mapping(config: ConfigType) -> cv.Invalid | None:
+    """Check the panel size and scan options the way the library does in begin().
+
+    Follows resolve_scan_geometry() and the row decoder checks in
+    Hub75Driver::begin(), which reject a bad configuration only at boot, with a
+    log line and a dark panel. Returns the first problem, as the library does.
+    """
+    width = config[CONF_PANEL_WIDTH]
+    height = config[CONF_PANEL_HEIGHT]
+    wiring = config.get(CONF_SCAN_WIRING, "STANDARD_TWO_SCAN")
+    is_standard = wiring == "STANDARD_TWO_SCAN"
+    flags = _scan_flags_mask(config)
+
+    # Every scan_wiring other than STANDARD_TWO_SCAN is a four-scan panel
+    rows_per_address = 2 if is_standard else 4
+    scan_rate = height // rows_per_address
+    if (explicit_rate := config.get(CONF_SCAN_RATE)) is not None:
+        if not is_standard and explicit_rate != scan_rate:
+            return cv.Invalid(
+                f"scan_rate {explicit_rate} does not match scan_wiring '{wiring}' "
+                f"(expected {scan_rate}). Remove scan_rate, or use "
+                "'scan_wiring: STANDARD_TWO_SCAN' with a custom scan_rate.",
+                path=[CONF_SCAN_RATE],
+            )
+        scan_rate = explicit_rate
+        rows_per_address, remainder = divmod(height, scan_rate)
+        if remainder != 0 or rows_per_address not in (2, 4, 8):
+            return cv.Invalid(
+                f"scan_rate must be panel_height / 2, / 4 or / 8 "
+                f"({height // 2}, {height // 4} or {height // 8} for panel_height {height})",
+                path=[CONF_SCAN_RATE],
+            )
+
+    if scan_rate == 0:
+        return cv.Invalid(
+            f"panel_height {height} is too small for scan_wiring '{wiring}'",
+            path=[CONF_PANEL_HEIGHT],
+        )
+    row_decoder = config.get(CONF_ROW_DECODER, "BINARY")
+    if row_decoder == "BINARY" and scan_rate > MAX_BINARY_ROW_ADDRESSES:
+        return cv.Invalid(
+            f"The panel has {scan_rate} row addresses, but 'row_decoder: BINARY' "
+            f"supports at most {MAX_BINARY_ROW_ADDRESSES} (address pins A to E)",
+            path=[CONF_SCAN_RATE if CONF_SCAN_RATE in config else CONF_PANEL_HEIGHT],
+        )
+    chain_width = (
+        width
+        * (rows_per_address // 2)
+        * config.get(CONF_LAYOUT_ROWS, 1)
+        * config.get(CONF_LAYOUT_COLS, 1)
+    )
+    if chain_width > MAX_DMA_WIDTH:
+        return cv.Invalid(
+            f"The panels are too wide to drive: panel_width x layout_rows x layout_cols "
+            f"(x2 for four-scan, x4 for eight-scan panels) is {chain_width}, "
+            f"at most {MAX_DMA_WIDTH} is supported",
+            path=[CONF_PANEL_WIDTH],
+        )
+
+    if rows_per_address == 2:
+        if height % 2 != 0:
+            return cv.Invalid(
+                f"panel_height must be even (got {height})", path=[CONF_PANEL_HEIGHT]
+            )
+        for key in (CONF_SCAN_SEGMENT_WIDTH, CONF_SCAN_FLAGS):
+            if key in config:
+                return cv.Invalid(
+                    f"{key} needs a four- or eight-scan panel: set scan_rate to "
+                    "panel_height / 4 or / 8, or set a scan_wiring other than "
+                    "STANDARD_TWO_SCAN",
+                    path=[key],
+                )
+    else:
+        block_rows, bitswap = SCAN_WIRING_BLOCKS.get(wiring, (scan_rate, False))
+        if (segment_width := config.get(CONF_SCAN_SEGMENT_WIDTH)) is not None:
+            if width % segment_width != 0:
+                return cv.Invalid(
+                    f"scan_segment_width {segment_width} must divide panel_width {width}",
+                    path=[CONF_SCAN_SEGMENT_WIDTH],
+                )
+        else:
+            segment_width = width
+            if wiring == "SCAN_1_8_32PX_INTERLEAVED" and height >= 8:
+                segment_width = width // (height // 8) or width
+            if width % segment_width != 0:
+                return cv.Invalid(
+                    f"scan_wiring '{wiring}' uses {segment_width} pixel segments, which "
+                    f"do not divide panel_width {width}. Set scan_segment_width.",
+                    path=[CONF_SCAN_WIRING],
+                )
+        if flags & SCAN_FLAGS["ALTERNATE_SEGMENTS"] and segment_width == width:
+            return cv.Invalid(
+                "alternate_segments needs a scan_segment_width smaller than panel_width",
+                path=[CONF_SCAN_FLAGS],
+            )
+        if height > MAX_FOLDED_ROWS:
+            return cv.Invalid(
+                f"Four- and eight-scan panels can have at most {MAX_FOLDED_ROWS} rows "
+                f"(panel_height is {height})",
+                path=[CONF_PANEL_HEIGHT],
+            )
+        if not _scan_rows_fit(height, rows_per_address, block_rows, bitswap, flags):
+            return cv.Invalid(
+                f"scan_wiring '{wiring}' does not fit panel_height {height}",
+                path=[CONF_SCAN_WIRING],
+            )
+
+    # Row decoder checks from Hub75Driver::begin(). Pins A to D are always required.
+    if row_decoder == "BINARY" and scan_rate > 16 and CONF_E_PIN not in config:
+        return cv.Invalid(
+            f"The panel has {scan_rate} row addresses, which need e_pin",
+            path=[CONF_E_PIN],
+        )
+    if row_decoder == "DIRECT" and scan_rate not in (2, 4):
+        return cv.Invalid(
+            f"'row_decoder: DIRECT' needs a panel with 2 or 4 row addresses "
+            f"(this one has {scan_rate})",
+            path=[CONF_ROW_DECODER],
+        )
+    return None
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -394,7 +614,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAYOUT): cv.enum(PANEL_LAYOUTS, upper=True, space="_"),
             # Panel hardware configuration
             cv.Optional(CONF_SCAN_WIRING): _validate_scan_wiring,
+            cv.Optional(CONF_SCAN_RATE): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_SCAN_SEGMENT_WIDTH): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SCAN_FLAGS): cv.ensure_list(
+                cv.enum(SCAN_FLAGS, upper=True, space="_")
+            ),
             cv.Optional(CONF_SHIFT_DRIVER): cv.enum(SHIFT_DRIVERS, upper=True),
+            cv.Optional(CONF_ROW_DECODER): cv.enum(ROW_DECODERS, upper=True),
             # Display configuration
             cv.Optional(CONF_DOUBLE_BUFFER): cv.boolean,
             cv.Optional(CONF_BRIGHTNESS): cv.uint8_t,
@@ -514,7 +740,7 @@ def _build_config_struct(
       3. pins
       4. output_clock_speed
       5. min_refresh_rate
-      6. fields_after_min_refresh (latch_blanking through brightness)
+      6. fields_after_min_refresh (latch_blanking through scan_flags)
     """
     fields_before_pins = [
         (CONF_PANEL_WIDTH, "panel_width"),
@@ -531,6 +757,9 @@ def _build_config_struct(
         (CONF_DOUBLE_BUFFER, "double_buffer"),
         (CONF_CLOCK_PHASE, "clk_phase_inverted"),
         (CONF_BRIGHTNESS, "brightness"),
+        (CONF_ROW_DECODER, "row_decoder"),
+        (CONF_SCAN_RATE, "scan_rate"),
+        (CONF_SCAN_SEGMENT_WIDTH, "scan_segment_width"),
     ]
 
     config_fields: list[tuple[str, Any]] = []
@@ -550,13 +779,18 @@ def _build_config_struct(
 
     _append_config_fields(config, fields_after_min_refresh, config_fields)
 
+    if mask := _scan_flags_mask(config):
+        config_fields.append(
+            ("scan_flags", cg.RawExpression(f"static_cast<Hub75ScanFlags>({mask})"))
+        )
+
     return cg.StructInitializer(Hub75Config, *config_fields)
 
 
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.3.5",
+        ref="0.4.0",
     )
 
     # Set compile-time configuration via build flags (so external library sees them)
