@@ -7,14 +7,15 @@ ESPHOME_LOG_TAG(TAG, "pd_pioneer_ir");
 
 void PDPioneerIR::setup() {
 #ifdef USE_SWITCH
-  // Before the climate publishes its restored state, which an on_state automation may transmit from. Nothing is sent
-  // at boot; the restored setting goes out with the next command.
-  if (this->display_switch_ != nullptr) {
+  // Read before the climate publishes its restored state, which an on_state automation may transmit from, and publish
+  // after it, so the switch's own automations see a set up climate. Nothing is sent at boot.
+  if (this->display_switch_ != nullptr)
     this->display_on_ = this->display_switch_->get_initial_write_state().value_or(true);
-    this->display_switch_->publish_state(this->display_on_);
-  }
 #endif
   climate_ir::ClimateIR::setup();
+#ifdef USE_SWITCH
+  PUBLISH_STATE(this->display_switch_, this->display_on_);
+#endif
   this->publish_state();
 }
 

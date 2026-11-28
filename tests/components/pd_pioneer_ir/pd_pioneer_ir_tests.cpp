@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <cmath>
 #include <cstdint>
 #include <new>
 #include <vector>
@@ -81,12 +82,15 @@ struct Fixture {
   CapturingTransmitter transmitter;
   PDPioneerIR climate;
   DisplaySwitch display{&this->climate};
+  float target_at_display_publish{NAN};
 
   explicit Fixture(optional<switch_::SwitchRestoreMode> display_restore = {}, bool inverted = false) {
     if (display_restore.has_value()) {
       this->display.set_restore_mode(*display_restore);
       this->display.set_inverted(inverted);
       this->climate.set_display_switch(&this->display);
+      this->display.add_on_state_callback(
+          [this](bool) { this->target_at_display_publish = this->climate.target_temperature; });
     }
     // A second fixture in the same test would otherwise restore what the first saved
     if (global_preferences != nullptr)
@@ -444,6 +448,8 @@ TEST_P(DisplayRestore, SendsNothingAtBootAndGoesOutWithTheFirstOnCommand) {
   Fixture f(GetParam().mode, GetParam().inverted);
   EXPECT_TRUE(f.transmitter.frames.empty());
   EXPECT_EQ(f.display.state, GetParam().state);
+  // The switch publishes after the climate is set up, so its automations see the climate's settings
+  EXPECT_FALSE(std::isnan(f.target_at_display_publish));
   f.command(climate::CLIMATE_MODE_HEAT, 20.0f, climate::CLIMATE_FAN_HIGH);
   EXPECT_EQ(f.last_pair().second, even_frame(GetParam().power, 0x01, 0x0B, 0x05, 0x80));
 }
