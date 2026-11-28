@@ -85,7 +85,7 @@ void Component::setup() {}
 
 void Component::loop() {}
 
-void Component::set_interval(const char *name, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+void Component::set_interval(const char *name, uint32_t interval, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_interval(this, name, interval, std::move(f));
 }
 
@@ -93,7 +93,7 @@ bool Component::cancel_interval(const char *name) {  // NOLINT
   return App.scheduler.cancel_interval(this, name);
 }
 
-void Component::set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+void Component::set_timeout(const char *name, uint32_t timeout, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, timeout, std::move(f));
 }
 
@@ -102,25 +102,25 @@ bool Component::cancel_timeout(const char *name) {  // NOLINT
 }
 
 // uint32_t (numeric ID) overloads - zero heap allocation
-void Component::set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+void Component::set_timeout(uint32_t id, uint32_t timeout, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_timeout(this, id, timeout, std::move(f));
 }
 
 bool Component::cancel_timeout(uint32_t id) { return App.scheduler.cancel_timeout(this, id); }
 
-void Component::set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+void Component::set_timeout(InternalSchedulerID id, uint32_t timeout, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_timeout(this, id, timeout, std::move(f));
 }
 
 bool Component::cancel_timeout(InternalSchedulerID id) { return App.scheduler.cancel_timeout(this, id); }
 
-void Component::set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+void Component::set_interval(uint32_t id, uint32_t interval, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_interval(this, id, interval, std::move(f));
 }
 
 bool Component::cancel_interval(uint32_t id) { return App.scheduler.cancel_interval(this, id); }
 
-void Component::set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+void Component::set_interval(InternalSchedulerID id, uint32_t interval, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_interval(this, id, interval, std::move(f));
 }
 
@@ -243,23 +243,23 @@ void Component::reset_to_construction_state() {
     this->status_clear_error();
   }
 }
-void Component::defer(std::function<void()> &&f) {  // NOLINT
+void Component::defer(SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), 0, std::move(f));
 }
 bool Component::cancel_defer(const char *name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }
-void Component::defer(const char *name, std::function<void()> &&f) {  // NOLINT
+void Component::defer(const char *name, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, 0, std::move(f));
 }
-void Component::defer(uint32_t id, std::function<void()> &&f) {  // NOLINT
+void Component::defer(uint32_t id, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_timeout(this, id, 0, std::move(f));
 }
 bool Component::cancel_defer(uint32_t id) { return App.scheduler.cancel_timeout(this, id); }
-void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+void Component::set_timeout(uint32_t timeout, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), timeout, std::move(f));
 }
-void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
+void Component::set_interval(uint32_t interval, SchedulerCallback &&f) {  // NOLINT
   App.scheduler.set_interval(this, static_cast<const char *>(nullptr), interval, std::move(f));
 }
 bool Component::is_ready() const {

@@ -207,17 +207,16 @@ file does, and it is the authority when they disagree. The most useful starting 
         static constexpr uint32_t READ_TIMEOUT_ID = 0;
         this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
         ```
-    *   **Scheduler lambdas capture at most 8 bytes:** `set_timeout`, `set_interval` and `defer` store the lambda
-        in a `std::function`, which keeps it inline only when it is at most 8 bytes on 32-bit targets and trivially
-        copyable; anything else is a heap allocation each time it is scheduled, which matters for retries, re-armed
-        timeouts and `defer` on a hot path. `[this]` plus one 4-byte value fits. `[this]` plus two 4-byte values,
-        `[this]` plus a member function pointer (8 bytes), a `std::string` or a `std::function` do not: keep that
-        state in members and capture `[this]`, or capture a small index instead.
+    *   **Scheduler lambdas capture at most 12 bytes:** `set_timeout`, `set_interval` and `defer` keep a trivially
+        copyable lambda of at most 12 bytes on 32-bit, with no `double` or 64-bit capture, inside the scheduler item;
+        anything else is moved into a heap box each time it is scheduled, which matters for retries, re-armed timeouts
+        and `defer` on a hot path. `[this]` plus two 4-byte values, or plus a member function pointer, fits. Keep
+        larger state in members and capture `[this]`, or capture a small index instead.
         ```cpp
-        // Bad - 12 bytes on 32-bit, allocates on every retry
+        // Bad - this plus three uint32_t is 16 bytes on 32-bit, allocates on every retry
+        this->set_timeout(RETRY_ID, 10, [this, reg, value, mask]() { this->write_masked_(reg, value, mask); });
+        // Good - this plus a member function pointer is 12 bytes, stored in the scheduler item
         this->set_timeout(RETRY_ID, 10, [this, configure = config.configure]() { (this->*configure)(); });
-        // Good - 8 bytes, the pointer is looked up when the timeout runs
-        this->set_timeout(RETRY_ID, 10, [this, feature]() { this->run_configure_(feature); });
         ```
     *   **Don't override a default with the same value:** if a base class method already returns what you
         want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
