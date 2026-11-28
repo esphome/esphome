@@ -145,7 +145,7 @@ class Scheduler {
     union {
       Component *component;          // live, non-SELF_POINTER: owning component
       const LogString *source_name;  // live SELF_POINTER: owning script name (log attribution)
-      SchedulerItem *next_free;      // while pooled
+      SchedulerItem *next_free;      // while pooled or waiting for release_pending_()
     };
     // Optimized name storage using tagged union - zero heap allocation
     union {
@@ -264,10 +264,7 @@ class Scheduler {
       // This is correct because millis_major_ that creates these values is also 16 bits.
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
-    static const LogString *type_log_str(Type type) {
-      return (type == TIMEOUT) ? LOG_STR("timeout") : LOG_STR("interval");
-    }
-    const LogString *get_type_str() const { return type_log_str(this->type); }
+    const LogString *get_type_str() const { return (type == TIMEOUT) ? LOG_STR("timeout") : LOG_STR("interval"); }
     // The owning component, or nullptr for SELF_POINTER items (whose slot holds source_name instead).
     // All component access goes through this so SELF_POINTER items read as component-less.
     Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
@@ -320,6 +317,8 @@ class Scheduler {
   bool cleanup_slow_path_();
   // Slow path for process_to_add() when there are items to merge - defined in scheduler.cpp
   void process_to_add_slow_path_();
+  // Frees the callables of the items recycled under lock_, then pools the items. Main loop only, lock not held.
+  void release_pending_();
   // Remove and return the front item from the heap as a raw pointer.
   // Caller takes ownership and must either recycle or delete the item.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
@@ -415,11 +414,9 @@ class Scheduler {
   uint32_t __attribute__((noinline)) calculate_interval_offset_(uint32_t delay);
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  // Debug logging for set_timer_common_, called after it releases the lock
-  void debug_log_timer_(size_t pool_size, const LogString *source, SchedulerItem::Type type, NameType name_type,
-                        const char *static_name, uint32_t hash_or_id, uint32_t delay, uint32_t offset);
-  // Aborts when called on the main loop while recycle_item_main_loop_ frees a callable (the lock is held)
-  void debug_check_not_releasing_() const;
+  // Helper for debug logging in set_timer_common_ - extracted to reduce code size
+  void debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name, uint32_t hash_or_id,
+                        uint32_t delay, uint64_t now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -701,21 +698,19 @@ class Scheduler {
   // app's concurrent-timer high-water mark; the previous fixed cap caused steady-state new/delete
   // churn on devices with many timers (see https://github.com/esphome/backlog/issues/52).
   SchedulerItem *scheduler_item_pool_head_{nullptr};
-  size_t scheduler_item_pool_size_{0};
+  size_t scheduler_item_pool_size_{0};  // includes the items waiting for release_pending_()
+  // Recycled items whose callables are not freed yet, linked through next_free. Only the main loop touches it.
+  SchedulerItem *pending_release_head_{nullptr};
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Leak detection: tracks total live SchedulerItem allocations.
   // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_size_
   // Verified periodically in call() to catch leaks early.
   size_t debug_live_items_{0};
-  // Items recycled since the last debug_verify_no_leak_(), which logs them outside the lock
-  uint32_t debug_recycled_{0};
-  // Set while recycle_item_main_loop_ frees a callable; main loop only
-  bool debug_releasing_{false};
 
-  // Verify the scheduler memory invariant: all allocated items are accounted for. Takes the lock.
+  // Verify the scheduler memory invariant: all allocated items are accounted for.
   // Returns true if no leak detected. Logs an error and asserts on failure.
-  bool debug_verify_no_leak_();
+  bool debug_verify_no_leak_() const;
 #endif
 };
 

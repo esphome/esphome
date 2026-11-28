@@ -133,9 +133,6 @@ uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
                                       const char *static_name, uint32_t hash_or_id, uint32_t delay,
                                       SchedulerCallback &&func, bool skip_cancel, const LogString *source) {
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_check_not_releasing_();
-#endif
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
@@ -161,18 +158,10 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 
   uint32_t offset = 0;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  // Logged after releasing the lock, like the VERBOSE line below
-  size_t debug_pool_size;
-  const LogString *debug_source;
-#endif
   // Take lock early to protect scheduler_item_pool_head_ access
   {
     SchedulerLockGuard guard{this->lock_};
 
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    debug_pool_size = this->scheduler_item_pool_size_;
-#endif
     // Create and populate the scheduler item
     SchedulerItem *item = this->get_item_from_pool_locked_();
     // SELF_POINTER items store the source name (owning script) in the union slot instead of a component.
@@ -184,9 +173,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     item->set_name(name_type, static_name, hash_or_id);
     item->type = type;
     item->callback.take_(func);
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    debug_source = item->get_source();
-#endif
     // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
     this->set_item_removed_(item, false);
 
@@ -216,6 +202,10 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
         item->interval = 0;
         item->set_next_execution(now_64 + delay);
       }
+
+#ifdef ESPHOME_DEBUG_SCHEDULER
+      this->debug_log_timer_(item, name_type, static_name, hash_or_id, delay, now_64);
+#endif /* ESPHOME_DEBUG_SCHEDULER */
     }
 
     // Common epilogue: atomic cancel-and-add (unless skip_cancel is true or anonymous)
@@ -233,9 +223,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     }
 #endif
   }
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_log_timer_(debug_pool_size, debug_source, type, name_type, static_name, hash_or_id, delay, offset);
-#endif
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   // Logged after releasing the lock: a logger on_message automation can call back into the scheduler.
   if (type == SchedulerItem::INTERVAL) {
@@ -597,6 +584,9 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   if (has_added_items) {
     this->process_to_add();
   }
+  // Free the callables recycled this pass now that the lock is released: a capture's destructor may call the scheduler
+  if (this->pending_release_head_ != nullptr)
+    this->release_pending_();
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Verify no items were leaked during this call() cycle.
@@ -606,7 +596,11 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   //   so defer_queue_ contains no nullptr slots inflating the count.
   // - The while loop above has finished, so no items are held in local variables;
   //   every item has been returned to a container (items_, to_add_, or pool).
-  this->debug_verify_no_leak_();
+  // Lock needed to get a consistent snapshot of all containers.
+  {
+    SchedulerLockGuard guard{this->lock_};
+    this->debug_verify_no_leak_();
+  }
 #endif
   // execute_item_() advances `now` as items fire; return it so the caller
   // stays monotonic with last_wdt_feed_.
@@ -614,12 +608,11 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 }
 void HOT Scheduler::process_to_add_slow_path_() {
   SchedulerLockGuard guard{this->lock_};
-  // By index: a recycled capture's destructor may append to to_add_, which a range-for would miss or invalidate
-  for (size_t i = 0; i < this->to_add_.size(); i++) {  // NOLINT(modernize-loop-convert)
-    SchedulerItem *it = this->to_add_[i];
+  for (auto *&it : this->to_add_) {
     if (is_item_removed_locked_(it)) {
-      this->to_add_[i] = nullptr;
+      // Recycle cancelled items
       this->recycle_item_main_loop_(it);
+      it = nullptr;
       continue;
     }
 
@@ -686,9 +679,6 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
 // Common implementation for cancel operations - handles locking
 bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
                                  SchedulerItem::Type type) {
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_check_not_releasing_();
-#endif
   SchedulerLockGuard guard{this->lock_};
   // Public cancel path uses default find_first=false to cancel ALL matches because
   // DelayAction parallel mode (skip_cancel=true) can create multiple items with the same key.
@@ -757,24 +747,36 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
-// Recycle a SchedulerItem back to the freelist for reuse.
+// Recycle a SchedulerItem: its callable is freed and the item pooled by release_pending_() once the lock is
+// released, so a capture's destructor may call the scheduler.
 // IMPORTANT: Caller must hold the scheduler lock.
 void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
-  // Free before pooling, so nothing the free runs can be handed this item while a cleanup still lists it
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_releasing_ = true;
+  ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_ + 1);
 #endif
-  item->callback.release_();
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_releasing_ = false;
-  this->debug_recycled_++;
-#endif
-  item->next_free = this->scheduler_item_pool_head_;
-  this->scheduler_item_pool_head_ = item;
-  this->scheduler_item_pool_size_++;
+  item->next_free = this->pending_release_head_;
+  this->pending_release_head_ = item;
+  this->scheduler_item_pool_size_++;  // counts the items waiting for release_pending_() too
+}
+
+void Scheduler::release_pending_() {
+  // A freed capture may schedule or cancel but never recycles, so one pass empties the list
+  SchedulerItem *head = this->pending_release_head_;
+  this->pending_release_head_ = nullptr;
+  SchedulerItem *tail = head;
+  for (;;) {
+    tail->callback.release_();
+    if (tail->next_free == nullptr)
+      break;
+    tail = tail->next_free;
+  }
+  // Pooled only after the free, so the item is never handed out while it still holds its old callable
+  SchedulerLockGuard guard{this->lock_};
+  tail->next_free = this->scheduler_item_pool_head_;
+  this->scheduler_item_pool_head_ = head;
 }
 
 // Shrink a SchedulerItem* vector's capacity to its current size.
@@ -796,30 +798,28 @@ void __attribute__((noinline)) Scheduler::shrink_scheduler_vector_(std::vector<S
 }
 
 void Scheduler::trim_freelist() {
+  SchedulerLockGuard guard{this->lock_};
+  SchedulerItem *item = this->scheduler_item_pool_head_;
   size_t freed = 0;
-  {
-    SchedulerLockGuard guard{this->lock_};
-    SchedulerItem *item = this->scheduler_item_pool_head_;
-    while (item != nullptr) {
-      SchedulerItem *next = item->next_free;
-      delete item;
+  while (item != nullptr) {
+    SchedulerItem *next = item->next_free;
+    delete item;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-      this->debug_live_items_--;
+    this->debug_live_items_--;
 #endif
-      item = next;
-      freed++;
-    }
-    this->scheduler_item_pool_head_ = nullptr;
-    this->scheduler_item_pool_size_ = 0;
-
-    // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
-    // by doubling and otherwise keeps the peak). Reclaim that slack as well.
-    shrink_scheduler_vector_(&this->items_);
-    shrink_scheduler_vector_(&this->to_add_);
-#ifndef ESPHOME_THREAD_SINGLE
-    shrink_scheduler_vector_(&this->defer_queue_);
-#endif
+    item = next;
+    freed++;
   }
+  this->scheduler_item_pool_head_ = nullptr;
+  this->scheduler_item_pool_size_ -= freed;  // items waiting for release_pending_() stay counted
+
+  // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
+  // by doubling and otherwise keeps the peak). Reclaim that slack as well.
+  shrink_scheduler_vector_(&this->items_);
+  shrink_scheduler_vector_(&this->to_add_);
+#ifndef ESPHOME_THREAD_SINGLE
+  shrink_scheduler_vector_(&this->defer_queue_);
+#endif
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   ESP_LOGD(TAG, "Freelist trimmed (%zu items freed)", freed);
@@ -829,31 +829,23 @@ void Scheduler::trim_freelist() {
 }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-void Scheduler::debug_log_timer_(size_t pool_size, const LogString *source, SchedulerItem::Type type,
-                                 NameType name_type, const char *static_name, uint32_t hash_or_id, uint32_t delay,
-                                 uint32_t offset) {
-  if (pool_size != 0) {
-    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", pool_size - 1);
-  } else {
-    ESP_LOGD(TAG, "Allocated new item (pool empty)");
-  }
-#ifndef ESPHOME_THREAD_SINGLE
-  if (delay == 0 && type == SchedulerItem::TIMEOUT)
-    return;  // defer()
-#endif
+void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name,
+                                 uint32_t hash_or_id, uint32_t delay, uint64_t now) {
   // Validate static strings in debug mode
   if (name_type == NameType::STATIC_STRING && static_name != nullptr) {
     validate_static_string(static_name);
   }
 
+  // Debug logging
   SchedulerNameLog name_log;
-  const char *type_str = LOG_STR_ARG(SchedulerItem::type_log_str(type));
-  if (type == SchedulerItem::TIMEOUT) {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(source),
+  const char *type_str = LOG_STR_ARG(item->get_type_str());
+  if (item->type == SchedulerItem::TIMEOUT) {
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
              name_log.format(name_type, static_name, hash_or_id), type_str, delay);
   } else {
-    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(source),
-             name_log.format(name_type, static_name, hash_or_id), type_str, delay, offset);
+    ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
+             name_log.format(name_type, static_name, hash_or_id), type_str, delay,
+             static_cast<uint32_t>(item->get_next_execution() - now));
   }
 }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
@@ -865,8 +857,14 @@ Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
     SchedulerItem *item = this->scheduler_item_pool_head_;
     this->scheduler_item_pool_head_ = item->next_free;
     this->scheduler_item_pool_size_--;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_size_);
+#endif
     return item;
   }
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  ESP_LOGD(TAG, "Allocated new item (pool empty)");
+#endif
   auto *item = new SchedulerItem();
 #ifdef ESPHOME_DEBUG_SCHEDULER
   this->debug_live_items_++;
@@ -880,37 +878,29 @@ void SchedulerCallback::report_dropped() {
   ESPHOME_ABORT_WITH_REASON("SchedulerCallback dropped before reaching the scheduler");
 }
 
-void Scheduler::debug_check_not_releasing_() const {
-  // Read only on the main loop, the one thread that writes it
-  if (is_main_loop_thread() && this->debug_releasing_) {
-    ESP_LOGE(TAG, "A scheduler callback's capture called the scheduler from its destructor");
-    ESPHOME_ABORT_WITH_REASON("Scheduler called from a capture destructor");
-  }
-}
-
-bool Scheduler::debug_verify_no_leak_() {
-  // Counted under the lock and logged after it, so a logger on_message automation can use the scheduler
-  size_t items, to_add, pool, defer = 0, live;
-  uint32_t recycled;
-  {
-    SchedulerLockGuard guard{this->lock_};
-    items = this->items_.size();
-    to_add = this->to_add_.size();
-    pool = this->scheduler_item_pool_size_;
-#ifndef ESPHOME_THREAD_SINGLE
-    defer = this->defer_queue_.size();
-#endif
-    live = this->debug_live_items_;
-    recycled = this->debug_recycled_;
-    this->debug_recycled_ = 0;
-  }
-  if (recycled != 0) {
-    ESP_LOGD(TAG, "Recycled %" PRIu32 " items to pool (pool size now: %zu)", recycled, pool);
-  }
+bool Scheduler::debug_verify_no_leak_() const {
   // Invariant: every live SchedulerItem must be in exactly one container.
-  if (items + to_add + pool + defer != live) {
-    ESP_LOGE(TAG, "SCHEDULER LEAK DETECTED: live=%zu but accounted=%zu (items=%zu to_add=%zu pool=%zu defer=%zu)", live,
-             items + to_add + pool + defer, items, to_add, pool, defer);
+  // debug_live_items_ tracks allocations minus deletions.
+  size_t accounted = this->items_.size() + this->to_add_.size() + this->scheduler_item_pool_size_;
+#ifndef ESPHOME_THREAD_SINGLE
+  accounted += this->defer_queue_.size();
+#endif
+  if (accounted != this->debug_live_items_) {
+    ESP_LOGE(TAG,
+             "SCHEDULER LEAK DETECTED: live=%" PRIu32 " but accounted=%" PRIu32 " (items=%" PRIu32 " to_add=%" PRIu32
+             " pool=%" PRIu32
+#ifndef ESPHOME_THREAD_SINGLE
+             " defer=%" PRIu32
+#endif
+             ")",
+             static_cast<uint32_t>(this->debug_live_items_), static_cast<uint32_t>(accounted),
+             static_cast<uint32_t>(this->items_.size()), static_cast<uint32_t>(this->to_add_.size()),
+             static_cast<uint32_t>(this->scheduler_item_pool_size_)
+#ifndef ESPHOME_THREAD_SINGLE
+                 ,
+             static_cast<uint32_t>(this->defer_queue_.size())
+#endif
+    );
     assert(false);
     return false;
   }

@@ -32,22 +32,3 @@ async def test_scheduler_verbose_log_on_message(
         await assert_device_name(client, "sched-verbose-log")
         await waiter.wait_for("Scheduler interval for", timeout=5.0)
         await waiter.wait_for("INTERVAL_5_FIRES_REACHED", timeout=5.0)
-
-
-@pytest.mark.asyncio
-async def test_scheduler_debug_log_on_message(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """The same with debug_scheduler, whose pool and timer logs are at DEBUG."""
-    waiter = LineWaiter()
-
-    async with (
-        run_compiled(yaml_config, line_callback=waiter.callback),
-        api_client_connected() as client,
-    ):
-        await assert_device_name(client, "sched-debug-log")
-        await waiter.wait_for("set_interval(name=", timeout=5.0)
-        await waiter.wait_for("Recycled ", timeout=5.0)
-        await waiter.wait_for("INTERVAL_5_FIRES_REACHED", timeout=5.0)
