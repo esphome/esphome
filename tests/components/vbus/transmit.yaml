@@ -1,0 +1,13 @@
+vbus:
+  id: vbus_transmit
+  transmit:
+    destination: 0x2211
+
+button:
+  - platform: template
+    name: Read VBus Value
+    on_press:
+      - vbus.send_datagram:
+          id: vbus_transmit
+          command: 0x0300
+          value_id: !lambda return 2;
