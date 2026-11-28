@@ -271,8 +271,23 @@ void HeatpumpIRClimate::transmit_state() {
   temperature_cmd = (uint8_t) clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
 
   IRSenderESPHome esp_sender(this->transmitter_);
+#ifdef USE_HEATPUMPIR_LIGHT
+  if (this->protocol_ == PROTOCOL_GREEYAP) {
+    auto *gree_yap = static_cast<GreeYAPHeatpumpIR *>(this->heatpump_ir_);
+    gree_yap->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
+                   swing_h_cmd, false, false, this->light_);
+  } else if (this->protocol_ == PROTOCOL_VAILLANTVAI8) {
+    auto *vaillant = static_cast<VaillantHeatpumpIR *>(this->heatpump_ir_);
+    vaillant->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd, false,
+                   this->light_);
+  } else {
+    heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
+                       swing_h_cmd);
+  }
+#else
   heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
                      swing_h_cmd);
+#endif
 }
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {

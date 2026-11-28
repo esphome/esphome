@@ -104,6 +104,9 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
   template<Protocol P>
   explicit HeatpumpIRClimate(ProtocolTag<P> /*tag*/) : HeatpumpIRClimate(P, create_heatpump_ir<P>()) {}
   void setup() override;
+#ifdef USE_HEATPUMPIR_LIGHT
+  void set_light(bool light) { this->light_ = light; }
+#endif
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
   }
@@ -143,6 +146,9 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
 
   float max_temperature_;
   float min_temperature_;
+#ifdef USE_HEATPUMPIR_LIGHT
+  bool light_{true};
+#endif
 };
 
 }  // namespace esphome::heatpumpir
