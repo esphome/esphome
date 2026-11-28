@@ -1,0 +1,92 @@
+#pragma once
+
+#include <cmath>
+#include <cstdint>
+
+#include "esphome/core/component.h"
+#include "esphome/core/string_ref.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/voltage_sampler/voltage_sampler.h"
+
+#include "mq_math.h"
+
+namespace esphome::mq_gas_sensors {
+
+/// One MQ gas sensor: samples the analog output, converts it into the RS/R0
+/// ratio and evaluates the built-in regression curve (`PPM = a * ratio^b`).
+/// R0 is the sensor resistance in clean air, configured per entry.
+class MQGasSensor final : public sensor::Sensor, public PollingComponent {
+ public:
+  /// Lowest averaged analog output that is still a measurement rather than a
+  /// missing signal (open circuit, absent supply, or a failed conversion).
+  static constexpr float MIN_VALID_VOLTAGE = 0.01f;
+  /// A saturated sensor drives its output to the supply, which can sit a few
+  /// percent above `vcc:`. Within this band it is the top of the measuring range.
+  static constexpr float SATURATION_TOLERANCE = 0.05f;
+
+  explicit MQGasSensor(voltage_sampler::VoltageSampler *source) : source_(source) {}
+
+  void update() override;
+  void dump_config() override;
+
+  void set_type(const char *type) { this->type_ = StringRef(type); }
+  void set_gas(const char *gas) { this->gas_ = StringRef(gas); }
+  void set_a(float a) { this->a_ = a; }
+  void set_b(float b) { this->b_ = b; }
+  void set_regression_method(RegressionMethod method) { this->regression_method_ = method; }
+  void set_rl(float rl) { this->rl_ = rl; }
+  void set_r0(float r0) { this->r0_ = r0; }
+  void set_vcc(float vcc) { this->vcc_ = vcc; }
+  void set_ratio_in_clean_air(float ratio) { this->ratio_in_clean_air_ = ratio; }
+  void set_voltage_multiplier(float multiplier) { this->voltage_multiplier_ = multiplier; }
+  void set_min_ppm(float ppm) { this->min_ppm_ = ppm; }
+  void set_max_ppm(float ppm) { this->max_ppm_ = ppm; }
+  void set_samples(uint8_t samples) { this->samples_ = samples; }
+
+  float get_r0() const { return this->r0_; }
+
+ protected:
+  /// Averaged, scaled analog output voltage (V); sampled back to back.
+  float sample_voltage_();
+  /// True when `voltage` is a measurement rather than a missing signal. The one
+  /// place `MIN_VALID_VOLTAGE` is applied.
+  bool voltage_usable_(float voltage) const { return std::isfinite(voltage) && voltage > MIN_VALID_VOLTAGE; }
+  /// RS in kOhm for `voltage`.
+  float current_rs_(float voltage) const;
+  /// RS/R0 ratio for `rs`.
+  float current_ratio_(float rs) const;
+  /// Full MQUnifiedsensor pipeline for `ratio`; NAN when invalid.
+  float read_ppm_(float ratio) const;
+
+  StringRef type_{StringRef::from_lit("MQ")};
+  StringRef gas_{StringRef::from_lit("CUSTOM")};
+
+  voltage_sampler::VoltageSampler *source_{nullptr};
+
+  float a_{0.0f};
+  float b_{0.0f};
+  float rl_{10.0f};  ///< load resistor of the module (kOhm)
+  float r0_{0.0f};   ///< sensor resistance in clean air (kOhm)
+  float vcc_{5.0f};  ///< sensor supply (V)
+  float ratio_in_clean_air_{0.0f};
+  float voltage_multiplier_{1.0f};
+  float min_ppm_{0.0f};
+  float max_ppm_{10000.0f};
+
+  RegressionMethod regression_method_{RegressionMethod::REGRESSION_METHOD_EXPONENTIAL};
+  uint8_t samples_{2};
+  /// Usable conversions of the last sampling window.
+  uint8_t sample_count_{0};
+
+  /// One flag per fault kind, so each is reported once - and again when it recurs
+  /// after the wiring read as expected in between.
+  bool warned_sampler_failure_{false};
+  bool warned_low_voltage_{false};
+  bool warned_high_voltage_{false};
+  /// One line when the curve cannot evaluate the ratio, and one when the published
+  /// value is the top of the range rather than a measurement there.
+  bool warned_curve_failure_{false};
+  bool warned_over_range_{false};
+};
+
+}  // namespace esphome::mq_gas_sensors
