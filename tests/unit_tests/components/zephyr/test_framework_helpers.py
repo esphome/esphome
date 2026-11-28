@@ -434,25 +434,56 @@ def test_fetch_gains_the_missing_project(workspace: Path, west: MagicMock) -> No
     west.rmdir.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    ("config", "stamp"),
-    [
-        pytest.param("", None, id="install_from_before_the_filter"),
-        pytest.param(None, "hal_a\nzephyr", id="project_already_fetched"),
-    ],
-)
 def test_fetch_with_the_project_only_checks_the_names(
-    workspace: Path, west: MagicMock, config: str | None, stamp: str | None
+    workspace: Path, west: MagicMock
 ) -> None:
-    """An install without the stamp or a filter has every project; the names
-    are still checked, so a mistake shows on every install alike."""
-    _mark_finished(workspace, stamp)
-    if config is not None:
-        _mark_initialized(workspace, config)
+    """The names are still checked, so a mistake shows on every install alike."""
+    _mark_finished(workspace, "hal_a\nzephyr")
 
     _fetch(workspace, {"zephyr", "hal_a"})
 
     assert _subcommands(west) == ["list"]
+
+
+def _mark_unfiltered(workspace: Path) -> None:
+    """A finished install from before the filter."""
+    _mark_finished(workspace, None)
+    _mark_initialized(workspace)
+
+
+def test_install_from_before_the_filter_gets_one(
+    workspace: Path, west: MagicMock
+) -> None:
+    """The filter and the stamp get the projects west keeps active, so none of
+    them goes inactive and nothing is fetched."""
+    _mark_unfiltered(workspace)
+    active = (True, "manifest\nhal_a\nzephyr\n", "")
+
+    with patch.object(framework_helpers, "run_command", return_value=active):
+        _fetch(workspace, {"zephyr", "hal_a"})
+
+    assert _subcommands(west) == ["config", "list"]
+    assert _project_filter(west) == "-hal_.*,+hal_a,+zephyr"
+    assert (workspace / ".west_projects").read_text(encoding="utf-8").split() == [
+        "hal_a",
+        "zephyr",
+    ]
+
+
+def test_failed_west_list_of_an_install_from_before_the_filter_raises(
+    workspace: Path, west: MagicMock
+) -> None:
+    """Nothing is stamped, so the next build tries again."""
+    _mark_unfiltered(workspace)
+
+    with (
+        patch.object(framework_helpers, "run_command", return_value=(False, "", "")),
+        pytest.raises(EsphomeError, match="Can't give the Test SDK v1.0.0 workspace"),
+    ):
+        _fetch(workspace, {"zephyr", "hal_a"})
+
+    west.assert_not_called()
+    assert not (workspace / ".west_projects").exists()
 
 
 @pytest.mark.parametrize(

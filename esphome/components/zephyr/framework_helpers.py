@@ -15,6 +15,7 @@ from esphome.framework_helpers import (
     create_venv,
     get_python_env_executable_path,
     rmdir,
+    run_command,
     run_command_ok,
 )
 
@@ -255,22 +256,53 @@ def _west_update(
     return True
 
 
-def _installed_west_projects(framework_path: Path) -> set[str] | None:
-    """The projects a finished install fetched; None when it has every project."""
+def _filter_unfiltered_workspace(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    version: str,
+) -> set[str]:
+    """Give an install from before the filter (ESPHome 2026.6 to 2026.9) a filter
+    and a stamp with the projects west keeps active, so none of them goes inactive."""
+    cmd = [str(env_python_path), "-m", "west", "list", "-f", "{name}"]
+    ok, stdout, _ = run_command(cmd, cwd=framework_path)
+    # The manifest repository is always active, so it stays out of the filter
+    active = set((stdout or "").split()) - {"manifest"}
+    if not ok or not _set_project_filter(
+        env_python_path, framework_path, source, active
+    ):
+        raise EsphomeError(
+            f"Can't give the {source.name} {version} workspace a project filter; "
+            "see west's output above"
+        )
+    (framework_path / _WEST_PROJECTS_FILE).write_text(
+        "\n".join(sorted(active)), encoding="utf-8"
+    )
+    return active
+
+
+def _installed_west_projects(
+    env_python_path: Path,
+    framework_path: Path,
+    source: FrameworkSource,
+    version: str,
+) -> set[str]:
+    """The projects a finished install fetched."""
     try:
         stamp = (framework_path / _WEST_PROJECTS_FILE).read_text(encoding="utf-8")
     except FileNotFoundError:
         pass
     else:
         return set(stamp.split())
-    # No stamp: an install from before the filter has every project, a filtered
-    # one that lost its stamp fetches again
+    # No stamp: a filtered install that lost it fetches again
     config = configparser.ConfigParser()
     if not config.read(framework_path / ".west" / "config", encoding="utf-8"):
         return set()
     if config.has_option("manifest", "project-filter"):
         return set()
-    return None
+    return _filter_unfiltered_workspace(
+        env_python_path, framework_path, source, version
+    )
 
 
 def _restore_project_filter(
@@ -303,13 +335,15 @@ def fetch_missing_west_projects(
     Projects already at their pinned revision keep their files, so a build
     running from them is left alone. Call under the workspace's install lock.
     """
-    installed = _installed_west_projects(framework_path)
+    installed = _installed_west_projects(
+        env_python_path, framework_path, source, version
+    )
     # A later release may add a required project, so check the stamp first
-    if projects <= source.required and (installed is None or projects <= installed):
+    if projects <= source.required and projects <= installed:
         return
     # Before the fetch, so an unknown name costs nothing on any install
     _check_west_projects(env_python_path, framework_path, source, version, projects)
-    if installed is None or not (missing := projects - installed):
+    if not (missing := projects - installed):
         return
     _LOGGER.info(
         "Fetching %s %s projects: %s",
