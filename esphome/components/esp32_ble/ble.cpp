@@ -11,10 +11,10 @@
 #include "esphome/components/switch/switch.h"
 #endif
 
+#include "esphome/components/watchdog/watchdog.h"
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #else
-#include "esphome/components/watchdog/watchdog.h"
 #include <cinttypes>
 extern "C" {
 #include <esp_hosted.h>
@@ -122,6 +122,10 @@ static void patch_terminate_until_acked() {
 // (5s of 5s RPCs), controller enable (5s) and the bluedroid host bring-up
 // over the hosted HCI transport.
 static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
+#else
+// With a link still open, esp_bluedroid_disable() blocks for 5 s while Bluedroid waits for it to close, then up
+// to 1.5 s more after it forces the link down; the default task watchdog is 5 s.
+static constexpr uint32_t DISMANTLE_WDT_TIMEOUT_MS = 10000;
 #endif
 
 // GAP event groups for deduplication across gap_event_handler and dispatch_gap_event_
@@ -466,6 +470,8 @@ bool ESP32BLE::ble_dismantle_() {
 #ifdef CONFIG_BT_CONTROLLER_DISABLED
   // Same 5 second RPCs as the bring-up path; see HOSTED_BT_WDT_TIMEOUT_MS
   watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
+#else
+  watchdog::WatchdogManager wdt(DISMANTLE_WDT_TIMEOUT_MS);
 #endif
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {

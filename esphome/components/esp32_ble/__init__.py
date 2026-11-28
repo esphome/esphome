@@ -42,7 +42,8 @@ import esphome.final_validate as fv
 from esphome.helpers import IS_WINDOWS
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["ble_device_base"]  # ble_uuid.h builds on the neutral ESPBTUUID
+# ble_uuid.h builds on the neutral ESPBTUUID; the task watchdog is raised while BLE is torn down
+AUTO_LOAD = ["ble_device_base", "watchdog"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
