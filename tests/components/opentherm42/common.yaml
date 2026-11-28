@@ -1,0 +1,226 @@
+api:
+wifi:
+  ap:
+    ssid: "Thermostat"
+    password: "MySecretThemostat"
+
+opentherm42:
+  id: my_opentherm42
+  in_pin: 4
+  out_pin: 5
+  # §4.4.1: some boilers answer "data not available" for a reading a few times in a row before giving a
+  # real value, for no obvious reason. This tolerates that many consecutive invalid responses to the same
+  # reading before actually marking its entity Unknown, instead of flipping back and forth. 0 (the
+  # default) marks it Unknown on the very first invalid response.
+  max_data_invalid: 3
+  # Selects how this device talks to the boiler on the wire:
+  #   esp32_rmt (the default on ESP32 boards that have it): uses a dedicated hardware peripheral, which
+  #     avoids interference from other components that briefly disable interrupts (e.g. Dallas
+  #     temperature sensors). It's newer than esp_isr below and less proven in real installations so far.
+  #   esp_isr: a software, interrupt-driven implementation. The only option on ESP8266 and on ESP32
+  #     boards without the RMT peripheral, and the longer-proven of the two elsewhere. Pick this
+  #     explicitly if your other components have already claimed every RMT channel on your board, or if
+  #     you have Dallas temperature sensors (or similar) and run into communication errors with esp32_rmt.
+  # Leave unset to have the best option for your board chosen automatically.
+  # datalink: esp32_rmt
+  # §5.2: how often this hub re-checks the boiler's mandatory status exchange. This always runs,
+  # regardless of which entities below are configured.
+  control_and_status_information_boiler_status_update_every: 1
+  control_and_status_information_status_ventilation_heat_recovery_update_every: 4
+  control_and_status_information_application_specific_fault_flags_update_every: 4
+  control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_every: 4
+  control_and_status_information_solar_storage_mode_and_status_update_every: 4
+
+switch:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 0 HB bit 0: CH enable [ CH is disabled, CH is enabled ]
+    control_and_status_information_master_status_ch_enable:
+      name: "Control and Status Information: Master status: CH enable"
+      restore_mode: RESTORE_DEFAULT_ON
+    # §5.3.1 Class 1, ID 0 HB bit 1: DHW enable [ DHW is disabled, DHW is enabled ]
+    control_and_status_information_master_status_dhw_enable:
+      name: "Control and Status Information: Master status: DHW enable"
+      restore_mode: RESTORE_DEFAULT_ON
+    # §5.3.1 Class 1, ID 0 HB bit 2: Cooling enable [ Cooling is disabled, Cooling is enabled ]
+    control_and_status_information_master_status_cooling_enable:
+      name: "Control and Status Information: Master status: Cooling enable"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 3: OTC active [ OTC not active, OTC is active ]
+    control_and_status_information_master_status_otc_active:
+      name: "Control and Status Information: Master status: OTC active"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 4: CH2 enable [ CH2 is disabled, CH2 is enabled ]
+    control_and_status_information_master_status_ch2_enable:
+      name: "Control and Status Information: Master status: CH2 enable"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 5: Summer/winter mode [ winter mode active, summer mode active ]
+    control_and_status_information_master_status_summer_winter_mode:
+      name: "Control and Status Information: Master status: Summer-winter mode"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 6: DHW blocking [ DHW unblocked, DHW blocked ]
+    control_and_status_information_master_status_dhw_blocking:
+      name: "Control and Status Information: Master status: DHW blocking"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 0: Ventilation enable [ disabled, enabled ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_ventilation_enable:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Ventilation enable"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 1: Bypass position (only in bypass manual mode) [ close bypass, open bypass ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_position:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Bypass position"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 2: Bypass mode [ manual, automatic ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_mode:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Bypass mode"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 3: Free ventilation mode [ not active, active ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_free_ventilation_mode:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Free ventilation mode"
+      restore_mode: RESTORE_DEFAULT_OFF
+
+number:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 1: Control Setpoint, i.e. the CH (central heating) water temperature setpoint
+    # (degrees C, 0..100). Only takes effect while CH enable (above) is on.
+    control_and_status_information_control_setpoint:
+      name: "Control and Status Information: Control Setpoint"
+      initial_value: 40.0
+      update_every: 1
+    # §5.3.1 Class 1, ID 8: Control Setpoint 2 (TsetCH2), the setpoint for a second CH circuit, on
+    # boilers that support one (degrees C, 0..100).
+    control_and_status_information_control_setpoint_2_tsetch2:
+      name: "Control and Status Information: Control Setpoint 2 (TsetCH2)"
+      initial_value: 40.0
+      update_every: 2
+    # §5.3.1 Class 1, ID 71 LB: Control Setpoint ventilation/heat-recovery -- relative ventilation
+    # position (0-100%): 0% is the minimum set ventilation, 100% is the maximum set ventilation.
+    control_and_status_information_control_setpoint_ventilation_heat_recovery:
+      name: "Control and Status Information: Control Setpoint ventilation-heat-recovery"
+      initial_value: 0
+      update_every: 2
+
+binary_sensor:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 0 LB bit 0: fault indication [ no fault, fault ]
+    control_and_status_information_boiler_status_fault_indication:
+      name: "Control and Status Information: Boiler status: Fault indication"
+    # §5.3.1 Class 1, ID 0 LB bit 1: CH mode [ CH not active, CH active ]
+    control_and_status_information_boiler_status_ch_mode:
+      name: "Control and Status Information: Boiler status: CH mode"
+    # §5.3.1 Class 1, ID 0 LB bit 2: DHW mode [ DHW not active, DHW active ]
+    control_and_status_information_boiler_status_dhw_mode:
+      name: "Control and Status Information: Boiler status: DHW mode"
+    # §5.3.1 Class 1, ID 0 LB bit 3: Flame status [ flame off, flame on ]
+    control_and_status_information_boiler_status_flame_status:
+      name: "Control and Status Information: Boiler status: Flame status"
+    # §5.3.1 Class 1, ID 0 LB bit 4: Cooling status [ cooling mode not active, cooling mode active ]
+    control_and_status_information_boiler_status_cooling_status:
+      name: "Control and Status Information: Boiler status: Cooling status"
+    # §5.3.1 Class 1, ID 0 LB bit 5: CH2 mode [ CH2 not active, CH2 active ]
+    control_and_status_information_boiler_status_ch2_mode:
+      name: "Control and Status Information: Boiler status: CH2 mode"
+    # §5.3.1 Class 1, ID 0 LB bit 6: diagnostic/service indication [no diagnostic/service, diagnostic/service event]
+    control_and_status_information_boiler_status_diagnostic_service_indication:
+      name: "Control and Status Information: Boiler status: Diagnostic-service indication"
+    # §5.3.1 Class 1, ID 0 LB bit 7: Electricity production [off, on]
+    control_and_status_information_boiler_status_electricity_production:
+      name: "Control and Status Information: Boiler status: Electricity production"
+    # §5.3.1 Class 1, ID 70 LB bit 0: Fault indication [ no fault, fault ]
+    control_and_status_information_status_ventilation_heat_recovery_fault_indication:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Fault indication"
+    # §5.3.1 Class 1, ID 70 LB bit 1: Ventilation mode [ not active, active ]
+    control_and_status_information_status_ventilation_heat_recovery_ventilation_mode:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Ventilation mode"
+    # §5.3.1 Class 1, ID 70 LB bit 2: Bypass status [ closed, open ]
+    control_and_status_information_status_ventilation_heat_recovery_bypass_status:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Bypass status"
+    # §5.3.1 Class 1, ID 70 LB bit 3: Bypass automatic status [ manual, automatic ]
+    control_and_status_information_status_ventilation_heat_recovery_bypass_automatic_status:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Bypass automatic status"
+    # §5.3.1 Class 1, ID 70 LB bit 4: Free ventilation status [ not active, active ]
+    control_and_status_information_status_ventilation_heat_recovery_free_ventilation_status:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Free ventilation status"
+    # §5.3.1 Class 1, ID 70 LB bit 6: Diagnostic indication [ no diagnostics, diagnostic event ]
+    control_and_status_information_status_ventilation_heat_recovery_diagnostic_indication:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Diagnostic indication"
+    # §5.3.1 Class 1, ID 5 HB bit 0: Service request [ service not req'd, service required ]
+    control_and_status_information_application_specific_fault_flags_service_request:
+      name: "Control and Status Information: Application-specific fault flags: Service request"
+    # §5.3.1 Class 1, ID 5 HB bit 1: Lockout-reset [ remote reset disabled, remote reset enabled ]
+    control_and_status_information_application_specific_fault_flags_lockout_reset:
+      name: "Control and Status Information: Application-specific fault flags: Lockout-reset"
+    # §5.3.1 Class 1, ID 5 HB bit 2: Low water press [ no WP fault, water pressure fault ]
+    control_and_status_information_application_specific_fault_flags_low_water_press:
+      name: "Control and Status Information: Application-specific fault flags: Low water press"
+    # §5.3.1 Class 1, ID 5 HB bit 3: Gas/flame fault [ no G/F fault, gas/flame fault ]
+    control_and_status_information_application_specific_fault_flags_gas_flame_fault:
+      name: "Control and Status Information: Application-specific fault flags: Gas-flame fault"
+    # §5.3.1 Class 1, ID 5 HB bit 4: Air press fault [ no AP fault, air pressure fault ]
+    control_and_status_information_application_specific_fault_flags_air_press_fault:
+      name: "Control and Status Information: Application-specific fault flags: Air press fault"
+    # §5.3.1 Class 1, ID 5 HB bit 5: Water over-temp [ no OvT fault, over-temperature fault ]
+    control_and_status_information_application_specific_fault_flags_water_over_temp:
+      name: "Control and Status Information: Application-specific fault flags: Water over-temp"
+    # §5.3.1 Class 1, ID 72 HB bit 0: Service request, ventilation/heat-recovery
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_service_request:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Service request"
+    # §5.3.1 Class 1, ID 72 HB bit 1: Exhaust fan fault [ no fault, fault ]
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_exhaust_fan_fault:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Exhaust fan fault"
+    # §5.3.1 Class 1, ID 72 HB bit 2: Inlet fan fault [ no fault, fault ]
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_inlet_fan_fault:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Inlet fan fault"
+    # §5.3.1 Class 1, ID 72 HB bit 3: Frost protection [ not active, active ]
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_frost_protection:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Frost protection"
+    # §5.3.1 Class 1, ID 101 LB bit 0: fault indication
+    control_and_status_information_solar_storage_mode_and_status_fault_indication:
+      name: "Control and Status Information: Solar Storage mode and status: Fault indication"
+    # Turns on if any reading failed or was rejected during the most recent full round of polling the
+    # boiler. Not a real OpenTherm reading -- a convenience flag for noticing communication problems at a
+    # glance. Always active, so there's no update_every option for it.
+    sweep_had_errors:
+      name: "Sweep had errors"
+
+select:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 101 HB bits 2,1,0: Solar mode as chosen here by this controller. The boiler
+    # doesn't confirm or report back a value for this one -- see the read-only Solar mode text sensor
+    # above for what the boiler itself reports.
+    control_and_status_information_master_solar_storage_status_solar_mode:
+      name: "Control and Status Information: Master Solar Storage status: Solar mode"
+      initial_option: "Off"
+
+sensor:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 5 LB: OEM fault code (0..255) -- a boiler-manufacturer-specific fault/error
+    # code. Check your boiler's documentation for what each value means.
+    control_and_status_information_oem_fault_code:
+      name: "Control and Status Information: OEM fault code"
+    # §5.3.1 Class 1, ID 72 LB: OEM fault code for ventilation/heat-recovery (0..255).
+    control_and_status_information_oem_fault_code_ventilation_heat_recovery:
+      name: "Control and Status Information: OEM fault code ventilation-heat-recovery"
+    # §5.3.1 Class 1, ID 102 LB: OEM fault code for Solar Storage (0..255).
+    control_and_status_information_oem_fault_code_solar_storage:
+      name: "Control and Status Information: OEM fault code Solar Storage"
+      update_every: 5
+    # §5.3.1 Class 1, ID 115: OEM diagnostic code (0..65535) -- a boiler-manufacturer-specific
+    # diagnostic/service code.
+    control_and_status_information_oem_diagnostic_code:
+      name: "Control and Status Information: OEM diagnostic code"
+      update_every: 5
+    # §5.3.1 Class 1, ID 73: OEM diagnostic code for ventilation/heat-recovery (0..65535).
+    control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery:
+      name: "Control and Status Information: OEM diagnostic code ventilation-heat-recovery"
+      update_every: 5
+    # How long it took to refresh every configured reading at least once (one full round of polling).
+    # Not a real OpenTherm reading -- useful for noticing if your boiler is responding slowly, or if
+    # you've configured enough readings that a full round is taking a long time. Always active, so there's
+    # no update_every option for it.
+    sweep_duration:
+      name: "Sweep duration"
+    # How long the most recent single poll took. This device polls one reading at a time rather than all
+    # at once, so this will normally be much shorter than Sweep duration above -- it's mainly useful for
+    # spotting a single slow or stuck exchange with the boiler.
+    pass_duration:
+      name: "Pass duration"
