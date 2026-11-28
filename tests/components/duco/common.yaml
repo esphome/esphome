@@ -83,3 +83,9 @@ number:
       - name: Comfort Temperature Zone 2
         address: 0x14
         update_interval: 10s
+    co2_setpoint:
+      - name: CO2 Setpoint
+        address: 3
+    rh_setpoint:
+      - name: RH Setpoint
+        address: 2

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 
 from aioesphomeapi import (
+    EntityCategory,
     EntityState,
     NumberInfo,
     SelectInfo,
@@ -44,7 +45,7 @@ async def test_uart_mock_duco(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """All entities read the box; mode and comfort temperature changes are written."""
+    """Test Duco entity reads and mode, comfort temperature and setpoint writes."""
     waiter = LineWaiter()
     states: dict[int, EntityState] = {}
 
@@ -73,6 +74,12 @@ async def test_uart_mock_duco(
         comfort_zone_2 = require_entity(
             entities, "comfort_temperature_zone_2", NumberInfo
         )
+        co2_setpoint = require_entity(entities, "co2_setpoint", NumberInfo)
+        rh_setpoint = require_entity(entities, "rh_setpoint", NumberInfo)
+
+        assert co2_setpoint.entity_category == EntityCategory.CONFIG
+        assert rh_setpoint.entity_category == EntityCategory.CONFIG
+
         serial = require_entity(entities, "serial_number", TextSensorInfo, exact=True)
         node_serial = require_entity(entities, "serial_number_node_2", TextSensorInfo)
         invalid_serial = require_entity(
@@ -109,6 +116,11 @@ async def test_uart_mock_duco(
         await wait_for(
             lambda: state_of(comfort_zone_2) == pytest.approx(21.2), "zone 2 comfort"
         )
+        for entity, value in ((co2_setpoint, 800), (rh_setpoint, 70)):
+            await wait_for(
+                lambda e=entity, v=value: state_of(e) == pytest.approx(v),
+                f"{entity.object_id} {value}",
+            )
         await wait_for(lambda: state_of(serial) == "SN1234", "serial number")
         await wait_for(lambda: state_of(node_serial) == "SN2234", "node serial number")
         await wait_for(lambda: state_of(version) == "1.2.3.4", "version")
@@ -136,6 +148,19 @@ async def test_uart_mock_duco(
         assert state_of(invalid_serial) is None
         assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")
+
+        for entity, value, node, item in (
+            (co2_setpoint, 900, 3, 3),
+            (rh_setpoint, 75, 2, 4),
+        ):
+            client.number_command(entity.key, value)
+            await waiter.wait_for(
+                f"Setpoint write node {node} item {item} value {value}"
+            )
+            await wait_for(
+                lambda e=entity, v=value: state_of(e) == pytest.approx(v),
+                f"new {entity.object_id} {value}",
+            )
 
         client.select_command(mode.key, "CNT2")
         await waiter.wait_for("Mode set to 09")

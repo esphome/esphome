@@ -15,10 +15,11 @@
 namespace esphome::duco {
 
 // Function codes of the requests; the box answers a request with function + 2
-static constexpr uint8_t FUNCTION_NODE = 0x0c;       // discovery, status and mode of a node
-static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data (sensors, serial number)
-static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
-static constexpr uint8_t FUNCTION_ERRORS = 0x30;     // the active errors of a node
+static constexpr uint8_t FUNCTION_NODE = 0x0c;          // discovery, status and mode of a node
+static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;     // a block of a node's data (sensors, serial number)
+static constexpr uint8_t FUNCTION_NODE_SETTING = 0x18;  // read or write a setting of a node, such as a setpoint
+static constexpr uint8_t FUNCTION_PARAMETER = 0x24;     // read or write a box parameter, set the clock
+static constexpr uint8_t FUNCTION_ERRORS = 0x30;        // the active errors of a node
 
 /// Network type of a virtual node, such as a box sensor (BS) built into the box.
 static constexpr uint8_t NETWORK_TYPE_VIRTUAL = 3;
