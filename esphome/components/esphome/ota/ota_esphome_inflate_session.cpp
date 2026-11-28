@@ -65,16 +65,15 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   };
 
   int res;
+  session.flushed = 0;
   do {
-    // The ring index wrapped to 0 exactly when the window filled
-    session.dest = session.window;
-    session.dest_limit = session.window + OTA_INFLATE_WINDOW_SIZE;
-    session.flushed = 0;
     res = ota_inflate(&session);
     // A stored block keeps emitting zeros after a failed read, hence eof
     if (res < 0 || session.eof)
       break;
     session.error = this->inflate_flush_(session);
+    // A full window is all in flash; the next call starts it over
+    session.flushed = 0;
   } while (res != OTA_INFLATE_DONE && session.error == ota::OTA_RESPONSE_OK);
 
   // Transport and flash failures are logged where they happen
