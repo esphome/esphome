@@ -30,6 +30,9 @@ const uint8_t MADCTL_CMD = 0x36;
 const uint8_t INVERT_OFF = 0x20;
 const uint8_t INVERT_ON = 0x21;
 const uint8_t DISPLAY_ON = 0x29;
+const uint8_t BRIGHTNESS_CMD = 0x51;
+static constexpr uint32_t BRIGHTNESS_RETRY_ID = 0;
+static constexpr uint32_t BRIGHTNESS_RETRY_MS = 1000;
 const uint8_t CMD2_BKSEL = 0xFF;
 const uint8_t DELAY_FLAG = 0xFF;
 const uint8_t MADCTL_BGR = 0x08;
@@ -65,6 +68,9 @@ class MipiDsi final : public display::Display {
   void set_model(const char *model) { this->model_ = model; }
   void set_lane_bit_rate(float lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
+  /// Set the panel brightness with the MIPI DCS command; before setup the value is stored and sent after the init
+  /// sequence.
+  void set_brightness(uint8_t brightness);
 
   void smark_failed(const LogString *message, esp_err_t err);
 
@@ -80,6 +86,7 @@ class MipiDsi final : public display::Display {
   void dump_config() override;
 
  protected:
+  void send_brightness_();
   void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                             bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
@@ -136,6 +143,7 @@ class MipiDsi final : public display::Display {
   bool big_endian_{false};
   bool updating_{false};
   uint8_t pixel_mode_{};
+  optional<uint8_t> brightness_{};
 
   esp_lcd_panel_handle_t handle_{};
   esp_lcd_dsi_bus_handle_t bus_handle_{};
