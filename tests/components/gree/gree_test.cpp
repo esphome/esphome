@@ -508,6 +508,34 @@ TEST(GreeClimateCodec, OtherModelsTransmitStateRegression) {
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAG, source), (GreeState{0x69, 0x06, 0x60, 0x50, 0x01, 0x40, 0x00, 0xD0}));
 }
 
+TEST(GreeClimateCodec, DefaultVanePositionsAreSentWhileNotSwinging) {
+  GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_SWING_OFF,
+                         climate::CLIMATE_PRESET_NONE};
+  source.horizontal_default = GREE_HDIR_MRIGHT;
+  source.vertical_default = GREE_VDIR_MDOWN;
+
+  EXPECT_EQ(GreeClimateCodec::encode(GREE_YAN, source), (GreeState{0x29, 0x06, 0x00, 0x50, 0x05, 0x20, 0x00, 0xB0}));
+  // YAC puts both vane defaults in byte 4 and the vertical one in byte 5; the swing flag stays off.
+  const GreeState yac = GreeClimateCodec::encode(GREE_YAC, source);
+  EXPECT_EQ(yac[4], 0x55);
+  EXPECT_EQ(yac[5], 0x25);
+  EXPECT_EQ(yac[0] & 0x40, 0);
+  EXPECT_EQ(GreeProtocol::calculate_checksum(yac), yac[GREE_STATE_FRAME_SIZE - 1]);
+
+  // A swinging axis overrides its default; the other axis keeps it.
+  source.swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  const GreeState swinging = GreeClimateCodec::encode(GREE_YAC, source);
+  EXPECT_EQ(swinging[4], 0x51);
+  EXPECT_EQ(swinging[5], 0x20);
+  EXPECT_EQ(swinging[0] & 0x40, 0x40);
+
+  // Auto defaults reproduce the previous frames.
+  source.swing_mode = climate::CLIMATE_SWING_OFF;
+  source.horizontal_default = GREE_HDIR_AUTO;
+  source.vertical_default = GREE_VDIR_AUTO;
+  EXPECT_EQ(GreeClimateCodec::encode(GREE_YAC, source)[4], 0x00);
+}
+
 TEST(GreeClimateCodec, LegacyModelsClimateStateRoundTrip) {
   struct LegacyCase {
     Model model;

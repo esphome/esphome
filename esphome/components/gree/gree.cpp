@@ -233,8 +233,8 @@ bool GreeProtocol::valid_checksum(const GreeState &state) {
 
 GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   GreeState state{0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
-  const uint8_t vertical_swing = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
-  const uint8_t horizontal_swing = GreeClimateCodec::encode_horizontal_swing(data.swing_mode);
+  const uint8_t vertical_swing = GreeClimateCodec::encode_vertical_swing(data.swing_mode, data.vertical_default);
+  const uint8_t horizontal_swing = GreeClimateCodec::encode_horizontal_swing(data.swing_mode, data.horizontal_default);
 
   state[0] =
       GreeClimateCodec::encode_fan_mode(model, data.fan_mode) | GreeClimateCodec::encode_operation_mode(data.mode);
@@ -272,8 +272,11 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
 
   if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
     state[6] = 0x20;
-    if (vertical_swing == GREE_VDIR_SWING)
+    if (vertical_swing == GREE_VDIR_SWING) {
       state[0] |= GREE_SWING_AUTO_MASK;
+    } else if (vertical_swing != GREE_VDIR_AUTO) {
+      state[5] = (state[5] & 0xF0) | vertical_swing;
+    }
   }
 
   if ((model == GREE_YX1FF || model == GREE_YAC1FB9) && data.preset == climate::CLIMATE_PRESET_SLEEP)
@@ -331,23 +334,23 @@ uint8_t GreeClimateCodec::encode_fan_mode(Model model, climate::ClimateFanMode f
   return GREE_FAN_AUTO;
 }
 
-uint8_t GreeClimateCodec::encode_horizontal_swing(climate::ClimateSwingMode swing_mode) {
+uint8_t GreeClimateCodec::encode_horizontal_swing(climate::ClimateSwingMode swing_mode, uint8_t default_direction) {
   switch (swing_mode) {
     case climate::CLIMATE_SWING_HORIZONTAL:
     case climate::CLIMATE_SWING_BOTH:
       return GREE_HDIR_SWING;
     default:
-      return GREE_HDIR_MANUAL;
+      return default_direction;
   }
 }
 
-uint8_t GreeClimateCodec::encode_vertical_swing(climate::ClimateSwingMode swing_mode) {
+uint8_t GreeClimateCodec::encode_vertical_swing(climate::ClimateSwingMode swing_mode, uint8_t default_direction) {
   switch (swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
     case climate::CLIMATE_SWING_BOTH:
       return GREE_VDIR_SWING;
     default:
-      return GREE_VDIR_MANUAL;
+      return default_direction;
   }
 }
 
@@ -565,6 +568,8 @@ void GreeClimate::transmit_state() {
       .swing_mode = this->swing_mode,
       .preset = this->preset.value_or(climate::CLIMATE_PRESET_NONE),
       .feature_bits = this->feature_bits_,
+      .horizontal_default = static_cast<uint8_t>(this->default_horizontal_direction_),
+      .vertical_default = static_cast<uint8_t>(this->default_vertical_direction_),
   };
 #ifdef USE_GREE_FAHRENHEIT
   if (this->use_fahrenheit_) {
