@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
     DEVICE_CLASS_MOISTURE,
+    ICON_COUNTER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_EMPTY,
@@ -17,6 +18,8 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
+
+ICON_SINE_WAVE = "mdi:sine-wave"
 
 smt100_ns = cg.esphome_ns.namespace("smt100")
 SMT100 = smt100_ns.class_("SMT100Component", cg.PollingComponent, uart.UARTDevice)
@@ -28,6 +31,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(SMT100),
             cv.Optional(CONF_COUNTS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -36,6 +40,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_PERMITTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_SINE_WAVE,
                 accuracy_decimals=2,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),

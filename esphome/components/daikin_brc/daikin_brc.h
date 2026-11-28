@@ -70,7 +70,6 @@ class DaikinBrcClimate final : public climate_ir::ClimateIR {
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   uint8_t alt_mode_();
-  uint8_t operation_mode_();
   uint8_t fan_speed_swing_();
   uint8_t temperature_();
   // Handle received IR Buffer

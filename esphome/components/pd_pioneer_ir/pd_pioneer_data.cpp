@@ -55,7 +55,7 @@ void ControlData::set_mode(ClimateMode mode) {
 }
 
 optional<ClimateMode> ControlData::get_mode(const PDPioneerData &even) {
-  if (even[5] == PWR_OFF)
+  if ((even[5] & ~DISPLAY_OFF) == PWR_OFF)
     return ClimateMode::CLIMATE_MODE_OFF;
   switch (even[6]) {
     case MODE_COOL:

@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+import re
 
 from esphome import automation, preferences
 import esphome.codegen as cg
@@ -83,7 +84,7 @@ from esphome.const import (
     Framework,
     PlatformFramework,
 )
-from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, HexInt, Lambda, coroutine_with_priority
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import sanitize, snake_case
@@ -97,6 +98,10 @@ from esphome.types import ConfigType, TemplateArgsType
 DEPENDENCIES = ["network"]
 DOMAIN = "mqtt"
 
+_SHA1_FINGERPRINT_RE = re.compile(
+    r"(?:[0-9a-fA-F]{40}|(?:[0-9a-fA-F]{2}:){19}[0-9a-fA-F]{2})"
+)
+
 
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
@@ -105,6 +110,7 @@ def AUTO_LOAD():
 
 
 CONF_TLS = "tls"
+CONF_SSL_FINGERPRINTS = "ssl_fingerprints"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 CONF_PERSIST_SUBSCRIPTIONS = "persist_subscriptions"
@@ -362,7 +368,8 @@ def _derive_tls(config: ConfigType) -> ConfigType:
             "transport 'ws' is unencrypted; remove the TLS options "
             "or switch to transport 'wss'"
         )
-    config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
+    tls = config.get(CONF_TLS) or CONF_SSL_FINGERPRINTS in config
+    config.setdefault(CONF_PORT, 8883 if tls else 1883)
     return config
 
 
@@ -377,6 +384,18 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     # MQTT needs 1 socket for the broker connection
     socket.consume_sockets(1, "mqtt")(config)
     return config
+
+
+def normalize_fingerprint(fingerprint: str) -> str:
+    """Return the SHA1 fingerprint as 40 lowercase hex digits without colons."""
+    return fingerprint.strip().replace(":", "").lower()
+
+
+def validate_fingerprint(value: str) -> str:
+    """Check the SHA1 fingerprint, returning it unchanged so a !secret round-trips."""
+    if _SHA1_FINGERPRINT_RE.fullmatch(value.strip()) is None:
+        raise cv.Invalid("fingerprint must be a SHA1 hash with 40 hexadecimal digits")
+    return value
 
 
 # The parsed JSON document is freed once the automation returns
@@ -459,6 +478,15 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
+            ),
+            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
+                cv.only_on_esp8266,
+                cv.ensure_list(cv.string, validate_fingerprint),
+                cv.Length(
+                    min=1,
+                    max=1,
+                    msg="ESP8266 MQTT TLS supports exactly one fingerprint",
+                ),
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -657,9 +685,12 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # Add required libraries for ESP8266 and LibreTiny
-    if CORE.is_esp8266 or CORE.is_libretiny:
+    if CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+    elif CORE.is_esp8266:
+        # https://github.com/esphome-libs/async-mqtt-client, with BearSSL support
+        cg.add_library("esphome/AsyncMqttClient-esphome", "2.3.0")
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
@@ -781,6 +812,15 @@ async def to_code(config):
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
+
+    if fingerprints := config.get(CONF_SSL_FINGERPRINTS):
+        cg.extern_progmem_array(
+            "esphome::mqtt::SSL_FINGERPRINT",
+            cg.uint8,
+            [HexInt(b) for b in bytes.fromhex(normalize_fingerprint(fingerprints[0]))],
+        )
+        cg.add(var.set_ssl_fingerprint())
+        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 
     # The client queues subscriptions until it connects, so they can be made at construction.
     for conf in config.get(CONF_ON_MESSAGE, []):

@@ -107,50 +107,29 @@ static ParsedTimezone make_australia_sydney() {
 // Helper function tests
 // ============================================================================
 
-TEST(PosixTz, JulianDay60IsMarch1) {
-  // J60 is always March 1 (J format ignores leap years by design)
-  int month, day;
-  internal::julian_to_month_day(60, month, day);
-  EXPECT_EQ(month, 3);
-  EXPECT_EQ(day, 1);
-}
-
-TEST(PosixTz, DayOfYear59DiffersByLeap) {
-  int month, day;
-  // Day 59 in leap year is Feb 29
-  internal::day_of_year_to_month_day(59, 2024, month, day);
-  EXPECT_EQ(month, 2);
-  EXPECT_EQ(day, 29);
-  // Day 59 in non-leap year is March 1
-  internal::day_of_year_to_month_day(59, 2025, month, day);
-  EXPECT_EQ(month, 3);
-  EXPECT_EQ(day, 1);
-}
-
-TEST(PosixTz, DayOfWeekKnownDates) {
-  // January 1, 1970 was Thursday (4)
-  EXPECT_EQ(internal::day_of_week(1970, 1, 1), 4);
-  // January 1, 2000 was Saturday (6)
-  EXPECT_EQ(internal::day_of_week(2000, 1, 1), 6);
-  // March 8, 2026 is Sunday (0) - US DST start
-  EXPECT_EQ(internal::day_of_week(2026, 3, 8), 0);
-}
-
-TEST(PosixTz, DayOfWeekMatchesGmtime) {
-  // Every month start and a mid-month day, in years spread over 0 to 65535
+TEST(PosixTz, MonthWeekDayRuleMatchesGmtime) {
+  // Every week (1-4 = nth, 5 = last) of every weekday in every month, in years spread over 0 to 65535
   for (int year = 0; year <= 65535; year += (year < 2200 ? 13 : 997)) {
     for (int month = 1; month <= 12; month++) {
-      for (int day : {1, 17}) {
-        time_t epoch = static_cast<time_t>(internal::days_to_year_start(year)) * 86400;
-        for (int m = 1; m < month; m++)
-          epoch += static_cast<time_t>(internal::days_in_month(year, m)) * 86400;
-        epoch += static_cast<time_t>(day - 1) * 86400;
-        struct tm want{};
-        ASSERT_NE(::gmtime_r(&epoch, &want), nullptr);
-        ASSERT_EQ(want.tm_year + 1900, year);
-        ASSERT_EQ(want.tm_mon + 1, month);
-        ASSERT_EQ(want.tm_mday, day);
-        EXPECT_EQ(internal::day_of_week(year, month, day), want.tm_wday) << year << "-" << month << "-" << day;
+      for (int week = 1; week <= 5; week++) {
+        for (int dow = 0; dow < 7; dow++) {
+          DSTRule rule{};
+          rule.type = DSTRuleType::MONTH_WEEK_DAY;
+          rule.month = month;
+          rule.week = week;
+          rule.day_of_week = dow;
+          time_t epoch = internal::calculate_dst_transition(year, rule, 0);
+          struct tm got{};
+          ASSERT_NE(::gmtime_r(&epoch, &got), nullptr);
+          ASSERT_EQ(got.tm_year + 1900, year);
+          ASSERT_EQ(got.tm_mon + 1, month);
+          EXPECT_EQ(got.tm_wday, dow) << year << "-" << month;
+          if (week < 5) {
+            EXPECT_EQ((got.tm_mday - 1) / 7 + 1, week) << year << "-" << month;
+          } else {
+            EXPECT_GT(got.tm_mday + 7, internal::days_in_month(year, month)) << year << "-" << month;
+          }
+        }
       }
     }
   }
@@ -212,61 +191,39 @@ TEST(PosixTz, LeapYearDetection) {
   EXPECT_FALSE(internal::is_leap_year(2025));  // Not divisible by 4
 }
 
-TEST(PosixTz, JulianDay1IsJan1) {
-  int month, day;
-  internal::julian_to_month_day(1, month, day);
-  EXPECT_EQ(month, 1);
-  EXPECT_EQ(day, 1);
+// {rule type, rule day, year, expected month, expected day}
+using DayRuleCase = std::tuple<DSTRuleType, int, int, int, int>;
+
+class DayRuleTransition : public ::testing::TestWithParam<DayRuleCase> {};
+
+TEST_P(DayRuleTransition, LandsOnDate) {
+  auto [type, rule_day, year, month, day] = GetParam();
+  DSTRule rule{};
+  rule.type = type;
+  rule.day = rule_day;
+  rule.time_seconds = 2 * 3600;
+  EXPECT_EQ(internal::calculate_dst_transition(year, rule, 3600), make_utc(year, month, day, 3));
 }
 
-TEST(PosixTz, JulianDay31IsJan31) {
-  int month, day;
-  internal::julian_to_month_day(31, month, day);
-  EXPECT_EQ(month, 1);
-  EXPECT_EQ(day, 31);
-}
-
-TEST(PosixTz, JulianDay32IsFeb1) {
-  int month, day;
-  internal::julian_to_month_day(32, month, day);
-  EXPECT_EQ(month, 2);
-  EXPECT_EQ(day, 1);
-}
-
-TEST(PosixTz, JulianDay59IsFeb28) {
-  int month, day;
-  internal::julian_to_month_day(59, month, day);
-  EXPECT_EQ(month, 2);
-  EXPECT_EQ(day, 28);
-}
-
-TEST(PosixTz, JulianDay365IsDec31) {
-  int month, day;
-  internal::julian_to_month_day(365, month, day);
-  EXPECT_EQ(month, 12);
-  EXPECT_EQ(day, 31);
-}
-
-TEST(PosixTz, DayOfYear0IsJan1) {
-  int month, day;
-  internal::day_of_year_to_month_day(0, 2025, month, day);
-  EXPECT_EQ(month, 1);
-  EXPECT_EQ(day, 1);
-}
-
-TEST(PosixTz, PlainDay365LeapYear) {
-  int month, day;
-  internal::day_of_year_to_month_day(365, 2024, month, day);
-  EXPECT_EQ(month, 12);
-  EXPECT_EQ(day, 31);
-}
-
-TEST(PosixTz, PlainDay364NonLeapYear) {
-  int month, day;
-  internal::day_of_year_to_month_day(364, 2025, month, day);
-  EXPECT_EQ(month, 12);
-  EXPECT_EQ(day, 31);
-}
+INSTANTIATE_TEST_SUITE_P(PosixTz, DayRuleTransition,
+                         ::testing::Values(
+                             // J format never counts Feb 29, so J60 is March 1 in every year
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 1, 2025, 1, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 31, 2025, 1, 31},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 32, 2025, 2, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 59, 2024, 2, 28},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 60, 2024, 3, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 60, 2025, 3, 1},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 365, 2024, 12, 31},
+                             DayRuleCase{DSTRuleType::JULIAN_NO_LEAP, 365, 2025, 12, 31},
+                             // Plain format counts Feb 29 and starts at 0
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 0, 2025, 1, 1},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 59, 2024, 2, 29},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 59, 2025, 3, 1},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 365, 2024, 12, 31},
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 364, 2025, 12, 31},
+                             // Day 365 in a non-leap year stays on Dec 31
+                             DayRuleCase{DSTRuleType::DAY_OF_YEAR, 365, 2025, 12, 31}));
 
 // ============================================================================
 // DST transition calculation tests

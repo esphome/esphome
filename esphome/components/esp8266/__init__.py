@@ -520,6 +520,10 @@ async def to_code(config: ConfigType) -> None:
     for symbol in ("dhcp_cleanup", "dhcp_release"):
         cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
+    # Wrap the core's BearSSL stack-smash handler so the linker can drop its message
+    # string from DRAM (44 bytes). See stack_thunk_stubs.cpp for implementation.
+    cg.add_build_flag("-Wl,--wrap=stack_thunk_fatal_smashing")
+
     # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
     # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
     # implementation in the Arduino ESP8266 core.

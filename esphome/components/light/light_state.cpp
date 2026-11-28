@@ -178,11 +178,7 @@ void LightState::apply_effect_and_transformer_() {
         this->publish_state();
       }
 #endif
-      if (this->target_state_reached_listeners_) {
-        for (auto *listener : *this->target_state_reached_listeners_) {
-          listener->on_light_target_state_reached();
-        }
-      }
+      this->target_state_reached_callback_.call();
 
       // Disable loop if idle (no transformer and no effect)
       this->disable_loop_if_idle_();
@@ -213,21 +209,14 @@ bool LightState::set_external_state(const LightColorValues &values) {
   this->remote_values = values;
   // Reached at once, as after an instant call, and told before the publish like there: an
   // automation run by the publish may change the light again, and its own call reports that
-  if (this->target_state_reached_listeners_) {
-    for (auto *listener : *this->target_state_reached_listeners_) {
-      listener->on_light_target_state_reached();
-    }
-  }
+  this->target_state_reached_callback_.call();
   this->publish_state();
   return true;
 }
 
-void LightState::publish_state() {
-  if (this->remote_values_listeners_) {
-    for (auto *listener : *this->remote_values_listeners_) {
-      listener->on_light_remote_values_update();
-    }
-  }
+// Flattened so the listener loop runs inline here, not in the call_all copy the other lists share
+__attribute__((flatten)) void LightState::publish_state() {
+  this->remote_values_callback_.call();
 #if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_light_update(this);
 #endif
@@ -243,16 +232,10 @@ StringRef LightState::get_effect_name() {
 }
 
 void LightState::add_remote_values_listener(LightRemoteValuesListener *listener) {
-  if (!this->remote_values_listeners_) {
-    this->remote_values_listeners_ = make_unique<std::vector<LightRemoteValuesListener *>>();
-  }
-  this->remote_values_listeners_->push_back(listener);
+  this->remote_values_callback_.add([listener]() { listener->on_light_remote_values_update(); });
 }
 void LightState::add_target_state_reached_listener(LightTargetStateReachedListener *listener) {
-  if (!this->target_state_reached_listeners_) {
-    this->target_state_reached_listeners_ = make_unique<std::vector<LightTargetStateReachedListener *>>();
-  }
-  this->target_state_reached_listeners_->push_back(listener);
+  this->target_state_reached_callback_.add([listener]() { listener->on_light_target_state_reached(); });
 }
 
 void LightState::current_values_as_brightness(float *brightness) {

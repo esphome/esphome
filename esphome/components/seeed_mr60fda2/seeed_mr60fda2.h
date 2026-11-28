@@ -29,11 +29,13 @@ static constexpr uint8_t FRAME_BUF_MAX_SIZE = DATA_BUF_MAX_SIZE + LEN_TO_DATA_FR
 
 static constexpr uint8_t FRAME_HEADER_BUFFER = 0x01;
 
-/// 01, id (2), data length (2, BE), type (2), header checksum, data, data checksum; 0 for a bad header
-struct TinyFrameLength {
-  static constexpr size_t KNOWN_AT = LEN_TO_HEAD_CKSUM;
-  static size_t get(const uint8_t *buf);
-};
+// 01, id (2), data length (2, BE), type (2), header checksum, data, data checksum
+using PayloadLength = PayloadLengthU16BE<LengthField{.offset = 3, .payload_at = LEN_TO_HEAD_CKSUM, .trailer = 1}>;
+/// Whether the type is known, a parameter reply is long enough and the header checksum is right
+bool header_valid(const uint8_t *frame);
+using Frame =
+    FrameFormat<FrameHeader<FRAME_HEADER_BUFFER>, PayloadLength,
+                CheckFirstBytes<PayloadLength::PAYLOAD_AT, header_valid>, FrameMinLength<LEN_TO_DATA_FRAME + 1>>;
 static const uint16_t IS_FALL_TYPE_BUFFER = 0x0E02;
 static const uint16_t PEOPLE_EXIST_TYPE_BUFFER = 0x0F09;
 static const uint16_t RESULT_INSTALL_HEIGHT = 0x0E04;
@@ -59,9 +61,7 @@ class MR60FDA2Component final : public Component,
 
  protected:
   uint32_t last_rx_{0};
-  LengthFrameReader<FRAME_BUF_MAX_SIZE, FrameFormat<FrameHeader<FRAME_HEADER_BUFFER>, TinyFrameLength,
-                                                    FrameMinLength<LEN_TO_DATA_FRAME + 1>>>
-      reader_;
+  LengthFrameReader<FRAME_BUF_MAX_SIZE, Frame> reader_;
 
   void process_frame_(const uint8_t *frame);
 

@@ -38,6 +38,11 @@ on_coolix:
     - logger.log:
         format: "on_coolix: %lu %lu"
         args: ["(unsigned long) x.first", "(unsigned long) x.second"]
+on_denon:
+  then:
+    - logger.log:
+        format: "on_denon: %u %u"
+        args: ["x.address", "x.command"]
 on_dish:
   then:
     - logger.log:

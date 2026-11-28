@@ -82,3 +82,12 @@ def test_sequence_rejects_several_automations(
     DEBUG_SCHEMA({"sequence": [block]})
     with pytest.raises(cv.Invalid, match="only a single automation"):
         DEBUG_SCHEMA({"sequence": [block, block]})
+
+
+def test_bytes_copied_only_for_deferring_sequence(main_cpp: str) -> None:
+    """A synchronous sequence reads the debugger's buffer; one that defers keeps its own copy."""
+    body = function_body(main_cpp, callback_function(main_cpp, "uart_uartdebugger_id"))
+    assert "const std::vector<uint8_t> & bytes" in body
+    assert (
+        "Automation<uart::UARTDirection, std::vector<uint8_t>, StringRef>" in main_cpp
+    )

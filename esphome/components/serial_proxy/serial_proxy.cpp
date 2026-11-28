@@ -252,8 +252,7 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
   uart_comp->set_parity(PARITY_MAP[parity]);
   uart_comp->set_flow_control(uart_flow_control);
 
-  // load_settings() is available on ESP8266 and ESP32 platforms
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#ifdef USE_UART_LOAD_SETTINGS
   uart_comp->load_settings(true);
 #endif
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
