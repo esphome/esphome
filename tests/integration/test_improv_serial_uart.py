@@ -11,8 +11,9 @@ Covered:
   3. Get Wi-Fi Networks returns deduplicated scan results and a terminator
   4. Wi-Fi Settings provisions: saves credentials and reports PROVISIONED
 
-Between 1 and 2, a 255 byte payload, malformed input and a frame cut off past
-the timeout must each leave the parser ready for the next request.
+Between 1 and 2, a 255 byte payload, malformed input, two frames back to back
+without a newline and a frame cut off past the timeout must each leave the
+parser ready for the next request.
 """
 
 from __future__ import annotations
@@ -118,6 +119,14 @@ async def test_improv_serial_uart(
         await client.execute_service(inject, {"payload": bad + get_state})
         await waiter.wait(error, msg="no error frame for a bad checksum")
         await waiter.wait(reply, msg="no reply after a bad checksum")
+
+        # Two requests back to back without a newline both get a reply
+        bare = get_state[:-1]
+        want = waiter.count(authorized) + 2
+        await client.execute_service(inject, {"payload": bare + bare})
+        await waiter.wait_count(
+            authorized, want, msg="back to back frames did not both get a reply"
+        )
 
         # A frame cut off for longer than the 100 ms timeout is discarded
         await client.execute_service(inject, {"payload": get_state[:8]})
