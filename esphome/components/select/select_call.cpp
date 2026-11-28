@@ -21,7 +21,7 @@ SelectCall &SelectCall::select_first() { return this->with_operation(SELECT_OP_F
 SelectCall &SelectCall::select_last() { return this->with_operation(SELECT_OP_LAST); }
 
 SelectCall &SelectCall::with_operation(SelectOperation operation) {
-  this->operation_ = static_cast<uint8_t>(operation);
+  this->operation_ = operation;
   return *this;
 }
 
