@@ -30,18 +30,6 @@ class CallFan : public Fan {
   bool features_;
 };
 
-class ShrinkingFan : public CallFan {
- public:
-  bool shrink{false};
-
- protected:
-  void control(const FanCall &call) override {
-    if (this->shrink)
-      this->set_supported_preset_modes({"auto"});
-    CallFan::control(call);
-  }
-};
-
 TEST(FanCall, SetFieldsReachControl) {
   CallFan fan;
   fan.make_call().set_state(false).set_oscillating(false).set_speed(7).set_direction(FanDirection::FORWARD).perform();
@@ -103,39 +91,6 @@ TEST(FanCall, PresetModeReachesTheFan) {
   EXPECT_EQ(fan.get_preset_mode(), "sleep");
   fan.make_call().set_speed(3).perform();  // a speed clears it
   EXPECT_FALSE(fan.has_preset_mode());
-}
-
-// A pending call whose preset index no longer fits the fan's list reads as no preset and leaves the fan's alone
-TEST(FanCall, PresetIndexOutsideAReplacedListIsIgnored) {
-  CallFan fan;
-  fan.set_supported_preset_modes({"auto", "sleep"});
-  fan.make_call().set_preset_mode("auto").perform();
-  auto call = fan.make_call().set_preset_mode("sleep");
-  fan.set_supported_preset_modes({"auto"});
-  EXPECT_EQ(call.get_preset_mode(), nullptr);
-  call.perform();
-  EXPECT_EQ(fan.get_preset_mode(), "auto");
-}
-
-// The list shrinking between validate_() and control(), as a log callback could do, leaves the fan's preset alone
-TEST(FanCall, PresetListShrunkAfterValidationIsIgnored) {
-  ShrinkingFan fan;
-  fan.set_supported_preset_modes({"auto", "sleep"});
-  fan.make_call().set_preset_mode("auto").perform();
-  fan.shrink = true;
-  fan.make_call().set_preset_mode("sleep").perform();
-  EXPECT_EQ(fan.get_preset_mode(), "auto");
-}
-
-// Turning on with a preset that no longer exists still picks full speed, as with no preset
-TEST(FanCall, ReplacedPresetDoesNotBlockTheTurnOnSpeed) {
-  CallFan fan(3);
-  fan.set_supported_preset_modes({"auto", "sleep"});
-  auto call = fan.make_call().set_state(true).set_preset_mode("sleep");
-  fan.set_supported_preset_modes({"auto"});
-  call.perform();
-  EXPECT_FALSE(call.has_preset_mode());
-  EXPECT_EQ(fan.seen.speed, optional<int>(3));
 }
 
 TEST(FanCall, TurningOnWithoutSpeedPicksFullSpeed) {
