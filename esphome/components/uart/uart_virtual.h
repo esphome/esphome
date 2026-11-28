@@ -36,7 +36,7 @@ template<size_t RX_BUFFER_SIZE> class VirtualUARTComponent : public UARTComponen
     return true;
   }
   size_t available() override { return this->rx_.size(); }
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_ZEPHYR)
   using UARTComponent::load_settings;
   // Nothing is clocked, so there is nothing to apply.
   void load_settings(bool dump_config) override {}

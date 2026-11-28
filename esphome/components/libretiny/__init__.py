@@ -39,6 +39,7 @@ from .const import (
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
     CONF_UART_PORT,
+    CUSTOM_VERSIONS,
     FAMILIES,
     FAMILY_BK7231N,
     FAMILY_BK7231T,
@@ -613,7 +614,9 @@ async def component_to_code(config):
     # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)
     # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
-        cg.add_platformio_option("custom_versions.freertos", "8.2.3")
+        cg.add_platformio_option(
+            "custom_versions.freertos", CUSTOM_VERSIONS["freertos"]
+        )
         # millis(), micros() and delays on the system timer and CPU cycles (see rtl8710b_micros.c)
         for func in RTL8710B_TIME_WRAPS:
             cg.add_build_flag(f"-Wl,--wrap={func}")
@@ -623,7 +626,9 @@ async def component_to_code(config):
     # (esphome#19429) and the no WiFi reboot loop is gone (esphome#18268). A
     # platformio_options custom_versions.beken-bdk entry in the config still wins.
     if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7231T):
-        cg.add_platformio_option("custom_versions.beken-bdk", "3.0.78")
+        cg.add_platformio_option(
+            "custom_versions.beken-bdk", CUSTOM_VERSIONS["beken-bdk"]
+        )
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")

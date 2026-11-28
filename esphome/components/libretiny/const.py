@@ -19,6 +19,10 @@ CONF_SDK_SILENT = "sdk_silent"
 CONF_GPIO_RECOVER = "gpio_recover"
 CONF_UART_PORT = "uart_port"
 
+# Package versions ESPHome selects itself through ``custom_versions.<name>``
+# in place of the ones the LibreTiny platform lists
+CUSTOM_VERSIONS = {"freertos": "8.2.3", "beken-bdk": "3.0.78"}
+
 LT_LOGLEVELS = [
     "VERBOSE",
     "TRACE",

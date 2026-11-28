@@ -38,10 +38,14 @@ TEST_F(LocalPair, HeartbeatReachesTheOtherNode) {
   b.add_on_heartbeat_callback([&seen](uint8_t node_id, NMTState) { seen.push_back(node_id); });
   a.add_on_heartbeat_callback([&seen](uint8_t node_id, NMTState) { seen.push_back(0x80 | node_id); });
   start();
-  // a's boot-up message: on the bus once, received by b, not by a itself
+  // a's boot-up message: on the bus once, received by b in its loop(), not by a itself
   a.loop();
   EXPECT_EQ(bus.count(0x710), 1u);
+  EXPECT_TRUE(seen.empty());
+  b.loop();  // b also sends its own boot-up message, which a takes in its next loop()
   EXPECT_EQ(seen, std::vector<uint8_t>{0x10});
+  a.loop();
+  EXPECT_EQ(seen, (std::vector<uint8_t>{0x10, 0x80 | 0x11}));
 }
 
 TEST_F(LocalPair, FrameListenerAndSendFrame) {
@@ -54,12 +58,16 @@ TEST_F(LocalPair, FrameListenerAndSendFrame) {
   const uint8_t data[] = {1, 2, 3};
   ASSERT_TRUE(a.send_frame(0x123, data, sizeof(data)));
   EXPECT_EQ(bus.count(0x123), 1u);
+  EXPECT_TRUE(on_b.frames.empty());  // queued for b's loop()
+  b.loop();
   EXPECT_EQ(on_b.frames, (std::vector<std::vector<uint8_t>>{{1, 2, 3}}));
+  a.loop();
   EXPECT_TRUE(on_a.frames.empty());
 
   // refused by the platform: not sent, so not delivered either
   bus.busy = true;
   EXPECT_FALSE(a.send_frame(0x123, data, sizeof(data)));
+  b.loop();
   EXPECT_EQ(on_b.frames.size(), 1u);
 }
 
@@ -186,12 +194,199 @@ TEST_F(LocalPair, QueuedFrameDeliveredWhenSent) {
   // the boot-up message is refused and stays in CANopenNode's TX buffer
   bus.busy = true;
   a.loop();
+  b.loop();
   EXPECT_TRUE(seen.empty());
   // resent by the next processing: delivered once, when it's on the bus
   bus.busy = false;
   a.loop();
+  b.loop();
   EXPECT_EQ(bus.count(0x710), 1u);
   EXPECT_EQ(seen, std::vector<uint8_t>{0x10});
+}
+
+#ifdef USE_CANOPEN_NMT_MASTER
+// CANopenNode keeps one received frame per object: two NMT commands a sends before b's loop() both take effect, in
+// order, because b takes them from its queue one at a time.
+TEST_F(LocalPair, BackToBackFramesToOneObjectAreKept) {
+  start();
+  a.loop();
+  b.loop();
+  ASSERT_EQ(b.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+  std::vector<NMTState> states;
+  b.add_on_nmt_state_callback([&states](NMTState state) { states.push_back(state); });
+  ASSERT_TRUE(a.send_nmt(0x11, NMTCommand::NMT_COMMAND_STOP));
+  ASSERT_TRUE(a.send_nmt(0x11, NMTCommand::NMT_COMMAND_START));
+  b.loop();
+  EXPECT_EQ(states, (std::vector<NMTState>{NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_OPERATIONAL}));
+}
+
+// A frame from the bus comes after the frames other local nodes sent before it, which wait in the queue.
+TEST_F(LocalPair, LocalFramesBeforeALaterBusFrame) {
+  start();
+  a.loop();
+  b.loop();
+  ASSERT_EQ(b.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+  std::vector<NMTState> states;
+  b.add_on_nmt_state_callback([&states](NMTState state) { states.push_back(state); });
+  ASSERT_TRUE(a.send_nmt(0x11, NMTCommand::NMT_COMMAND_STOP));  // queued for b's loop()
+  bus.queue(0x000, {0x01, 0x11});                               // then another node starts b
+  bus.loop();                                                   // canbus calls a's callback, then b's
+  b.loop();
+  EXPECT_EQ(states, (std::vector<NMTState>{NMTState::NMT_STATE_STOPPED, NMTState::NMT_STATE_OPERATIONAL}));
+  EXPECT_EQ(b.get_nmt_state(), NMTState::NMT_STATE_OPERATIONAL);
+}
+#endif
+
+// A frame a node sends while it handles another reaches the third node after that one, as on a bus.
+TEST(CanopenLocal, FramesKeepBusOrder) {
+  FakeCanbus bus;
+  TestHub a(&bus, 0x10), b(&bus, 0x11), c(&bus, 0x12);
+  a.set_next_local(&b);
+  b.set_next_local(&c);
+  c.set_next_local(&a);
+  struct Relay {
+    TestHub *hub;
+    static void on_frame(void *context, uint32_t, const uint8_t *, uint8_t) {
+      const uint8_t data[] = {2};
+      static_cast<Relay *>(context)->hub->send_frame(0x124, data, 1);
+    }
+  } relay{&b};
+  std::vector<uint32_t> seen_by_c;
+  struct Ids {
+    std::vector<uint32_t> *ids;
+    static void on_frame(void *context, uint32_t can_id, const uint8_t *, uint8_t) {
+      static_cast<Ids *>(context)->ids->push_back(can_id);
+    }
+  } ids{&seen_by_c};
+  FrameListener on_b{0x123, 0x7FF, Relay::on_frame, &relay};
+  FrameListener on_c{0x120, 0x7F0, Ids::on_frame, &ids};
+  b.add_frame_listener(on_b);
+  c.add_frame_listener(on_c);
+  a.setup();
+  b.setup();
+  c.setup();
+  const uint8_t data[] = {1};
+  ASSERT_TRUE(a.send_frame(0x123, data, 1));
+  b.loop();  // b relays 0x124 while it handles 0x123
+  c.loop();
+  EXPECT_EQ(seen_by_c, (std::vector<uint32_t>{0x123, 0x124}));
+}
+
+// A frame a node sends in reply to a bus frame reaches the other local node after that bus frame, as on a bus (the
+// canbus calls the local nodes' callbacks one after another, the replying node's first).
+TEST_F(LocalPair, ReplyAfterTheBusFrame) {
+  struct Relay {
+    TestHub *hub;
+    static void on_frame(void *context, uint32_t, const uint8_t *, uint8_t) {
+      const uint8_t data[] = {2};
+      static_cast<Relay *>(context)->hub->send_frame(0x124, data, 1);
+    }
+  } relay{&a};
+  std::vector<uint32_t> seen_by_b;
+  struct Ids {
+    std::vector<uint32_t> *ids;
+    static void on_frame(void *context, uint32_t can_id, const uint8_t *, uint8_t) {
+      static_cast<Ids *>(context)->ids->push_back(can_id);
+    }
+  } ids{&seen_by_b};
+  FrameListener on_a{0x123, 0x7FF, Relay::on_frame, &relay};
+  FrameListener on_b{0x120, 0x7F0, Ids::on_frame, &ids};
+  a.add_frame_listener(on_a);
+  b.add_frame_listener(on_b);
+  start();
+  bus.queue(0x123, {1});
+  bus.loop();
+  EXPECT_EQ(seen_by_b, (std::vector<uint32_t>{0x123, 0x124}));
+  // the next bus frame is handled again (nothing left staged)
+  bus.queue(0x125, {3});
+  bus.loop();
+  EXPECT_EQ(seen_by_b, (std::vector<uint32_t>{0x123, 0x124, 0x125}));
+}
+
+// The same for a reply to an older local frame the first node takes before the bus frame: it's sent after the bus frame
+// was received, so the other node gets it after that frame.
+TEST_F(LocalPair, ReplyToAnOlderLocalFrameAfterTheBusFrame) {
+  struct Relay {
+    TestHub *hub;
+    static void on_frame(void *context, uint32_t, const uint8_t *, uint8_t) {
+      const uint8_t data[] = {2};
+      static_cast<Relay *>(context)->hub->send_frame(0x124, data, 1);
+    }
+  } relay{&a};
+  std::vector<uint32_t> seen_by_b;
+  struct Ids {
+    std::vector<uint32_t> *ids;
+    static void on_frame(void *context, uint32_t can_id, const uint8_t *, uint8_t) {
+      static_cast<Ids *>(context)->ids->push_back(can_id);
+    }
+  } ids{&seen_by_b};
+  FrameListener on_a{0x123, 0x7FF, Relay::on_frame, &relay};
+  FrameListener on_b{0x120, 0x7F0, Ids::on_frame, &ids};
+  a.add_frame_listener(on_a);
+  b.add_frame_listener(on_b);
+  start();
+  const uint8_t data[] = {1};
+  ASSERT_TRUE(b.send_frame(0x123, data, 1));  // waits in a's queue
+  bus.queue(0x125, {3});
+  bus.loop();  // a takes 0x123 (and replies 0x124), then 0x125
+  EXPECT_EQ(seen_by_b, (std::vector<uint32_t>{0x125, 0x124}));
+}
+
+// A bus frame staged for a node whose queue is full is lost for that node only, and not passed on twice.
+TEST_F(LocalPair, BusFrameOnAFullQueue) {
+  Frames on_a, on_b;
+  FrameListener listener_a{0x100, 0x700, Frames::on_frame, &on_a};
+  FrameListener listener_b{0x100, 0x700, Frames::on_frame, &on_b};
+  a.add_frame_listener(listener_a);
+  b.add_frame_listener(listener_b);
+  start();
+  for (uint8_t i = 0; i < 16; i++)
+    ASSERT_TRUE(a.send_frame(0x123, &i, 1));  // b's queue full
+  bus.queue(0x150, {50});
+  bus.loop();
+  ASSERT_EQ(on_a.frames.size(), 1u);  // a handled the bus frame once (b didn't stage it back)
+  EXPECT_EQ(on_a.frames.back(), std::vector<uint8_t>{50});
+  ASSERT_EQ(on_b.frames.size(), 16u);  // b took its queue, the bus frame was lost
+  EXPECT_EQ(on_b.frames.back(), std::vector<uint8_t>{15});
+  bus.queue(0x151, {51});
+  bus.loop();
+  ASSERT_EQ(on_a.frames.size(), 2u);
+  ASSERT_EQ(on_b.frames.size(), 17u);
+  EXPECT_EQ(on_b.frames.back(), std::vector<uint8_t>{51});
+}
+
+// The local nodes get the bytes the bus got, even when the sender's buffer changes during the send (a log handler).
+TEST_F(LocalPair, LocalCopyIsTheSentFrame) {
+  Frames on_b;
+  FrameListener listener_b{0x123, 0x7FF, Frames::on_frame, &on_b};
+  b.add_frame_listener(listener_b);
+  start();
+  uint8_t buf[] = {1};
+  bus.on_send = [&buf](uint32_t) { buf[0] = 9; };
+  ASSERT_TRUE(a.send_frame(0x123, buf, 1));
+  bus.on_send = nullptr;
+  b.loop();
+  ASSERT_EQ(on_b.frames.size(), 1u);
+  EXPECT_EQ(on_b.frames.back(), std::vector<uint8_t>{1});
+  EXPECT_EQ(bus.find(0x123)->data, std::vector<uint8_t>{1});
+}
+
+// The queue holds 16 frames; a frame that finds it full is lost, and the queue goes on afterwards.
+TEST_F(LocalPair, FullQueueLosesFrames) {
+  Frames on_b;
+  FrameListener listener_b{0x123, 0x7FF, Frames::on_frame, &on_b};
+  b.add_frame_listener(listener_b);
+  start();
+  for (uint8_t i = 0; i < 17; i++)
+    ASSERT_TRUE(a.send_frame(0x123, &i, 1));
+  b.loop();
+  ASSERT_EQ(on_b.frames.size(), 16u);
+  EXPECT_EQ(on_b.frames.back(), std::vector<uint8_t>{15});
+  const uint8_t more = 99;
+  ASSERT_TRUE(a.send_frame(0x123, &more, 1));
+  b.loop();
+  ASSERT_EQ(on_b.frames.size(), 17u);
+  EXPECT_EQ(on_b.frames.back(), std::vector<uint8_t>{99});
 }
 
 TEST(CanopenLocal, NoOtherNodes) {

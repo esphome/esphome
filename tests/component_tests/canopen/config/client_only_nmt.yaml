@@ -1,0 +1,24 @@
+esphome:
+  name: canopen-test
+  on_boot:
+    then:
+      - canopen.nmt:
+          node_id: 0x20
+          command: start
+
+esp32:
+  board: esp32dev
+
+logger:
+
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    can_id: 0
+    bit_rate: 125kbps
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+
+canopen:
+  - id: canopen_client
+    canbus_id: can_bus
