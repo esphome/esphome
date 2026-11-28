@@ -178,7 +178,7 @@ TEST_F(SMT100Test, PublishesTheAnswer) {
 TEST_F(SMT100Test, CollectsAnAnswerThatArrivesInPieces) {
   this->request_();
   // NUL bytes, as read while the sensor powers up, and an empty line are not part of the answer
-  this->uart_.receive(std::string("\0\0\r\n12202,17.", 12));
+  this->uart_.receive(std::string("\0\0", 2) + "\r\n12202,17.");
   this->loop_after_(ANSWER_TIME_MS);
   EXPECT_EQ(this->readings_, 0);
   this->uart_.receive("02,30.59,22.945,5.10\r");
@@ -188,6 +188,7 @@ TEST_F(SMT100Test, CollectsAnAnswerThatArrivesInPieces) {
   this->loop_after_(16);
 
   EXPECT_EQ(this->readings_, 1);
+  EXPECT_FLOAT_EQ(this->permittivity_.state, 17.02f);
   EXPECT_FLOAT_EQ(this->moisture_.state, 30.59f);
 }
 
