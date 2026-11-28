@@ -2,7 +2,10 @@
 #include <gtest/gtest.h>
 #include <array>
 #include <functional>
+#include <string>
+#include <utility>
 #include <vector>
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/sx127x/sx127x.h"
 #include "esphome/core/application.h"
 
@@ -123,6 +126,9 @@ class RadioHardware {
     }
   }
 
+  // Bytes of a long packet arrive in the FIFO; its unlimited length format has no PayloadReady
+  void feed(const std::vector<uint8_t> &data) { this->rx_fifo.insert(this->rx_fifo.end(), data.begin(), data.end()); }
+
   bool dio0_level() const {
     if (this->lora()) {
       const uint8_t mapping = this->regs[REG_DIO_MAPPING1] & DIO0_MAPPING_11;
@@ -133,16 +139,18 @@ class RadioHardware {
 
   SX127x radio;
   spi::SPIComponent spi;
-  TestPin cs, dio0, rst, clk, mosi, miso;
+  TestPin cs, dio0, dio1, rst, clk, mosi, miso;
   std::array<uint8_t, 128> regs{};
   std::vector<uint8_t> rx_packet{0x11, 0x22, 0x33};
   std::vector<uint8_t> packet{0x11, 0x22, 0x33};
-  std::vector<uint8_t> fifo;  // bytes written since the last send
+  std::vector<uint8_t> fifo;     // bytes written since the last send
+  std::vector<uint8_t> rx_fifo;  // bytes fed and not yet read
   std::vector<std::vector<uint8_t>> sent;
   uint8_t irq{0};
   uint8_t version{0x12};
   bool payload_ready{false};
   bool packet_sent{false};
+  bool overrun{false};
   // The chip completes a send as soon as it enters TX
   bool auto_complete{true};
   // Writes to the mode register are ignored, so set_mode_() times out
@@ -155,7 +163,9 @@ class RadioHardware {
     this->irq = 0;
     this->payload_ready = false;
     this->packet_sent = false;
+    this->overrun = false;
     this->fifo.clear();
+    this->rx_fifo.clear();
   }
 
   uint8_t reply_byte_() {
@@ -167,6 +177,11 @@ class RadioHardware {
       return 0;
     }
     if (addr == REG_FIFO) {
+      if (!this->rx_fifo.empty()) {
+        const uint8_t value = this->rx_fifo.front();
+        this->rx_fifo.erase(this->rx_fifo.begin());
+        return value;
+      }
       if (this->fsk_length_pending_) {
         this->fsk_length_pending_ = false;
         return this->rx_packet.size();
@@ -185,7 +200,9 @@ class RadioHardware {
       this->finish_pending_send_();
     }
     if (addr == REG_IRQ_FLAGS2) {
-      return (this->payload_ready ? PAYLOAD_READY : 0) | (this->packet_sent ? PACKET_SENT : 0);
+      return (this->payload_ready ? PAYLOAD_READY : 0) | (this->packet_sent ? PACKET_SENT : 0) |
+             (this->overrun ? FIFO_OVERRUN : 0) | (this->rx_fifo.size() > FIFO_THRESHOLD_HALF ? FIFO_LEVEL : 0) |
+             (this->rx_fifo.empty() ? FIFO_EMPTY : 0);
     }
     if (this->lora()) {
       switch (addr) {
@@ -231,6 +248,12 @@ class RadioHardware {
     }
     if (addr == REG_FIFO_ADDR_PTR) {
       this->rx_pos_ = 0;
+    }
+    // Writing FifoOverrun clears the flag and the FIFO
+    if (addr == REG_IRQ_FLAGS2 && (value & FIFO_OVERRUN) != 0 && !this->lora()) {
+      this->overrun = false;
+      this->rx_fifo.clear();
+      return;
     }
     this->regs[addr] = value;
   }
@@ -319,6 +342,29 @@ class TransmitListener : public SX127xTransmitListener {
   }
   std::vector<SX127xError> results;
   std::function<void(SX127xError)> on_complete;
+};
+
+// Runs a callback for each warning logged, as a logger on_message automation would
+class LogCallback {
+ public:
+  LogCallback() : previous_(logger::global_logger) {
+    this->logger_.pre_setup();
+    this->logger_.set_log_level(ESPHOME_LOG_LEVEL_WARN);
+    this->logger_.add_log_callback(this,
+                                   [](void *instance, uint8_t level, const char *tag, const char *message, size_t len) {
+                                     auto *self = static_cast<LogCallback *>(instance);
+                                     if (self->callback_) {
+                                       self->callback_(std::string(message, len));
+                                     }
+                                   });
+  }
+  ~LogCallback() { logger::global_logger = this->previous_; }
+  void set_callback(std::function<void(const std::string &)> callback) { this->callback_ = std::move(callback); }
+
+ private:
+  std::function<void(const std::string &)> callback_;
+  logger::Logger *previous_;
+  logger::Logger logger_{0};
 };
 
 // Runs the scheduler for ms milliseconds of real time, as the main loop would

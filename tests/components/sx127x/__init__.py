@@ -11,6 +11,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         request_log_listener()
         # The tests build a software SPI bus in C++, which no configured bus asks for
         cg.add_define("USE_SPI_SOFTWARE")
+        # No config selects long packets, so the long packet tests build their code this way
+        cg.add_define("USE_SX127X_LONG_PACKET")
 
     manifest.multi_conf = False
     manifest.to_code = to_code

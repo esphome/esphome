@@ -62,6 +62,8 @@ enum class RadioState : uint8_t {
   RADIO_STATE_HOLDING_RX,
 };
 
+using payload_length_func_t = int32_t (*)(const std::vector<uint8_t> &);
+
 class SX127xListener {
  public:
   // Called from loop(); the packet is only valid until this returns
@@ -86,6 +88,9 @@ class SX127x final : public Component,
   void set_crc_enable(bool crc_enable) { this->crc_enable_ = crc_enable; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio0_pin(GPIOPin *dio0_pin) { this->dio0_pin_ = dio0_pin; }
+#ifdef USE_SX127X_LONG_PACKET
+  void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
+#endif
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   // Ignored unless the radio is idle
   void set_mode_rx();
@@ -97,7 +102,10 @@ class SX127x final : public Component,
   void set_pa_power(uint8_t power) { this->pa_power_ = power; }
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
   void set_packet_mode(bool packet_mode) { this->packet_mode_ = packet_mode; }
-  void set_payload_length(uint8_t payload_length) { this->payload_length_ = payload_length; }
+  void set_payload_length(uint32_t payload_length);
+#ifdef USE_SX127X_LONG_PACKET
+  void set_payload_length_lambda(payload_length_func_t func) { this->payload_length_func_ = func; }
+#endif
   void set_preamble_errors(uint8_t preamble_errors) { this->preamble_errors_ = preamble_errors; }
   void set_preamble_polarity(uint8_t preamble_polarity) { this->preamble_polarity_ = preamble_polarity; }
   void set_preamble_size(uint16_t preamble_size) { this->preamble_size_ = preamble_size; }
@@ -138,6 +146,10 @@ class SX127x final : public Component,
     uint8_t modulation{0};
     bool packet_mode{false};
     bool rx_start{false};
+#ifdef USE_SX127X_LONG_PACKET
+    uint32_t bitrate{0};
+    payload_length_func_t payload_length_func{nullptr};
+#endif
   };
   struct TxOperation {
     SX127xTransmitListener *listener{nullptr};
@@ -169,15 +181,31 @@ class SX127x final : public Component,
   void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
   void write_register16_(uint8_t msb_reg, uint16_t value);
   void read_fifo_(std::vector<uint8_t> &packet);
+  void read_fifo_(uint8_t *data, size_t length);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
+  void dispatch_packet_(float rssi, float snr);
   uint8_t read_register_(uint8_t reg);
+
+  // Packet handling
+#ifdef USE_SX127X_LONG_PACKET
+  bool is_long_packet_mode_() const;
+  void reset_long_packet_rx_();
+  void restart_long_packet_rx_();
+  void loop_long_packet_();
+  void handle_long_packet_(uint8_t irq2);
+  void finish_long_packet_();
+#endif
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX127xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
   AppliedSettings applied_;
   TxOperation tx_;
+#ifdef USE_SX127X_LONG_PACKET
+  payload_length_func_t payload_length_func_{nullptr};
+  GPIOPin *dio1_pin_{nullptr};
+#endif
   GPIOPin *dio0_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   SX127xBw afc_bandwidth_{SX127X_BW_50_0};
@@ -185,9 +213,16 @@ class SX127x final : public Component,
   uint32_t bitrate_;
   uint32_t deviation_;
   uint32_t frequency_;
-  uint32_t payload_length_;
+  uint32_t payload_length_{0};
+#ifdef USE_SX127X_LONG_PACKET
+  size_t packet_expected_length_{0};
+  uint32_t packet_last_byte_ms_{0};
+#endif
   uint16_t preamble_size_;
   uint8_t coding_rate_;
+#ifdef USE_SX127X_LONG_PACKET
+  uint8_t long_packet_rssi_{0};  // raw RSSI register
+#endif
   uint8_t modulation_;
   uint8_t pa_pin_;
   uint8_t pa_power_;

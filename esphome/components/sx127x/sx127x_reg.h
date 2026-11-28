@@ -46,6 +46,7 @@ enum SX127xReg : uint8_t {
   REG_PAYLOAD_LENGTH_LSB = 0x32,
   REG_FIFO_THRESH = 0x35,
   REG_IMAGE_CAL = 0x3B,
+  REG_RSSI_VALUE_FSK = 0x11,
   REG_IRQ_FLAGS_1 = 0x3E,
   REG_IRQ_FLAGS2 = 0x3F,
   // LoRa registers
@@ -134,6 +135,7 @@ enum SX127xDioMapping1 : uint8_t {
   DIO0_MAPPING_01 = 0x40,
   DIO0_MAPPING_10 = 0x80,
   DIO0_MAPPING_11 = 0xC0,
+  DIO1_MAPPING_FIFO_EMPTY = 0x10,
 };
 
 enum SX127xRxConfig : uint8_t {
@@ -236,6 +238,8 @@ enum SX127xPacketConfig2 : uint8_t {
 enum SX127xFifoThresh : uint8_t {
   TX_START_FIFO_EMPTY = 0x80,
   TX_START_FIFO_LEVEL = 0x00,
+  // Half the 64-byte FIFO; only used to size drain bursts during long-packet RX.
+  FIFO_THRESHOLD_HALF = 0x20,
 };
 
 enum SX127xImageCal : uint8_t {
@@ -274,8 +278,14 @@ enum SX127xModemStat : uint8_t {
 };
 
 enum SX127xIrqFlags2 : uint8_t {
+  FIFO_FULL = 0x80,
+  FIFO_EMPTY = 0x40,
+  FIFO_LEVEL = 0x20,
+  FIFO_OVERRUN = 0x10,
   PACKET_SENT = 0x08,
   PAYLOAD_READY = 0x04,
+  CRC_OK = 0x02,
+  LOW_BAT = 0x01,
 };
 
 enum SX127xModemCfg1 : uint8_t {
