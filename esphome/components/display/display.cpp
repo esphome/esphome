@@ -894,23 +894,30 @@ void Display::test_card() {
   }
   this->rectangle(shift_x, shift_y, image_w, image_h, Color(127, 127, 0));
 
-  uint16_t shift_r = shift_x + line_w - (8 * 3);
-  uint16_t shift_g = shift_x + image_c - (8 * 3);
-  uint16_t shift_b = shift_x + image_w - line_w - (8 * 3);
-  shift_y = h / 2 - (8 * 3);
-  for (auto i = 0; i < 8; i++) {
-    uint8_t ftr = progmem_read_byte(&TESTCARD_FONT[0][i]);
-    uint8_t ftg = progmem_read_byte(&TESTCARD_FONT[1][i]);
-    uint8_t ftb = progmem_read_byte(&TESTCARD_FONT[2][i]);
-    for (auto k = 0; k < 8; k++) {
-      if ((ftr & (1 << k)) != 0) {
-        this->filled_rectangle(shift_r + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
-      }
-      if ((ftg & (1 << k)) != 0) {
-        this->filled_rectangle(shift_g + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
-      }
-      if ((ftb & (1 << k)) != 0) {
-        this->filled_rectangle(shift_b + (i * 6), shift_y + (k * 6), 6, 6, COLOR_OFF);
+  int min_size = std::max(std::min(line_w * 2, image_h), 0);
+  uint8_t font_size = std::min(6, min_size / 8);
+
+  if (font_size > 0) {
+    uint8_t font_offset = 4 * font_size;
+
+    uint16_t shift_r = shift_x + line_w - font_offset;
+    uint16_t shift_g = shift_x + image_c - font_offset;
+    uint16_t shift_b = shift_x + image_w - line_w - font_offset;
+    shift_y = h / 2 - font_offset;
+    for (auto i = 0; i < 8; i++) {
+      uint8_t ftr = progmem_read_byte(&TESTCARD_FONT[0][i]);
+      uint8_t ftg = progmem_read_byte(&TESTCARD_FONT[1][i]);
+      uint8_t ftb = progmem_read_byte(&TESTCARD_FONT[2][i]);
+      for (auto k = 0; k < 8; k++) {
+        if ((ftr & (1 << k)) != 0) {
+          this->filled_rectangle(shift_r + (i * font_size), shift_y + (k * font_size), font_size, font_size, COLOR_OFF);
+        }
+        if ((ftg & (1 << k)) != 0) {
+          this->filled_rectangle(shift_g + (i * font_size), shift_y + (k * font_size), font_size, font_size, COLOR_OFF);
+        }
+        if ((ftb & (1 << k)) != 0) {
+          this->filled_rectangle(shift_b + (i * font_size), shift_y + (k * font_size), font_size, font_size, COLOR_OFF);
+        }
       }
     }
   }
