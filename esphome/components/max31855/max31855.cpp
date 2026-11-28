@@ -1,4 +1,9 @@
 #include "max31855.h"
+#ifdef USE_MAX31855_LINEARIZE
+#include "max31855_linearize.h"
+
+#include <cmath>
+#endif
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -25,6 +30,9 @@ void MAX31855Sensor::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Thermocouple", this);
+#ifdef USE_MAX31855_LINEARIZE
+  ESP_LOGCONFIG(TAG, "  Type K linearization: %s", YESNO(this->linearize_));
+#endif
   if (this->reference_sensor_) {
     LOG_SENSOR("  ", "Reference", this->reference_sensor_);
   } else {
@@ -52,12 +60,12 @@ void MAX31855Sensor::read_data_() {
   }
 
   // Internal reference temperature always works
+  int16_t ref_val = (mem & 0x0000FFF0) >> 4;
+  if (ref_val & 0x0800) {
+    ref_val |= 0xF000;  // Pad out 2's complement
+  }
+  const float t_ref = float(ref_val) * 0.0625f;
   if (this->reference_sensor_) {
-    int16_t val = (mem & 0x0000FFF0) >> 4;
-    if (val & 0x0800) {
-      val |= 0xF000;  // Pad out 2's complement
-    }
-    const float t_ref = float(val) * 0.0625f;
     ESP_LOGD(TAG, "Got reference temperature: %.4f°C", t_ref);
     this->reference_sensor_->publish_state(t_ref);
   }
@@ -93,10 +101,30 @@ void MAX31855Sensor::read_data_() {
   if (val & 0x2000) {
     val |= 0xC000;  // Pad out 2's complement
   }
-  const float t_sense = float(val) * 0.25f;
+  float t_sense = float(val) * 0.25f;
+#ifdef USE_MAX31855_LINEARIZE
+  if (this->linearize_)
+    t_sense = this->linearize_reading_(t_sense, t_ref);
+#endif
   ESP_LOGD(TAG, "Got thermocouple temperature: %.2f°C", t_sense);
   this->publish_state(t_sense);
   this->status_clear_warning();
 }
+
+#ifdef USE_MAX31855_LINEARIZE
+float MAX31855Sensor::linearize_reading_(float t_chip, float t_ref) {
+  const float t_lin = k_type_linearize(t_chip, t_ref);
+  if (std::isnan(t_lin)) {
+    // Outside the range of the NIST type K tables: keep the chip's own value.
+    if (!this->range_warned_) {
+      ESP_LOGW(TAG, "Reading %.2f°C is outside the NIST type K range; publishing it uncorrected", t_chip);
+      this->range_warned_ = true;
+    }
+    return t_chip;
+  }
+  ESP_LOGV(TAG, "Chip reported %.2f°C, type K corrected %.2f°C", t_chip, t_lin);
+  return t_lin;
+}
+#endif
 
 }  // namespace esphome::max31855
