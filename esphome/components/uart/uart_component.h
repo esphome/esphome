@@ -112,10 +112,10 @@ class UARTComponent {
   // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the whole bytes the line
   // sent at 10 bits per byte since last_write_us: at most one loop interval and one byte, at least one byte.
   size_t paced_write_room(uint32_t last_write_us);
-  // Call right after a write that paced_write_room() sized. Where it paced, stores in last_write_us when the write
-  // returned, less the part of a byte the line sent after the last whole one, so that part counts for the next write.
+  // Call right after the write. Where it paced, moves last_write_us on by the whole bytes sent up to now; the part of
+  // a byte left counts for the next write.
   void paced_write_done(uint32_t &last_write_us) {
-    if (this->paces_writes_) {
+    if (this->available_for_write() == SIZE_MAX) {
       last_write_us = this->paced_stamp_(micros(), last_write_us);
     }
   }
@@ -256,9 +256,7 @@ class UARTComponent {
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
-  // The whole bytes the line sends in span_us: at most one loop interval and one byte, at least one byte.
   size_t paced_room_(uint32_t span_us) const;
-  // last_write_us moved on towards now_us by whole bytes of line time.
   uint32_t paced_stamp_(uint32_t now_us, uint32_t last_write_us) const;
 
   InternalGPIOPin *tx_pin_{};
@@ -273,8 +271,6 @@ class UARTComponent {
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
   UARTFlowControl flow_control_{UART_FLOW_CONTROL_NONE};
-  // paced_write_room() found that available_for_write() cannot tell.
-  bool paces_writes_{false};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};

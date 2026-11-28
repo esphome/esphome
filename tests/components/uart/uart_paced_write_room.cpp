@@ -43,43 +43,52 @@ TEST_F(PacedWriteRoom, KnownRoomIsReturned) {
   EXPECT_EQ(this->uart_.paced_write_room(0), 0u);
 }
 
-TEST_F(PacedWriteRoom, OneMillisecondPassesHandOutWhatTheLineSent) {
-  // At 19200 baud the line sends 1.92 bytes per ms, 19.2 in 10 ms. Ten 1-ms passes hand out 19, because each keeps
-  // the part of a byte for the next. Whole milliseconds rounded down per pass let out 1 byte each, 10 in all.
-  this->uart_.set_baud_rate(19200);
-  EXPECT_EQ(this->passes_(1000, 10000), 19u);
+struct PassesCase {
+  uint32_t baud;
+  uint32_t pass_us;
+  uint32_t end_us;
+  size_t expected;
+};
+
+class PacedPasses : public PacedWriteRoom, public ::testing::WithParamInterface<PassesCase> {};
+
+// Each pass keeps the part of a byte for the next, so the total is what the line sent, rounded down once
+TEST_P(PacedPasses, HandOutWhatTheLineSent) {
+  this->uart_.set_baud_rate(GetParam().baud);
+  EXPECT_EQ(this->passes_(GetParam().pass_us, GetParam().end_us), GetParam().expected);
 }
 
-TEST_F(PacedWriteRoom, LoopIntervalPassesKeepThePartOfAByte) {
-  // At 9600 baud the line sends 15.36 bytes per 16-ms loop interval, 153.6 in ten. Ten passes one loop interval apart
-  // hand out 153: the cap does not cut the part of a byte. Rounded down per pass they would get 15 each, 150 in all.
-  EXPECT_EQ(this->passes_(16000, 160000), 153u);
+INSTANTIATE_TEST_SUITE_P(PacedWriteRoom, PacedPasses,
+                         ::testing::Values(PassesCase{19200, 1000, 10000, 19},      // 19.2 bytes
+                                           PassesCase{9600, 16000, 160000, 153}));  // 153.6 bytes
+
+struct RoomCase {
+  uint32_t baud;
+  uint32_t span_us;
+  size_t expected;
+};
+
+class PacedRoom : public PacedWriteRoom, public ::testing::WithParamInterface<RoomCase> {};
+
+TEST_P(PacedRoom, IsTheWholeBytesSentCappedAtALoopIntervalAndAByte) {
+  this->uart_.set_baud_rate(GetParam().baud);
+  EXPECT_EQ(this->uart_.paced_room_(GetParam().span_us), GetParam().expected);
 }
 
-TEST_F(PacedWriteRoom, EarlyPassTakesTheWholeBytesSinceTheLastWrite) {
-  // 9600 baud is 960 bytes/s: 4.8 bytes in 5 ms, rounded down.
-  EXPECT_EQ(this->uart_.paced_room_(5000), 4u);
-}
-
-TEST_F(PacedWriteRoom, LongGapTakesOneLoopIntervalAndOneByte) {
-  // 1 s counts as one 16-ms loop interval and one byte: 15.36 + 1 bytes at 9600 baud, 1474.56 + 1 at 921600.
-  EXPECT_EQ(this->uart_.paced_room_(1000000), 16u);
-  this->uart_.set_baud_rate(921600);
-  EXPECT_EQ(this->uart_.paced_room_(1000000), 1475u);
-}
-
-TEST_F(PacedWriteRoom, AtLeastOneByte) { EXPECT_EQ(this->uart_.paced_room_(0), 1u); }
+INSTANTIATE_TEST_SUITE_P(PacedWriteRoom, PacedRoom,
+                         ::testing::Values(RoomCase{9600, 5000, 4},          // 4.8 bytes
+                                           RoomCase{9600, 1000000, 16},      // 15.36 + 1
+                                           RoomCase{921600, 1000000, 1475},  // 1474.56 + 1
+                                           RoomCase{9600, 0, 1},             // at least one byte
+                                           RoomCase{0, 1000000, 1}));        // ble_nus, usb_cdc_acm: no baud rate
 
 TEST_F(PacedWriteRoom, StampKeepsThePartOfAByte) {
-  // A byte takes 1041.7 us at 9600 baud. 5 ms after the last stamp the line sent 4.8 bytes, so the stamp moves on by
-  // 4 bytes, to 4167 us, and the 0.8 byte left counts for the next write.
+  // 4.8 bytes in 5 ms at 9600 baud: the stamp moves on 4 bytes of 1041.7 us
   EXPECT_EQ(this->uart_.paced_stamp_(5000, 0), 4167u);
 }
 
 TEST_F(PacedWriteRoom, StreamNeitherFillsNorDrainsTheBuffer) {
-  // usb_uart and weikai never wait, so what does not fit their buffer is lost. 100 passes of 1.0, 1.3 and 1.7 ms at
-  // 19200 baud: the first write gets one loop interval and one byte, 31 bytes, and each later one the whole bytes the
-  // line sent since. The buffer then holds 30 or 31 bytes: it neither fills up nor runs dry.
+  // usb_uart and weikai drop what does not fit their buffer: after the first 31 bytes it stays at 30 or 31
   this->uart_.set_baud_rate(19200);
   static constexpr uint32_t PASS_US[] = {1000, 1300, 1700};
   const uint32_t start_us = 10000000;
@@ -101,10 +110,8 @@ TEST_F(PacedWriteRoom, StreamNeitherFillsNorDrainsTheBuffer) {
   EXPECT_EQ(highest, 31u);
 }
 
-TEST_F(PacedWriteRoom, NoBaudRateWritesOneByte) {
-  // ble_nus and usb_cdc_acm set no baud rate: one byte per pass, and the stamp is the time the write returned.
+TEST_F(PacedWriteRoom, NoBaudRateStampsWhenTheWriteReturned) {
   this->uart_.set_baud_rate(0);
-  EXPECT_EQ(this->uart_.paced_room_(1000000), 1u);
   EXPECT_EQ(this->uart_.paced_stamp_(5000, 0), 5000u);
 }
 
@@ -113,8 +120,7 @@ TEST_F(PacedWriteRoom, DoneStoresWhenAPacedWriteReturned) {
   this->uart_.paced_write_room(last_write_us);
   this->uart_.paced_write_done(last_write_us);
   const uint32_t after = micros();
-  // Stored less than one byte time (1.04 ms) before now. A second leaves room for a slow runner, and the unsigned
-  // difference also holds across a counter wrap.
+  // Less than a byte time before now; a second of slack for a slow runner
   EXPECT_LT(after - last_write_us, 1000000u);
 }
 

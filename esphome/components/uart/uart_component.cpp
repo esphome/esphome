@@ -30,13 +30,11 @@ size_t UARTComponent::paced_write_room(uint32_t last_write_us) {
   if (room != SIZE_MAX) {
     return room;
   }
-  this->paces_writes_ = true;
   return this->paced_room_(micros() - last_write_us);
 }
 
 size_t UARTComponent::paced_room_(uint32_t span_us) const {
-  // What the line sent, in ten-millionths of a byte. A pass woken early writes little. The cap of one loop interval
-  // has a byte on top, so it never cuts the part of a byte that last_write_us carries over.
+  // In ten-millionths of a byte. The cap has a byte on top so it never cuts the part of a byte carried over.
   uint64_t sent = std::min<uint64_t>(static_cast<uint64_t>(span_us) * this->baud_rate_,
                                      App.get_loop_interval() * 1000ULL * this->baud_rate_ + BYTE_US_AT_ONE_BAUD);
   return static_cast<size_t>(std::max<uint64_t>(1, sent / BYTE_US_AT_ONE_BAUD));
@@ -46,10 +44,10 @@ uint32_t UARTComponent::paced_stamp_(uint32_t now_us, uint32_t last_write_us) co
   if (this->baud_rate_ == 0) {
     return now_us;
   }
-  // Move on by whole bytes only, so the part of a byte the line sent after the last whole one counts for the next
-  // write.
-  uint64_t part = static_cast<uint64_t>(now_us - last_write_us) * this->baud_rate_ % BYTE_US_AT_ONE_BAUD;
-  return now_us - static_cast<uint32_t>(part / this->baud_rate_);
+  // Below BYTE_US_AT_ONE_BAUD, so the divide is 32-bit
+  const auto part =
+      static_cast<uint32_t>(static_cast<uint64_t>(now_us - last_write_us) * this->baud_rate_ % BYTE_US_AT_ONE_BAUD);
+  return now_us - part / this->baud_rate_;
 }
 
 void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
