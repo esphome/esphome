@@ -284,7 +284,16 @@ void LvglComponent::show_page(size_t index, lv_screen_load_anim_t anim, uint32_t
 #endif
   this->current_page_ = index;
 #ifdef USE_LVGL_INPUT_GROUPS
-  lv_obj_t *moved_focus = this->move_layer_objs_(previous_group, this->pages_[index]->group);
+  lv_group_t *target = this->pages_[index]->group;
+  lv_obj_t *moved_focus = this->move_layer_objs_(previous_group, target);
+  // Focus events during the move can show another page. The bound stops an action that changes page on every move.
+  for (size_t hops = 0; hops != this->pages_.size(); hops++) {
+    lv_group_t *shown = this->pages_[this->current_page_]->group;
+    if (shown == target)
+      break;
+    moved_focus = this->move_layer_objs_(target, shown);
+    target = shown;
+  }
 #endif
   if (anim == LV_SCREEN_LOAD_ANIM_NONE) {
     lv_screen_load(this->pages_[this->current_page_]->obj);
@@ -393,6 +402,9 @@ void LvglComponent::update_input_group_(lv_obj_t *moved_focus) {
     lv_group_t *previous = lv_indev_get_group(indev);
     if (previous == group)
       continue;
+    // Events since show_page() can delete it. group_contains() only compares addresses.
+    if (moved_focus != nullptr && !group_contains(this->pages_[this->current_page_]->group, moved_focus))
+      moved_focus = nullptr;
     // LVGL sends the release to the widget that has the focus in the group at that time. If the pressed widget
     // moved into the new group with the focus, the press continues. Else the press stops here, as LVGL stops a
     // pointer press when its widget is removed.
