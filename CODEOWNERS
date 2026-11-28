@@ -663,6 +663,8 @@ esphome/components/sun/* @OttoWinter
 esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
+esphome/components/sx1231/* @kbx81
+esphome/components/sx1231/packet_interface/* @kbx81
 esphome/components/sx126x/* @swoboda1337
 esphome/components/sx126x/packet_interface/* @clydebarrow
 esphome/components/sx127x/* @swoboda1337

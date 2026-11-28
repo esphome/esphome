@@ -1,0 +1,62 @@
+sx1231:
+  cs_pin: ${cs_pin}
+  rst_pin: ${rst_pin}
+  dio0_pin: ${dio0_pin}
+  pa_pin: BOOST
+  pa_power: 20
+  pa_ramp: 40us
+  bitsync: true
+  bitrate: 4800
+  bandwidth: 50_0kHz
+  frequency: 915000000
+  modulation: FSK
+  deviation: 5000
+  rx_start: true
+  rx_floor: -90
+  packet_mode: true
+  crc_enable: true
+  sync_value: [0x2D, 0xD4]
+  shaping: GAUSSIAN_BT_0_5
+  preamble_size: 4
+  on_packet:
+    then:
+      - sx1231.send_packet:
+          data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+      - sx1231.send_packet: !lambda |-
+          return x;
+
+number:
+  - platform: template
+    name: "SX1231 Number"
+    id: sx1231_my_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - sx1231.send_packet: !lambda |-
+            return {0x03, (uint8_t) x};
+
+button:
+  - platform: template
+    name: "SX1231 Button"
+    on_press:
+      then:
+        - sx1231.set_mode_standby
+        - sx1231.set_mode_tx
+        - sx1231.set_mode_sleep
+        - sx1231.set_mode_rx
+        - sx1231.send_packet:
+            data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+        - sx1231.send_packet: !lambda |-
+            return {0x01, 0x02, (uint8_t)id(sx1231_my_number).state};
+        - sx1231.send_packet: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+        - sx1231.send_packet: "hello"
+
+packet_transport:
+  - platform: sx1231
+    id: sx1231_transport
+    update_interval: 5s
+    providers:
+      - name: other-device
