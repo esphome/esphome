@@ -399,11 +399,14 @@ TEST(FujitsuGeneralTemperatureTest, DecodesPerModel) {
 }
 
 TEST(FujitsuGeneralTemperatureTest, RoundTripsEveryStep) {
-  for (float temperature = 16.0f; temperature <= 30.0f; temperature += 1.0f) {
+  // Integer counters: clang-tidy rejects floating point loop induction variables.
+  for (int step = 0; step <= 14; step++) {
+    const float temperature = 16.0f + step;
     SCOPED_TRACE(temperature);
     EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARRAH2E, encode_temperature(MODEL_ARRAH2E, temperature)), temperature);
   }
-  for (float temperature = 16.0f; temperature <= 30.0f; temperature += 0.5f) {
+  for (int half_step = 0; half_step <= 28; half_step++) {
+    const float temperature = 16.0f + half_step * 0.5f;
     SCOPED_TRACE(temperature);
     EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARREW4E, encode_temperature(MODEL_ARREW4E, temperature)), temperature);
   }
