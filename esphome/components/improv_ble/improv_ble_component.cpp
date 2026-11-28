@@ -130,8 +130,9 @@ void ImprovBLEComponent::loop() {
       this->state_callback_.call(this->state_, this->error_state_);
 #endif
       this->release_advertising_();
-      this->incoming_data_.clear();
     }
+    // Also drops a partial command left from a session that stop() ended
+    this->incoming_data_.clear();
     return;
   }
   if (this->service_ == nullptr) {
@@ -433,10 +434,10 @@ void ImprovBLEComponent::process_incoming_data_() {
 }
 
 void ImprovBLEComponent::on_wifi_connect_timeout_() {
-  this->connecting_sta_ = {};
-  // The session already ended, as when the BLE server went down meanwhile
+  // Once BLE ended the session, Wi-Fi keeps trying these credentials, so they stay pending until it connects
   if (this->state_ != improv::STATE_PROVISIONING)
     return;
+  this->connecting_sta_ = {};
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
@@ -487,7 +488,10 @@ void ImprovBLEComponent::check_wifi_connection_() {
 void ImprovBLEComponent::save_connecting_sta_() {
   if (this->connecting_sta_.get_ssid().empty() || !wifi::global_wifi_component->is_connected())
     return;
-  wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+  // Only for the network Improv asked for, in case another provisioner changed it since
+  std::array<char, wifi::SSID_BUFFER_SIZE> ssid;
+  if (this->connecting_sta_.get_ssid() == wifi::global_wifi_component->wifi_ssid_to(ssid))
+    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
   this->connecting_sta_ = {};
 }
 
