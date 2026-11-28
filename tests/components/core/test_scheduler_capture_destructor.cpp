@@ -88,7 +88,8 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   bool rescheduled_ran = false;
   bool destructor_ran = false;
 
-  this->scheduler_.set_timeout(&this->component_, "other", 50, [&other_ran]() { other_ran = true; });
+  // Due after the watchdog's budget, so only the destructor's cancel (or the end of the test) removes it
+  this->scheduler_.set_timeout(&this->component_, "other", 10000, [&other_ran]() { other_ran = true; });
   this->scheduler_.set_interval(&this->component_, "interval", 1, [&interval_runs]() { interval_runs++; });
   this->scheduler_.process_to_add();
 
@@ -130,7 +131,7 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
       this->scheduler_.cancel_timeout(c, VICTIM_ID);  // recycled by cleanup_() or the run loop
       break;
     case FreedBy::FREED_BY_BULK_CLEANUP:
-      // "other" and "interval" stay at the top of the heap, so the removed items below need a full cleanup
+      // "interval" stays at the top of the heap, so the removed items below need a full cleanup
       this->scheduler_.set_timeout(c, VICTIM_ID, 10000, std::move(victim));
       for (uint32_t i = 1; i <= 5; i++)
         this->scheduler_.set_timeout(c, VICTIM_ID + i, 10000, [token]() {});
@@ -166,6 +167,7 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   EXPECT_EQ(token.use_count(), 1);  // every capture was freed
 
   this->scheduler_.cancel_interval(c, "interval");
+  this->scheduler_.cancel_timeout(c, "other");
   this->run_for_(5);
   EXPECT_FALSE(this->scheduler_.next_schedule_in(millis()).has_value());
   this->scheduler_.trim_freelist();
