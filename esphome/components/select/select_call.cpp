@@ -33,7 +33,7 @@ SelectCall &SelectCall::with_cycle(bool cycle) {
 SelectCall &SelectCall::with_option(const char *option, size_t len) {
   this->operation_ = SELECT_OP_SET;
   // Find the option index - this validates the option exists
-  this->index_ = this->parent_->index_of(option, len);
+  this->index_ = this->parent_->index_of(option, len).value_or(NO_INDEX);
   return *this;
 }
 
@@ -41,7 +41,7 @@ SelectCall &SelectCall::with_index(size_t index) {
   this->operation_ = SELECT_OP_SET;
   if (index >= this->parent_->size()) {
     ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", LOG_STR_ARG(this->parent_->get_log_name()), index);
-    this->index_ = nullopt;  // Store nullopt for invalid index
+    this->index_ = NO_INDEX;
   } else {
     this->index_ = index;
   }
@@ -65,7 +65,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
 
   if (this->operation_ == SELECT_OP_SET) {
     ESP_LOGV(TAG, "'%s' - Setting", name);
-    if (!this->index_.has_value()) {
+    if (this->index_ == NO_INDEX) {
       ESP_LOGW(TAG, "'%s' - No option set", name);
       return nullopt;
     }
