@@ -147,7 +147,7 @@ void CANopenComponent::deliver_local_() {
     this->handle_frame_(f.ident, f.data.data(), f.len);
   }
   if (this->local_dropped_ != 0) {
-    ESP_LOGW(TAG, "%u frames from other local nodes lost (queue of %u full)", (unsigned) this->local_dropped_,
+    ESP_LOGW(TAG, "%u received frames lost (queue of %u full)", (unsigned) this->local_dropped_,
              (unsigned) LOCAL_QUEUE_SIZE);
     this->local_dropped_ = 0;
   }

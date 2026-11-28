@@ -266,7 +266,7 @@ class CANopenComponent : public Component {
 #ifdef USE_CANOPEN_LOCAL_NODES
   CANopenComponent *next_local_{nullptr};
   FixedRingBuffer<LocalFrame, LOCAL_QUEUE_SIZE> local_queue_;
-  uint16_t local_dropped_{0};  // frames lost on a full local_queue_, logged by deliver_local_()
+  uint16_t local_dropped_{0};  // local and bus frames lost on a full local_queue_, logged by deliver_local_()
   // the current bus frame is already in local_queue_ (staged by the local node whose callback ran first); set and
   // cleared within one frame, since canbus calls all callbacks for a frame before it reads the next
   bool bus_frame_staged_{false};
