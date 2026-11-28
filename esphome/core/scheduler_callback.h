@@ -15,6 +15,8 @@ namespace esphome {
 /// copyable, else heap-boxed. A function taking SchedulerCallback && must pass it to the scheduler once, on every
 /// path: one that is dropped leaks its box and what it captured. A boxed capture's destructor runs after the
 /// scheduler lock is released, so it may call the scheduler.
+/// Not Callback::create_boxed() (helpers.h): this keeps release inline and shares one ::operator delete for all
+/// trivially destructible boxes.
 class SchedulerCallback {
  public:
   static constexpr size_t INLINE_WORDS = 3;
@@ -61,12 +63,20 @@ class SchedulerCallback {
   bool is_boxed_() const { return this->invoke_ == &SchedulerCallback::invoke_boxed; }
   /// Frees a boxed callable
   void release_() {
-    const bool boxed = this->is_boxed_();
+    if (this->is_boxed_()) {
+      this->release_boxed_();
+      return;
+    }
 #ifdef ESPHOME_DEBUG_SCHEDULER
     this->invoke_ = nullptr;  // empty for the destructor's check
 #endif
-    if (boxed)
-      this->boxed_.release(this->boxed_.obj);
+  }
+  /// Frees a callable known to be boxed
+  void release_boxed_() {
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    this->invoke_ = nullptr;  // empty for the destructor's check
+#endif
+    this->boxed_.release(this->boxed_.obj);
   }
   /// Moves other's callable here and empties other. Copied as bytes (relying on GCC/Clang union and memcpy
   /// semantics) in word-sized pieces, which -Os keeps as word loads where one 12-byte copy can become a memcpy call
@@ -76,7 +86,9 @@ class SchedulerCallback {
     const auto *src = static_cast<const unsigned char *>(__builtin_assume_aligned(other.bytes_, alignof(uintptr_t)));
     for (size_t i = 0; i < sizeof(this->bytes_); i += sizeof(uintptr_t))
       __builtin_memcpy(dst + i, src + i, sizeof(uintptr_t));
-    other.invoke_ = nullptr;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    other.invoke_ = nullptr;  // only the debug destructor check reads other after this
+#endif
   }
 #ifdef ESPHOME_DEBUG_SCHEDULER
   [[noreturn]] static void report_dropped();  // defined in scheduler.cpp
