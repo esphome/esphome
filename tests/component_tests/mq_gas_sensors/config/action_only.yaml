@@ -1,0 +1,30 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mq8_adc
+    name: MQ-8 AO voltage
+    pin: GPIO34
+    attenuation: 12db
+
+  - platform: mq_gas_sensors
+    id: mq8_fixed
+    name: MQ-8 H2
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq8_adc
+    voltage_divider:
+      r1: 20.0
+      r2: 10.0
+    r0: 10.0
+    ratio_in_clean_air: 70
+
+button:
+  - platform: template
+    name: MQ-8 calibrate R0
+    on_press:
+      - mq_gas_sensors.calibrate_r0: mq8_fixed
