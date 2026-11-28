@@ -8,7 +8,7 @@ from . import const
 from .schema import SettingSchema, TSchema
 
 opentherm_ns = cg.esphome_ns.namespace("opentherm")
-OpenthermHub = opentherm_ns.class_("OpenthermHub", cg.Component)
+OpenTherm = opentherm_ns.class_("OpenTherm", cg.Component)
 OpenthermData = opentherm_ns.class_("OpenthermData")
 
 
