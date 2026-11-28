@@ -1931,3 +1931,15 @@ def test_write_project_pch_sum_tracks_src_flags(tmp_path: Path) -> None:
         _write_ninja(paths)
         sums.append(sum_path.read_text())
     assert sums[0] != sums[1]
+
+
+def test_write_project_link_writes_map(tmp_path: Path) -> None:
+    """The link writes firmware.map next to the ELF for analyze-memory."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    lines = _write_ninja(paths).splitlines()
+    assert any(
+        line.startswith("build firmware.elf | firmware.map: link ") for line in lines
+    )
+    link_rule = lines[lines.index("rule link") + 1]
+    assert "-Wl,-Map=firmware.map" in link_rule

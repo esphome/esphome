@@ -16,6 +16,9 @@ ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 # - LibreTiny BK7231: .itcm.code (fast RAM), .vectors (interrupt vectors)
 # - LibreTiny LN882X: .flash_text, .flash_copy* (flash code)
 # - Zephyr/nRF52: text, rodata, datas, bss (no leading dots)
+# ESP-IDF sections that only reserve address space; ".dram0.dummy" is the DRAM view of IRAM code
+PLACEHOLDER_SECTION_MARKERS = ("dummy", "_noload")
+
 SECTION_MAPPING = {
     ".text": frozenset(
         [
@@ -773,7 +776,7 @@ SYMBOL_PATTERNS = {
     "pwm_driver": ["pwm_", "PWM", "ledc_", "LEDC"],
     "rmt_driver": ["rmt_", "RMT"],
     "pcnt_driver": ["pcnt_", "PCNT"],
-    "can_driver": ["can_", "CAN", "twai_", "TWAI"],
+    "can_driver": ["^can_", "CAN", "twai_", "TWAI"],
     "sdmmc_driver": ["sdmmc_", "SDMMC", "sdcard", "sd_card"],
     "temp_sensor": ["temp_sensor", "tsens_"],
     "watchdog": ["wdt_", "WDT", "watchdog"],

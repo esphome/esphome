@@ -490,6 +490,16 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     f"  .bss: {unattributed_bss:,} B | .data: {unattributed_data:,} B"
                 )
 
+        # RAM without symbols, charged to components from the linker map
+        if unnamed_ram := self.get_unnamed_ram():
+            lines.append("")
+            lines.append(
+                f"RAM without symbols, charged by the linker map: "
+                f"{self._unnamed_ram.total():,} B"
+            )
+            for obj, section, component, size in unnamed_ram[:10]:
+                lines.append(f"  {size:>6,} B [{section[1:]}] {obj} -> {component}")
+        elif unattributed_total > 0:
             # Show SDK symbol breakdown if available
             sdk_by_lib = self.get_sdk_ram_by_library()
             if sdk_by_lib:

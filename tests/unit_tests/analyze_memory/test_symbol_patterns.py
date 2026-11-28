@@ -53,3 +53,14 @@ def test_prefix_marker_only_in_split_tables() -> None:
     assert not any(
         p.startswith("^") for ps in CORE_SUBCATEGORY_PATTERNS.values() for p in ps
     )
+
+
+@pytest.mark.parametrize("symbol", ["can_driver_install", "twai_start"])
+def test_can_driver_symbols(symbol: str) -> None:
+    assert make_analyzer()._identify_component(symbol) == "can_driver"
+
+
+@pytest.mark.parametrize("symbol", ["scan_get_type", "scan_cancel"])
+def test_can_inside_a_name_is_not_can_driver(symbol: str) -> None:
+    """Wi-Fi scan functions are not the CAN driver."""
+    assert make_analyzer()._identify_component(symbol) != "can_driver"
