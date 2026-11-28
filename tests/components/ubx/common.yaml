@@ -6,17 +6,22 @@ gnss:
 
 sensor:
   - platform: gnss
+    gnss_id: ubx_receiver
     type: latitude
     name: "Latitude"
   - platform: gnss
+    gnss_id: ubx_receiver
     type: longitude
     name: "Longitude"
   - platform: gnss
+    gnss_id: ubx_receiver
     type: horizontal_accuracy
     name: "Horizontal Accuracy"
   - platform: gnss
+    gnss_id: ubx_receiver
     type: vertical_accuracy
     name: "Vertical Accuracy"
 
 time:
   - platform: gnss
+    gnss_id: ubx_receiver
