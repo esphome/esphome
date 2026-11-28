@@ -754,12 +754,12 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_ + 1);
-#endif
   item->next_free = this->pending_release_head_;
   this->pending_release_head_ = item;
-  this->scheduler_item_pool_size_++;  // counts the items waiting for release_pending_() too
+  this->scheduler_item_pool_size_++;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  ESP_LOGD(TAG, "Queued item for release (pool size now: %zu)", this->scheduler_item_pool_size_);
+#endif
 }
 
 void Scheduler::release_pending_() {
@@ -811,7 +811,7 @@ void Scheduler::trim_freelist() {
     freed++;
   }
   this->scheduler_item_pool_head_ = nullptr;
-  this->scheduler_item_pool_size_ -= freed;  // items waiting for release_pending_() stay counted
+  this->scheduler_item_pool_size_ -= freed;
 
   // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
   // by doubling and otherwise keeps the peak). Reclaim that slack as well.
