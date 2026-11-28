@@ -256,6 +256,7 @@ esphome/components/ft63x6/* @gpambrozio
 esphome/components/fusb302b/* @remcom
 esphome/components/gcja5/* @gcormier
 esphome/components/gdk101/* @Szewcson
+esphome/components/geolocation/* @randybb
 esphome/components/gl_r01_i2c/* @pkejval
 esphome/components/globals/* @esphome/core
 esphome/components/gp2y1010au0f/* @zry98
@@ -476,6 +477,7 @@ esphome/components/nextion/sensor/* @senexcrenshaw
 esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
+esphome/components/nmea/* @randybb
 esphome/components/noblex/* @AGalfra
 esphome/components/noise/* @esphome/core
 esphome/components/npi19/* @bakerkj

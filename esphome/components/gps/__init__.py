@@ -1,5 +1,7 @@
+import logging
+
 import esphome.codegen as cg
-from esphome.components import sensor, uart
+from esphome.components import geolocation, sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALTITUDE,
@@ -19,6 +21,8 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 CONF_FIELD_AGE = "field_age"
 CONF_GEOID_SEPARATION = "geoid_separation"
 CONF_GPS_ID = "gps_id"
@@ -34,10 +38,16 @@ ICON_SATELLITE = "mdi:satellite-variant"
 ICON_SPEEDOMETER = "mdi:speedometer"
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor"]
+# The NMEA parser and its data live in nmea and geolocation
+AUTO_LOAD = ["sensor", "geolocation", "nmea"]
 
 CODEOWNERS = ["@coogle", "@ximex"]
 DOMAIN = "gps"
+
+DEPRECATED_COMPONENT = """
+The 'gps' component is deprecated in favour of 'geolocation' with 'platform: nmea'.
+New features and fixes should target 'geolocation'. It will be removed in ESPHome 2027.6.0.
+"""
 
 gps_ns = cg.esphome_ns.namespace("gps")
 GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
@@ -55,12 +65,12 @@ def request_field_age() -> None:
 
 def request_millisecond() -> None:
     """Compile in GPSData::millisecond, parsed from the fraction of the time."""
-    cg.add_define("USE_GPS_MILLISECOND")
+    geolocation.request_millisecond()
 
 
 def request_geoid_separation() -> None:
     """Compile in GPSData::geoid_separation_e3, parsed from GGA sentences."""
-    cg.add_define("USE_GPS_GEOID_SEPARATION")
+    geolocation.request_geoid_separation()
 
 
 async def register_listener(hub: MockObj, var: MockObj) -> None:
@@ -128,6 +138,12 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True
 
 
 async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.6.0
+    _LOGGER.warning(
+        "The 'gps' component is deprecated and will be removed in ESPHome 2027.6.0, migrate to a "
+        "'geolocation:' entry with 'platform: nmea', 'sensor:' entries with 'platform: geolocation' and a 'type:', "
+        "and 'time:' with 'platform: geolocation'."
+    )
     var = await uart.new_uart_component(config)
     if config[CONF_FIELD_AGE]:
         request_field_age()
