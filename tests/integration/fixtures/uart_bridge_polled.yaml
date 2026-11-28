@@ -1,0 +1,124 @@
+esphome:
+  name: uart-bridge-polled
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy the uart DEPENDENCIES; every line below is virtual.
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# client hub - client_line ~ end_a - bridge - end_b ~ server_line - server hub.
+# uart_mock is not a VirtualUARTComponent, so the bridge polls both ends.
+uart_mock:
+  - id: client_line
+    baud_rate: 115200
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: end_a
+              data: !lambda return data;
+  - id: end_a
+    baud_rate: 115200
+    on_tx:
+      - then:
+          - logger.log:
+              format: "end_a TX %u"
+              args: ["(unsigned) data.size()"]
+          - uart_mock.inject_rx:
+              id: client_line
+              data: !lambda return data;
+  - id: end_b
+    baud_rate: 115200
+    on_tx:
+      - then:
+          - logger.log:
+              format: "end_b TX %u"
+              args: ["(unsigned) data.size()"]
+          - uart_mock.inject_rx:
+              id: server_line
+              data: !lambda return data;
+  - id: server_line
+    baud_rate: 115200
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: end_b
+              data: !lambda return data;
+
+bridge:
+  - platform: uart
+    id: uart_bridge
+    uart_id: end_a
+    peer_id: end_b
+
+modbus:
+  - id: client_hub
+    uart_id: client_line
+    role: client
+  - id: server_hub
+    uart_id: server_line
+    role: server
+
+modbus_controller:
+  - id: ctrl
+    address: 1
+    modbus_id: client_hub
+    update_interval: 1s
+
+# Undefined registers up to 0xFF read as 0x1234; a write to them gets exception 2.
+modbus_server:
+  - address: 1
+    modbus_id: server_hub
+    courtesy_response:
+      enabled: true
+      register_last_address: 0x00FF
+      register_value: 0x1234
+    registers:
+      - address: 0x0080
+        value_type: U_WORD
+        read_lambda: return 259;
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: ctrl
+    name: small_read
+    address: 0x0080
+    register_type: holding
+    value_type: U_WORD
+    on_value:
+      - logger.log:
+          format: "BRIDGE_SMALL %.0f"
+          args: [x]
+
+# 125 registers: the 255-byte reply is the longest RTU frame.
+text_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: ctrl
+    name: large_read
+    address: 0x0000
+    register_type: holding
+    register_count: 125
+    response_size: 250
+    raw_encode: HEXBYTES
+    on_value:
+      - logger.log:
+          format: "BRIDGE_LARGE %u %s"
+          args: ["(unsigned) x.size()", "x.substr(0, 8).c_str()"]
+
+# 100 registers: a 209-byte request.
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          std::vector<uint16_t> values(100, 0x5555);
+          id(ctrl)->queue_command(
+              modbus_controller::ModbusCommandItem::create_write_multiple_command(id(ctrl), 0x0100, 100, values));
