@@ -9,7 +9,7 @@
 
 namespace esphome::nmea::testing {
 
-using gnss::GNSSData;
+using geolocation::GeolocationData;
 
 // Adds the checksum to a sentence written without it.
 static std::string with_checksum(const std::string &body) {
@@ -19,10 +19,12 @@ static std::string with_checksum(const std::string &body) {
   return body + suffix;
 }
 
-static bool parse(std::string line, GNSSData &data) { return parse_nmea_sentence(line.data(), line.size(), data); }
+static bool parse(std::string line, GeolocationData &data) {
+  return parse_nmea_sentence(line.data(), line.size(), data);
+}
 
 TEST(NMEAParser, Gga) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.longitude_e7, 115166667);
@@ -33,13 +35,15 @@ TEST(NMEAParser, Gga) {
   EXPECT_EQ(data.hour, 12);
   EXPECT_EQ(data.minute, 35);
   EXPECT_EQ(data.second, 19);
-  EXPECT_EQ(data.updated, gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_SATELLITES |
-                              gnss::GNSS_FIELD_HDOP | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_GEOID_SEPARATION);
+  EXPECT_EQ(data.updated, geolocation::GEOLOCATION_FIELD_TIME | geolocation::GEOLOCATION_FIELD_LOCATION |
+                              geolocation::GEOLOCATION_FIELD_SATELLITES | geolocation::GEOLOCATION_FIELD_HDOP |
+                              geolocation::GEOLOCATION_FIELD_ALTITUDE |
+                              geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION);
   EXPECT_EQ(data.valid, data.updated);
 }
 
 TEST(NMEAParser, Rmc) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A", data));
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.longitude_e7, 115166667);
@@ -49,12 +53,13 @@ TEST(NMEAParser, Rmc) {
   EXPECT_EQ(data.day, 23);
   EXPECT_EQ(data.month, 3);
   EXPECT_EQ(data.year, 2094);
-  EXPECT_EQ(data.updated, gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_SPEED |
-                              gnss::GNSS_FIELD_COURSE | gnss::GNSS_FIELD_DATE);
+  EXPECT_EQ(data.updated, geolocation::GEOLOCATION_FIELD_TIME | geolocation::GEOLOCATION_FIELD_LOCATION |
+                              geolocation::GEOLOCATION_FIELD_SPEED | geolocation::GEOLOCATION_FIELD_COURSE |
+                              geolocation::GEOLOCATION_FIELD_DATE);
 }
 
 TEST(NMEAParser, SouthWestHighPrecision) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse(with_checksum("$GNGGA,000000.00,3351.1234567,S,15112.7654321,W,2,12,0.55,-12.345,M,,M,,"), data));
   EXPECT_EQ(data.latitude_e7, -338520576);
   EXPECT_EQ(data.longitude_e7, -1512127572);
@@ -66,21 +71,21 @@ TEST(NMEAParser, SouthWestHighPrecision) {
 TEST(NMEAParser, LeadingNoise) {
   static const std::string GGA = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
   for (const std::string &noise : {std::string("\x01\xff"), std::string("\x7f\0\x80", 3), std::string("$GPGGA,1235")}) {
-    GNSSData data;
+    GeolocationData data;
     EXPECT_TRUE(parse(noise + GGA, data));
     EXPECT_EQ(data.satellites, 8);
   }
 }
 
 TEST(NMEAParser, NulInsideSentence) {
-  GNSSData data;
+  GeolocationData data;
   EXPECT_FALSE(
       parse(std::string("$GPGGA,123519,4807.038,N,") + '\0' + "01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
 }
 
 // Each float is the one nearest the decimal value, as strtof() gives it
 TEST(NMEAParser, FloatsRoundToNearest) {
-  GNSSData data;
+  GeolocationData data;
   char text[24];
   for (int32_t e7 = -1800000000; e7 <= 1800000000; e7 += 3999991) {
     data.latitude_e7 = data.longitude_e7 = e7;
@@ -107,11 +112,11 @@ TEST(NMEAParser, FloatsRoundToNearest) {
 }
 
 TEST(NMEAParser, GgaWithoutFixKeepsLocationAndTime) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
   ASSERT_TRUE(parse(with_checksum("$GPGGA,123520.00,,,,,0,00,99.99,,,,,,"), data));
-  EXPECT_EQ(data.updated, gnss::GNSS_FIELD_SATELLITES | gnss::GNSS_FIELD_HDOP);
-  EXPECT_TRUE(data.has(gnss::GNSS_FIELD_LOCATION));
+  EXPECT_EQ(data.updated, geolocation::GEOLOCATION_FIELD_SATELLITES | geolocation::GEOLOCATION_FIELD_HDOP);
+  EXPECT_TRUE(data.has(geolocation::GEOLOCATION_FIELD_LOCATION));
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.altitude_e3, 545400);
   EXPECT_EQ(data.satellites, 0);
@@ -120,14 +125,14 @@ TEST(NMEAParser, GgaWithoutFixKeepsLocationAndTime) {
 }
 
 TEST(NMEAParser, RmcWithoutFixSetsNothing) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse(with_checksum("$GNRMC,090552.42,V,,,,,,,021225,,,N,V"), data));
   EXPECT_EQ(data.updated, 0);
   EXPECT_EQ(data.valid, 0);
 }
 
 TEST(NMEAParser, TimeFraction) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse(with_checksum("$GNGGA,090552.42,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,"), data));
   EXPECT_EQ(data.second, 52);
   EXPECT_EQ(data.millisecond, 420);
@@ -138,19 +143,19 @@ TEST(NMEAParser, TimeFraction) {
 }
 
 TEST(NMEAParser, GeoidSeparation) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse(with_checksum("$GNGGA,090552.42,3351.123,S,15112.765,E,1,08,0.9,45.4,M,-12.25,M,,"), data));
   EXPECT_EQ(data.geoid_separation_e3, -12250);
   EXPECT_FLOAT_EQ(data.geoid_separation(), -12.25f);
-  EXPECT_TRUE(data.is_updated(gnss::GNSS_FIELD_GEOID_SEPARATION));
+  EXPECT_TRUE(data.is_updated(geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION));
   ASSERT_TRUE(parse(with_checksum("$GNGGA,090553.42,3351.123,S,15112.765,E,1,08,0.9,45.4,M,,M,,"), data));
-  EXPECT_FALSE(data.is_updated(gnss::GNSS_FIELD_GEOID_SEPARATION));
-  EXPECT_TRUE(data.has(gnss::GNSS_FIELD_GEOID_SEPARATION));
+  EXPECT_FALSE(data.is_updated(geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION));
+  EXPECT_TRUE(data.has(geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION));
   EXPECT_EQ(data.geoid_separation_e3, -12250);
 }
 
 TEST(NMEAParser, LeapDayAndLeapSecond) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse(with_checksum("$GNRMC,235960.00,A,4807.038,N,01131.000,E,0.0,,290228,,,A,V"), data));
   EXPECT_EQ(data.day, 29);
   EXPECT_EQ(data.month, 2);
@@ -159,10 +164,10 @@ TEST(NMEAParser, LeapDayAndLeapSecond) {
 }
 
 TEST(NMEAParser, RmcFixWithoutCourse) {
-  GNSSData data;
+  GeolocationData data;
   ASSERT_TRUE(parse(with_checksum("$GNRMC,235959.00,A,4807.038,N,01131.000,E,0.010,,311226,,,A,V"), data));
-  EXPECT_EQ(data.updated,
-            gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_SPEED | gnss::GNSS_FIELD_DATE);
+  EXPECT_EQ(data.updated, geolocation::GEOLOCATION_FIELD_TIME | geolocation::GEOLOCATION_FIELD_LOCATION |
+                              geolocation::GEOLOCATION_FIELD_SPEED | geolocation::GEOLOCATION_FIELD_DATE);
   EXPECT_EQ(data.year, 2026);
   EXPECT_EQ(data.month, 12);
   EXPECT_EQ(data.day, 31);
@@ -181,7 +186,7 @@ TEST(NMEAParser, RejectedLines) {
       "",
   };
   for (const char *line : LINES) {
-    GNSSData data;
+    GeolocationData data;
     EXPECT_FALSE(parse(line, data)) << line;
     EXPECT_EQ(data.valid, 0) << line;
   }
@@ -212,7 +217,7 @@ TEST(NMEAParser, RejectedSentences) {
       "$PUBX,00,123519,4807.038,N,01131.000,E,545.4,G3",                        // proprietary
   };
   for (const char *body : BODIES) {
-    GNSSData data;
+    GeolocationData data;
     EXPECT_FALSE(parse(with_checksum(body), data)) << body;
     EXPECT_EQ(data.valid, 0) << body;
   }

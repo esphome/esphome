@@ -1,4 +1,4 @@
-gnss:
+geolocation:
   - platform: nmea
     id: gnss_receiver
     field_age: true
@@ -6,8 +6,8 @@ gnss:
     geoid_separation: true
 
 sensor:
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     type: latitude
     name: "Latitude"
     id: gnss_lat
@@ -16,35 +16,35 @@ sensor:
         - logger.log:
             format: "%.6f, %.6f"
             args: [id(gnss_lat).state, id(gnss_long).state]
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     type: longitude
     name: "Longitude"
     id: gnss_long
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     type: altitude
     name: "Altitude"
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     type: speed
     name: "Speed"
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     type: course
     name: "Course"
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     type: satellites
     name: "Satellites"
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     type: hdop
     name: "HDOP"
 
 time:
-  - platform: gnss
-    gnss_id: gnss_receiver
+  - platform: geolocation
+    geolocation_id: gnss_receiver
     on_time_sync:
       then:
         logger.log: "It's time!"
@@ -54,11 +54,13 @@ interval:
     then:
       - lambda: |-
           const auto &data = id(gnss_receiver).get_data();
-          if (data.has(gnss::GNSS_FIELD_LOCATION) && data.is_updated(gnss::GNSS_FIELD_SPEED)) {
+          if (data.has(geolocation::GEOLOCATION_FIELD_LOCATION) &&
+              data.is_updated(geolocation::GEOLOCATION_FIELD_SPEED)) {
             ESP_LOGI("nmea_test", "%.7f, %.7f at %.1f km/h", data.latitude_e7 * 1e-7, data.longitude_e7 * 1e-7,
                      data.speed_kmh());
           }
-          if (id(gnss_receiver).get_age(gnss::GNSS_FIELD_LOCATION) < 3000 && data.has(gnss::GNSS_FIELD_GEOID_SEPARATION)) {
+          if (id(gnss_receiver).get_age(geolocation::GEOLOCATION_FIELD_LOCATION) < 3000 &&
+              data.has(geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION)) {
             ESP_LOGI("nmea_test", "%02u:%02u:%02u.%03u, geoid separation %.1f m", data.hour, data.minute, data.second,
                      data.millisecond, data.geoid_separation());
           }

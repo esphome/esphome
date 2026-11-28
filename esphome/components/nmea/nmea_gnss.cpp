@@ -27,12 +27,13 @@ void NMEAGNSS::handle_line_(char *line, size_t len) {
   auto &d = this->data_;
   if (!parse_nmea_sentence(line, len, d))
     return;
-  if (d.is_updated(gnss::GNSS_FIELD_LOCATION)) {
+  if (d.is_updated(geolocation::GEOLOCATION_FIELD_LOCATION)) {
     ESP_LOGV(TAG, "Latitude, Longitude: %.7f°, %.7f°", d.latitude_e7 * 1e-7, d.longitude_e7 * 1e-7);
   }
   // The parser takes the time and date only from an RMC with a fix. A receiver that lost track of a GPS week
   // rollover sends a date from before its firmware was built.
-  if (d.is_updated(gnss::GNSS_FIELD_TIME) && d.is_updated(gnss::GNSS_FIELD_DATE) && d.year >= 2025) {
+  if (d.is_updated(geolocation::GEOLOCATION_FIELD_TIME) && d.is_updated(geolocation::GEOLOCATION_FIELD_DATE) &&
+      d.year >= 2025) {
     ESPTime t{};
     t.year = d.year;
     t.month = d.month;

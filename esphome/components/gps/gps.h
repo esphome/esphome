@@ -9,21 +9,21 @@
 
 namespace esphome::gps {
 
-// The parser and its data moved to nmea and gnss; these names are kept for lambdas until gps is removed
-using GPSData = gnss::GNSSData;
-using GPSField = gnss::GNSSField;
+// The parser and its data moved to nmea and geolocation; these names are kept for lambdas until gps is removed
+using GPSData = geolocation::GeolocationData;
+using GPSField = geolocation::GeolocationField;
 using nmea::NMEA_MAX_LINE;
 using nmea::parse_nmea_sentence;
-static constexpr GPSField GPS_FIELD_LOCATION = gnss::GNSS_FIELD_LOCATION;
-static constexpr GPSField GPS_FIELD_SPEED = gnss::GNSS_FIELD_SPEED;
-static constexpr GPSField GPS_FIELD_COURSE = gnss::GNSS_FIELD_COURSE;
-static constexpr GPSField GPS_FIELD_ALTITUDE = gnss::GNSS_FIELD_ALTITUDE;
-static constexpr GPSField GPS_FIELD_SATELLITES = gnss::GNSS_FIELD_SATELLITES;
-static constexpr GPSField GPS_FIELD_HDOP = gnss::GNSS_FIELD_HDOP;
-static constexpr GPSField GPS_FIELD_TIME = gnss::GNSS_FIELD_TIME;
-static constexpr GPSField GPS_FIELD_DATE = gnss::GNSS_FIELD_DATE;
-static constexpr GPSField GPS_FIELD_GEOID_SEPARATION = gnss::GNSS_FIELD_GEOID_SEPARATION;
-static constexpr uint8_t GPS_FIELD_COUNT = gnss::GNSS_FIELD_COUNT;
+static constexpr GPSField GPS_FIELD_LOCATION = geolocation::GEOLOCATION_FIELD_LOCATION;
+static constexpr GPSField GPS_FIELD_SPEED = geolocation::GEOLOCATION_FIELD_SPEED;
+static constexpr GPSField GPS_FIELD_COURSE = geolocation::GEOLOCATION_FIELD_COURSE;
+static constexpr GPSField GPS_FIELD_ALTITUDE = geolocation::GEOLOCATION_FIELD_ALTITUDE;
+static constexpr GPSField GPS_FIELD_SATELLITES = geolocation::GEOLOCATION_FIELD_SATELLITES;
+static constexpr GPSField GPS_FIELD_HDOP = geolocation::GEOLOCATION_FIELD_HDOP;
+static constexpr GPSField GPS_FIELD_TIME = geolocation::GEOLOCATION_FIELD_TIME;
+static constexpr GPSField GPS_FIELD_DATE = geolocation::GEOLOCATION_FIELD_DATE;
+static constexpr GPSField GPS_FIELD_GEOID_SEPARATION = geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION;
+static constexpr uint8_t GPS_FIELD_COUNT = geolocation::GEOLOCATION_FIELD_COUNT;
 
 class GPS;
 

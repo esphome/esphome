@@ -17,7 +17,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_GNSS_ID, DATA, DATA_PUBLISHER, GNSS_CHILD_SCHEMA
+from . import CONF_GEOLOCATION_ID, DATA, DATA_PUBLISHER, GEOLOCATION_CHILD_SCHEMA
 
 CONF_HDOP = "hdop"
 
@@ -68,11 +68,11 @@ TYPES = {
 }
 
 CONFIG_SCHEMA = cv.typed_schema(
-    {key: schema.extend(GNSS_CHILD_SCHEMA) for key, schema in TYPES.items()}
+    {key: schema.extend(GEOLOCATION_CHILD_SCHEMA) for key, schema in TYPES.items()}
 )
 
 
-# The GNSSField of each type and the GNSSData member that gives its value
+# The GeolocationField of each type and the GeolocationData member that gives its value
 VALUES = {
     CONF_LATITUDE: ("LOCATION", "latitude()"),
     CONF_LONGITUDE: ("LOCATION", "longitude()"),
@@ -86,10 +86,10 @@ VALUES = {
 
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
-    parent = await cg.get_variable(config[CONF_GNSS_ID])
+    parent = await cg.get_variable(config[CONF_GEOLOCATION_ID])
     field, member = VALUES[config[CONF_TYPE]]
     # NAN until the receiver has sent the value
     value = cg.RawExpression(
-        f"{DATA}.has(gnss::GNSS_FIELD_{field}) ? {DATA}.{member} : NAN"
+        f"{DATA}.has(geolocation::GEOLOCATION_FIELD_{field}) ? {DATA}.{member} : NAN"
     )
     DATA_PUBLISHER.add(parent, parent_ref(var).publish_state(value))

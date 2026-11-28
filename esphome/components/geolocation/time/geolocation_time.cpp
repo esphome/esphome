@@ -1,9 +1,9 @@
-#include "gnss_time.h"
+#include "geolocation_time.h"
 #include "esphome/core/hal.h"
 
-namespace esphome::gnss {
+namespace esphome::geolocation {
 
-void GNSSTime::sync_(const GNSSData &data) {
+void GeolocationTime::sync_(const GeolocationData &data) {
   const time_t utc = current_utc(data, millis_64());
   if (utc == 0)
     return;
@@ -11,4 +11,4 @@ void GNSSTime::sync_(const GNSSData &data) {
   this->has_time_ = true;
 }
 
-}  // namespace esphome::gnss
+}  // namespace esphome::geolocation

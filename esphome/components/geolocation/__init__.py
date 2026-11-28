@@ -6,60 +6,62 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@randybb"]
 
-DOMAIN = "gnss"
+DOMAIN = "geolocation"
 IS_PLATFORM_COMPONENT = True
 
 CONF_FIELD_AGE = "field_age"
 CONF_GEOID_SEPARATION = "geoid_separation"
-CONF_GNSS_ID = "gnss_id"
+CONF_GEOLOCATION_ID = "geolocation_id"
 CONF_MILLISECOND = "millisecond"
 
-gnss_ns = cg.esphome_ns.namespace("gnss")
-GNSSComponent = gnss_ns.class_("GNSSComponent", cg.PollingComponent)
-GNSSData = gnss_ns.class_("GNSSData")
+geolocation_ns = cg.esphome_ns.namespace("geolocation")
+GeolocationComponent = geolocation_ns.class_(
+    "GeolocationComponent", cg.PollingComponent
+)
+GeolocationData = geolocation_ns.class_("GeolocationData")
 
 # Sensors publish the latest data on each update_interval
 DATA_PUBLISHER = cg.HubFunction(
     "data",
     cg.void,
-    [(GNSSData.const_ref(), "data")],
-    define="USE_GNSS_DATA_PUBLISHER",
+    [(GeolocationData.const_ref(), "data")],
+    define="USE_GEOLOCATION_DATA_PUBLISHER",
 )
 # Consumers that need every new solution as it arrives (time)
 FIX_PUBLISHER = cg.HubFunction(
     "fix",
     cg.void,
-    [(GNSSData.const_ref(), "data")],
-    define="USE_GNSS_FIX_PUBLISHER",
+    [(GeolocationData.const_ref(), "data")],
+    define="USE_GEOLOCATION_FIX_PUBLISHER",
 )
 DATA = DATA_PUBLISHER.param("data")
 FIX = FIX_PUBLISHER.param("data")
 
 
 def request_field_age() -> None:
-    """Compile in GNSSComponent::get_age(), which costs 4 bytes of RAM per field."""
-    cg.add_define("USE_GNSS_FIELD_AGE")
+    """Compile in GeolocationComponent::get_age(), which costs 4 bytes of RAM per field."""
+    cg.add_define("USE_GEOLOCATION_FIELD_AGE")
 
 
 def request_millisecond() -> None:
-    """Compile in GNSSData::millisecond."""
-    cg.add_define("USE_GNSS_MILLISECOND")
+    """Compile in GeolocationData::millisecond."""
+    cg.add_define("USE_GEOLOCATION_MILLISECOND")
 
 
 def request_geoid_separation() -> None:
-    """Compile in GNSSData::geoid_separation_e3."""
-    cg.add_define("USE_GNSS_GEOID_SEPARATION")
+    """Compile in GeolocationData::geoid_separation_e3."""
+    cg.add_define("USE_GEOLOCATION_GEOID_SEPARATION")
 
 
-GNSS_CHILD_SCHEMA = cv.Schema(
+GEOLOCATION_CHILD_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_GNSS_ID): cv.use_id(GNSSComponent),
+        cv.GenerateID(CONF_GEOLOCATION_ID): cv.use_id(GeolocationComponent),
     }
 )
 
 
-def gnss_schema(class_: MockObjClass) -> cv.Schema:
-    """The schema of a gnss platform."""
+def geolocation_schema(class_: MockObjClass) -> cv.Schema:
+    """The schema of a geolocation platform."""
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(class_),
@@ -71,8 +73,8 @@ def gnss_schema(class_: MockObjClass) -> cv.Schema:
     ).extend(cv.polling_component_schema("20s"))
 
 
-async def new_gnss(config: ConfigType) -> MockObj:
-    """Create and register a gnss platform."""
+async def new_geolocation(config: ConfigType) -> MockObj:
+    """Create and register a geolocation platform."""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if config[CONF_FIELD_AGE]:
