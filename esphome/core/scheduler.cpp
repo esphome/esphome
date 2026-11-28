@@ -773,8 +773,8 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
 #endif
   item->next_free = head;
   head = item;
-  this->scheduler_item_pool_size_++;
 #ifdef ESPHOME_DEBUG_SCHEDULER
+  this->scheduler_item_pool_size_++;
   ESP_LOGD(TAG, "Recycled item (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
 }
@@ -828,7 +828,6 @@ void Scheduler::trim_freelist() {
     freed++;
   }
   this->scheduler_item_pool_head_ = nullptr;
-  this->scheduler_item_pool_size_ -= freed;
 
   // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
   // by doubling and otherwise keeps the peak). Reclaim that slack as well.
@@ -839,6 +838,7 @@ void Scheduler::trim_freelist() {
 #endif
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
+  this->scheduler_item_pool_size_ -= freed;
   ESP_LOGD(TAG, "Freelist trimmed (%zu items freed)", freed);
 #else
   (void) freed;
@@ -873,8 +873,8 @@ Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
   if (this->scheduler_item_pool_head_ != nullptr) {
     SchedulerItem *item = this->scheduler_item_pool_head_;
     this->scheduler_item_pool_head_ = item->next_free;
-    this->scheduler_item_pool_size_--;
 #ifdef ESPHOME_DEBUG_SCHEDULER
+    this->scheduler_item_pool_size_--;
     ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
     return item;
