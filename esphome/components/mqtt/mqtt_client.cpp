@@ -437,6 +437,8 @@ void MQTTClientComponent::start_connect_() {
   if (!this->last_will_.topic.empty()) {
     this->mqtt_backend_.set_will(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
                                  this->last_will_.payload.c_str());
+  } else {
+    this->mqtt_backend_.set_will(nullptr, 0, false, nullptr);
   }
 
   this->session_present_ = false;
@@ -630,8 +632,20 @@ bool MQTTClientComponent::resubscribe_subscriptions_() {
 #ifdef USE_MQTT_SESSION_PERSISTENCE
 // Out of line so the topic buffer is not part of loop()'s stack frame
 __attribute__((noinline)) uint32_t MQTTClientComponent::subscriptions_fingerprint_() {
-  // Seeded with the config hash, so a new firmware config sends every subscription once
-  uint32_t fingerprint = App.get_config_hash();
+  // Seeded with the config hash and broker/routing identity, so a new firmware config or
+  // switching to a different broker, client ID, user, or transport does not trust another session's subscriptions.
+  uint32_t fingerprint = fnv1a_hash_extend(App.get_config_hash(), this->credentials_.address);
+  fingerprint = fnv1a_hash_extend(fingerprint, uint8_t{0});
+  fingerprint = fnv1a_hash_extend(fingerprint, this->credentials_.port);
+  fingerprint = fnv1a_hash_extend(fingerprint, this->credentials_.client_id);
+  fingerprint = fnv1a_hash_extend(fingerprint, uint8_t{0});
+  fingerprint = fnv1a_hash_extend(fingerprint, this->credentials_.username);
+#ifdef USE_ESP32
+  fingerprint = fnv1a_hash_extend(fingerprint, uint8_t{0});
+  fingerprint = fnv1a_hash_extend(fingerprint, static_cast<uint8_t>(this->mqtt_backend_.get_transport()));
+  fingerprint = fnv1a_hash_extend(fingerprint, this->mqtt_backend_.get_ws_path());
+#endif
+  fingerprint = fnv1a_hash_extend(fingerprint, uint8_t{0});
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   for (const auto &subscription : this->subscriptions_)
     fingerprint = add_subscription_fingerprint(fingerprint, subscription.topic.build(buf).c_str(), subscription.qos);
