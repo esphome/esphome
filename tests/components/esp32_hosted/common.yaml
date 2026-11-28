@@ -1,4 +1,5 @@
 esp32_hosted:
+  id: hosted
   variant: ESP32C6
   slot: 1
   reset_pin: GPIO15
@@ -13,3 +14,10 @@ esp32_hosted:
 wifi:
   ssid: MySSID
   password: password1
+
+esphome:
+  on_boot:
+    - lambda: |-
+        id(hosted).add_on_link_callback([](bool linked) {
+          ESP_LOGI("test", "Link up: %s, linked: %s", YESNO(linked), YESNO(id(hosted).is_linked()));
+        });
