@@ -54,7 +54,6 @@ struct SprinklerTimer {
   bool active;
   uint32_t time;
   uint32_t start_time;
-  std::function<void()> func;
 };
 
 struct SprinklerValve {
@@ -492,7 +491,6 @@ class Sprinkler final : public Component {
   void set_timer_duration_(SprinklerTimerIndex timer_index, uint32_t time);
   /// returns time in milliseconds (ms)
   uint32_t timer_duration_(SprinklerTimerIndex timer_index);
-  std::function<void()> timer_cbf_(SprinklerTimerIndex timer_index);
 
   /// callback functions for timers
   void valve_selection_callback_();

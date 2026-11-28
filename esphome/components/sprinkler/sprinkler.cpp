@@ -317,9 +317,7 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 // The `name` is stored for dump_config logging; the scheduler keys each timer by its SprinklerTimerIndex
 Sprinkler::Sprinkler(const char *name, std::span<SprinklerValve> valves)
-    : name_(name),
-      timer_{{{false, 0, 0, [this]() { this->sm_timer_callback_(); }},
-              {false, 0, 0, [this]() { this->valve_selection_callback_(); }}}} {
+    : name_(name), timer_{{{false, 0, 0}, {false, 0, 0}}} {
   this->valve_.init(valves);
 }
 
@@ -1509,8 +1507,13 @@ const LogString *Sprinkler::state_as_str_(SprinklerState state) { return Sprinkl
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {
-    this->set_timeout(static_cast<uint32_t>(timer_index), this->timer_duration_(timer_index),
-                      this->timer_cbf_(timer_index));
+    this->set_timeout(static_cast<uint32_t>(timer_index), this->timer_duration_(timer_index), [this, timer_index]() {
+      if (timer_index == TIMER_SM) {
+        this->sm_timer_callback_();
+      } else {
+        this->valve_selection_callback_();
+      }
+    });
     this->timer_[timer_index].start_time = millis();
     this->timer_[timer_index].active = true;
   }
@@ -1530,10 +1533,6 @@ void Sprinkler::set_timer_duration_(const SprinklerTimerIndex timer_index, const
 }
 
 uint32_t Sprinkler::timer_duration_(const SprinklerTimerIndex timer_index) { return this->timer_[timer_index].time; }
-
-std::function<void()> Sprinkler::timer_cbf_(const SprinklerTimerIndex timer_index) {
-  return this->timer_[timer_index].func;
-}
 
 void Sprinkler::valve_selection_callback_() {
   this->timer_[sprinkler::TIMER_VALVE_SELECTION].active = false;
