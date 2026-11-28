@@ -1,0 +1,25 @@
+vbus:
+  id: managed_bus
+  transmit:
+    destination: 0x2211
+    transactions:
+      response_timeout: 100ms
+      on_result:
+        - lambda: |-
+            ESP_LOGI("vbus.result", "%u %u %u %u %u", grant_id, command, value_id, value,
+                     static_cast<unsigned>(status));
+button:
+  - platform: template
+    name: Read
+    on_press:
+      - vbus.read_value:
+          id: managed_bus
+          value_id: !lambda return 2;
+  - platform: template
+    name: Write
+    on_press:
+      - vbus.write_value:
+          id: managed_bus
+          value_id: !lambda return 3;
+          value: !lambda return 1;
+          command: !lambda return 0x0400;

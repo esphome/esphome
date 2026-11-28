@@ -1,0 +1,38 @@
+esphome:
+  name: vbus-transactions-codegen
+host:
+logger:
+uart:
+  - id: test_uart
+    port: /dev/null
+    baud_rate: 9600
+  - id: other_uart
+    port: /dev/null
+    baud_rate: 9600
+vbus:
+  - id: test_bus
+    uart_id: test_uart
+    transmit:
+      destination: 0x2211
+      transactions:
+        on_result:
+          - delay: 50ms
+          - lambda: |-
+              ESP_LOGI("result", "%u %u %u %u %u", grant_id, command, value_id, value,
+                       static_cast<unsigned>(status));
+  - id: legacy_bus
+    uart_id: other_uart
+button:
+  - platform: template
+    name: Read
+    on_press:
+      - vbus.read_value:
+          id: test_bus
+          value_id: 2
+  - platform: template
+    name: Write
+    on_press:
+      - vbus.write_value:
+          id: test_bus
+          value_id: 2
+          value: 123
