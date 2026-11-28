@@ -101,6 +101,9 @@ class SX126x final : public Component {
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   // True while a packet is being received, or has been received and not yet read; sending would lose it.
   bool is_receiving() { return this->radio_.is_receiving(); }
+  // The power on the channel, in dBm, while the radio listens with no packet arriving, which is the noise floor;
+  // NAN while it sends, sleeps or receives a packet
+  float get_rssi_instant() { return this->radio_.read_rssi_instant(); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  private:

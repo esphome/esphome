@@ -303,6 +303,12 @@ void SX126xCommands::clear_irqs(uint16_t mask) {
   this->write_opcode_(RADIO_CLR_IRQSTATUS, data, 2);
 }
 
+float SX126xCommands::read_rssi_instant() {
+  uint8_t raw = 0;
+  this->read_opcode_(RADIO_GET_RSSIINST, &raw, 1);
+  return raw / -2.0f;
+}
+
 uint16_t SX126xCommands::read_irq() {
   uint8_t data[2]{};
   this->read_opcode_(RADIO_GET_IRQSTATUS, data, 2);

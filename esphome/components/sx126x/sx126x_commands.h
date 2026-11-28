@@ -35,6 +35,8 @@ class SX126xCommands {
   void write_fifo(const uint8_t *data, size_t size);
   // Leaves the packet unchanged if a read fails.
   void read_packet(uint8_t modulation, std::vector<uint8_t> &packet, float &rssi, float &snr);
+  // The power on the channel at this moment, in dBm, while receiving
+  float read_rssi_instant();
   static uint32_t bandwidth_hz(SX126xBw bw);
   static uint16_t ramp_us(uint8_t ramp);
 
