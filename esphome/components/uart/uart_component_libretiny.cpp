@@ -199,6 +199,10 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
 #elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
   // flush() here gives up after about 1 ms: wait for the 16-byte FIFO and the shift register instead
   delay_microseconds_safe(17 * char_us);
+#elif defined(USE_LN882X)
+  // flush() returns while two characters are still in the UART (holding and shift register)
+  hardware->flush();
+  delay_microseconds_safe(2 * char_us);
 #else
   hardware->flush();
   delay_microseconds_safe(char_us);
