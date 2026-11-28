@@ -45,6 +45,14 @@ static constexpr uint8_t IMPROV_PROTOCOL_ID_2 = 0x46;  // 'I' << 1 | 'M' >> 7
 
 ImprovBLEComponent::ImprovBLEComponent() { global_improv_component = this; }
 
+static bool provisioning_closed() {
+#ifdef USE_PROVISIONING
+  return provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
+#else
+  return false;
+#endif
+}
+
 void ImprovBLEComponent::setup() {
 #ifdef USE_BINARY_SENSOR
   if (this->authorizer_binary_sensor_ != nullptr) {
@@ -110,14 +118,20 @@ void ImprovBLEComponent::setup_characteristics() {
 }
 
 void ImprovBLEComponent::loop() {
+  // A Wi-Fi attempt outlives the BLE session that started it
+  this->save_connecting_sta_();
   if (!global_ble_server->is_running()) {
     if (this->state_ != improv::STATE_STOPPED) {
+      this->cancel_timeout(STOP_SERVICE_TIMEOUT_ID);
+      // Offered again after ble.enable, like the service the server restarts, unless stop() cleared its flag
+      this->should_start_ = this->service_->should_start();
       this->state_ = improv::STATE_STOPPED;
 #ifdef USE_IMPROV_BLE_STATE_CALLBACK
       this->state_callback_.call(this->state_, this->error_state_);
 #endif
+      this->release_advertising_();
     }
-    this->release_advertising_();
+    // Also drops a partial command left from a session that stop() ended
     this->incoming_data_.clear();
     return;
   }
@@ -308,14 +322,12 @@ void ImprovBLEComponent::start() {
   if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
-#ifdef USE_PROVISIONING
   // Don't (re)start advertising once the provisioning window has closed - e.g. when
   // wifi tries to restart Improv after the window expired at runtime.
-  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+  if (provisioning_closed()) {
     ESP_LOGD(TAG, "Provisioning window closed; not starting Improv");
     return;
   }
-#endif
 
   ESP_LOGD(TAG, "Setting Improv to start");
   this->should_start_ = true;
@@ -324,12 +336,15 @@ void ImprovBLEComponent::start() {
 
 void ImprovBLEComponent::stop() {
   this->should_start_ = false;
+  // Also keeps the server from starting the service again after ble.enable
+  if (this->service_ != nullptr)
+    this->service_->set_should_start(false);
+  if (this->state_ == improv::STATE_STOPPED)
+    return;
   // Wait before stopping the service to ensure all BLE clients see the state change.
   // This prevents clients from repeatedly reconnecting and wasting resources by allowing
   // them to observe that the device is provisioned before the service disappears.
   this->set_timeout(STOP_SERVICE_TIMEOUT_ID, STOP_ADVERTISING_DELAY, [this] {
-    if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
-      return;
     // Release first so removing the service UUID does not restart advertising on the way out
     this->release_advertising_();
     this->service_->stop();
@@ -372,15 +387,12 @@ void ImprovBLEComponent::process_incoming_data_() {
           this->incoming_data_.clear();
           return;
         }
-#ifdef USE_PROVISIONING
-        if (provisioning::global_provisioning_manager != nullptr &&
-            provisioning::global_provisioning_manager->closed()) {
+        if (provisioning_closed()) {
           ESP_LOGW(TAG, "Provisioning window closed; refusing settings");
           this->set_error_(improv::ERROR_NOT_AUTHORIZED);
           this->incoming_data_.clear();
           return;
         }
-#endif
         if (wifi::global_wifi_component->is_disabled()) {
           // Wi-Fi is disabled, so we can't provision. Respond immediately
           // instead of letting the client wait out its provisioning timeout.
@@ -422,6 +434,10 @@ void ImprovBLEComponent::process_incoming_data_() {
 }
 
 void ImprovBLEComponent::on_wifi_connect_timeout_() {
+  // Once BLE ended the session, Wi-Fi keeps trying these credentials, so they stay pending until it connects
+  if (this->state_ != improv::STATE_PROVISIONING)
+    return;
+  this->connecting_sta_ = {};
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
@@ -433,13 +449,12 @@ void ImprovBLEComponent::on_wifi_connect_timeout_() {
 }
 
 void ImprovBLEComponent::check_wifi_connection_() {
-  if (!wifi::global_wifi_component->is_connected()) {
+  // Also waits for save_connecting_sta_(), which skips a pass while the joined SSID still reads empty
+  if (!wifi::global_wifi_component->is_connected() || !this->connecting_sta_.get_ssid().empty()) {
     return;
   }
 
   if (this->state_ == improv::STATE_PROVISIONING) {
-    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
-    this->connecting_sta_ = {};
     this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
 
     // Build the URL list directly into a stack buffer with no heap allocation
@@ -469,6 +484,20 @@ void ImprovBLEComponent::check_wifi_connection_() {
 
   this->set_state_(improv::STATE_PROVISIONED);
   this->stop();
+}
+
+void ImprovBLEComponent::save_connecting_sta_() {
+  if (this->connecting_sta_.get_ssid().empty() || !wifi::global_wifi_component->is_connected())
+    return;
+  std::array<char, wifi::SSID_BUFFER_SIZE> ssid;
+  const char *joined = wifi::global_wifi_component->wifi_ssid_to(ssid);
+  // Empty while a disconnect is still on its way; check again on the next pass
+  if (joined[0] == '\0')
+    return;
+  // Only for the network Improv asked for: the captive portal may have set another one since
+  if (this->connecting_sta_.get_ssid() == joined)
+    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+  this->connecting_sta_ = {};
 }
 
 void ImprovBLEComponent::advertise_service_data_() {

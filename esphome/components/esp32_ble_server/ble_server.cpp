@@ -36,20 +36,12 @@ void BLEServer::loop() {
   }
   switch (this->state_) {
     case RUNNING: {
-      // Start all services that are pending to start
-      if (!this->services_to_start_.empty()) {
-        size_t write_idx = 0;
-        for (auto *service : this->services_to_start_) {
-          if (service->is_created()) {
-            service->start();  // Needs to be called once per characteristic in the service
-          }
-          // Remove services that have started or are starting
-          if (!service->is_starting() && !service->is_running()) {
-            this->services_to_start_[write_idx++] = service;
-          }
-        }
-        this->services_to_start_.erase(this->services_to_start_.begin() + write_idx, this->services_to_start_.end());
+      // start() adds one characteristic per call; the create events wake the loop for the next one
+      for (auto &entry : this->services_) {
+        if (entry.service->should_start() && entry.service->is_created())
+          entry.service->start();
       }
+      this->disable_loop();
       break;
     }
     case INIT: {
@@ -211,6 +203,11 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       this->registered_ = true;
       break;
     }
+    case ESP_GATTS_CREATE_EVT:
+    case ESP_GATTS_ADD_CHAR_EVT:
+    case ESP_GATTS_ADD_CHAR_DESCR_EVT:
+      this->enable_loop();
+      break;
     default:
       break;
   }
@@ -284,6 +281,7 @@ void BLEServer::ble_before_disabled_event_handler() {
   }
   this->registered_ = false;
   this->state_ = INIT;
+  this->enable_loop();
 }
 
 #ifdef USE_ESP32_BLE_SERVER_SECURITY

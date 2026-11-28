@@ -51,7 +51,10 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   BLEService *get_service(ESPBTUUID uuid, uint8_t inst_id = 0);
-  void enqueue_start_service(BLEService *service) { this->services_to_start_.push_back(service); }
+  void enqueue_start_service(BLEService *service) {
+    service->set_should_start(true);
+    this->enable_loop();
+  }
   void set_device_information_service(BLEService *service) { this->device_information_service_ = service; }
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
@@ -160,7 +163,6 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   uint8_t client_count_{0};
   uint8_t max_clients_{1};
   std::vector<ServiceEntry> services_{};
-  std::vector<BLEService *> services_to_start_{};
   BLEService *device_information_service_{};
 
   enum State : uint8_t {
