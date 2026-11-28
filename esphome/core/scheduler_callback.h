@@ -1,11 +1,14 @@
 #pragma once
 
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <new>
 #include <type_traits>
 #include <utility>
+
+#include "esphome/core/defines.h"
 
 namespace esphome {
 
@@ -40,6 +43,10 @@ class SchedulerCallback {
   }
   SchedulerCallback(const SchedulerCallback &) = delete;
   SchedulerCallback &operator=(const SchedulerCallback &) = delete;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  // Catches one dropped before reaching the scheduler, at the call site
+  ~SchedulerCallback() { assert(this->invoke_ == nullptr); }
+#endif
 
  private:
   friend class Scheduler;
@@ -48,8 +55,12 @@ class SchedulerCallback {
 
   void run_() { this->invoke_(this); }
   /// Frees a boxed callable; reads nothing after the free, so callers may make it their last step
-  void release_() const {
-    if (this->invoke_ == &SchedulerCallback::invoke_boxed)
+  void release_() {
+    const bool boxed = this->invoke_ == &SchedulerCallback::invoke_boxed;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    this->invoke_ = nullptr;  // empty for the destructor's check
+#endif
+    if (boxed)
       this->boxed_.release(this->boxed_.obj);
   }
   /// Moves other's callable here and empties other. Copied as bytes (relying on GCC/Clang union and memcpy
