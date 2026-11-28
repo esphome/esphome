@@ -118,21 +118,20 @@ void ImprovBLEComponent::setup_characteristics() {
 }
 
 void ImprovBLEComponent::loop() {
+  // A Wi-Fi attempt outlives the BLE session that started it
+  this->save_connecting_sta_();
   if (!global_ble_server->is_running()) {
     if (this->state_ != improv::STATE_STOPPED) {
-      // Offered again once ble.enable brings the server back, unless a stop() is pending or the window closed;
-      // the server restarts the service on its own, so it gets the same answer
-      this->should_start_ = !this->cancel_timeout(STOP_SERVICE_TIMEOUT_ID) && !provisioning_closed();
-      this->service_->set_should_start(this->should_start_);
-      this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
+      this->cancel_timeout(STOP_SERVICE_TIMEOUT_ID);
+      // Offered again after ble.enable, like the service the server restarts, unless stop() cleared its flag
+      this->should_start_ = this->service_->should_start();
       this->state_ = improv::STATE_STOPPED;
 #ifdef USE_IMPROV_BLE_STATE_CALLBACK
       this->state_callback_.call(this->state_, this->error_state_);
 #endif
+      this->release_advertising_();
+      this->incoming_data_.clear();
     }
-    this->save_connecting_sta_();
-    this->release_advertising_();
-    this->incoming_data_.clear();
     return;
   }
   if (this->service_ == nullptr) {
@@ -336,18 +335,15 @@ void ImprovBLEComponent::start() {
 
 void ImprovBLEComponent::stop() {
   this->should_start_ = false;
-  if (this->state_ == improv::STATE_STOPPED) {
-    // No session to show a client, as when BLE is down; keep the server from starting the service on ble.enable
-    if (this->service_ != nullptr)
-      this->service_->set_should_start(false);
+  // Also keeps the server from starting the service again after ble.enable
+  if (this->service_ != nullptr)
+    this->service_->set_should_start(false);
+  if (this->state_ == improv::STATE_STOPPED)
     return;
-  }
   // Wait before stopping the service to ensure all BLE clients see the state change.
   // This prevents clients from repeatedly reconnecting and wasting resources by allowing
   // them to observe that the device is provisioned before the service disappears.
   this->set_timeout(STOP_SERVICE_TIMEOUT_ID, STOP_ADVERTISING_DELAY, [this] {
-    if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
-      return;
     // Release first so removing the service UUID does not restart advertising on the way out
     this->release_advertising_();
     this->service_->stop();
@@ -438,6 +434,9 @@ void ImprovBLEComponent::process_incoming_data_() {
 
 void ImprovBLEComponent::on_wifi_connect_timeout_() {
   this->connecting_sta_ = {};
+  // The session already ended, as when the BLE server went down meanwhile
+  if (this->state_ != improv::STATE_PROVISIONING)
+    return;
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
@@ -453,8 +452,6 @@ void ImprovBLEComponent::check_wifi_connection_() {
     return;
   }
 
-  // Also saves an attempt whose session ended (BLE went down) before Wi-Fi connected
-  this->save_connecting_sta_();
   if (this->state_ == improv::STATE_PROVISIONING) {
     this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
 
