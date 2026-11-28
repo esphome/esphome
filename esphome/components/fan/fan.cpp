@@ -204,7 +204,8 @@ void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
 
 void Fan::apply_preset_mode_(const FanCall &call) {
   if (call.has_preset_mode()) {
-    this->preset_mode_ = this->supported_preset_modes_[call.preset_mode_];  // checked by FanCall::validate_()
+    if (call.preset_mode_ < this->supported_preset_modes_.size())  // a log callback may have replaced the list
+      this->preset_mode_ = this->supported_preset_modes_[call.preset_mode_];
   } else if (call.speed_ != FanCall::NO_SPEED) {
     // Manually setting speed clears preset (per Home Assistant convention)
     this->clear_preset_mode_();

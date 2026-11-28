@@ -30,6 +30,18 @@ class CallFan : public Fan {
   bool features_;
 };
 
+class ShrinkingFan : public CallFan {
+ public:
+  bool shrink{false};
+
+ protected:
+  void control(const FanCall &call) override {
+    if (this->shrink)
+      this->set_supported_preset_modes({"auto"});
+    CallFan::control(call);
+  }
+};
+
 TEST(FanCall, SetFieldsReachControl) {
   CallFan fan;
   fan.make_call().set_state(false).set_oscillating(false).set_speed(7).set_direction(FanDirection::FORWARD).perform();
@@ -102,6 +114,16 @@ TEST(FanCall, PresetIndexOutsideAReplacedListIsIgnored) {
   fan.set_supported_preset_modes({"auto"});
   EXPECT_EQ(call.get_preset_mode(), nullptr);
   call.perform();
+  EXPECT_EQ(fan.get_preset_mode(), "auto");
+}
+
+// The list shrinking between validate_() and control(), as a log callback could do, leaves the fan's preset alone
+TEST(FanCall, PresetListShrunkAfterValidationIsIgnored) {
+  ShrinkingFan fan;
+  fan.set_supported_preset_modes({"auto", "sleep"});
+  fan.make_call().set_preset_mode("auto").perform();
+  fan.shrink = true;
+  fan.make_call().set_preset_mode("sleep").perform();
   EXPECT_EQ(fan.get_preset_mode(), "auto");
 }
 
