@@ -68,6 +68,21 @@ switch:
     cluster: on_off
     device_class: outlet
 
+cover:
+  - platform: template
+    id: template_cover_endpoint
+    name: "Template Cover Endpoint"
+    endpoint: 7
+    device_class: curtain
+  - platform: copy
+    name: "Copy Cover"
+    source_id: template_cover_endpoint
+  - platform: template
+    name: "Template Cover Reported"
+    report: force
+    has_position: true
+    device_class: shutter
+
 zigbee:
   model: zigbee_test
   manufacturer: test

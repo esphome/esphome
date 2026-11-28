@@ -69,6 +69,7 @@ from .endpoints_zephyr import endpoint_ids
 from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
+    validate_cover_esp32,
     validate_light_esp32,
     validate_number_esp32,
     validate_sensor_esp32,
@@ -298,6 +299,15 @@ async def setup_light(entity: cg.MockObj, config: ConfigType) -> None:
     await add_light(entity, config)
 
 
+async def setup_cover(entity: cg.MockObj, config: ConfigType) -> None:
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return
+    if CORE.is_esp32:
+        from .zigbee_esp32 import add_cover
+
+        CORE.add_job(add_cover, entity, config)
+
+
 async def setup_number(
     entity: cg.MockObj,
     config: ConfigType,
@@ -369,6 +379,18 @@ def validate_light(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_light_esp32(config)
+    return config
+
+
+def validate_cover(config: ConfigType) -> ConfigType:
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return config
+    if CORE.is_esp32:
+        return validate_cover_esp32(config)
+    if CONF_ENDPOINT in config:
+        raise cv.Invalid(
+            "Zigbee covers are only supported on ESP32", path=[CONF_ENDPOINT]
+        )
     return config
 
 

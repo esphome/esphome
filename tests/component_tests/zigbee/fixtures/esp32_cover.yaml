@@ -1,0 +1,19 @@
+esphome:
+  name: cover-test
+esp32:
+  variant: esp32c6
+  framework:
+    type: esp-idf
+zigbee:
+  id: radio
+  model: cover-test
+cover:
+  - platform: template
+    id: blind
+    name: Blind
+    optimistic: true
+    device_class: curtain
+  - platform: copy
+    id: blind_copy
+    name: Blind Copy
+    source_id: blind

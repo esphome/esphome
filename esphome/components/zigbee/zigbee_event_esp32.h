@@ -11,6 +11,10 @@
 
 namespace esphome::zigbee {
 
+#ifdef USE_ZIGBEE_COVER
+class ZigbeeCover;
+#endif
+
 class ZBEvent {
  public:
   // IMPORTANT: We MUST copy all values because the pointer from ESP-IDF
@@ -52,6 +56,13 @@ class ZBEvent {
     this->init_set_attr_value_data_(info, attribute);
   }
 
+#ifdef USE_ZIGBEE_COVER
+  void load_window_covering_event(ZigbeeCover *cover, uint8_t cmd_id, uint8_t percentage) {
+    this->callback_id_ = EZB_ZCL_CORE_WINDOW_COVERING_MOVEMENT_CB_ID;
+    this->event_.window_covering = {cover, cmd_id, percentage};
+  }
+#endif
+
   // Disable copy to prevent double-delete
   ZBEvent(const ZBEvent &) = delete;
   ZBEvent &operator=(const ZBEvent &) = delete;
@@ -67,6 +78,14 @@ class ZBEvent {
       } data;
       bool is_inline;
     } set_attr;
+#ifdef USE_ZIGBEE_COVER
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    struct window_covering_event {
+      ZigbeeCover *cover;
+      uint8_t cmd_id;
+      uint8_t percentage;
+    } window_covering;
+#endif
   } event_;
 
   ezb_zcl_core_action_callback_id_t callback_id_;

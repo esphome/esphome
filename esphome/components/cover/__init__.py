@@ -34,6 +34,8 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
     setup_device_class,
@@ -106,6 +108,7 @@ _STATE_TRIGGERS = {
 _COVER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_COVER_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
@@ -144,6 +147,7 @@ _COVER_SCHEMA = (
 
 
 _COVER_SCHEMA.add_extra(entity_duplicate_validator("cover"))
+_COVER_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_cover"))
 
 
 def _validate_mqtt_state_topics(config: ConfigType) -> ConfigType:
@@ -205,6 +209,8 @@ async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
             cg.add(mqtt_.set_custom_tilt_state_topic(tilt_state_topic))
         if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_tilt_command_topic(tilt_command_topic))
+
+    await lazy_load_setup("zigbee", "setup_cover", var, config)
 
 
 async def _build_state_triggers(var: MockObj, config: ConfigType) -> None:
