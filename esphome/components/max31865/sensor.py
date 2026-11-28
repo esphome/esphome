@@ -42,9 +42,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
+    await sensor.register_sensor(var, config)
     cg.add(var.set_reference_resistance(config[CONF_REFERENCE_RESISTANCE]))
     cg.add(var.set_nominal_resistance(config[CONF_RTD_NOMINAL_RESISTANCE]))
     cg.add(var.set_filter(config[CONF_MAINS_FILTER]))
