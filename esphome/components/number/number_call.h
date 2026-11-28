@@ -41,9 +41,12 @@ class NumberCall {
                                         float limit);
 
   Number *const parent_;
-  optional<float> value_;
+  float value_{NAN};  // NAN is unset; perform() rejects a NAN value either way
   NumberOperation operation_{NUMBER_OP_NONE};
   bool cycle_{false};
 };
+
+// Fits the scheduler's 12-byte inline slot, so web_server's deferred call does not allocate
+static_assert(sizeof(void *) != 4 || sizeof(NumberCall) <= 12, "NumberCall must stay within 12 bytes on 32-bit");
 
 }  // namespace esphome::number
