@@ -1,0 +1,204 @@
+#pragma once
+
+#include "esphome/components/canbus/canbus.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <utility>
+
+namespace esphome::toptronic {
+
+class TopTronic;
+// Value encoding of a datapoint
+enum class TypeName : uint8_t {
+  TYPE_NAME_U8,
+  TYPE_NAME_U16,
+  TYPE_NAME_U32,
+  TYPE_NAME_S8,
+  TYPE_NAME_S16,
+  TYPE_NAME_S32,
+  TYPE_NAME_S64,
+};
+// Downcast discriminator; ESPHome builds run without RTTI, so there is no dynamic_cast
+enum class SensorType : uint8_t { SENSOR_TYPE_SENSOR, SENSOR_TYPE_TEXT };
+
+static constexpr size_t GET_REQUEST_LEN = 6;
+using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
+// A SET is the GET header with the SET command and a value of up to 8 bytes appended
+static constexpr size_t MAX_SET_VALUE_LEN = 8;
+static constexpr size_t MAX_SET_REQUEST_LEN = GET_REQUEST_LEN + MAX_SET_VALUE_LEN;
+using SetRequest = std::array<uint8_t, MAX_SET_REQUEST_LEN>;
+
+struct Option {
+  uint8_t value;
+  const char *text;  // codegen string literal, valid for the life of the program
+};
+
+// Shared entity base. update() sends the cached GET through the hub.
+class TopTronicBase : public PollingComponent {
+ public:
+  void set_function_group(uint8_t function_group) { this->function_group_ = function_group; }
+  void set_function_number(uint8_t function_number) { this->function_number_ = function_number; }
+  void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
+  void set_hub(TopTronic *hub) { this->hub_ = hub; }
+  uint32_t get_id() const;  // fg | fn << 8 | datapoint << 16; hub map key
+  const GetRequest &get_request_data() const { return this->request_data_; }
+  void cache_request_data();
+  virtual SensorType type() const = 0;
+  void update() override;
+  /// Set by the hub for an input without a read entity: control() then publishes the written value itself
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+  virtual const LogString *get_log_name() const = 0;
+
+ protected:
+  uint8_t function_group_{0};
+  uint8_t function_number_{0};
+  uint16_t datapoint_{0};
+  GetRequest request_data_{};  // GET payload, built once at setup
+  bool optimistic_{false};
+  TopTronic *hub_{nullptr};
+  /// Encodes value for the wire type, stores the rounded and clamped value in encoded, and sends it.
+  /// Returns whether the hub accepted every frame.
+  bool send_set_(float value, TypeName type, float *encoded);
+};
+
+class TopTronicSensor final : public sensor::Sensor, public TopTronicBase {
+ public:
+  void set_type(TypeName type) { this->type_ = type; }
+  float parse_value(const uint8_t *data, size_t len);
+  size_t value_width() const;
+  SensorType type() const override { return SensorType::SENSOR_TYPE_SENSOR; }
+  const LogString *get_log_name() const override { return this->sensor::Sensor::get_log_name(); }
+
+ protected:
+  TypeName type_{TypeName::TYPE_NAME_U8};
+};
+
+#ifdef USE_NUMBER
+class TopTronicNumber final : public number::Number, public TopTronicBase {
+ public:
+  TopTronicNumber() { this->set_update_interval(SCHEDULER_DONT_RUN); }
+  void set_type(TypeName type) { this->type_ = type; }
+  void set_multiplier(float multiplier) { this->multiplier_ = multiplier; }
+  float get_multiplier() { return this->multiplier_; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_SENSOR; }
+  const LogString *get_log_name() const override { return this->number::Number::get_log_name(); }
+  void control(float value) override;
+
+ protected:
+  TypeName type_{TypeName::TYPE_NAME_U8};
+  float multiplier_{1.0f};  // from YAML decimal (decimal: 1 -> x10)
+};
+#endif
+#ifdef USE_TEXT_SENSOR
+class TopTronicTextSensor final : public text_sensor::TextSensor, public TopTronicBase {
+ public:
+  /// Returns the text for a value, or nullptr when the value is not in the option list. The caller then
+  /// keeps the last state instead of publishing an invalid one.
+  const char *parse_value(const uint8_t *data, size_t len) const;
+  SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
+  const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
+  void set_options(const Option *options, size_t count) { this->options_ = {options, count}; }
+
+ protected:
+  std::span<const Option> options_;
+};
+#endif
+#ifdef USE_SELECT
+class TopTronicSelect final : public select::Select, public TopTronicBase {
+ public:
+  TopTronicSelect() { this->set_update_interval(SCHEDULER_DONT_RUN); }
+  void set_type(TypeName type) { this->type_ = type; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
+  const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
+  void set_values(const uint8_t *values, size_t count) { this->values_ = {values, count}; }
+
+ protected:
+  void control(size_t index) override;
+  std::span<const uint8_t> values_;  // SET value per option index, in the same order as the traits options
+  TypeName type_{TypeName::TYPE_NAME_U8};
+};
+#endif
+
+class TopTronic : public Component {
+ public:
+  TopTronic(canbus::Canbus *canbus, uint16_t device_id);
+
+  void add_sensor(TopTronicBase *sensor);
+  void add_input(TopTronicBase *input);
+  void register_sensor_callbacks();
+  void register_input_callbacks();
+  void setup() override;
+  void dump_config() override;
+
+  friend class TopTronicBase;
+
+ protected:
+  // Entity registries are fixed at code generation; the fallbacks serve hand-built tests
+#ifdef TOPTRONIC_SENSOR_COUNT
+  static constexpr size_t MAX_SENSORS = TOPTRONIC_SENSOR_COUNT;
+#else
+  static constexpr size_t MAX_SENSORS = 16;
+#endif
+#ifdef TOPTRONIC_INPUT_COUNT
+  static constexpr size_t MAX_INPUTS = TOPTRONIC_INPUT_COUNT;
+#else
+  static constexpr size_t MAX_INPUTS = 16;
+#endif
+  // The 5-bit frame count field caps a message at 31 frames of up to 7 payload bytes
+  static constexpr size_t MAX_FRAMES_PER_MESSAGE = 31;
+  static constexpr size_t MAX_CONT_FRAME_PAYLOAD = 7;
+  static constexpr size_t MAX_MESSAGE_LEN = MAX_FRAMES_PER_MESSAGE * MAX_CONT_FRAME_PAYLOAD;
+  static_assert(MAX_MESSAGE_LEN <= UINT8_MAX, "Slot::len is a uint8_t");
+  static constexpr uint32_t MAX_PENDING_AGE_MS = 5000;
+  // One sender answers requests one after another; a second slot covers an abandoned message
+  static constexpr size_t NUM_SLOTS = 2;
+
+  struct Slot {
+    uint32_t last_update_ms;
+    uint8_t len;
+    uint8_t tag;
+    uint8_t remaining;  // continuation frames still expected, 0 when free
+    uint8_t data[MAX_MESSAGE_LEN];
+
+    bool is_live(uint32_t now) const {
+      return this->remaining != 0 && now - this->last_update_ms <= MAX_PENDING_AGE_MS;
+    }
+  };
+
+  /// Sends a request, split into a start frame and continuation frames when it does not fit in one.
+  /// Returns whether every frame was accepted by the bus.
+  bool send_frames_(uint32_t can_id, const uint8_t *data, size_t len);
+  /// Sends the cached GET of one sensor through this hub.
+  bool send_get_(TopTronicBase *sensor);
+  /// Feeds one frame from this device into reassembly. Returns true and points msg/len at the payload when
+  /// a message is complete (CRC already checked and stripped); the pointer is valid until the next frame.
+  bool parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len);
+  void interpret_message_(const uint8_t *data, size_t len);
+  void link_inputs_();
+  TopTronicBase *get_sensor_(uint32_t sensor_id) const;
+
+  canbus::Canbus *canbus_;
+  StaticVector<TopTronicBase *, MAX_SENSORS> sensors_;
+  StaticVector<TopTronicBase *, MAX_INPUTS> inputs_;
+  std::array<Slot, NUM_SLOTS> slots_{};
+  uint32_t can_id_;
+  uint8_t msg_counter_{0};  // frame tag of the last multi-frame message sent by this hub
+  uint16_t device_id_;
+};
+
+}  // namespace esphome::toptronic
