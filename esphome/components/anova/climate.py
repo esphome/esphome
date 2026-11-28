@@ -30,7 +30,6 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await climate.new_climate(config)
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config)
+    await climate.register_climate(var, config)
     cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))

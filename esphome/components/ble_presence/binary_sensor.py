@@ -60,9 +60,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
+    await binary_sensor.register_binary_sensor(var, config)
 
     cg.add(var.set_timeout(config[CONF_TIMEOUT].total_milliseconds))
     if min_rssi := config.get(CONF_MIN_RSSI):

@@ -44,7 +44,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await text_sensor.new_text_sensor(config)
+    var = await ble_client.new_ble_node_component(config)
+    await text_sensor.register_text_sensor(var, config)
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
             var.set_service_uuid16(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
@@ -88,8 +89,6 @@ async def to_code(config):
             uuid128 = esp32_ble_tracker.as_reversed_hex_array(descriptor_uuid)
             cg.add(var.set_descr_uuid128(uuid128))
 
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
     cg.add(var.set_enable_notify(config[CONF_NOTIFY]))
     if on_notify := config.get(CONF_ON_NOTIFY):
         cg.add_define("USE_BLE_TEXT_SENSOR_ON_NOTIFY")

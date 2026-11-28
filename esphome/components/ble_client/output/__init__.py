@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await ble_client.new_ble_node_component(config)
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
             var.set_service_uuid16(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
@@ -64,5 +64,3 @@ async def to_code(config):
         cg.add(var.set_char_uuid128(uuid128))
     cg.add(var.set_require_response(config[CONF_REQUIRE_RESPONSE]))
     await output.register_output(var, config)
-    await ble_client.register_ble_node(var, config)
-    await cg.register_component(var, config)

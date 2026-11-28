@@ -77,13 +77,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def rssi_sensor_to_code(config):
-    var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config)
+    await sensor.register_sensor(var, config)
 
 
 async def characteristic_sensor_to_code(config):
-    var = await sensor.new_sensor(config)
+    var = await ble_client.new_ble_node_component(config)
+    await sensor.register_sensor(var, config)
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
             var.set_service_uuid16(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
@@ -133,8 +133,6 @@ async def characteristic_sensor_to_code(config):
         )
         cg.add(var.set_data_to_value(lambda_))
 
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
     cg.add(var.set_enable_notify(config[CONF_NOTIFY]))
     if on_notify := config.get(CONF_ON_NOTIFY):
         cg.add_define("USE_BLE_SENSOR_ON_NOTIFY")

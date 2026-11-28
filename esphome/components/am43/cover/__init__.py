@@ -29,8 +29,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await cover.new_cover(config)
+    var = await ble_client.new_ble_node_component(config)
+    await cover.register_cover(var, config)
     cg.add(var.set_pin(config[CONF_PIN]))
     cg.add(var.set_invert_position(config[CONF_INVERT_POSITION]))
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
