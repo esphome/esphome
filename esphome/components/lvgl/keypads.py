@@ -4,8 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID
 
 from .defines import (
-    CONF_ENCODERS,
-    CONF_INITIAL_FOCUS,
     CONF_KEYPADS,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
@@ -68,10 +66,3 @@ async def keypads_to_code(var, config, default_group):
         else:
             group = default_group
         lv.indev_set_group(listener.get_drv(), group)
-
-
-async def initial_focus_to_code(config):
-    for enc_conf in config[CONF_ENCODERS]:
-        if default_focus := enc_conf.get(CONF_INITIAL_FOCUS):
-            obj = await cg.get_variable(default_focus)
-            lv.group_focus_obj(obj)

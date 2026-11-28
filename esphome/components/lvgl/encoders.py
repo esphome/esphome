@@ -4,12 +4,14 @@ from esphome.components.rotary_encoder import DOMAIN as ROTARY_ENCODER_DOMAIN
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
+from esphome.types import ConfigType
 
 from .defines import (
     CONF_DEFAULT_GROUP,
     CONF_ENCODERS,
     CONF_ENTER_BUTTON,
     CONF_INITIAL_FOCUS,
+    CONF_KEYPADS,
     CONF_LEFT_BUTTON,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
@@ -77,8 +79,8 @@ async def encoders_to_code(var, config, default_group):
         lv.indev_set_group(listener.get_drv(), group)
 
 
-async def initial_focus_to_code(config):
-    for enc_conf in config[CONF_ENCODERS]:
+async def initial_focus_to_code(config: ConfigType) -> None:
+    for enc_conf in config[CONF_ENCODERS] + config[CONF_KEYPADS]:
         if default_focus := enc_conf.get(CONF_INITIAL_FOCUS):
             widget = await get_widgets(default_focus)
             lv.group_focus_obj(widget[0].obj)
