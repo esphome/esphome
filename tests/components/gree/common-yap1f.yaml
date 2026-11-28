@@ -1,0 +1,6 @@
+climate:
+  - platform: gree
+    name: GREE YAP1F
+    id: my_gree_yap1f
+    model: yap1f
+    transmitter_id: xmitr

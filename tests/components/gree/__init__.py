@@ -13,5 +13,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_GREE_FEATURE_SWITCH")
         cg.add_define("USE_GREE_RECEIVER")
         cg.add_define("USE_GREE_YAW1F")
+        cg.add_define("USE_GREE_YAP1F")
 
     manifest.to_code = to_code_testing

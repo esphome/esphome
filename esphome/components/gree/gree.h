@@ -51,6 +51,13 @@ static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
 // Gap between the YAW1F primary command and its fixed second message.
 static constexpr uint32_t GREE_YAW1F_FOLLOWUP_SPACE = 40000;
 
+// YAP1F (HeatpumpIR GreeYAP) sends three frames with its own timings.
+static constexpr uint32_t GREE_YAP_HEADER_SPACE = 4500;
+static constexpr uint32_t GREE_YAP_BIT_MARK = 650;
+static constexpr uint32_t GREE_YAP_ONE_SPACE = 1643;
+static constexpr uint32_t GREE_YAP_ZERO_SPACE = 510;
+static constexpr uint32_t GREE_YAP_MESSAGE_SPACE = 20000;
+
 // State Frame size
 static constexpr uint8_t GREE_STATE_FRAME_SIZE = 8;
 
@@ -116,7 +123,8 @@ enum Model : uint8_t {
   GREE_YB1FA,
   GREE_YX1FF,
   GREE_YAG,
-  GREE_YAW1F
+  GREE_YAW1F,
+  GREE_YAP1F
 };
 
 enum GreeFeature : uint8_t {

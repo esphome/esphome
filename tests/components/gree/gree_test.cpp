@@ -1124,4 +1124,121 @@ TEST_F(GreeTransmitTest, ExistingModelsKeepTheirBytesAndSingleMessageFraming) {
   EXPECT_EQ(this->transmitter_.send_count, 7U);
 }
 
+#ifdef USE_GREE_YAP1F
+static constexpr remote_base::BitTimings YAP_TIMINGS{
+    .bit_mark = GREE_YAP_BIT_MARK, .one_space = GREE_YAP_ONE_SPACE, .zero_space = GREE_YAP_ZERO_SPACE};
+
+static bool read_yap_frame(remote_base::RemoteReceiveData &data, GreeState &frame) {
+  return data.expect_item(GREE_HEADER_MARK, GREE_YAP_HEADER_SPACE) && data.expect_bytes<YAP_TIMINGS>(frame.data(), 4) &&
+         data.expect_item(GREE_YAP_BIT_MARK, GREE_YAP_ZERO_SPACE) &&
+         data.expect_item(GREE_YAP_BIT_MARK, GREE_YAP_ONE_SPACE) &&
+         data.expect_item(GREE_YAP_BIT_MARK, GREE_YAP_ZERO_SPACE) &&
+         data.expect_item(GREE_YAP_BIT_MARK, GREE_YAP_MESSAGE_SPACE) &&
+         data.expect_bytes<YAP_TIMINGS>(frame.data() + 4, 4) && data.expect_mark(GREE_YAP_BIT_MARK);
+}
+
+/// Read the three frames of a YAP1F transmission.
+static std::array<GreeState, 3> read_yap_frames(const RawTimings &raw) {
+  std::array<GreeState, 3> frames{};
+  auto data = receive_data(raw);
+  for (size_t i = 0; i < frames.size(); i++) {
+    EXPECT_TRUE(read_yap_frame(data, frames[i])) << "frame " << i;
+    if (i + 1 < frames.size())
+      EXPECT_TRUE(data.expect_space(GREE_YAP_MESSAGE_SPACE)) << "gap after frame " << i;
+  }
+  return frames;
+}
+
+// Expected frames follow the HeatpumpIR GreeYAP layout: each frame's checksum is the first byte of the next.
+TEST(GreeYAP1F, EncodeGoldenFrames) {
+  struct Case {
+    climate::ClimateMode mode;
+    uint8_t temperature;
+    climate::ClimateFanMode fan;
+    std::array<GreeState, 3> frames;
+  };
+  const Case cases[] = {
+      {climate::CLIMATE_MODE_COOL,
+       24,
+       climate::CLIMATE_FAN_HIGH,
+       {GreeState{0x39, 0x08, 0x20, 0x50, 0xC2, 0x00, 0x00, 0x70},
+        GreeState{0x70, 0x08, 0x20, 0x70, 0x00, 0x00, 0x00, 0x20},
+        GreeState{0x20, 0x00, 0x00, 0xA0, 0x00, 0x00, 0xA0, 0x00}}},
+      // Power off sends heat mode with automatic fan
+      {climate::CLIMATE_MODE_OFF,
+       22,
+       climate::CLIMATE_FAN_LOW,
+       {GreeState{0x04, 0x06, 0x20, 0x50, 0xC2, 0x00, 0x00, 0x00},
+        GreeState{0x00, 0x06, 0x20, 0x70, 0x00, 0x00, 0x00, 0x00},
+        GreeState{0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0xA0, 0x00}}},
+      // Automatic mode always sends 25 C
+      {climate::CLIMATE_MODE_HEAT_COOL,
+       22,
+       climate::CLIMATE_FAN_MEDIUM,
+       {GreeState{0x28, 0x09, 0x20, 0x50, 0xC2, 0x00, 0x00, 0x70},
+        GreeState{0x70, 0x09, 0x20, 0x70, 0x00, 0x00, 0x00, 0x30},
+        GreeState{0x30, 0x00, 0x00, 0xA0, 0x00, 0x00, 0xA0, 0x00}}},
+      // Dry mode forces fan 1
+      {climate::CLIMATE_MODE_DRY,
+       20,
+       climate::CLIMATE_FAN_HIGH,
+       {GreeState{0x1A, 0x04, 0x20, 0x50, 0xC2, 0x00, 0x00, 0x40},
+        GreeState{0x40, 0x04, 0x20, 0x70, 0x00, 0x00, 0x00, 0xE0},
+        GreeState{0xE0, 0x00, 0x00, 0xA0, 0x00, 0x00, 0xA0, 0x00}}},
+  };
+  for (const Case &c : cases) {
+    const GreeClimateData data{
+        c.mode, c.temperature, c.fan, climate::CLIMATE_SWING_OFF, climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
+    const GreeState state = GreeClimateCodec::encode(GREE_YAP1F, data);
+    EXPECT_EQ(state, c.frames[0]) << "mode " << c.mode;
+
+    remote_base::RemoteTransmitData transmit;
+    GreeProtocol(GREE_YAP1F).encode(&transmit, state);
+    EXPECT_EQ(transmit.get_carrier_frequency(), GREE_IR_FREQUENCY);
+    EXPECT_EQ(read_yap_frames(transmit.get_data()), c.frames) << "mode " << c.mode;
+  }
+}
+
+TEST(GreeYAP1F, SwitchBitsReachTheFrame) {
+  const GreeClimateData data{climate::CLIMATE_MODE_COOL,   24,
+                             climate::CLIMATE_FAN_AUTO,    climate::CLIMATE_SWING_OFF,
+                             climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_TURBO | GREE_MODE_BIT_XFAN};
+  const GreeState state = GreeClimateCodec::encode(GREE_YAP1F, data);
+  EXPECT_EQ(state[2], GREE_MODE_BIT_TURBO | GREE_MODE_BIT_XFAN);
+  EXPECT_EQ(state[GREE_STATE_FRAME_SIZE - 1], GreeProtocol::calculate_checksum(state));
+}
+
+TEST(GreeYAP1F, ClimateTransmitsThreeFramesAndOnlyAdvertisesSwingOff) {
+  CapturingTransmitter transmitter;
+  GreeClimate device;
+  device.set_model(GREE_YAP1F);
+  device.set_transmitter(&transmitter);
+  auto traits = device.get_traits();
+  EXPECT_TRUE(traits.supports_swing_mode(climate::CLIMATE_SWING_OFF));
+  EXPECT_FALSE(traits.supports_swing_mode(climate::CLIMATE_SWING_VERTICAL));
+  EXPECT_FALSE(traits.supports_swing_mode(climate::CLIMATE_SWING_HORIZONTAL));
+  EXPECT_FALSE(traits.supports_swing_mode(climate::CLIMATE_SWING_BOTH));
+
+  auto call = device.make_call();
+  call.set_mode(climate::CLIMATE_MODE_COOL);
+  call.set_target_temperature(24);
+  call.set_fan_mode(climate::CLIMATE_FAN_HIGH);
+  call.perform();
+  EXPECT_EQ(transmitter.send_count, 1u);
+  EXPECT_EQ(transmitter.last_carrier_frequency, GREE_IR_FREQUENCY);
+  const auto frames = read_yap_frames(transmitter.last_raw);
+  EXPECT_EQ(frames[0], (GreeState{0x39, 0x08, 0x20, 0x50, 0xC2, 0x00, 0x00, 0x70}));
+}
+
+// Negative control: other models keep their swing modes and their frame timings.
+TEST(GreeYAP1F, OtherModelsAreUnchanged) {
+  GreeClimate device;
+  device.set_model(GREE_YAC);
+  EXPECT_TRUE(device.get_traits().supports_swing_mode(climate::CLIMATE_SWING_BOTH));
+  const GreeState state{0x29, 0x06, 0x20, 0x50, 0x00, 0x20, 0x20, 0x00};
+  const auto raw = encode_signal(GREE_YAC, with_checksum(state));
+  EXPECT_EQ(raw[1], -static_cast<int32_t>(GREE_HEADER_SPACE));
+}
+#endif  // USE_GREE_YAP1F
+
 }  // namespace esphome::gree::testing
