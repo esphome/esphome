@@ -1,16 +1,22 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_THERMOPRO_BLE_GATT
+
 #include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-#include "thermopro_tp970_protocol.h"
+#include "thermopro_ble_protocol.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
-#ifdef USE_ESP32
-namespace esphome::thermopro_tp970 {
+namespace esphome::thermopro_ble {
 
-class ThermoProTP970 : public Component, public ble_client::BLEClientNode {
+class ThermoProBLEClient : public Component, public ble_client::BLEClientNode {
  public:
   void setup() override;
   void dump_config() override;
@@ -19,21 +25,23 @@ class ThermoProTP970 : public Component, public ble_client::BLEClientNode {
   void set_timeout_ms(uint32_t timeout_ms) { this->timeout_ms_ = timeout_ms; }
 
 #ifdef USE_SENSOR
-  SUB_SENSOR(internal_temperature)
-  SUB_SENSOR(ambient_temperature)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(external_temperature)
   SUB_SENSOR(battery_level)
   SUB_SENSOR(notification_count)
 #endif
 
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(temperature_stream)
+#endif
+
  protected:
   void invalidate_();
-  void publish_reading_(const TemperatureReading &reading);
+  void publish_reading_(const ParseResult &reading);
   uint16_t handle_{0};
   uint32_t timeout_ms_{15000};
-  uint32_t last_notification_{0};
-  uint32_t notification_count_{0};
-  bool streaming_{false};
+  NotificationState notification_state_;
 };
 
-}  // namespace esphome::thermopro_tp970
+}  // namespace esphome::thermopro_ble
 #endif
