@@ -1,0 +1,36 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+
+esp_ldo:
+  - id: ldo_id
+    channel: 3
+    voltage: 2.5V
+
+display:
+  - platform: mipi_dsi
+    id: amoled_display
+    model: CUSTOM
+    dimensions:
+      width: 568
+      height: 1232
+    hsync_back_porch: 150
+    hsync_pulse_width: 50
+    hsync_front_porch: 50
+    vsync_back_porch: 120
+    vsync_pulse_width: 40
+    vsync_front_porch: 80
+    pclk_frequency: 60MHz
+    lane_bit_rate: 1Gbps
+    brightness: 0xC0
+    init_sequence:
+      - [0xFE, 0x00]
+
+light:
+  - platform: mipi_dsi
+    id: display_brightness
+    name: Display Brightness
+    display_id: amoled_display
+    min_brightness: 16
+    max_brightness: 240
+
+psram:

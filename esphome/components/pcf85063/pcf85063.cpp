@@ -2,16 +2,24 @@
 #include "esphome/core/log.h"
 
 // Datasheet:
-// - https://datasheets.maximintegrated.com/en/ds/DS1307.pdf
+// - https://www.nxp.com/docs/en/data-sheet/PCF85063A.pdf
 
 namespace esphome::pcf85063 {
 
 ESPHOME_LOG_TAG(TAG, "pcf85063");
 
+static constexpr uint8_t CONTROL_1_REG = 0x00;
+static constexpr uint8_t CONTROL_1_12_24 = 0x02;  // Set for 12-hour mode
+static constexpr uint8_t CALENDAR_REG = 0x04;
+static constexpr uint8_t CALENDAR_LEN = 7;
+// Control_1, Control_2, Offset, RAM_byte, then the calendar
+static constexpr uint8_t READ_LEN = CALENDAR_REG + CALENDAR_LEN;
+static constexpr uint8_t HOURS_REG = CALENDAR_REG + 2;
+static constexpr uint8_t OSCILLATOR_STOP_BIT = 0x80;  // In the seconds register
+
 void PCF85063Component::setup() {
-  if (!this->read_rtc_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
+  uint8_t raw[READ_LEN];
+  this->setup_check(this->read_bytes(CONTROL_1_REG, raw, READ_LEN));
 }
 
 void PCF85063Component::update() { this->read_time(); }
@@ -23,27 +31,24 @@ void PCF85063Component::dump_config() {
 }
 
 void PCF85063Component::read_time() {
-  if (!this->read_rtc_()) {
+  uint8_t raw[READ_LEN];
+  if (!this->read_bytes(CONTROL_1_REG, raw, READ_LEN)) {
+    ESP_LOGE(TAG, "Can't read I2C data.");
     return;
   }
-  if (pcf85063_.reg.osc_stop) {
+  if ((raw[CALENDAR_REG] & OSCILLATOR_STOP_BIT) != 0) {
     ESP_LOGW(TAG, "RTC halted, not syncing to system clock.");
     return;
   }
-  if (this->pcf85063_.reg.am_pm) {
+  ESPTime rtc_time = time::decode_bcd_calendar<time::PCF_BCD_CALENDAR>(&raw[CALENDAR_REG]);
+  if ((raw[CONTROL_1_REG] & CONTROL_1_12_24) != 0) {
     ESP_LOGD(TAG, "RTC in 12-hour mode, the next sync switches it to 24-hour mode");
+    // The decode read the hours as 24-hour, so redo the hour and the timestamp
+    rtc_time.hour = decode_hour(raw[HOURS_REG] & 0x0F, (raw[HOURS_REG] >> 4) & 0x03, true);
+    rtc_time.recalc_timestamp_utc(false);
   }
-  ESPTime rtc_time{
-      .second = uint8_t(pcf85063_.reg.second + 10 * pcf85063_.reg.second_10),
-      .minute = uint8_t(pcf85063_.reg.minute + 10u * pcf85063_.reg.minute_10),
-      .hour = decode_hour(this->pcf85063_.reg.hour, this->pcf85063_.reg.hour_10, this->pcf85063_.reg.am_pm),
-      // The chip counts weekdays 0-6 from Sunday, ESPTime counts 1-7
-      .day_of_week = uint8_t(this->pcf85063_.reg.weekday + 1),
-      .day_of_month = uint8_t(pcf85063_.reg.day + 10u * pcf85063_.reg.day_10),
-      .month = uint8_t(pcf85063_.reg.month + 10u * pcf85063_.reg.month_10),
-      .year = uint16_t(pcf85063_.reg.year + 10u * pcf85063_.reg.year_10 + 2000),
-  };
-  rtc_time.recalc_timestamp_utc(false);
+  ESP_LOGD(TAG, "Read UTC time: %04u-%02u-%02u %02u:%02u:%02u", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
+           rtc_time.hour, rtc_time.minute, rtc_time.second);
   if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
@@ -57,47 +62,16 @@ void PCF85063Component::write_time() {
     ESP_LOGE(TAG, "Invalid system time, not syncing to RTC.");
     return;
   }
-  pcf85063_.reg.year = (now.year - 2000) % 10;
-  pcf85063_.reg.year_10 = (now.year - 2000) / 10 % 10;
-  pcf85063_.reg.month = now.month % 10;
-  pcf85063_.reg.month_10 = now.month / 10;
-  pcf85063_.reg.day = now.day_of_month % 10;
-  pcf85063_.reg.day_10 = now.day_of_month / 10;
-  this->pcf85063_.reg.weekday = now.day_of_week - 1;
-  pcf85063_.reg.hour = now.hour % 10;
-  pcf85063_.reg.hour_10 = now.hour / 10;
-  pcf85063_.reg.minute = now.minute % 10;
-  pcf85063_.reg.minute_10 = now.minute / 10;
-  pcf85063_.reg.second = now.second % 10;
-  pcf85063_.reg.second_10 = now.second / 10;
-  pcf85063_.reg.osc_stop = false;
-  this->pcf85063_.reg.am_pm = false;  // 24-hour mode
-
-  this->write_rtc_();
-}
-
-bool PCF85063Component::read_rtc_() {
-  if (!this->read_bytes(0, this->pcf85063_.raw, sizeof(this->pcf85063_.raw))) {
-    ESP_LOGE(TAG, "Can't read I2C data.");
-    return false;
-  }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  OSC:%s CLKOUT:%0u", pcf85063_.reg.hour_10,
-           pcf85063_.reg.hour, pcf85063_.reg.minute_10, pcf85063_.reg.minute, pcf85063_.reg.second_10,
-           pcf85063_.reg.second, pcf85063_.reg.year_10, pcf85063_.reg.year, pcf85063_.reg.month_10, pcf85063_.reg.month,
-           pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(!pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
-
-  return true;
-}
-
-bool PCF85063Component::write_rtc_() {
-  if (!this->write_bytes(0, this->pcf85063_.raw, sizeof(this->pcf85063_.raw))) {
+  // 24-hour mode first, so the hours are read as written; the oscillator stop flag is written clear with the seconds
+  uint8_t raw[CALENDAR_LEN];
+  time::encode_bcd_calendar<time::PCF_BCD_CALENDAR>(now, raw);
+  if (!this->update_register(CONTROL_1_REG, CONTROL_1_12_24, 0) ||
+      !this->write_bytes(CALENDAR_REG, raw, CALENDAR_LEN)) {
     ESP_LOGE(TAG, "Can't write I2C data.");
-    return false;
+    return;
   }
-  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  OSC:%s CLKOUT:%0u", pcf85063_.reg.hour_10,
-           pcf85063_.reg.hour, pcf85063_.reg.minute_10, pcf85063_.reg.minute, pcf85063_.reg.second_10,
-           pcf85063_.reg.second, pcf85063_.reg.year_10, pcf85063_.reg.year, pcf85063_.reg.month_10, pcf85063_.reg.month,
-           pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(!pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
-  return true;
+  ESP_LOGD(TAG, "Wrote UTC time: %04u-%02u-%02u %02u:%02u:%02u", now.year, now.month, now.day_of_month, now.hour,
+           now.minute, now.second);
 }
+
 }  // namespace esphome::pcf85063

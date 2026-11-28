@@ -142,9 +142,9 @@ class TestFetchWithRetry:
                 lambda: (_ for _ in ()).throw(req.ConnectionError("reset")),
             )
 
-        assert mock_sleep.call_args_list == [call(2), call(4)]
-        assert "(attempt 2/3)" in caplog.text
-        assert "(attempt 3/3)" in caplog.text
+        assert mock_sleep.call_args_list == [call(2), call(4), call(8), call(16)]
+        assert "(attempt 2/5)" in caplog.text
+        assert "(attempt 5/5)" in caplog.text
 
 
 class TestHttpRequest:

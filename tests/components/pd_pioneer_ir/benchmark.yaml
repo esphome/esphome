@@ -1,2 +1,3 @@
-# Registers the climate platform so USE_CLIMATE is defined for the host unit test build
+# Registers the platforms so USE_CLIMATE and USE_SWITCH are defined for the host unit test build
 climate: []
+switch: []

@@ -12,6 +12,8 @@ Covers:
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -367,3 +369,79 @@ async def test_ha_time_no_ha_timezone_define_when_explicit_tz(mock_ha_cg) -> Non
     define_calls = [call.args[0] for call in mock_ha_cg.call_args_list]
     assert "USE_HOMEASSISTANT_TIME" in define_calls
     assert "USE_HOMEASSISTANT_TIMEZONE" not in define_calls
+
+
+# ---------------------------------------------------------------------------
+# DST rule codegen
+# ---------------------------------------------------------------------------
+
+_TZ_CONFIG = """\
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+
+time:
+  - platform: sntp
+    timezone: "{timezone}"
+"""
+
+_NO_RULE = ("NONE", 0, 0, 0, 0, 0)
+
+
+@pytest.mark.parametrize(
+    ("timezone", "dst_start", "dst_end"),
+    [
+        # (type, time_seconds, day, month, week, day_of_week)
+        ("EST5", _NO_RULE, _NO_RULE),
+        (
+            "EST5EDT,M3.2.0,M11.1.0/1:30",
+            ("MONTH_WEEK_DAY", 7200, 0, 3, 2, 0),
+            ("MONTH_WEEK_DAY", 5400, 0, 11, 1, 0),
+        ),
+        (
+            "XST5XDT,J60/2,300/3",
+            ("JULIAN_NO_LEAP", 7200, 60, 0, 0, 0),
+            ("DAY_OF_YEAR", 10800, 300, 0, 0, 0),
+        ),
+        (
+            "AAA3BBB,59/25,M10.5.6",
+            ("DAY_OF_YEAR", 90000, 59, 0, 0, 0),
+            ("MONTH_WEEK_DAY", 7200, 0, 10, 5, 6),
+        ),
+        (
+            "CET-1CEST,M3.5.0,J300/-1",
+            ("MONTH_WEEK_DAY", 7200, 0, 3, 5, 0),
+            ("JULIAN_NO_LEAP", -3600, 300, 0, 0, 0),
+        ),
+    ],
+)
+def test_dst_rule_codegen(
+    timezone: str,
+    dst_start: tuple[str, int, int, int, int, int],
+    dst_end: tuple[str, int, int, int, int, int],
+    tmp_path: Path,
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Each DST rule type and field is emitted for both transitions."""
+    config = tmp_path / "test.yaml"
+    config.write_text(_TZ_CONFIG.format(timezone=timezone))
+    main_cpp = generate_main(config)
+    for prefix, rule in (("tz.dst_start", dst_start), ("tz.dst_end", dst_end)):
+        rule_type, time_seconds, day, month, week, day_of_week = rule
+        for line in (
+            f"{prefix}.time_seconds = {time_seconds};",
+            f"{prefix}.day = {day};",
+            f"{prefix}.type = time::DSTRuleType::{rule_type};",
+            f"{prefix}.month = {month};",
+            f"{prefix}.week = {week};",
+            f"{prefix}.day_of_week = {day_of_week};",
+        ):
+            assert line in main_cpp, line

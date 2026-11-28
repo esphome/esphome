@@ -1,7 +1,8 @@
+from collections.abc import Callable
 import errno
-import functools
 from importlib import resources
 import logging
+from typing import Any, NamedTuple
 
 import tzlocal
 
@@ -25,7 +26,6 @@ from esphome.const import (
     CONF_SECOND,
     CONF_SECONDS,
     CONF_TIMEZONE,
-    CONF_TRIGGER_ID,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -36,6 +36,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import cpp_string_escape
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,27 +46,12 @@ DOMAIN = "time"
 
 time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
-CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
+_request_on_time_slot = cg.slot_counter("TIME_ON_TIME_COUNT")
 
 # C++ types for pre-parsed timezone struct generation
 DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
 DSTRule_cpp = time_ns.struct("DSTRule")
 ParsedTimezone_cpp = time_ns.struct("ParsedTimezone")
-
-
-# Map Python DSTRuleType enum values to C++ enum expressions. Built lazily to
-# avoid importing aioesphomeapi (a heavy import) when the time component is only
-# auto-loaded for its schema and never reaches code generation.
-@functools.cache
-def _dst_rule_type_map() -> dict:
-    from aioesphomeapi.posix_tz import DSTRuleType as PyDSTRuleType
-
-    return {
-        PyDSTRuleType.NONE: DSTRuleType_cpp.NONE,
-        PyDSTRuleType.MONTH_WEEK_DAY: DSTRuleType_cpp.MONTH_WEEK_DAY,
-        PyDSTRuleType.JULIAN_NO_LEAP: DSTRuleType_cpp.JULIAN_NO_LEAP,
-        PyDSTRuleType.DAY_OF_YEAR: DSTRuleType_cpp.DAY_OF_YEAR,
-    }
 
 
 def _load_tzdata(iana_key: str) -> bytes | None:
@@ -114,22 +100,19 @@ def detect_tz() -> str | None:
     }:
         return None
     # Avoids duplicate logger messages when multiple time components are configured
-    if cached := CORE.data.setdefault(DOMAIN, {}).get(CONF_TIMEZONE):
+    data = CORE.data.setdefault(DOMAIN, {})
+    if cached := data.get(CONF_TIMEZONE):
         return cached
-    iana_key = tzlocal.get_localzone_name()
-    if iana_key is None:
-        raise EsphomeError(
-            "Could not automatically determine timezone, please set timezone manually."
-        )
-    tzfile = _load_tzdata(iana_key)
-    if tzfile is None:
+    if (iana_key := tzlocal.get_localzone_name()) is None or (
+        tzfile := _load_tzdata(iana_key)
+    ) is None:
         raise EsphomeError(
             "Could not automatically determine timezone, please set timezone manually."
         )
     ret = _extract_tz_string(tzfile)
     _LOGGER.info("Detected timezone '%s'", iana_key)
     _LOGGER.debug(" -> TZ string %s", ret)
-    CORE.data.setdefault(DOMAIN, {})[CONF_TIMEZONE] = ret
+    data[CONF_TIMEZONE] = ret
     return ret
 
 
@@ -161,12 +144,9 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
                 "Offset for '/' time expression must be an integer, got {}",
             )
 
-        try:
-            repeat_n = int(repeat)
-        except ValueError:
-            raise cv.Invalid(
-                f"Repeat for '/' time expression must be an integer, got {repeat}"
-            ) from None
+        repeat_n = _parse_cron_int(
+            repeat, None, "Repeat for '/' time expression must be an integer, got {}"
+        )
         if not min_value <= offset_n <= max_value:
             raise cv.Invalid(
                 f"Step '{part}': offset {offset_n} is out of range (min={min_value} max={max_value})"
@@ -219,7 +199,8 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
                     raise cv.Invalid(
                         f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
-            return sorted(value)
+            # YAML true/false pass as 1/0
+            return sorted({int(v) for v in value})
         value = cv.string(value)
         values = set()
         for part in value.split(","):
@@ -229,12 +210,28 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
     return validator
 
 
-validate_cron_seconds = cron_expression_validator("seconds", 0, 60)
-validate_cron_minutes = cron_expression_validator("minutes", 0, 59)
-validate_cron_hours = cron_expression_validator("hours", 0, 23)
-validate_cron_days_of_month = cron_expression_validator("days of month", 1, 31)
-validate_cron_months = cron_expression_validator(
-    "months",
+class CronField(NamedTuple):
+    """An on_time schedule key, the ESPTime member it checks, its value range and value names."""
+
+    key: str
+    member: str
+    low: int
+    high: int
+    names: dict[str, int] | None = None
+
+    def validator(self) -> Callable[[Any], list[int]]:
+        return cron_expression_validator(
+            self.key.replace("_", " "), self.low, self.high, self.names
+        )
+
+
+SECONDS_FIELD = CronField(CONF_SECONDS, "second", 0, 60)
+MINUTES_FIELD = CronField(CONF_MINUTES, "minute", 0, 59)
+HOURS_FIELD = CronField(CONF_HOURS, "hour", 0, 23)
+DAYS_OF_MONTH_FIELD = CronField(CONF_DAYS_OF_MONTH, "day_of_month", 1, 31)
+MONTHS_FIELD = CronField(
+    CONF_MONTHS,
+    "month",
     1,
     12,
     {
@@ -252,72 +249,91 @@ validate_cron_months = cron_expression_validator(
         "DEC": 12,
     },
 )
-validate_cron_days_of_week = cron_expression_validator(
-    "days of week",
+DAYS_OF_WEEK_FIELD = CronField(
+    CONF_DAYS_OF_WEEK,
+    "day_of_week",
     1,
     7,
     {"SUN": 1, "MON": 2, "TUE": 3, "WED": 4, "THU": 5, "FRI": 6, "SAT": 7},
 )
-CRON_KEYS = [
-    CONF_SECONDS,
-    CONF_MINUTES,
-    CONF_HOURS,
-    CONF_DAYS_OF_MONTH,
-    CONF_MONTHS,
-    CONF_DAYS_OF_WEEK,
-]
+CRON_FIELDS = (
+    SECONDS_FIELD,
+    MINUTES_FIELD,
+    HOURS_FIELD,
+    DAYS_OF_MONTH_FIELD,
+    MONTHS_FIELD,
+    DAYS_OF_WEEK_FIELD,
+)
+CRON_KEYS = [field.key for field in CRON_FIELDS]
+
+_CRON_VALIDATORS = {field.key: field.validator() for field in CRON_FIELDS}
 
 
 def validate_cron_raw(value):
     value = cv.string(value)
     value = value.split(" ")
-    if len(value) != 6:
+    if len(value) != len(CRON_FIELDS):
         raise cv.Invalid(
-            f"Cron expression must consist of exactly 6 space-separated parts, not {len(value)}"
+            f"Cron expression must consist of exactly {len(CRON_FIELDS)} space-separated parts, not {len(value)}"
         )
-    seconds, minutes, hours, days_of_month, months, days_of_week = value
     return {
-        CONF_SECONDS: validate_cron_seconds(seconds),
-        CONF_MINUTES: validate_cron_minutes(minutes),
-        CONF_HOURS: validate_cron_hours(hours),
-        CONF_DAYS_OF_MONTH: validate_cron_days_of_month(days_of_month),
-        CONF_MONTHS: validate_cron_months(months),
-        CONF_DAYS_OF_WEEK: validate_cron_days_of_week(days_of_week),
+        key: validator(part)
+        for (key, validator), part in zip(_CRON_VALIDATORS.items(), value, strict=True)
     }
 
 
 def validate_time_at(value):
     value = cv.time_of_day(value)
-    return {
+    at = {
         CONF_HOURS: [value[CONF_HOUR]],
         CONF_MINUTES: [value[CONF_MINUTE]],
         CONF_SECONDS: [value[CONF_SECOND]],
-        CONF_DAYS_OF_MONTH: validate_cron_days_of_month("*"),
-        CONF_MONTHS: validate_cron_months("*"),
-        CONF_DAYS_OF_WEEK: validate_cron_days_of_week("*"),
+    }
+    return {
+        key: validator(at.get(key, "*")) for key, validator in _CRON_VALIDATORS.items()
     }
 
 
 def validate_cron_keys(value):
-    if CONF_CRON in value:
-        for key in value:
-            if key in CRON_KEYS:
-                raise cv.Invalid(f"Cannot use option {key} when cron: is specified.")
-        if CONF_AT in value:
-            raise cv.Invalid("Cannot use option at with cron!")
-        cron_ = value[CONF_CRON]
-        value = {x: value[x] for x in value if x != CONF_CRON}
-        value.update(cron_)
-        return value
-    if CONF_AT in value:
-        for key in value:
-            if key in CRON_KEYS:
-                raise cv.Invalid(f"Cannot use option {key} when at: is specified.")
-        at_ = value[CONF_AT]
-        value = {x: value[x] for x in value if x != CONF_AT}
-        value.update(at_)
-        return value
-    return cv.has_at_least_one_key(*CRON_KEYS)(value)
+    option = next((o for o in (CONF_CRON, CONF_AT) if o in value), None)
+    if option is None:
+        return cv.has_at_least_one_key(*CRON_KEYS)(value)
+    for key in value:
+        if key in CRON_KEYS:
+            raise cv.Invalid(f"Cannot use option {key} when {option}: is specified.")
+    if CONF_CRON in value and CONF_AT in value:
+        raise cv.Invalid("Cannot use option at with cron!")
+    parsed = value[option]
+    value = {x: value[x] for x in value if x != option}
+    value.update(parsed)
+    return value
+
+
+def cron_field_check(field: CronField, values: list[int]) -> str | None:
+    """C++ check that valid ``x.<member>`` is one of the validated ``values``; None for the full range.
+
+    An empty list never matches, one value is compared, more use a mask as wide as the field's range.
+    """
+    if values == list(range(field.low, field.high + 1)):
+        return None
+    if not values:
+        return "false"
+    member = f"x.{field.member}"
+    if len(values) == 1:
+        return f"{member} == {values[0]}"
+    mask = sum(1 << value for value in values)
+    suffix = "ULL" if field.high >= 32 else "U"
+    return f"(({mask:#x}{suffix} >> {member}) & 1)"
+
+
+def on_time_check(conf: ConfigType) -> str | None:
+    checks = []
+    for field in CRON_FIELDS:
+        if (values := conf.get(field.key)) is None:
+            continue
+        if (check := cron_field_check(field, values)) is not None:
+            checks.append(check)
+    return " && ".join(checks) or None
 
 
 def validate_tz(value: str) -> str:
@@ -357,13 +373,10 @@ TIME_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_ON_TIME): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CronTrigger),
-                cv.Optional(CONF_SECONDS): validate_cron_seconds,
-                cv.Optional(CONF_MINUTES): validate_cron_minutes,
-                cv.Optional(CONF_HOURS): validate_cron_hours,
-                cv.Optional(CONF_DAYS_OF_MONTH): validate_cron_days_of_month,
-                cv.Optional(CONF_MONTHS): validate_cron_months,
-                cv.Optional(CONF_DAYS_OF_WEEK): validate_cron_days_of_week,
+                **{
+                    cv.Optional(key): validator
+                    for key, validator in _CRON_VALIDATORS.items()
+                },
                 cv.Optional(CONF_CRON): validate_cron_raw,
                 cv.Optional(CONF_AT): validate_time_at,
             },
@@ -372,32 +385,31 @@ TIME_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation({}),
     }
 ).extend(
-    # ``visibility=ADVANCED`` flags the inherited ``update_interval``
-    # field for visual editors — the 15min default is correct for
-    # essentially every user, so editors should keep it tucked under
-    # "advanced" so it doesn't crowd the form. Validation is
-    # unaffected; YAML can override as before.
+    # The 15min default suits nearly everyone, so editors show it under "advanced"
     cv.polling_component_schema("15min", visibility=cv.Visibility.ADVANCED)
 )
 
 
 def _emit_dst_rule_fields(prefix, rule):
     """Emit field-by-field assignments for a DSTRule to avoid rodata struct blob."""
-    cg.add(cg.RawExpression(f"{prefix}.time_seconds = {rule.time_seconds}"))
-    cg.add(cg.RawExpression(f"{prefix}.day = {rule.day}"))
-    cg.add(cg.RawExpression(f"{prefix}.type = {_dst_rule_type_map()[rule.type]}"))
-    cg.add(cg.RawExpression(f"{prefix}.month = {rule.month}"))
-    cg.add(cg.RawExpression(f"{prefix}.week = {rule.week}"))
-    cg.add(cg.RawExpression(f"{prefix}.day_of_week = {rule.day_of_week}"))
+    fields = {
+        "time_seconds": rule.time_seconds,
+        "day": rule.day,
+        "type": getattr(DSTRuleType_cpp, rule.type.name),
+        "month": rule.month,
+        "week": rule.week,
+        "day_of_week": rule.day_of_week,
+    }
+    for name, value in fields.items():
+        cg.add(cg.RawExpression(f"{prefix}.{name} = {value}"))
 
 
 def _emit_parsed_timezone_fields(parsed):
-    """Emit field-by-field assignments for a local ParsedTimezone, then set_global_tz().
+    """Set a scoped ParsedTimezone field by field, then call set_global_tz().
 
-    Uses individual assignments on a stack variable instead of a struct initializer
-    to keep constants as immediate operands in instructions (.irom0.text/flash)
-    rather than a const blob in .rodata (which maps to RAM on ESP8266).
-    Wrapped in a scope block to allow multiple time platforms in the same build.
+    Field assignments keep the constants as immediates in flash instead of a const
+    struct in .rodata, which is RAM on ESP8266. The scope lets several time platforms
+    each declare their own `tz` in one build.
     """
     cg.add(cg.RawStatement("{"))
     cg.add(cg.RawExpression("time::ParsedTimezone tz{}"))
@@ -431,28 +443,20 @@ async def setup_time_core_(time_var, config):
             raise EsphomeError(f"Invalid timezone: {timezone}") from e
         _emit_parsed_timezone_fields(parsed)
 
-    on_time = config.get(CONF_ON_TIME, [])
-    if on_time:
+    if on_time := config.get(CONF_ON_TIME):
         cg.add_define("USE_TIME_TRIGGERS")
-
-    for conf in on_time:
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
-
-        seconds = conf.get(CONF_SECONDS, list(range(61)))
-        cg.add(trigger.add_seconds(seconds))
-        minutes = conf.get(CONF_MINUTES, list(range(60)))
-        cg.add(trigger.add_minutes(minutes))
-        hours = conf.get(CONF_HOURS, list(range(24)))
-        cg.add(trigger.add_hours(hours))
-        days_of_month = conf.get(CONF_DAYS_OF_MONTH, list(range(1, 32)))
-        cg.add(trigger.add_days_of_month(days_of_month))
-        months = conf.get(CONF_MONTHS, list(range(1, 13)))
-        cg.add(trigger.add_months(months))
-        days_of_week = conf.get(CONF_DAYS_OF_WEEK, list(range(1, 8)))
-        cg.add(trigger.add_days_of_week(days_of_week))
-
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+        for conf in on_time:
+            _request_on_time_slot(str(time_var))
+            await automation.build_callback_automation(
+                time_var,
+                "add_on_time_callback",
+                [],
+                conf,
+                params=[(cg.ESPTime, "x")],
+                forward=[],
+                when=on_time_check(conf),
+            )
+        cg.add(time_var.start_on_time_checks())
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
         await automation.build_callback_automation(
@@ -490,11 +494,9 @@ automation.register_apply_condition(
 
 
 # posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a
-# timezone is configured or detected; automation.cpp holds the on_time
-# trigger and is #ifdef'd on USE_TIME_TRIGGERS.
+# timezone is configured or detected.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "posix_tz.cpp": "USE_TIME_TIMEZONE",
-        "automation.cpp": "USE_TIME_TRIGGERS",
     }
 )
