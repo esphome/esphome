@@ -1,11 +1,17 @@
 import esphome.codegen as cg
+from esphome.components.logger import request_log_listener
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
+        request_log_listener()
         cg.add_define("USE_VBUS_DATAGRAM")
+        cg.add_define("USE_VBUS_TX")
+        cg.add_define("USE_VBUS_SEND_ACTION")
+        cg.add_define("USE_VBUS_TRANSACTIONS")
+        cg.add_define("USE_VBUS_TRANSACTION_ACTION")
 
     manifest.multi_conf = False
     manifest.to_code = to_code_testing
