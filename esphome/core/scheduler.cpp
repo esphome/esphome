@@ -770,13 +770,12 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
 #ifdef ESPHOME_DEBUG_SCHEDULER
   if (!boxed)
     item->callback.release_();  // empties it for the destructor check
+  // Logged before the item is reachable: an on_message handler that schedules must not reuse it here
+  ESP_LOGD(TAG, "Recycled item (pool size now: %zu)", this->scheduler_item_pool_size_ + 1);
 #endif
   item->next_free = head;
   head = item;
   this->scheduler_item_pool_size_++;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  ESP_LOGD(TAG, "Recycled item (pool size now: %zu)", this->scheduler_item_pool_size_);
-#endif
 }
 
 void Scheduler::release_pending_() {
