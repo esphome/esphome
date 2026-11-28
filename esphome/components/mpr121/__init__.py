@@ -87,12 +87,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_touch_debounce(config[CONF_TOUCH_DEBOUNCE]))
     cg.add(var.set_release_debounce(config[CONF_RELEASE_DEBOUNCE]))
     cg.add(var.set_max_touch_channel(config[CONF_MAX_TOUCH_CHANNEL]))
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
 
 
 # https://www.nxp.com/docs/en/data-sheet/MPR121.pdf, page 4

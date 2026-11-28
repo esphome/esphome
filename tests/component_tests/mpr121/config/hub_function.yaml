@@ -12,8 +12,12 @@ mpr121:
   - id: hub
     touch_threshold: 0x10
     release_threshold: 0x08
-  - id: idle_hub
+  - id: other_hub
     address: 0x5B
+    touch_threshold: 0x20
+    release_threshold: 0x10
+  - id: idle_hub
+    address: 0x5C
 
 binary_sensor:
   - platform: mpr121
@@ -25,3 +29,7 @@ binary_sensor:
     id: key3
     channel: 3
     touch_threshold: 0x20
+  - platform: mpr121
+    mpr121_id: other_hub
+    id: other_key1
+    channel: 1
