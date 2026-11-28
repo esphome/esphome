@@ -363,9 +363,8 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config):
     cg.add(haier_ns.init_haier_protocol_logging())
-    var = await climate.new_climate(config)
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
+    await climate.register_climate(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
