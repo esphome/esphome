@@ -181,7 +181,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # the listener receives JPEG even when pixel_format is not JPEG.
     jpeg_quality = camera_config[esp32_camera.CONF_JPEG_QUALITY]
     delivered = "JPEG" if pixel_format == "JPEG" or jpeg_quality != 0 else pixel_format
-    # The decoder only decodes JPEG, so reject raw frames at config time.
     if delivered != "JPEG":
         raise cv.Invalid(
             f"analog_gauge_reader needs JPEG frames, but the referenced camera "
@@ -222,7 +221,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
                     f"{', '.join(f'{scale:g}' for scale in scales)}",
                     path=[CONF_DIALS],
                 )
-    # Sensor entries and logs name a dial by this id, so it must be unique.
     dial_ids = [dial[CONF_ID] for dial in config[CONF_DIALS]]
     if len(set(dial_ids)) != len(dial_ids):
         raise cv.Invalid("Duplicate dial id; ids must be unique", path=[CONF_DIALS])
@@ -279,7 +277,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], cam, decoder, frame_width, frame_height)
     await cg.register_component(var, config)
     cg.add_define("USE_ANALOG_GAUGE_READER")
-    # Compile in only the detectors this config uses; "auto" and debug compare all.
     algorithms = {dial[CONF_ALGORITHM] for dial in config[CONF_DIALS]}
     if "auto" in algorithms or config[CONF_DEBUG]:
         algorithms = set(gauge_needle_detector.ALGORITHM_DEFINES)
@@ -310,8 +307,6 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_scratch_buffer(scratch))
 
-    # A few large dials do not fit in internal RAM, so the crops go to PSRAM when
-    # the build has it. setup() checks the allocations.
     for dial in dials:
         channels = 3 if _needs_color(dial) else 1
         crop = cg.static_buffer(
@@ -322,7 +317,6 @@ async def to_code(config: ConfigType) -> None:
         )
         calibration = None
         if points := dial.get(CONF_CALIBRATION):
-            # Sorted here so the firmware does not sort at boot.
             pairs = ", ".join(
                 f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}"
                 for item in sorted(points, key=lambda item: item[CONF_RAW])

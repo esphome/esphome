@@ -190,7 +190,6 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
 }
 #endif  // USE_ANALOG_GAUGE_READER_STACKED_DIGITS
 
-/// Stretches the crop to the full 0-255 range.
 inline void apply_auto_contrast(uint8_t *data, int size) {
   // Copy the extremes first: the iterators point into the buffer that is rewritten below.
   const auto [min_it, max_it] = std::minmax_element(data, data + size);
@@ -229,20 +228,17 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   void set_dial_angle_sensor(size_t index, sensor::Sensor *s) { this->dials_[index].angle_sensor = s; }
   void set_pause_processing(bool paused) { this->paused_ = paused; }
   void set_debug(bool debug) { this->debug_ = debug; }
-  /// The largest dial crop, which the detector reserves its buffers for.
   void set_max_crop(int width, int height) {
     this->max_crop_w_ = width;
     this->max_crop_h_ = height;
   }
   void add_dial(DialConfig config) { this->dials_.push_back(std::move(config)); }
 #ifdef USE_ANALOG_GAUGE_READER_COLOR
-  /// Holds one converted crop; a buffer from codegen, sized for the largest crop.
   void set_scratch_buffer(uint8_t *buffer) { this->scratch_buffer_ = buffer; }
 #endif
 
  protected:
   static constexpr uint32_t FRAME_TIMEOUT_ID = 0;
-  /// How long a requested frame may take before the request is abandoned.
   static constexpr uint32_t FRAME_TIMEOUT_MS = 5000;
   esphome::camera::Camera *camera_;
   esphome::camera::Decoder *decoder_;
@@ -263,7 +259,6 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   int img_height_;
   int max_crop_w_{0};
   int max_crop_h_{0};
-  /// A frame has been requested and has not arrived or timed out yet.
   bool requested_{false};
   bool paused_{false};
   bool debug_{false};

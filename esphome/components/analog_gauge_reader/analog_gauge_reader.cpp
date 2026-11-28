@@ -85,7 +85,6 @@ void AnalogGaugeReader::update() {
 }
 
 void AnalogGaugeReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
-  // Frames the camera captures for other listeners are not ours to process.
   if (this->paused_ || !this->requested_ || !image->was_requested_by(camera::COMPONENT_REQUESTER))
     return;
   this->requested_ = false;
@@ -110,7 +109,6 @@ void AnalogGaugeReader::loop() {
   }
 }
 
-// Main-task only.
 bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
   camera::CameraImageSpec spec{};
   camera::DecoderError error = this->decoder_->decode(data, len, &spec);
@@ -211,7 +209,6 @@ bool AnalogGaugeReader::process_image_(const uint8_t *data, size_t len) {
     PUBLISH_STATE(r.dial->value_sensor, r.value);
   }
 #endif
-  // Publish the per-dial states only now, so a dropped frame leaves every sensor untouched.
   for (const auto &r : this->readings_) {
     PUBLISH_STATE(r.dial->angle_sensor, r.angle);
     PUBLISH_STATE(r.dial->confidence_sensor, r.confidence);

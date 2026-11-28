@@ -57,11 +57,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
         if entry.get(CONF_PLATFORM) == DOMAIN
         and entry[CONF_ANALOG_GAUGE_READER_ID] == hub_id
     ]
-    # A second entry would overwrite the sensors the first one bound to the reader.
     if len(entries) > 1:
         raise cv.Invalid("Use one analog_gauge_reader sensor entry per reader")
     hub = fv.get_declaring_config(hub_id)
-    # The hub rejects duplicate dial ids, so each name has exactly one position.
     index_by_id = {dial[CONF_ID]: index for index, dial in enumerate(hub[CONF_DIALS])}
     names = [entry[CONF_DIAL] for entry in config.get(CONF_DIALS, [])]
     if len(set(names)) != len(names):
