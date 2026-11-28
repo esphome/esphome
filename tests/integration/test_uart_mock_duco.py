@@ -86,6 +86,9 @@ async def test_uart_mock_duco(
         many_errors = require_entity(entities, "node_many_errors", TextSensorInfo)
         uptime = require_entity(entities, "uptime", TextSensorInfo)
         node_type = require_entity(entities, "node_type", TextSensorInfo)
+        node_network_type = require_entity(
+            entities, "node_network_type", TextSensorInfo
+        )
 
         client.subscribe_states(lambda state: states.__setitem__(state.key, state))
 
@@ -127,6 +130,9 @@ async def test_uart_mock_duco(
         )
         await wait_for(lambda: state_of(uptime) == "1d 12h 30m", "uptime")
         await wait_for(lambda: state_of(node_type) == "BSRH", "node type")
+        await wait_for(
+            lambda: state_of(node_network_type) == "Virtual", "node network type"
+        )
         assert state_of(invalid_serial) is None
         assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")

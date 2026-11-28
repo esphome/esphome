@@ -27,6 +27,9 @@ class BLENUS final : public uart::UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   uart::UARTFlushResult flush() override;
+  // No-op: BLE has no line settings to apply
+  void load_settings(bool dump_config) override {}
+  using uart::UARTComponent::load_settings;
   void check_logger_conflict() override {}
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 #ifdef USE_LOGGER

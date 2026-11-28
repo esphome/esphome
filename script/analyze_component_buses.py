@@ -87,7 +87,6 @@ ISOLATED_COMPONENTS = {
     "ecocomfort2": "Needs esp32_ble with io_capability: none and sc_bond, which a merged esp32_ble: block overrides",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
-    "gps": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",
     "hdmi_cec": "Drives hardware timer 1 on the ESP8266, which the esp8266 component refuses to share with lightwaverf and opentherm",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "lightwaverf": "Drives hardware timer 1 on the ESP8266, which the esp8266 component refuses to share with hdmi_cec and opentherm",
@@ -110,6 +109,7 @@ ISOLATED_COMPONENTS = {
     "virtual_uart": "Defines two UARTs of its own - merged with a package uart bus, uart_id of other components is ambiguous",
     "web_server_idf": "Its HTTPS variant (test-ssl) can't be merged with web_server or captive_portal, and grouped runs skip variants",
     "brizlabs_led_string": "Takes SPI2_HOST for itself, which the shared spi: test bus also uses",
+    "vl53l4cx": "Rejects sharing its I2C bus with vl53l0x, vl53l1x or vl6180x, which grouping puts on the same i2c_bus",
 }
 
 

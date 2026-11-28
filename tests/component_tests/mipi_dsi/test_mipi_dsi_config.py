@@ -259,3 +259,24 @@ def test_unsupported_variant_reported_before_requirements(
 
     with pytest.raises(cv.Invalid, match=r"This feature is only available on ESP32P4"):
         CONFIG_SCHEMA({"model": "SEEED-RETERMINAL-D1001"})
+
+
+def test_brightness_in_init_sequence(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """The brightness option adds the 0x51 command to the init sequence."""
+
+    main_cpp = generate_main(component_fixture_path("brightness.yaml"))
+
+    def sequence(display_id: str) -> str:
+        seq = re.search(rf"{display_id}->set_init_sequence\((\w+), \d+\);", main_cpp)
+        assert seq is not None
+        values = re.search(rf"{seq.group(1)}\[\] PROGMEM = \{{([^}}]*)\}}", main_cpp)
+        assert values is not None
+        return values.group(1)
+
+    # The brightness command, 81 (0x51), follows INVOFF (0x20)
+    assert "32, 0, 81, 1, 0, 0, 255, 17," in sequence("zero")
+    assert "32, 0, 81, 1, 128, 0, 255, 17," in sequence("half")
+    assert "32, 0, 0, 255, 17," in sequence("unset")

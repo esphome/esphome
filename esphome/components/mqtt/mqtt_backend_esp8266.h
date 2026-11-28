@@ -22,6 +22,12 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   }
   void set_server(network::IPAddress ip, uint16_t port) final { mqtt_client_.setServer(ip, port); }
   void set_server(const char *host, uint16_t port) final { mqtt_client_.setServer(host, port); }
+#if ASYNC_TCP_SSL_ENABLED
+  void set_server_fingerprint(const uint8_t *fingerprint) {
+    this->mqtt_client_.setSecure(true);
+    this->mqtt_client_.addServerFingerprint(fingerprint);
+  }
+#endif
   void set_on_connect(std::function<on_connect_callback_t> &&callback) final {
     this->mqtt_client_.onConnect(std::move(callback));
   }
@@ -48,9 +54,18 @@ class MQTTBackendESP8266 final : public MQTTBackend {
     this->mqtt_client_.onPublish(std::move(callback));
   }
 
-  bool connected() const final { return mqtt_client_.connected(); }
+  // False as soon as DISCONNECT is sent, so a closing link is never reused
+  bool connected() const final { return this->mqtt_client_.connected() && !this->mqtt_client_.disconnecting(); }
+  bool link_open() const final { return this->mqtt_client_.connected(); }
+  // Resets the link without DISCONNECT, skipping queued output, so the broker publishes the Last Will
+  void close_now() { this->mqtt_client_.abort(); }
   void connect() final { mqtt_client_.connect(); }
-  void disconnect() final { mqtt_client_.disconnect(true); }
+  // Sends DISCONNECT, then the library waits for the broker to close (or closes after 5 s)
+  void disconnect() final { this->mqtt_client_.disconnect(false); }
+#if ASYNC_TCP_SSL_ENABLED
+  // The library's loop() only pumps TLS output; without TLS the base class's empty loop() stays inline
+  void loop() final { this->mqtt_client_.loop(); }
+#endif
   bool subscribe(const char *topic, uint8_t qos) final { return mqtt_client_.subscribe(topic, qos) != 0; }
   bool unsubscribe(const char *topic) final { return mqtt_client_.unsubscribe(topic) != 0; }
   bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {

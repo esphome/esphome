@@ -28,7 +28,7 @@ class TcpListener {
   void begin(const char *tag) { this->tag_ = tag; }
   /// Server state machine; call every loop. may_accept lets the caller hold
   /// accepts until its own disconnect edge has run.
-  void poll(TcpClientLink &link, bool may_accept) {
+  void poll(TcpClientLinkBase &link, bool may_accept) {
     if (this->poll_listen(link) && may_accept && !link.connected()) {
       if (auto client = this->accept(link)) {
         link.adopt(std::move(client));
@@ -37,7 +37,7 @@ class TcpListener {
   }
   /// Opens the listen socket on link's port after its backoff; true when a connection waits.
   /// A backlog of 1 serves one client at a time; a second waits in the stack until the first drops.
-  bool poll_listen(TcpClientLink &link, uint8_t backlog = 1) {
+  bool poll_listen(TcpClientLinkBase &link, uint8_t backlog = 1) {
     if (this->listen_ == nullptr) {
       if (!link.in_backoff()) {
         this->try_listen_(link, backlog);
@@ -48,13 +48,13 @@ class TcpListener {
   }
   /// Accepts a waiting connection that the allow list admits, or returns nullptr.
   /// A listener error closes the listen socket until link's backoff has passed.
-  std::unique_ptr<Socket> accept(TcpClientLink &link);
+  std::unique_ptr<Socket> accept(TcpClientLinkBase &link);
   void close() { this->listen_.reset(); }
   /// One config line per allowed network.
   void dump_config() const;
 
  protected:
-  void try_listen_(TcpClientLink &link, uint8_t backlog);
+  void try_listen_(TcpClientLinkBase &link, uint8_t backlog);
 
   std::unique_ptr<ListenSocket> listen_;
   const char *tag_{nullptr};

@@ -26,6 +26,7 @@ esphome:
       - component.update: node_many_errors
       - component.update: uptime
       - component.update: node_type
+      - component.update: node_network_type
       - component.update: comfort_temperature
       - component.update: comfort_temperature_zone_1
       - component.update: comfort_temperature_zone_2
@@ -257,6 +258,11 @@ text_sensor:
       - address: 2
         id: node_type
         name: Node Type
+        update_interval: never
+    node_network_type:
+      - address: 2
+        id: node_network_type
+        name: Node Network Type
         update_interval: never
 
 sensor:

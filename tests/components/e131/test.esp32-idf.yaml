@@ -3,3 +3,7 @@ substitutions:
   pin: GPIO2
 
 <<: !include common-idf.yaml
+
+# The other targets build the default, arbitration off
+e131:
+  arbitrate_sources: true

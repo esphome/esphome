@@ -1,0 +1,28 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+uart:
+  - id: uart_defaults
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 9600
+  - id: uart_override
+    tx_pin: 25
+    rx_pin: 26
+    baud_rate: 9600
+
+sensor:
+  - platform: smt100
+    uart_id: uart_defaults
+    counts: {id: default_counts, name: Counts}
+    permittivity: {id: default_permittivity, name: Permittivity}
+    temperature: {id: default_temperature, name: Temperature}
+    moisture: {id: default_moisture, name: Moisture}
+    voltage: {id: default_voltage, name: Voltage}
+  - platform: smt100
+    uart_id: uart_override
+    counts: {id: override_counts, name: Override Counts, icon: mdi:numeric}
+    permittivity: {id: override_permittivity, name: Override Permittivity, icon: mdi:alpha-e}

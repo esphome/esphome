@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 from datetime import datetime
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -83,6 +84,40 @@ def initialize(
     return 0
 
 
+def _unverified_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+def _pinned_context(pinned: str) -> ssl.SSLContext:
+    """Return a context that refuses a broker whose certificate SHA1 is not pinned.
+
+    paho calls do_handshake() on each new socket before it sends CONNECT, so the
+    check covers every connect and reconnect.
+    """
+
+    # SSLSocket's dup/recvmsg/sendmsg raise NotImplementedError by design, not abstract
+    class _PinnedSSLSocket(ssl.SSLSocket):  # pylint: disable=abstract-method
+        def do_handshake(self, block: bool = False) -> None:
+            super().do_handshake(block)
+            if (cert := self.getpeercert(binary_form=True)) is None:
+                reason = "presented no certificate"
+            elif (fingerprint := hashlib.sha1(cert).hexdigest()) != pinned:
+                reason = f"certificate fingerprint {fingerprint} does not match ssl_fingerprints"
+            else:
+                return
+            # Two arguments, or str() prints the message as a tuple
+            raise ssl.SSLCertVerificationError(
+                ssl.SSL_ERROR_SSL, f"MQTT broker {reason}; refusing to send credentials"
+            )
+
+    context = _unverified_context()
+    context.sslsocket_class = _PinnedSSLSocket
+    return context
+
+
 def prepare(
     config: ConfigType,
     subscriptions: list[str],
@@ -121,8 +156,9 @@ def prepare(
                 if client.reconnect() == 0:
                     _LOGGER.info("Successfully reconnected to the MQTT server")
                     break
-            except OSError:
-                pass
+            except OSError as err:
+                # Names the cause, such as a pinned certificate mismatch
+                _LOGGER.warning("Cannot reconnect to the MQTT broker: %s", err)
 
             wait_time = min(2**tries, 300)
             _LOGGER.warning(
@@ -136,12 +172,14 @@ def prepare(
 
     # Match the firmware's transport; imported here to keep component code off the CLI start-up path
     from esphome.components.mqtt import (
+        CONF_SSL_FINGERPRINTS,
         CONF_TLS,
         CONF_TRANSPORT,
         CONF_VERIFY_SSL,
         CONF_WS_PATH,
         DEFAULT_WS_PATH,
         MQTT_TRANSPORT_TCP,
+        normalize_fingerprint,
     )
 
     transport = config[CONF_MQTT].get(CONF_TRANSPORT, MQTT_TRANSPORT_TCP)
@@ -165,12 +203,12 @@ def prepare(
         client.username_pw_set(username, password)
 
     mqtt_conf = config[CONF_MQTT]
+    if fingerprints := mqtt_conf.get(CONF_SSL_FINGERPRINTS):
+        client.tls_set_context(_pinned_context(normalize_fingerprint(fingerprints[0])))
     # Validation sets tls whenever a certificate option or the wss transport implies it
-    if mqtt_conf.get(CONF_TLS):
+    elif mqtt_conf.get(CONF_TLS):
         if mqtt_conf.get(CONF_VERIFY_SSL) is False:
-            context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+            context = _unverified_context()
         else:
             # Without a CA the system trust store stands in for the firmware's bundle
             context = ssl.create_default_context(

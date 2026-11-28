@@ -833,7 +833,9 @@ void LvglComponent::setup() {
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
-  auto buf_bytes = clamp_at_least(width * height / frac * LV_COLOR_DEPTH / 8, MIN_BUFFER_SIZE);
+  // LVGL will round an area's size up to LV_DRAW_BUF_ALIGN, so the buffer must be a multiple of it
+  size_t buf_bytes =
+      LV_ROUND_UP(clamp_at_least(width * height / frac * LV_COLOR_DEPTH / 8, MIN_BUFFER_SIZE), LV_DRAW_BUF_ALIGN);
   void *buffer = nullptr;
   // for small buffers, try to allocate in internal memory first to improve performance
   if (this->buffer_frac_ >= MIN_BUFFER_FRAC / 2)
@@ -843,7 +845,7 @@ void LvglComponent::setup() {
   // if specific buffer size not set and can't get 100%, try for a smaller one
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
-    buf_bytes /= MIN_BUFFER_FRAC;
+    buf_bytes = LV_ROUND_UP(buf_bytes / MIN_BUFFER_FRAC, LV_DRAW_BUF_ALIGN);
     buffer = lv_alloc_draw_buf(buf_bytes, false);  // NOLINT
   }
   this->buffer_frac_ = frac;

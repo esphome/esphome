@@ -170,6 +170,7 @@ esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/delta_wallbox/* @epicRE
+esphome/components/derivative/* @angelnu
 esphome/components/dew_point/* @CFlix
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
@@ -193,6 +194,7 @@ esphome/components/duco/select/* @kokx @w1ll14m
 esphome/components/duco/sensor/* @kokx @w1ll14m
 esphome/components/duco/text_sensor/* @kokx @w1ll14m
 esphome/components/duty_time/* @dudanov
+esphome/components/e131/* @docteurzoidberg
 esphome/components/ecocomfort2/* @gledian
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/touchscreen/* @jesserockz
@@ -748,6 +750,7 @@ esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
 esphome/components/virtual_uart/* @Bascht74
 esphome/components/vl53l1x/* @will-tm
+esphome/components/vl53l4cx/* @bdraco
 esphome/components/vl6180x/* @NonaSuomy
 esphome/components/vnc/* @MindFreeze
 esphome/components/voice_assistant/* @jesserockz @kahrendt
