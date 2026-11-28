@@ -1,0 +1,186 @@
+"""Optional TX transport validation and generated code."""
+
+from collections.abc import Callable
+from pathlib import Path
+
+import pytest
+
+from esphome import config, yaml_util
+from esphome.components import vbus
+import esphome.config_validation as cv
+from esphome.core import CORE
+
+
+@pytest.mark.parametrize("address", [1, 0x20, 0x2211, 0x7F7F])
+def test_valid_addresses(address: int) -> None:
+    assert vbus.validate_address(address) == address
+
+
+@pytest.mark.parametrize("address", [0, -1, 0x80, 0x8000, 0xFFFF, 0x10000])
+def test_invalid_addresses(address: int) -> None:
+    with pytest.raises(cv.Invalid):
+        vbus.validate_address(address)
+
+
+@pytest.mark.parametrize("command", [0x80, 0x8000, 0xFFFF, 0x0500, 0x0600, -1, 0x10000])
+def test_invalid_commands(command: int) -> None:
+    with pytest.raises(cv.Invalid):
+        vbus.validate_command(command)
+
+
+def test_send_waits_for_a_reply_by_default() -> None:
+    conf = vbus.SEND_SCHEMA({"id": "bus", "command": 0x0300})
+    assert conf["expect_reply"] is True
+
+
+@pytest.mark.parametrize("command", [0x0200, 0x0300, 0x0400])
+def test_standard_requests_cannot_disable_reply_waiting(command: int) -> None:
+    with pytest.raises(cv.Invalid, match="require expect_reply"):
+        vbus.SEND_SCHEMA({"id": "bus", "command": command, "expect_reply": False})
+
+
+def test_one_way_datagram_can_disable_reply_waiting() -> None:
+    conf = vbus.SEND_SCHEMA({"id": "bus", "command": 0x0100, "expect_reply": False})
+    assert conf["expect_reply"] is False
+
+
+def test_transmit_requires_distinct_addresses() -> None:
+    with pytest.raises(cv.Invalid, match="must differ"):
+        vbus.TRANSMIT_SCHEMA({"source": 0x20, "destination": 0x20})
+
+
+@pytest.mark.parametrize("duration", ["0ms", "199ms", "1001ms"])
+def test_invalid_lease_duration(duration: str) -> None:
+    with pytest.raises(cv.Invalid):
+        vbus.TRANSMIT_SCHEMA({"destination": 0x2211, "lease_duration": duration})
+
+
+def test_transmit_codegen(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    code = generate_main(component_config_path("transmit.yaml"))
+    assert any(define.name == "USE_VBUS_TX" for define in CORE.defines)
+    assert "vbus::VBusTransmitter(test_bus);" in code
+    assert "test_bus->set_transmitter(" in code
+    assert code.count("->set_uart_parent(test_uart);") == 2
+    assert any(define.name == "USE_VBUS_SEND_ACTION" for define in CORE.defines)
+    assert "test_bus->request_datagram(" in code
+
+
+def test_rx_only_does_not_generate_transmit(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    code = generate_main(component_config_path("transmit_rx_only.yaml"))
+    assert all(define.name != "USE_VBUS_TX" for define in CORE.defines)
+    assert "VBusTransmitter" not in code
+
+
+@pytest.mark.parametrize(
+    ("uart_config", "transmit_config", "error"),
+    [
+        (
+            "rx_pin: GPIO13\n  tx_pin: GPIO12",
+            "transmit:\n    destination: 0x2211",
+            None,
+        ),
+        ("rx_pin: GPIO13", "transmit:\n    destination: 0x2211", "declare a tx_pin"),
+        ("tx_pin: GPIO12", "transmit:\n    destination: 0x2211", "declare a rx_pin"),
+        ("rx_pin: GPIO13", "", "require transmit"),
+        (
+            "rx_pin: GPIO13\n  tx_pin: GPIO12\n  parity: EVEN",
+            "transmit:\n    destination: 0x2211",
+            "requires parity NONE",
+        ),
+        (
+            "rx_pin: GPIO13\n  tx_pin: GPIO12\n  stop_bits: 2",
+            "transmit:\n    destination: 0x2211",
+            "requires 1 stop bits",
+        ),
+        (
+            "rx_pin: GPIO13\n  tx_pin: GPIO12\n  data_bits: 7",
+            "transmit:\n    destination: 0x2211",
+            "requires 8 data bits",
+        ),
+    ],
+)
+def test_tx_final_validation(
+    uart_config: str, transmit_config: str, error: str | None, tmp_path: Path
+) -> None:
+    path = tmp_path / "validate.yaml"
+    path.write_text(
+        "esphome:\n  name: vbus-validation\nesp8266:\n  board: d1_mini\n"
+        f"uart:\n  baud_rate: 9600\n  {uart_config}\nvbus:\n  id: bus\n  {transmit_config}\n"
+        "button:\n  - platform: template\n    name: Request\n    on_press:\n"
+        "      - vbus.send_datagram:\n          id: bus\n          command: 0x0300\n",
+        encoding="utf-8",
+    )
+    CORE.config_path = path
+    result = config.validate_config(yaml_util.load_yaml(path), {})
+    errors = [str(err) for err in result.errors]
+    if error is None:
+        assert not errors
+    else:
+        assert any(error in message for message in errors), errors
+
+
+def test_action_validation_state_is_cleared_between_configurations(
+    tmp_path: Path,
+) -> None:
+    """An invalid TX action in one build must not affect the next RX-only build."""
+    path = tmp_path / "validate.yaml"
+    base = (
+        "esphome:\n  name: vbus-validation\nesp8266:\n  board: d1_mini\n"
+        "uart:\n  baud_rate: 9600\n  rx_pin: GPIO13\nvbus:\n  id: bus\n"
+    )
+    path.write_text(
+        base
+        + "button:\n  - platform: template\n    name: Request\n    on_press:\n      - vbus.send_datagram:\n          id: null\n          command: 0x0300\n",
+        encoding="utf-8",
+    )
+    CORE.config_path = path
+    result = config.validate_config(yaml_util.load_yaml(path), {})
+    assert any("require transmit" in str(error) for error in result.errors)
+    CORE.reset()
+    path.write_text(base, encoding="utf-8")
+    CORE.config_path = path
+    assert not config.validate_config(yaml_util.load_yaml(path), {}).errors
+
+
+@pytest.mark.parametrize(
+    ("uart_id", "transmit", "threshold", "loop_ms", "error"),
+    [
+        ("wire", True, None, 50, None),
+        ("wire", True, 120, 16, "rx_full_threshold"),
+        ("wire", True, 1, 51, "loop_interval"),
+        ("bridge", True, None, 16, "serial line timing"),
+        ("bridge", False, 120, 100, None),  # Passive reception has no grant deadline.
+    ],
+)
+def test_transmit_timing(
+    uart_id: str,
+    transmit: bool,
+    threshold: int | None,
+    loop_ms: int,
+    error: str | None,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "timing.yaml"
+    path.write_text(
+        f"esphome:\n  name: test-vbus\n  loop_interval: {loop_ms}ms\n"
+        "esp32:\n  board: esp32dev\nwifi:\n  ssid: test\n"
+        "tcp_uart:\n  id: bridge\n  role: server\n  port: 5000\n"
+        "uart:\n  id: wire\n  rx_pin: GPIO16\n  tx_pin: GPIO17\n  baud_rate: 9600\n"
+        + (f"  rx_full_threshold: {threshold}\n" if threshold else "")
+        + f"vbus:\n  uart_id: {uart_id}\n"
+        + ("  transmit:\n    destination: 0x2211\n" if transmit else ""),
+        encoding="utf-8",
+    )
+    CORE.config_path = path
+    result = config.validate_config(yaml_util.load_yaml(path), {})
+    if error:
+        assert any(error in str(err) for err in result.errors), result.errors
+    else:
+        assert not result.errors
+        assert result["uart"][0]["rx_full_threshold"] == (1 if transmit else threshold)
