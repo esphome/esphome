@@ -1,3 +1,6 @@
+import math
+import struct
+
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_SOURCES
@@ -13,6 +16,7 @@ from esphome.const import (
     CONF_SUM,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEIGHT,
 )
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
@@ -26,6 +30,9 @@ KalmanCombinationComponent = combination_ns.class_(
 )
 LinearCombinationComponent = combination_ns.class_(
     "LinearCombinationComponent", cg.Component, sensor.Sensor
+)
+WeightedMeanCombinationComponent = combination_ns.class_(
+    "WeightedMeanCombinationComponent", cg.Component, sensor.Sensor
 )
 MaximumCombinationComponent = combination_ns.class_(
     "MaximumCombinationComponent", cg.Component, sensor.Sensor
@@ -61,6 +68,13 @@ CONF_MIN = "min"
 CONF_MOST_RECENTLY_UPDATED = "most_recently_updated"
 CONF_PROCESS_STD_DEV = "process_std_dev"
 CONF_STD_DEV = "std_dev"
+CONF_WEIGHTED_MEAN = "weighted_mean"
+
+ONE_PARAMETER_SOURCE_KEYS = {
+    CONF_KALMAN: CONF_ERROR,
+    CONF_LINEAR: CONF_COEFFICIENT,
+    CONF_WEIGHTED_MEAN: CONF_WEIGHT,
+}
 
 
 KALMAN_SOURCE_SCHEMA = cv.Schema(
@@ -83,11 +97,36 @@ LINEAR_SOURCE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _validate_weight_float32(value: float) -> float:
+    try:
+        float32_value = struct.unpack("f", struct.pack("f", value))[0]
+    except OverflowError as err:
+        raise cv.Invalid("Weight must be within the C++ float range") from err
+    if not math.isfinite(float32_value) or (value > 0.0 and float32_value == 0.0):
+        raise cv.Invalid("Weight must be representable as a C++ float")
+    return value
+
+
+WEIGHTED_MEAN_SOURCE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
+        cv.Required(CONF_WEIGHT): cv.templatable(
+            cv.All(cv.positive_float, _validate_weight_float32)
+        ),
+    }
+)
+
 SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
     }
 )
+
+
+def _sources_schema(source_schema: cv.Schema) -> cv.All:
+    return cv.All(cv.ensure_list(source_schema), cv.Length(min=1))
+
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -96,34 +135,53 @@ CONFIG_SCHEMA = cv.typed_schema(
         .extend(
             {
                 cv.Required(CONF_PROCESS_STD_DEV): cv.positive_float,
-                cv.Required(CONF_SOURCES): cv.ensure_list(KALMAN_SOURCE_SCHEMA),
+                cv.Required(CONF_SOURCES): _sources_schema(KALMAN_SOURCE_SCHEMA),
                 cv.Optional(CONF_STD_DEV): sensor.sensor_schema(),
             }
         ),
         CONF_LINEAR: sensor.sensor_schema(LinearCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(LINEAR_SOURCE_SCHEMA)}),
+        .extend({cv.Required(CONF_SOURCES): _sources_schema(LINEAR_SOURCE_SCHEMA)}),
         CONF_MAX: sensor.sensor_schema(MaximumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MEAN: sensor.sensor_schema(MeanCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MEDIAN: sensor.sensor_schema(MedianCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MIN: sensor.sensor_schema(MinimumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MOST_RECENTLY_UPDATED: sensor.sensor_schema(MostRecentCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_RANGE: sensor.sensor_schema(RangeCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_SUM: sensor.sensor_schema(SumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
+        CONF_WEIGHTED_MEAN: sensor.sensor_schema(WeightedMeanCombinationComponent)
+        .extend(cv.COMPONENT_SCHEMA)
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(WEIGHTED_MEAN_SOURCE_SCHEMA)}
+        ),
     }
 )
 
@@ -160,7 +218,7 @@ async def to_code(config: ConfigType) -> None:
     if process_std_dev := config.get(CONF_PROCESS_STD_DEV):
         cg.add(var.set_process_std_dev(process_std_dev))
 
-    if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
+    if config[CONF_TYPE] in ONE_PARAMETER_SOURCE_KEYS:
         storage = cg.static_storage(
             config[CONF_ID],
             config[CONF_ID].type.class_("SensorSource"),
@@ -175,20 +233,15 @@ async def to_code(config: ConfigType) -> None:
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
-        if config[CONF_TYPE] == CONF_KALMAN:
-            error = await cg.templatable(
-                source_conf[CONF_ERROR],
+        if (
+            parameter_key := ONE_PARAMETER_SOURCE_KEYS.get(config[CONF_TYPE])
+        ) is not None:
+            parameter = await cg.templatable(
+                source_conf[parameter_key],
                 [(float, "x")],
                 cg.float_,
             )
-            cg.add(var.add_source(source, error))
-        elif config[CONF_TYPE] == CONF_LINEAR:
-            coefficient = await cg.templatable(
-                source_conf[CONF_COEFFICIENT],
-                [(float, "x")],
-                cg.float_,
-            )
-            cg.add(var.add_source(source, coefficient))
+            cg.add(var.add_source(source, parameter))
         else:
             cg.add(var.add_source(source))
 

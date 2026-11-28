@@ -56,6 +56,36 @@ void CombinationNoParameterComponent::setup() {
   }
 }
 
+void CombinationOneParameterComponent::setup() {
+  bool has_source_state = false;
+  float initial_trigger = NAN;
+  for (const auto &source : this->sensor_sources_) {
+    // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
+    // repeatedly in the same loop if multiple source senors update.
+    source.sensor->add_on_state_callback([this](float value) -> void {
+      this->defer(NEW_VALUE_DEFER_ID, [this, value]() {
+        float trigger = value;
+        if (!std::isfinite(trigger)) {
+          for (const auto &current_source : this->sensor_sources_) {
+            if (std::isfinite(current_source.sensor->state)) {
+              trigger = current_source.sensor->state;
+              break;
+            }
+          }
+        }
+        this->handle_new_value(trigger);
+      });
+    });
+    has_source_state |= source.sensor->has_state();
+    if (!std::isfinite(initial_trigger) && std::isfinite(source.sensor->state)) {
+      initial_trigger = source.sensor->state;
+    }
+  }
+  if (has_source_state) {
+    this->defer(NEW_VALUE_DEFER_ID, [this, initial_trigger]() { this->handle_new_value(initial_trigger); });
+  }
+}
+
 void KalmanCombinationComponent::dump_config() {
   this->log_config_(LOG_STR("kalman"));
   ESP_LOGCONFIG(TAG, "  Update variance: %f per ms", this->update_variance_value_);
@@ -74,6 +104,8 @@ void KalmanCombinationComponent::setup() {
     });
   }
 }
+
+void KalmanCombinationComponent::handle_new_value(float) {}
 
 void KalmanCombinationComponent::update_variance_() {
   uint32_t now = millis();
@@ -119,16 +151,6 @@ void KalmanCombinationComponent::correct_(float value, float stddev) {
   PUBLISH_STATE(this->std_dev_sensor_, std::sqrt(var));
 }
 
-void LinearCombinationComponent::setup() {
-  for (auto &source : this->sensor_sources_) {
-    // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
-    // repeatedly in the same loop if multiple source senors update.
-    source.sensor->add_on_state_callback([this](float value) -> void {
-      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
-    });
-  }
-}
-
 void LinearCombinationComponent::handle_new_value(float value) {
   // Multiplies each sensor state by a configured coefficient and then sums
 
@@ -146,6 +168,26 @@ void LinearCombinationComponent::handle_new_value(float value) {
 
   this->publish_state(sum);
 };
+
+void WeightedMeanCombinationComponent::handle_new_value(float) {
+  double weighted_sum = 0.0;
+  double weight_sum = 0.0;
+
+  for (const auto &source : this->sensor_sources_) {
+    const float sensor_state = source.sensor->state;
+    if (!std::isfinite(sensor_state))
+      continue;
+
+    const float weight = source.compute.value(sensor_state);
+    if (!std::isfinite(weight) || weight <= 0.0f)
+      continue;
+
+    weighted_sum += static_cast<double>(sensor_state) * static_cast<double>(weight);
+    weight_sum += static_cast<double>(weight);
+  }
+
+  this->publish_state(weight_sum > 0.0f ? weighted_sum / weight_sum : NAN);
+}
 
 void MaximumCombinationComponent::handle_new_value(float value) {
   if (!std::isfinite(value))

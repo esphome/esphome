@@ -50,10 +50,17 @@ class CombinationOneParameterComponent : public CombinationComponent {
     CombinationOneParameterComponent *parent;
   };
 
+  /// @brief Adds a callback to each source sensor
+  void setup() override;
+
   void set_source_storage(std::span<SensorSource> storage) { this->sensor_sources_.init(storage); }
   void add_source(Sensor *sensor, TemplatableFn<float, float> compute) {
     this->sensor_sources_.push_back({sensor, compute, this});
   }
+
+  /// @brief Computes the combination
+  /// @param value Newest sensor measurement
+  virtual void handle_new_value(float value) = 0;
 
   /// @brief Logs all source sensors' names in sensor_sources_
   void log_source_sensors() override;
@@ -69,6 +76,7 @@ class KalmanCombinationComponent final : public CombinationOneParameterComponent
  public:
   void dump_config() override;
   void setup() override;
+  void handle_new_value(float value) override;
 
   void set_process_std_dev(float process_std_dev) {
     this->update_variance_value_ = process_std_dev * process_std_dev * 0.001f;
@@ -91,9 +99,15 @@ class KalmanCombinationComponent final : public CombinationOneParameterComponent
 class LinearCombinationComponent final : public CombinationOneParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("linear")); }
-  void setup() override;
 
-  void handle_new_value(float value);
+  void handle_new_value(float value) override;
+};
+
+class WeightedMeanCombinationComponent final : public CombinationOneParameterComponent {
+ public:
+  void dump_config() override { this->log_config_(LOG_STR("weighted_mean")); }
+
+  void handle_new_value(float value) override;
 };
 
 class MaximumCombinationComponent final : public CombinationNoParameterComponent {

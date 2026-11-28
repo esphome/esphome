@@ -1,10 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstddef>
 #include <cmath>
 #include <initializer_list>
+#include <span>
 
 #include "esphome/components/combination/combination.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::combination::testing {
 
@@ -25,6 +29,32 @@ template<typename T, size_t N> struct Fixture {
 
   float run() {
     this->combination.handle_new_value(0.0f);
+    return this->combination.get_state();
+  }
+};
+
+// Sources with the given states, each weighted by its compute function
+template<size_t N> struct WeightedMeanFixture {
+  std::array<sensor::Sensor, N> sources;
+  alignas(WeightedMeanCombinationComponent::SensorSource)
+      std::array<std::byte, sizeof(WeightedMeanCombinationComponent::SensorSource) * N> storage{};
+  WeightedMeanCombinationComponent combination;
+
+  WeightedMeanFixture(std::initializer_list<float> states, std::initializer_list<TemplatableFn<float, float>> weights) {
+    this->combination.set_source_storage(std::span<WeightedMeanCombinationComponent::SensorSource>(
+        reinterpret_cast<WeightedMeanCombinationComponent::SensorSource *>(this->storage.data()), N));
+    size_t i = 0;
+    const auto *weight = weights.begin();
+    for (float state : states) {
+      this->sources[i].state = state;
+      this->combination.add_source(&this->sources[i++], *weight++);
+    }
+  }
+
+  float run() { return this->run_with_trigger(0.0f); }
+
+  float run_with_trigger(float trigger) {
+    this->combination.handle_new_value(trigger);
     return this->combination.get_state();
   }
 };
@@ -98,6 +128,65 @@ TEST(LinearCombination, SumsStatesTimesComputedCoefficients) {
   EXPECT_FLOAT_EQ(combination.get_state(), 12.0f);
 }
 
+TEST(CombinationSetup, InitializesParameterizedCombinationFromExistingState) {
+  LinearCombinationComponent combination;
+  sensor::Sensor source;
+  std::array<LinearCombinationComponent::SensorSource, 1> storage{};
+  combination.set_source_storage(storage);
+  source.publish_state(4.0f);
+  combination.add_source(&source, [](float) -> float { return 2.0f; });
+
+  combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_FLOAT_EQ(combination.get_state(), 8.0f);
+}
+
+TEST(CombinationSetup, IgnoresExistingNonFiniteStateForLinearCombination) {
+  LinearCombinationComponent combination;
+  sensor::Sensor source;
+  std::array<LinearCombinationComponent::SensorSource, 1> storage{};
+  combination.set_source_storage(storage);
+  source.publish_state(NAN);
+  combination.add_source(&source, [](float) -> float { return 2.0f; });
+
+  combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_TRUE(std::isnan(combination.get_state()));
+}
+
+TEST(CombinationSetup, PreservesFiniteLinearInitializationWhenAnotherSourcePublishesNan) {
+  LinearCombinationComponent combination;
+  std::array<sensor::Sensor, 2> sources;
+  std::array<LinearCombinationComponent::SensorSource, 2> storage{};
+  combination.set_source_storage(storage);
+  sources[0].publish_state(4.0f);
+  sources[1].publish_state(5.0f);
+  combination.add_source(&sources[0], [](float) -> float { return 2.0f; });
+  combination.add_source(&sources[1], [](float) -> float { return 3.0f; });
+
+  combination.setup();
+  sources[1].publish_state(NAN);
+  App.scheduler.call(millis());
+
+  EXPECT_FLOAT_EQ(combination.get_state(), 8.0f);
+}
+
+TEST(CombinationSetup, DoesNotPublishSyntheticStateForExistingNoParameterSources) {
+  MostRecentCombinationComponent combination;
+  sensor::Sensor source;
+  std::array<sensor::Sensor *, 1> storage{};
+  combination.set_sensor_storage(storage);
+  source.publish_state(4.0f);
+  combination.add_source(&source);
+
+  combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_TRUE(std::isnan(combination.get_state()));
+}
+
 // Each source's error comes from its compute function when the source publishes
 TEST(KalmanCombination, WeightsSourcesByComputedError) {
   KalmanCombinationComponent combination;
@@ -110,6 +199,96 @@ TEST(KalmanCombination, WeightsSourcesByComputedError) {
   sources[0].publish_state(10.0f);  // error 1, the first value is taken as is
   sources[1].publish_state(20.0f);  // error 2: 10 + 1 * (20 - 10) / (1 + 4)
   EXPECT_FLOAT_EQ(combination.get_state(), 12.0f);
+}
+
+TEST(WeightedMeanCombination, CalculatesWeightedMean) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float) -> float { return 1.0f; }, [](float) -> float { return 3.0f; }});
+  EXPECT_FLOAT_EQ(f.run(), 17.5f);
+}
+
+TEST(WeightedMeanCombination, InitializesFromExistingSourceStates) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float) -> float { return 1.0f; }, [](float) -> float { return 3.0f; }});
+  f.sources[0].publish_state(10.0f);
+  f.sources[1].publish_state(20.0f);
+
+  f.combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_FLOAT_EQ(f.combination.get_state(), 17.5f);
+}
+
+TEST(WeightedMeanCombination, UpdatesThroughCallbacksAndScheduler) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float) -> float { return 1.0f; }, [](float) -> float { return 3.0f; }});
+  size_t publish_count = 0;
+  f.combination.add_on_state_callback([&publish_count](float) { ++publish_count; });
+  f.sources[0].publish_state(10.0f);
+  f.sources[1].publish_state(20.0f);
+  f.combination.setup();
+
+  App.scheduler.call(millis());
+  ASSERT_FLOAT_EQ(f.combination.get_state(), 17.5f);
+  publish_count = 0;
+
+  f.sources[0].publish_state(NAN);
+  f.sources[1].publish_state(NAN);
+  App.scheduler.call(millis());
+  EXPECT_TRUE(std::isnan(f.combination.get_state()));
+  EXPECT_EQ(publish_count, 1);
+
+  f.sources[0].publish_state(30.0f);
+  App.scheduler.call(millis());
+  EXPECT_FLOAT_EQ(f.combination.get_state(), 30.0f);
+  EXPECT_EQ(publish_count, 2);
+
+  f.sources[0].publish_state(40.0f);
+  f.sources[1].publish_state(50.0f);
+  App.scheduler.call(millis());
+  EXPECT_FLOAT_EQ(f.combination.get_state(), 47.5f);
+  EXPECT_EQ(publish_count, 3);
+}
+
+TEST(WeightedMeanCombination, SkipsNonFiniteStatesAndNonPositiveWeights) {
+  WeightedMeanFixture<3> f(
+      {10.0f, NAN, 20.0f},
+      {[](float) -> float { return 0.0f; }, [](float) -> float { return 2.0f; }, [](float) -> float { return 1.0f; }});
+  EXPECT_FLOAT_EQ(f.run(), 20.0f);
+}
+
+TEST(WeightedMeanCombination, SkipsNonFiniteWeights) {
+  WeightedMeanFixture<3> f({10.0f, 20.0f, 30.0f},
+                           {[](float) -> float { return NAN; }, [](float) -> float { return INFINITY; },
+                            [](float) -> float { return 1.0f; }});
+  EXPECT_FLOAT_EQ(f.run(), 30.0f);
+}
+
+TEST(WeightedMeanCombination, AvoidsFloatOverflow) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f},
+                           {[](float) -> float { return 1.0e38f; }, [](float) -> float { return 1.0e38f; }});
+  EXPECT_FLOAT_EQ(f.run(), 15.0f);
+}
+
+TEST(WeightedMeanCombination, AvoidsFloatOverflowWithLargerWeights) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f},
+                           {[](float) -> float { return 2.0e38f; }, [](float) -> float { return 2.0e38f; }});
+  EXPECT_FLOAT_EQ(f.run(), 15.0f);
+}
+
+TEST(WeightedMeanCombination, NoPositiveWeightIsNan) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float) -> float { return 0.0f; }, [](float) -> float { return 0.0f; }});
+  EXPECT_TRUE(std::isnan(f.run()));
+}
+
+TEST(WeightedMeanCombination, RecomputesForNanTrigger) {
+  WeightedMeanFixture<2> f({NAN, 20.0f}, {[](float) -> float { return 1.0f; }, [](float) -> float { return 1.0f; }});
+  EXPECT_FLOAT_EQ(f.run_with_trigger(NAN), 20.0f);
+}
+
+TEST(WeightedMeanCombination, RecomputesLambdaWeightsWithSourceState) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float x) -> float { return x; }, [](float) -> float { return 2.0f; }});
+  EXPECT_FLOAT_EQ(f.run(), 11.666666f);
+
+  f.sources[0].state = 30.0f;
+  EXPECT_FLOAT_EQ(f.run(), 29.375f);
 }
 
 }  // namespace esphome::combination::testing
