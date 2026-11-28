@@ -1,0 +1,7 @@
+packages:
+  base: !include base.yaml
+
+analog_gauge_reader:
+  dials:
+    - id: dial_2
+      calibration: []

@@ -1,0 +1,8 @@
+packages:
+  base: !include base.yaml
+
+analog_gauge_reader:
+  dials:
+    - id: dial_2
+      min_angle: 90
+      max_angle: 90

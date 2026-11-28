@@ -1,0 +1,12 @@
+packages:
+  base: !include base.yaml
+
+camera_decoder:
+  rotation: 90
+
+# 600 pixels only fit the frame after the decoder turns it by a quarter.
+analog_gauge_reader:
+  dials:
+    - id: dial_2
+      crop_w: 64
+      crop_h: 600

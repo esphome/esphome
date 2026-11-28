@@ -1,0 +1,11 @@
+packages:
+  base: !include base.yaml
+
+camera_decoder:
+  output_type: RGB888
+
+analog_gauge_reader:
+  dials:
+    - id: dial_2
+      target_color: 0xFF0000
+      process_channel: RED

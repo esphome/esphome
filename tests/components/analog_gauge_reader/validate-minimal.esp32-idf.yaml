@@ -1,0 +1,22 @@
+packages:
+  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-idf.yaml
+
+# Minimal configuration: every dial option at its default.
+camera_decoder:
+  id: gauge_decoder
+
+analog_gauge_reader:
+  camera_id: test_camera
+  decoder_id: gauge_decoder
+  dials:
+    - id: dial_1
+
+sensor:
+  # The reader id is omitted: with one reader it is resolved automatically.
+  - platform: analog_gauge_reader
+    value:
+      name: Gauge Value
+    dials:
+      - dial: dial_1
+        value:
+          name: Gauge Dial 1

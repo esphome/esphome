@@ -1,0 +1,50 @@
+camera_decoder:
+  id: gauge_decoder
+  output_type: RGB888
+
+analog_gauge_reader:
+  id: gauge
+  camera_id: test_camera
+  decoder_id: gauge_decoder
+  stacked_digits: true
+  dials:
+    # Single-channel dial with the default radial profile algorithm.
+    - id: dial_1
+      crop_w: 64
+      crop_h: 64
+      process_channel: GREEN
+    # Colour-target dial with a wrap-around angle range, contrast and a calibration map.
+    - id: dial_2
+      crop_x: 200
+      crop_y: 100
+      crop_w: 80
+      crop_h: 80
+      scale: 0.1
+      target_color: 0xFF0000
+      contrast: 1.5
+      algorithm: hough_transform
+      min_angle: 300
+      max_angle: 60
+      deadzone_diameter: 8
+      calibration:
+        - raw: 0
+          mapped: 0
+        - raw: 180
+          mapped: 5
+
+sensor:
+  - platform: analog_gauge_reader
+    analog_gauge_reader_id: gauge
+    value:
+      name: Gauge Value
+    dials:
+      - dial: dial_1
+        value:
+          name: Gauge Dial 1
+        angle:
+          name: Gauge Dial 1 Angle
+        confidence:
+          name: Gauge Dial 1 Confidence
+      - dial: dial_2
+        value:
+          name: Gauge Dial 2
