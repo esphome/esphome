@@ -16,6 +16,8 @@ namespace esphome {
 /// path: one that is dropped leaks its box and what it captured. A boxed capture's destructor runs with the
 /// scheduler lock held (as with std::function before), so it must not call the scheduler; the exception is a
 /// SCHEDULER_DONT_RUN callback, freed after the lock is released, which may reschedule its own key.
+/// Not Callback::create_boxed() (helpers.h): this keeps release inline and shares one ::operator delete for all
+/// trivially destructible boxes.
 class SchedulerCallback {
  public:
   static constexpr size_t INLINE_WORDS = 3;
@@ -75,7 +77,9 @@ class SchedulerCallback {
     const auto *src = static_cast<const unsigned char *>(__builtin_assume_aligned(other.bytes_, alignof(uintptr_t)));
     for (size_t i = 0; i < sizeof(this->bytes_); i += sizeof(uintptr_t))
       __builtin_memcpy(dst + i, src + i, sizeof(uintptr_t));
-    other.invoke_ = nullptr;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    other.invoke_ = nullptr;  // only the debug destructor check reads other after this
+#endif
   }
 #ifdef ESPHOME_DEBUG_SCHEDULER
   [[noreturn]] static void report_dropped();  // defined in scheduler.cpp
