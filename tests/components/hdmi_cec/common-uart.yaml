@@ -1,0 +1,5 @@
+hdmi_cec:
+  id: cec
+  pin: ${cec_pin}  # HDMI pin 13, with HDMI pin 17 as ground
+  address: 0x5
+  uart_id: uart_bus  # its tx_pin drives the same line through a diode
