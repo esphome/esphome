@@ -39,6 +39,5 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config, config[CONF_MEASUREMENT_MODE])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config, config[CONF_MEASUREMENT_MODE])
+    await sensor.register_sensor(var, config)
