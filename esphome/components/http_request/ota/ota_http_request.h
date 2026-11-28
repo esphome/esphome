@@ -11,7 +11,15 @@
 
 #include "../http_request.h"
 
+#ifdef USE_HTTP_REQUEST_UPDATE
+#include "../update/update_target.h"
+#endif
+
 namespace esphome::http_request {
+
+namespace testing {
+class OtaHttpRequestTest;
+}  // namespace testing
 
 static const uint8_t MD5_SIZE = 32;
 
@@ -21,7 +29,13 @@ enum OtaHttpRequestError : uint8_t {
   OTA_CONNECTION_ERROR = 0x12,
 };
 
-class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<HttpRequestComponent> {
+class OtaHttpRequestComponent final : public ota::OTAComponent,
+                                      public Parented<HttpRequestComponent>
+#ifdef USE_HTTP_REQUEST_UPDATE
+    ,
+                                      public UpdateTarget
+#endif
+{
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -37,6 +51,17 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
 
   void flash();
 
+#ifdef USE_HTTP_REQUEST_UPDATE
+  /// A build entry is for this device when its chip family is the one this firmware was built for.
+  bool matches_build(JsonObjectConst build) const override;
+
+  void install(const std::string &url, const std::string &md5) override {
+    this->set_md5(md5);
+    this->set_url(url);
+    this->flash();
+  }
+#endif
+
  protected:
   /// Allocated by the first setter, which only runs before a flash, and never freed, so a flash never loses it.
   struct Request {
@@ -49,12 +74,17 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   };
   Request &get_request_();
 
+  /// Fan an OTA state change out to the state listeners and to the update entity, if either is in the build.
+  void report_state_(ota::OTAState state, float progress, uint8_t error);
+
   void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container, bool abort_backend);
   // Only reached from flash(), which returns early while request_ is null
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
   bool validate_url_(const std::string &url);
+
+  friend class testing::OtaHttpRequestTest;
 
   std::unique_ptr<Request> request_;
   int status_ = -1;

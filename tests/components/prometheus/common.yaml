@@ -26,7 +26,7 @@ ota:
 update:
   - platform: http_request
     name: Firmware Update
-    ota_id: prometheus_http_request_ota
+    target_id: prometheus_http_request_ota
     source: http://example.com/manifest.json
 
 sensor:

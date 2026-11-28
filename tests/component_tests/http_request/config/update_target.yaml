@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: test
+  password: testtest
+
+external_components:
+  - source:
+      type: local
+      path: external_components
+
+http_request:
+
+mcu_flasher:
+  id: flasher
+
+update:
+  - platform: http_request
+    name: MCU Firmware
+    target_id: flasher
+    source: http://example.com/mcu_manifest.json

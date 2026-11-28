@@ -11,5 +11,5 @@ ota:
 update:
   - platform: http_request
     name: "OTA Update"
-    ota_id: mqtt_http_request_ota
+    target_id: mqtt_http_request_ota
     source: https://example.com/ota.json
