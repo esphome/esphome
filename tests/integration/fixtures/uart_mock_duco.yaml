@@ -9,6 +9,10 @@ esphome:
       - component.update: humidity
       - component.update: filter_remaining
       - component.update: flow_level
+      - component.update: flow_level_node_2
+      - component.update: flow_level_node_3
+      - component.update: flow_level_request_node_2
+      - component.update: flow_level_request_node_3
       - component.update: time_remaining
       - component.update: bypass
       - component.update: temperature_oda
@@ -103,7 +107,8 @@ uart_mock:
               } else if (function == 0x0c && d[0] == 0x02) {
                 std::vector<uint8_t> status(20, 0);
                 status[0] = mode;
-                status[2] = 45;
+                status[2] = d[1] == 1 ? 45 : d[1] == 2 ? 70 : 0;
+                status[5] = d[1] == 2 ? 10 : d[1] == 3 ? 20 : 0;
                 status[12] = 0xAA;  // 21930 s, sent as AA 01 55: an escaped header inside the data
                 status[13] = 0x55;
                 reply(0x0e, status);
@@ -287,9 +292,26 @@ sensor:
       name: Filter Remaining
       update_interval: never
     flow_level:
-      id: flow_level
-      name: Flow Level
-      update_interval: never
+      - id: flow_level
+        name: Flow Level
+        update_interval: never
+      - id: flow_level_node_2
+        name: Flow Level Node 2
+        address: 2
+        update_interval: never
+      - id: flow_level_node_3
+        name: Flow Level Node 3
+        address: 3
+        update_interval: never
+    flow_level_request:
+      - id: flow_level_request_node_2
+        name: Flow Level Request Node 2
+        address: 2
+        update_interval: never
+      - id: flow_level_request_node_3
+        name: Flow Level Request Node 3
+        address: 3
+        update_interval: never
     time_remaining:
       id: time_remaining
       name: Time Remaining
