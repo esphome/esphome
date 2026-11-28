@@ -1,0 +1,42 @@
+esphome:
+  name: modbus-tcp-uart-server-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+# The firmware is the Modbus TCP server; pytest connects to this port as the client.
+tcp_uart:
+  - id: inbound
+    role: server
+    port: 18129
+
+modbus_tcp_uart:
+  - id: inbound_uart
+    tcp_uart_id: inbound
+    role: server
+
+modbus:
+  - id: server_bus
+    uart_id: inbound_uart
+    role: server
+
+sensor:
+  # A fixed signal level in place of wifi_signal; the host has no Wi-Fi.
+  - platform: template
+    id: rssi
+    name: Signal
+    lambda: return -60.0;
+    # Update every second; with the default 60s the first value can come up to 5s late.
+    update_interval: 1s
+
+modbus_server:
+  - modbus_id: server_bus
+    address: 1
+    registers:
+      - address: 0x0000
+        value_type: FP32
+        read_lambda: return id(rssi).state;
