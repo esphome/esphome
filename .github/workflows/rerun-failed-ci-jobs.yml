@@ -1,0 +1,51 @@
+# Re-runs the failed jobs of a pull request's newest CI run when the PR author,
+# or anyone with write access, comments exactly `/rerun-failed`. It is meant for
+# temporary failures outside the PR, such as a package registry timeout, so
+# they need neither a new commit nor a maintainer.
+#
+# issue_comment runs from the default branch with a writable token, so this
+# checks out the script from the default branch, never the PR's code, and only
+# calls the GitHub API. The re-run itself keeps the permissions of the original
+# pull_request run.
+
+name: Rerun Failed CI Jobs
+
+on:
+  issue_comment:
+    types: [created]
+
+# Deny by default; the rerun job opts in to exactly what it needs.
+permissions: {}
+
+jobs:
+  rerun:
+    name: Rerun failed CI jobs
+    runs-on: ubuntu-latest
+    # Cheap pre-filter so ordinary comments do not start a runner; the script
+    # checks the exact command.
+    if: >-
+      github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && startsWith(github.event.comment.body, '/rerun-failed')
+    permissions:
+      actions: write        # actions.listWorkflowRuns and reRunWorkflowFailedJobs for the CI run
+      contents: read        # actions/checkout to load the script
+      pull-requests: write  # pulls.get and pulls.list for the head, reactions.createForIssueComment to answer
+    timeout-minutes: 5
+    # One command per PR at a time, so a second one sees the re-run in progress.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.issue.number }}
+    steps:
+      # Without a ref, an issue_comment run checks out the default branch, not the PR.
+      - name: Check out the script from the default branch
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/rerun-failed-ci-jobs
+
+      - name: Rerun failed jobs of the newest CI run
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const script = require('./.github/scripts/rerun-failed-ci-jobs/index.js');
+            await script({ github, context, core });

@@ -82,6 +82,9 @@ workflows:
     '.github/workflows/request-copilot-review.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/github-script@v9.0.0'
+    '.github/workflows/rerun-failed-ci-jobs.yml':
+        - 'actions/checkout@v7.0.1'
+        - 'actions/github-script@v9.0.0'
     '.github/workflows/stale.yml': []
     '.github/workflows/status-check-labels.yml':
         - 'actions/github-script@v9.0.0'
