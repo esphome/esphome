@@ -89,6 +89,28 @@ TEST_F(VBusDatagramTest, DecodesReferenceDatagramWithoutPublishingP1) {
   EXPECT_TRUE(this->p1_.messages.empty());
 }
 
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+TEST_F(VBusDatagramTest, CountsChecksumAndReservedSeptetFailuresOncePerRejectedDatagram) {
+  auto bad = REFERENCE_DATAGRAM;
+  bad.back() ^= 1;
+  this->feed_(bad);
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 1u);
+  bad = REFERENCE_DATAGRAM;
+  bad[14] |= 0x40;
+  set_datagram_checksum(bad);
+  this->feed_(bad);
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 2u);
+  bad.back() ^= 1;
+  this->feed_(bad);
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 3u);
+  EXPECT_TRUE(this->datagrams_.empty());
+  this->reference_();
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 3u);
+  ASSERT_EQ(this->datagrams_.size(), 1u);
+  EXPECT_EQ(this->datagrams_[0], REFERENCE_FIELDS);
+}
+#endif
+
 TEST_F(VBusDatagramTest, SupportsMultipleCallbacksAndSeparateHubs) {
   std::vector<datagram_fields_t> second;
   this->bus_.add_on_datagram_callback(
