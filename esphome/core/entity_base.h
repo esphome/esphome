@@ -102,8 +102,17 @@ class EntityBase {
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
 
-  // Get the unique Object ID of this Entity
-  uint32_t get_object_id_hash() const { return this->object_id_hash_; }
+  /// The key sent to API clients and used to route entity state: FNV-1 hash of the raw entity name.
+  uint32_t get_entity_key() const { return this->entity_key_; }
+
+  /// Returns the LEGACY sanitized-object_id hash, unchanged from previous releases, so existing
+  /// callers keep stable values (for example preference keys). It is no longer the API key.
+  // Remove before 2027.6.0
+  ESPDEPRECATED("Returns the old sanitized object_id hash, which is no longer the key sent to API clients. Use "
+                "get_entity_key() for the entity key, or make_entity_preference<T>() for preference storage. "
+                "Will be removed in 2027.6.0.",
+                "2026.12.0")
+  uint32_t get_object_id_hash() const { return this->calc_old_object_id_hash_(); }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)
@@ -181,39 +190,13 @@ class EntityBase {
   // Set has_state - for components that need to manually set this
   void set_has_state(bool state) { this->flags_.has_state = state; }
 
-  /**
-   * @brief Get a unique hash for storing preferences/settings for this entity.
-   *
-   * This method returns a hash that uniquely identifies the entity for the purpose of
-   * storing preferences (such as calibration, state, etc.). Unlike get_object_id_hash(),
-   * this hash also incorporates the device_id (if devices are enabled), ensuring uniqueness
-   * across multiple devices that may have entities with the same object_id.
-   *
-   * Use this method when storing or retrieving preferences/settings that should be unique
-   * per device-entity pair. Use get_object_id_hash() when you need a hash that identifies
-   * the entity regardless of the device it belongs to.
-   *
-   * For backward compatibility, if device_id is 0 (the main device), the hash is unchanged
-   * from previous versions, so existing single-device configurations will continue to work.
-   *
-   * @return uint32_t The unique hash for preferences, including device_id if available.
-   * @deprecated Use make_entity_preference<T>() instead, or preferences won't be migrated.
-   * See https://github.com/esphome/backlog/issues/85
-   */
+  /// Get the LEGACY preference key: FNV-1 hash of the sanitized object_id, XOR device_id.
+  /// Keeps the old algorithm so external callers that store preferences under it keep stable keys;
+  /// make_entity_preference() migrates to the raw-name key, this method never will.
   ESPDEPRECATED("Use make_entity_preference<T>() instead, or preferences won't be migrated. "
                 "See https://github.com/esphome/backlog/issues/85. Will be removed in 2027.1.0.",
                 "2026.7.0")
-  uint32_t get_preference_hash() {
-#ifdef USE_DEVICES
-    // Combine object_id_hash with device_id to ensure uniqueness across devices
-    // Note: device_id is 0 for the main device, so XORing with 0 preserves the original hash
-    // This ensures backward compatibility for existing single-device configurations
-    return this->get_object_id_hash() ^ this->get_device_id();
-#else
-    // Without devices, just use object_id_hash as before
-    return this->get_object_id_hash();
-#endif
-  }
+  uint32_t get_preference_hash() { return this->old_preference_key_base_(); }
 
   /// Create a preference object for storing this entity's state/settings.
   /// @tparam T The type of data to store (must be trivially copyable)
@@ -234,9 +217,9 @@ class EntityBase {
   friend void ::original_setup();
   friend class Application;
 
-  /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
+  /// Combined entity setup from codegen: set name, entity key, entity string indices, and flags.
   /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
-  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields);
+  void configure_entity_(const char *name, uint32_t entity_key, uint32_t entity_fields);
 
 #ifdef USE_DEVICES
   // Codegen-only setter — only accessible from setup() via friend declaration.
@@ -246,11 +229,36 @@ class EntityBase {
   /// Non-template helpers for make_entity_preference() to avoid code bloat.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version, bool in_flash);
-  /// Key for both helpers; preference hash migration goes here.
-  uint32_t entity_preference_key_(uint32_t version);
+  uint32_t entity_preference_key_(uint32_t version) const { return this->preference_key_base_() ^ version; }
+  /// Moves data stored under the legacy key to pref's raw-name key once; a no-op on slot-based backends.
+  /// See: https://github.com/esphome/backlog/issues/85
+  void migrate_entity_preference_(ESPPreferenceObject &pref, size_t size, uint32_t version) const;
+
+  /// Reconstruct the LEGACY sanitized-object_id hash.
+  uint32_t calc_old_object_id_hash_() const;
+
+  uint32_t device_id_or_zero_() const {
+#ifdef USE_DEVICES
+    return this->get_device_id();
+#else
+    return 0;
+#endif
+  }
+  /// Preference key base XOR device_id: the raw-name entity key on key-lookup backends. Slot-based backends
+  /// keep the legacy key: it only tags a positional slot, so collisions cannot corrupt data there.
+  /// See: https://github.com/esphome/backlog/issues/85
+  uint32_t preference_key_base_() const {
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+    return this->entity_key_ ^ this->device_id_or_zero_();
+#else
+    return this->old_preference_key_base_();
+#endif
+  }
+  /// Legacy preference key base: sanitized-object_id hash XOR device_id (0 for the main device).
+  uint32_t old_preference_key_base_() const { return this->calc_old_object_id_hash_() ^ this->device_id_or_zero_(); }
 
   ProgmemStringRef name_;
-  uint32_t object_id_hash_{};
+  uint32_t entity_key_{};
 #ifdef USE_DEVICES
   Device *device_{};
 #endif

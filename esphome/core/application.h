@@ -376,7 +376,7 @@ class Application {
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, uint32_t device_id, bool include_internal = false) { \
     for (auto *obj : this->get_##entities_member()) { \
-      if (obj->get_object_id_hash() == key && obj->get_device_id() == device_id && \
+      if (obj->get_entity_key() == key && obj->get_device_id() == device_id && \
           (include_internal || !obj->is_internal())) \
         return obj; \
     } \
@@ -389,7 +389,7 @@ class Application {
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, bool include_internal = false) { \
     for (auto *obj : this->get_##entities_member()) { \
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) \
+      if (obj->get_entity_key() == key && (include_internal || !obj->is_internal())) \
         return obj; \
     } \
     return nullptr; \
@@ -450,9 +450,9 @@ class Application {
   // For setup(): applies the EntityBase offset once instead of a literal per call
   // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  static void __attribute__((noinline)) configure_##singular(type *obj, const char *name, uint32_t object_id_hash, \
+  static void __attribute__((noinline)) configure_##singular(type *obj, const char *name, uint32_t entity_key, \
                                                              uint32_t entity_fields) { \
-    obj->configure_entity_(name, object_id_hash, entity_fields); \
+    obj->configure_entity_(name, entity_key, entity_fields); \
   }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)

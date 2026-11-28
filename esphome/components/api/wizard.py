@@ -31,12 +31,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
-from esphome.helpers import (
-    fnv1_hash,
-    fnv1_hash_object_id,
-    fnv1a_32bit_hash,
-    zstd_module,
-)
+from esphome.helpers import fnv1_hash, fnv1_hash_name, fnv1a_32bit_hash, zstd_module
 from esphome.types import ConfigType
 
 API_DOMAIN = "api"
@@ -508,7 +503,7 @@ def _entity_document(
     """An entity of the device that the page shows, keyed as ListEntitiesResponse keys it."""
     _, declaration = _wizard_input_declaration(config, conf[CONF_ID])
     document: ConfigType = {
-        "key": fnv1_hash_object_id(declaration[CONF_NAME]),
+        "key": fnv1_hash_name(declaration[CONF_NAME]),
         "platform": _wizard_entity_platform(config, conf[CONF_ID]),
     }
     if (device := declaration.get(CONF_DEVICE_ID)) is not None:

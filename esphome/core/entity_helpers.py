@@ -52,13 +52,7 @@ from esphome.cpp_generator import (
 )
 from esphome.cpp_types import TEMPERATURE_UNITS
 import esphome.final_validate as fv
-from esphome.helpers import (
-    cpp_string_escape,
-    fnv1_hash,
-    fnv1_hash_object_id,
-    sanitize,
-    snake_case,
-)
+from esphome.helpers import cpp_string_escape, fnv1_hash_name, sanitize, snake_case
 from esphome.loader import get_component, get_platform
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
@@ -67,12 +61,80 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "entity_string_pool"
 
+_OBJECT_ID_DOMAIN = "entity_object_ids"
+
+
+@dataclass
+class ObjectIdEntity:
+    """An entity tracked by the sanitized object_id its name resolves to."""
+
+    name: str
+    config: ConfigType
+
+
+def _get_object_id_registry() -> dict[tuple[str, str, str], list[ObjectIdEntity]]:
+    """(device_id, platform, sanitized object_id) -> entities resolving to it."""
+    return CORE.data.setdefault(_OBJECT_ID_DOMAIN, {})
+
+
+def validate_no_object_id_conflicts(
+    reason: str,
+    conflict_filter: Callable[[str, list[ObjectIdEntity], ConfigType], bool]
+    | None = None,
+) -> Callable[[ConfigType], ConfigType]:
+    """Create a final-validate step that rejects entities with colliding object_ids.
+
+    Entity keys are hashed from the raw name, so names that only differ in characters
+    lost during sanitizing (for example two UTF-8 names) validate fine in general.
+    Components that still address entities by the sanitized object_id string must
+    reject those configs until they are migrated to raw names.
+
+    Args:
+        reason: One sentence stating what the component builds from the object_id,
+            e.g. "mqtt builds default topics from the entity object_id"
+        conflict_filter: Optional predicate receiving the platform, the colliding
+            entities and the component config; return False when the component is
+            not affected
+
+    Returns:
+        A validator function for use as (or within) FINAL_VALIDATE_SCHEMA
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        # Skip in testing_mode, which is used for grouped component testing
+        if CORE.testing_mode:
+            return config
+        conflicts = {
+            key: entities
+            for key, entities in _get_object_id_registry().items()
+            if len(entities) > 1
+            and (conflict_filter is None or conflict_filter(key[1], entities, config))
+        }
+        if not conflicts:
+            return config
+        lines = [f"{reason}, so these entities would conflict:"]
+        lines.extend(
+            f"  - {platform} entities "
+            + ", ".join(f"'{e.name}'" for e in entities)
+            + (f" on device '{device_id}'" if device_id else "")
+            + f" share the object_id '{object_id}'"
+            for (device_id, platform, object_id), entities in conflicts.items()
+        )
+        lines.append(
+            "To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B') "
+            "to distinguish the names"
+        )
+        raise cv.Invalid("\n".join(lines))
+
+    return validator
+
+
 # Private config keys for storing registered string indices
 _KEY_DC_IDX = "_entity_dc_idx"
 _KEY_UOM_IDX = "_entity_uom_idx"
 _KEY_ICON_IDX = "_entity_icon_idx"
 _KEY_ENTITY_NAME = "_entity_name"
-_KEY_OBJECT_ID_HASH = "_entity_object_id_hash"
+_KEY_ENTITY_KEY = "_entity_key"
 
 # Bit layout for entity_fields in configure_entity_().
 # Keep in sync with ENTITY_FIELD_*_SHIFT constants in esphome/core/entity_base.h
@@ -327,7 +389,7 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     entity_name = RawExpression(
         f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
     )
-    object_id_hash = config[_KEY_OBJECT_ID_HASH]
+    entity_key = config[_KEY_ENTITY_KEY]
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
     icon_idx = config.get(_KEY_ICON_IDX, 0)
@@ -347,57 +409,30 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     if (app_list := config.get(_KEY_APP_LIST)) is not None:
         app_lists.add_entity(app_list, var)
         expr = getattr(_APPLICATION, f"configure_{app_list}")(
-            var, entity_name, object_id_hash, packed
+            var, entity_name, entity_key, packed
         )
     else:
-        expr = var.configure_entity_(entity_name, object_id_hash, packed)
+        expr = var.configure_entity_(entity_name, entity_key, packed)
     if comment:
         add(RawStatement(f"{expr};  // {comment}"))
     else:
         add(expr)
 
 
-def get_base_entity_object_id(
+def get_base_entity_name(
     name: str, friendly_name: str | None, device_name: str | None = None
 ) -> str:
-    """Calculate the base object ID for an entity that will be set via set_object_id().
+    """Return the base name whose hash becomes this entity's key on the device.
 
-    This function calculates what object_id_c_str_ should be set to in C++.
+    Follows the name selection in C++ EntityBase::configure_entity_() (entity_base.cpp):
+    entity name, then sub-device name, then friendly name, then the device name.
 
-    The C++ EntityBase::write_object_id_to() (entity_base.cpp) works as:
-    - If !has_own_name && is_name_add_mac_suffix_enabled():
-        return str_sanitize(str_snake_case(App.get_friendly_name()))  // Dynamic
-    - Else:
-        return object_id_c_str_ ?? ""  // What we set via set_object_id()
-
-    Since we're calculating what to pass to set_object_id(), we always need to
-    generate the object_id the same way, regardless of name_add_mac_suffix setting.
-
-    Args:
-        name: The entity name (empty string if no name)
-        friendly_name: The friendly name from CORE.friendly_name
-        device_name: The device name if entity is on a sub-device
-
-    Returns:
-        The base object ID to use for duplicate checking and to pass to set_object_id()
+    This is a config-time approximation for duplicate checking: when
+    name_add_mac_suffix is enabled the device appends the MAC suffix at runtime,
+    which is unknown here and identical for every entity on the device, so
+    ignoring it cannot change whether two entities collide with each other.
     """
-
-    if name:
-        # Entity has its own name (has_own_name will be true)
-        base_str = name
-    elif device_name:
-        # Entity has empty name and is on a sub-device
-        # C++ EntityBase::set_name() uses device->get_name() when device is set
-        base_str = device_name
-    elif friendly_name:
-        # Entity has empty name (has_own_name will be false)
-        # C++ uses App.get_friendly_name() which returns friendly_name or device name
-        base_str = friendly_name
-    else:
-        # Fallback to device name
-        base_str = CORE.name
-
-    return sanitize(snake_case(base_str))
+    return name or device_name or friendly_name or CORE.name
 
 
 def setup_entity(var_or_platform, config=None, platform=None):
@@ -456,15 +491,15 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device_(device))
 
-    # Pre-compute entity name and object_id hash for configure_entity_()
+    # Pre-compute entity name and entity key for configure_entity_()
     # which is emitted later by finalize_entity_strings().
-    # For named entities: pre-compute hash from entity name
-    # For empty-name entities: pass 0, C++ calculates hash at runtime from
-    # device name, friendly_name, or app name (bug-for-bug compatibility)
+    # For named entities: pre-compute the key from the raw entity name
+    # For empty-name entities: pass 0, C++ calculates the key at runtime from
+    # device name, friendly_name, or app name
     entity_name = config[CONF_NAME]
-    object_id_hash = fnv1_hash_object_id(entity_name) if entity_name else 0
+    entity_key = fnv1_hash_name(entity_name) if entity_name else 0
     config[_KEY_ENTITY_NAME] = entity_name
-    config[_KEY_OBJECT_ID_HASH] = object_id_hash
+    config[_KEY_ENTITY_KEY] = entity_key
     # Store flags for packing into configure_entity_()
     config[_KEY_DISABLED_BY_DEFAULT] = int(config[CONF_DISABLED_BY_DEFAULT])
     if CONF_INTERNAL in config:
@@ -901,16 +936,13 @@ def entity_duplicate_validator(
             # Use the device ID string directly for uniqueness
             device_id = device_id_obj.id
 
-        # Calculate what object_id will actually be used
-        # This handles empty names correctly by using device/friendly names
-        name_key = get_base_entity_object_id(
-            entity_name, CORE.friendly_name, device_name
-        )
+        # Hash the same raw name the device hashes into the entity key at runtime.
+        # This handles empty names correctly by using device/friendly names.
+        base_name = get_base_entity_name(entity_name, CORE.friendly_name, device_name)
+        name_hash = fnv1_hash_name(base_name)
 
-        # Check for duplicates by the FNV-1 hash of the object_id, which is the entity
-        # key that routes state to API clients. This rejects names that sanitize to the
-        # same object_id, and also two different object_ids whose 32-bit hashes collide.
-        name_hash = fnv1_hash(name_key)
+        # Check for duplicates: two entities on the same device and key namespace must not
+        # share an entity key, since the key is what routes state to API clients
         unique_key = (device_id, key_namespace or platform, name_hash)
         if unique_key in CORE.unique_ids:
             # Get the existing entity metadata
@@ -942,26 +974,14 @@ def entity_duplicate_validator(
                 else f"across the {existing_platform} and {platform} platforms"
             )
 
-            # Distinguish names that sanitize to the same object_id from a genuine
-            # 32-bit hash collision between two different object_ids
+            # Different names can only clash here through a genuine hash collision
             collision_msg = ""
             if entity_name != existing_name:
-                existing_object_id = get_base_entity_object_id(
-                    existing_name, CORE.friendly_name, existing_device or None
+                collision_msg = (
+                    f"\n  The names '{entity_name}' and '{existing_name}' produce the"
+                    f"\n  same entity key hash ({name_hash:#010x})."
+                    "\n  To fix: Rename one of the entities"
                 )
-                if existing_object_id == name_key:
-                    collision_msg = (
-                        f"\n  Original names: '{entity_name}' and '{existing_name}'"
-                        f"\n  Both convert to ASCII ID: '{name_key}'"
-                        "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
-                        "\n          to distinguish them"
-                    )
-                else:
-                    collision_msg = (
-                        f"\n  The object_ids '{name_key}' and '{existing_object_id}'"
-                        f"\n  produce the same entity key hash ({name_hash:#010x})."
-                        "\n  To fix: Rename one of the entities"
-                    )
 
             # Skip duplicate entity name validation when testing_mode is enabled
             # This flag is used for grouped component testing
@@ -972,6 +992,13 @@ def entity_duplicate_validator(
                     f"Each entity on a device must have a unique name {scope}."
                     f"{collision_msg}"
                 )
+
+        # Track entities by sanitized object_id for validate_no_object_id_conflicts();
+        # scoped per device and platform, as strict as configs were before raw-name keys.
+        object_id = sanitize(snake_case(base_name))
+        _get_object_id_registry().setdefault(
+            (device_id, platform, object_id), []
+        ).append(ObjectIdEntity(base_name, config))
 
         # Store metadata about this entity
         entity_metadata: EntityMetadata = {

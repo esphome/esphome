@@ -41,7 +41,15 @@ const StringRef &EntityBase::get_name() const {
 }
 #endif
 
-void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
+namespace {
+// Reads name byte i; the name is in flash on ESP8266, and progmem_read_byte() also reads the RAM fallback name
+auto name_reader(const ProgmemStringRef &name) {
+  const auto *p = reinterpret_cast<const uint8_t *>(name.progmem_ptr());
+  return [p](size_t i) { return static_cast<char>(progmem_read_byte(p + i)); };
+}
+}  // namespace
+
+void EntityBase::configure_entity_(const char *name, uint32_t entity_key, uint32_t entity_fields) {
   this->name_ = ProgmemStringRef(name, ESPHOME_strlen_P(name));
   if (this->name_.empty()) {
     StringRef fallback;
@@ -65,20 +73,14 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
     }
     this->name_ = ProgmemStringRef(fallback);
     this->flags_.has_own_name = false;
-    // Dynamic name in RAM - hash it at runtime
-    this->object_id_hash_ = fnv1_hash_object_id(fallback.c_str(), fallback.size());
   } else {
     this->flags_.has_own_name = true;
-    // Static name - codegen precomputes the hash; external register_* callers may pass 0
-    if (object_id_hash == 0) {
-      // The name is in flash on ESP8266, so read it byte by byte through progmem_read_byte()
-      const char *name_p = this->name_.progmem_ptr();
-      object_id_hash = fnv1_hash_object_id(this->name_.size(), [name_p](size_t i) {
-        return static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(name_p + i)));
-      });
-    }
-    this->object_id_hash_ = object_id_hash;
   }
+  // Codegen precomputes the key of a static name; a fallback name, or a caller that sets up an entity
+  // by hand and passes 0, is hashed at runtime
+  if (!this->flags_.has_own_name || entity_key == 0)
+    entity_key = fnv1_hash_bytes(this->name_.size(), name_reader(this->name_));
+  this->entity_key_ = entity_key;
   // Unpack entity string table indices and flags from entity_fields.
 #ifdef USE_ENTITY_DEVICE_CLASS
   this->device_class_idx_ = (entity_fields >> ENTITY_FIELD_DC_SHIFT) & 0xFF;
@@ -165,24 +167,37 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-uint32_t EntityBase::entity_preference_key_(uint32_t version) {
-  // The key hashes the sanitized object_id, so multiple entity names can collide on one
-  // key and overwrite each other's stored preferences ("Living Room" and "living_room",
-  // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
-  // fix this, but they change the entity key API clients track, which the Home Assistant
-  // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->get_preference_hash() ^ version;
-#pragma GCC diagnostic pop
+// Named entities historically got this hash from Python codegen, which sanitized per UTF-8 code
+// point; entities without their own name hashed their fallback name per byte at runtime.
+uint32_t EntityBase::calc_old_object_id_hash_() const {
+  return fnv1_hash_object_id(this->name_.size(), name_reader(this->name_), this->flags_.has_own_name);
+}
+
+void EntityBase::migrate_entity_preference_([[maybe_unused]] ESPPreferenceObject &pref, [[maybe_unused]] size_t size,
+                                            [[maybe_unused]] uint32_t version) const {
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+  // Sized for the largest in-tree entity preference (the 94 byte ld2450 Polygon), so migration never hits the heap
+  SmallBufferWithHeapFallback<96> buffer(size);
+  migrate_preference(pref, buffer.get(), size, this->old_preference_key_base_() ^ version,
+                     this->entity_preference_key_(version));
+#endif
 }
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
-  return global_preferences->make_preference(size, this->entity_preference_key_(version));
+  auto pref = global_preferences->make_preference(size, this->entity_preference_key_(version));
+  this->migrate_entity_preference_(pref, size, version);
+  return pref;
 }
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version, bool in_flash) {
-  return global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
+  auto pref = global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
+#if defined(USE_ESP32_RTC_PREFERENCES) || defined(USE_LIBRETINY_RTC_PREFERENCES)
+  // RTC storage is empty after every power loss, so migrating would restore the legacy flash copy on each cold boot
+  if (!in_flash)
+    return pref;
+#endif
+  this->migrate_entity_preference_(pref, size, version);
+  return pref;
 }
 
 bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {

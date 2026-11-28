@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 class TestNumber : public Number {
  public:
   void control(float value) override {}
-  void set_test_id(uint32_t hash) { this->object_id_hash_ = hash; }
+  void set_test_id(uint32_t hash) { this->entity_key_ = hash; }
 };
 
 /// The values the on_value_range callback fired with

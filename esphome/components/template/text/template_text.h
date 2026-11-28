@@ -14,7 +14,9 @@ class TemplateTextSaverBase {
  public:
   virtual bool save(const std::string &value) { return true; }
 
-  virtual void setup(uint32_t id, std::string &value) {}
+  /// old_id is the legacy object_id-hash preference key; data stored under it is moved to id once.
+  /// See: https://github.com/esphome/backlog/issues/85
+  virtual void setup(uint32_t id, uint32_t old_id, std::string &value) {}
 
  protected:
   ESPPreferenceObject pref_;
@@ -45,11 +47,10 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
 
   // Make the preference object.  Fill the provided location with the saved data
   // If it is available, else leave it alone
-  void setup(uint32_t id, std::string &value) override {
-    this->pref_ = global_preferences->make_preference<uint8_t[SZ + 1]>(id);
-
+  void setup(uint32_t id, uint32_t old_id, std::string &value) override {
     char temp[SZ + 1];
-    bool hasdata = this->pref_.load(&temp);
+    this->pref_ = global_preferences->make_preference<uint8_t[SZ + 1]>(id);
+    bool hasdata = migrate_preference(this->pref_, reinterpret_cast<uint8_t *>(temp), SZ + 1, old_id, id);
 
     if (hasdata) {
       size_t len = static_cast<uint8_t>(temp[0]);

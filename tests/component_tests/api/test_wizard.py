@@ -17,12 +17,7 @@ from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS as SWITCH_
 from esphome.config import load_config
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObjClass
-from esphome.helpers import (
-    fnv1_hash,
-    fnv1_hash_object_id,
-    fnv1a_32bit_hash,
-    zstd_module,
-)
+from esphome.helpers import fnv1_hash, fnv1_hash_name, fnv1a_32bit_hash, zstd_module
 from tests.component_tests.helpers import get_define_value
 
 ESP32_HEADER = """
@@ -777,7 +772,7 @@ def blob_in(main_cpp: str) -> bytes:
 def entity_hash(main_cpp: str, variable: str) -> int:
     """The key the generated code passes to configure_entity_, which ListEntities then sends."""
     match = re.search(
-        rf'esphome::Application::configure_switch\({variable}, ESPHOME_PSTR\("[^"]*"\), (\d+)UL, \d+\)',
+        rf'esphome::Application::configure_switch\({variable}, ESPHOME_PSTR\("[^"]*"\), (\d+)(?:UL)?, \d+\)',
         main_cpp,
     )
     assert match is not None, variable
@@ -1142,7 +1137,7 @@ def test_entities_sharing_a_name_are_told_apart_by_platform(
     )
 
     # The key is the same, so the platform is what says which entity is meant
-    key = fnv1_hash_object_id("Power")
+    key = fnv1_hash_name("Power")
     assert wizard_entities(main_cpp) == [
         {"key": key, "platform": "sensor"},
         {"key": key, "platform": "switch"},
@@ -1182,9 +1177,9 @@ def test_a_datetime_entity_has_the_platform_of_its_type(
     )
 
     assert wizard_entities(main_cpp) == [
-        {"key": fnv1_hash_object_id("Day"), "platform": "date"},
-        {"key": fnv1_hash_object_id("Hour"), "platform": "time"},
-        {"key": fnv1_hash_object_id("Moment"), "platform": "datetime"},
+        {"key": fnv1_hash_name("Day"), "platform": "date"},
+        {"key": fnv1_hash_name("Hour"), "platform": "time"},
+        {"key": fnv1_hash_name("Moment"), "platform": "datetime"},
     ]
 
 
@@ -1211,7 +1206,7 @@ def test_an_entity_declared_in_its_component_has_the_platform_of_its_class(
     )
 
     assert wizard_entities(main_cpp) == [
-        {"key": fnv1_hash_object_id("Latitude"), "platform": "sensor"}
+        {"key": fnv1_hash_name("Latitude"), "platform": "sensor"}
     ]
 
 
