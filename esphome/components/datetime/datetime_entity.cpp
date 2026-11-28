@@ -69,55 +69,59 @@ ESPTime DateTimeEntity::state_as_esptime() const {
 }
 
 void DateTimeCall::validate_() {
-  if (this->has_(YEAR_SET) && (this->year_ < 1970 || this->year_ > 3000)) {
+  // Work on a copy: each clear of the member would be a load and store around the log calls
+  uint8_t set = this->set_;
+  auto has = [&set](uint8_t bit) { return (set & bit) != 0; };
+  if (has(YEAR_SET) && (this->year_ < 1970 || this->year_ > 3000)) {
     ESP_LOGE(TAG, "Year must be between 1970 and 3000");
-    this->set_ &= ~(YEAR_SET | MONTH_SET | DAY_SET);
+    set &= ~(YEAR_SET | MONTH_SET | DAY_SET);
   }
-  if (this->has_(MONTH_SET) && (this->month_ < 1 || this->month_ > 12)) {
+  if (has(MONTH_SET) && (this->month_ < 1 || this->month_ > 12)) {
     ESP_LOGE(TAG, "Month must be between 1 and 12");
-    this->set_ &= ~(MONTH_SET | DAY_SET);
+    set &= ~(MONTH_SET | DAY_SET);
   }
-  if (this->has_(DAY_SET)) {
+  if (has(DAY_SET)) {
     uint16_t year = 0;
     uint8_t month = 0;
-    if (this->has_(MONTH_SET)) {
+    if (has(MONTH_SET)) {
       month = this->month_;
     } else {
       if (this->parent_->month != 0) {
         month = this->parent_->month;
       } else {
         ESP_LOGE(TAG, "Month must be set to validate day");
-        this->set_ &= ~DAY_SET;
+        set &= ~DAY_SET;
       }
     }
-    if (this->has_(YEAR_SET)) {
+    if (has(YEAR_SET)) {
       year = this->year_;
     } else {
       if (this->parent_->year != 0) {
         year = this->parent_->year;
       } else {
         ESP_LOGE(TAG, "Year must be set to validate day");
-        this->set_ &= ~DAY_SET;
+        set &= ~DAY_SET;
       }
     }
-    if (this->has_(DAY_SET) && this->day_ > days_in_month(month, year)) {
+    if (has(DAY_SET) && this->day_ > days_in_month(month, year)) {
       ESP_LOGE(TAG, "Day must be between 1 and %d for month %d", days_in_month(month, year), month);
-      this->set_ &= ~DAY_SET;
+      set &= ~DAY_SET;
     }
   }
 
-  if (this->has_(HOUR_SET) && this->hour_ > 23) {
+  if (has(HOUR_SET) && this->hour_ > 23) {
     ESP_LOGE(TAG, "Hour must be between 0 and 23");
-    this->set_ &= ~HOUR_SET;
+    set &= ~HOUR_SET;
   }
-  if (this->has_(MINUTE_SET) && this->minute_ > 59) {
+  if (has(MINUTE_SET) && this->minute_ > 59) {
     ESP_LOGE(TAG, "Minute must be between 0 and 59");
-    this->set_ &= ~MINUTE_SET;
+    set &= ~MINUTE_SET;
   }
-  if (this->has_(SECOND_SET) && this->second_ > 59) {
+  if (has(SECOND_SET) && this->second_ > 59) {
     ESP_LOGE(TAG, "Second must be between 0 and 59");
-    this->set_ &= ~SECOND_SET;
+    set &= ~SECOND_SET;
   }
+  this->set_ = set;
 }
 
 void DateTimeCall::perform() {
