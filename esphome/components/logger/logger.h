@@ -13,6 +13,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#ifdef ESPHOME_DEBUG_SCHEDULER
+#include "esphome/core/scheduler.h"  // SCHEDULER_LOG_TAG, skipped by on_message
+#include "esphome/core/time_64.h"    // TIME_64_LOG_TAG
+#endif
 
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
@@ -566,6 +570,16 @@ void on_message_callback(void * /*instance*/, uint8_t level, const char *tag, co
                          size_t /*message_len*/) {
   if (level > LEVEL)
     return;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  // The scheduler (and time_64's rollover line) log these with a lock held: an automation that schedules would
+  // re-enter it, and its own timers would log again and trigger it forever. Their errors are skipped too.
+  if (tag == SCHEDULER_LOG_TAG)
+    return;
+#ifndef USE_NATIVE_64BIT_TIME
+  if (tag == TIME_64_LOG_TAG)
+    return;
+#endif
+#endif
 #ifdef USE_ESP8266
   // User lambdas may strcmp the tag, which may be in PROGMEM. Each automation has its own copy so one
   // that suspends (delay) still sees a valid tag.

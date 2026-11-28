@@ -13,10 +13,9 @@ namespace esphome {
 
 /// Type-erased scheduler callable, built from a callable at the call site: inline when small and trivially
 /// copyable, else heap-boxed. A function taking SchedulerCallback && must pass it to the scheduler once, on every
-/// path: one that is dropped leaks its box and what it captured. A boxed capture's destructor runs after the
-/// scheduler lock is released, so it may call the scheduler. A timeout's is freed right after it runs and a
-/// SCHEDULER_DONT_RUN one at once; one cancelled or still pending is freed at the end of the call() pass that
-/// recycled it, or of the next pass when it was recycled outside call() or in the pass's final merge.
+/// path: one that is dropped leaks its box and what it captured. A boxed capture's destructor runs with the
+/// scheduler lock held (as with std::function before), so it must not call the scheduler; the exception is a
+/// SCHEDULER_DONT_RUN callback, freed after the lock is released, which may reschedule its own key.
 /// Not Callback::create_boxed() (helpers.h): this keeps release inline and shares one ::operator delete for all
 /// trivially destructible boxes.
 class SchedulerCallback {
@@ -61,22 +60,14 @@ class SchedulerCallback {
   SchedulerCallback() : invoke_(nullptr) {}  // a SchedulerItem's slot, filled by take_()
 
   void run_() { this->invoke_(this); }
-  /// Only a boxed callable has a destructor to run; an inline one is trivially copyable
-  bool is_boxed_() const { return this->invoke_ == &SchedulerCallback::invoke_boxed; }
   /// Frees a boxed callable
   void release_() {
-    if (this->is_boxed_()) {
-      this->release_boxed_();
-      return;
-    }
+    const bool boxed = this->invoke_ == &SchedulerCallback::invoke_boxed;
 #ifdef ESPHOME_DEBUG_SCHEDULER
     this->invoke_ = nullptr;  // empty for the destructor's check
 #endif
-  }
-  /// Frees a callable known to be boxed
-  void release_boxed_() {
-    this->invoke_ = nullptr;  // no longer boxed, so recycling pools it at once
-    this->boxed_.release(this->boxed_.obj);
+    if (boxed)
+      this->boxed_.release(this->boxed_.obj);
   }
   /// Moves other's callable here; other must not be run or released afterwards (only debug builds clear it).
   /// Copied as bytes (relying on GCC/Clang union and memcpy semantics) in word-sized pieces, which -Os keeps as
