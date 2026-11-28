@@ -78,6 +78,10 @@ void FanCall::perform() {
 void FanCall::validate_() {
   auto traits = this->parent_.get_traits();
 
+  // The fan's preset list may have been replaced since the index was taken
+  if (this->preset_mode_ >= this->parent_.supported_preset_modes_.size())
+    this->preset_mode_ = UNSET;
+
   if (this->speed_ != NO_SPEED) {
     this->speed_ = clamp(this->speed_, 1, traits.supported_speed_count());
 
@@ -200,8 +204,7 @@ void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
 
 void Fan::apply_preset_mode_(const FanCall &call) {
   if (call.has_preset_mode()) {
-    if (call.preset_mode_ < this->supported_preset_modes_.size())  // the list may have been replaced since
-      this->preset_mode_ = this->supported_preset_modes_[call.preset_mode_];
+    this->preset_mode_ = this->supported_preset_modes_[call.preset_mode_];  // checked by FanCall::validate_()
   } else if (call.speed_ != FanCall::NO_SPEED) {
     // Manually setting speed clears preset (per Home Assistant convention)
     this->clear_preset_mode_();

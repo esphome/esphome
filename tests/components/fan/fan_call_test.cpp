@@ -105,6 +105,17 @@ TEST(FanCall, PresetIndexOutsideAReplacedListIsIgnored) {
   EXPECT_EQ(fan.get_preset_mode(), "auto");
 }
 
+// Turning on with a preset that no longer exists still picks full speed, as with no preset
+TEST(FanCall, ReplacedPresetDoesNotBlockTheTurnOnSpeed) {
+  CallFan fan(3);
+  fan.set_supported_preset_modes({"auto", "sleep"});
+  auto call = fan.make_call().set_state(true).set_preset_mode("sleep");
+  fan.set_supported_preset_modes({"auto"});
+  call.perform();
+  EXPECT_FALSE(call.has_preset_mode());
+  EXPECT_EQ(fan.seen.speed, optional<int>(3));
+}
+
 TEST(FanCall, TurningOnWithoutSpeedPicksFullSpeed) {
   CallFan fan(3);
   fan.make_call().set_state(true).perform();
