@@ -1,0 +1,49 @@
+api:
+wifi:
+  ap:
+    ssid: "Thermostat"
+    password: "MySecretThemostat"
+
+opentherm42:
+  id: my_opentherm42
+  in_pin: 4
+  out_pin: 5
+  # §4.4.1: some boilers answer "data not available" for a reading a few times in a row before giving a
+  # real value, for no obvious reason. This tolerates that many consecutive invalid responses to the same
+  # reading before actually marking its entity Unknown, instead of flipping back and forth. 0 (the
+  # default) marks it Unknown on the very first invalid response.
+  max_data_invalid: 3
+  # §5.2: how often this hub re-checks the boiler's mandatory status exchange. This always runs,
+  # regardless of which entities below are configured.
+  control_and_status_information_boiler_status_update_every: 1
+
+number:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 1: Control Setpoint, i.e. the CH (central heating) water temperature setpoint
+    # (degrees C, 0..100). Only takes effect while CH enable (above) is on.
+    control_and_status_information_control_setpoint:
+      name: "Control and Status Information: Control Setpoint"
+      initial_value: 40.0
+      update_every: 1
+
+binary_sensor:
+  - platform: opentherm42
+    # Turns on if any reading failed or was rejected during the most recent full round of polling the
+    # boiler. Not a real OpenTherm reading -- a convenience flag for noticing communication problems at a
+    # glance. Always active, so there's no update_every option for it.
+    sweep_had_errors:
+      name: "Sweep had errors"
+
+sensor:
+  - platform: opentherm42
+    # How long it took to refresh every configured reading at least once (one full round of polling).
+    # Not a real OpenTherm reading -- useful for noticing if your boiler is responding slowly, or if
+    # you've configured enough readings that a full round is taking a long time. Always active, so there's
+    # no update_every option for it.
+    sweep_duration:
+      name: "Sweep duration"
+    # How long the most recent single poll took. This device polls one reading at a time rather than all
+    # at once, so this will normally be much shorter than Sweep duration above -- it's mainly useful for
+    # spotting a single slow or stuck exchange with the boiler.
+    pass_duration:
+      name: "Pass duration"
