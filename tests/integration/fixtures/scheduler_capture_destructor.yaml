@@ -1,0 +1,39 @@
+esphome:
+  name: sched-capture-dtor
+  debug_scheduler: true
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // A capture whose destructor schedules a timer; moving hands that duty to the scheduler's boxed copy
+          struct Reschedule {
+            const void *key;
+            const char *message;
+            Reschedule(const void *k, const char *m) : key(k), message(m) {}
+            Reschedule(Reschedule &&other) noexcept : key(other.key), message(other.message) { other.key = nullptr; }
+            ~Reschedule() {
+              if (this->key != nullptr) {
+                // Trim while other boxed captures may still wait for release: the leak check verifies the count
+                App.scheduler.trim_freelist();
+                const char *m = this->message;
+                App.scheduler.set_timeout(this->key, 10, [m]() { ESP_LOGI("test", "%s", m); });
+              }
+            }
+            void operator()() const {}
+          };
+          static int after_run = 0;
+          static int cancelled = 0;
+          static int dont_run = 0;
+          static int still_running = 0;
+          // Freed once its timeout has run
+          App.scheduler.set_timeout(&after_run, 20, Reschedule(&after_run, "AFTER_RUN_RESCHEDULED"));
+          // Freed when the cancelled item is merged out of to_add_
+          App.scheduler.set_timeout(&cancelled, 10000, Reschedule(&cancelled, "CANCELLED_RESCHEDULED"));
+          App.scheduler.cancel_timeout(&cancelled);
+          // Freed right away, outside the lock
+          App.scheduler.set_timeout(&dont_run, SCHEDULER_DONT_RUN, Reschedule(&dont_run, "DONT_RUN_RESCHEDULED"));
+          App.scheduler.set_timeout(&still_running, 300, []() { ESP_LOGI("test", "STILL_RUNNING"); });
+
+host:
+logger:
+  level: DEBUG

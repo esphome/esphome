@@ -86,7 +86,7 @@ class Scheduler {
 
   // Execute all scheduled items that are ready
   // @param now Fresh timestamp from millis() - must not be stale/cached
-  // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
+  // @return Timestamp of the last item that ran, a fresh millis() if it freed pending callables, else `now`
   uint32_t call(uint32_t now);
 
   // Reclaim memory held by the post-boot peak. Frees every SchedulerItem in the
@@ -145,7 +145,7 @@ class Scheduler {
     union {
       Component *component;          // live, non-SELF_POINTER: owning component
       const LogString *source_name;  // live SELF_POINTER: owning script name (log attribution)
-      SchedulerItem *next_free;      // while pooled
+      SchedulerItem *next_free;      // while pooled or waiting for release_pending_()
     };
     // Optimized name storage using tagged union - zero heap allocation
     union {
@@ -317,6 +317,8 @@ class Scheduler {
   bool cleanup_slow_path_();
   // Slow path for process_to_add() when there are items to merge - defined in scheduler.cpp
   void process_to_add_slow_path_();
+  // Frees the callables of the items recycled under lock_, then pools the items. Main loop only, lock not held.
+  void release_pending_();
   // Remove and return the front item from the heap as a raw pointer.
   // Caller takes ownership and must either recycle or delete the item.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
@@ -696,7 +698,9 @@ class Scheduler {
   // app's concurrent-timer high-water mark; the previous fixed cap caused steady-state new/delete
   // churn on devices with many timers (see https://github.com/esphome/backlog/issues/52).
   SchedulerItem *scheduler_item_pool_head_{nullptr};
-  size_t scheduler_item_pool_size_{0};
+  size_t scheduler_item_pool_size_{0};  // includes the items waiting for release_pending_()
+  // Recycled items whose callables are not freed yet, linked through next_free. Only the main loop touches it.
+  SchedulerItem *pending_release_head_{nullptr};
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Leak detection: tracks total live SchedulerItem allocations.

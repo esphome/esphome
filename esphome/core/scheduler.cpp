@@ -311,8 +311,12 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
     return 0;
 #endif
 
+  // Recycled callables still to free (from outside call(), or by cleanup_() here) need a tick right away
+  const bool has_items = this->cleanup_();
+  if (this->pending_release_head_ != nullptr)
+    return 0;
   // If no items, return empty optional
-  if (!this->cleanup_())
+  if (!has_items)
     return {};
 
   SchedulerItem *item = this->items_[0];
@@ -581,6 +585,13 @@ uint32_t HOT Scheduler::call(uint32_t now) {
     has_added_items |= !this->to_add_.empty();
   }
 
+  // Free the callables recycled this pass now that the lock is released: a capture's destructor may call the scheduler.
+  // Then advance `now` past the destructors and merge what they scheduled, so next_schedule_in() sees it.
+  if (this->pending_release_head_ != nullptr) {
+    this->release_pending_();
+    now = millis();
+    has_added_items = true;
+  }
   if (has_added_items) {
     this->process_to_add();
   }
@@ -664,6 +675,9 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   // Guard publishes the item's identity + dispatch time, then times the callback.
   LoopBlockingGuard guard{component, source, now};
   item->callback.run_();
+  // A timeout's capture is freed now, outside the lock, so its item is pooled at once and a burst reuses it
+  if (item->type == SchedulerItem::TIMEOUT && item->callback.is_boxed_())
+    item->callback.release_boxed_();
   uint32_t end = guard.finish();
   // Feed the watchdog after each scheduled item (both main heap and defer
   // queue paths go through here). A run of back-to-back callbacks cannot
@@ -744,20 +758,41 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
-// Recycle a SchedulerItem back to the freelist for reuse.
+// Recycle a SchedulerItem. A boxed callable is freed and pooled by release_pending_() after the lock is released, so
+// its destructor may call the scheduler; an inline or already freed one is pooled now.
 // IMPORTANT: Caller must hold the scheduler lock.
 void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
-  // Free and log before pooling, so nothing they run can be handed this item while a cleanup still lists it
-  item->callback.release_();
+  const bool boxed = item->callback.is_boxed_();
+  SchedulerItem *&head = boxed ? this->pending_release_head_ : this->scheduler_item_pool_head_;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_ + 1);
+  if (!boxed)
+    item->callback.release_();  // empties it for the destructor check
+  // Logged before the item is reachable: an on_message handler that schedules must not reuse it here
+  ESP_LOGD(TAG, "Recycled item (pool size now: %zu)", this->scheduler_item_pool_size_ + 1);
 #endif
-  item->next_free = this->scheduler_item_pool_head_;
-  this->scheduler_item_pool_head_ = item;
+  item->next_free = head;
+  head = item;
   this->scheduler_item_pool_size_++;
+}
+
+void Scheduler::release_pending_() {
+  // A freed capture may schedule or cancel but never recycles, so one pass empties the list
+  SchedulerItem *head = this->pending_release_head_;
+  this->pending_release_head_ = nullptr;
+  SchedulerItem *tail = head;
+  for (;;) {
+    tail->callback.release_boxed_();  // only boxed callables wait here
+    if (tail->next_free == nullptr)
+      break;
+    tail = tail->next_free;
+  }
+  // Pooled only after the free, so the item is never handed out while it still holds its old callable
+  SchedulerLockGuard guard{this->lock_};
+  tail->next_free = this->scheduler_item_pool_head_;
+  this->scheduler_item_pool_head_ = head;
 }
 
 // Shrink a SchedulerItem* vector's capacity to its current size.
@@ -792,7 +827,7 @@ void Scheduler::trim_freelist() {
     freed++;
   }
   this->scheduler_item_pool_head_ = nullptr;
-  this->scheduler_item_pool_size_ = 0;
+  this->scheduler_item_pool_size_ -= freed;
 
   // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
   // by doubling and otherwise keeps the peak). Reclaim that slack as well.
