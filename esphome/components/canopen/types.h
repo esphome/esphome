@@ -77,6 +77,24 @@ inline constexpr std::array<NMTState, 4> NMT_STATES{NMTState::NMT_STATE_BOOTUP, 
 
 const LogString *nmt_state_to_string(NMTState state);
 
+// Events of a monitored node (CANopenComponent::monitor_node(), from CANopenNode's heartbeat consumer):
+// ONLINE: first heartbeat, or the first after a timeout; OFFLINE: no heartbeat within the timeout;
+// NMT_CHANGED: the state in the heartbeat changed (also unknown -> state right after ONLINE, state -> unknown after
+// OFFLINE; not for a boot-up); RESET: boot-up message, the node restarted and lost its runtime configuration, offline
+// until its next heartbeat.
+enum class NodeEvent : uint8_t { NODE_EVENT_ONLINE, NODE_EVENT_OFFLINE, NODE_EVENT_NMT_CHANGED, NODE_EVENT_RESET };
+
+const LogString *node_event_to_string(NodeEvent event);
+
+// NMT commands (CiA 301), see CANopenComponent::send_nmt()
+enum class NMTCommand : uint8_t {
+  NMT_COMMAND_START = 1,
+  NMT_COMMAND_STOP = 2,
+  NMT_COMMAND_PRE_OPERATIONAL = 128,
+  NMT_COMMAND_RESET_NODE = 129,
+  NMT_COMMAND_RESET_COMMUNICATION = 130,
+};
+
 // raw CAN frame listener (see CANopenComponent::add_frame_listener()); data is valid only during the call
 using FrameCallback = void (*)(void *context, uint32_t can_id, const uint8_t *data, uint8_t len);
 

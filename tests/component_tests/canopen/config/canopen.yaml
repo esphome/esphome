@@ -19,6 +19,11 @@ canopen:
     canbus_id: can_bus
     node_id: 0x10
     heartbeat_interval: 2s
+    heartbeat_clients:
+      - node_id: 0x01
+        timeout: 3s
+      - node_id: 0x02
+        timeout: 500ms
     identity:
       vendor_id: 0x12345678
       product_code: 0x2A
@@ -26,6 +31,8 @@ canopen:
     nmt_startup: pre_operational
     on_nmt_state_change:
       - logger.log: "nmt state"
+    on_node_event:
+      - logger.log: "node event"
     on_heartbeat:
       - logger.log: "heartbeat"
     on_emcy:
@@ -41,3 +48,6 @@ script:
           size: 2
           on_error:
             - logger.log: "error"
+      - canopen.nmt:
+          node_id: 0x01
+          command: pre_operational
