@@ -18,10 +18,8 @@
  * | 0xF3 0xCB | 0x00 0x00 0x00 0x06 | 0x01 0x04 | 0x00 0x0A 0x00 0x01 |
  * | 0xF3 0xCB | 0x00 0x00 0x00 0x05 | 0x01 0x04 | 0x02 0x03 0x00      |
  *
- * This request asks for the gate status (0x0A); the only other value observed
- * in the request was 0x0B, but replies were always zero. Presumably this
- * queries another sensor on the unit like a safety breaker, but this is not
- * relevant for an esphome cover component.
+ * This request asks for the gate status (0x0A). Light status requests use
+ * 0x0B; the last byte of the reply indicates whether the light is on.
  *
  * The second byte of the reply is set to 0x03 when the gate is in fully open
  * position. Other valid values for the second byte are: (0x0) Paused, (0x1)
@@ -44,6 +42,28 @@
  * Close, (0x2) Ventilate (open ~20%), (0x3) Open/high-torque reverse. The
  * protocol implementation in this file simply reuses the GateStatus enum
  * for this purpose.
+ *
+ * Controlling the light if present:
+ *
+ * | sequence  |        length       |    type   |       payload       |
+ * | 0x40 0xFF | 0x00 0x00 0x00 0x06 | 0x01 0x06 | 0x00 0x0B 0x00 0x01 |
+ * | 0x40 0xFF | 0x00 0x00 0x00 0x06 | 0x01 0x06 | 0x00 0x0B 0x00 0x01 |
+ *
+ * The unit acks any commands by echoing back the message in full.
+ * The payload structure is as follows: [0x00, 0x0B] (light), followed by
+ * one of the states normally carried in status replies: (0x0) off, (0x1)
+ * on.
+ *
+ * payload and responses:
+ * | payload                                    | response                                                      |
+ * | 0x00 0x00 0x00 0x00 - 0x00 0x09 0xff 0xff  | errorcode 00 00 00 04 01 06 86 02                             |
+ * | 0x00 0x0a 0x00 0x00 - 0x00 0x0a 0x00 0x03  | controlling the door as described above                       |
+ * | 0x00 0x0a 0x00 0x04 - 0x00 0x0a 0xff 0xff  | sends back the payload. The third parameter does not matter.  |
+ * |                                            | so 0a0101 0a0201 0a0301 to 0aff01 all closes the door         |
+ * | 0x00 0x0b 0x00 0x00 - 0x00 0x0b 0xff 0xff  | sends back the payload. The third parameter does not matter.  |
+ * |                                            | so 0b0101 0b0201 0b0301 to 0bff01 all turns the light on      |
+ * | 0x00 0x0c 0x00 0x00 - 0x00 0x12 0x31 0x50  | errorcode 00 00 00 04 01 06 86 02  (futher codes in progress) |
+ *
  */
 
 namespace esphome::tormatic {
@@ -104,11 +124,9 @@ struct MessageHeader {
 } __attribute__((packed));
 
 // StatusType denotes which 'page' of information needs to be retrieved.
-// On my Novoferm 423, only the GATE status type returns values, Unknown
-// only contains zeroes.
 enum StatusType : uint16_t {
   GATE = 0x0A,
-  UNKNOWN = 0x0B,
+  LIGHT = 0x0B,
 };
 
 // GateStatus defines the current state of the gate, received in a StatusReply
@@ -201,7 +219,7 @@ template<typename T> std::vector<uint8_t> serialize(T obj) {
 // Command tells the gate to start or stop moving.
 // It is echoed back by the unit on success.
 struct CommandRequestReply {
-  // The part of the unit to control. For now only the gate is supported.
+  // The part of the unit to control.
   StatusType type = GATE;
   uint8_t pad = 0x0;
   // The desired state:
@@ -220,6 +238,25 @@ struct CommandRequestReply {
     buf_append_printf(buf, sizeof(buf), 0, "CommandRequestReply: state %s", gate_status_to_str(this->state));
     return buf;
   }
+
+  void byteswap() { this->type = convert_big_endian(this->type); }
+} __attribute__((packed));
+
+// LightState defines the current state of the light.
+enum LightState : uint8_t {
+  LIGHT_OFF = 0,
+  LIGHT_ON = 1,
+};
+
+// LightCommandRequestReply tells the light to turn on or off.
+// It is echoed back by the unit on success.
+struct LightCommandRequestReply {
+  StatusType type = LIGHT;
+  uint8_t pad = 0x0;
+  LightState state;
+
+  LightCommandRequestReply() = default;
+  LightCommandRequestReply(LightState state) : state(state) {}
 
   void byteswap() { this->type = convert_big_endian(this->type); }
 } __attribute__((packed));
