@@ -716,8 +716,8 @@ class UnavoidableBlockingScope {
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
 // raised loop_interval_ for power savings (see Application::loop()).
-// Returns the timestamp of the last scheduler item that ran (or `now`
-// unchanged if none ran), so the caller's WDT feed stays monotonic with the
+// Returns the timestamp of the last scheduler item that ran (a fresh millis()
+// if it freed pending callables, else `now`), so the caller's WDT feed stays monotonic with the
 // per-item feeds inside scheduler.call() without an extra millis().
 inline uint32_t ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now) {
 #ifdef USE_HOST
@@ -774,7 +774,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // loop_interval_ so raised intervals (for power savings) don't drag scheduled
   // items forward. A tick that only runs the scheduler is cheap.
   // scheduler_tick_ returns the timestamp of the last scheduler item that ran
-  // (advanced by its per-item feeds) or `now` unchanged. We adopt it as `now`
+  // (advanced by its per-item feeds), a fresh millis() after freeing pending callables, or `now`. We adopt it as `now`
   // so the gate check and WDT feed both reflect actual elapsed time after
   // scheduler dispatch, without an extra millis() call.
   uint32_t now = this->scheduler_tick_(MillisInternal::get());
