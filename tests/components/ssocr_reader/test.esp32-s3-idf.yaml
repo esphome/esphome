@@ -1,0 +1,7 @@
+# RGB888 on the S3 compiles the luma conversion path.
+substitutions:
+  ssocr_output_type: RGB888
+
+packages:
+  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-s3-idf.yaml
+  ssocr_reader: !include common.yaml
