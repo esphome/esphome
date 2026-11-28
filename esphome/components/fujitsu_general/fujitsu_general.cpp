@@ -23,10 +23,6 @@ constexpr uint8_t FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH = 7;
 // Turns the unit off; a util message, but transmit_state() owns it because it changes the climate state
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_OFF = 0x02;
 
-// State header
-constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE0 = 0x09;
-constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE1 = 0x30;
-
 // State footer
 constexpr uint8_t FUJITSU_GENERAL_STATE_FOOTER_BYTE0 = 0x20;
 
@@ -111,7 +107,7 @@ void FujitsuGeneralClimate::transmit_state() {
   remote_state[4] = FUJITSU_GENERAL_COMMON_BYTE4;
   remote_state[5] = FUJITSU_GENERAL_MESSAGE_TYPE_STATE;
   remote_state[6] = FUJITSU_GENERAL_STATE_HEADER_BYTE0;
-  remote_state[7] = FUJITSU_GENERAL_STATE_HEADER_BYTE1;
+  remote_state[7] = this->state_header_byte_;
 
   // unknown, does not appear to change with any remote settings
   remote_state[14] = FUJITSU_GENERAL_STATE_FOOTER_BYTE0;

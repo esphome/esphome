@@ -10,6 +10,11 @@ namespace esphome::fujitsu_general {
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
 
+// State header. The second byte varies between remote models: units whose remote sends 0x31 ignore
+// state frames carrying 0x30, so it is overridable with state_header_byte in YAML.
+constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE0 = 0x09;
+constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE1 = 0x30;
+
 // Stateless util commands the button platform sends; OFF is a util message too but changes the
 // climate state, so it stays with transmit_state() in the .cpp
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY = 0x09;
@@ -91,6 +96,9 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
   /// Transmit a util message that does not change the climate state (economy, vane steps)
   void transmit_util(uint8_t command);
 
+  /// Override the second state-header byte, for remote models that transmit a different value
+  void set_state_header_byte(uint8_t byte) { this->state_header_byte_ = byte; }
+
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
@@ -109,6 +117,9 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
 
   // true if currently on - fujitsus transmit an on flag on when the remote moves from off to on
   bool power_{false};
+
+  // second state-header byte, 0x30 unless the remote model sends something else
+  uint8_t state_header_byte_{FUJITSU_GENERAL_STATE_HEADER_BYTE1};
 };
 
 }  // namespace esphome::fujitsu_general

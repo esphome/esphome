@@ -4,6 +4,11 @@ climate:
     transmitter_id: xmitr
     id: fujitsu_ac
 
+  - platform: fujitsu_general
+    name: Fujitsu General Climate Alternate Header
+    transmitter_id: xmitr
+    state_header_byte: 0x31
+
 button:
   - platform: fujitsu_general
     fujitsu_general_id: fujitsu_ac

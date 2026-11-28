@@ -370,4 +370,22 @@ TEST(FujitsuGeneralTransmitTest, SendsEveryCapturedStateFrame) {
   }
 }
 
+TEST(FujitsuGeneralTransmitTest, StateHeaderByteIsOverridableForRemotesThatSendADifferentValue) {
+  // Captured from a remote that sends 0x31 in the state header byte. Units paired with such a
+  // remote ignore state frames carrying the 0x30 default, so the byte has to be configurable.
+  const std::vector<uint8_t> alternate = {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x31,
+                                          0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x2E};
+
+  Fixture f;
+  f.send_mode(climate::CLIMATE_MODE_HEAT);
+  const auto default_frame = f.sent();
+  ASSERT_EQ(default_frame.size(), alternate.size());
+  EXPECT_EQ(default_frame[7], 0x30);  // the default is unchanged
+
+  Fixture g;
+  g.sut.set_state_header_byte(0x31);
+  g.sut.make_call().set_mode(climate::CLIMATE_MODE_HEAT_COOL).set_target_temperature(24).perform();
+  EXPECT_EQ(g.sent(), alternate);
+}
+
 }  // namespace esphome::fujitsu_general::testing
