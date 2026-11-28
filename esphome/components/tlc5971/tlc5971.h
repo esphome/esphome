@@ -11,21 +11,17 @@ namespace esphome::tlc5971 {
 
 class TLC5971 final : public Component {
  public:
+  // Must match CHANNELS_PER_CHIP in __init__.py, which validates the channel range
   static constexpr uint8_t N_CHANNELS_PER_CHIP = 12;
 
-  /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
-  explicit TLC5971(std::span<uint16_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
-
-  void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
-  void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
+  /// @param pwm_amounts N_CHANNELS_PER_CHIP duty values per chip, a static buffer from code generation.
+  TLC5971(GPIOPin *data_pin, GPIOPin *clock_pin, std::span<uint16_t> pwm_amounts)
+      : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts) {}
 
   void setup() override;
-
   void dump_config() override;
-
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-
-  /// Send new values if they were updated.
+  /// Send the new duty values, then sleep until set_channel_value() changes one.
   void loop() override;
 
   void set_channel_value(uint16_t channel, uint16_t value);
@@ -37,9 +33,9 @@ class TLC5971 final : public Component {
  protected:
   void transfer_(uint8_t send);
 
-  GPIOPin *data_pin_;
-  GPIOPin *clock_pin_;
-  std::span<uint16_t> pwm_amounts_;
-  bool update_{true};
+  GPIOPin *const data_pin_;
+  GPIOPin *const clock_pin_;
+  const std::span<uint16_t> pwm_amounts_;
 };
+
 }  // namespace esphome::tlc5971

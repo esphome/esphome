@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+tlc5971:
+  id: tlc5971_hub
+  clock_pin: 5
+  data_pin: 4
+  num_chips: 2
+
+output:
+  - platform: tlc5971
+    id: out
+    channel: 23

@@ -7,6 +7,9 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_NUM_CHIPS
 from esphome.types import ConfigType
 
+# Must match N_CHANNELS_PER_CHIP in tlc5971.h, for the output channel range check
+CHANNELS_PER_CHIP = 12
+
 CODEOWNERS = ["@IJIJI"]
 DOMAIN = "tlc5971"
 
@@ -30,8 +33,10 @@ async def to_code(config: ConfigType) -> None:
         cg.uint16,
         config[CONF_NUM_CHIPS] * TLC5971.static_("N_CHANNELS_PER_CHIP"),
     )
-    var = cg.new_Pvariable(config[CONF_ID], pwm_amounts)
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
+        await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
+        pwm_amounts,
+    )
     await cg.register_component(var, config)
-
-    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
-    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
