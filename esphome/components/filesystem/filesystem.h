@@ -27,6 +27,7 @@ enum class FsError : int8_t {
   FS_ERROR_READ_ONLY = -11,
   FS_ERROR_DENIED = -12,
   FS_ERROR_CLOSED = -13,  // The handle is not open, or the media it was opened on is gone
+  FS_ERROR_BUSY = -14,    // Called from a log callback while the filesystem mounts or formats
 };
 
 const LogString *fs_error_to_string(FsError error);
@@ -56,6 +57,7 @@ class Filesystem;
 using FsMutex = storage::NullMutex;
 
 /// A handle to an open file. It closes the file when destroyed; it can be moved but not copied.
+/// Positions and sizes are int32_t, so a file holds at most 2 GiB - 1 bytes.
 class File {
  public:
   File() = default;
@@ -78,7 +80,8 @@ class File {
   FsError truncate();
   FsError close();
 
-  bool is_open() const { return this->fs_ != nullptr; }
+  /// False once closed, and once the media it was opened on is unmounted or changed.
+  bool is_open() const;
   explicit operator bool() const { return this->is_open(); }
 
  protected:
@@ -109,7 +112,8 @@ class Dir {
   FsError read_next(FileInfo &info, char *name, size_t name_size);
   FsError close();
 
-  bool is_open() const { return this->fs_ != nullptr; }
+  /// False once closed, and once the media it was opened on is unmounted or changed.
+  bool is_open() const;
   explicit operator bool() const { return this->is_open(); }
 
  protected:
@@ -141,6 +145,8 @@ class Filesystem : public Component {
 
   void setup() override;
   void dump_config() override;
+  /// After the block device, before the components that use the filesystem
+  float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
   /// Close everything still open, so its data and directory entries reach the media before a restart.
   void on_shutdown() override;
 
@@ -163,9 +169,10 @@ class Filesystem : public Component {
   /// Mount now, trying again even when mounting this media failed before.
   FsError mount();
   /// Close what is open and unmount. Nothing is written when the media has changed since it was mounted.
-  void unmount();
+  /// Returns the first error from closing a file or directory.
+  FsError unmount();
 
-  bool is_mounted() const { return this->mounted_; }
+  bool is_mounted() const { return this->mounted_ && this->media_current_(); }
   FsMutex &mutex() { return this->mutex_; }
   FsError last_error() const { return this->last_error_; }
   storage::BlockDevice *get_device() const { return this->device_; }
@@ -200,6 +207,7 @@ class Filesystem : public Component {
 
   /// Mount if needed, unmounting first when the media changed. Returns the error to report, or NONE.
   FsError ready_();
+  FsError mount_media_();
   bool media_current_() const { return this->media_generation_ == this->device_->get_media_generation(); }
   bool file_valid_(uint16_t mount) const {
     return this->mounted_ && mount == this->mount_count_ && this->media_current_();
@@ -213,16 +221,17 @@ class Filesystem : public Component {
 
   storage::BlockDevice *device_;
   FsMutex mutex_;
-  uint32_t files_in_use_{0};  // One bit per slot
-  uint16_t mount_count_{0};   // Bumped on each mount, so handles from an earlier mount are refused
+  uint32_t files_in_use_{0};      // One bit per slot
+  uint16_t mount_count_{0};       // Bumped on each mount, so handles from an earlier mount are refused
+  uint16_t media_generation_{0};  // The device generation that was mounted
   uint8_t dirs_in_use_{0};
   uint8_t max_files_{2};
   uint8_t max_dirs_{1};
-  uint8_t media_generation_{0};  // The device generation that was mounted
   FsError last_error_{FsError::FS_ERROR_NONE};
   FsError mount_error_{FsError::FS_ERROR_NONE};  // Why mounting the current media failed, so it is not retried
   bool mounted_{false};
   bool format_if_mount_failed_{false};
+  bool changing_{false};  // Mounting or formatting; calls from log callbacks get FS_ERROR_BUSY
 };
 
 }  // namespace esphome::filesystem

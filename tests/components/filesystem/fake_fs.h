@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -17,6 +18,8 @@ class FakeFs : public Filesystem {
 
   bool has_filesystem{true};
   FsError init_error{FsError::FS_ERROR_NONE};
+  FsError close_error{FsError::FS_ERROR_NONE};
+  std::function<void()> on_format;  // Stands in for a log callback that runs during a format
   int mounts{0};
   int formats{0};
   int closes{0};
@@ -40,6 +43,8 @@ class FakeFs : public Filesystem {
   void fs_unmount() override {}
   FsError fs_format() override {
     this->formats++;
+    if (this->on_format)
+      this->on_format();
     this->files.clear();
     this->has_filesystem = true;
     return FsError::FS_ERROR_NONE;
@@ -94,7 +99,7 @@ class FakeFs : public Filesystem {
   }
   FsError fs_close(uint8_t slot) override {
     this->closes++;
-    return FsError::FS_ERROR_NONE;
+    return this->close_error;
   }
   FsError fs_open_dir(uint8_t slot, const char *path) override {
     this->dir_pos_[slot] = 0;

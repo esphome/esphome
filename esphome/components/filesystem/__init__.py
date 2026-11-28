@@ -51,12 +51,16 @@ def _get_data() -> FilesystemData:
     return CORE.data[DOMAIN]
 
 
-def validate_path(value: object) -> str:
-    """Validate an absolute path on a filesystem."""
-    value = cv.string_strict(value)
+def _check_path(value: str) -> str:
     if not value.startswith("/"):
         raise cv.Invalid("The path must start with '/'")
+    if "\0" in value:
+        raise cv.Invalid("The path must not contain a NUL character")
     return value
+
+
+# An absolute path on a filesystem
+validate_path = cv.All(cv.string_strict, _check_path)
 
 
 def request_open_handles(filesystem_id: ID, files: int = 1, dirs: int = 0) -> None:

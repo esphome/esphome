@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "filesystem");
 // Indexed by the negated FsError value; the last entry is the fallback
 PROGMEM_STRING_TABLE(FsErrorStrings, "none", "I/O error", "no media", "not found", "already exists", "not a directory",
                      "is a directory", "no space", "too many open", "invalid argument", "no filesystem", "read only",
-                     "access denied", "closed", "unknown");
+                     "access denied", "closed", "busy", "unknown");
 
 const LogString *fs_error_to_string(FsError error) { return FsErrorStrings::get_log_str(-static_cast<int>(error)); }
 
@@ -95,6 +95,8 @@ FsError File::truncate() {
   return this->fs_->fs_truncate(this->slot_);
 }
 
+bool File::is_open() const { return this->fs_ != nullptr && this->fs_->file_valid_(this->mount_); }
+
 FsError File::close() {
   Filesystem *fs = std::exchange(this->fs_, nullptr);
   if (fs == nullptr)
@@ -129,6 +131,8 @@ FsError Dir::read_next(FileInfo &info, char *name, size_t name_size) {
   return this->fs_->fs_read_dir(this->slot_, info, name, name_size);
 }
 
+bool Dir::is_open() const { return this->fs_ != nullptr && this->fs_->file_valid_(this->mount_); }
+
 FsError Dir::close() {
   Filesystem *fs = std::exchange(this->fs_, nullptr);
   if (fs == nullptr)
@@ -154,7 +158,10 @@ void Filesystem::on_shutdown() {
   // Other tasks' file calls then wait until the restart instead of writing to the media while it is closed. The
   // main loop holds the lock, so later calls from it still work.
   this->mutex_.lock();  // never unlocked
-  this->unmount();
+  FsError err = this->unmount();
+  if (err != FsError::FS_ERROR_NONE) {
+    ESP_LOGW(TAG, "Closing files failed: %s", LOG_STR_ARG(fs_error_to_string(err)));
+  }
 }
 
 void Filesystem::dump_config() {
@@ -172,20 +179,27 @@ FsError Filesystem::mount() {
   return this->ready_();
 }
 
-void Filesystem::unmount() {
+FsError Filesystem::unmount() {
   const std::scoped_lock lock{this->mutex_};
   if (!this->mounted_)
-    return;
+    return FsError::FS_ERROR_NONE;
+  FsError first = FsError::FS_ERROR_NONE;
   // Close what is still open so buffered data reaches the media while it is there. After a media change the
   // buffers belong to the old media; writing them would damage whatever is in the slot now.
   if (this->media_current_()) {
     for (uint8_t slot = 0; slot != this->max_files_; slot++) {
-      if (this->files_in_use_ & (1UL << slot))
-        this->fs_close(slot);
+      if (this->files_in_use_ & (1UL << slot)) {
+        FsError err = this->fs_close(slot);
+        if (first == FsError::FS_ERROR_NONE)
+          first = err;
+      }
     }
     for (uint8_t slot = 0; slot != this->max_dirs_; slot++) {
-      if (this->dirs_in_use_ & (1U << slot))
-        this->fs_close_dir(slot);
+      if (this->dirs_in_use_ & (1U << slot)) {
+        FsError err = this->fs_close_dir(slot);
+        if (first == FsError::FS_ERROR_NONE)
+          first = err;
+      }
     }
   }
   this->files_in_use_ = 0;
@@ -193,6 +207,7 @@ void Filesystem::unmount() {
   this->fs_unmount();
   this->mounted_ = false;
   ESP_LOGD(TAG, "Unmounted");
+  return first;
 }
 
 FsError Filesystem::ready_() {
@@ -201,6 +216,16 @@ FsError Filesystem::ready_() {
     return FsError::FS_ERROR_INVALID;
   if (this->mounted_ && this->media_current_())
     return FsError::FS_ERROR_NONE;
+  // A log callback that uses the filesystem while it mounts or formats
+  if (this->changing_)
+    return FsError::FS_ERROR_BUSY;
+  this->changing_ = true;
+  FsError err = this->mount_media_();
+  this->changing_ = false;
+  return err;
+}
+
+FsError Filesystem::mount_media_() {
   if (this->mounted_) {
     ESP_LOGI(TAG, "Media changed");
     this->unmount();
@@ -218,8 +243,8 @@ FsError Filesystem::ready_() {
       err = this->fs_mount();
   }
   if (err != FsError::FS_ERROR_NONE) {
-    ESP_LOGW(TAG, "Mount failed: %s", LOG_STR_ARG(fs_error_to_string(err)));
     this->mount_error_ = err;
+    ESP_LOGW(TAG, "Mount failed: %s", LOG_STR_ARG(fs_error_to_string(err)));
     return err;
   }
   this->mount_error_ = FsError::FS_ERROR_NONE;
@@ -344,14 +369,19 @@ FsError Filesystem::format() {
   const std::scoped_lock lock{this->mutex_};
   if (!this->is_ready())
     return this->fail_(FsError::FS_ERROR_INVALID);
+  if (this->changing_)
+    return this->fail_(FsError::FS_ERROR_BUSY);
+  this->changing_ = true;
   this->unmount();
-  if (!this->device_->has_media())
-    return this->fail_(FsError::FS_ERROR_NO_MEDIA);
-  FsError err = this->fs_format();
-  if (err == FsError::FS_ERROR_NONE) {
-    this->mount_error_ = FsError::FS_ERROR_NONE;
-    err = this->ready_();
+  FsError err = FsError::FS_ERROR_NO_MEDIA;
+  if (this->device_->has_media()) {
+    err = this->fs_format();
+    if (err == FsError::FS_ERROR_NONE) {
+      this->mount_error_ = FsError::FS_ERROR_NONE;
+      err = this->mount_media_();
+    }
   }
+  this->changing_ = false;
   return this->fail_(err);
 }
 

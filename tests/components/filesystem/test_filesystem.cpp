@@ -288,10 +288,74 @@ TEST_F(FilesystemTest, FailedInitDoesNotMount) {
   EXPECT_EQ(this->fs_.formats, 0);
 }
 
+TEST_F(FilesystemTest, CallsDuringFormatAreBusy) {
+  this->fs_.call();
+  FsError inner = FsError::FS_ERROR_NONE;
+  this->fs_.on_format = [this, &inner]() {
+    File f = this->fs_.open("/log", OPEN_WRITE | OPEN_CREATE);
+    inner = this->fs_.last_error();
+    EXPECT_FALSE(f);
+    EXPECT_EQ(this->fs_.format(), FsError::FS_ERROR_BUSY);
+  };
+  EXPECT_EQ(this->fs_.format(), FsError::FS_ERROR_NONE);
+  EXPECT_EQ(inner, FsError::FS_ERROR_BUSY);
+  EXPECT_EQ(this->fs_.formats, 1);
+  EXPECT_TRUE(this->fs_.is_mounted());
+}
+
+TEST_F(FilesystemTest, CallsDuringFormatOnMountAreBusy) {
+  this->fs_.has_filesystem = false;
+  this->fs_.set_format_if_mount_failed(true);
+  FsError inner = FsError::FS_ERROR_NONE;
+  this->fs_.on_format = [this, &inner]() {
+    File f = this->fs_.open("/log", OPEN_WRITE | OPEN_CREATE);
+    inner = this->fs_.last_error();
+  };
+  this->fs_.call();
+  EXPECT_EQ(inner, FsError::FS_ERROR_BUSY);
+  EXPECT_EQ(this->fs_.formats, 1);
+  EXPECT_TRUE(this->fs_.is_mounted());
+}
+
+TEST_F(FilesystemTest, StaleHandleIsNotOpen) {
+  this->fs_.call();
+  File f = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
+  Dir d = this->fs_.open_dir("/");
+  ASSERT_TRUE(f);
+  ASSERT_TRUE(d);
+  this->disk_.eject();
+  EXPECT_FALSE(f);
+  EXPECT_FALSE(d);
+  EXPECT_FALSE(this->fs_.is_mounted());
+}
+
+TEST_F(FilesystemTest, StaleHandleRefusedAfterManyMediaChanges) {
+  this->fs_.call();
+  File f = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
+  ASSERT_TRUE(f);
+  // 256 generation steps, with no filesystem call to notice them
+  for (int i = 0; i != 128; i++) {
+    this->disk_.eject();
+    this->disk_.insert();
+  }
+  EXPECT_FALSE(f);
+  EXPECT_EQ(f.write("x", 1), static_cast<int32_t>(FsError::FS_ERROR_CLOSED));
+}
+
+TEST_F(FilesystemTest, UnmountReportsCloseError) {
+  this->fs_.call();
+  File f = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
+  this->fs_.close_error = FsError::FS_ERROR_IO;
+  EXPECT_EQ(this->fs_.unmount(), FsError::FS_ERROR_IO);
+  EXPECT_FALSE(this->fs_.is_mounted());
+  EXPECT_EQ(this->fs_.unmount(), FsError::FS_ERROR_NONE);
+}
+
 TEST(Filesystem, ErrorNames) {
   EXPECT_STREQ(LOG_STR_ARG(fs_error_to_string(FsError::FS_ERROR_NONE)), "none");
   EXPECT_STREQ(LOG_STR_ARG(fs_error_to_string(FsError::FS_ERROR_NO_SPACE)), "no space");
   EXPECT_STREQ(LOG_STR_ARG(fs_error_to_string(FsError::FS_ERROR_CLOSED)), "closed");
+  EXPECT_STREQ(LOG_STR_ARG(fs_error_to_string(FsError::FS_ERROR_BUSY)), "busy");
   EXPECT_STREQ(LOG_STR_ARG(fs_error_to_string(static_cast<FsError>(1))), "unknown");
 }
 
