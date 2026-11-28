@@ -4,6 +4,7 @@ gnss:
 
 sensor:
   - platform: gnss
+    gnss_id: gnss_receiver
     type: latitude
     name: "Latitude"
     id: gnss_lat
@@ -13,27 +14,34 @@ sensor:
             format: "%.6f, %.6f"
             args: [id(gnss_lat).state, id(gnss_long).state]
   - platform: gnss
+    gnss_id: gnss_receiver
     type: longitude
     name: "Longitude"
     id: gnss_long
   - platform: gnss
+    gnss_id: gnss_receiver
     type: altitude
     name: "Altitude"
   - platform: gnss
+    gnss_id: gnss_receiver
     type: speed
     name: "Speed"
   - platform: gnss
+    gnss_id: gnss_receiver
     type: course
     name: "Course"
   - platform: gnss
+    gnss_id: gnss_receiver
     type: satellites
     name: "Satellites"
   - platform: gnss
+    gnss_id: gnss_receiver
     type: hdop
     name: "HDOP"
 
 time:
   - platform: gnss
+    gnss_id: gnss_receiver
     on_time_sync:
       then:
         logger.log: "It's time!"
