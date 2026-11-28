@@ -13,6 +13,8 @@ esphome:
             Reschedule(Reschedule &&other) noexcept : key(other.key), message(other.message) { other.key = nullptr; }
             ~Reschedule() {
               if (this->key != nullptr) {
+                // Trim while other boxed captures may still wait for release: the leak check verifies the count
+                App.scheduler.trim_freelist();
                 const char *m = this->message;
                 App.scheduler.set_timeout(this->key, 10, [m]() { ESP_LOGI("test", "%s", m); });
               }
