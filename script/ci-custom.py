@@ -84,6 +84,7 @@ ignore_types = (
     ".webp",
     ".bin",
     ".wav",
+    ".tflite",
 )
 
 LINT_FILE_CHECKS = []
