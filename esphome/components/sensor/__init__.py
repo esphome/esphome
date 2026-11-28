@@ -1470,8 +1470,14 @@ def _correlation_coeff(x, y):
 def fit_linear(x, y):
     assert len(x) == len(y)
     m_x, m_y = _mean(x), _mean(y)
+    std_x, std_y = _std(x), _std(y)
+    if std_x == 0.0 or std_y == 0.0:
+        # Zero variance on either side: the least-squares fit is the constant
+        # line y = mean(y). Happens e.g. when every 'to' value is the same to
+        # zero-calibrate a sensor.
+        return 0.0, m_y
     r = _correlation_coeff(x, y)
-    k = r * (_std(y) / _std(x))
+    k = r * (std_y / std_x)
     b = m_y - k * m_x
     return k, b
 
