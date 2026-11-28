@@ -13,6 +13,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#ifdef ESPHOME_DEBUG_SCHEDULER
+#include "esphome/core/scheduler.h"
+#endif
 
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
@@ -566,6 +569,12 @@ void on_message_callback(void * /*instance*/, uint8_t level, const char *tag, co
                          size_t /*message_len*/) {
   if (level > LEVEL)
     return;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  // The scheduler logs these from inside itself, some with its lock held: an automation that schedules
+  // would re-enter it, and its own timers would log again and trigger it forever
+  if (tag == SCHEDULER_LOG_TAG)
+    return;
+#endif
 #ifdef USE_ESP8266
   // User lambdas may strcmp the tag, which may be in PROGMEM. Each automation has its own copy so one
   // that suspends (delay) still sees a valid tag.

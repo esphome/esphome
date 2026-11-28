@@ -16,6 +16,9 @@
 namespace esphome {
 
 ESPHOME_LOG_TAG(TAG, "scheduler");
+#ifdef ESPHOME_DEBUG_SCHEDULER
+const char *const SCHEDULER_LOG_TAG = TAG;
+#endif
 
 #if defined(USE_RP2) && (defined(USE_WIFI) || defined(USE_ETHERNET))
 // lwIP callbacks add and cancel items from a low-priority IRQ on RP2, where lock_ is an empty Mutex: hold interrupts

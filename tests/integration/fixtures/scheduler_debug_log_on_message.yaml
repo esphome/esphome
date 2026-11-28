@@ -1,0 +1,35 @@
+esphome:
+  name: sched-debug-log
+  debug_scheduler: true
+
+host:
+api:
+logger:
+  level: DEBUG
+  on_message:
+    # debug_scheduler logs each set_timeout, reuse and recycle at DEBUG, some with
+    # the scheduler lock held. This automation then calls back into the scheduler
+    # (the delay is a timeout), and the delay's own timer logs again.
+    level: DEBUG
+    then:
+      - delay: 1ms
+      - lambda: id(delays_run) += 1;
+
+globals:
+  - id: delays_run
+    type: int
+    initial_value: "0"
+  - id: ticks
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          id(ticks) += 1;
+          if (id(ticks) == 10) {
+            ESP_LOGI("test", "FIRST_SNAPSHOT delays_run=%d", id(delays_run));
+          } else if (id(ticks) == 30) {
+            ESP_LOGI("test", "SECOND_SNAPSHOT delays_run=%d", id(delays_run));
+          }
