@@ -6,6 +6,7 @@
 #endif
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include <cmath>
 #include "light_output.h"
 #include "transformers.h"
 
@@ -150,6 +151,12 @@ void LightState::apply_effect_and_transformer_() {
     this->is_transformer_active_ = true;
     if (values.has_value()) {
       this->current_values = *values;
+#ifdef USE_LIGHT_MOVE
+      // The channels follow the color temperature; a straight line between their levels is dim halfway. A move of
+      // brightness leaves the channels to the transition, which lerps them to the target.
+      if (this->moving_ && !this->move_is_brightness_)
+        this->follow_color_temperature_();
+#endif
       this->output_->update_state(this);
       this->next_write_ = true;
     }
@@ -168,9 +175,25 @@ void LightState::apply_effect_and_transformer_() {
     if (finished) {
       // if the transition has written directly to the output, current_values is outdated, so update it
       this->current_values = this->transformer_->get_target_values();
+#ifdef USE_LIGHT_MOVE
+      // Like Matter's MoveWithOnOff: a brightness move to 0% keeps the light on while it dims and turns it off at the
+      // end. A color temperature move holds the brightness, so it never ends dark, also not on a light that is on at
+      // 0%.
+      const bool move_ended_dark = this->moving_ && this->move_is_brightness_ && this->current_values.is_on() &&
+                                   this->current_values.get_brightness() == 0.0f;
+#endif
       this->transformer_->stop();
       this->is_transformer_active_ = false;
       this->transformer_ = nullptr;
+#ifdef USE_LIGHT_MOVE
+      this->moving_ = false;
+      if (move_ended_dark) {
+        // Before the listeners run, so a command of theirs is not overwritten. The call notifies them and publishes.
+        this->make_call().set_state(false).set_transition_length(0).perform();
+        this->disable_loop_if_idle_();
+        return;
+      }
+#endif
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
       if (this->transition_publish_enabled_) {
         // Report the end state from remote_values; a flash's stop() left publishing to us
@@ -213,6 +236,93 @@ bool LightState::set_external_state(const LightColorValues &values) {
   this->publish_state();
   return true;
 }
+
+#ifdef USE_LIGHT_MOVE
+LightColorValues LightState::get_shown_values() {
+  if (this->transformer_ == nullptr)
+    return this->current_values;
+  return this->transformer_->get_reached_values(this->current_values);
+}
+
+void LightState::perform_move(LightCall &call, const LightColorValues &start, bool brightness) {
+  this->current_values = start;
+  call.move_ = brightness ? LightCall::MOVE_BRIGHTNESS : LightCall::MOVE_COLOR_TEMPERATURE;
+  call.perform();
+}
+
+void LightState::stop_move() {
+  if (!this->moving_ || this->transformer_ == nullptr)
+    return;
+  // The last applied values, also when the move's time is up and loop() has not applied its end yet. Only the changed
+  // attribute is replayed: a call normalises, for instance, the RGB of a transition's middle to full brightness.
+  const LightColorValues shown = this->get_shown_values();
+  auto call = this->make_call();
+  call.set_transition_length(0);
+  if (this->move_is_brightness_) {
+    // Frozen at 0%, the light is off, as a move to 0% ends: a brightness of 0 on its own would leave it on at 0%. The
+    // brightness is set too, or the light is off at the target of the move and turns on there.
+    if (shown.get_brightness() > 0.0f) {
+      call.set_state(true).set_brightness(shown.get_brightness());
+    } else {
+      call.set_state(false).set_brightness(0.0f);
+    }
+  } else {
+    call.set_color_temperature(shown.get_color_temperature());
+    const ColorMode mode = shown.get_color_mode();
+    // With the mode, a call that sets both color temperature and channels is not a conflict of modes
+    if ((mode & ColorCapability::COLD_WARM_WHITE) && !(mode & ColorCapability::COLOR_TEMPERATURE))
+      call.set_color_mode(mode).set_cold_white(shown.get_cold_white()).set_warm_white(shown.get_warm_white());
+  }
+  call.perform();
+}
+
+float LightState::get_shown_color_temperature(const LightColorValues &values, float min_mireds,
+                                              float max_mireds) const {
+  const ColorMode mode = values.get_color_mode();
+  if ((mode & ColorCapability::COLOR_TEMPERATURE) || !(mode & ColorCapability::COLD_WARM_WHITE))
+    return values.get_color_temperature();
+  // A move of color temperature keeps the scale of the channels it started from: the stronger one is at that scale
+  const float scale = std::max(values.get_cold_white(), values.get_warm_white());
+  // Channels from a color temperature, as a call or a move sets them, say that color temperature exactly. Not a
+  // number, it converts to nothing: the channels have to tell.
+  if (std::isfinite(values.get_color_temperature())) {
+    float cold;
+    float warm;
+    this->color_temperature_to_cwww(values.get_color_temperature(), min_mireds, max_mireds, &cold, &warm);
+    if (scale > 0.0f && cold * scale == values.get_cold_white() && warm * scale == values.get_warm_white())
+      return values.get_color_temperature();
+  }
+  if (!(scale > 0.0f))
+    return values.get_color_temperature();
+  // The mix, whatever the scale: the stronger channel counts as full, as the channels of a color temperature have it
+  const float cold = this->gamma_correct_lut(values.get_cold_white() / scale);
+  const float warm = this->gamma_correct_lut(values.get_warm_white() / scale);
+  if (!(cold + warm > 0.0f))
+    return values.get_color_temperature();
+  return min_mireds + warm / (cold + warm) * (max_mireds - min_mireds);
+}
+
+void LightState::follow_color_temperature_() {
+  const ColorMode mode = this->current_values.get_color_mode();
+  // The modes in which a call sets the channels from the color temperature, see LightCall::transform_parameters_()
+  if (!(mode & ColorCapability::COLD_WARM_WHITE) || (mode & ColorCapability::WHITE) ||
+      (mode & ColorCapability::COLOR_TEMPERATURE))
+    return;
+  auto traits = this->get_traits();
+  const float min_mireds = traits.get_min_mireds();
+  const float max_mireds = traits.get_max_mireds();
+  if (min_mireds <= 0.0f || max_mireds <= 0.0f)
+    return;
+  float cold_white;
+  float warm_white;
+  this->color_temperature_to_cwww(this->current_values.get_color_temperature(), min_mireds, max_mireds, &cold_white,
+                                  &warm_white);
+  // The channels may be set directly, below full: that scale stays, and so does the output
+  const float scale = this->get_channel_scale();
+  this->current_values.set_cold_white(cold_white * scale);
+  this->current_values.set_warm_white(warm_white * scale);
+}
+#endif
 
 // Flattened so the listener loop runs inline here, not in the call_all copy the other lists share
 __attribute__((flatten)) void LightState::publish_state() {
@@ -398,9 +508,23 @@ void LightState::stop_effect_() {
   this->disable_loop_if_idle_();
 }
 
+#ifdef USE_LIGHT_MOVE
+void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values,
+                                   uint8_t move) {
+  // A strip's own transition leaves current_values at its start: one that replaces it starts from its last frame, so
+  // a move taking over later starts where the light is. A move call sets current_values itself.
+  const LightColorValues start = move != LightCall::MOVE_NONE ? this->current_values : this->get_shown_values();
+  this->moving_ = move != LightCall::MOVE_NONE;
+  this->move_is_brightness_ = move == LightCall::MOVE_BRIGHTNESS;
+  // Not the output's default: that eases in and out, and on an addressable light leaves current_values behind
+  this->transformer_ =
+      this->moving_ ? make_unique<LightTransitionTransformer>(true) : this->output_->create_default_transition();
+  this->transformer_->setup(start, target, length);
+#else
 void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
   this->transformer_ = this->output_->create_default_transition();
   this->transformer_->setup(this->current_values, target, length);
+#endif
   this->set_transformer_remote_values_(target, set_remote_values);
   // Enable loop while transition is active
   this->enable_loop();
@@ -414,6 +538,9 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
     end_colors = this->transformer_->get_start_values();
 
   this->transformer_ = make_unique<LightFlashTransformer>(*this);
+#ifdef USE_LIGHT_MOVE
+  this->moving_ = false;
+#endif
   this->transformer_->setup(end_colors, target, length);
   this->set_transformer_remote_values_(target, set_remote_values);
   // Enable loop while flash is active
@@ -423,6 +550,9 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
   this->is_transformer_active_ = false;
   this->transformer_ = nullptr;
+#ifdef USE_LIGHT_MOVE
+  this->moving_ = false;
+#endif
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   this->transition_publish_enabled_ = false;
 #endif

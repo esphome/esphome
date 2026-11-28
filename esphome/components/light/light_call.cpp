@@ -143,7 +143,11 @@ void LightCall::perform() {
       this->parent_->stop_effect_();
     }
 
+#ifdef USE_LIGHT_MOVE
+    this->parent_->start_transition_(v, this->transition_length_, publish, this->move_);
+#else
     this->parent_->start_transition_(v, this->transition_length_, publish);
+#endif
 
   } else if (this->has_effect_()) {
     // EFFECT
@@ -450,13 +454,8 @@ void LightCall::transform_parameters_(const LightTraits &traits) {
     // This is important for state restoration, where both color_temperature and cold_white/warm_white
     // are restored from flash - we want to preserve the saved cold_white/warm_white values.
     if (this->has_color_temperature() && !this->has_cold_white() && !this->has_warm_white()) {
-      const float color_temp = clamp(this->color_temperature_, min_mireds, max_mireds);
-      const float range = max_mireds - min_mireds;
-      const float ww_fraction = (color_temp - min_mireds) / range;
-      const float cw_fraction = 1.0f - ww_fraction;
-      const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-      this->cold_white_ = this->parent_->gamma_uncorrect_lut(cw_fraction / max_cw_ww);
-      this->warm_white_ = this->parent_->gamma_uncorrect_lut(ww_fraction / max_cw_ww);
+      this->parent_->color_temperature_to_cwww(this->color_temperature_, min_mireds, max_mireds, &this->cold_white_,
+                                               &this->warm_white_);
       this->set_flag_(FLAG_HAS_COLD_WHITE);
       this->set_flag_(FLAG_HAS_WARM_WHITE);
     }

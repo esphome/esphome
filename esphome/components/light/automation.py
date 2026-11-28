@@ -8,6 +8,7 @@ import esphome.codegen as cg
 from esphome.components.const.css_colors import CSS_COLORS
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ATTRIBUTE,
     CONF_BLUE,
     CONF_BRIGHTNESS,
     CONF_BRIGHTNESS_LIMITS,
@@ -16,6 +17,8 @@ from esphome.const import (
     CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
+    CONF_DIRECTION,
+    CONF_DURATION,
     CONF_EFFECT,
     CONF_EFFECTS,
     CONF_FLASH_LENGTH,
@@ -434,6 +437,120 @@ async def light_dim_relative_to_code(
         statements.append(f"  {call.set_transition_length(transition)};")
     statements += [f"  {call.perform()};", "}"]
     return automation.apply_statements_action(action_id, template_arg, args, statements)
+
+
+_MOVE_DIRECTIONS = {"UP": True, "DOWN": False}
+_MOVE_BRIGHTNESS_LIMITS_SCHEMA = cv.Schema(
+    {
+        # Not dim_relative's 0%: a move up from off turns the light on at the minimum, and that should not be dark
+        cv.Optional(CONF_MIN_BRIGHTNESS, default="1%"): cv.percentage,
+        cv.Optional(CONF_MAX_BRIGHTNESS, default="100%"): cv.percentage,
+    }
+)
+
+
+def _validate_move(config: ConfigType) -> ConfigType:
+    """Check the brightness limits, which only a brightness move has, and fill in their defaults."""
+    if config[CONF_ATTRIBUTE] != "BRIGHTNESS":
+        if CONF_BRIGHTNESS_LIMITS in config:
+            raise cv.Invalid(
+                f"'{CONF_BRIGHTNESS_LIMITS}' is only for a brightness move",
+                path=[CONF_BRIGHTNESS_LIMITS],
+            )
+        return config
+    limits = config.setdefault(
+        CONF_BRIGHTNESS_LIMITS, _MOVE_BRIGHTNESS_LIMITS_SCHEMA({})
+    )
+    if limits[CONF_MIN_BRIGHTNESS] >= limits[CONF_MAX_BRIGHTNESS]:
+        raise cv.Invalid(
+            f"'{CONF_MIN_BRIGHTNESS}' must be below '{CONF_MAX_BRIGHTNESS}'",
+            path=[CONF_BRIGHTNESS_LIMITS],
+        )
+    return config
+
+
+LIGHT_MOVE_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(LightState),
+        cv.Optional(CONF_ATTRIBUTE, default="BRIGHTNESS"): cv.one_of(
+            "BRIGHTNESS", "COLOR_TEMPERATURE", upper=True, space="_"
+        ),
+        # UP is brightness up, or color temperature warmer (more mireds). A lambda returns a bool: true is UP.
+        cv.Required(CONF_DIRECTION): cv.templatable(
+            cv.enum(_MOVE_DIRECTIONS, upper=True)
+        ),
+        # The time to cross the whole range; a move over part of it takes that share. A lambda returns milliseconds,
+        # and 0 or less changes at once.
+        cv.Optional(CONF_DURATION, default="5s"): cv.templatable(
+            cv.All(
+                cv.positive_not_null_time_period,
+                cv.Range(max=cv.TimePeriod(milliseconds=2**31 - 1)),
+                cv.positive_time_period_milliseconds,
+            )
+        ),
+        cv.Optional(CONF_BRIGHTNESS_LIMITS): _MOVE_BRIGHTNESS_LIMITS_SCHEMA,
+    }
+)
+LIGHT_MOVE_ACTION_SCHEMA.add_extra(_validate_move)
+
+
+@automation.register_action(
+    "light.move",
+    automation.ApplyAction,
+    LIGHT_MOVE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def light_move_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    cg.add_define("USE_LIGHT_MOVE")
+    light = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    move_args = [
+        light,
+        await _called_with_args(config[CONF_DIRECTION], args, cg.bool_),
+        await _called_with_args(config[CONF_DURATION], args, cg.int32),
+    ]
+    if config[CONF_ATTRIBUTE] == "BRIGHTNESS":
+        limits = config[CONF_BRIGHTNESS_LIMITS]
+        move = light_ns.move_brightness(
+            *move_args, limits[CONF_MIN_BRIGHTNESS], limits[CONF_MAX_BRIGHTNESS]
+        )
+    else:
+        move = light_ns.move_color_temperature(*move_args)
+    return automation.apply_statements_action(
+        action_id, template_arg, args, [f"{move};"]
+    )
+
+
+LIGHT_STOP_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(LightState),
+    }
+)
+_light_stop_builder = automation.apply_action_builder(
+    "light.stop", LIGHT_STOP_ACTION_SCHEMA, automation.ApplyCall("stop_move()")
+)
+
+
+@automation.register_action(
+    "light.stop",
+    automation.ApplyAction,
+    LIGHT_STOP_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def light_stop_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    # Freezes a running light.move, like the Matter Level Control Stop command; other transitions, flashes and effects
+    # run on. stop_move() is compiled in with USE_LIGHT_MOVE.
+    cg.add_define("USE_LIGHT_MOVE")
+    return await _light_stop_builder(config, action_id, template_arg, args)
 
 
 LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(

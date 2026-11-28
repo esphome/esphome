@@ -300,6 +300,37 @@ script:
           id: test_monochromatic_light
           brightness: !lambda "x *= 0.5f; return x;"
           transition_length: !lambda "return x *= 1000.0f;"
+  # Hold-to-dim: a press starts a move, the release stops it
+  - id: light_move
+    parameters:
+      up: bool
+      seconds: int
+    then:
+      - light.move:
+          id: test_monochromatic_light
+          direction: !lambda return up;
+          duration: !lambda return seconds * 1000;
+          brightness_limits:
+            min_brightness: 10%
+            max_brightness: 90%
+      - light.move:
+          id: test_cwww_light
+          attribute: color_temperature
+          direction: UP
+      - light.move:
+          id: test_color_temperature_light
+          attribute: COLOR_TEMPERATURE
+          direction: DOWN
+          duration: 3s
+      - light.move:
+          id: test_addressable_transition
+          direction: UP
+          duration: 2s
+  - id: light_stop
+    then:
+      - light.stop: test_monochromatic_light
+      - light.stop:
+          id: test_cwww_light
 
 output:
   - platform: template

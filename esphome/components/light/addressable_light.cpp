@@ -196,6 +196,30 @@ inline constexpr uint8_t subtract_scaled_difference(uint8_t a, uint8_t b, int32_
   return uint8_t(int32_t(a) - (((int32_t(a) - int32_t(b)) * scale) / 256));
 }
 
+#ifdef USE_LIGHT_MOVE
+LightColorValues AddressableLightTransformer::get_reached_values(const LightColorValues &current) {
+  if (this->light_.is_effect_active())
+    return current;  // apply() returns the values then
+  // Nothing drawn yet: the light is where it was, also when it is off and about to fade in
+  if (!this->uniform_start_scanned_)
+    return this->start_values_;
+  // apply() writes the LEDs and leaves current_values at the start. It fades in from dark when the light turns on and
+  // out to dark when it turns off.
+  LightColorValues start = this->start_values_;
+  LightColorValues end = this->target_values_;
+  if (!start.is_on() && end.is_on()) {
+    start = end;
+    start.set_brightness(0.0f);
+  } else if (start.is_on() && !end.is_on()) {
+    end = start;
+    end.set_brightness(0.0f);
+  }
+  // The progress of the last frame apply() wrote, not of the clock: a delayed strip update shows less than the clock
+  // says
+  return LightColorValues::lerp(start, end, this->last_transition_progress_);
+}
+#endif
+
 optional<LightColorValues> AddressableLightTransformer::apply() {
   float smoothed_progress = LightTransformer::smoothed_progress(this->get_progress_());
 
