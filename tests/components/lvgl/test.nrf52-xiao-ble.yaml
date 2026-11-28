@@ -1,3 +1,6 @@
+substitutions:
+  chart_persist: "false"
+
 packages:
   lvgl_package: !include lvgl-package.yaml
   spi: !include ../../test_build_components/common/spi/nrf52.yaml
@@ -8,6 +11,18 @@ packages:
 time:
   - platform: ds1307
     id: sntp_time
+
+sensor:
+  - platform: template
+    name: Indoor Temperature
+    id: indoor_temperature_sensor
+    lambda: return 21.3;
+    update_interval: 5s
+  - platform: template
+    name: Outdoor Temperature
+    id: outdoor_temperature_sensor
+    lambda: return 12.7;
+    update_interval: 5s
 
 display:
   - platform: mipi_spi
