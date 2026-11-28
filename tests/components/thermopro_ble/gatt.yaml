@@ -1,0 +1,21 @@
+ble_client:
+  - mac_address: 12:34:56:78:9A:BC
+    id: tp970_client
+sensor:
+  - platform: thermopro_ble
+    type: gatt
+    id: tp970
+    ble_client_id: tp970_client
+    temperature:
+      name: Food
+    external_temperature:
+      name: Ambient
+    battery_level:
+      name: Battery
+    notification_count:
+      name: Messages
+binary_sensor:
+  - platform: thermopro_ble
+    thermopro_ble_id: tp970
+    temperature_stream:
+      name: Temperature Stream

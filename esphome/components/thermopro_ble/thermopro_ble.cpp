@@ -1,4 +1,5 @@
 #include "thermopro_ble.h"
+#include "thermopro_ble_protocol.h"
 #include <algorithm>
 #include <cmath>
 #include "esphome/core/helpers.h"
@@ -11,37 +12,10 @@ ESPHOME_LOG_TAG(TAG, "thermopro_ble");
 // Largest record (company ID plus payload) of all supported devices
 static constexpr size_t MAX_DATA_SIZE = 24;
 
-struct ParseResult {
-  float temperature{NAN};
-  float external_temperature{NAN};
-  float humidity{NAN};
-  float battery_level{NAN};
-};
-
 using DeviceParser = bool (*)(const uint8_t *data, size_t data_size, ParseResult &result);
-
-// Fitted A*tanh(B*x+C)+D to the TP96x battery voltage curve, used with permission from
-// https://github.com/Bluetooth-Devices/thermopro-ble/blob/main/src/thermopro_ble/parser.py
-static float tp96_battery(uint16_t voltage) {
-  float level = 52.317286f * std::tanh(static_cast<float>(voltage) / 273.624277936f - 8.76485439394f) + 51.06925f;
-  return clamp(level, 0.0f, 100.0f);
-}
 
 // TP97x temperatures are °F offset by 54
 static float tp97_celsius(float raw) { return fahrenheit_to_celsius(raw - 54.0f); }
-
-// Some probes append 6 bytes of the base station MAC to the 7-byte frame
-static bool parse_tp96(const uint8_t *data, size_t data_size, ParseResult &result) {
-  if (data_size != 7 && data_size != 13) {
-    ESP_LOGVV(TAG, "Probe payload size %u not supported", static_cast<unsigned>(data_size));
-    return false;
-  }
-  // Temperatures are offset by 30 °C
-  result.temperature = static_cast<float>(encode_value_le<uint16_t>(data + 1)) - 30.0f;
-  result.battery_level = tp96_battery(encode_value_le<uint16_t>(data + 3));
-  result.external_temperature = static_cast<float>(encode_value_le<uint16_t>(data + 5)) - 30.0f;
-  return true;
-}
 
 // TP97x also sends the TP96 frame
 static bool parse_tp97(const uint8_t *data, size_t data_size, ParseResult &result) {
@@ -129,10 +103,16 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (!parser(data, data_size, result))
       continue;
 
-    publish_if_set(this->temperature_sensor_, result.temperature);
-    publish_if_set(this->external_temperature_sensor_, result.external_temperature);
+    if (parser == parse_tp96 || parser == parse_tp97) {
+      PUBLISH_STATE(this->temperature_sensor_, result.temperature);
+      PUBLISH_STATE(this->external_temperature_sensor_, result.external_temperature);
+      PUBLISH_STATE(this->battery_level_sensor_, result.battery_level);
+    } else {
+      publish_if_set(this->temperature_sensor_, result.temperature);
+      publish_if_set(this->external_temperature_sensor_, result.external_temperature);
+      publish_if_set(this->battery_level_sensor_, result.battery_level);
+    }
     publish_if_set(this->humidity_sensor_, result.humidity);
-    publish_if_set(this->battery_level_sensor_, result.battery_level);
     success = true;
   }
 
