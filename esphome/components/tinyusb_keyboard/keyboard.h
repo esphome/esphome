@@ -3,7 +3,13 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
+#include <atomic>
+
 #include "esphome/core/component.h"
+
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 #include "tusb.h"
 // tusb.h only pulls the HID class in when CFG_TUD_HID is set, which the static analysis build does not do
@@ -31,8 +37,19 @@ inline constexpr uint8_t CONFIGURATION_DESCRIPTOR[] = {
                        POLL_INTERVAL_MS),
 };
 
+class TinyUSBKeyboard;
+
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+extern TinyUSBKeyboard *global_tinyusb_keyboard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+
 class TinyUSBKeyboard final : public Component {
  public:
+  TinyUSBKeyboard() {
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+    global_tinyusb_keyboard = this;
+#endif
+  }
   void setup() override { this->disable_loop(); }
   void loop() override;
   void dump_config() override;
@@ -44,11 +61,24 @@ class TinyUSBKeyboard final : public Component {
   void press_media(uint16_t usage) { this->set_consumer_(usage); }
   void release_media() { this->set_consumer_(0); }
 
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+  /// Called by the TinyUSB stack when the host sets a report (for example the keyboard LED state).
+  void set_led_state(uint8_t led_state);
+
+  SUB_BINARY_SENSOR(capslock)
+  SUB_BINARY_SENSOR(numlock)
+  SUB_BINARY_SENSOR(scrolllock)
+#endif
+
  protected:
   void set_keyboard_(uint8_t keycode, uint8_t modifiers);
   void set_consumer_(uint16_t usage);
   /// Sends whatever changed; a report the endpoint cannot take yet is retried from loop()
   void flush_();
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+  /// Publish the latched keyboard LED state to the configured binary sensors.
+  void publish_led_state_();
+#endif
 
   // The wanted state of each report, resent until the endpoint accepts it so a release is never lost.
   // Only the latest state is kept, so consecutive key actions need a short delay between them.
@@ -58,6 +88,14 @@ class TinyUSBKeyboard final : public Component {
   bool keyboard_pending_{false};
   bool consumer_pending_{false};
   bool wakeup_requested_{false};
+
+  // LED state reported by the host via Set_Report (bit 0: Num Lock, bit 1: Caps Lock, bit 2: Scroll Lock).
+  // Cross-task state between the TinyUSB task callback and the main loop, so kept atomic.
+  // On Xtensa, std::atomic<bool> compiles to out-of-line calls; use atomic<uint8_t> for flags.
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+  std::atomic<uint8_t> led_state_{0};
+  std::atomic<uint8_t> led_pending_{0};
+#endif
 };
 
 }  // namespace esphome::tinyusb_keyboard

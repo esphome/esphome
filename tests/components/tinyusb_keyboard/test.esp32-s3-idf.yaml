@@ -1,2 +1,12 @@
 packages:
   tinyusb_keyboard: !include common.yaml
+
+binary_sensor:
+  - platform: tinyusb_keyboard
+    tinyusb_keyboard_id: kb
+    capslock:
+      name: "Caps Lock"
+    numlock:
+      name: "Num Lock"
+    scrolllock:
+      name: "Scroll Lock"
