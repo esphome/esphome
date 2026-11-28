@@ -24,8 +24,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
+    await sensor.register_sensor(var, config)
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_REFERENCE_TEMPERATURE, var.set_reference_sensor)

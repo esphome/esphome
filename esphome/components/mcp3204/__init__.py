@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import spi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_REFERENCE_VOLTAGE
+from esphome.const import CONF_REFERENCE_VOLTAGE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
@@ -22,7 +22,5 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await spi.new_spi_component(config)
     cg.add(var.set_reference_voltage(config[CONF_REFERENCE_VOLTAGE]))
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)

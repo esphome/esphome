@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_RATE,
     CONF_GAIN,
-    CONF_ID,
     CONF_MODEL,
     CONF_POWER_MODE,
     CONF_RESET_PIN,
@@ -208,9 +207,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     cg.add(var.set_num_channels(MODELS[config[CONF_MODEL]]))
 

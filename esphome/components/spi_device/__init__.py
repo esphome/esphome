@@ -29,7 +29,5 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    var = await spi.new_spi_component(config)
     cg.add(var.set_bit_order(config[CONF_BIT_ORDER]))
-    await spi.register_spi_device(var, config)

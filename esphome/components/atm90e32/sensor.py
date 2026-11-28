@@ -307,10 +307,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await spi.new_spi_component(config)
     cg.add(var.set_instance_id(str(config[CONF_ID])))
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
 
     for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
         if phase not in config:
