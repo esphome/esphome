@@ -45,6 +45,14 @@ static constexpr uint8_t IMPROV_PROTOCOL_ID_2 = 0x46;  // 'I' << 1 | 'M' >> 7
 
 ImprovBLEComponent::ImprovBLEComponent() { global_improv_component = this; }
 
+static bool provisioning_closed() {
+#ifdef USE_PROVISIONING
+  return provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
+#else
+  return false;
+#endif
+}
+
 void ImprovBLEComponent::setup() {
 #ifdef USE_BINARY_SENSOR
   if (this->authorizer_binary_sensor_ != nullptr) {
@@ -112,6 +120,8 @@ void ImprovBLEComponent::setup_characteristics() {
 void ImprovBLEComponent::loop() {
   if (!global_ble_server->is_running()) {
     if (this->state_ != improv::STATE_STOPPED) {
+      // Offered again once ble.enable brings the server back, unless a stop() is pending or the window closed
+      this->should_start_ = !this->cancel_timeout(STOP_SERVICE_TIMEOUT_ID) && !provisioning_closed();
       this->state_ = improv::STATE_STOPPED;
 #ifdef USE_IMPROV_BLE_STATE_CALLBACK
       this->state_callback_.call(this->state_, this->error_state_);
@@ -308,14 +318,12 @@ void ImprovBLEComponent::start() {
   if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
-#ifdef USE_PROVISIONING
   // Don't (re)start advertising once the provisioning window has closed - e.g. when
   // wifi tries to restart Improv after the window expired at runtime.
-  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+  if (provisioning_closed()) {
     ESP_LOGD(TAG, "Provisioning window closed; not starting Improv");
     return;
   }
-#endif
 
   ESP_LOGD(TAG, "Setting Improv to start");
   this->should_start_ = true;
@@ -372,15 +380,12 @@ void ImprovBLEComponent::process_incoming_data_() {
           this->incoming_data_.clear();
           return;
         }
-#ifdef USE_PROVISIONING
-        if (provisioning::global_provisioning_manager != nullptr &&
-            provisioning::global_provisioning_manager->closed()) {
+        if (provisioning_closed()) {
           ESP_LOGW(TAG, "Provisioning window closed; refusing settings");
           this->set_error_(improv::ERROR_NOT_AUTHORIZED);
           this->incoming_data_.clear();
           return;
         }
-#endif
         if (wifi::global_wifi_component->is_disabled()) {
           // Wi-Fi is disabled, so we can't provision. Respond immediately
           // instead of letting the client wait out its provisioning timeout.
@@ -422,6 +427,9 @@ void ImprovBLEComponent::process_incoming_data_() {
 }
 
 void ImprovBLEComponent::on_wifi_connect_timeout_() {
+  // The session already ended, as when the BLE server went down meanwhile
+  if (this->state_ != improv::STATE_PROVISIONING)
+    return;
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
