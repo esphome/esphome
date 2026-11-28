@@ -392,6 +392,7 @@ esphome/components/lvgl/* @clydebarrow
 esphome/components/lzss/* @clydebarrow
 esphome/components/m5stack_4relay/* @KoenBreeman
 esphome/components/m5stack_8angle/* @rnauber
+esphome/components/m5stack_pm1/* @parker-int64
 esphome/components/m5stack_unit_bldc/* @lboue
 esphome/components/mapping/* @clydebarrow
 esphome/components/matrix_keypad/* @ssieb

@@ -1,0 +1,38 @@
+esphome:
+  name: test-pins
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO16
+  scl: GPIO17
+
+m5stack_pm1:
+  id: pm1
+  interrupt_pin: GPIO4
+  interrupt_gpio: 4
+
+binary_sensor:
+  - platform: gpio
+    name: Interrupt input
+    pin:
+      m5stack_pm1_id: pm1
+      number: 0
+      mode: input
+      interrupt: true
+  - platform: gpio
+    name: Wake input
+    pin:
+      m5stack_pm1_id: pm1
+      number: 2
+      mode: input
+      wakeup: true
+      wakeup_edge: rising
+  - platform: gpio
+    name: Falling wake input
+    pin:
+      m5stack_pm1_id: pm1
+      number: 3
+      mode: input
+      wakeup: true
