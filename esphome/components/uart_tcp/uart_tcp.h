@@ -60,8 +60,8 @@ class UartTcp final : public Component, public uart::UARTDevice {
 #ifdef USE_SOCKET_TCP_LISTENER
   socket::TcpListener listener_;
 #endif
-  // Loop start time of the last socket-to-UART write; sizes the next paced write.
-  uint32_t last_write_ms_{0};
+  // When the last paced socket-to-UART write returned; sizes the next one.
+  uint32_t last_write_us_{0};
 #ifdef USE_SENSOR
   uint32_t disconnects_{0};
 #endif

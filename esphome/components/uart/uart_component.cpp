@@ -7,8 +7,8 @@ namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
 
-// Keeps the pacing product in 32 bits up to about 10 Mbaud.
-static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
+// Bits on the line per byte where the framing is not set, as on USB CDC
+static constexpr uint8_t DEFAULT_FRAME_BITS = 10;
 
 bool UARTComponent::check_read_timeout_(size_t len) {
   if (this->available() >= len)
@@ -25,23 +25,46 @@ bool UARTComponent::check_read_timeout_(size_t len) {
   return true;
 }
 
-size_t UARTComponent::paced_write_room(uint32_t last_write_ms) {
+size_t UARTComponent::paced_write_room(uint32_t last_write_us) {
   size_t room = this->available_for_write();
   if (room != SIZE_MAX) {
     return room;
   }
-  // A pass woken early writes little.
-  uint32_t span =
-      std::min({App.get_loop_component_start_time() - last_write_ms, App.get_loop_interval(), MAX_PACE_SPAN_MS});
-  // 10 bits per byte on the line.
-  uint32_t paced = this->baud_rate_ / 10 * span / 1000;
-  return std::max<size_t>(1, paced);
+  return this->paced_room_(micros() - last_write_us);
+}
+
+uint8_t UARTComponent::frame_bits_() const {
+  if (this->data_bits_ == 0)
+    return DEFAULT_FRAME_BITS;
+  // usb_uart stores 1.5 stop bits as 3; count it as 2, which errs towards less room
+  return 1 + this->data_bits_ + std::min<uint8_t>(this->stop_bits_, 2) +
+         (this->parity_ != UART_CONFIG_PARITY_NONE ? 1 : 0);
+}
+
+size_t UARTComponent::paced_room_(uint32_t span_us) const {
+  // Without a baud rate there is no line time to pace by: one byte per pass
+  if (this->baud_rate_ == 0)
+    return 1;
+  // In millionths of a bit, so a byte is frame_bits_() million. The cap has a byte on top so it never cuts the part
+  // of a byte carried over. Less than a byte gives 0: a byte forced through would never be charged.
+  const uint32_t byte_units = this->frame_bits_() * 1000000U;
+  uint64_t sent = std::min<uint64_t>(static_cast<uint64_t>(span_us) * this->baud_rate_,
+                                     App.get_loop_interval() * 1000ULL * this->baud_rate_ + byte_units);
+  return static_cast<size_t>(sent / byte_units);
+}
+
+uint32_t UARTComponent::paced_stamp_(uint32_t now_us, uint32_t last_write_us) const {
+  if (this->baud_rate_ == 0) {
+    return now_us;
+  }
+  // Below one byte, so the divide is 32-bit
+  const auto part = static_cast<uint32_t>(static_cast<uint64_t>(now_us - last_write_us) * this->baud_rate_ %
+                                          (this->frame_bits_() * 1000000U));
+  return now_us - part / this->baud_rate_;
 }
 
 void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
-  uint8_t bytelength = this->data_bits_ + this->stop_bits_ + 1;
-  if (this->parity_ != UARTParityOptions::UART_CONFIG_PARITY_NONE)
-    bytelength += 1;
+  const uint8_t bytelength = this->frame_bits_();
   int32_t val = clamp<int32_t>((this->baud_rate_ / (bytelength * 1000 / time)) - 1, 1, 120);
   this->set_rx_full_threshold(val);
 }

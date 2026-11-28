@@ -109,9 +109,17 @@ class UARTComponent {
   // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
   virtual size_t available_for_write() { return SIZE_MAX; }
 
-  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the line time at 10 bits
-  // per byte since last_write_ms, a loop start time: at most one loop interval and 4 s, at least one byte.
-  size_t paced_write_room(uint32_t last_write_ms);
+  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the whole bytes the line
+  // sent since last_write_us, at most one loop interval and one byte; 0 until a whole byte has gone out. Without a
+  // baud rate, one byte.
+  size_t paced_write_room(uint32_t last_write_us);
+  // Call right after the write. Where it paced, moves last_write_us on by the whole bytes sent up to now; the part of
+  // a byte left counts for the next write.
+  void paced_write_done(uint32_t &last_write_us) {
+    if (this->available_for_write() == SIZE_MAX) {
+      last_write_us = this->paced_stamp_(micros(), last_write_us);
+    }
+  }
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
@@ -249,6 +257,10 @@ class UARTComponent {
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
+  // Bits a byte takes on the line: start, data, parity and stop bits
+  uint8_t frame_bits_() const;
+  size_t paced_room_(uint32_t span_us) const;
+  uint32_t paced_stamp_(uint32_t now_us, uint32_t last_write_us) const;
 
   InternalGPIOPin *tx_pin_{};
   InternalGPIOPin *rx_pin_{};
