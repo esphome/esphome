@@ -10,6 +10,9 @@
 namespace esphome::sx127x {
 
 static constexpr size_t SX127X_MAX_PACKET_SIZE = 255;  // the payload length register is 8 bits
+// The frequencies the configuration accepts, which retune() also checks
+static constexpr uint32_t MIN_FREQUENCY = 137000000;
+static constexpr uint32_t MAX_FREQUENCY = 1020000000;
 
 enum SX127xBw : uint8_t {
   SX127X_BW_2_6,
@@ -109,6 +112,10 @@ class SX127x final : public Component,
   void set_spreading_factor(uint8_t spreading_factor) { this->spreading_factor_ = spreading_factor; }
   void set_sync_value(const std::vector<uint8_t> &sync_value) { this->sync_value_ = sync_value; }
   void run_image_cal();
+  // Moves the radio to another frequency without configuring it again, then receives or sleeps as the configuration
+  // says. The frequency is kept for later configurations. Ignored with a warning unless the radio is idle. The image is
+  // calibrated for the band the radio started in: run run_image_cal() after a move to another band.
+  void retune(uint32_t frequency);
   // Ignored while a send is on air; discards a held packet
   void configure();
   SX127xError transmit_packet(const uint8_t *data, size_t len);
@@ -162,6 +169,8 @@ class SX127x final : public Component,
   void fail_(const LogString *reason);
   bool packet_waiting_();
   void receive_();
+  // Reads a packet the chip has received into packet_; false if there is none, or it failed its CRC
+  bool read_packet_(std::vector<uint8_t> &packet, float &rssi, float &snr);
   SX127xError start_transmit_(SX127xTransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
   // True once the send has ended, with its outcome in result
   bool poll_transmit_(uint32_t now, SX127xError &result);
@@ -204,6 +213,11 @@ class SX127x final : public Component,
   bool packet_mode_{false};
   bool rx_start_{false};
   bool reconfigure_pending_{false};
+  // A packet read by retune() and not yet given to the listeners
+  std::vector<uint8_t> held_packet_;
+  bool packet_held_{false};
+  float held_rssi_{0.0f};
+  float held_snr_{NAN};
   RadioState state_{RadioState::RADIO_STATE_NEEDS_CONFIGURATION};
 };
 

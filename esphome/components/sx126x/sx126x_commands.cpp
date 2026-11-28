@@ -95,10 +95,7 @@ ConfigurationResult SX126xCommands::configure(const RadioProfile &profile, std::
   // calibrate image
   this->calibrate_image(profile.frequency);
 
-  // set frequency
-  uint64_t freq = ((uint64_t) profile.frequency << 25) / XTAL_FREQ;
-  put_be32(buf, static_cast<uint32_t>(freq));
-  this->write_opcode_(RADIO_SET_RFFREQUENCY, buf, 4);
+  this->set_frequency(profile.frequency);
 
   // configure pa
   int8_t pa_power = profile.pa_power;
@@ -288,6 +285,13 @@ void SX126xCommands::sleep(bool cold) {
   // 0x04 = warm start (config retained), 0x00 = cold start (config lost, lowest power)
   const uint8_t mode = cold ? 0x00 : 0x04;
   this->write_opcode_(RADIO_SET_SLEEP, &mode, 1);
+}
+
+void SX126xCommands::set_frequency(uint32_t frequency) {
+  uint8_t buf[4];
+  const uint64_t freq = ((uint64_t) frequency << 25) / XTAL_FREQ;
+  put_be32(buf, static_cast<uint32_t>(freq));
+  this->write_opcode_(RADIO_SET_RFFREQUENCY, buf, 4);
 }
 
 void SX126xCommands::standby(SX126xStandbyMode mode) {

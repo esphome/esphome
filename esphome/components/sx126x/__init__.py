@@ -176,6 +176,9 @@ def validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
+validate_frequency = cv.All(cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6)))
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -197,9 +200,7 @@ CONFIG_SCHEMA = (
                 cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
-            cv.Required(CONF_FREQUENCY): cv.All(
-                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
-            ),
+            cv.Required(CONF_FREQUENCY): validate_frequency,
             cv.Required(CONF_HW_VERSION): cv.one_of(
                 "sx1261", "sx1262", "sx1268", "llcc68", lower=True
             ),
@@ -325,4 +326,20 @@ automation.register_apply_action(
     "sx126x.send_packet",
     SEND_PACKET_ACTION_SCHEMA,
     automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
+)
+
+
+SET_FREQUENCY_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+        cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
+    },
+    key=CONF_FREQUENCY,
+)
+
+
+automation.register_apply_action(
+    "sx126x.set_frequency",
+    SET_FREQUENCY_ACTION_SCHEMA,
+    automation.ApplyField(CONF_FREQUENCY, "retune", cg.uint32),
 )

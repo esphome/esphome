@@ -25,6 +25,7 @@ class SX126xCommands {
   // Sets the payload length in the applied packet parameters and writes them.
   void set_packet_length(AppliedProfile &applied, uint8_t length);
   void calibrate_image(uint32_t frequency);
+  void set_frequency(uint32_t frequency);
   void standby(SX126xStandbyMode mode);
   void receive();
   void transmit(uint32_t timeout_ms = 0);

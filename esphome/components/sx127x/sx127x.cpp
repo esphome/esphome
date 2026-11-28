@@ -101,6 +101,7 @@ void SX127x::setup() {
   this->state_ = RadioState::RADIO_STATE_IDLE;
   // Sized once so later packet reads do not reallocate
   this->packet_.reserve(this->get_max_packet_size());
+  this->held_packet_.reserve(this->get_max_packet_size());
 }
 
 void SX127x::configure() {
@@ -140,6 +141,7 @@ void SX127x::fail_(const LogString *reason) {
 const LogString *SX127x::configure_radio_() {
   // Until this succeeds; a held packet is discarded
   this->state_ = RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
+  this->packet_held_ = false;
   this->applied_ = {this->frequency_, this->payload_length_, this->modulation_, this->packet_mode_, this->rx_start_};
 
   // toggle chip reset
@@ -487,6 +489,16 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX127x::loop() {
+  // A packet read by retune(). Swapped into packet_, so a retune by a listener reads into the other buffer
+  if (this->packet_held_) {
+    this->packet_held_ = false;
+    this->packet_.swap(this->held_packet_);
+    this->call_listeners_(this->packet_, this->held_rssi_, this->held_snr_);
+    // A listener retuned and held another: the loop stays on for it
+    if (this->packet_held_) {
+      return;
+    }
+  }
   switch (this->state_) {
     case RadioState::RADIO_STATE_TRANSMITTING: {
       SX127xError result;
@@ -518,33 +530,9 @@ void SX127x::loop() {
 
 void SX127x::receive_() {
   const bool holding = this->state_ == RadioState::RADIO_STATE_HOLDING_RX;
-  bool received = false;
-  float rssi = 0.0f;
-  float snr = NAN;  // FSK and OOK have no SNR
-  if (this->applied_.modulation == MOD_LORA) {
-    uint8_t status = this->read_register_(REG_IRQ_FLAGS);
-    this->write_register_(REG_IRQ_FLAGS, 0xFF);
-    if ((status & RX_DONE) != 0 && (status & PAYLOAD_CRC_ERROR) == 0) {
-      uint8_t bytes = this->read_register_(REG_NB_RX_BYTES);
-      uint8_t addr = this->read_register_(REG_FIFO_RX_CURR_ADDR);
-      uint8_t raw_rssi = this->read_register_(REG_PKT_RSSI_VALUE);
-      int8_t raw_snr = (int8_t) this->read_register_(REG_PKT_SNR_VALUE);
-      this->packet_.resize(bytes);
-      this->write_register_(REG_FIFO_ADDR_PTR, addr);
-      this->read_fifo_(this->packet_);
-      rssi = (float) raw_rssi - (this->applied_.frequency > 700000000 ? RSSI_OFFSET_HF : RSSI_OFFSET_LF);
-      snr = (float) raw_snr / 4;
-      received = true;
-    }
-  } else if (this->applied_.packet_mode && (this->read_register_(REG_IRQ_FLAGS2) & PAYLOAD_READY) != 0) {
-    uint8_t payload_length = this->applied_.payload_length;
-    if (payload_length == 0) {
-      payload_length = this->read_register_(REG_FIFO);
-    }
-    this->packet_.resize(payload_length);
-    this->read_fifo_(this->packet_);
-    received = true;
-  }
+  float rssi;
+  float snr;
+  const bool received = this->read_packet_(this->packet_, rssi, snr);
   if (holding) {
     if (this->restore_()) {
       this->state_ = RadioState::RADIO_STATE_IDLE;
@@ -555,6 +543,37 @@ void SX127x::receive_() {
   if (received) {
     this->call_listeners_(this->packet_, rssi, snr);
   }
+}
+
+bool SX127x::read_packet_(std::vector<uint8_t> &packet, float &rssi, float &snr) {
+  bool received = false;
+  rssi = 0.0f;
+  snr = NAN;  // FSK and OOK have no SNR
+  if (this->applied_.modulation == MOD_LORA) {
+    uint8_t status = this->read_register_(REG_IRQ_FLAGS);
+    this->write_register_(REG_IRQ_FLAGS, 0xFF);
+    if ((status & RX_DONE) != 0 && (status & PAYLOAD_CRC_ERROR) == 0) {
+      uint8_t bytes = this->read_register_(REG_NB_RX_BYTES);
+      uint8_t addr = this->read_register_(REG_FIFO_RX_CURR_ADDR);
+      uint8_t raw_rssi = this->read_register_(REG_PKT_RSSI_VALUE);
+      int8_t raw_snr = (int8_t) this->read_register_(REG_PKT_SNR_VALUE);
+      packet.resize(bytes);
+      this->write_register_(REG_FIFO_ADDR_PTR, addr);
+      this->read_fifo_(packet);
+      rssi = (float) raw_rssi - (this->applied_.frequency > 700000000 ? RSSI_OFFSET_HF : RSSI_OFFSET_LF);
+      snr = (float) raw_snr / 4;
+      received = true;
+    }
+  } else if (this->applied_.packet_mode && (this->read_register_(REG_IRQ_FLAGS2) & PAYLOAD_READY) != 0) {
+    uint8_t payload_length = this->applied_.payload_length;
+    if (payload_length == 0) {
+      payload_length = this->read_register_(REG_FIFO);
+    }
+    packet.resize(payload_length);
+    this->read_fifo_(packet);
+    received = true;
+  }
+  return received;
 }
 
 const LogString *SX127x::image_cal_() {
@@ -647,6 +666,44 @@ void SX127x::change_mode_(uint8_t mode) {
     ok = this->set_mode_(this->applied_.modulation, mode);
   }
   if (!ok) {
+    this->fail_(set_mode_failure());
+  }
+}
+
+void SX127x::retune(uint32_t frequency) {
+  if (this->state_ != RadioState::RADIO_STATE_IDLE) {
+    ESP_LOGW(TAG, "Radio unavailable, frequency change ignored");
+    return;
+  }
+  if (frequency < MIN_FREQUENCY || frequency > MAX_FREQUENCY) {
+    ESP_LOGW(TAG, "Frequency %" PRIu32 " Hz out of range, ignored", frequency);
+    return;
+  }
+  // Only one packet is kept for loop(); another waiting stays in the chip, for loop() to read after it
+  if (this->packet_held_) {
+    ESP_LOGW(TAG, "Received packet waiting, frequency change ignored");
+    return;
+  }
+  // Kept even if the change fails, so the configuration retried after a failure uses it
+  this->frequency_ = frequency;
+  // The frequency registers are written in standby, where no packet can complete before the check below
+  if (!this->set_mode_(this->applied_.modulation, MODE_STDBY)) {
+    this->fail_(set_mode_failure());
+    return;
+  }
+  // Going back to RX clears a received packet's flag, so one not yet read is read now, for the next loop()
+  if (this->packet_waiting_()) {
+    this->packet_held_ = this->read_packet_(this->held_packet_, this->held_rssi_, this->held_snr_);
+    if (this->packet_held_) {
+      this->enable_loop();
+    }
+  }
+  this->applied_.frequency = frequency;
+  uint64_t frf = ((uint64_t) frequency << 19) / FXOSC;
+  uint8_t frf_bytes[3];
+  put_be24(frf_bytes, static_cast<uint32_t>(frf));
+  this->write_registers_(REG_FRF_MSB, frf_bytes, sizeof(frf_bytes));
+  if (!this->restore_()) {
     this->fail_(set_mode_failure());
   }
 }
