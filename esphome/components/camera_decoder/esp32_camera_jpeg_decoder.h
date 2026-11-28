@@ -1,0 +1,73 @@
+#pragma once
+
+#include "esphome/core/defines.h"
+
+#ifdef USE_CAMERA_DECODER
+
+#include "esphome/components/camera/decoder.h"
+
+#include "esp_jpeg_common.h"
+#include "esp_jpeg_dec.h"
+
+#include <memory>
+
+namespace esphome::camera_decoder {
+
+/// Output buffer owned by the decoder. esp_new_jpeg writes into a 16-byte
+/// aligned block, so this buffer uses the library's allocator.
+class JpegBuffer final : public camera::Buffer {
+ public:
+  explicit JpegBuffer(size_t capacity);
+  ~JpegBuffer() override;
+
+  JpegBuffer(const JpegBuffer &) = delete;
+  JpegBuffer &operator=(const JpegBuffer &) = delete;
+
+  uint8_t *get_data_buffer() override { return this->data_; }
+  size_t get_data_length() override { return this->length_; }
+  bool valid() const { return this->data_ != nullptr; }
+  size_t capacity() const { return this->capacity_; }
+  void set_length(size_t length) { this->length_ = length; }
+
+ protected:
+  size_t capacity_;
+  size_t length_{0};
+  uint8_t *data_{nullptr};
+};
+
+/// JPEG decoder backed by espressif/esp_new_jpeg.
+///
+/// GRAYSCALE output is produced by decoding RGB888 and reducing it to luma in
+/// software, because the library's decoder has no one-channel output format.
+/// The published buffer is 1 byte per pixel, but the allocation is still sized
+/// for RGB888, so peak RAM is 3x the grayscale frame size.
+class ESP32CameraJPEGDecoder final : public camera::Decoder {
+ public:
+  /// A non-zero `preallocate` reserves the output buffer at construction, so no frame up to that size allocates.
+  ESP32CameraJPEGDecoder(camera::PixelFormat output_format, uint16_t rotation, size_t preallocate);
+  ~ESP32CameraJPEGDecoder() override;
+
+  camera::DecoderError decode(const uint8_t *data, size_t length, camera::CameraImageSpec *spec) override;
+  /// Returns nullptr until a frame has been decoded successfully; the pointer
+  /// and its contents stay valid only until the next decode().
+  camera::Buffer *get_output_buffer() override {
+    return this->output_ != nullptr && this->output_->get_data_length() > 0 ? this->output_.get() : nullptr;
+  }
+  void dump_config() override;
+
+ protected:
+  /// Opens the decoder on first use; the handle is kept for later frames.
+  bool open_decoder_();
+
+  jpeg_dec_handle_t decoder_{nullptr};
+  std::unique_ptr<JpegBuffer> output_;
+  camera::PixelFormat output_format_;
+  /// Rotation in degrees, converted to the library's enum when the decoder opens.
+  uint16_t rotation_degrees_;
+  /// Set when the decoder could not be opened, so every frame does not retry it.
+  bool open_failed_{false};
+};
+
+}  // namespace esphome::camera_decoder
+
+#endif  // USE_CAMERA_DECODER
