@@ -1,0 +1,10 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
+sensor:
+  # A model fixed to CONTROLLED, triggered by a pin instead of UART TX
+  - platform: dyp_a13
+    id: dyp_a13_triggered
+    name: DYP A13NYTW Distance
+    model: A13NYTW
+    trigger_pin: GPIO4

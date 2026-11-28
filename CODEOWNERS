@@ -194,6 +194,8 @@ esphome/components/duco/select/* @kokx @w1ll14m
 esphome/components/duco/sensor/* @kokx @w1ll14m
 esphome/components/duco/text_sensor/* @kokx @w1ll14m
 esphome/components/duty_time/* @dudanov
+esphome/components/dyp_a13/* @estockda
+esphome/components/dyp_base/* @estockda
 esphome/components/e131/* @docteurzoidberg
 esphome/components/ecocomfort2/* @gledian
 esphome/components/ee895/* @Stock-M

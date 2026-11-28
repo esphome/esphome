@@ -1,0 +1,6 @@
+substitutions:
+  filter_mode_pin: GPIO12
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+  dyp_a13: !include common.yaml

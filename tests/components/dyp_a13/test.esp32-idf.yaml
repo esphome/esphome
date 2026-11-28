@@ -1,0 +1,6 @@
+substitutions:
+  filter_mode_pin: GPIO4
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  dyp_a13: !include common.yaml
