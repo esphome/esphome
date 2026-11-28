@@ -35,7 +35,8 @@ ICON_SATELLITE = "mdi:satellite-variant"
 ICON_SPEEDOMETER = "mdi:speedometer"
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor"]
+# The NMEA parser and its data live in nmea and gnss
+AUTO_LOAD = ["sensor", "gnss", "nmea"]
 
 CODEOWNERS = ["@coogle", "@ximex"]
 DOMAIN = "gps"

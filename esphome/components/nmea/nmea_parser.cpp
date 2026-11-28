@@ -1,4 +1,4 @@
-#include "nmea.h"
+#include "nmea_parser.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/time.h"
@@ -6,9 +6,12 @@
 #include <cstring>
 #include <limits>
 
-namespace esphome::gps {
+namespace esphome::nmea {
 
-ESPHOME_LOG_TAG(TAG, "gps.nmea");
+using gnss::GNSSData;
+using gnss::GNSSField;
+
+ESPHOME_LOG_TAG(TAG, "nmea.parser");
 
 static constexpr size_t MAX_FIELDS = 20;
 static constexpr int32_t E7 = 10000000;
@@ -128,14 +131,14 @@ bool parse_coordinate(const char *s, const char *hemisphere, char positive, char
 }
 
 /// Parse hhmmss[.ss]; the fraction is ignored.
-bool parse_time(const char *s, GPSData &data) {
+bool parse_time(const char *s, GNSSData &data) {
   return parse_two_digits(s, 23, data.hour) && parse_two_digits(s + 2, 59, data.minute) &&
          parse_two_digits(s + 4, 60, data.second) &&
          (s[6] == '\0' || (s[6] == '.' && s[7] != '\0' && all_digits(s + 7)));
 }
 
 /// Parse ddmmyy.
-bool parse_date(const char *s, GPSData &data) {
+bool parse_date(const char *s, GNSSData &data) {
   uint8_t year;
   if (strlen(s) != 6 || !parse_two_digits(s, 31, data.day) || !parse_two_digits(s + 2, 12, data.month) ||
       !parse_two_digits(s + 4, 99, year) || data.month == 0)
@@ -145,18 +148,18 @@ bool parse_date(const char *s, GPSData &data) {
 }
 
 /// Parse the four location fields starting at index first, when they are present; all empty means no location.
-bool parse_location(const Fields &f, size_t first, GPSData &data) {
+bool parse_location(const Fields &f, size_t first, GNSSData &data) {
   if (*f[first] == '\0' && *f[first + 1] == '\0' && *f[first + 2] == '\0' && *f[first + 3] == '\0')
     return true;
   if (!parse_coordinate(f[first], f[first + 1], 'N', 'S', 90, data.latitude_e7) ||
       !parse_coordinate(f[first + 2], f[first + 3], 'E', 'W', 180, data.longitude_e7))
     return false;
-  data.updated |= GPS_FIELD_LOCATION;
+  data.updated |= gnss::GNSS_FIELD_LOCATION;
   return true;
 }
 
 /// Parse an optional field with parse(); an empty field leaves the value as it was.
-template<typename P> bool parse_optional(const char *s, GPSField field, GPSData &data, P &&parse) {
+template<typename P> bool parse_optional(const char *s, GNSSField field, GNSSData &data, P &&parse) {
   if (*s == '\0')
     return true;
   if (!parse(s))
@@ -166,44 +169,44 @@ template<typename P> bool parse_optional(const char *s, GPSField field, GPSData 
 }
 
 // $--GGA,time,lat,N,lon,E,quality,satellites,hdop,altitude,M,geoid,M,age,station*hh
-bool parse_gga(const Fields &f, GPSData &data) {
+bool parse_gga(const Fields &f, GNSSData &data) {
   uint8_t quality = 0;
   if (*f[6] != '\0' && !parse_unsigned(f[6], 0, quality))
     return false;
-  if (!parse_optional(f[7], GPS_FIELD_SATELLITES, data,
+  if (!parse_optional(f[7], gnss::GNSS_FIELD_SATELLITES, data,
                       [&data](const char *s) { return parse_unsigned(s, 0, data.satellites); }) ||
-      !parse_optional(f[8], GPS_FIELD_HDOP, data,
+      !parse_optional(f[8], gnss::GNSS_FIELD_HDOP, data,
                       [&data](const char *s) { return parse_unsigned(s, 2, data.hdop_e2); }))
     return false;
   // Without a fix the time can come from the receiver's own clock, which may be wrong
   if (quality == 0)
     return true;
-  return parse_optional(f[1], GPS_FIELD_TIME, data, [&data](const char *s) { return parse_time(s, data); }) &&
-         parse_location(f, 2, data) && parse_optional(f[9], GPS_FIELD_ALTITUDE, data, [&data](const char *s) {
+  return parse_optional(f[1], gnss::GNSS_FIELD_TIME, data, [&data](const char *s) { return parse_time(s, data); }) &&
+         parse_location(f, 2, data) && parse_optional(f[9], gnss::GNSS_FIELD_ALTITUDE, data, [&data](const char *s) {
            return parse_decimal(s, 3, data.altitude_e3);
          });
 }
 
 // $--RMC,time,status,lat,N,lon,E,speed,course,date,variation,E[,mode[,nav status]]*hh
-bool parse_rmc(const Fields &f, GPSData &data) {
+bool parse_rmc(const Fields &f, GNSSData &data) {
   // Without a fix the time and date can come from the receiver's own clock, which may be wrong
   if (*f[2] == '\0' || strcmp(f[2], "V") == 0)
     return true;
   if (strcmp(f[2], "A") != 0)
     return false;
-  return parse_optional(f[1], GPS_FIELD_TIME, data, [&data](const char *s) { return parse_time(s, data); }) &&
+  return parse_optional(f[1], gnss::GNSS_FIELD_TIME, data, [&data](const char *s) { return parse_time(s, data); }) &&
          parse_location(f, 3, data) &&
-         parse_optional(f[7], GPS_FIELD_SPEED, data,
+         parse_optional(f[7], gnss::GNSS_FIELD_SPEED, data,
                         [&data](const char *s) { return parse_unsigned(s, 3, data.speed_e3); }) &&
          parse_optional(
-             f[8], GPS_FIELD_COURSE, data,
+             f[8], gnss::GNSS_FIELD_COURSE, data,
              [&data](const char *s) { return parse_unsigned(s, 2, data.course_e2) && data.course_e2 <= 36000; }) &&
-         parse_optional(f[9], GPS_FIELD_DATE, data, [&data](const char *s) { return parse_date(s, data); });
+         parse_optional(f[9], gnss::GNSS_FIELD_DATE, data, [&data](const char *s) { return parse_date(s, data); });
 }
 
 }  // namespace
 
-bool parse_nmea_sentence(char *line, size_t len, GPSData &data) {
+bool parse_nmea_sentence(char *line, size_t len, GNSSData &data) {
   // Noise before the sentence, NUL bytes included, is skipped
   size_t pos = len;
   while (pos != 0 && line[pos - 1] != '$')
@@ -226,7 +229,7 @@ bool parse_nmea_sentence(char *line, size_t len, GPSData &data) {
   if (strlen(address) != 5 || address[0] == 'P')
     return false;
   const char *type = address + 2;
-  GPSData next = data;
+  GNSSData next = data;
   next.updated = 0;
   bool ok;
   if (strcmp(type, "GGA") == 0) {
@@ -245,4 +248,4 @@ bool parse_nmea_sentence(char *line, size_t len, GPSData &data) {
   return true;
 }
 
-}  // namespace esphome::gps
+}  // namespace esphome::nmea

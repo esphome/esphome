@@ -2,24 +2,22 @@
 
 #include "esphome/components/gnss/gnss.h"
 #include "esphome/components/uart/uart.h"
-#include <TinyGPSPlus.h>
+#include "esphome/core/line_reader.h"
+#include "nmea_parser.h"
 
 namespace esphome::nmea {
 
 /// A receiver that sends NMEA 0183 sentences.
-class NMEAGNSS final : public gnss::GNSSComponent, public uart::UARTDevice {
+class NMEAGNSS : public gnss::GNSSComponent, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override;
   void loop() override;
 
-  /// For lambdas that need fields GNSSData does not carry
-  TinyGPSPlus &get_tiny_gps() { return this->tiny_gps_; }
-
  protected:
-  void handle_message_();
+  void handle_line_(char *line, size_t len);
 
-  TinyGPSPlus tiny_gps_;
+  LineReader<NMEA_MAX_LINE + 1> line_reader_;
 };
 
 }  // namespace esphome::nmea

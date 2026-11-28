@@ -100,7 +100,6 @@ ISOLATED_COMPONENTS = {
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "modem": "Cellular-only node with api - grouping with wifi-bearing components hides that case",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
-    "nmea": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",
     "packages": "cannot merge packages",
     "store_yaml": "Embeds the test's own YAML; grouping would change the blob and its redaction",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",

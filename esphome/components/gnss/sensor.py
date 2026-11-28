@@ -72,9 +72,24 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
+# The GNSSField of each type and the GNSSData member that gives its value
+VALUES = {
+    CONF_LATITUDE: ("LOCATION", "latitude()"),
+    CONF_LONGITUDE: ("LOCATION", "longitude()"),
+    CONF_SPEED: ("SPEED", "speed_kmh()"),
+    CONF_COURSE: ("COURSE", "course()"),
+    CONF_ALTITUDE: ("ALTITUDE", "altitude()"),
+    CONF_SATELLITES: ("SATELLITES", "satellites"),
+    CONF_HDOP: ("HDOP", "hdop()"),
+}
+
+
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_GNSS_ID])
-    DATA_PUBLISHER.add(
-        parent, parent_ref(var).publish_state(getattr(DATA, config[CONF_TYPE]))
+    field, member = VALUES[config[CONF_TYPE]]
+    # NAN until the receiver has sent the value
+    value = cg.RawExpression(
+        f"{DATA}.has(gnss::GNSS_FIELD_{field}) ? {DATA}.{member} : NAN"
     )
+    DATA_PUBLISHER.add(parent, parent_ref(var).publish_state(value))

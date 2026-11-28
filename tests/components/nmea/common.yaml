@@ -37,3 +37,13 @@ time:
     on_time_sync:
       then:
         logger.log: "It's time!"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          const auto &data = id(gnss_receiver).get_data();
+          if (data.has(gnss::GNSS_FIELD_LOCATION) && data.is_updated(gnss::GNSS_FIELD_SPEED)) {
+            ESP_LOGI("nmea_test", "%.7f, %.7f at %.1f km/h", data.latitude_e7 * 1e-7, data.longitude_e7 * 1e-7,
+                     data.speed_kmh());
+          }

@@ -5,9 +5,23 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/line_reader.h"
-#include "nmea.h"
+#include "esphome/components/nmea/nmea_parser.h"
 
 namespace esphome::gps {
+
+// The parser and its data moved to nmea and gnss; these names are kept for lambdas until gps is removed
+using GPSData = gnss::GNSSData;
+using GPSField = gnss::GNSSField;
+using nmea::NMEA_MAX_LINE;
+using nmea::parse_nmea_sentence;
+static constexpr GPSField GPS_FIELD_LOCATION = gnss::GNSS_FIELD_LOCATION;
+static constexpr GPSField GPS_FIELD_SPEED = gnss::GNSS_FIELD_SPEED;
+static constexpr GPSField GPS_FIELD_COURSE = gnss::GNSS_FIELD_COURSE;
+static constexpr GPSField GPS_FIELD_ALTITUDE = gnss::GNSS_FIELD_ALTITUDE;
+static constexpr GPSField GPS_FIELD_SATELLITES = gnss::GNSS_FIELD_SATELLITES;
+static constexpr GPSField GPS_FIELD_HDOP = gnss::GNSS_FIELD_HDOP;
+static constexpr GPSField GPS_FIELD_TIME = gnss::GNSS_FIELD_TIME;
+static constexpr GPSField GPS_FIELD_DATE = gnss::GNSS_FIELD_DATE;
 
 class GPS;
 

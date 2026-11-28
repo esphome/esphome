@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.gnss import GNSSComponent, gnss_schema, new_gnss
 from esphome.types import ConfigType
@@ -16,10 +15,3 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("nmea", require_rx=Tru
 async def to_code(config: ConfigType) -> None:
     var = await new_gnss(config)
     await uart.register_uart_device(var, config)
-
-    # Fork of TinyGPSPlus patched to build on ESP-IDF
-    cg.add_library(
-        "TinyGPSPlus",
-        None,
-        "https://github.com/esphome/TinyGPSPlus.git#v1.1.0",
-    )

@@ -4,10 +4,12 @@
 #include <cstdlib>
 #include <string>
 
-#include "esphome/components/gps/nmea.h"
+#include "esphome/components/nmea/nmea_parser.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome::gps::testing {
+namespace esphome::nmea::testing {
+
+using gnss::GNSSData;
 
 // Adds the checksum to a sentence written without it.
 static std::string with_checksum(const std::string &body) {
@@ -17,10 +19,10 @@ static std::string with_checksum(const std::string &body) {
   return body + suffix;
 }
 
-static bool parse(std::string line, GPSData &data) { return parse_nmea_sentence(line.data(), line.size(), data); }
+static bool parse(std::string line, GNSSData &data) { return parse_nmea_sentence(line.data(), line.size(), data); }
 
-TEST(GPSNmea, Gga) {
-  GPSData data;
+TEST(NMEAParser, Gga) {
+  GNSSData data;
   ASSERT_TRUE(parse("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.longitude_e7, 115166667);
@@ -30,13 +32,13 @@ TEST(GPSNmea, Gga) {
   EXPECT_EQ(data.hour, 12);
   EXPECT_EQ(data.minute, 35);
   EXPECT_EQ(data.second, 19);
-  EXPECT_EQ(data.updated,
-            GPS_FIELD_TIME | GPS_FIELD_LOCATION | GPS_FIELD_SATELLITES | GPS_FIELD_HDOP | GPS_FIELD_ALTITUDE);
+  EXPECT_EQ(data.updated, gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_SATELLITES |
+                              gnss::GNSS_FIELD_HDOP | gnss::GNSS_FIELD_ALTITUDE);
   EXPECT_EQ(data.valid, data.updated);
 }
 
-TEST(GPSNmea, Rmc) {
-  GPSData data;
+TEST(NMEAParser, Rmc) {
+  GNSSData data;
   ASSERT_TRUE(parse("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A", data));
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.longitude_e7, 115166667);
@@ -46,11 +48,12 @@ TEST(GPSNmea, Rmc) {
   EXPECT_EQ(data.day, 23);
   EXPECT_EQ(data.month, 3);
   EXPECT_EQ(data.year, 2094);
-  EXPECT_EQ(data.updated, GPS_FIELD_TIME | GPS_FIELD_LOCATION | GPS_FIELD_SPEED | GPS_FIELD_COURSE | GPS_FIELD_DATE);
+  EXPECT_EQ(data.updated, gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_SPEED |
+                              gnss::GNSS_FIELD_COURSE | gnss::GNSS_FIELD_DATE);
 }
 
-TEST(GPSNmea, SouthWestHighPrecision) {
-  GPSData data;
+TEST(NMEAParser, SouthWestHighPrecision) {
+  GNSSData data;
   ASSERT_TRUE(parse(with_checksum("$GNGGA,000000.00,3351.1234567,S,15112.7654321,W,2,12,0.55,-12.345,M,,M,,"), data));
   EXPECT_EQ(data.latitude_e7, -338520576);
   EXPECT_EQ(data.longitude_e7, -1512127572);
@@ -59,24 +62,24 @@ TEST(GPSNmea, SouthWestHighPrecision) {
   EXPECT_EQ(data.hdop_e2, 55);
 }
 
-TEST(GPSNmea, LeadingNoise) {
+TEST(NMEAParser, LeadingNoise) {
   static const std::string GGA = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
   for (const std::string &noise : {std::string("\x01\xff"), std::string("\x7f\0\x80", 3), std::string("$GPGGA,1235")}) {
-    GPSData data;
+    GNSSData data;
     EXPECT_TRUE(parse(noise + GGA, data));
     EXPECT_EQ(data.satellites, 8);
   }
 }
 
-TEST(GPSNmea, NulInsideSentence) {
-  GPSData data;
+TEST(NMEAParser, NulInsideSentence) {
+  GNSSData data;
   EXPECT_FALSE(
       parse(std::string("$GPGGA,123519,4807.038,N,") + '\0' + "01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
 }
 
 // Each float is the one nearest the decimal value, as strtof() gives it
-TEST(GPSNmea, FloatsRoundToNearest) {
-  GPSData data;
+TEST(NMEAParser, FloatsRoundToNearest) {
+  GNSSData data;
   char text[24];
   for (int32_t e7 = -1800000000; e7 <= 1800000000; e7 += 3999991) {
     data.latitude_e7 = data.longitude_e7 = e7;
@@ -102,12 +105,12 @@ TEST(GPSNmea, FloatsRoundToNearest) {
   }
 }
 
-TEST(GPSNmea, GgaWithoutFixKeepsLocationAndTime) {
-  GPSData data;
+TEST(NMEAParser, GgaWithoutFixKeepsLocationAndTime) {
+  GNSSData data;
   ASSERT_TRUE(parse("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
   ASSERT_TRUE(parse(with_checksum("$GPGGA,123520.00,,,,,0,00,99.99,,,,,,"), data));
-  EXPECT_EQ(data.updated, GPS_FIELD_SATELLITES | GPS_FIELD_HDOP);
-  EXPECT_TRUE(data.has(GPS_FIELD_LOCATION));
+  EXPECT_EQ(data.updated, gnss::GNSS_FIELD_SATELLITES | gnss::GNSS_FIELD_HDOP);
+  EXPECT_TRUE(data.has(gnss::GNSS_FIELD_LOCATION));
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.altitude_e3, 545400);
   EXPECT_EQ(data.satellites, 0);
@@ -115,15 +118,15 @@ TEST(GPSNmea, GgaWithoutFixKeepsLocationAndTime) {
   EXPECT_EQ(data.second, 19);
 }
 
-TEST(GPSNmea, RmcWithoutFixSetsNothing) {
-  GPSData data;
+TEST(NMEAParser, RmcWithoutFixSetsNothing) {
+  GNSSData data;
   ASSERT_TRUE(parse(with_checksum("$GNRMC,090552.42,V,,,,,,,021225,,,N,V"), data));
   EXPECT_EQ(data.updated, 0);
   EXPECT_EQ(data.valid, 0);
 }
 
-TEST(GPSNmea, LeapDayAndLeapSecond) {
-  GPSData data;
+TEST(NMEAParser, LeapDayAndLeapSecond) {
+  GNSSData data;
   ASSERT_TRUE(parse(with_checksum("$GNRMC,235960.00,A,4807.038,N,01131.000,E,0.0,,290228,,,A,V"), data));
   EXPECT_EQ(data.day, 29);
   EXPECT_EQ(data.month, 2);
@@ -131,10 +134,11 @@ TEST(GPSNmea, LeapDayAndLeapSecond) {
   EXPECT_EQ(data.second, 60);
 }
 
-TEST(GPSNmea, RmcFixWithoutCourse) {
-  GPSData data;
+TEST(NMEAParser, RmcFixWithoutCourse) {
+  GNSSData data;
   ASSERT_TRUE(parse(with_checksum("$GNRMC,235959.00,A,4807.038,N,01131.000,E,0.010,,311226,,,A,V"), data));
-  EXPECT_EQ(data.updated, GPS_FIELD_TIME | GPS_FIELD_LOCATION | GPS_FIELD_SPEED | GPS_FIELD_DATE);
+  EXPECT_EQ(data.updated,
+            gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_SPEED | gnss::GNSS_FIELD_DATE);
   EXPECT_EQ(data.year, 2026);
   EXPECT_EQ(data.month, 12);
   EXPECT_EQ(data.day, 31);
@@ -142,7 +146,7 @@ TEST(GPSNmea, RmcFixWithoutCourse) {
   EXPECT_EQ(data.speed_e3, 10u);
 }
 
-TEST(GPSNmea, RejectedLines) {
+TEST(NMEAParser, RejectedLines) {
   static constexpr const char *LINES[] = {
       "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*48",   // wrong checksum
       "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",      // no checksum
@@ -153,13 +157,13 @@ TEST(GPSNmea, RejectedLines) {
       "",
   };
   for (const char *line : LINES) {
-    GPSData data;
+    GNSSData data;
     EXPECT_FALSE(parse(line, data)) << line;
     EXPECT_EQ(data.valid, 0) << line;
   }
 }
 
-TEST(GPSNmea, RejectedSentences) {
+TEST(NMEAParser, RejectedSentences) {
   static constexpr const char *BODIES[] = {
       "$GPGGA,123519,48A7.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",         // letter in latitude
       "$GPGGA,123519,4860.000,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,",         // 60 minutes
@@ -184,10 +188,10 @@ TEST(GPSNmea, RejectedSentences) {
       "$PUBX,00,123519,4807.038,N,01131.000,E,545.4,G3",                        // proprietary
   };
   for (const char *body : BODIES) {
-    GPSData data;
+    GNSSData data;
     EXPECT_FALSE(parse(with_checksum(body), data)) << body;
     EXPECT_EQ(data.valid, 0) << body;
   }
 }
 
-}  // namespace esphome::gps::testing
+}  // namespace esphome::nmea::testing
