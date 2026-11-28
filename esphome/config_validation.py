@@ -760,6 +760,8 @@ def int_(value):
     if isinstance(value, int):
         return value
     if isinstance(value, float):
+        if not math.isfinite(value):
+            raise Invalid(f"Expected integer, but {value} is not a finite number")
         if int(value) == value:
             return int(value)
         raise Invalid(

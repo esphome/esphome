@@ -1711,6 +1711,16 @@ def test_int_float_fractional() -> None:
         cv.int_(5.5)
 
 
+def test_int_nan() -> None:
+    with pytest.raises(Invalid, match="not a finite number"):
+        cv.int_(float("nan"))
+
+
+def test_int_inf() -> None:
+    with pytest.raises(Invalid, match="not a finite number"):
+        cv.int_(float("inf"))
+
+
 def test_int_hex_string() -> None:
     assert cv.int_("0xFF") == 255
 
