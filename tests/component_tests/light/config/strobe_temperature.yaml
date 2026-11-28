@@ -1,0 +1,42 @@
+esphome:
+  name: test-strobe-temperature
+
+host:
+
+output:
+  - platform: template
+    id: cold_channel
+    type: float
+    write_action: []
+  - platform: template
+    id: warm_channel
+    type: float
+    write_action: []
+
+light:
+  - platform: cwww
+    id: test_light
+    cold_white: cold_channel
+    warm_white: warm_channel
+    cold_white_color_temperature: 4100K
+    warm_white_color_temperature: 4000K
+    effects:
+      - strobe:
+          name: Temperature
+          colors:
+            - color_temperature: 4100K
+              duration: 500ms
+            - color_temperature: 4000K
+              duration: 500ms
+      - strobe:
+          name: Explicit Channels
+          colors:
+            - color_temperature: 4100K
+              cold_white: 25%
+              warm_white: 50%
+              duration: 500ms
+            - color_temperature: 4000K
+              cold_white: 0%
+              duration: 500ms
+      - strobe:
+          name: Default
