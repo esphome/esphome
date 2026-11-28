@@ -110,7 +110,8 @@ class UARTComponent {
   virtual size_t available_for_write() { return SIZE_MAX; }
 
   // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the whole bytes the line
-  // sent at 10 bits per byte since last_write_us: at most one loop interval and one byte, at least one byte.
+  // sent since last_write_us, at most one loop interval and one byte; 0 until a whole byte has gone out. Without a
+  // baud rate, one byte.
   size_t paced_write_room(uint32_t last_write_us);
   // Call right after the write. Where it paced, moves last_write_us on by the whole bytes sent up to now; the part of
   // a byte left counts for the next write.
@@ -256,6 +257,8 @@ class UARTComponent {
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
+  // Bits a byte takes on the line: start, data, parity and stop bits
+  uint8_t frame_bits_() const;
   size_t paced_room_(uint32_t span_us) const;
   uint32_t paced_stamp_(uint32_t now_us, uint32_t last_write_us) const;
 

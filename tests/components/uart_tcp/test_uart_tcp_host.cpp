@@ -195,9 +195,9 @@ TEST_F(UartTcpClient, CountsFromWhenABlockingWriteReturned) {
   this->send(100);
   this->pass();
   this->pass();
-  // 300 baud: one 100-ms interval and one byte is 4 bytes. The second write gets 1, not 3 or more, because the 100 ms
-  // the first one blocked are not counted.
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{4, 1}));
+  // 300 baud: one 100-ms interval and one byte is 4 bytes. The next pass, under a byte time after the write
+  // returned, gets nothing: counting the 100 ms the write blocked would give 3 more.
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{4}));
 }
 
 TEST_F(UartTcpClient, FullUartHoldsSocketBytesUntilThereIsRoom) {
@@ -213,8 +213,11 @@ TEST_F(UartTcpClient, FullUartHoldsSocketBytesUntilThereIsRoom) {
   ASSERT_EQ(this->uart_.writes.size(), 1u);
   EXPECT_EQ(this->uart_.writes.front(), 16u);
   this->uart_.room = SIZE_MAX;
-  for (int i = 0; i < 50 && this->uart_.tx.size() < 40; i++)
+  // Paced from here on: give the line time to send the rest
+  for (int i = 0; i < 100 && this->uart_.tx.size() < 40; i++) {
+    delay(2);
     this->pass();
+  }
   ASSERT_EQ(this->uart_.tx.size(), 40u);
   for (size_t i = 0; i < 40; i++)
     EXPECT_EQ(this->uart_.tx[i], static_cast<uint8_t>(i));
