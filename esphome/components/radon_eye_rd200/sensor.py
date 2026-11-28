@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_RADON,
     CONF_RADON_LONG_TERM,
     ICON_RADIOACTIVE,
@@ -42,10 +41,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_RADON, var.set_radon_sensor)
