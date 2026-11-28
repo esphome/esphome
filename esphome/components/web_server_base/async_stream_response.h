@@ -106,9 +106,8 @@ class AsyncStreamResponse {
   // main loop only once attached
   size_t space_after_write_{0};
   uint32_t last_ack_ms_{0};
-  // Set from the network callbacks with plain stores (no read-modify-write: RP2040 has none)
-  // Only moves forward (pending, attached, disconnected), set with plain stores from the network context, the
-  // request's teardown and abort_now(); one byte keeps the three main loop flags below in the same word
+  // Only moves forward (pending, attached, disconnected), with plain stores (RP2040 has no read-modify-write) from
+  // the network callbacks and the request's teardown; one byte keeps the three main loop flags below in the same word
   std::atomic<StreamState> state_{StreamState::STREAM_STATE_PENDING};
   std::atomic<bool> ack_timed_out_{false};
   // Main loop only, apart from attach_() setting close_requested_ when the head was lost

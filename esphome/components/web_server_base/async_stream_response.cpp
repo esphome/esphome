@@ -9,10 +9,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef USE_LIBRETINY
-#include <lwip/tcp.h>
-#endif
-
 namespace esphome::web_server_base {
 
 ESPHOME_LOG_TAG(TAG, "web_server_base");
@@ -22,41 +18,6 @@ static_assert(STREAM_ADD_FLAG_COPY == ASYNC_WRITE_FLAG_COPY && STREAM_ADD_FLAG_M
 
 // Bytes coalesced into one AsyncClient::add(); on the loop stack, so kept small
 static constexpr size_t ADD_SCRATCH_SIZE = 256;
-
-// Closes now and runs the disconnect callback. AsyncTCP (LibreTiny) deprecates close(bool); ESPAsyncTCP and
-// RPAsyncTCP need it, as their close() waits for the next poll.
-static void close_now(AsyncClient *client) {
-#ifdef USE_LIBRETINY
-  client->close();
-#else
-  client->close(true);
-#endif
-}
-
-#ifndef USE_LIBRETINY
-// Reaches the library's protected pcb
-struct AsyncClientPcb : AsyncClient {
-  static tcp_pcb *of(AsyncClient *client) { return client->*(&AsyncClientPcb::_pcb); }
-};
-#endif
-
-// Sends a RST and frees the pcb now. A graceful close queues its FIN behind data a stalled reader never takes, so
-// it would hold the pcb until the peer leaves. False on ESP8266/RP2, where the caller marks the stream disconnected;
-// LibreTiny's callback runs here or later from a queued error event that may still name the client, so never mark it.
-static bool abort_now(AsyncClient *client) {
-#ifdef USE_LIBRETINY
-  // AsyncTCP resets the pcb callbacks in the tcpip thread, aborts, then runs the disconnect callback here
-  client->abort();
-  return true;
-#else
-  // ESPAsyncTCP and RPAsyncTCP leave the pcb's error callback set, and RPAsyncTCP's would use the pcb lwIP freed
-  tcp_pcb *pcb = AsyncClientPcb::of(client);
-  if (pcb != nullptr)
-    tcp_err(pcb, nullptr);
-  client->abort();
-  return false;
-#endif
-}
 
 // The head strings may sit in flash on ESP8266, where String needs the flash helper to copy them
 #ifdef USE_ESP8266
@@ -295,10 +256,16 @@ void AsyncStreamResponse::close_client_(bool abort) {
   if (!this->is_connected()) {
     return;
   }
-  if (!abort) {
-    close_now(this->client_);
-  } else if (!abort_now(this->client_)) {
-    this->state_.store(StreamState::STREAM_STATE_DISCONNECTED, std::memory_order_release);
+  // Both run the disconnect callback, or LibreTiny runs it later from its queued error event
+  if (abort) {
+    // A RST frees the pcb now; a graceful close queues its FIN behind data a stalled reader never takes
+    this->client_->abort();
+  } else {
+#ifdef USE_LIBRETINY
+    this->client_->close();  // AsyncTCP deprecates close(bool)
+#else
+    this->client_->close(true);  // ESPAsyncTCP's and RPAsyncTCP's close() waits for the next poll
+#endif
   }
 }
 
