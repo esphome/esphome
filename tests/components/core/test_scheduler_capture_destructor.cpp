@@ -83,6 +83,7 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   auto token = std::make_shared<int>(0);
   int scheduled_ran = 0;
   bool other_ran = false;
+  bool other_cancelled = false;
   int interval_runs = 0;
   int interval_runs_at_free = -1;
   bool rescheduled_ran = false;
@@ -103,7 +104,7 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
           s->set_timeout(c, i, 1, [&scheduled_ran]() { scheduled_ran++; });
         break;
       case DestructorAction::DESTRUCTOR_ACTION_CANCEL_TIMEOUT:
-        s->cancel_timeout(c, "other");
+        other_cancelled = s->cancel_timeout(c, "other");
         break;
       case DestructorAction::DESTRUCTOR_ACTION_CANCEL_INTERVAL:
         interval_runs_at_free = interval_runs;
@@ -154,6 +155,7 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
       EXPECT_EQ(scheduled_ran, SCHEDULED);
       break;
     case DestructorAction::DESTRUCTOR_ACTION_CANCEL_TIMEOUT:
+      EXPECT_TRUE(other_cancelled);  // the destructor's cancel found the timer
       EXPECT_FALSE(other_ran);
       break;
     case DestructorAction::DESTRUCTOR_ACTION_CANCEL_INTERVAL:
