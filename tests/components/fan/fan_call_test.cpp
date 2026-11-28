@@ -93,6 +93,17 @@ TEST(FanCall, PresetModeReachesTheFan) {
   EXPECT_FALSE(fan.has_preset_mode());
 }
 
+// The preset list replaced between filling a call and perform() leaves the fan's preset alone
+TEST(FanCall, PresetIndexOutsideAReplacedListIsIgnored) {
+  CallFan fan;
+  fan.set_supported_preset_modes({"auto", "sleep"});
+  fan.make_call().set_preset_mode("auto").perform();
+  auto call = fan.make_call().set_preset_mode("sleep");
+  fan.set_supported_preset_modes({"auto"});
+  call.perform();
+  EXPECT_EQ(fan.get_preset_mode(), "auto");
+}
+
 TEST(FanCall, TurningOnWithoutSpeedPicksFullSpeed) {
   CallFan fan(3);
   fan.make_call().set_state(true).perform();
