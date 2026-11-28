@@ -449,7 +449,8 @@ void ImprovBLEComponent::on_wifi_connect_timeout_() {
 }
 
 void ImprovBLEComponent::check_wifi_connection_() {
-  if (!wifi::global_wifi_component->is_connected()) {
+  // Also waits for save_connecting_sta_(), which skips a pass while the joined SSID still reads empty
+  if (!wifi::global_wifi_component->is_connected() || !this->connecting_sta_.get_ssid().empty()) {
     return;
   }
 
