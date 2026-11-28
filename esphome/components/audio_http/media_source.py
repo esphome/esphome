@@ -29,7 +29,7 @@ def _request_micro_decoder(config: ConfigType) -> ConfigType:
     return config
 
 
-def _inherit_ca_certificate_path(config: ConfigType) -> ConfigType:
+def _inherit_ca_certificate_path(config: ConfigType) -> None:
     # Default to the CA certificate configured on the http_request component so
     # HTTPS playback verifies against the same trust anchor without repeating
     # the option on every source. Needed because audio_http sources are often
@@ -37,15 +37,15 @@ def _inherit_ca_certificate_path(config: ConfigType) -> ConfigType:
     # The PEM replaces the built-in certificate bundle as the sole trust anchor,
     # so make the inheritance visible in the log.
     if CONF_CA_CERTIFICATE_PATH in config:
-        return config
+        return
     fconf = fv.full_config.get()
     if CONF_HTTP_REQUEST not in fconf:
-        return config
+        return
     http_request_config = fconf[CONF_HTTP_REQUEST]
     # Mirror http_request's own semantics: it only applies its CA when SSL
     # verification is enabled, so neither does the inheritance.
     if not http_request_config.get(CONF_VERIFY_SSL, True):
-        return config
+        return
     if ca_cert_path := http_request_config.get(CONF_CA_CERTIFICATE_PATH):
         _LOGGER.info(
             "audio_http source '%s' is inheriting ca_certificate_path from the "
@@ -55,7 +55,6 @@ def _inherit_ca_certificate_path(config: ConfigType) -> ConfigType:
         )
         # Already validated by http_request's schema; the value is a resolved Path.
         config[CONF_CA_CERTIFICATE_PATH] = ca_cert_path
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _inherit_ca_certificate_path

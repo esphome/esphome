@@ -629,7 +629,7 @@ def _validate_nrf52_hw_data_rate(value: float) -> None:
         )
 
 
-def _final_validate(config: Any) -> Any:
+def _final_validate(config: Any) -> None:
     buses = config if isinstance(config, list) else [config]
     software_bus_ids = {
         bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX not in bus
@@ -640,7 +640,7 @@ def _final_validate(config: Any) -> Any:
         else set()
     )
     if not software_bus_ids and not nrf52_hw_bus_ids:
-        return config
+        return
     for candidate, path in _walk_config(fv.full_config.get()):
         if (spi_id := candidate.get(CONF_SPI_ID)) is None:
             continue
@@ -653,7 +653,6 @@ def _final_validate(config: Any) -> Any:
         ):
             with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_DATA_RATE]):
                 _validate_nrf52_hw_data_rate(data_rate)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

@@ -99,7 +99,7 @@ def validate_usb_clients(configs: list[ConfigType]) -> list[ConfigType]:
     return configs
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Any two overlapping clients could otherwise open the same device
     devices = config.get(CONF_DEVICES) or []
     uarts = fv.full_config.get().get("usb_uart") or []
@@ -124,7 +124,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             else "narrow its filter so it no longer matches that device",
         )
     _reconcile_fifo()
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
