@@ -1,0 +1,6 @@
+# ESPHome build test: the waveform kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
+tflite_waveform:
+  - id: test_waveform
+    model: "../../components/tflite_waveform/model.tflite"
