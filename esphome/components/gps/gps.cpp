@@ -30,6 +30,14 @@ void GPS::dump_config() {
 }
 
 void GPS::update() {
+#ifdef USE_GPS_FIELD_AGE
+  // Hold old timestamps at 2^31 ms in the past so millis() rollover can't make a stale field look fresh.
+  const uint32_t now = millis();
+  for (auto &ms : this->updated_ms_) {
+    if (now - ms > AGE_LIMIT_MS)
+      ms = now - AGE_LIMIT_MS;
+  }
+#endif
   const GPSData &d = this->data_;
   PUBLISH_STATE(this->latitude_sensor_, d.has(GPS_FIELD_LOCATION) ? d.latitude() : NAN);
   PUBLISH_STATE(this->longitude_sensor_, d.has(GPS_FIELD_LOCATION) ? d.longitude() : NAN);

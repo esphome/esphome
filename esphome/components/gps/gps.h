@@ -49,11 +49,14 @@ class GPS final : public PollingComponent, public uart::UARTDevice {
 
   const GPSData &get_data() const { return this->data_; }
 #ifdef USE_GPS_FIELD_AGE
-  /// Milliseconds since a sentence last set the field, or UINT32_MAX if none has.
+  /// Milliseconds since a sentence last set the field (one bit), or UINT32_MAX if none has.
   uint32_t get_age(GPSField field) const;
 #endif
 
  protected:
+#ifdef USE_GPS_FIELD_AGE
+  static constexpr uint32_t AGE_LIMIT_MS = 0x80000000u;
+#endif
   void handle_line_(char *line, size_t len);
 
   GPSData data_;

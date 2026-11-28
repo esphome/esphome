@@ -23,6 +23,7 @@ enum GPSField : uint16_t {
   GPS_FIELD_GEOID_SEPARATION = 1 << 8,
 };
 static constexpr uint8_t GPS_FIELD_COUNT = 9;
+static_assert(GPS_FIELD_GEOID_SEPARATION == 1 << (GPS_FIELD_COUNT - 1), "GPS_FIELD_COUNT must match the highest field");
 
 /// Values from GGA and RMC sentences as scaled integers; a name ending in eN is the value times 10^N.
 struct GPSData {
