@@ -333,12 +333,14 @@ file does, and it is the authority when they disagree. The most useful starting 
         sets, `is_failed()` in `loop()` (core stops calling it), a value the config validation already limits, a
         `default:` in a `switch` over every value of an `enum class` the component sets itself (keep it when the
         value is cast from bus data).
-    *   **Entities belong to the main loop:** entities and their traits are not thread-safe. Options such as a fan's
-        preset modes or a select's options are usually set during setup, and a later change happens on the loop too.
-        Code outside the loop hands the change to it with `defer()`, as web_server does: its request handlers run
-        outside the main loop on every platform, fill a `*Call` there and defer `call.perform()`. Do not add locks,
-        revalidation or bounds checks against an entity changing under a pending call, from another task or a
-        callback inside `perform()`, or ask for them.
+    *   **Entities belong to the main loop:** almost everything, including `setup()`, `loop()` and every entity,
+        runs only on the main loop and is not thread-safe; the scheduler (`defer()`, `set_timeout()`) is how code
+        outside the loop gets work onto it. Never call a component's `setup()` or `loop()` from outside the loop.
+        Options such as a fan's preset modes or a select's options are usually set during setup, and a later change
+        happens on the loop too. web_server shows the pattern: its request handlers run outside the main loop on
+        every platform, fill a `*Call` there and defer `call.perform()`. Do not add locks, revalidation or bounds
+        checks against an entity changing under a pending call, from another task or a callback inside
+        `perform()`, or ask for them.
     *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
         as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
     *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale
