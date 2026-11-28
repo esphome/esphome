@@ -1,9 +1,12 @@
 """Integration test for constant_brightness with gamma correction.
 
-Tests both constant_brightness: true and false cwww lights with gamma
-correction in a single compilation to verify:
+Tests constant_brightness: true, false and color_temperature_priority cwww
+lights with gamma correction in a single compilation to verify:
 - constant_brightness: true maintains constant total CW+WW power output
 - constant_brightness: false correctly varies total power across color temps
+- constant_brightness: color_temperature_priority keeps total CW+WW power
+  constant up to half (linear) brightness and drives both channels fully at
+  full brightness where the color temperature allows
 
 This is a regression test for https://github.com/esphome/esphome/issues/15040
 where the gamma LUT refactor (#14123) broke constant_brightness by applying
@@ -26,6 +29,10 @@ CB_CW_RE = re.compile(r"(?<!N)CB_CW_OUTPUT:([\d.]+)")
 CB_WW_RE = re.compile(r"(?<!N)CB_WW_OUTPUT:([\d.]+)")
 NCB_CW_RE = re.compile(r"NCB_CW_OUTPUT:([\d.]+)")
 NCB_WW_RE = re.compile(r"NCB_WW_OUTPUT:([\d.]+)")
+CTP_CW_RE = re.compile(r"CTP_CW_OUTPUT:([\d.]+)")
+CTP_WW_RE = re.compile(r"CTP_WW_OUTPUT:([\d.]+)")
+RGBWW_CW_RE = re.compile(r"RGBWW_CW_OUTPUT:([\d.]+)")
+RGBWW_WW_RE = re.compile(r"RGBWW_WW_OUTPUT:([\d.]+)")
 
 
 @pytest.mark.asyncio
@@ -34,7 +41,7 @@ async def test_light_constant_brightness(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test constant_brightness true and false behavior with gamma correction."""
+    """Test constant_brightness true, false and color_temperature_priority with gamma."""
     waiter = LineWaiter()
 
     def latest(pattern: re.Pattern[str]) -> float:
@@ -51,6 +58,10 @@ async def test_light_constant_brightness(
         entities, _ = await client.list_entities_services()
         cb_light = require_entity(entities, "test_cb_light", LightInfo, exact=True)
         ncb_light = require_entity(entities, "test_ncb_light", LightInfo, exact=True)
+        ctp_light = require_entity(entities, "test_ctp_light", LightInfo, exact=True)
+        rgbww_light = require_entity(
+            entities, "test_rgbww_light", LightInfo, exact=True
+        )
 
         sub = await subscribe_after_initial_states(client, entities)
 
@@ -151,3 +162,59 @@ async def test_light_constant_brightness(
             f"Midpoint total ({midpoint_total:.4f}) should be > pure WW total "
             f"({extreme_ww_total:.4f}). All values: {ncb_totals}"
         )
+
+        # --- Test constant_brightness: color_temperature_priority ---
+
+        async def outputs(
+            light_key: int,
+            cold_re: re.Pattern[str],
+            warm_re: re.Pattern[str],
+            **kwargs: Any,
+        ) -> tuple[float, float]:
+            """Send a command and return the cold/warm levels its write logs."""
+            cold = waiter.expect(cold_re)
+            warm = waiter.expect(warm_re)
+            client.light_command(key=light_key, transition_length=0, **kwargs)
+            return float((await waiter.wait(cold))[1]), float(
+                (await waiter.wait(warm))[1]
+            )
+
+        async def ctp_outputs(**kwargs: Any) -> tuple[float, float]:
+            return await outputs(ctp_light.key, CTP_CW_RE, CTP_WW_RE, **kwargs)
+
+        # Full brightness at the midpoint drives both channels fully
+        cw, ww = await ctp_outputs(state=True, brightness=1.0, color_temperature=326.5)
+        assert cw == pytest.approx(1.0, abs=0.01)
+        assert ww == pytest.approx(1.0, abs=0.01)
+
+        # Full brightness at pure cold white drives only the cold channel fully
+        cw, ww = await ctp_outputs(color_temperature=153.0)
+        assert cw == pytest.approx(1.0, abs=0.01)
+        assert ww == pytest.approx(0.0, abs=0.01)
+
+        # Half linear brightness (0.5 ** (1 / 2.8) before gamma) sums to full output,
+        # split by the linear color temperature fractions
+        await ctp_outputs(brightness=0.7807, color_temperature=500.0)
+        for mireds in test_mireds:
+            cw, ww = await ctp_outputs(color_temperature=mireds)
+            cold_fraction = (500.0 - mireds) / (500.0 - 153.0)
+            assert cw == pytest.approx(cold_fraction, abs=0.02), (
+                f"color_temperature_priority: CW at {mireds} mireds is {cw:.4f}, "
+                f"expected {cold_fraction:.4f} (WW={ww:.4f})"
+            )
+            assert ww == pytest.approx(1.0 - cold_fraction, abs=0.02), (
+                f"color_temperature_priority: WW at {mireds} mireds is {ww:.4f}, "
+                f"expected {1.0 - cold_fraction:.4f} (CW={cw:.4f})"
+            )
+
+        # --- Plain rgbww: cold white only at the cold end ---
+        cw, ww = await outputs(
+            rgbww_light.key,
+            RGBWW_CW_RE,
+            RGBWW_WW_RE,
+            state=True,
+            brightness=1.0,
+            color_temperature=153.0,
+        )
+        assert cw == pytest.approx(1.0, abs=0.01)
+        assert ww == pytest.approx(0.0, abs=0.01)

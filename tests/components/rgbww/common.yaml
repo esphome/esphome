@@ -25,4 +25,15 @@ light:
     warm_white: rgbww_light_output_5
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    constant_brightness: color_temperature_priority
+    cold_to_warm_ratio: 0.71
     color_interlock: true
+  - platform: rgbww
+    name: RGBWW Light Default Constant Brightness
+    red: rgbww_light_output_1
+    green: rgbww_light_output_2
+    blue: rgbww_light_output_3
+    cold_white: rgbww_light_output_4
+    warm_white: rgbww_light_output_5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds

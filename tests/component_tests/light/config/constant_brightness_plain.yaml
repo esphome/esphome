@@ -1,0 +1,27 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+output:
+  - platform: ledc
+    id: out_cold
+    pin: GPIO4
+  - platform: ledc
+    id: out_warm
+    pin: GPIO5
+
+light:
+  - platform: cwww
+    name: Plain Light
+    output_id: plain_output
+    cold_white: out_cold
+    warm_white: out_warm
+  - platform: cwww
+    name: Enabled Light
+    output_id: enabled_output
+    cold_white: out_cold
+    warm_white: out_warm
+    constant_brightness: true
