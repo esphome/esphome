@@ -3,6 +3,7 @@ neither deadlocks the scheduler at boot nor keeps triggering itself."""
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 
@@ -25,12 +26,12 @@ async def test_scheduler_debug_log_on_message(
     """The device boots, the automation's delays run, it stops triggering itself, and other listeners such as
     an API log subscriber still get the scheduler's lines."""
     waiter = LineWaiter()
-    api_scheduler_lines: list[str] = []
+    api_scheduler_line: asyncio.Future[str] = asyncio.get_running_loop().create_future()
 
     def on_log(msg: Any) -> None:
         text = msg.message.decode("utf-8", errors="replace")
-        if "][scheduler" in text:
-            api_scheduler_lines.append(text)
+        if "][scheduler" in text and not api_scheduler_line.done():
+            api_scheduler_line.set_result(text)
 
     async with (
         run_compiled(yaml_config, line_callback=waiter.callback),
@@ -40,8 +41,8 @@ async def test_scheduler_debug_log_on_message(
         client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
         first = await waiter.wait_for("FIRST_SNAPSHOT", timeout=10.0)
         second = await waiter.wait_for("SECOND_SNAPSHOT", timeout=10.0)
-
-    assert api_scheduler_lines, "the API log subscriber got no scheduler lines"
+        # The subscriber still gets the scheduler's lines; only on_message skips them
+        await asyncio.wait_for(api_scheduler_line, timeout=10.0)
 
     first_count = int(SNAPSHOT.search(first).group(2))
     second_count = int(SNAPSHOT.search(second).group(2))
