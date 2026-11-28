@@ -139,14 +139,9 @@ inline int32_t chart_point_value(float value, float multiplier) {
 }
 
 /// Set an axis range from bounds scaled as chart_point_value(). A NaN bound uses LVGL's default range of 0 to 100,
-/// and an empty range is widened by 1, since LVGL divides by its width when it draws a bar chart.
-inline void chart_set_axis_range(lv_obj_t *chart, lv_chart_axis_t axis, float min, float max, float multiplier) {
-  const int32_t low = chart_point_value(std::isnan(min) ? 0.0f : min, multiplier);
-  int32_t high = chart_point_value(std::isnan(max) ? 100.0f : max, multiplier);
-  if (high == low)
-    high = low + 1;  // cannot overflow: low is at most CHART_POINT_LIMIT
-  lv_chart_set_axis_range(chart, axis, low, high);
-}
+/// and an empty range is widened by 1, since LVGL divides by its width when it draws a bar chart. Both are logged
+/// at verbose level, since a sensor gives NaN until its first reading.
+void chart_set_axis_range(lv_obj_t *chart, lv_chart_axis_t axis, float min, float max, float multiplier);
 
 /// As chart_point_value(), for a stacked chart. LVGL draws nothing for a value of 0 or less there, and logs a
 /// warning for each one at every redraw, so those are stored as gaps.
