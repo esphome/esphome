@@ -55,17 +55,18 @@ class AdvPayload {
     if (this->left_() > 2)
       this->add_(0x0A, reinterpret_cast<const uint8_t *>(&dbm), 1);
   }
-  /// 16 and 32-bit lists (partial when they do not all fit), then the next 128-bit UUID. Leaves out `skip` and the
-  /// UUIDs counted in `sent`, and returns `sent` plus what this packet took.
+  /// 16 and 32-bit lists, then the next 128-bit UUID, each marked complete only when this packet carries all of that
+  /// width. Leaves out `skip` and the UUIDs counted in `sent`, and returns `sent` plus what this packet took.
   UuidsSent add_uuids(std::span<const ESPBTUUID> uuids, const ESPBTUUID &skip = {}, UuidsSent sent = {}) {
     this->add_short_uuids_(uuids, skip, 2, 0x02, sent.short16);
     this->add_short_uuids_(uuids, skip, 4, 0x04, sent.short32);
     if (this->left_() < 18)
       return sent;
+    const auto count = std::count_if(uuids.begin(), uuids.end(), [&](const auto &u) { return listed(u, skip, 16); });
     size_t index = 0;
     for (const auto &uuid : uuids) {
       if (listed(uuid, skip, 16) && index++ == sent.full) {
-        this->add_(0x07, uuid.uuid128(), 16);
+        this->add_(count == 1 ? 0x07 : 0x06, uuid.uuid128(), 16);
         sent.full++;
         break;
       }
@@ -118,7 +119,7 @@ class AdvPayload {
       return;
     size_t fit = std::min(count, (this->left_() - 2) / size);
     this->buf_[this->len_++] = 1 + fit * size;
-    this->buf_[this->len_++] = fit < count ? partial_type : partial_type + 1;
+    this->buf_[this->len_++] = sent == 0 && fit == count ? partial_type + 1 : partial_type;
     size_t index = 0;
     for (const auto &uuid : uuids) {
       if (fit == 0)

@@ -72,20 +72,30 @@ std::array<ESPBTUUID, 16> sequential_uuid16s() {
   return uuids;
 }
 
-std::vector<uint8_t> uuid16_list(uint8_t type, uint16_t first, uint16_t last) {
-  std::vector<uint8_t> out = {static_cast<uint8_t>(1 + (last - first + 1) * 2), type};
-  for (uint32_t v = first; v <= last; v++) {
-    out.push_back(v & 0xFF);
-    out.push_back(v >> 8);
+// A 16 or 32-bit UUID list element with `count` sequential values from `first`
+std::vector<uint8_t> uuid_list(uint8_t type, size_t width, uint32_t first, size_t count) {
+  std::vector<uint8_t> out = {static_cast<uint8_t>(1 + count * width), type};
+  for (uint32_t v = first; v < first + count; v++) {
+    for (size_t b = 0; b < width; b++)
+      out.push_back((v >> (8 * b)) & 0xFF);
   }
   return out;
 }
 
-const std::vector<uint8_t> OTHER_UUID_ELEMENT = concat({{0x11, 0x07}, {OTHER_RAW.begin(), OTHER_RAW.end()}});
+const std::vector<uint8_t> OTHER_UUID_PARTIAL = concat({{0x11, 0x06}, {OTHER_RAW.begin(), OTHER_RAW.end()}});
 const std::array<ESPBTUUID, 2> UUID16_AND_IMPROV = {ESPBTUUID::from_uint16(0x180A), improv_uuid()};
 const std::array<ESPBTUUID, 2> IMPROV_AND_OTHER = {improv_uuid(), ESPBTUUID::from_raw(OTHER_RAW.data())};
 const std::array<ESPBTUUID, 1> IMPROV_ONLY = {improv_uuid()};
 const std::array<ESPBTUUID, 16> UUID16S = sequential_uuid16s();
+std::array<ESPBTUUID, 8> sequential_uuid32s() {
+  std::array<ESPBTUUID, 8> uuids;
+  for (size_t i = 0; i < uuids.size(); i++)
+    uuids[i] = ESPBTUUID::from_uint32(0x00010000 + i);
+  return uuids;
+}
+const std::array<ESPBTUUID, 8> UUID32S = sequential_uuid32s();
+// Two custom 128-bit UUIDs, so neither packet carries the complete 128-bit list
+const std::vector<uint8_t> IMPROV_UUID_PARTIAL = concat({{0x11, 0x06}, {IMPROV_RAW.begin(), IMPROV_RAW.end()}});
 }  // namespace
 
 TEST(AdvPayload, UuidSize) {
@@ -262,28 +272,31 @@ TEST_P(BuildAdvPacketsWithoutPriority, ScanResponseCarriesWhatDidNotFit) {
   EXPECT_EQ(bytes(rsp), c.rsp);
 }
 
-INSTANTIATE_TEST_SUITE_P(Split, BuildAdvPacketsWithoutPriority,
-                         ::testing::Values(SplitCase{"Uuid128", UUID16_AND_IMPROV, true, true, false,
-                                                     concat({FLAGS_ELEMENT, APPEARANCE_ELEMENT, MANUFACTURER_ELEMENT,
-                                                             UUID16_ELEMENT, IMPROV_DATA_ELEMENT}),
-                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_UUID_ELEMENT})},
-                                           SplitCase{"SecondUuid128", IMPROV_AND_OTHER, false, false, false,
-                                                     concat({FLAGS_ELEMENT, IMPROV_UUID_ELEMENT}),
-                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT, OTHER_UUID_ELEMENT})},
-                                           SplitCase{"Partial16BitList", UUID16S, false, false, false,
-                                                     concat({FLAGS_ELEMENT, uuid16_list(0x02, 0x1800, 0x180C)}),
-                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT,
-                                                             uuid16_list(0x03, 0x180D, 0x180F)})},
-                                           SplitCase{"ServiceData", IMPROV_ONLY, false, true, true,
-                                                     concat({FLAGS_ELEMENT, NAME_ELEMENT, IMPROV_UUID_ELEMENT}),
-                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_DATA_ELEMENT})},
-                                           SplitCase{"NameInAdvertisingPacket",
-                                                     {},
-                                                     false,
-                                                     false,
-                                                     true,
-                                                     concat({FLAGS_ELEMENT, NAME_ELEMENT}),
-                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT})}),
-                         [](const ::testing::TestParamInfo<SplitCase> &info) { return std::string(info.param.name); });
+INSTANTIATE_TEST_SUITE_P(
+    Split, BuildAdvPacketsWithoutPriority,
+    ::testing::Values(SplitCase{"Uuid128", UUID16_AND_IMPROV, true, true, false,
+                                concat({FLAGS_ELEMENT, APPEARANCE_ELEMENT, MANUFACTURER_ELEMENT, UUID16_ELEMENT,
+                                        IMPROV_DATA_ELEMENT}),
+                                concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_UUID_ELEMENT})},
+                      SplitCase{"SecondUuid128", IMPROV_AND_OTHER, false, false, false,
+                                concat({FLAGS_ELEMENT, IMPROV_UUID_PARTIAL}),
+                                concat({NAME_ELEMENT, TX_POWER_ELEMENT, OTHER_UUID_PARTIAL})},
+                      SplitCase{"Partial32BitList", UUID32S, false, false, false,
+                                concat({FLAGS_ELEMENT, uuid_list(0x04, 4, 0x00010000, 6)}),
+                                concat({NAME_ELEMENT, TX_POWER_ELEMENT, uuid_list(0x04, 4, 0x00010006, 2)})},
+                      SplitCase{"Partial16BitList", UUID16S, false, false, false,
+                                concat({FLAGS_ELEMENT, uuid_list(0x02, 2, 0x1800, 13)}),
+                                concat({NAME_ELEMENT, TX_POWER_ELEMENT, uuid_list(0x02, 2, 0x180D, 3)})},
+                      SplitCase{"ServiceData", IMPROV_ONLY, false, true, true,
+                                concat({FLAGS_ELEMENT, NAME_ELEMENT, IMPROV_UUID_ELEMENT}),
+                                concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_DATA_ELEMENT})},
+                      SplitCase{"NameInAdvertisingPacket",
+                                {},
+                                false,
+                                false,
+                                true,
+                                concat({FLAGS_ELEMENT, NAME_ELEMENT}),
+                                concat({NAME_ELEMENT, TX_POWER_ELEMENT})}),
+    [](const ::testing::TestParamInfo<SplitCase> &info) { return std::string(info.param.name); });
 
 }  // namespace esphome::ble_device_base::testing
