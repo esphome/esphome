@@ -194,6 +194,9 @@ def test_node_monitor_only_when_used(
         ("node_event_unmonitored.yaml", True),
         ("node_event_other_hub_monitors.yaml", True),
         ("canopen.yaml", False),
+        # a profile's register_node(heartbeat_timeout=...) monitors its node too
+        ("node_event_profile_monitors.yaml", False),
+        ("node_event_profile_unmonitored.yaml", True),
     ],
 )
 def test_node_event_without_monitored_nodes(
@@ -203,7 +206,8 @@ def test_node_event_without_monitored_nodes(
     yaml: str,
     warned: bool,
 ) -> None:
-    """on_node_event on a hub that monitors no node is warned about, even when another hub monitors one."""
+    """on_node_event on a hub that monitors no node is warned about, even when another hub monitors one; nodes
+    monitored through register_node() count."""
     with caplog.at_level(logging.WARNING):
         generate_main(component_config_path(yaml))
     assert ("on_node_event never fires" in caplog.text) == warned

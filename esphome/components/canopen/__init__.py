@@ -85,6 +85,8 @@ class CANopenData:
     enabled: set[str] = field(default_factory=set)
     # canbus id -> the canopen nodes on it, in config order (to_code links them, see set_next_local())
     local_nodes: dict[str, list[MockObj]] = field(default_factory=dict)
+    # ids of the hubs that monitor a node through register_node(heartbeat_timeout=...)
+    monitoring_hubs: set[str] = field(default_factory=set)
 
 
 def _get_data() -> CANopenData:
@@ -151,10 +153,16 @@ async def _final_build_flags() -> None:
     if "node_monitor" not in _get_data().enabled:
         cg.add_build_flag("-DCO_CONFIG_HB_CONS=0")
     # each hub has its own consumer, so another hub's heartbeat_clients don't help
+    monitoring_hubs = _get_data().monitoring_hubs
     for hub in _hub_configs():
-        if CONF_ON_NODE_EVENT in hub and not hub.get(CONF_HEARTBEAT_CLIENTS):
+        if (
+            CONF_ON_NODE_EVENT in hub
+            and not hub.get(CONF_HEARTBEAT_CLIENTS)
+            and str(hub[CONF_ID]) not in monitoring_hubs
+        ):
             _LOGGER.warning(
-                "canopen %s: on_node_event never fires, this hub monitors no node (heartbeat_clients)",
+                "canopen %s: on_node_event never fires, this hub monitors no node (heartbeat_clients, or "
+                "register_node() with a heartbeat_timeout)",
                 hub[CONF_ID],
             )
 
@@ -222,6 +230,7 @@ async def register_node(
         enable_nmt_master()
     if heartbeat_timeout is not None:
         enable_node_monitor()
+        _get_data().monitoring_hubs.add(str(config[CONF_CANOPEN_ID]))
         hub = await cg.get_variable(config[CONF_CANOPEN_ID])
         cg.add(
             _register_hb_client(
