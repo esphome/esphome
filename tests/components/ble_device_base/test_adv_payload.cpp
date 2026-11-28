@@ -17,6 +17,10 @@ constexpr uint8_t FLAGS = 0x06;
 constexpr std::array<uint8_t, 16> IMPROV_RAW = {0x00, 0x80, 0x26, 0x78, 0x74, 0x27, 0x63, 0x46,
                                                 0x72, 0x22, 0x28, 0x62, 0x68, 0x77, 0x46, 0x00};
 
+// A second custom 128-bit UUID
+constexpr std::array<uint8_t, 16> OTHER_RAW = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                                               0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+
 ESPBTUUID improv_uuid() { return ESPBTUUID::from_raw(IMPROV_RAW.data()); }
 
 // A 16 or 32-bit UUID written out in 128-bit Bluetooth base form
@@ -208,15 +212,57 @@ TEST(BuildAdvPackets, PriorityUuidOwnsTheAdvertisingPacket) {
             concat({APPEARANCE_ELEMENT, NAME_ELEMENT, MANUFACTURER_ELEMENT, TX_POWER_ELEMENT, UUID16_ELEMENT}));
 }
 
-TEST(BuildAdvPackets, WithoutPriorityScanResponseRepeatsUuidsAndServiceData) {
+TEST(BuildAdvPackets, WithoutPriorityScanResponseCarriesWhatDidNotFit) {
   const ESPBTUUID uuids[] = {ESPBTUUID::from_uint16(0x180A), improv_uuid()};
   AdvPayload adv;
   AdvPayload rsp;
   build_adv_packets(improv_server_content(uuids, false), adv, rsp);
-  // No room for the 128-bit UUID in the advertising packet, nor for the service data in the scan response
+  // No room for the 128-bit UUID in the advertising packet
   EXPECT_EQ(bytes(adv),
             concat({FLAGS_ELEMENT, APPEARANCE_ELEMENT, MANUFACTURER_ELEMENT, UUID16_ELEMENT, IMPROV_DATA_ELEMENT}));
-  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, UUID16_ELEMENT, IMPROV_UUID_ELEMENT}));
+  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_UUID_ELEMENT}));
+}
+
+TEST(BuildAdvPackets, WithoutPrioritySecond128BitUuidGoesToScanResponse) {
+  const ESPBTUUID uuids[] = {improv_uuid(), ESPBTUUID::from_raw(OTHER_RAW.data())};
+  AdvContent content = improv_server_content(uuids, false);
+  content.manufacturer_data = {};
+  content.service_data = {};
+  content.appearance = 0;
+  AdvPayload adv;
+  AdvPayload rsp;
+  build_adv_packets(content, adv, rsp);
+  EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, IMPROV_UUID_ELEMENT}));
+  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, {0x11, 0x07}, {OTHER_RAW.begin(), OTHER_RAW.end()}}));
+}
+
+TEST(BuildAdvPackets, WithoutPriorityPartial16BitListContinuesInScanResponse) {
+  std::array<ESPBTUUID, 16> uuids;
+  for (size_t i = 0; i < uuids.size(); i++)
+    uuids[i] = ESPBTUUID::from_uint16(static_cast<uint16_t>(0x1800 + i));
+  AdvContent content = improv_server_content(uuids, false);
+  content.manufacturer_data = {};
+  content.service_data = {};
+  content.appearance = 0;
+  AdvPayload adv;
+  AdvPayload rsp;
+  build_adv_packets(content, adv, rsp);
+  ASSERT_EQ(adv.size(), 3u + 2u + 13u * 2u);
+  EXPECT_EQ(adv.data()[4], 0x02);  // incomplete list, 0x1800 to 0x180C
+  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, {0x07, 0x03, 0x0D, 0x18, 0x0E, 0x18, 0x0F, 0x18}}));
+}
+
+TEST(BuildAdvPackets, WithoutPriorityServiceDataThatDoesNotFitGoesToScanResponse) {
+  const ESPBTUUID uuids[] = {improv_uuid()};
+  AdvContent content = improv_server_content(uuids, false);
+  content.manufacturer_data = {};
+  content.appearance = 0;
+  content.name_in_adv = true;
+  AdvPayload adv;
+  AdvPayload rsp;
+  build_adv_packets(content, adv, rsp);
+  EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, NAME_ELEMENT, IMPROV_UUID_ELEMENT}));
+  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_DATA_ELEMENT}));
 }
 
 TEST(BuildAdvPackets, NameInAdvertisingPacket) {
