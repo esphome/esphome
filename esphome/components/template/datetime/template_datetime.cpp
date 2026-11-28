@@ -54,64 +54,44 @@ void TemplateDateTime::update() {
 }
 
 void TemplateDateTime::control(const datetime::DateTimeCall &call) {
-  auto opt_year = call.get_year();
-  auto opt_month = call.get_month();
-  auto opt_day = call.get_day();
-  auto opt_hour = call.get_hour();
-  auto opt_minute = call.get_minute();
-  auto opt_second = call.get_second();
-  bool has_year = opt_year.has_value();
-  bool has_month = opt_month.has_value();
-  bool has_day = opt_day.has_value();
-  bool has_hour = opt_hour.has_value();
-  bool has_minute = opt_minute.has_value();
-  bool has_second = opt_second.has_value();
-
   ESPTime value = {};
-  if (has_year)
-    value.year = *opt_year;
-
-  if (has_month)
-    value.month = *opt_month;
-
-  if (has_day)
-    value.day_of_month = *opt_day;
-
-  if (has_hour)
-    value.hour = *opt_hour;
-
-  if (has_minute)
-    value.minute = *opt_minute;
-
-  if (has_second)
-    value.second = *opt_second;
+  value.year = call.get_year().value_or(0);
+  value.month = call.get_month().value_or(0);
+  value.day_of_month = call.get_day().value_or(0);
+  value.hour = call.get_hour().value_or(0);
+  value.minute = call.get_minute().value_or(0);
+  value.second = call.get_second().value_or(0);
 
   this->set_trigger_.trigger(value);
 
+  // The fields the call sets, the current ones otherwise
+  const uint16_t year = call.get_year().value_or(this->year_);
+  const uint8_t month = call.get_month().value_or(this->month_);
+  const uint8_t day = call.get_day().value_or(this->day_);
+  const uint8_t hour = call.get_hour().value_or(this->hour_);
+  const uint8_t minute = call.get_minute().value_or(this->minute_);
+  const uint8_t second = call.get_second().value_or(this->second_);
+
   if (this->optimistic_) {
-    if (has_year)
-      this->year_ = *opt_year;
-    if (has_month)
-      this->month_ = *opt_month;
-    if (has_day)
-      this->day_ = *opt_day;
-    if (has_hour)
-      this->hour_ = *opt_hour;
-    if (has_minute)
-      this->minute_ = *opt_minute;
-    if (has_second)
-      this->second_ = *opt_second;
+    this->year_ = year;
+    this->month_ = month;
+    this->day_ = day;
+    this->hour_ = hour;
+    this->minute_ = minute;
+    this->second_ = second;
     this->publish_state();
   }
 
   if (this->restore_value_) {
+    // Optimistic: the live state, since an on_value callback during publish_state() may have changed it
+    const bool live = this->optimistic_;
     datetime::DateTimeEntityRestoreState temp = {};
-    temp.year = opt_year.value_or(this->year_);
-    temp.month = opt_month.value_or(this->month_);
-    temp.day = opt_day.value_or(this->day_);
-    temp.hour = opt_hour.value_or(this->hour_);
-    temp.minute = opt_minute.value_or(this->minute_);
-    temp.second = opt_second.value_or(this->second_);
+    temp.year = live ? this->year_ : year;
+    temp.month = live ? this->month_ : month;
+    temp.day = live ? this->day_ : day;
+    temp.hour = live ? this->hour_ : hour;
+    temp.minute = live ? this->minute_ : minute;
+    temp.second = live ? this->second_ : second;
 
     this->pref_.save(&temp);
   }
