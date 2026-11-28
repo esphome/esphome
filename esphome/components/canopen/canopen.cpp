@@ -13,6 +13,14 @@ namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen");
 
+#ifdef USE_CANOPEN_NODE
+// NMT reset node: once CANopenNode's queue is empty, the CAN controller's time to send what it holds (the canbus API
+// only says a frame was accepted): 4 frames at 10 kbit/s, the lowest CiA 301 rate
+static constexpr uint32_t RESET_TX_GRACE_MS = 60;
+// and the extra time it waits at most for the queue to empty (e.g. our own broadcast reset_node)
+static constexpr uint32_t RESET_FLUSH_EXTRA_MS = 80;
+#endif
+
 // indexed by the state's position in NMT_STATES; the last entry for other values
 PROGMEM_STRING_TABLE(NMTStateStrings, "bootup", "stopped", "operational", "pre-operational", "unknown");
 static_assert(NMT_STATES.size() == NMTStateStrings::LAST_INDEX);
@@ -25,16 +33,13 @@ const LogString *nmt_state_to_string(NMTState state) {
   return NMTStateStrings::get_log_str(NMTStateStrings::LAST_INDEX, NMTStateStrings::LAST_INDEX);
 }
 
-#ifdef USE_CANOPEN_NODE
-// NMTState uses CANopenNode's values; CO_NMT_UNKNOWN (-1) becomes NMT_STATE_UNKNOWN (255)
+// to_nmt_state() casts: NMTState uses CANopenNode's values; CO_NMT_UNKNOWN (-1) becomes NMT_STATE_UNKNOWN (255)
 static_assert(static_cast<uint8_t>(CO_NMT_INITIALIZING) == static_cast<uint8_t>(NMTState::NMT_STATE_BOOTUP));
 static_assert(static_cast<uint8_t>(CO_NMT_STOPPED) == static_cast<uint8_t>(NMTState::NMT_STATE_STOPPED));
 static_assert(static_cast<uint8_t>(CO_NMT_OPERATIONAL) == static_cast<uint8_t>(NMTState::NMT_STATE_OPERATIONAL));
 static_assert(static_cast<uint8_t>(CO_NMT_PRE_OPERATIONAL) ==
               static_cast<uint8_t>(NMTState::NMT_STATE_PRE_OPERATIONAL));
 static_assert(static_cast<uint8_t>(CO_NMT_UNKNOWN) == static_cast<uint8_t>(NMTState::NMT_STATE_UNKNOWN));
-static NMTState to_nmt_state(CO_NMT_internalState_t state) { return static_cast<NMTState>(state); }
-#endif
 
 void CANopenComponent::setup() {
   if (this->canbus_->is_failed()) {
@@ -53,6 +58,9 @@ void CANopenComponent::setup() {
     od.add_var(0x1014, ODA_SDO_R, &this->cob_emcy_, sizeof(this->cob_emcy_));
     od.add_var(0x1017, ODA_SDO_RW, &this->hb_producer_ms_, sizeof(this->hb_producer_ms_));
     this->add_device_info_od_();
+#ifdef USE_CANOPEN_NODE_MONITOR
+    this->add_node_monitor_od_();
+#endif
   }
 #endif
 #ifdef USE_CANOPEN_SDO_CLIENT
@@ -71,6 +79,9 @@ void CANopenComponent::setup() {
     cfg.ENTRY_H1014 = od.find(0x1014);
     cfg.CNT_ARR_1003 = 8;  // EM fifo size, needs >= 1
     this->config_device_info_(cfg);
+#ifdef USE_CANOPEN_NODE_MONITOR
+    this->config_node_monitor_(cfg);
+#endif
   }
 #endif
 #ifdef USE_CANOPEN_SDO_CLIENT
@@ -100,6 +111,9 @@ void CANopenComponent::setup() {
       this->fail_setup_(LOG_STR("CO_CANopenInit failed"));
       return;
     }
+#ifdef USE_CANOPEN_NODE_MONITOR
+    this->init_node_monitor_();
+#endif
     this->last_us_ = micros();
   }
 #endif
@@ -113,6 +127,10 @@ void CANopenComponent::setup() {
   for (const FrameListener *l = this->frame_listeners_; l != nullptr; l = l->next)
     this->check_frame_listener_(l->can_id, l->mask);
 
+#ifdef USE_CANOPEN_LOCAL_NODES
+  if (this->next_local_ != nullptr && this->next_local_ != this)
+    this->local_queue_.init(LOCAL_QUEUE_SIZE);
+#endif
   CO_CANsetNormalMode(this->co_->CANmodule);
   this->canbus_->add_frame_callback([this](const canbus::CanFrame &frame) { this->on_frame_(frame); });
   ESP_LOGV(TAG, "CANopenNode initialized, node 0x%02x, heap %" PRIu32 " B", this->node_id_, heap);
@@ -148,11 +166,18 @@ void CANopenComponent::dump_config() {
 #ifdef USE_CANOPEN_SDO_CLIENT
   ESP_LOGCONFIG(TAG, "  SDO client: response timeout %u ms", this->response_timeout_ms_);
 #endif
+#ifdef USE_CANOPEN_NODE_MONITOR
+  this->dump_node_monitor_config_();
+#endif
 #endif
 }
 
 bool CANopenComponent::idle_() const {
 #ifdef USE_CANOPEN_SDO_CLIENT
+#ifdef USE_CANOPEN_LOCAL_NODES
+  if (!this->local_queue_.empty())
+    return false;
+#endif
   return this->is_client_only() && this->co_->CANmodule->CANtxCount == 0 && this->sdo_idle_();
 #else
   return false;
@@ -166,6 +191,10 @@ void CANopenComponent::loop() {
     this->disable_loop();
     return;
   }
+#ifdef USE_CANOPEN_LOCAL_NODES
+  // frames other local nodes sent since the canbus loop delivered the bus's (on_frame_() delivers the older ones first)
+  this->deliver_local_();
+#endif
 #ifdef USE_CANOPEN_SDO_CLIENT
   // SDO client first: an unsent frame ends at its deadline, before the flush could send it. Time runs only here,
   // after the canbus loop delivered its frames: a received frame may come before a queued reply.
@@ -197,15 +226,31 @@ void CANopenComponent::loop() {
 
 void CANopenComponent::process_node_() {
 #ifdef USE_CANOPEN_NODE
+  this->processing_ = true;
   uint32_t now = micros();
   uint32_t dt = now - this->last_us_;
   this->last_us_ = now;
   CO_NMT_reset_cmd_t reset = CO_process(this->co_, false, dt, nullptr);
-  if (reset == CO_RESET_APP) {
+#ifdef USE_CANOPEN_NODE_MONITOR
+  this->process_node_monitor_(dt);
+  this->dispatch_node_events_();
+#endif
+  const uint32_t now_ms = App.get_loop_component_start_time();
+  if (reset == CO_RESET_APP && !this->reset_pending_) {
     ESP_LOGW(TAG, "NMT reset node");
-    App.safe_reboot();
+    this->reset_pending_ = true;
+    this->reset_deadline_ms_ = now_ms + RESET_TX_GRACE_MS + RESET_FLUSH_EXTRA_MS;
   } else if (reset == CO_RESET_COMM) {
     ESP_LOGW(TAG, "NMT reset communication (not implemented)");
+  }
+  // The reboot waits for the queued frames (loop() flushes them before it processes the node), then for the controller
+  // to send them: a reset_node to all nodes from us would otherwise reboot us before its frame is on the bus.
+  if (this->reset_pending_) {
+    if (this->co_->CANmodule->CANtxCount == 0 &&
+        static_cast<int32_t>(now_ms + RESET_TX_GRACE_MS - this->reset_deadline_ms_) < 0)
+      this->reset_deadline_ms_ = now_ms + RESET_TX_GRACE_MS;
+    if (static_cast<int32_t>(now_ms - this->reset_deadline_ms_) >= 0)
+      App.safe_reboot();
   }
   // CANopenNode's state change callback has no context pointer, so the state is compared here
   NMTState state = to_nmt_state(CO_NMT_getInternalState(this->co_->NMT));
@@ -214,8 +259,23 @@ void CANopenComponent::process_node_() {
     ESP_LOGI(TAG, "NMT state: %s", LOG_STR_ARG(nmt_state_to_string(state)));
     this->nmt_state_callback_.call(state);
   }
+  this->processing_ = false;
 #endif  // USE_CANOPEN_NODE
 }
+
+#ifdef USE_CANOPEN_NODE
+bool CANopenComponent::nmt_command_pending_() const { return this->co_->NMT->internalCommand != CO_NMT_NO_COMMAND; }
+
+void CANopenComponent::apply_nmt_command_() {
+  if (this->processing_)
+    return;  // an automation the processing runs: applied by the next one
+  // as everywhere the node is processed, without flushing (also when called while a received frame is handled)
+  const bool held = this->hold_flush_;
+  this->hold_flush_ = true;
+  this->process_node_();
+  this->hold_flush_ = held;
+}
+#endif
 
 bool CANopenComponent::set_nmt_state(NMTState state) {
 #ifdef USE_CANOPEN_NODE
@@ -235,8 +295,13 @@ bool CANopenComponent::set_nmt_state(NMTState state) {
     default:
       return false;
   }
-  // applied by the next CO_process()
+  if (this->nmt_command_pending_()) {
+    ESP_LOGW(TAG, "NMT state %s rejected: the previous command is still pending",
+             LOG_STR_ARG(nmt_state_to_string(state)));
+    return false;
+  }
   CO_NMT_sendInternalCommand(this->co_->NMT, command);
+  this->apply_nmt_command_();
   return true;
 #else
   return false;

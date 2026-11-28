@@ -1,4 +1,5 @@
 gps:
+  id: gps_hub
   latitude:
     name: "Latitude"
     id: gps_lat
@@ -26,3 +27,13 @@ time:
     on_time_sync:
       then:
         logger.log: "It's time!"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          const auto &data = id(gps_hub).get_data();
+          if (data.has(gps::GPS_FIELD_LOCATION) && data.is_updated(gps::GPS_FIELD_SPEED)) {
+            ESP_LOGI("gps_test", "%.7f, %.7f at %.1f km/h", data.latitude_e7 * 1e-7, data.longitude_e7 * 1e-7,
+                     data.speed_kmh());
+          }

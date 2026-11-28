@@ -171,6 +171,14 @@ void MipiDsi::setup() {
         delay(10);
     }
   }
+  if (this->brightness_.has_value()) {
+    const uint8_t brightness = this->brightness_.value();
+    err = esp_lcd_panel_io_tx_param(this->io_handle_, BRIGHTNESS_CMD, &brightness, 1);
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
+      return;
+    }
+  }
   this->io_lock_ = xSemaphoreCreateBinary();
   esp_lcd_dpi_panel_event_callbacks_t cbs = {
       .on_color_trans_done = notify_refresh_ready,
@@ -189,6 +197,29 @@ void MipiDsi::setup() {
   axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, DSI_DMA_READ_PRIORITY);
 
   ESP_LOGCONFIG(TAG, "MIPI DSI setup complete");
+}
+
+void MipiDsi::set_brightness(uint8_t brightness) {
+  this->brightness_ = brightness;
+  if (!this->is_ready())
+    return;
+  this->send_brightness_();
+}
+
+void MipiDsi::send_brightness_() {
+  if (!this->brightness_.has_value())
+    return;
+  const uint8_t brightness = *this->brightness_;
+  esp_err_t err = esp_lcd_panel_io_tx_param(this->io_handle_, BRIGHTNESS_CMD, &brightness, 1);
+  // The retry is set before logging, as a log callback can set the brightness again
+  if (err == ESP_OK) {
+    this->cancel_timeout(BRIGHTNESS_RETRY_ID);
+  } else {
+    // The latest value is sent again
+    this->set_timeout(BRIGHTNESS_RETRY_ID, BRIGHTNESS_RETRY_MS, [this]() { this->send_brightness_(); });
+    ESP_LOGW(TAG, "Setting brightness failed: %s", esp_err_to_name(err));
+  }
+  this->status_comm_result(err == ESP_OK);
 }
 
 void MipiDsi::update() {

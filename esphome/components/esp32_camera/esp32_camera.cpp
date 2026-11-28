@@ -14,6 +14,8 @@ static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
 #endif
+static constexpr uint8_t JPEG_QUALITY_MIN = 6;
+static constexpr uint8_t JPEG_QUALITY_MAX = 63;
 #ifdef USE_ESP32_CAMERA_CAPTURE
 // Below the 5 s snapshot timeout of esp32_camera_web_server, at least 1 s after the longest capture_delay
 static constexpr uint32_t CAPTURE_TIMEOUT_MS = 4000;
@@ -99,10 +101,7 @@ void ESP32Camera::setup() {
   this->last_update_ = millis();
 
   /* initialize camera */
-  esp_err_t err = esp_camera_init(&this->config_);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_camera_init failed: %s", esp_err_to_name(err));
-    this->init_error_ = err;
+  if (!this->start_driver_(false)) {
     this->mark_failed();
     return;
   }
@@ -113,14 +112,10 @@ void ESP32Camera::setup() {
   /* initialize RTOS */
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
-  xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
-                          "framebuffer_task",           // name
-                          FRAMEBUFFER_TASK_STACK_SIZE,  // stack size
-                          this,                         // task pv params
-                          1,                            // priority
-                          nullptr,                      // handle
-                          1                             // core
-  );
+  if (!this->start_framebuffer_task_()) {
+    this->mark_failed(LOG_STR("Failed to create the framebuffer task"));
+    return;
+  }
 }
 
 void ESP32Camera::dump_config() {
@@ -146,8 +141,8 @@ void ESP32Camera::dump_config() {
   ESP_LOGCONFIG(TAG, "  Capture Delay: %u ms", this->capture_delay_);
 #endif
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Setup Failed: %s", esp_err_to_name(this->init_error_));
+  if (this->init_error_ != ESP_OK) {
+    ESP_LOGE(TAG, "  Init Failed: %s", esp_err_to_name(this->init_error_));
     return;
   }
 
@@ -157,6 +152,8 @@ void ESP32Camera::dump_config() {
     return;
   }
   auto st = s->status;
+  // The sensor's quality is only used for JPEG output; converted frames use the configured one
+  const uint8_t quality = conf.pixel_format == PIXFORMAT_JPEG ? st.quality : conf.jpeg_quality;
   ESP_LOGCONFIG(TAG,
                 "  JPEG Quality: %u\n"
                 "  Framebuffer Count: %u\n"
@@ -168,9 +165,8 @@ void ESP32Camera::dump_config() {
                 "  Horizontal Mirror: %s\n"
                 "  Special Effect: %u\n"
                 "  White Balance Mode: %u",
-                st.quality, conf.fb_count, this->config_.fb_location == CAMERA_FB_IN_PSRAM ? "PSRAM" : "DRAM",
-                st.contrast, st.brightness, st.saturation, ONOFF(st.vflip), ONOFF(st.hmirror), st.special_effect,
-                st.wb_mode);
+                quality, conf.fb_count, this->config_.fb_location == CAMERA_FB_IN_PSRAM ? "PSRAM" : "DRAM", st.contrast,
+                st.brightness, st.saturation, ONOFF(st.vflip), ONOFF(st.hmirror), st.special_effect, st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
   ESP_LOGCONFIG(TAG,
@@ -194,6 +190,14 @@ void ESP32Camera::dump_config() {
 }
 
 void ESP32Camera::loop() {
+  if (this->driver_restart_pending_) {
+    this->restart_driver_step_();
+    return;
+  }
+  // The driver is down after a failed start, there is nothing to fetch
+  if (this->init_error_ != ESP_OK)
+    return;
+
   // Fast path: skip all work when truly idle
   // (no current image, no pending requests, and not time for idle request yet)
   const uint32_t now = App.get_loop_component_start_time();
@@ -208,23 +212,8 @@ void ESP32Camera::loop() {
   }
 
   // check if we can return the image
-  if (this->can_return_image_()) {
-    // return image
-#ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
-    if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
-      // for non-JPEG format, we need to free the data and raw buffer
-      auto *jpg_buf = this->current_image_->get_data_buffer();
-      free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
-      auto *fb = this->current_image_->get_raw_buffer();
-      this->fb_allocator_.deallocate(fb, 1);
-    } else
-#endif
-    {
-      auto *fb = this->current_image_->get_raw_buffer();
-      xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
-    }
-    this->current_image_.reset();
-  }
+  if (this->can_return_image_())
+    this->release_current_image_(true);
 
   // Check if we should fetch a new image
   if (!this->has_requested_image_())
@@ -265,7 +254,7 @@ void ESP32Camera::loop() {
 #endif
 
 #ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
-  if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
+  if (this->config_.pixel_format != PIXFORMAT_JPEG) {
     // for non-JPEG format, we need to convert the frame to JPEG
     uint8_t *jpg_buf;
     size_t jpg_buf_len;
@@ -434,6 +423,20 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
       break;
   }
 }
+bool ESP32Camera::set_jpeg_quality(int quality) {
+  // 0 is only the configuration value for "no conversion", it is no quality to apply
+#ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
+  const bool in_use = true;
+#else
+  const bool in_use = this->config_.pixel_format == PIXFORMAT_JPEG;
+#endif
+  if (quality == 0 ? in_use : (quality < JPEG_QUALITY_MIN || quality > JPEG_QUALITY_MAX)) {
+    ESP_LOGE(TAG, "JPEG quality %d is not valid, use %u to %u", quality, JPEG_QUALITY_MIN, JPEG_QUALITY_MAX);
+    return false;
+  }
+  this->config_.jpeg_quality = quality;
+  return true;
+}
 void ESP32Camera::set_pixel_format(ESP32CameraPixelFormat format) {
   switch (format) {
     case ESP32_PIXEL_FORMAT_RGB565:
@@ -492,7 +495,16 @@ void ESP32Camera::stop_stream(camera::CameraRequester requester) {
 void ESP32Camera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
 camera::CameraImageReader *ESP32Camera::create_image_reader() { return new ESP32CameraImageReader; }
 void ESP32Camera::update_camera_parameters() {
+  // A failed setup() is final, a restart is already on its way and ends by applying everything
+  if (this->is_failed() || this->driver_restart_pending_)
+    return;
   sensor_t *s = esp_camera_sensor_get();
+  // Another frame size, or a driver that is down after a failed start, needs the driver started again.
+  // Before setup() there is neither a sensor nor an error, and set_frame_size() only has to store the size.
+  if (this->init_error_ != ESP_OK || (s != nullptr && s->status.framesize != this->config_.frame_size)) {
+    this->driver_restart_pending_ = true;
+    return;
+  }
   if (s == nullptr) {
     return;
   }
@@ -503,6 +515,9 @@ void ESP32Camera::update_camera_parameters() {
   s->set_brightness(s, this->brightness_);
   s->set_saturation(s, this->saturation_);
   s->set_special_effect(s, (int) this->special_effect_);  // 0 to 6
+  // Other formats are converted in loop(), which reads the quality for every frame
+  if (this->config_.pixel_format == PIXFORMAT_JPEG)
+    s->set_quality(s, this->config_.jpeg_quality);
   /* update exposure */
   s->set_exposure_ctrl(s, (bool) this->aec_mode_);
   s->set_aec2(s, this->aec2_);            // 0 = disable , 1 = enable
@@ -525,6 +540,104 @@ void ESP32Camera::update_camera_parameters() {
 /* ---------------- Internal methods ---------------- */
 bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
+// Starts the driver with config_, or stops and starts it again when restart is set. The driver lowers a frame size
+// the sensor does not take, config_ follows it.
+bool ESP32Camera::start_driver_(bool restart) {
+  const esp_err_t err = restart ? esp_camera_reconfigure(&this->config_) : esp_camera_init(&this->config_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_camera_init failed: %s", esp_err_to_name(err));
+    this->init_error_ = err;
+    return false;
+  }
+  this->init_error_ = ESP_OK;
+  if (sensor_t *s = esp_camera_sensor_get(); s != nullptr)
+    this->config_.frame_size = s->status.framesize;
+  return true;
+}
+bool ESP32Camera::start_framebuffer_task_() {
+  this->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_RUNNING);
+  if (xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
+                              "framebuffer_task",           // name
+                              FRAMEBUFFER_TASK_STACK_SIZE,  // stack size
+                              this,                         // task pv params
+                              1,                            // priority
+                              nullptr,                      // handle
+                              1                             // core
+                              ) != pdPASS) {
+    this->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPED);
+    this->init_error_ = ESP_ERR_NO_MEM;
+    return false;
+  }
+  return true;
+}
+// Frees what the current image holds. The camera frame goes back to the driver only when return_frame is set.
+void ESP32Camera::release_current_image_(bool return_frame) {
+#ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
+  // Must match the check that made the image; jpeg_quality can change in between, the format cannot
+  if (this->config_.pixel_format != PIXFORMAT_JPEG) {
+    // for non-JPEG format, we need to free the data and raw buffer
+    auto *jpg_buf = this->current_image_->get_data_buffer();
+    free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
+    auto *fb = this->current_image_->get_raw_buffer();
+    this->fb_allocator_.deallocate(fb, 1);
+  } else
+#endif
+  {
+    if (return_frame) {
+      auto *fb = this->current_image_->get_raw_buffer();
+      xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
+    }
+  }
+  this->current_image_.reset();
+}
+// One loop pass of a driver restart: wait for the readers of the last image, end the framebuffer task, then start
+// the driver again with the new frame size. A failed start is logged and leaves the camera down.
+void ESP32Camera::restart_driver_step_() {
+  // The driver frees all frame buffers, so nothing may keep reading one
+  if (this->current_image_) {
+    if (!this->can_return_image_())
+      return;
+    this->release_current_image_(false);
+  }
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  this->cancel_capture_();
+  this->finish_ended_capture_();
+#endif
+
+  // Only this thread moves RUNNING to STOPPING, and the task only ends once it sees STOPPING
+  if (this->task_state_.load() == FramebufferTaskState::FRAMEBUFFER_TASK_STATE_RUNNING)
+    this->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPING);
+  if (this->task_state_.load() != FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPED) {
+    // The task ends once it gets a frame back: drop the one it hands over and send an empty one
+    camera_fb_t *fb = nullptr;
+    while (xQueueReceive(this->framebuffer_get_queue_, &fb, 0) == pdTRUE) {
+      // dropped
+    }
+    fb = nullptr;
+    xQueueSend(this->framebuffer_return_queue_, &fb, 0);
+    return;
+  }
+
+  // The task is gone, the queues only hold frames of the old buffers
+  xQueueReset(this->framebuffer_get_queue_);
+  xQueueReset(this->framebuffer_return_queue_);
+  this->driver_restart_pending_ = false;
+  if (!this->start_driver_(true)) {
+    this->status_set_error();
+    return;
+  }
+#ifdef USE_ESP32_CAMERA_WINDOW
+  // The window is in pixels of the old frame size
+  this->window_ = {};
+#endif
+  this->update_camera_parameters();
+  // A failed task start counts as a failed restart: the next update_camera_parameters() tries again
+  if (!this->start_framebuffer_task_()) {
+    this->status_set_error(LOG_STR("Failed to create the framebuffer task"));
+    return;
+  }
+  this->status_clear_error();
+}
 #ifdef USE_ESP32_CAMERA_CAPTURE
 void ESP32Camera::cancel_capture_() {
   if (this->capture_state_ == CaptureState::CAPTURE_STATE_WAITING ||
@@ -604,8 +717,14 @@ void ESP32Camera::framebuffer_task(void *pv) {
     }
     // return is no-op for config with 1 fb
     xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
+    // The driver is being stopped and its frames are about to go away
+    if (that->task_state_.load() == FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPING)
+      break;
     esp_camera_fb_return(framebuffer);
   }
+  that->task_state_.store(FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPED);
+  App.wake_loop_threadsafe();
+  vTaskDelete(nullptr);
 }
 
 /* ---------------- ESP32CameraImageReader class ----------- */

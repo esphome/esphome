@@ -8,16 +8,11 @@ namespace esphome::gps {
 
 class GPSTime final : public time::RealTimeClock, public GPSListener {
  public:
-  void update() override { this->from_tiny_gps_(this->get_tiny_gps()); };
-  void on_update(TinyGPSPlus &tiny_gps) override {
-    if (!this->has_time_) {
-      this->from_tiny_gps_(tiny_gps);
-    }
-  }
+  void update() override { this->sync_pending_ = true; }
+  void on_update(const GPSData &data) override;
 
  protected:
-  void from_tiny_gps_(TinyGPSPlus &tiny_gps);
-  bool has_time_{false};
+  bool sync_pending_{true};
 };
 
 }  // namespace esphome::gps

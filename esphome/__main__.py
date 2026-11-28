@@ -2405,6 +2405,12 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     return run(args, config)
 
 
+def command_prune(args: ArgsProtocol) -> int | None:
+    from esphome.cli.prune import command_prune as run
+
+    return run(args)
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -2412,6 +2418,7 @@ PRE_CONFIG_ACTIONS = {
     "vscode": command_vscode,
     "update-all": command_update_all,
     "clean-all": command_clean_all,
+    "prune": command_prune,
     "recover-yaml": command_recover_yaml,
 }
 
@@ -2826,6 +2833,21 @@ def parse_args(argv):
     )
     parser_clean_all.add_argument(
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
+    )
+
+    parser_prune = subparsers.add_parser(
+        "prune",
+        help="Remove what this ESPHome version no longer builds with by default: "
+        "the ESP-IDF, ESP8266 Arduino and nRF Connect SDK versions other than "
+        "the recommended ones, with the toolchains and Python environments "
+        "those do not use; what PlatformIO installed for ESP32, ESP8266 and "
+        "nRF52; other versions of the RP2 and LibreTiny platforms; and the "
+        "PlatformIO download cache.",
+    )
+    parser_prune.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List what would be removed without removing it.",
     )
 
     # The dashboard moved to ESPHome Device Builder; the command is kept only to

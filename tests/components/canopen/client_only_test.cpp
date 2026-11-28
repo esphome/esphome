@@ -113,6 +113,9 @@ TEST_F(ClientOnly, RequestToAnAbsentNodeTimesOut) {
 TEST_F(ClientOnly, NoNmt) {
   start();
   EXPECT_FALSE(client.set_nmt_state(NMTState::NMT_STATE_STOPPED));
+#ifdef USE_CANOPEN_NMT_MASTER
+  EXPECT_FALSE(client.send_nmt(0x10, NMTCommand::NMT_COMMAND_STOP));
+#endif
   EXPECT_EQ(client.get_nmt_state(), NMTState::NMT_STATE_UNKNOWN);
 }
 
