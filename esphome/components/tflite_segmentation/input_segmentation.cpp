@@ -32,6 +32,8 @@ bool SegmentationDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   if (this->width_ != width || this->height_ != height || this->classes_ != classes) {
     this->labels_ = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(pixels);
     if (!this->labels_) {
+      // The old buffer is gone, so a later mask of the old shape has to allocate again.
+      this->width_ = this->height_ = this->classes_ = 0;
       ESP_LOGE(TAG, "Could not allocate the %zu-byte label image", pixels);
       return false;
     }
