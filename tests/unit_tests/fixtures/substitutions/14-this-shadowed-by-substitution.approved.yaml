@@ -1,0 +1,5 @@
+substitutions:
+  this: overridden
+
+test_list:
+  - file_name: 14-this-shadowed-by-substitution.input.yaml
