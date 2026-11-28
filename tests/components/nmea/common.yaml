@@ -1,6 +1,9 @@
 gnss:
   - platform: nmea
     id: gnss_receiver
+    field_age: true
+    millisecond: true
+    geoid_separation: true
 
 sensor:
   - platform: gnss
@@ -54,4 +57,8 @@ interval:
           if (data.has(gnss::GNSS_FIELD_LOCATION) && data.is_updated(gnss::GNSS_FIELD_SPEED)) {
             ESP_LOGI("nmea_test", "%.7f, %.7f at %.1f km/h", data.latitude_e7 * 1e-7, data.longitude_e7 * 1e-7,
                      data.speed_kmh());
+          }
+          if (id(gnss_receiver).get_age(gnss::GNSS_FIELD_LOCATION) < 3000 && data.has(gnss::GNSS_FIELD_GEOID_SEPARATION)) {
+            ESP_LOGI("nmea_test", "%02u:%02u:%02u.%03u, geoid separation %.1f m", data.hour, data.minute, data.second,
+                     data.millisecond, data.geoid_separation());
           }

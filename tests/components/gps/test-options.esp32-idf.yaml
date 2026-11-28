@@ -1,0 +1,22 @@
+substitutions:
+  tx_pin: GPIO12
+  rx_pin: GPIO14
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
+gps:
+  id: gps_hub
+  field_age: true
+  millisecond: true
+  geoid_separation: true
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          const auto &data = id(gps_hub).get_data();
+          if (id(gps_hub).get_age(gps::GPS_FIELD_LOCATION) < 3000 && data.has(gps::GPS_FIELD_GEOID_SEPARATION)) {
+            ESP_LOGI("gps_test", "%02u:%02u:%02u.%03u, geoid separation %.1f m", data.hour, data.minute,
+                     data.second, data.millisecond, data.geoid_separation());
+          }

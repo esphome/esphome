@@ -9,7 +9,10 @@ CODEOWNERS = ["@randybb"]
 DOMAIN = "gnss"
 IS_PLATFORM_COMPONENT = True
 
+CONF_FIELD_AGE = "field_age"
+CONF_GEOID_SEPARATION = "geoid_separation"
 CONF_GNSS_ID = "gnss_id"
+CONF_MILLISECOND = "millisecond"
 
 gnss_ns = cg.esphome_ns.namespace("gnss")
 GNSSComponent = gnss_ns.class_("GNSSComponent", cg.PollingComponent)
@@ -32,6 +35,22 @@ FIX_PUBLISHER = cg.HubFunction(
 DATA = DATA_PUBLISHER.param("data")
 FIX = FIX_PUBLISHER.param("data")
 
+
+def request_field_age() -> None:
+    """Compile in GNSSComponent::get_age(), which costs 4 bytes of RAM per field."""
+    cg.add_define("USE_GNSS_FIELD_AGE")
+
+
+def request_millisecond() -> None:
+    """Compile in GNSSData::millisecond."""
+    cg.add_define("USE_GNSS_MILLISECOND")
+
+
+def request_geoid_separation() -> None:
+    """Compile in GNSSData::geoid_separation_e3."""
+    cg.add_define("USE_GNSS_GEOID_SEPARATION")
+
+
 GNSS_CHILD_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_GNSS_ID): cv.use_id(GNSSComponent),
@@ -44,6 +63,10 @@ def gnss_schema(class_: MockObjClass) -> cv.Schema:
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(class_),
+            # For lambdas; components that need these request them
+            cv.Optional(CONF_FIELD_AGE, default=False): cv.boolean,
+            cv.Optional(CONF_MILLISECOND, default=False): cv.boolean,
+            cv.Optional(CONF_GEOID_SEPARATION, default=False): cv.boolean,
         }
     ).extend(cv.polling_component_schema("20s"))
 
@@ -52,4 +75,10 @@ async def new_gnss(config: ConfigType) -> MockObj:
     """Create and register a gnss platform."""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    if config[CONF_FIELD_AGE]:
+        request_field_age()
+    if config[CONF_MILLISECOND]:
+        request_millisecond()
+    if config[CONF_GEOID_SEPARATION]:
+        request_geoid_separation()
     return var

@@ -27,13 +27,14 @@ TEST(NMEAParser, Gga) {
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.longitude_e7, 115166667);
   EXPECT_EQ(data.altitude_e3, 545400);
+  EXPECT_EQ(data.geoid_separation_e3, 46900);
   EXPECT_EQ(data.satellites, 8);
   EXPECT_EQ(data.hdop_e2, 90);
   EXPECT_EQ(data.hour, 12);
   EXPECT_EQ(data.minute, 35);
   EXPECT_EQ(data.second, 19);
   EXPECT_EQ(data.updated, gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_SATELLITES |
-                              gnss::GNSS_FIELD_HDOP | gnss::GNSS_FIELD_ALTITUDE);
+                              gnss::GNSS_FIELD_HDOP | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_GEOID_SEPARATION);
   EXPECT_EQ(data.valid, data.updated);
 }
 
@@ -123,6 +124,29 @@ TEST(NMEAParser, RmcWithoutFixSetsNothing) {
   ASSERT_TRUE(parse(with_checksum("$GNRMC,090552.42,V,,,,,,,021225,,,N,V"), data));
   EXPECT_EQ(data.updated, 0);
   EXPECT_EQ(data.valid, 0);
+}
+
+TEST(NMEAParser, TimeFraction) {
+  GNSSData data;
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090552.42,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,"), data));
+  EXPECT_EQ(data.second, 52);
+  EXPECT_EQ(data.millisecond, 420);
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090553.1239,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,"), data));
+  EXPECT_EQ(data.millisecond, 123);
+  ASSERT_TRUE(parse("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
+  EXPECT_EQ(data.millisecond, 0);
+}
+
+TEST(NMEAParser, GeoidSeparation) {
+  GNSSData data;
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090552.42,3351.123,S,15112.765,E,1,08,0.9,45.4,M,-12.25,M,,"), data));
+  EXPECT_EQ(data.geoid_separation_e3, -12250);
+  EXPECT_FLOAT_EQ(data.geoid_separation(), -12.25f);
+  EXPECT_TRUE(data.is_updated(gnss::GNSS_FIELD_GEOID_SEPARATION));
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090553.42,3351.123,S,15112.765,E,1,08,0.9,45.4,M,,M,,"), data));
+  EXPECT_FALSE(data.is_updated(gnss::GNSS_FIELD_GEOID_SEPARATION));
+  EXPECT_TRUE(data.has(gnss::GNSS_FIELD_GEOID_SEPARATION));
+  EXPECT_EQ(data.geoid_separation_e3, -12250);
 }
 
 TEST(NMEAParser, LeapDayAndLeapSecond) {
