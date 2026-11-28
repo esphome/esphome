@@ -16,6 +16,7 @@ class FakeFs : public Filesystem {
   using Filesystem::Filesystem;
 
   bool has_filesystem{true};
+  FsError init_error{FsError::FS_ERROR_NONE};
   int mounts{0};
   int formats{0};
   int closes{0};
@@ -30,7 +31,7 @@ class FakeFs : public Filesystem {
   FsError fs_init(uint8_t max_files, uint8_t max_dirs) override {
     this->open_.resize(max_files);
     this->dir_pos_.resize(max_dirs);
-    return FsError::FS_ERROR_NONE;
+    return this->init_error;
   }
   FsError fs_mount() override {
     this->mounts++;

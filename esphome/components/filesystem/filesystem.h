@@ -83,12 +83,12 @@ class File {
 
  protected:
   friend class Filesystem;
-  File(Filesystem *fs, uint8_t slot, uint8_t mount) : fs_(fs), slot_(slot), mount_(mount) {}
+  File(Filesystem *fs, uint8_t slot, uint16_t mount) : fs_(fs), slot_(slot), mount_(mount) {}
   void take_(File &other);
 
   Filesystem *fs_{nullptr};
   uint8_t slot_{0};
-  uint8_t mount_{0};  // The mount the file was opened on
+  uint16_t mount_{0};  // The mount the file was opened on
 };
 
 /// A handle to an open directory, closed when destroyed.
@@ -114,12 +114,12 @@ class Dir {
 
  protected:
   friend class Filesystem;
-  Dir(Filesystem *fs, uint8_t slot, uint8_t mount) : fs_(fs), slot_(slot), mount_(mount) {}
+  Dir(Filesystem *fs, uint8_t slot, uint16_t mount) : fs_(fs), slot_(slot), mount_(mount) {}
   void take_(Dir &other);
 
   Filesystem *fs_{nullptr};
   uint8_t slot_{0};
-  uint8_t mount_{0};
+  uint16_t mount_{0};
 };
 
 /** A filesystem on a block device.
@@ -128,6 +128,7 @@ class Dir {
  * media changes. Handles opened on earlier media fail with FS_ERROR_CLOSED as soon as the media changes. A mount
  * that fails is not tried again on the same media until mount() or format() is called. File and directory handles come
  * from fixed pools sized at build time; open() fails with FS_ERROR_TOO_MANY_OPEN when the pool is empty.
+ * Calls before setup(), or after setup() failed, return FS_ERROR_INVALID.
  *
  * Paths are absolute, with '/' between names. Calls block until done: on an SD card one can take hundreds of
  * milliseconds, and format() or space() several seconds on a large card.
@@ -200,11 +201,11 @@ class Filesystem : public Component {
   /// Mount if needed, unmounting first when the media changed. Returns the error to report, or NONE.
   FsError ready_();
   bool media_current_() const { return this->media_generation_ == this->device_->get_media_generation(); }
-  bool file_valid_(uint8_t mount) const {
+  bool file_valid_(uint16_t mount) const {
     return this->mounted_ && mount == this->mount_count_ && this->media_current_();
   }
-  FsError release_file_(uint8_t slot, uint8_t mount);
-  FsError release_dir_(uint8_t slot, uint8_t mount);
+  FsError release_file_(uint8_t slot, uint16_t mount);
+  FsError release_dir_(uint8_t slot, uint16_t mount);
   FsError fail_(FsError error) {
     this->last_error_ = error;
     return error;
@@ -213,11 +214,11 @@ class Filesystem : public Component {
   storage::BlockDevice *device_;
   FsMutex mutex_;
   uint32_t files_in_use_{0};  // One bit per slot
+  uint16_t mount_count_{0};   // Bumped on each mount, so handles from an earlier mount are refused
   uint8_t dirs_in_use_{0};
   uint8_t max_files_{2};
   uint8_t max_dirs_{1};
   uint8_t media_generation_{0};  // The device generation that was mounted
-  uint8_t mount_count_{0};       // Bumped on each mount, so handles from an earlier mount are refused
   FsError last_error_{FsError::FS_ERROR_NONE};
   FsError mount_error_{FsError::FS_ERROR_NONE};  // Why mounting the current media failed, so it is not retried
   bool mounted_{false};

@@ -160,16 +160,14 @@ void Filesystem::on_shutdown() {
 void Filesystem::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Mounted: %s\n"
-                "  Open files: %u\n"
-                "  Open directories: %u\n"
+                "  Max open files: %u\n"
+                "  Max open directories: %u\n"
                 "  Format if mount fails: %s",
                 YESNO(this->mounted_), this->max_files_, this->max_dirs_, YESNO(this->format_if_mount_failed_));
 }
 
 FsError Filesystem::mount() {
   const std::scoped_lock lock{this->mutex_};
-  if (this->is_failed())
-    return FsError::FS_ERROR_INVALID;
   this->mount_error_ = FsError::FS_ERROR_NONE;
   return this->ready_();
 }
@@ -198,6 +196,9 @@ void Filesystem::unmount() {
 }
 
 FsError Filesystem::ready_() {
+  // Before setup(), or after fs_init() failed, the driver has no state to mount with
+  if (!this->is_ready())
+    return FsError::FS_ERROR_INVALID;
   if (this->mounted_ && this->media_current_())
     return FsError::FS_ERROR_NONE;
   if (this->mounted_) {
@@ -282,7 +283,7 @@ Dir Filesystem::open_dir(const char *path) {
   return {};
 }
 
-FsError Filesystem::release_file_(uint8_t slot, uint8_t mount) {
+FsError Filesystem::release_file_(uint8_t slot, uint16_t mount) {
   const std::scoped_lock lock{this->mutex_};
   // A handle from an earlier mount has no driver state left; its slot was freed by unmount()
   if (!this->file_valid_(mount))
@@ -291,7 +292,7 @@ FsError Filesystem::release_file_(uint8_t slot, uint8_t mount) {
   return this->fs_close(slot);
 }
 
-FsError Filesystem::release_dir_(uint8_t slot, uint8_t mount) {
+FsError Filesystem::release_dir_(uint8_t slot, uint16_t mount) {
   const std::scoped_lock lock{this->mutex_};
   if (!this->file_valid_(mount))
     return FsError::FS_ERROR_CLOSED;
@@ -341,7 +342,7 @@ FsError Filesystem::space(uint64_t &total, uint64_t &free) {
 
 FsError Filesystem::format() {
   const std::scoped_lock lock{this->mutex_};
-  if (this->is_failed())
+  if (!this->is_ready())
     return this->fail_(FsError::FS_ERROR_INVALID);
   this->unmount();
   if (!this->device_->has_media())

@@ -57,14 +57,14 @@ class FilesystemTest : public ::testing::Test {
 };
 
 TEST_F(FilesystemTest, MountsInSetupWhenMediaIsThere) {
-  this->fs_.setup();
+  this->fs_.call();
   EXPECT_TRUE(this->fs_.is_mounted());
   EXPECT_EQ(this->fs_.mounts, 1);
 }
 
 TEST_F(FilesystemTest, MountsOnFirstUseWhenMediaArrivesLater) {
   this->disk_.eject();
-  this->fs_.setup();
+  this->fs_.call();
   EXPECT_FALSE(this->fs_.is_mounted());
   EXPECT_FALSE(this->fs_.open("/a", OPEN_READ));
   EXPECT_EQ(this->fs_.last_error(), FsError::FS_ERROR_NO_MEDIA);
@@ -75,7 +75,7 @@ TEST_F(FilesystemTest, MountsOnFirstUseWhenMediaArrivesLater) {
 }
 
 TEST_F(FilesystemTest, WriteThenReadBack) {
-  this->fs_.setup();
+  this->fs_.call();
   {
     File f = this->fs_.open("/hello.txt", OPEN_WRITE | OPEN_CREATE);
     ASSERT_TRUE(f);
@@ -91,13 +91,13 @@ TEST_F(FilesystemTest, WriteThenReadBack) {
 }
 
 TEST_F(FilesystemTest, OpenNeedsReadOrWrite) {
-  this->fs_.setup();
+  this->fs_.call();
   EXPECT_FALSE(this->fs_.open("/a", OPEN_CREATE));
   EXPECT_EQ(this->fs_.last_error(), FsError::FS_ERROR_INVALID);
 }
 
 TEST_F(FilesystemTest, PoolRunsOutAndClosingFreesASlot) {
-  this->fs_.setup();
+  this->fs_.call();
   File a = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   File b = this->fs_.open("/b", OPEN_WRITE | OPEN_CREATE);
   ASSERT_TRUE(a);
@@ -110,7 +110,7 @@ TEST_F(FilesystemTest, PoolRunsOutAndClosingFreesASlot) {
 }
 
 TEST_F(FilesystemTest, MovingAHandleKeepsOneOwner) {
-  this->fs_.setup();
+  this->fs_.call();
   File a = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   File b = std::move(a);
   EXPECT_FALSE(a);  // NOLINT(bugprone-use-after-move)
@@ -125,7 +125,7 @@ TEST_F(FilesystemTest, MovingAHandleKeepsOneOwner) {
 }
 
 TEST_F(FilesystemTest, MediaChangeClosesOldHandles) {
-  this->fs_.setup();
+  this->fs_.call();
   File a = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   File b = this->fs_.open("/b", OPEN_WRITE | OPEN_CREATE);
   ASSERT_TRUE(a);
@@ -145,7 +145,7 @@ TEST_F(FilesystemTest, MediaChangeClosesOldHandles) {
 }
 
 TEST_F(FilesystemTest, UnmountClosesOpenFiles) {
-  this->fs_.setup();
+  this->fs_.call();
   File a = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   this->fs_.unmount();
   EXPECT_FALSE(this->fs_.is_mounted());
@@ -154,7 +154,7 @@ TEST_F(FilesystemTest, UnmountClosesOpenFiles) {
 }
 
 TEST_F(FilesystemTest, ShutdownClosesOpenFiles) {
-  this->fs_.setup();
+  this->fs_.call();
   File f = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   ASSERT_TRUE(f);
   this->fs_.on_shutdown();
@@ -165,20 +165,20 @@ TEST_F(FilesystemTest, ShutdownClosesOpenFiles) {
 
 TEST_F(FilesystemTest, FormatsOnlyWhenAsked) {
   this->fs_.has_filesystem = false;
-  this->fs_.setup();
+  this->fs_.call();
   EXPECT_FALSE(this->fs_.is_mounted());
   EXPECT_EQ(this->fs_.formats, 0);
 
   FakeFs formatting{&this->disk_};
   formatting.has_filesystem = false;
   formatting.set_format_if_mount_failed(true);
-  formatting.setup();
+  formatting.call();
   EXPECT_TRUE(formatting.is_mounted());
   EXPECT_EQ(formatting.formats, 1);
 }
 
 TEST_F(FilesystemTest, StaleHandleRefusedBeforeAnyOtherCall) {
-  this->fs_.setup();
+  this->fs_.call();
   File a = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   ASSERT_TRUE(a);
   this->disk_.eject();
@@ -190,7 +190,7 @@ TEST_F(FilesystemTest, StaleHandleRefusedBeforeAnyOtherCall) {
 }
 
 TEST_F(FilesystemTest, MediaChangeDropsHandlesWithoutWriting) {
-  this->fs_.setup();
+  this->fs_.call();
   File a = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   Dir d = this->fs_.open_dir("/");
   this->disk_.eject();
@@ -204,7 +204,7 @@ TEST_F(FilesystemTest, MediaChangeDropsHandlesWithoutWriting) {
 }
 
 TEST_F(FilesystemTest, UnmountAfterMediaChangeWritesNothing) {
-  this->fs_.setup();
+  this->fs_.call();
   File a = this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE);
   this->disk_.eject();
   this->fs_.unmount();
@@ -214,7 +214,7 @@ TEST_F(FilesystemTest, UnmountAfterMediaChangeWritesNothing) {
 
 TEST_F(FilesystemTest, FailedMountNotRetriedOnSameMedia) {
   this->fs_.has_filesystem = false;
-  this->fs_.setup();
+  this->fs_.call();
   EXPECT_EQ(this->fs_.mounts, 1);
   FileInfo info;
   EXPECT_EQ(this->fs_.stat("/a", info), FsError::FS_ERROR_NO_FILESYSTEM);
@@ -234,7 +234,7 @@ TEST_F(FilesystemTest, FailedMountNotRetriedOnSameMedia) {
 
 TEST_F(FilesystemTest, FormatClearsFailedMount) {
   this->fs_.has_filesystem = false;
-  this->fs_.setup();
+  this->fs_.call();
   EXPECT_FALSE(this->fs_.is_mounted());
   EXPECT_EQ(this->fs_.format(), FsError::FS_ERROR_NONE);
   EXPECT_TRUE(this->fs_.is_mounted());
@@ -242,7 +242,7 @@ TEST_F(FilesystemTest, FormatClearsFailedMount) {
 }
 
 TEST_F(FilesystemTest, ListsDirectory) {
-  this->fs_.setup();
+  this->fs_.call();
   this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE).write("12", 2);
   this->fs_.open("/b", OPEN_WRITE | OPEN_CREATE);
   Dir dir = this->fs_.open_dir("/");
@@ -260,13 +260,32 @@ TEST_F(FilesystemTest, ListsDirectory) {
 }
 
 TEST_F(FilesystemTest, PathCallsReportErrors) {
-  this->fs_.setup();
+  this->fs_.call();
   FileInfo info;
   EXPECT_EQ(this->fs_.stat("/missing", info), FsError::FS_ERROR_NOT_FOUND);
   EXPECT_EQ(this->fs_.remove("/missing"), FsError::FS_ERROR_NOT_FOUND);
   EXPECT_EQ(this->fs_.stat(nullptr, info), FsError::FS_ERROR_INVALID);
   this->disk_.eject();
   EXPECT_EQ(this->fs_.mkdir("/d"), FsError::FS_ERROR_NO_MEDIA);
+}
+
+TEST_F(FilesystemTest, CallsBeforeSetupDoNotMount) {
+  EXPECT_FALSE(this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE));
+  EXPECT_EQ(this->fs_.last_error(), FsError::FS_ERROR_INVALID);
+  EXPECT_EQ(this->fs_.format(), FsError::FS_ERROR_INVALID);
+  EXPECT_EQ(this->fs_.mounts, 0);
+  EXPECT_EQ(this->fs_.formats, 0);
+}
+
+TEST_F(FilesystemTest, FailedInitDoesNotMount) {
+  this->fs_.init_error = FsError::FS_ERROR_IO;
+  this->fs_.call();
+  EXPECT_TRUE(this->fs_.is_failed());
+  EXPECT_FALSE(this->fs_.open("/a", OPEN_WRITE | OPEN_CREATE));
+  EXPECT_EQ(this->fs_.mount(), FsError::FS_ERROR_INVALID);
+  EXPECT_EQ(this->fs_.format(), FsError::FS_ERROR_INVALID);
+  EXPECT_EQ(this->fs_.mounts, 0);
+  EXPECT_EQ(this->fs_.formats, 0);
 }
 
 TEST(Filesystem, ErrorNames) {
