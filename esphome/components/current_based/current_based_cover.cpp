@@ -2,13 +2,18 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <algorithm>
 #include <cfloat>
+#include <cmath>
 
 namespace esphome::current_based {
 
 ESPHOME_LOG_TAG(TAG, "current_based.cover");
 
 static constexpr uint32_t ROLLBACK_TIMEOUT_ID = 0;
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+static constexpr uint32_t LEARNED_DURATIONS_PREF_VERSION = 0x6C64E5A1;
+#endif
 
 using namespace esphome::cover;
 
@@ -57,6 +62,23 @@ void CurrentBasedCover::setup() {
   } else {
     this->position = 0.5f;
   }
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  if (this->learn_durations_) {
+    this->configured_open_duration_ = this->open_duration_;
+    this->configured_close_duration_ = this->close_duration_;
+    this->durations_pref_ = this->make_entity_preference<LearnedDurations>(LEARNED_DURATIONS_PREF_VERSION, true);
+    LearnedDurations learned;
+    if (this->durations_pref_.load(&learned)) {
+      if (learned.configured_open_duration == this->configured_open_duration_ &&
+          learned.configured_close_duration == this->configured_close_duration_) {
+        this->open_duration_ = learned.open_duration;
+        this->close_duration_ = learned.close_duration;
+      } else {
+        this->save_learned_durations_();
+      }
+    }
+  }
+#endif
 }
 
 void CurrentBasedCover::loop() {
@@ -65,6 +87,14 @@ void CurrentBasedCover::loop() {
 
   const uint32_t now = App.get_loop_component_start_time();
 
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  if (!this->motor_current_seen_) {
+    const bool opening = this->current_operation == COVER_OPERATION_OPENING;
+    const sensor::Sensor *current_sensor = opening ? this->open_sensor_ : this->close_sensor_;
+    this->motor_current_seen_ =
+        std::isfinite(current_sensor->get_state()) && (opening ? this->is_opening_() : this->is_closing_());
+  }
+#endif
   if (this->current_operation == COVER_OPERATION_OPENING) {
     if (this->malfunction_detection_ && this->is_closing_()) {  // Malfunction
       this->direction_idle_();
@@ -82,9 +112,7 @@ void CurrentBasedCover::loop() {
         });
       }
     } else if (this->is_initial_delay_finished_() && !this->is_opening_()) {  // End reached
-      auto dur = (now - this->start_dir_time_) / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Open position reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()), dur);
-      this->direction_idle_(COVER_OPEN);
+      this->end_reached_(COVER_OPEN);
     }
   } else if (this->current_operation == COVER_OPERATION_CLOSING) {
     if (this->malfunction_detection_ && this->is_opening_()) {  // Malfunction
@@ -103,9 +131,7 @@ void CurrentBasedCover::loop() {
         });
       }
     } else if (this->is_initial_delay_finished_() && !this->is_closing_()) {  // End reached
-      auto dur = (now - this->start_dir_time_) / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Close position reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()), dur);
-      this->direction_idle_(COVER_CLOSED);
+      this->end_reached_(COVER_CLOSED);
     }
   }
   if (now - this->start_dir_time_ > this->max_duration_) {
@@ -135,6 +161,62 @@ void CurrentBasedCover::direction_idle_(float new_position) {
   this->publish_state();
 }
 
+void CurrentBasedCover::end_reached_(float position) {
+  const bool opened = position == COVER_OPEN;
+  const uint32_t measured = App.get_loop_component_start_time() - this->start_dir_time_;
+  ESP_LOGD(TAG, "'%s' - %s position reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()),
+           opened ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"), measured / 1e3f);
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  const bool from_end = this->from_end_;
+  const sensor::Sensor *current_sensor = opened ? this->open_sensor_ : this->close_sensor_;
+  const bool end_confirmed =
+      this->learn_durations_ && this->motor_current_seen_ && std::isfinite(current_sensor->get_state());
+#endif
+  // Learned before the state is published, so state callbacks see the new values and can start a travel
+  this->start_direction_(COVER_OPERATION_IDLE);
+  this->position = position;
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  this->learn_travel_(opened, measured, from_end, end_confirmed);
+#endif
+  this->publish_state();
+}
+
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+void CurrentBasedCover::learn_travel_(bool opened, uint32_t measured, bool from_end, bool end_confirmed) {
+  if (!end_confirmed)
+    return;
+  if (from_end) {
+    const uint32_t configured = opened ? this->configured_open_duration_ : this->configured_close_duration_;
+    // A thermal cut-out, a wall switch or an obstacle also ends a travel with a current drop
+    if (measured < configured / 2 || measured > configured * 2) {
+      ESP_LOGD(TAG, "'%s' - Not learning %.1fs, outside half to twice the configured duration",
+               LOG_STR_ARG(this->get_log_name()), measured / 1e3f);
+      return;
+    }
+    uint32_t &duration = opened ? this->open_duration_ : this->close_duration_;
+    const uint32_t diff = measured > duration ? measured - duration : duration - measured;
+    // 1 s covers sensor publish timing; 5% limits flash writes
+    if (diff > std::max<uint32_t>(duration / 20, 1000)) {
+      duration = measured;
+      ESP_LOGD(TAG, "'%s' - Learned %s duration: %.1fs", LOG_STR_ARG(this->get_log_name()),
+               opened ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"), measured / 1e3f);
+      this->save_learned_durations_();
+    }
+  }
+  this->from_end_ = true;
+}
+#endif
+
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+void CurrentBasedCover::save_learned_durations_() {
+  const LearnedDurations learned{this->configured_open_duration_, this->configured_close_duration_,
+                                 this->open_duration_, this->close_duration_};
+  if (!this->durations_pref_.save(&learned)) {
+    ESP_LOGW(TAG, "'%s' - Saving learned durations failed", LOG_STR_ARG(this->get_log_name()));
+  }
+}
+#endif
+
 void CurrentBasedCover::dump_config() {
   LOG_COVER("", "Endstop Cover", this);
   LOG_SENSOR("  ", "Open Sensor", this->open_sensor_);
@@ -159,6 +241,9 @@ void CurrentBasedCover::dump_config() {
                 "  Start sensing delay: %.1fs\n"
                 "  Malfunction detection: %s",
                 this->start_sensing_delay_ / 1e3f, YESNO(this->malfunction_detection_));
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  ESP_LOGCONFIG(TAG, "  Learn durations: %s", YESNO(this->learn_durations_));
+#endif
 }
 
 void CurrentBasedCover::stop_prev_trigger_() {
@@ -236,6 +321,13 @@ void CurrentBasedCover::start_direction_(CoverOperation dir) {
       return;
   }
 
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  // A travel that ends here did not reach an end; end_reached_() sets from_end_ again
+  if (this->current_operation != COVER_OPERATION_IDLE) {
+    this->from_end_ = false;
+    this->motor_current_seen_ = false;
+  }
+#endif
   this->current_operation = dir;
 
   this->stop_prev_trigger_();

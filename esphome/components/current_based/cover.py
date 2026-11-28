@@ -1,4 +1,4 @@
-from esphome import automation
+from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import cover, sensor
 import esphome.config_validation as cv
@@ -24,6 +24,9 @@ CONF_OBSTACLE_ROLLBACK = "obstacle_rollback"
 CONF_MALFUNCTION_DETECTION = "malfunction_detection"
 CONF_MALFUNCTION_ACTION = "malfunction_action"
 CONF_START_SENSING_DELAY = "start_sensing_delay"
+CONF_LEARN_DURATIONS = "learn_durations"
+# Must match sizeof(LearnedDurations) in current_based_cover.h
+LEARNED_DURATIONS_BYTES = 16
 
 current_based_ns = cg.esphome_ns.namespace("current_based")
 CurrentBasedCover = current_based_ns.class_(
@@ -62,6 +65,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_START_SENSING_DELAY, default="500ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_LEARN_DURATIONS, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -124,3 +128,7 @@ async def to_code(config: ConfigType) -> None:
             var.get_malfunction_trigger(), [], malfunction_action
         )
     cg.add(var.set_start_sensing_delay(config[CONF_START_SENSING_DELAY]))
+    if config[CONF_LEARN_DURATIONS]:
+        cg.add_define("USE_CURRENT_BASED_COVER_LEARN_DURATIONS")
+        cg.add(var.set_learn_durations(True))
+        preferences.reserve_preferences(1, LEARNED_DURATIONS_BYTES, in_flash=True)

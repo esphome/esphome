@@ -28,6 +28,10 @@ sensor:
     reactive_power_b:
       name: ADE7953 Reactive Power B
     update_interval: 1s
+  - platform: template
+    id: current_based_learn_open_current
+  - platform: template
+    id: current_based_learn_close_current
 
 switch:
   - platform: template
@@ -62,3 +66,20 @@ cover:
     malfunction_action:
       then:
         - logger.log: Malfunction Detected
+  - platform: current_based
+    name: Learning Current Based Cover
+    id: current_based_learning_cover
+    open_sensor: current_based_learn_open_current
+    open_moving_current_threshold: 0.5
+    open_duration: 12s
+    open_action:
+      - switch.turn_on: current_based_template_switch1
+    close_sensor: current_based_learn_close_current
+    close_moving_current_threshold: 0.5
+    close_duration: 10s
+    close_action:
+      - switch.turn_on: template_switch2
+    stop_action:
+      - switch.turn_off: current_based_template_switch1
+      - switch.turn_off: template_switch2
+    learn_durations: true
