@@ -614,7 +614,8 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 }
 void HOT Scheduler::process_to_add_slow_path_() {
   SchedulerLockGuard guard{this->lock_};
-  for (size_t i = 0; i < this->to_add_.size(); i++) {
+  // By index: a recycled capture's destructor may append to to_add_, which a range-for would miss or invalidate
+  for (size_t i = 0; i < this->to_add_.size(); i++) {  // NOLINT(modernize-loop-convert)
     SchedulerItem *it = this->to_add_[i];
     if (is_item_removed_locked_(it)) {
       this->to_add_[i] = nullptr;
