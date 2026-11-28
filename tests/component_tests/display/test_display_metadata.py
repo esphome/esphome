@@ -4,14 +4,18 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome import config_validation as cv
 from esphome.components.const import BYTE_ORDER_BIG, BYTE_ORDER_LITTLE
 from esphome.components.display import (
+    DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA,
     DisplayMetaData,
+    _final_validate,
     add_metadata,
     get_all_display_metadata,
     get_display_metadata,
+    validate_supports_sleep,
 )
-from esphome.config import Config
+from esphome.config import Config, path_context
 from esphome.core import ID
 from esphome.final_validate import full_config
 
@@ -46,6 +50,63 @@ def test_add_metadata_with_all_fields():
             has_hardware_rotation=True,
             byte_order=BYTE_ORDER_LITTLE,
         )
+
+
+def test_sleep_capability_defaults_to_false() -> None:
+    """Displays must explicitly declare support for sleep actions."""
+    with patch("esphome.components.display.CORE.data", {}):
+        add_metadata(ID("display_without_sleep"), 320, 240)
+        assert get_display_metadata(ID("display_without_sleep")).supports_sleep is False
+
+
+def test_sleep_action_validation_uses_metadata() -> None:
+    """Sleep actions accept only displays which declare support."""
+    with patch("esphome.components.display.CORE.data", {}):
+        add_metadata(ID("sleeping_display"), 320, 240, supports_sleep=True)
+        add_metadata(ID("awake_only_display"), 320, 240)
+
+        assert validate_supports_sleep("sleeping_display").id == "sleeping_display"
+        with pytest.raises(
+            cv.Invalid,
+            match="Sleep and wakeup are not implemented for this display type",
+        ):
+            validate_supports_sleep("awake_only_display")
+
+
+def test_sleep_action_rejects_unsupported_display_during_final_validation() -> None:
+    """Capability validation is deferred until all display metadata is available."""
+    with patch("esphome.components.display.CORE.data", {}):
+        add_metadata(ID("unsupported_display"), 320, 240)
+        token = path_context.set([])
+        try:
+            DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA("unsupported_display")
+        finally:
+            path_context.reset(token)
+
+        with pytest.raises(
+            cv.FinalExternalInvalid,
+            match="Sleep and wakeup are not implemented for this display type",
+        ):
+            _final_validate({})
+
+
+def test_sleep_action_reports_specific_unsupported_reason() -> None:
+    """Drivers can explain why a particular configuration cannot sleep."""
+    with patch("esphome.components.display.CORE.data", {}):
+        add_metadata(
+            ID("bad_pins"),
+            320,
+            240,
+            sleep_unsupported_reason="Display pins are shared",
+        )
+        token = path_context.set([])
+        try:
+            DISPLAY_SLEEP_WAKEUP_ACTION_SCHEMA("bad_pins")
+        finally:
+            path_context.reset(token)
+
+        with pytest.raises(cv.FinalExternalInvalid, match="Display pins are shared"):
+            _final_validate({})
 
 
 def test_add_metadata_hardware_rotation_default():

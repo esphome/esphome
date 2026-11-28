@@ -16,6 +16,7 @@ namespace esphome::mipi_rgb {
 
 ESPHOME_LOG_TAG(TAG, "display.mipi_rgb");
 const uint8_t SW_RESET_CMD = 0x01;
+const uint8_t SLEEP_IN = 0x10;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
 const uint8_t MADCTL_CMD = 0x36;
@@ -134,6 +135,8 @@ class MipiRgbSpi final : public MipiRgb,
   }
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void setup() override;
+  void sleep() override;
+  void wakeup() override;
 
  protected:
   void write_command_(uint8_t value);

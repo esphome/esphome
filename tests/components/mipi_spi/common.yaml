@@ -1,6 +1,9 @@
 esphome:
   on_boot:
     then:
+      - display.sleep: sleep_display
+      - display.wakeup:
+          id: sleep_display
       - display.page.show_next: page_display
       - display.page.show_previous:
           id: page_display
@@ -53,6 +56,16 @@ display:
     reset_pin:
       allow_other_uses: true
       number: ${reset_pin}
+
+  - platform: mipi_spi
+    id: sleep_display
+    model: ILI9341
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
 
   - platform: mipi_spi
     id: amoled_display
