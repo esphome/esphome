@@ -204,6 +204,8 @@ INSTANTIATE_TEST_SUITE_P(
 
 class SchedulerPendingRelease : public ::testing::Test {
  protected:
+  void TearDown() override { this->scheduler_.trim_freelist(); }  // Scheduler does not free its pool
+
   DeadlockWatchdog watchdog_;
   Scheduler scheduler_;
   DestructorComponent component_;
