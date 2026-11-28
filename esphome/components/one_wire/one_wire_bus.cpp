@@ -13,16 +13,23 @@ static const uint8_t DALLAS_MODEL_DS28EA00 = 0x42;
 static const uint8_t MAXIM_MODEL_MAX31888 = 0x54;
 
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
+const uint8_t ONE_WIRE_ROM_SKIP = 0xCC;
 const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
 
 const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; }
 
-bool OneWireBus::reset_() {
-  int res = this->reset_int();
-  if (res == -1) {
-    ESP_LOGE(TAG, "1-wire bus is held low");
+bool OneWireBus::reset_() { return this->reset_status_() == TransactionStatus::TRANSACTION_STATUS_OK; }
+
+TransactionStatus OneWireBus::reset_status_() {
+  switch (this->reset_int()) {
+    case 1:
+      return TransactionStatus::TRANSACTION_STATUS_OK;
+    case -1:
+      ESP_LOGE(TAG, "1-wire bus is held low");
+      return TransactionStatus::TRANSACTION_STATUS_BUS_LOW;
+    default:
+      return TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE;
   }
-  return res == 1;
 }
 
 bool IRAM_ATTR OneWireBus::select(uint64_t address) {
@@ -61,7 +68,32 @@ void OneWireBus::search() {
 bool OneWireBus::skip() {
   if (!this->reset_())
     return false;
-  this->write8(0xCC);  // skip ROM
+  this->write8(ONE_WIRE_ROM_SKIP);
+  return true;
+}
+
+bool OneWireBus::submit(Transaction *transaction) {
+  if (transaction->is_pending())
+    return false;
+  transaction->link.next_ = transaction;  // Pending while it runs, as in a queue of one
+  // reset_status_(), not skip()/select(): those fold a held-low bus into "no presence"
+  const TransactionStatus status = this->reset_status_();
+  // write8() and read8() cannot report an error, so after a good reset the status stays TRANSACTION_STATUS_OK
+  if (status == TransactionStatus::TRANSACTION_STATUS_OK) {
+    if (transaction->address == 0) {
+      this->write8(ONE_WIRE_ROM_SKIP);
+    } else {
+      this->write8(ONE_WIRE_ROM_SELECT);
+      this->write64(transaction->address);
+    }
+    for (uint8_t i = 0; i < transaction->write_len; i++)
+      this->write8(transaction->write_data[i]);
+    for (uint8_t i = 0; i < transaction->read_len; i++)
+      transaction->read_data[i] = this->read8();
+  }
+  transaction->link.next_ = nullptr;
+  if (transaction->on_done != nullptr)
+    transaction->on_done(transaction->context, status);
   return true;
 }
 

@@ -1,0 +1,2 @@
+packages:
+  dallas_temp: !include common-rmt.yaml
