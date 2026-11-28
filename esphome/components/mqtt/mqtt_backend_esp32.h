@@ -326,6 +326,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool is_initialized_{false};
   bool destroying_{false};
   bool config_changed_{false};
+  uint8_t client_generation_{0};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   // Queued SUBSCRIBEs the task could not send
   std::atomic<uint16_t> subscribes_lost_{0};
@@ -375,7 +376,6 @@ class MQTTBackendESP32 final : public MQTTBackend {
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   StaticSemaphore_t client_mutex_storage_{};
   SemaphoreHandle_t client_mutex_{nullptr};
-  uint8_t client_generation_{0};
   TaskHandle_t task_handle_{nullptr};
   // Only the task writes, so no atomic read-modify-write is needed
   void count_lost_subscribe_() {

@@ -25,8 +25,11 @@ esp_mqtt_client_config_t MQTTBackendESP32::build_config_() const {
   mqtt_cfg.broker.address.port = this->port_;
   mqtt_cfg.session.keepalive = this->keep_alive_;
   mqtt_cfg.session.disable_clean_session = !this->clean_session_;
-  // ESPHome's state machine drives reconnects, so the client stays down after disconnect()
+  // ESPHome's state machine drives reconnects, so the client stays down after disconnect().
+  // Keep reconnect_timeout_ms short so the parked ESP-IDF task wakes promptly on destroy
+  // instead of blocking the main loop for half of the 10 s default.
   mqtt_cfg.network.disable_auto_reconnect = true;
+  mqtt_cfg.network.reconnect_timeout_ms = 1000;
 
   if (!this->username_.empty()) {
     mqtt_cfg.credentials.username = this->username_.c_str();
@@ -156,6 +159,7 @@ void MQTTBackendESP32::destroy_client_() {
   }
   this->last_dropped_log_time_ = 0;
 #else
+  this->client_generation_++;
   old_client = std::move(this->handler_);
 #endif
 
@@ -252,7 +256,10 @@ void MQTTBackendESP32::loop() {
 }
 
 void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
+  const uint8_t generation = this->client_generation_;
   ESP_LOGV(TAG, "Event dispatched from event loop event_id=%d", event.event_id);
+  if (this->client_generation_ != generation)
+    return;
   switch (event.event_id) {
     case MQTT_EVENT_BEFORE_CONNECT:
       ESP_LOGV(TAG, "MQTT_EVENT_BEFORE_CONNECT");
@@ -260,6 +267,8 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
+      if (this->client_generation_ != generation)
+        break;
       if (this->requested_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED) {
         // disconnect() ran while connecting; the MQTT task closes this link
         ESP_LOGV(TAG, "Ignoring CONNECTED, disconnect pending");
@@ -433,14 +442,12 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
     // Process all queued items
     struct QueueElement *elem;
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
+      xSemaphoreTake(this_mqtt->client_mutex_, portMAX_DELAY);
+      const bool stale = elem->generation != this_mqtt->client_generation_;
       bool sent = false;
-      bool stale = false;
-      if (this_mqtt->connected()) {
-        xSemaphoreTake(this_mqtt->client_mutex_, portMAX_DELAY);
+      if (!stale) {
         esp_mqtt_client_handle_t client = this_mqtt->handler_.get();
-        if (elem->generation != this_mqtt->client_generation_) {
-          stale = true;
-        } else if (client != nullptr && this_mqtt->connected()) {
+        if (client != nullptr && this_mqtt->connected()) {
           sent = true;
           switch (elem->type) {
             case MQTT_QUEUE_TYPE_SUBSCRIBE:
@@ -461,11 +468,11 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
               break;
           }
         }
-        xSemaphoreGive(this_mqtt->client_mutex_);
       }
       if (!sent && !stale && elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
         this_mqtt->count_lost_subscribe_();
       }
+      xSemaphoreGive(this_mqtt->client_mutex_);
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }
   }
