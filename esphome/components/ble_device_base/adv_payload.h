@@ -64,7 +64,7 @@ class AdvPayload {
       return sent;
     size_t index = 0;
     for (const auto &uuid : uuids) {
-      if (listed_(uuid, skip, 16) && index++ == sent.full) {
+      if (listed(uuid, skip, 16) && index++ == sent.full) {
         this->add_(0x07, uuid.uuid128(), 16);
         sent.full++;
         break;
@@ -101,7 +101,7 @@ class AdvPayload {
 
  protected:
   size_t left_() const { return MAX_LEN - this->len_; }
-  static bool listed_(const ESPBTUUID &uuid, const ESPBTUUID &skip, size_t size) {
+  static bool listed(const ESPBTUUID &uuid, const ESPBTUUID &skip, size_t size) {
     return uuid != skip && uuid_size(uuid) == size;
   }
   void add_(uint8_t type, const uint8_t *value, size_t len) {
@@ -113,7 +113,7 @@ class AdvPayload {
   void add_short_uuids_(std::span<const ESPBTUUID> uuids, const ESPBTUUID &skip, size_t size, uint8_t partial_type,
                         uint8_t &sent) {
     const size_t count =
-        std::count_if(uuids.begin(), uuids.end(), [&](const auto &u) { return listed_(u, skip, size); }) - sent;
+        std::count_if(uuids.begin(), uuids.end(), [&](const auto &u) { return listed(u, skip, size); }) - sent;
     if (count == 0 || this->left_() < 2 + size)
       return;
     size_t fit = std::min(count, (this->left_() - 2) / size);
