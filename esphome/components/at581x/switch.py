@@ -13,17 +13,15 @@ CONFIG_SCHEMA = switch.switch_schema(
     switch.ApplySwitch,
     device_class=DEVICE_CLASS_SWITCH,
     icon=ICON_WIFI,
-).extend(
-    cv.Schema(
-        {
-            cv.GenerateID(CONF_AT581X_ID): cv.use_id(AT581XComponent),
-        }
-    )
-)
+    default_restore_mode="ALWAYS_ON",
+).extend({cv.GenerateID(CONF_AT581X_ID): cv.use_id(AT581XComponent)})
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_AT581X_ID])
     await switch.sub_switches(config, parent=hub).create(
-        config, hub.set_rf_power_switch, apply="set_rf_mode(state)", publish="before"
+        config,
+        hub.set_rf_power_switch,
+        apply="set_rf_mode(state)",
+        publish="on_success",
     )
