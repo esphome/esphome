@@ -40,6 +40,7 @@ enum class FreedBy {
   FREED_BY_CANCELLED_IN_HEAP,
   FREED_BY_BULK_CLEANUP,
   FREED_BY_DEFER_QUEUE,
+  FREED_BY_CANCELLED_IN_DEFER_QUEUE,
   FREED_BY_DONT_RUN,
 };
 // What the destructor does
@@ -160,6 +161,10 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
     case FreedBy::FREED_BY_DEFER_QUEUE:
       this->scheduler_.set_timeout(c, VICTIM_ID, 0, std::move(victim));
       break;
+    case FreedBy::FREED_BY_CANCELLED_IN_DEFER_QUEUE:
+      this->scheduler_.set_timeout(c, VICTIM_ID, 0, std::move(victim));
+      this->scheduler_.cancel_timeout(c, VICTIM_ID);  // skipped and recycled with the lock held
+      break;
     case FreedBy::FREED_BY_DONT_RUN:
       this->scheduler_.set_timeout(c, VICTIM_ID, SCHEDULER_DONT_RUN, std::move(victim));
       break;
@@ -196,7 +201,8 @@ INSTANTIATE_TEST_SUITE_P(
     AllPaths, SchedulerCaptureDestructor,
     ::testing::Combine(::testing::Values(FreedBy::FREED_BY_AFTER_RUN, FreedBy::FREED_BY_CANCELLED_IN_TO_ADD,
                                          FreedBy::FREED_BY_CANCELLED_IN_HEAP, FreedBy::FREED_BY_BULK_CLEANUP,
-                                         FreedBy::FREED_BY_DEFER_QUEUE, FreedBy::FREED_BY_DONT_RUN),
+                                         FreedBy::FREED_BY_DEFER_QUEUE, FreedBy::FREED_BY_CANCELLED_IN_DEFER_QUEUE,
+                                         FreedBy::FREED_BY_DONT_RUN),
                        ::testing::Values(DestructorAction::DESTRUCTOR_ACTION_SCHEDULE_MANY,
                                          DestructorAction::DESTRUCTOR_ACTION_CANCEL_TIMEOUT,
                                          DestructorAction::DESTRUCTOR_ACTION_CANCEL_INTERVAL,
@@ -211,13 +217,15 @@ class SchedulerPendingRelease : public ::testing::Test {
   DestructorComponent component_;
 };
 
-// A timer a destructor schedules during call() is merged before call() returns, so sleep planning sees it
+// A timer a destructor schedules while call() frees pending captures is merged before call() returns, so sleep
+// planning sees it
 TEST_F(SchedulerPendingRelease, TimerScheduledByADestructorIsVisibleAfterOneCall) {
   Scheduler *s = &this->scheduler_;
   Component *c = &this->component_;
   auto token = std::make_shared<int>(0);
   this->scheduler_.set_timeout(c, VICTIM_ID, 1, OnFree([s, c]() { s->set_timeout(c, "late", 200, []() {}); }, token));
   this->scheduler_.process_to_add();
+  this->scheduler_.cancel_timeout(c, VICTIM_ID);  // left for call()'s cleanup, so freed by the pending release
   std::this_thread::sleep_for(std::chrono::milliseconds(5));
   this->scheduler_.call(millis());
   EXPECT_EQ(token.use_count(), 1);
