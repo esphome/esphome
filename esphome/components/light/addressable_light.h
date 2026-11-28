@@ -175,6 +175,9 @@ class AddressableLightTransformer : public LightTransformer {
 
   void start() override;
   optional<LightColorValues> apply() override;
+#ifdef USE_LIGHT_MOVE
+  LightColorValues get_reached_values(const LightColorValues &current) override;
+#endif
 
  protected:
   AddressableLight &light_;

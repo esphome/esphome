@@ -168,9 +168,23 @@ void LightState::apply_effect_and_transformer_() {
     if (finished) {
       // if the transition has written directly to the output, current_values is outdated, so update it
       this->current_values = this->transformer_->get_target_values();
+#ifdef USE_LIGHT_MOVE
+      // Like Matter's MoveWithOnOff: a move to 0% keeps the light on while it dims and turns it off at the end
+      const bool move_ended_dark =
+          this->moving_ && this->current_values.is_on() && this->current_values.get_brightness() == 0.0f;
+#endif
       this->transformer_->stop();
       this->is_transformer_active_ = false;
       this->transformer_ = nullptr;
+#ifdef USE_LIGHT_MOVE
+      this->moving_ = false;
+      if (move_ended_dark) {
+        // Before the listeners run, so a command of theirs is not overwritten. The call notifies them and publishes.
+        this->make_call().set_state(false).set_transition_length(0).perform();
+        this->disable_loop_if_idle_();
+        return;
+      }
+#endif
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
       if (this->transition_publish_enabled_) {
         // Report the end state from remote_values; a flash's stop() left publishing to us
@@ -213,6 +227,38 @@ bool LightState::set_external_state(const LightColorValues &values) {
   this->publish_state();
   return true;
 }
+
+#ifdef USE_LIGHT_MOVE
+LightColorValues LightState::get_shown_values() {
+  if (this->transformer_ == nullptr)
+    return this->current_values;
+  return this->transformer_->get_reached_values(this->current_values);
+}
+
+void LightState::perform_move(LightCall &call, const LightColorValues &start) {
+  this->current_values = start;
+  call.move_ = LightCall::MOVE_BRIGHTNESS;
+  call.perform();
+}
+
+void LightState::stop_move() {
+  if (!this->moving_ || this->transformer_ == nullptr)
+    return;
+  // The last applied values, also when the move's time is up and loop() has not applied its end yet. Only the
+  // brightness is replayed: a call normalises, for instance, the RGB of a transition's middle to full brightness.
+  const LightColorValues shown = this->get_shown_values();
+  auto call = this->make_call();
+  call.set_transition_length(0);
+  // Frozen at 0%, the light is off, as a move to 0% ends: a brightness of 0 on its own would leave it on at 0%. The
+  // brightness is set too, or the light is off at the target of the move and turns on there.
+  if (shown.get_brightness() > 0.0f) {
+    call.set_state(true).set_brightness(shown.get_brightness());
+  } else {
+    call.set_state(false).set_brightness(0.0f);
+  }
+  call.perform();
+}
+#endif
 
 // Flattened so the listener loop runs inline here, not in the call_all copy the other lists share
 __attribute__((flatten)) void LightState::publish_state() {
@@ -398,9 +444,22 @@ void LightState::stop_effect_() {
   this->disable_loop_if_idle_();
 }
 
+#ifdef USE_LIGHT_MOVE
+void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values,
+                                   uint8_t move) {
+  // A strip's own transition leaves current_values at its start: one that replaces it starts from its last frame, so
+  // a move taking over later starts where the light is. A move call sets current_values itself.
+  const LightColorValues start = move != LightCall::MOVE_NONE ? this->current_values : this->get_shown_values();
+  this->moving_ = move != LightCall::MOVE_NONE;
+  // Not the output's default: that eases in and out, and on an addressable light leaves current_values behind
+  this->transformer_ =
+      this->moving_ ? make_unique<LightTransitionTransformer>(true) : this->output_->create_default_transition();
+  this->transformer_->setup(start, target, length);
+#else
 void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
   this->transformer_ = this->output_->create_default_transition();
   this->transformer_->setup(this->current_values, target, length);
+#endif
   this->set_transformer_remote_values_(target, set_remote_values);
   // Enable loop while transition is active
   this->enable_loop();
@@ -414,6 +473,9 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
     end_colors = this->transformer_->get_start_values();
 
   this->transformer_ = make_unique<LightFlashTransformer>(*this);
+#ifdef USE_LIGHT_MOVE
+  this->moving_ = false;
+#endif
   this->transformer_->setup(end_colors, target, length);
   this->set_transformer_remote_values_(target, set_remote_values);
   // Enable loop while flash is active
@@ -423,6 +485,9 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
   this->is_transformer_active_ = false;
   this->transformer_ = nullptr;
+#ifdef USE_LIGHT_MOVE
+  this->moving_ = false;
+#endif
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
   this->transition_publish_enabled_ = false;
 #endif

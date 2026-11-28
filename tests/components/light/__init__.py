@@ -16,6 +16,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_LIGHT_WRITE_ON_SETUP")
         # The tests attach effects with add_effects()
         cg.add_define("USE_LIGHT_EFFECTS")
+        # Linear moves, LightState::perform_move() and stop_move()
+        cg.add_define("USE_LIGHT_MOVE")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["json"]
