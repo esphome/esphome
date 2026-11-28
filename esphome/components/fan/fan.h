@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include <vector>
 
 #include "esphome/core/entity_base.h"

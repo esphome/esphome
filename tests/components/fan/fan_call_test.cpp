@@ -93,6 +93,18 @@ TEST(FanCall, PresetModeReachesTheFan) {
   EXPECT_FALSE(fan.has_preset_mode());
 }
 
+// A pending call whose preset index no longer fits the fan's list reads as no preset and leaves the fan's alone
+TEST(FanCall, PresetIndexOutsideAReplacedListIsIgnored) {
+  CallFan fan;
+  fan.set_supported_preset_modes({"auto", "sleep"});
+  fan.make_call().set_preset_mode("auto").perform();
+  auto call = fan.make_call().set_preset_mode("sleep");
+  fan.set_supported_preset_modes({"auto"});
+  EXPECT_EQ(call.get_preset_mode(), nullptr);
+  call.perform();
+  EXPECT_EQ(fan.get_preset_mode(), "auto");
+}
+
 TEST(FanCall, TurningOnWithoutSpeedPicksFullSpeed) {
   CallFan fan(3);
   fan.make_call().set_state(true).perform();

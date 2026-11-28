@@ -49,7 +49,9 @@ FanCall &FanCall::set_preset_mode(const char *preset_mode, size_t len) {
 }
 
 const char *FanCall::get_preset_mode() const {
-  return this->preset_mode_ == UNSET ? nullptr : this->parent_.supported_preset_modes_[this->preset_mode_];
+  // Bounds-checked as well: the fan's preset list may have been replaced since the index was taken
+  const auto &modes = this->parent_.supported_preset_modes_;
+  return this->preset_mode_ != UNSET && this->preset_mode_ < modes.size() ? modes[this->preset_mode_] : nullptr;
 }
 
 void FanCall::perform() {
@@ -86,7 +88,7 @@ void FanCall::validate_() {
 
   // when turning on...
   if (!this->parent_.state &&
-      this->binary_state_ == true
+      this->binary_state_ == 1
       // ..,and no preset mode will be active...
       && !this->has_preset_mode() &&
       !this->parent_.has_preset_mode()
@@ -198,7 +200,8 @@ void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
 
 void Fan::apply_preset_mode_(const FanCall &call) {
   if (call.has_preset_mode()) {
-    this->preset_mode_ = this->supported_preset_modes_[call.preset_mode_];
+    if (call.preset_mode_ < this->supported_preset_modes_.size())  // the list may have been replaced since
+      this->preset_mode_ = this->supported_preset_modes_[call.preset_mode_];
   } else if (call.speed_ != FanCall::NO_SPEED) {
     // Manually setting speed clears preset (per Home Assistant convention)
     this->clear_preset_mode_();
