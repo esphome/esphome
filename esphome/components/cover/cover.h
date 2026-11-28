@@ -155,7 +155,7 @@ class Cover : public EntityBase {
 
   optional<CoverRestoreState> restore_state_();
 
-  LazyCallbackManager<void()> state_callback_{};
+  EntityCallbackManager<void()> state_callback_{};
 
   ESPPreferenceObject rtc_;
 };

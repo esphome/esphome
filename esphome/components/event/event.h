@@ -81,7 +81,7 @@ class Event : public EntityBase {
  protected:
   void set_event_types_copy_(const char *const *event_types, size_t count);
 
-  LazyCallbackManager<void(StringRef event_type)> event_callback_;
+  EntityCallbackManager<void(StringRef event_type)> event_callback_;
   EventTypes types_;
 
  private:

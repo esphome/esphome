@@ -53,7 +53,7 @@ class UpdateEntity : public EntityBase {
   UpdateState state_{UPDATE_STATE_UNKNOWN};
   UpdateInfo update_info_;
 
-  LazyCallbackManager<void()> state_callback_{};
+  EntityCallbackManager<void()> state_callback_{};
   std::unique_ptr<Trigger<const UpdateInfo &>> update_available_trigger_{nullptr};
 };
 

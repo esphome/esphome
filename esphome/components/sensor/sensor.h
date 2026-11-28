@@ -146,7 +146,7 @@ class Sensor : public EntityBase {
   float raw_state_{NAN};                           ///< The last state passed to publish_state(), before filters.
   LazyCallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
 #endif
-  LazyCallbackManager<void(float)> callback_;  ///< Storage for filtered state callbacks.
+  EntityCallbackManager<void(float)> callback_;  ///< Storage for filtered state callbacks.
 
 #ifdef USE_SENSOR_FILTER
   Filter *filter_list_{nullptr};  ///< Store all active filters.

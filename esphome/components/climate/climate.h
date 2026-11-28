@@ -387,7 +387,7 @@ class Climate : public EntityBase {
 
   void dump_traits_(const char *tag);
 
-  LazyCallbackManager<void(Climate &)> state_callback_{};
+  EntityCallbackManager<void(Climate &)> state_callback_{};
   LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
 
