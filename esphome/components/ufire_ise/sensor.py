@@ -4,7 +4,6 @@ from esphome.components import i2c, sensor
 from esphome.components.const import CONF_TEMPERATURE_SENSOR
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PH,
     CONF_TEMPERATURE,
     DEVICE_CLASS_EMPTY,
@@ -48,8 +47,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
@@ -58,8 +56,6 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_variable(
         var.set_external_temperature_sensor, config.get(CONF_TEMPERATURE_SENSOR)
     )
-
-    await i2c.register_i2c_device(var, config)
 
 
 UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
