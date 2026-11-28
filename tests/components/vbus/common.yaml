@@ -9,6 +9,24 @@ binary_sensor:
       name: BS Plus Relay 2 On
     sensor1_error:
       name: BS Plus Sensor 1 Error
+    collector_max:
+      name: BS Plus Option Collector Max
+    collector_min:
+      name: BS Plus Option Collector Min
+    collector_frost:
+      name: BS Plus Option Collector Frost
+    tube_collector:
+      name: BS Plus Option Tube Collector
+    recooling:
+      name: BS Plus Option Recooling
+    hqm:
+      name: BS Plus Option Heat Quantity Measurement
+  - platform: vbus
+    model: deltasol_bs_2009
+    sensor1_error:
+      name: BS 2009 Sensor 1 Error
+    frost_protection_active:
+      name: BS 2009 Frost Protection Active
   - platform: vbus
     model: deltasol_bs2
     sensor1_error:
@@ -20,9 +38,17 @@ binary_sensor:
     sensor4_error:
       name: BS2 Sensor 4 Error
   - platform: vbus
+    model: deltasol_cs2
+    sensor1_error:
+      name: "DeltaSol CS2 Sensor 1 Error"
+  - platform: vbus
     model: deltasol_cs4
     sensor1_error:
       name: "DeltaSol CS4 Sensor 1 Error"
+  - platform: vbus
+    model: deltasol_cs_plus
+    sensor1_error:
+      name: "DeltaSol CS Plus Sensor 1 Error"
   - platform: vbus
     model: custom
     command: 0x100

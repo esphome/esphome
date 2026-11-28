@@ -6,6 +6,9 @@
 #include "esphome/core/helpers.h"
 #endif
 
+#include <cstddef>
+#include <vector>
+
 namespace esphome::vbus {
 
 class VBus;
@@ -25,6 +28,9 @@ class VBusListener {
   uint16_t source_{0xffff};
   uint16_t dest_{0xffff};
 
+  bool warned_short_message_{false};
+
+  bool check_payload_size_(size_t actual, size_t expected);
   virtual void handle_message(std::vector<uint8_t> &message) = 0;
 };
 
@@ -41,16 +47,20 @@ class VBus final : public uart::UARTDevice, public Component {
 #endif
 
  protected:
-  int state_{0};
+  // A telegram is <sync 0xaa> <9 or 15 byte header> [<6 byte frame> ...]; every other byte is 7-bit,
+  // so a byte with bit 7 set that is not the sync byte always aborts the telegram in progress.
+  enum class ParseState : uint8_t { PARSE_STATE_IDLE, PARSE_STATE_HEADER, PARSE_STATE_FRAMES };
+
+  ParseState state_{ParseState::PARSE_STATE_IDLE};
   std::vector<uint8_t> buffer_;
-  uint8_t protocol_;
-  uint16_t source_;
-  uint16_t dest_;
-  uint16_t command_;
-  uint8_t frames_;
-  uint8_t cframe_;
-  uint8_t fbytes_[6];
-  int fbcount_;
+  uint8_t protocol_{0};
+  uint16_t source_{0};
+  uint16_t dest_{0};
+  uint16_t command_{0};
+  uint8_t frames_{0};
+  uint8_t cframe_{0};
+  uint8_t fbytes_[6]{};
+  uint8_t fbcount_{0};
   std::vector<VBusListener *> listeners_{};
 #ifdef USE_VBUS_DATAGRAM
   CallbackManager<void(uint16_t, uint16_t, uint16_t, uint16_t, uint32_t)> datagram_callback_;
