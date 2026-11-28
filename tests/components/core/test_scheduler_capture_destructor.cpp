@@ -12,6 +12,7 @@
 #include <memory>
 #include <thread>
 #include <tuple>
+#include <utility>
 
 namespace esphome::core::testing {
 
@@ -54,9 +55,10 @@ static constexpr uint32_t VICTIM_ID = 1000;
 
 class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<FreedBy, DestructorAction>> {
  protected:
+  // Runs for at least ms and at least a few passes, so a host pause cannot end it before follow-up timers run
   void run_for_(uint32_t ms) {
     const uint32_t end = millis() + ms;
-    while (static_cast<int32_t>(end - millis()) > 0) {
+    for (int passes = 0; passes < 5 || static_cast<int32_t>(end - millis()) > 0; passes++) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       this->scheduler_.call(millis());
     }
@@ -66,8 +68,8 @@ class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<Fr
   DestructorComponent component_;
 };
 
-// On the base scheduler these destructors ran with the lock held: the host mutex deadlocked, so a watchdog
-// turns a hang into a failure
+// A capture's destructor that calls the scheduler must not run with its lock held: on host that would deadlock on
+// the mutex, so a watchdog turns a hang into a failure
 TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   const auto [freed_by, action] = GetParam();
   std::atomic<bool> done{false};
