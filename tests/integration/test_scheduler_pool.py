@@ -30,7 +30,7 @@ async def test_scheduler_pool(
     """
     # Patterns to match pool operations
     reuse_pattern = re.compile(r"Reused item from pool \(pool size now: (\d+)\)")
-    recycle_pattern = re.compile(r"Recycled item \(pool size now: (\d+)\)")
+    recycle_pattern = re.compile(r"Recycled item to pool \(pool size now: (\d+)\)")
     pool_full_pattern = re.compile(r"Pool full \(size: (\d+)\), deleting item")
     new_alloc_pattern = re.compile(r"Allocated new item \(pool empty\)")
 
