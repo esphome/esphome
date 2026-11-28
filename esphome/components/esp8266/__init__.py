@@ -529,6 +529,10 @@ async def to_code(config: ConfigType) -> None:
     # implementation in the Arduino ESP8266 core.
     cg.add_build_flag("-Wl,--wrap=millis")
 
+    # strftime() and mktime() reload TZ, and newlib's parser links the scanf engine.
+    # ESPHome never sets TZ, so the reload is skipped. See tzset_stubs.cpp.
+    cg.add_build_flag("-Wl,--wrap=_tzset_unlocked")
+
     # Unconditional: the native build generator reads the same option,
     # keeping one source of truth
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])

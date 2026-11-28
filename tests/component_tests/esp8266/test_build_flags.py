@@ -15,3 +15,13 @@ def test_esp8266_keeps_switches_out_of_ram(
     generate_main(component_config_path("minimal.yaml"))
 
     assert "-fno-tree-switch-conversion" in CORE.build_flags
+
+
+def test_esp8266_skips_libc_tz_reload(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """strftime() must not link newlib's TZ parser and its scanf engine."""
+    generate_main(component_config_path("minimal.yaml"))
+
+    assert "-Wl,--wrap=_tzset_unlocked" in CORE.build_flags
