@@ -13,6 +13,9 @@ namespace esphome::canopen {
 class CANopenNode {
  public:
   CANopenNode(CANopenComponent *parent, uint8_t node_id);
+  // the constructor registers hub callbacks that capture this, and they can't be removed: no copies (or moves)
+  CANopenNode(const CANopenNode &) = delete;
+  CANopenNode &operator=(const CANopenNode &) = delete;
   virtual ~CANopenNode() = default;
 
   CANopenComponent *get_canopen() const { return this->canopen_; }
