@@ -81,7 +81,7 @@ class Sensor : public EntityBase {
    * This may look like:
    *
    * sensor->add_filters({
-   *   new OffsetFilter([]() -> float { return 1.0f; }),
+   *   new RoundFilter(1),
    *   new SlidingWindowMovingAverageFilter(15, 15, 1), // average over last 15 values
    * });
    */

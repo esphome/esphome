@@ -212,9 +212,11 @@ TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsAfterRestoringAndClearingS
 }
 #endif  // USE_HOST
 
+static optional<float> double_value(float value) { return value * 2.0f; }
+
 TEST_F(ATM90E32ThresholdRegisters, CombinesNativeCurrentWithOtherPhaseAlarms) {
   sensor::Sensor current;
-  sensor::MultiplyFilter multiply([]() { return 2.0f; });
+  sensor::ApplyFilter<double_value> multiply;
   current.add_filter(&multiply);
   current.publish_state(6.0f);
   ASSERT_FLOAT_EQ(current.state, 12.0f);
