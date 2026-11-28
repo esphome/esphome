@@ -1,0 +1,7 @@
+packages:
+  dallas_temp: !include common-rmt.yaml
+
+# The bus disables its RMT channels while idle, so their power management locks allow light sleep
+power_management:
+  - platform: esp32_power_management
+    enable_light_sleep: true

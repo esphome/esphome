@@ -24,6 +24,19 @@ class DallasTemperatureSensor final : public PollingComponent, public sensor::Se
   bool read_scratch_pad_();
   bool check_scratch_pad_();
   float get_temp_c_();
+  /// Log a warning naming this sensor, the step and the reason, set the status warning and return false
+  /// unless the transaction ended with TRANSACTION_STATUS_OK.
+  bool check_transaction_status_(one_wire::TransactionStatus status, bool conversion_step);
+  /// Set the command and the read length of the next step and submit it. The transaction must not be pending.
+  void submit_(const uint8_t *command, uint8_t read_len);
+  void handle_transaction_done_(one_wire::TransactionStatus status);
+  static void on_transaction_done(void *context, one_wire::TransactionStatus status);
+
+  /// One transaction for both steps of a cycle: Convert T (read_len 0), then Read Scratch Pad.
+  /// setup() sets the address. submit_() sets the command and read_len while the transaction is not pending.
+  /// The other fields never change.
+  one_wire::Transaction transaction_{
+      .read_data = this->scratch_pad_, .on_done = on_transaction_done, .context = this, .write_len = 1};
 };
 
 }  // namespace esphome::dallas_temp
