@@ -72,22 +72,20 @@ uint32_t IRAM_ATTR HOT millis() {
   return result;
 }
 
-// Delegate to Arduino's 1-arg esp_delay(), which uses os_timer + esp_suspend to
-// suspend the cont task for `ms` milliseconds without polling millis(). This
-// matches pre-2026.5.0 behavior (when esphome::delay() forwarded to ::delay())
-// and lets the SDK run freely while we wait, which timing-sensitive
-// interrupt-driven code (e.g. ESP8266 software-serial RX in components like
-// fingerprint_grow) depends on. The poll-based busy-wait that this replaced
-// rarely yielded inside short waits like delay(1), starving WiFi/SDK tasks and
-// extending interrupt latency. Unlike ::delay(), esp_delay()'s 1-arg form does
-// not call millis(), so the slow Arduino millis() body is not pulled into IRAM
-// by this path (the --wrap=millis goal of #15662 is preserved).
+// Arduino's os_timer-based esp_delay() suspends the cont task, so the SDK and WiFi run freely while
+// we wait. It returns on the first esp_schedule() from anywhere (wake_loop(), lwIP callbacks), so
+// suspend again for the rest of the time, measured with micros() so the wait never ends early.
 void HOT delay(uint32_t ms) {
   if (ms == 0) {
     optimistic_yield(1000);
     return;
   }
-  esp_delay(ms);
+  const uint32_t start = micros();
+  const uint32_t total_us = ms * 1000;
+  uint32_t elapsed;
+  // >> 10 avoids a software divide; it undercounts by 2.4%, so a long wait takes one more short suspend
+  while ((elapsed = micros() - start) < total_us)
+    esp_delay(((total_us - elapsed) >> 10) + 1);
 }
 
 void arch_restart() {
