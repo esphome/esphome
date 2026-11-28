@@ -220,12 +220,44 @@ TEST(CanopenOD, Read) {
 
 TEST(CanopenOD, Errors) {
   uint8_t a = 0, b = 0;
-  CountingObject handler;
   ObjectDictionary od;
   EXPECT_EQ(od.write(0x2000, 0, &a, 1), OdResult::OD_RESULT_DEVICE_STATE);  // before finalize()
   od.add_var(0x2000, OD_READ_WRITE, &a, 1);
   od.add_var(0x2000, OD_READ_WRITE, &b, 1);
-  od.set_object(0x2100, &handler);  // no such entry: logged, ignored
+  EXPECT_FALSE(od.finalize());
+}
+
+// a handler is attached by finalize(), so it may come before its entry
+TEST(CanopenOD, HandlerBeforeItsEntry) {
+  uint32_t value = 0;
+  CountingObject handler;
+  ObjectDictionary od;
+  od.set_object(0x2000, &handler);
+  od.add_var(0x2000, OD_READ_WRITE, &value, sizeof(value));
+  ASSERT_TRUE(od.finalize());
+  uint32_t v = 5;
+  EXPECT_EQ(od.write(0x2000, 0, &v, sizeof(v)), OdResult::OD_RESULT_OK);
+  EXPECT_EQ(handler.writes, 1);
+}
+
+// a handler that would be dropped makes the OD invalid (the hub fails setup), as a duplicate entry does
+TEST(CanopenOD, HandlerForAMissingEntry) {
+  uint8_t a = 0;
+  CountingObject handler;
+  ObjectDictionary od;
+  od.add_var(0x2000, OD_READ_WRITE, &a, 1);
+  od.set_object(0x2100, &handler);
+  EXPECT_FALSE(od.finalize());
+}
+
+// two components claiming one entry: neither handler is silently replaced
+TEST(CanopenOD, SecondHandler) {
+  uint8_t a = 0;
+  CountingObject first, second;
+  ObjectDictionary od;
+  od.add_var(0x2000, OD_READ_WRITE, &a, 1);
+  od.set_object(0x2000, &first);
+  od.set_object(0x2000, &second);
   EXPECT_FALSE(od.finalize());
 }
 

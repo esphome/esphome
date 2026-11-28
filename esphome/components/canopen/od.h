@@ -85,7 +85,13 @@ class ObjectDictionary {
     std::vector<OD_obj_var_t> vars;
     std::vector<OD_obj_array_t> arrays;
     std::vector<OD_obj_record_t> records;  // the subs of all records, each record's in a row
-    std::vector<OD_extension_t> extensions;
+    // set_object() calls with their entry's index: finalize() links the entries to them, so the order of add_*() and
+    // set_object() doesn't matter
+    struct PendingExtension {
+      uint16_t index;
+      OD_extension_t extension;
+    };
+    std::vector<PendingExtension> extensions;
   };
 
   // nullptr once finalized: CANopenNode then holds pointers into the arrays below
@@ -93,6 +99,8 @@ class ObjectDictionary {
 
   // --- Handlers (od_handler.cpp) ---
   void set_extension_(uint16_t index, const OD_extension_t &extension);
+  // finalize(): links the sorted entries to their handlers; false for a handler without an entry or a second handler
+  bool attach_handlers_(std::vector<PendingEntry> &entries);
   template<typename T>
   static ODR_t read_trampoline(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *count_read) {
     size_t done = 0;

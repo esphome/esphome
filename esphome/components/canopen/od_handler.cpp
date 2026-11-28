@@ -1,6 +1,8 @@
 // OD handlers: ObjectDictionary::set_object() and write().
 #include "od.h"
 
+#include <algorithm>
+
 #include "esphome/core/log.h"
 
 namespace esphome::canopen {
@@ -11,14 +13,28 @@ void ObjectDictionary::set_extension_(uint16_t index, const OD_extension_t &exte
   Pending *p = this->pending_(index);
   if (p == nullptr)
     return;
-  for (auto &entry : p->entries) {
-    if (entry.index == index) {
-      p->extensions.push_back(extension);
-      entry.extension = p->extensions.size();
-      return;
+  p->extensions.push_back({index, extension});
+}
+
+bool ObjectDictionary::attach_handlers_(std::vector<PendingEntry> &entries) {
+  bool ok = true;
+  const auto &extensions = this->pending_storage_->extensions;
+  for (size_t i = 0; i < extensions.size(); i++) {
+    const uint16_t index = extensions[i].index;
+    // entries are sorted by index
+    auto it = std::lower_bound(entries.begin(), entries.end(), index,
+                               [](const PendingEntry &e, uint16_t key) { return e.index < key; });
+    if (it == entries.end() || it->index != index) {
+      ESP_LOGE(TAG, "OD 0x%04x: handler for a missing entry", index);
+      ok = false;
+    } else if (it->extension != 0) {
+      ESP_LOGE(TAG, "OD 0x%04x: a second handler", index);
+      ok = false;
+    } else {
+      it->extension = i + 1;
     }
   }
-  ESP_LOGE(TAG, "OD 0x%04x: handler for a missing entry, ignored", index);
+  return ok;
 }
 
 OdResult ObjectDictionary::read(uint16_t index, uint8_t sub, void *data, size_t max_len, size_t *len) {
