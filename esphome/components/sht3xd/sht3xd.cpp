@@ -1,4 +1,5 @@
 #include "sht3xd.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sht3xd {
@@ -55,6 +56,13 @@ void SHT3XDComponent::update() {
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
     this->write_command(SHT3XD_COMMAND_SOFT_RESET);
+    delay(2);  // Soft reset takes up to 1.5 ms; a command sent sooner is lost
+    // The reset also turns the heater off; a failed enable keeps the warning so the next update retries
+    if (this->heater_enabled_) {
+      if (!this->status_comm_check(this->write_command(SHT3XD_COMMAND_HEATER_ENABLE)))
+        return;
+      delay(1);  // Busy about 0.3 ms after heater enable; a command sent sooner is refused at 400 kHz
+    }
   }
   if (!this->status_comm_check(this->write_command(SHT3XD_COMMAND_POLLING_H)))
     return;
