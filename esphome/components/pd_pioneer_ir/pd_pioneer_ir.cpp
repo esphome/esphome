@@ -6,7 +6,16 @@ namespace esphome::pd_pioneer_ir {
 ESPHOME_LOG_TAG(TAG, "pd_pioneer_ir");
 
 void PDPioneerIR::setup() {
+#ifdef USE_SWITCH
+  // Read before the climate publishes its restored state, which an on_state automation may transmit from, and publish
+  // after it, so the switch's own automations see a set up climate. Nothing is sent at boot.
+  if (this->display_switch_ != nullptr)
+    this->display_on_ = this->display_switch_->get_initial_write_state().value_or(true);
+#endif
   climate_ir::ClimateIR::setup();
+#ifdef USE_SWITCH
+  PUBLISH_STATE(this->display_switch_, this->display_on_);
+#endif
   this->publish_state();
 }
 
@@ -19,10 +28,18 @@ void PDPioneerIR::transmit_state() {
   data.set_swing_mode(this->swing_mode);
   // ECO shares the power byte, so it must not undo an off command
   data.set_eco(this->mode != climate::CLIMATE_MODE_OFF && this->preset == climate::CLIMATE_PRESET_ECO);
+  data.set_display(this->display_on_);
   data.finalize();
   // The remote sends the two bursts as separate transmissions
   this->transmit_<remote_base::PDPioneerProtocol>(data.odd());
   this->transmit_<remote_base::PDPioneerProtocol>(data.even());
+}
+
+void PDPioneerIR::set_display_on(bool on) {
+  this->display_on_ = on;
+  // An off command carries no display flag, and the display is dark while the unit is off
+  if (this->mode != climate::CLIMATE_MODE_OFF)
+    this->transmit_state();
 }
 
 bool PDPioneerIR::on_receive(remote_base::RemoteReceiveData data) {
@@ -52,6 +69,12 @@ bool PDPioneerIR::on_receive(remote_base::RemoteReceiveData data) {
   // A missed odd burst must not carry this command's horizontal swing into the next one
   this->rx_horizontal_swing_ = false;
   this->preset = ControlData::get_eco(*frame) ? climate::CLIMATE_PRESET_ECO : climate::CLIMATE_PRESET_NONE;
+  if (*decoded != climate::CLIMATE_MODE_OFF) {
+    this->display_on_ = ControlData::get_display(*frame);
+#ifdef USE_SWITCH
+    PUBLISH_STATE(this->display_switch_, this->display_on_);
+#endif
+  }
   this->publish_state();
   return true;
 }
