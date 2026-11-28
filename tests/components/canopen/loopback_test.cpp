@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstring>
 #include <utility>
 #include <vector>
 
@@ -185,6 +186,108 @@ TEST_F(LocalPair, SdoBufferTransfersAreSegmented) {
   request = bus.find(0x610);
   ASSERT_NE(request, nullptr);
   EXPECT_EQ(request->data[0], 0x40);
+}
+
+// a writable domain: the handler gets the download in chunks, the total size with the last one
+struct DomainSink : OdObject {
+  struct Call {
+    size_t offset;
+    size_t count;
+    size_t size;
+  };
+  std::vector<Call> calls;
+  std::vector<uint8_t> data;
+  OdResult od_write(OdStream stream, const void *buf, size_t count, size_t *done) {
+    this->calls.push_back({stream.offset(), count, stream.size()});
+    const auto *bytes = static_cast<const uint8_t *>(buf);
+    this->data.insert(this->data.end(), bytes, bytes + count);
+    stream.set_offset(stream.offset() + count);
+    *done = count;
+    bool last = stream.size() != 0 && stream.offset() >= stream.size();
+    return last ? OdResult::OD_RESULT_OK : OdResult::OD_RESULT_PARTIAL;
+  }
+};
+
+struct SdoResult {
+  int done{0};
+  SDOReply reply{};
+  static void on_reply(void *context, const SDOReply &reply) {
+    auto *r = static_cast<SdoResult *>(context);
+    r->done++;
+    r->reply = reply;
+  }
+};
+
+TEST_F(LocalPair, SdoDownloadIntoADomainHandler) {
+  DomainSink sink;
+  a.get_od().add_var(0x2100, OD_WRITE, nullptr, 0);
+  a.get_od().set_object(0x2100, &sink);
+  start();
+  // longer than the SDO server's buffer, so it reaches the handler in several chunks
+  static std::array<uint8_t, 1000> data;
+  for (size_t i = 0; i < data.size(); i++)
+    data[i] = i * 7;
+  SdoResult result;
+  ASSERT_TRUE(b.write_sdo_data(0x10, 0x2100, 0, data.data(), data.size(), SdoResult::on_reply, &result));
+  for (int i = 0; i < 2000 && result.done == 0; i++) {
+    b.loop();
+    a.loop();
+  }
+  ASSERT_EQ(result.done, 1);
+  EXPECT_TRUE(result.reply.ok());
+  EXPECT_EQ(sink.data, std::vector<uint8_t>(data.begin(), data.end()));
+  ASSERT_GT(sink.calls.size(), 1u);
+  size_t offset = 0;
+  for (size_t i = 0; i < sink.calls.size(); i++) {
+    const auto &call = sink.calls[i];
+    EXPECT_EQ(call.offset, offset) << "chunk " << i;
+    // the size is unknown (0) until the last chunk, which carries the total
+    EXPECT_EQ(call.size, i + 1 < sink.calls.size() ? 0u : data.size()) << "chunk " << i;
+    offset += call.count;
+  }
+  EXPECT_EQ(offset, data.size());
+}
+
+// a handler's error result reaches the client as the matching SDO abort code
+struct LimitedValue : OdObject {
+  int writes{0};
+  OdResult od_write(OdStream stream, const void *buf, size_t count, size_t *done) {
+    uint16_t value;
+    std::memcpy(&value, buf, sizeof(value));
+    if (value > 1000)
+      return OdResult::OD_RESULT_VALUE_HIGH;
+    this->writes++;
+    return stream.write_original(buf, count, done);
+  }
+};
+
+TEST_F(LocalPair, HandlerErrorAbortsTheSdoTransfer) {
+  uint16_t value = 0;
+  LimitedValue handler;
+  a.get_od().add_var(0x2101, OD_READ_WRITE, &value, sizeof(value));
+  a.get_od().set_object(0x2101, &handler);
+  start();
+  auto write = [&](uint16_t v) {
+    SdoResult result;
+    EXPECT_TRUE(b.write_sdo<uint16_t>(0x10, 0x2101, 0, v, SdoResult::on_reply, &result));
+    for (int i = 0; i < 50 && result.done == 0; i++) {
+      b.loop();
+      a.loop();
+    }
+    EXPECT_EQ(result.done, 1);
+    return result.reply;
+  };
+
+  SDOReply reply = write(2000);
+  EXPECT_EQ(reply.result, SDOResult::SDO_RESULT_ABORT);
+  EXPECT_EQ(reply.abort_code, 0x06090031u);  // value of parameter written too high
+  EXPECT_EQ(value, 0u);
+  EXPECT_EQ(handler.writes, 0);
+
+  reply = write(500);
+  EXPECT_TRUE(reply.ok());
+  EXPECT_EQ(value, 500u);
+  EXPECT_EQ(handler.writes, 1);
 }
 
 TEST_F(LocalPair, QueuedFrameDeliveredWhenSent) {

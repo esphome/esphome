@@ -81,6 +81,8 @@ bool ObjectDictionary::finalize() {
       ok = false;
     }
   }
+  if (auto attach = this->pending_storage_->attach; attach != nullptr && !(this->*attach)(pending))
+    ok = false;
   copy_exact(this->vars_, this->pending_storage_->vars);
   copy_exact(this->arrays_, this->pending_storage_->arrays);
   copy_exact(this->records_, this->pending_storage_->records);
@@ -95,7 +97,8 @@ bool ObjectDictionary::finalize() {
     } else {
       obj = &this->records_[p.object];
     }
-    this->entries_.push_back(OD_entry_t{p.index, p.sub_count, p.type, obj, nullptr});
+    OD_extension_t *ext = p.extension ? &this->extensions_[p.extension - 1] : nullptr;
+    this->entries_.push_back(OD_entry_t{p.index, p.sub_count, p.type, obj, ext});
   }
   this->entries_.push_back(OD_entry_t{0, 0, 0, nullptr, nullptr});
   this->pending_storage_.reset();
