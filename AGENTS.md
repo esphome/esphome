@@ -338,9 +338,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         outside the loop gets work onto it. Never call a component's `setup()` or `loop()` from outside the loop.
         Options such as a fan's preset modes or a select's options are usually set during setup, and a later change
         happens on the loop too. web_server shows the pattern: its request handlers run outside the main loop on
-        every platform, fill a `*Call` there and defer `call.perform()`. Do not add locks, revalidation or bounds
-        checks against an entity changing under a pending call, from another task or a callback inside
-        `perform()`, or ask for them.
+        every platform, fill a `*Call` there (only reading options, which is accepted) and defer `call.perform()`.
+        Do not add locks or revalidation against an entity changing under a pending call, from another task or a
+        callback inside `perform()`, or ask for them. One exception: a call that stores an index into options a
+        runtime setter can replace checks the index where `perform()` applies it.
     *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
         as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
     *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale

@@ -104,9 +104,12 @@ performance nit, because it fragments a small shared heap. Flag:
 - Required, invariant dependencies should be constructor parameters, not setters.
 - Almost everything, including `setup()`, `loop()` and every entity, runs only on the main loop and is not
   thread-safe; code outside the loop reaches it through the scheduler (`defer()`, `set_timeout()`), and nothing calls
-  a component's `setup()` or `loop()` from outside it. web_server's handlers, which run outside the loop on every
-  platform, fill a `*Call` and defer `call.perform()`. Do not ask for locks, revalidation or bounds checks against an
-  entity changing under a pending call, from another task or a callback inside `perform()`.
+  a component's `setup()` or `loop()` from outside it. Options such as a fan's preset modes are usually set at setup,
+  and any later change also happens on the loop. web_server's handlers, which run outside the loop on every platform,
+  fill a `*Call` (only reading options, which is accepted) and defer `call.perform()`. Do not ask for locks or
+  revalidation against an entity changing under a pending call, from another task or a callback inside `perform()`;
+  the one exception is a stored index into options a runtime setter can replace, checked where `perform()` applies
+  it.
 - Callback registration methods must be templated (`template<typename F>`), not
   typed as `std::function`, so lightweight forwarders avoid a heap allocation.
 - Two-space indent, `using` over `typedef`, wrap at 120 columns.
