@@ -10,7 +10,8 @@
 namespace esphome {
 
 /// Type-erased scheduler callable, built from a callable at the call site: inline when small and trivially
-/// copyable, else heap-boxed. A function taking SchedulerCallback && must pass it to the scheduler once, on every path.
+/// copyable, else heap-boxed. A function taking SchedulerCallback && must pass it to the scheduler once, on every
+/// path: one that is dropped leaks its box and what it captured.
 class SchedulerCallback {
  public:
   static constexpr size_t INLINE_WORDS = 3;
@@ -24,8 +25,8 @@ class SchedulerCallback {
   SchedulerCallback(F &&f) {
     using D = std::decay_t<F>;
     if constexpr (FITS_INLINE<D>) {
-      this->invoke_ = [](SchedulerCallback *self) { (*std::launder(reinterpret_cast<D *>(self->words_)))(); };
-      ::new (this->words_) D(std::forward<F>(f));
+      this->invoke_ = [](SchedulerCallback *self) { (*std::launder(reinterpret_cast<D *>(self->bytes_)))(); };
+      ::new (this->bytes_) D(std::forward<F>(f));
     } else {
       this->invoke_ = &SchedulerCallback::invoke_boxed;
       this->boxed_.obj = ::new D(std::forward<F>(f));
@@ -51,20 +52,21 @@ class SchedulerCallback {
     if (this->invoke_ == &SchedulerCallback::invoke_boxed)
       this->boxed_.release(this->boxed_.obj);
   }
-  /// Moves other's callable here and empties other; explicit word stores avoid a memcpy call at -Os
+  /// Moves other's callable here and empties other. Copied as bytes (relying on GCC/Clang union and memcpy
+  /// semantics) in word-sized pieces, which -Os keeps as word loads where one 12-byte copy can become a memcpy call
   void take_(SchedulerCallback &other) {
-    static_assert(INLINE_WORDS == 3, "take_() copies three words");
     this->invoke_ = other.invoke_;
-    this->words_[0] = other.words_[0];
-    this->words_[1] = other.words_[1];
-    this->words_[2] = other.words_[2];
+    auto *dst = static_cast<unsigned char *>(__builtin_assume_aligned(this->bytes_, alignof(uintptr_t)));
+    const auto *src = static_cast<const unsigned char *>(__builtin_assume_aligned(other.bytes_, alignof(uintptr_t)));
+    for (size_t i = 0; i < sizeof(this->bytes_); i += sizeof(uintptr_t))
+      __builtin_memcpy(dst + i, src + i, sizeof(uintptr_t));
     other.invoke_ = nullptr;
   }
   static void invoke_boxed(SchedulerCallback *self) { self->boxed_.run(self->boxed_.obj); }
 
   void (*invoke_)(SchedulerCallback *self);
   union {
-    uintptr_t words_[INLINE_WORDS];  // an inline callable's bytes
+    alignas(uintptr_t) unsigned char bytes_[INLINE_WORDS * sizeof(uintptr_t)];  // an inline callable
     struct {
       void *obj;
       void (*run)(void *obj);

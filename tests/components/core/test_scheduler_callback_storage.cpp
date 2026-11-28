@@ -37,7 +37,9 @@ template<size_t N> static uintptr_t run_words() {
   Words<N> words{};
   words.w[0] = 1;
   words.w[N - 1] += 320;
-  scheduler.set_timeout(&component, "words", 1, [words, out = &seen]() { *out = words.w[0] + words.w[N - 1]; });
+  auto f = [words, out = &seen]() { *out = words.w[0] + words.w[N - 1]; };
+  static_assert(SchedulerCallback::FITS_INLINE<decltype(f)> == (N < SchedulerCallback::INLINE_WORDS));
+  scheduler.set_timeout(&component, "words", 1, std::move(f));
   run_due(scheduler);
   scheduler.trim_freelist();
   return seen;

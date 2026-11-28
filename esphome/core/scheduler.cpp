@@ -134,12 +134,13 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
                                       const char *static_name, uint32_t hash_or_id, uint32_t delay,
                                       SchedulerCallback &&func, bool skip_cancel, const LogString *source) {
   if (delay == SCHEDULER_DONT_RUN) {
-    func.release_();  // no item is made to keep it
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
       SchedulerLockGuard guard{this->lock_};
       this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* find_first= */ true);
     }
+    // No item keeps it; after the cancel, so a capture's destructor that schedules the same key survives
+    func.release_();
     return;
   }
 
@@ -752,11 +753,12 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   item->next_free = this->scheduler_item_pool_head_;
   this->scheduler_item_pool_head_ = item;
   this->scheduler_item_pool_size_++;
+  // Last outside debug builds, so the free is a tail call; the item may already be reused while it runs, which is
+  // safe as release_() reads nothing after the free. Before the debug log, whose on_message could reuse the item
+  item->callback.release_();
 #ifdef ESPHOME_DEBUG_SCHEDULER
   ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
-  // Last, so the free is a tail call; next_free does not share the callback's storage
-  item->callback.release_();
 }
 
 // Shrink a SchedulerItem* vector's capacity to its current size.
