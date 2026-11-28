@@ -72,7 +72,10 @@ TFLiteMicroHelper::LockGuard::LockGuard(const TFLiteMicroHelper *helper, bool wa
     }
     return;
   }
-  if (wait) {
+  // A task inside invoke() holds shared_invoke_mutex(), and the owner of this
+  // lock may be waiting for that one: a log callback reaching another model must
+  // not block here.
+  if (wait && shared_invoke_owner.load(std::memory_order_relaxed) != current) {
     this->helper_->mutex_.lock();
   } else if (!this->helper_->mutex_.try_lock()) {
     return;
@@ -246,6 +249,10 @@ void TFLiteMicroHelper::dispatch_result_() {
   // A run started from a callback would overwrite the result the remaining
   // callbacks are reading, and would recurse here until the stack overflows.
   if (this->dispatching_.load(std::memory_order_acquire))
+    return;
+  // Reached from a log emitted during an invocation: the lock taken after the
+  // callbacks might be refused, which would deliver the result twice. loop() does it.
+  if (shared_invoke_owner.load(std::memory_order_relaxed) == xTaskGetCurrentTaskHandle())
     return;
   uint32_t epoch = 0;
   {

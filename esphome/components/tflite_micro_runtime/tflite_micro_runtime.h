@@ -200,6 +200,7 @@ class TFLiteMicroHelper : public Component {
   friend class InferenceSession;
 
   /// Lock the lifecycle mutex, or report a same-task re-entry instead of blocking.
+  /// A task that is invoking a model never blocks here, whatever `wait` says.
   class LockGuard {
    public:
     /// @param wait false to give up at once when another task holds the lock.
@@ -323,7 +324,7 @@ class InferenceSession {
   InferenceSession(const InferenceSession &) = delete;
   InferenceSession &operator=(const InferenceSession &) = delete;
 
-  /// False when the lock could not be taken (re-entered from a log callback).
+  /// False when the lock could not be taken (called from a log callback).
   bool valid() const { return this->locked_; }
   /// Tensors of the loaded model; nullptr unless a model is loaded.
   TfLiteTensor *input_tensor();
