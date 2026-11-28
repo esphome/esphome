@@ -69,8 +69,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
+    var = await i2c.new_i2c_component(config)
+    await sensor.register_sensor(var, config)
     cg.add(var.set_signal_rate_limit(config[CONF_SIGNAL_RATE_LIMIT]))
     cg.add(var.set_long_range(config[CONF_LONG_RANGE]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
@@ -79,5 +79,3 @@ async def to_code(config: ConfigType) -> None:
 
     if timing_budget := config.get(CONF_TIMING_BUDGET):
         cg.add(var.set_timing_budget(timing_budget))
-
-    await i2c.register_i2c_device(var, config)

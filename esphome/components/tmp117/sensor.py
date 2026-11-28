@@ -62,9 +62,8 @@ def determine_config_register(polling_period: int) -> int:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
+    await sensor.register_sensor(var, config)
 
     update_period = config[CONF_UPDATE_INTERVAL].total_milliseconds
     cg.add(var.set_config(determine_config_register(update_period)))
