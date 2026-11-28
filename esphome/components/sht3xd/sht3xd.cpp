@@ -1,4 +1,5 @@
 #include "sht3xd.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sht3xd {
