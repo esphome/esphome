@@ -29,11 +29,12 @@ enum : uint8_t {
 };
 static constexpr uint8_t STEP_DONE = 0xFF;
 
-static constexpr uint16_t TIME_FIELDS = gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_DATE;
+static constexpr uint16_t TIME_FIELDS = geolocation::GEOLOCATION_FIELD_TIME | geolocation::GEOLOCATION_FIELD_DATE;
 // Values that mean nothing without a fix
-static constexpr uint16_t FIX_FIELDS = gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_SPEED |
-                                       gnss::GNSS_FIELD_COURSE | gnss::GNSS_FIELD_HORIZONTAL_ACCURACY |
-                                       gnss::GNSS_FIELD_VERTICAL_ACCURACY;
+static constexpr uint16_t FIX_FIELDS =
+    geolocation::GEOLOCATION_FIELD_LOCATION | geolocation::GEOLOCATION_FIELD_ALTITUDE |
+    geolocation::GEOLOCATION_FIELD_SPEED | geolocation::GEOLOCATION_FIELD_COURSE |
+    geolocation::GEOLOCATION_FIELD_HORIZONTAL_ACCURACY | geolocation::GEOLOCATION_FIELD_VERTICAL_ACCURACY;
 
 // NAV-TIMEUTC comes last in each epoch, so it completes one
 static constexpr uint8_t PVT_MESSAGES[] = {UBX_NAV_DOP, UBX_NAV_PVT, UBX_NAV_TIMEUTC};
@@ -164,7 +165,7 @@ void UBXGNSS::handle_frame_() {
       return;
     const uint32_t itow = encode_value_le<uint32_t>(p);
     if (itow != this->epoch_itow_) {
-      this->epoch_ = gnss::GNSSData{};
+      this->epoch_ = geolocation::GeolocationData{};
       this->fix_ = false;
       this->epoch_itow_ = itow;
     }
@@ -209,7 +210,7 @@ void UBXGNSS::commit_epoch_() {
     e.updated &= ~FIX_FIELDS;
   // The last valid UTC stays; the time source ignores it once it is stale
   uint16_t kept = 0;
-  if (!e.is_updated(gnss::GNSS_FIELD_TIME)) {
+  if (!e.is_updated(geolocation::GEOLOCATION_FIELD_TIME)) {
     e.utc = this->data_.utc;
     e.utc_millis = this->data_.utc_millis;
     e.year = this->data_.year;
@@ -218,6 +219,9 @@ void UBXGNSS::commit_epoch_() {
     e.hour = this->data_.hour;
     e.minute = this->data_.minute;
     e.second = this->data_.second;
+#ifdef USE_GEOLOCATION_MILLISECOND
+    e.millisecond = this->data_.millisecond;
+#endif
     kept = this->data_.valid & TIME_FIELDS;
   }
   // Only what this epoch carries is valid, so a lost fix shows as no position

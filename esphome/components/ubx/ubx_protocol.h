@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/gnss/gnss.h"
+#include "esphome/components/geolocation/geolocation.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -71,6 +71,7 @@ uint16_t parse_protocol_version(const uint8_t *payload, uint16_t len);
 /// Decode a NAV message into `data`. Position, altitude, speed and course are written even without a fix; `fix` is
 /// updated by the messages that carry the fix status (NAV-PVT, NAV-SOL). UTC is set only when the receiver marks it
 /// valid, leap seconds included. Returns whether the message was one of the decoded ones and long enough.
-bool decode_nav(uint8_t msg_id, const uint8_t *payload, uint16_t len, uint64_t now_ms, gnss::GNSSData &data, bool &fix);
+bool decode_nav(uint8_t msg_id, const uint8_t *payload, uint16_t len, uint64_t now_ms,
+                geolocation::GeolocationData &data, bool &fix);
 
 }  // namespace esphome::ubx

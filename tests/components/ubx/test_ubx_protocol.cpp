@@ -101,12 +101,13 @@ TEST(UBXNav, PvtWithA3dFix) {
   p[23] = 9;
   put_le32(p.data() + 24, static_cast<uint32_t>(173657050));  // lon 17.365705
   put_le32(p.data() + 28, static_cast<uint32_t>(480537950));  // lat 48.053795
+  put_le32(p.data() + 32, 166000);                            // height above the ellipsoid 166 m
   put_le32(p.data() + 36, 122000);                            // hMSL 122 m
   put_le32(p.data() + 40, 2500);                              // hAcc 2.5 m
   put_le32(p.data() + 44, 4000);                              // vAcc 4 m
   put_le32(p.data() + 60, 10000);                             // 10 m/s
   put_le32(p.data() + 64, 9000000);                           // 90 degrees
-  gnss::GNSSData d{};
+  geolocation::GeolocationData d{};
   bool fix = false;
   ASSERT_TRUE(decode_nav(UBX_NAV_PVT, p.data(), p.size(), 0, d, fix));
   EXPECT_TRUE(fix);
@@ -114,21 +115,24 @@ TEST(UBXNav, PvtWithA3dFix) {
   EXPECT_EQ(d.latitude_e7, 480537950);
   EXPECT_EQ(d.longitude_e7, 173657050);
   EXPECT_EQ(d.altitude_e3, 122000);
+  EXPECT_EQ(d.geoid_separation_e3, 44000);
   EXPECT_EQ(d.horizontal_accuracy_e3, 2500u);
   EXPECT_EQ(d.vertical_accuracy_e3, 4000u);
   EXPECT_EQ(d.speed_e3, 19438u);  // 10 m/s in knots
   EXPECT_NEAR(d.speed_kmh(), 36.0f, 0.01f);
   EXPECT_EQ(d.course_e2, 9000);
-  EXPECT_EQ(d.updated, gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_SPEED |
-                           gnss::GNSS_FIELD_COURSE | gnss::GNSS_FIELD_SATELLITES |
-                           gnss::GNSS_FIELD_HORIZONTAL_ACCURACY | gnss::GNSS_FIELD_VERTICAL_ACCURACY);
+  EXPECT_EQ(d.updated,
+            geolocation::GEOLOCATION_FIELD_LOCATION | geolocation::GEOLOCATION_FIELD_ALTITUDE |
+                geolocation::GEOLOCATION_FIELD_SPEED | geolocation::GEOLOCATION_FIELD_COURSE |
+                geolocation::GEOLOCATION_FIELD_SATELLITES | geolocation::GEOLOCATION_FIELD_HORIZONTAL_ACCURACY |
+                geolocation::GEOLOCATION_FIELD_VERTICAL_ACCURACY | geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION);
 }
 
 TEST(UBXNav, VelnedInCentimetersAndAFullCircle) {
   std::vector<uint8_t> p(36, 0);
   put_le32(p.data() + 20, 1000);      // 10 m/s
   put_le32(p.data() + 24, 35999999);  // rounds to 360 degrees
-  gnss::GNSSData d{};
+  geolocation::GeolocationData d{};
   bool fix = false;
   ASSERT_TRUE(decode_nav(UBX_NAV_VELNED, p.data(), p.size(), 0, d, fix));
   EXPECT_EQ(d.speed_e3, 19438u);
@@ -139,7 +143,7 @@ TEST(UBXNav, LegacySolCarriesTheFix) {
   std::vector<uint8_t> p(52, 0);
   p[10] = 2;  // 2D fix, but gpsFixOK not set
   p[47] = 4;
-  gnss::GNSSData d{};
+  geolocation::GeolocationData d{};
   bool fix = true;
   ASSERT_TRUE(decode_nav(UBX_NAV_SOL, p.data(), p.size(), 0, d, fix));
   EXPECT_FALSE(fix);
@@ -152,8 +156,9 @@ TEST(UBXNav, TimeUtcOnlyWithKnownLeapSeconds) {
   p[14] = 11;
   p[15] = 25;
   p[16] = 12;
-  p[19] = 0x03;  // TOW and week valid, leap seconds unknown
-  gnss::GNSSData d{};
+  put_le32(p.data() + 8, 420000000);  // 0.42 s
+  p[19] = 0x03;                       // TOW and week valid, leap seconds unknown
+  geolocation::GeolocationData d{};
   bool fix = false;
   ASSERT_TRUE(decode_nav(UBX_NAV_TIMEUTC, p.data(), p.size(), 1234, d, fix));
   EXPECT_EQ(d.utc, 0);
@@ -163,12 +168,16 @@ TEST(UBXNav, TimeUtcOnlyWithKnownLeapSeconds) {
   EXPECT_EQ(d.utc_millis, 1234u);
   EXPECT_EQ(d.year, 2026);
   EXPECT_EQ(d.hour, 12);
-  EXPECT_EQ(d.updated, gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_DATE);
+  EXPECT_EQ(d.millisecond, 420);
+  put_le32(p.data() + 8, static_cast<uint32_t>(-1000));  // the fields were rounded up
+  ASSERT_TRUE(decode_nav(UBX_NAV_TIMEUTC, p.data(), p.size(), 1234, d, fix));
+  EXPECT_EQ(d.millisecond, 0);
+  EXPECT_EQ(d.updated, geolocation::GEOLOCATION_FIELD_TIME | geolocation::GEOLOCATION_FIELD_DATE);
 }
 
 TEST(UBXNav, ShortMessagesAreRejected) {
   std::vector<uint8_t> p(27, 0);
-  gnss::GNSSData d{};
+  geolocation::GeolocationData d{};
   bool fix = false;
   EXPECT_FALSE(decode_nav(UBX_NAV_POSLLH, p.data(), p.size(), 0, d, fix));
   EXPECT_EQ(d.updated, 0);

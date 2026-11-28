@@ -1,6 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.gnss import GNSSComponent, gnss_schema, new_gnss
+from esphome.components.geolocation import (
+    GeolocationComponent,
+    geolocation_schema,
+    new_geolocation,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_RATE, CONF_UART_ID
 import esphome.final_validate as fv
@@ -12,7 +16,7 @@ DEPENDENCIES = ["uart"]
 
 CONF_DYNAMIC_MODEL = "dynamic_model"
 
-UBXGNSS = ubx_ns.class_("UBXGNSS", GNSSComponent, uart.UARTDevice)
+UBXGNSS = ubx_ns.class_("UBXGNSS", GeolocationComponent, uart.UARTDevice)
 
 # CFG-NAV5 dynModel values
 DYNAMIC_MODELS = {
@@ -27,7 +31,7 @@ DYNAMIC_MODELS = {
 }
 
 CONFIG_SCHEMA = (
-    gnss_schema(UBXGNSS)
+    geolocation_schema(UBXGNSS)
     .extend(
         {
             # u-blox 6 measures at up to 5 Hz, later receivers at 10 Hz or more
@@ -66,7 +70,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await new_gnss(config)
+    var = await new_geolocation(config)
     await uart.register_uart_device(var, config)
     cg.add(var.set_measurement_rate_ms(round(1000 / config[CONF_RATE])))
     if (model := config.get(CONF_DYNAMIC_MODEL)) is not None:

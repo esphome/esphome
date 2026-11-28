@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/gnss/gnss.h"
+#include "esphome/components/geolocation/geolocation.h"
 #include "esphome/components/uart/uart.h"
 #include "ubx_protocol.h"
 
@@ -9,7 +9,7 @@ namespace esphome::ubx {
 static constexpr uint8_t UBX_DYNAMIC_MODEL_UNSET = 0xFF;
 
 /// A u-blox receiver set up for and read in the binary UBX protocol.
-class UBXGNSS final : public gnss::GNSSComponent, public uart::UARTDevice {
+class UBXGNSS final : public geolocation::GeolocationComponent, public uart::UARTDevice {
  public:
   void setup() override;
   void loop() override;
@@ -32,7 +32,7 @@ class UBXGNSS final : public gnss::GNSSComponent, public uart::UARTDevice {
 
   FrameParser parser_;
   // The NAV messages of the current epoch, copied to data_ once NAV-TIMEUTC completes it
-  gnss::GNSSData epoch_{};
+  geolocation::GeolocationData epoch_{};
   uint32_t epoch_itow_{0};
   // CFG-PRT settings of the receiver's port
   uint8_t port_[20]{};

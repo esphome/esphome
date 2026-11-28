@@ -114,7 +114,7 @@ uint16_t parse_protocol_version(const uint8_t *payload, uint16_t len) {
   return 0;
 }
 
-using gnss::GNSSData;
+using geolocation::GeolocationData;
 
 /// A ground speed in mm/s as knots times 1000
 static uint32_t knots_e3(int64_t mm_per_s) {
@@ -126,17 +126,22 @@ static uint16_t course_e2(int32_t heading_e5) {
   return static_cast<uint16_t>(e2 >= 36000 || e2 < 0 ? 0 : e2);
 }
 
-static void set_position(GNSSData &data, const uint8_t *lon, const uint8_t *height_msl, const uint8_t *h_acc) {
+static void set_position(GeolocationData &data, const uint8_t *lon, const uint8_t *height_msl, const uint8_t *h_acc) {
   data.longitude_e7 = encode_value_le<int32_t>(lon);
   data.latitude_e7 = encode_value_le<int32_t>(lon + 4);
   data.altitude_e3 = encode_value_le<int32_t>(height_msl);  // mm
+#ifdef USE_GEOLOCATION_GEOID_SEPARATION
+  // The height above the ellipsoid comes just before the one above mean sea level
+  data.geoid_separation_e3 = encode_value_le<int32_t>(height_msl - 4) - data.altitude_e3;
+  data.updated |= geolocation::GEOLOCATION_FIELD_GEOID_SEPARATION;
+#endif
   data.horizontal_accuracy_e3 = encode_value_le<uint32_t>(h_acc);
   data.vertical_accuracy_e3 = encode_value_le<uint32_t>(h_acc + 4);
-  data.updated |= gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_HORIZONTAL_ACCURACY |
-                  gnss::GNSS_FIELD_VERTICAL_ACCURACY;
+  data.updated |= geolocation::GEOLOCATION_FIELD_LOCATION | geolocation::GEOLOCATION_FIELD_ALTITUDE |
+                  geolocation::GEOLOCATION_FIELD_HORIZONTAL_ACCURACY | geolocation::GEOLOCATION_FIELD_VERTICAL_ACCURACY;
 }
 
-bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms, GNSSData &data, bool &fix) {
+bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms, GeolocationData &data, bool &fix) {
   switch (msg_id) {
     case UBX_NAV_PVT: {
       // 84 bytes in protocol 14, 92 from 15; the fields read here are the same
@@ -148,7 +153,8 @@ bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms,
       set_position(data, p + 24, p + 36, p + 40);
       data.speed_e3 = knots_e3(encode_value_le<int32_t>(p + 60));
       data.course_e2 = course_e2(encode_value_le<int32_t>(p + 64));
-      data.updated |= gnss::GNSS_FIELD_SATELLITES | gnss::GNSS_FIELD_SPEED | gnss::GNSS_FIELD_COURSE;
+      data.updated |= geolocation::GEOLOCATION_FIELD_SATELLITES | geolocation::GEOLOCATION_FIELD_SPEED |
+                      geolocation::GEOLOCATION_FIELD_COURSE;
       return true;
     }
     case UBX_NAV_POSLLH:
@@ -161,20 +167,20 @@ bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms,
         return false;
       data.speed_e3 = knots_e3(static_cast<int64_t>(encode_value_le<uint32_t>(p + 20)) * 10);  // cm/s
       data.course_e2 = course_e2(encode_value_le<int32_t>(p + 24));
-      data.updated |= gnss::GNSS_FIELD_SPEED | gnss::GNSS_FIELD_COURSE;
+      data.updated |= geolocation::GEOLOCATION_FIELD_SPEED | geolocation::GEOLOCATION_FIELD_COURSE;
       return true;
     case UBX_NAV_SOL:
       if (len < 52)
         return false;
       fix = p[10] >= 2 && p[10] <= 4 && (p[11] & 0x01) != 0;
       data.satellites = p[47];
-      data.updated |= gnss::GNSS_FIELD_SATELLITES;
+      data.updated |= geolocation::GEOLOCATION_FIELD_SATELLITES;
       return true;
     case UBX_NAV_DOP:
       if (len < 18)
         return false;
       data.hdop_e2 = encode_value_le<uint16_t>(p + 12);
-      data.updated |= gnss::GNSS_FIELD_HDOP;
+      data.updated |= geolocation::GEOLOCATION_FIELD_HDOP;
       return true;
     case UBX_NAV_TIMEUTC: {
       if (len < 20)
@@ -188,6 +194,13 @@ bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms,
       data.hour = p[16];
       data.minute = p[17];
       data.second = p[18];
+#ifdef USE_GEOLOCATION_MILLISECOND
+      {
+        // ponytail: a negative fraction (the fields rounded up) gives 0, so up to 0.5 s early
+        const int32_t nano = encode_value_le<int32_t>(p + 8);
+        data.millisecond = nano <= 0 ? 0 : std::min<int32_t>((nano + 500000) / 1000000, 999);
+      }
+#endif
       ESPTime t{};
       t.year = data.year;
       t.month = data.month;
@@ -198,7 +211,7 @@ bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms,
       t.recalc_timestamp_utc(false);
       data.utc = t.timestamp;
       data.utc_millis = now_ms;
-      data.updated |= gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_DATE;
+      data.updated |= geolocation::GEOLOCATION_FIELD_TIME | geolocation::GEOLOCATION_FIELD_DATE;
       return true;
     }
     default:

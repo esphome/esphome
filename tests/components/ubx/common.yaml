@@ -1,27 +1,29 @@
-gnss:
+geolocation:
   - platform: ubx
     id: ubx_receiver
     rate: 2Hz
     dynamic_model: automotive
+    millisecond: true
+    geoid_separation: true
 
 sensor:
-  - platform: gnss
-    gnss_id: ubx_receiver
+  - platform: geolocation
+    geolocation_id: ubx_receiver
     type: latitude
     name: "Latitude"
-  - platform: gnss
-    gnss_id: ubx_receiver
+  - platform: geolocation
+    geolocation_id: ubx_receiver
     type: longitude
     name: "Longitude"
-  - platform: gnss
-    gnss_id: ubx_receiver
+  - platform: geolocation
+    geolocation_id: ubx_receiver
     type: horizontal_accuracy
     name: "Horizontal Accuracy"
-  - platform: gnss
-    gnss_id: ubx_receiver
+  - platform: geolocation
+    geolocation_id: ubx_receiver
     type: vertical_accuracy
     name: "Vertical Accuracy"
 
 time:
-  - platform: gnss
-    gnss_id: ubx_receiver
+  - platform: geolocation
+    geolocation_id: ubx_receiver
