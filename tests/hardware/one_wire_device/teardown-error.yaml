@@ -1,0 +1,33 @@
+substitutions:
+  failure_mode: '1'
+  node_name: ow-teardown-error
+esphome:
+  name: ${node_name}
+  includes: [teardown-error.h]
+  build_flags:
+    - '-Wl,--wrap=esp_intr_free'
+    - '-Wl,--wrap=esp_ipc_call_blocking'
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "HIL_IMAGE teardown-error-fault"
+      - delay: 2s
+      - lambda: |-
+          ow_fault_target.store(id(emulated));
+          ow_fault_mode.store(${failure_mode});
+          id(emulated).on_shutdown();
+          ESP_LOGI("hil", "HIL_RETRY_BEGIN");
+          ow_fault_mode.store(0);
+          id(emulated).on_shutdown();
+          ESP_LOGI("hil", "HIL_FREE_CALLED retained=%d called=%d", ow_handle_retained.load(), ow_free_called.load());
+          ESP_LOGI("hil", "HIL_TEARDOWN_COMPLETE mode=%d", ${failure_mode});
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  address: 0x6EB807A434E3EC28

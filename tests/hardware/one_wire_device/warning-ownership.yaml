@@ -1,0 +1,30 @@
+esphome:
+  name: ow-warning-ownership
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(emulated).status_set_warning(LOG_STR("External bench condition"));
+          id(emulated).set_value(0, NAN);
+          id(emulated).set_value(0, 23.5f);
+          bool external_kept = id(emulated).status_has_warning();
+          id(emulated).status_clear_warning();
+          id(emulated).set_value(0, NAN);
+          bool unavailable_warned = id(emulated).status_has_warning();
+          id(emulated).set_value(0, 23.5f);
+          bool own_cleared = !id(emulated).status_has_warning();
+          id(emulated).set_value(3, 1.0f);
+          id(emulated).set_value(0, 23.5f);
+          bool configuration_kept = id(emulated).status_has_warning();
+          ESP_LOGI("hil", "HIL_WARNINGS external=%d invalid=%d recovered=%d configuration=%d",
+                   external_kept, unavailable_warned, own_cleared, configuration_kept);
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  address: 0x6EB807A434E3EC28

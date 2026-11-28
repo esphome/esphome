@@ -1,0 +1,26 @@
+esphome:
+  name: ow-pio-validity
+  on_boot:
+    then:
+      - logger.log: "HIL_IMAGE pio-validity"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  pin: GPIO4
+  type: DS2413
+  update_interval: 100ms
+  values:
+    pio_a: !lambda |-
+      if (millis() < 8000) return 1.0f;
+      if (millis() < 14000) return NAN;
+      return 0.0f;
+    pio_b: 1
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          ESP_LOGI("hil", "HIL_PIO_SOURCE stage=%u", millis() < 8000 ? 0 : (millis() < 14000 ? 1 : 2));
