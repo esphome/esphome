@@ -1,0 +1,50 @@
+vbus:
+  id: polling_bus
+  transmit:
+    destination: 0x2211
+    transactions:
+      polling:
+        id: test_polling
+        value_ids: [1, 2, 3]
+        rx_value_ids: [3]
+        on_value:
+          - delay: 10ms
+          - lambda: ESP_LOGI("value", "%u %u", value_id, value);
+        on_result:
+          - lambda: |-
+              ESP_LOGI("queue", "%u %u %u %u %u", grant_id, command, value_id, value,
+                       static_cast<unsigned>(status));
+button:
+  - platform: template
+    name: Queued read
+    on_press:
+      - vbus.suspend_polling:
+          id: polling_bus
+      - vbus.resume_polling:
+          id: polling_bus
+      - vbus.queue_read:
+          id: polling_bus
+          value_id: !lambda return 2;
+  - platform: template
+    name: Queued write
+    on_press:
+      - vbus.queue_write:
+          id: polling_bus
+          value_id: !lambda return 2;
+          value: !lambda return 123;
+          command: !lambda return 0x0400;
+
+sensor:
+  - platform: vbus
+    model: p2
+    polling_id: test_polling
+    value_id: 1
+    name: P2 Signed Value
+    filters:
+      - multiply: 0.1
+  - platform: vbus
+    model: p2
+    polling_id: test_polling
+    value_id: 2
+    value_type: uint32
+    name: P2 Unsigned Value

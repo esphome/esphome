@@ -1,11 +1,28 @@
 import esphome.codegen as cg
+from esphome.components.logger import request_log_listener
+from esphome.loader import FileResource
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
+        request_log_listener()
+        cg.add_define("USE_VBUS_CS_PLUS")
+        cg.add_define("USE_VBUS_CS_PLUS_WRITE")
         cg.add_define("USE_VBUS_DATAGRAM")
+        cg.add_define("USE_VBUS_TX")
+        cg.add_define("USE_VBUS_SEND_ACTION")
+        cg.add_define("USE_VBUS_TRANSACTIONS")
+        cg.add_define("USE_VBUS_TRANSACTION_ACTION")
+
+        cg.add_define("USE_VBUS_POLLING")
+        cg.add_define("VBUS_POLL_VALUE_COUNT", 84)
 
     manifest.multi_conf = False
     manifest.to_code = to_code_testing
+    manifest.auto_load = [*manifest.auto_load, "sensor"]
+    manifest.add_resources(
+        FileResource("esphome.components.vbus", "sensor/vbus_sensor.h"),
+        FileResource("esphome.components.vbus", "sensor/vbus_sensor.cpp"),
+    )
