@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 import logging
 from typing import Any, Literal, NamedTuple
 
@@ -10,9 +11,12 @@ from esphome.components import uart
 from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
+
+from .helpers import PduBuffer
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,10 +51,23 @@ MULTI_CONF = True
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_MODBUS_ID = "modbus_id"
+CONF_PDU = "pdu"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
 MODBUS_ROLES = ["client", "server"]
+
+
+@dataclass
+class ModbusData:
+    send_response: bool = False
+
+
+def _get_data() -> ModbusData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ModbusData()
+    return CORE.data[DOMAIN]
+
 
 # The client hub takes these times as 16-bit milliseconds; a Modbus timeout is far shorter anyway.
 _HUB_TIME_PERIOD = cv.All(
@@ -336,6 +353,9 @@ async def to_code(config: ConfigType) -> None:
 
     await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
 
+    if _get_data().send_response:
+        cg.add_define("USE_MODBUS_SEND_RESPONSE")
+
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
@@ -368,6 +388,16 @@ def _validate_server_address(value: Any) -> int:
         address,
         "a server device address",
         "Assign a unique unit address instead.",
+    )
+    return address
+
+
+def _validate_response_address(value: Any) -> int:
+    address = cv.hex_uint8_t(value)
+    reject_broadcast_address(
+        address,
+        "the address of a response",
+        "A broadcast is never answered.",
     )
     return address
 
@@ -434,3 +464,38 @@ async def register_modbus_device(var: MockObj, config: ConfigType) -> None:
         "instead. Will be removed in 2026.12.0"
     )
     return await register_modbus_client_device(var, config)
+
+
+def _enable_send_response(config: ConfigType) -> ConfigType:
+    # send_response() only exists with the define; to_code emits it from this fact.
+    _get_data().send_response = True
+    return config
+
+
+def _pdu_literal(config: ConfigType, value: list[int]) -> str:
+    return f"std::array<uint8_t, {len(value)}>{{{', '.join(str(b) for b in value)}}}"
+
+
+automation.register_apply_action(
+    "modbus.send_response",
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusServer),
+            cv.Required(CONF_ADDRESS): cv.templatable(_validate_response_address),
+            cv.Required(CONF_PDU): cv.templatable(
+                cv.All(
+                    cv.ensure_list(cv.hex_uint8_t),
+                    cv.Length(min=1, max=MAX_PDU_SIZE),
+                )
+            ),
+        }
+    ).add_extra(_enable_send_response),
+    automation.ApplyCall(
+        "send_response({}, {})",
+        (
+            (CONF_ADDRESS, cg.uint8),
+            (CONF_PDU, PduBuffer, _pdu_literal),
+        ),
+    ),
+    id_key=CONF_MODBUS_ID,
+)
