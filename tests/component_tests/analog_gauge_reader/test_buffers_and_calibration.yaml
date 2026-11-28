@@ -1,0 +1,14 @@
+packages:
+  base: !include base.yaml
+
+analog_gauge_reader:
+  dials:
+    - id: wide
+      crop_w: 160
+      crop_h: 32
+    - id: tall
+      crop_w: 32
+      crop_h: 120
+      calibration:
+        - raw: .nan
+          mapped: .inf

@@ -23,6 +23,8 @@ DIR = Path("tests/component_tests/analog_gauge_reader")
         ("test_duplicate_dial_ids.yaml", "Duplicate dial id"),
         ("test_target_color_channel.yaml", "both target_color and process_channel"),
         ("test_scan_window.yaml", "scan window is empty"),
+        ("test_deadzone_window.yaml", "scan window is empty"),
+        ("test_truncated_window.yaml", "scan window is empty"),
         ("test_duplicate_sensors.yaml", "only one sensor entry"),
         ("test_two_sensor_entries.yaml", "one analog_gauge_reader sensor entry"),
         ("test_empty_calibration.yaml", "at least 1"),
@@ -40,3 +42,12 @@ def test_invalid_config_is_rejected(
 def test_rotation_swaps_the_frame(generate_main: Callable[[str | Path], str]) -> None:
     """A quarter turn makes a tall crop valid that does not fit the raw frame."""
     generate_main(DIR / "test_rotation_crop.yaml")
+
+
+def test_largest_crop_and_non_finite_calibration(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """The reservation is one real crop and non-finite points are C++ literals."""
+    main_cpp = generate_main(DIR / "test_buffers_and_calibration.yaml")
+    assert "set_max_crop(160, 32)" in main_cpp
+    assert "{ NAN, INFINITY }" in main_cpp

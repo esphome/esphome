@@ -173,14 +173,14 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
   const float steps = total / finest_scale;
   if (!std::isfinite(steps) || std::abs(steps) > MAX_EXACT_STEPS)
     return NAN;
-  const long long rounded_steps = static_cast<long long>(steps + (steps >= 0.0f ? 0.5f : -0.5f));
+  const long long rounded_steps = static_cast<long long>(roundf(steps));
 
   // Derive the digits from the rounded total so the carry is consistent.
   for (size_t i = 0; i < count; i++) {
     const float ratio = readings[i].dial->scale / finest_scale;
     if (!std::isfinite(ratio) || std::abs(ratio) > MAX_EXACT_STEPS)
       continue;
-    long long place = static_cast<long long>(ratio + (ratio >= 0.0f ? 0.5f : -0.5f));
+    long long place = static_cast<long long>(roundf(ratio));
     if (place <= 0)
       place = 1;
     const int digit = static_cast<int>((rounded_steps / place) % 10);

@@ -172,6 +172,23 @@ TEST(StackedDigits, SortsDialsByScale) {
   EXPECT_EQ(digits[1], 0);
 }
 
+TEST(StackedDigits, KeepsOddTotalsAboveHalfPrecisionSteps) {
+  const float values[] = {1.0f, 0.1f, 0.01f, 0.001f, 0.0001f, 9.00001f, 8.900001f};
+  DialConfig dials[7];
+  DialReading readings[7];
+  float scale = 1.0f;
+  for (int i = 0; i < 7; i++, scale *= 10.0f) {
+    dials[i] = make_dial(0.0f, 360.0f, 0.0f, 10.0f);
+    dials[i].scale = scale;
+    readings[i] = make_reading(&dials[i], values[i]);
+  }
+  int order[7];
+  float phase[7];
+  int digits[7];
+  EXPECT_EQ(combine_stacked_digits(readings, 7, order, phase, digits), 8900001.0f);
+  EXPECT_EQ(digits[0], 1);
+}
+
 TEST(AutoContrast, StretchesToTheFullRange) {
   std::vector<uint8_t> data = {50, 100, 150};
   apply_auto_contrast(data.data(), static_cast<int>(data.size()));

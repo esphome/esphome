@@ -1,5 +1,6 @@
 """Reads analog gauges out of frames from an esp32_camera."""
 
+from ctypes import c_float
 from itertools import pairwise
 import math
 
@@ -172,6 +173,16 @@ def _needs_color(dial: ConfigType) -> bool:
     return CONF_TARGET_COLOR in dial or dial[CONF_PROCESS_CHANNEL] != "GRAYSCALE"
 
 
+def _scan_window_is_empty(dial: ConfigType) -> bool:
+    """Apply the detector's scan bounds, truncated from C++ floats."""
+    radius = min(dial[CONF_CROP_W], dial[CONF_CROP_H]) // 2 - 2
+    start, end = (
+        int(c_float(radius * c_float(dial[key]).value).value)
+        for key in (CONF_MIN_SCAN_RADIUS, CONF_MAX_SCAN_RADIUS)
+    )
+    return max(1, start, dial[CONF_DEADZONE_DIAMETER] * 0.5) >= end
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     """Resolve the frame size and check it against the dials and the decoder."""
     camera_config = fv.get_declaring_config(config[CONF_CAMERA_ID])
@@ -232,9 +243,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 f"with a single-channel process_channel; remove one of the two.",
                 path=[CONF_DIALS],
             )
-        if dial[CONF_MIN_SCAN_RADIUS] >= dial[CONF_MAX_SCAN_RADIUS]:
+        if _scan_window_is_empty(dial):
             raise cv.Invalid(
-                f"Dial '{dial[CONF_ID]}' scan window is empty", path=[CONF_DIALS]
+                f"Dial '{dial[CONF_ID]}' scan window is empty; widen the scan radii, "
+                f"reduce deadzone_diameter or enlarge the crop",
+                path=[CONF_DIALS],
             )
         sweep = (dial[CONF_MAX_ANGLE] - dial[CONF_MIN_ANGLE]) % 360.0
         full_circle = (dial[CONF_MIN_ANGLE], dial[CONF_MAX_ANGLE]) == (0.0, 360.0)
@@ -254,13 +267,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 f"({dial[CONF_CROP_X]},{dial[CONF_CROP_Y]} "
                 f"{dial[CONF_CROP_W]}x{dial[CONF_CROP_H]}) does not fit in the "
                 f"camera's {width}x{height} frame",
-                path=[CONF_DIALS],
-            )
-        if dial[CONF_DEADZONE_DIAMETER] >= min(dial[CONF_CROP_W], dial[CONF_CROP_H]):
-            raise cv.Invalid(
-                f"Dial '{dial[CONF_ID]}' deadzone_diameter "
-                f"({dial[CONF_DEADZONE_DIAMETER]}) must be smaller than the crop "
-                f"({dial[CONF_CROP_W]}x{dial[CONF_CROP_H]})",
                 path=[CONF_DIALS],
             )
     config[_KEY_CAMERA_FRAME] = (width, height)
@@ -292,11 +298,9 @@ async def to_code(config: ConfigType) -> None:
         len(d[CONF_CALIBRATION]) for d in dials if CONF_CALIBRATION in d
     ]:
         cg.add_define("ANALOG_GAUGE_READER_CALIBRATION_POINTS", max(calibration_sizes))
-    cg.add(
-        var.set_max_crop(
-            max(d[CONF_CROP_W] for d in dials), max(d[CONF_CROP_H] for d in dials)
-        )
-    )
+    # The detector reserves by pixel count, so the largest crop covers every dial.
+    largest = max(dials, key=lambda d: d[CONF_CROP_W] * d[CONF_CROP_H])
+    cg.add(var.set_max_crop(largest[CONF_CROP_W], largest[CONF_CROP_H]))
     if any(_needs_color(dial) for dial in dials):
         cg.add_define("USE_ANALOG_GAUGE_READER_COLOR")
         scratch = cg.static_buffer(
@@ -318,7 +322,7 @@ async def to_code(config: ConfigType) -> None:
         calibration = None
         if points := dial.get(CONF_CALIBRATION):
             pairs = ", ".join(
-                f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}"
+                f"{{ {cg.safe_exp(item[CONF_RAW])}, {cg.safe_exp(item[CONF_MAPPED])} }}"
                 for item in sorted(points, key=lambda item: item[CONF_RAW])
             )
             calibration = cg.RawExpression(f"{{{{ {pairs} }}}}")
