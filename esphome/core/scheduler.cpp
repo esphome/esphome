@@ -781,7 +781,7 @@ void Scheduler::release_pending_() {
   this->pending_release_head_ = nullptr;
   SchedulerItem *tail = head;
   for (;;) {
-    tail->callback.release_();
+    tail->callback.release_boxed_();  // only boxed callables wait here
     if (tail->next_free == nullptr)
       break;
     tail = tail->next_free;

@@ -63,12 +63,20 @@ class SchedulerCallback {
   bool is_boxed_() const { return this->invoke_ == &SchedulerCallback::invoke_boxed; }
   /// Frees a boxed callable
   void release_() {
-    const bool boxed = this->is_boxed_();
+    if (this->is_boxed_()) {
+      this->release_boxed_();
+      return;
+    }
 #ifdef ESPHOME_DEBUG_SCHEDULER
     this->invoke_ = nullptr;  // empty for the destructor's check
 #endif
-    if (boxed)
-      this->boxed_.release(this->boxed_.obj);
+  }
+  /// Frees a callable known to be boxed
+  void release_boxed_() {
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    this->invoke_ = nullptr;  // empty for the destructor's check
+#endif
+    this->boxed_.release(this->boxed_.obj);
   }
   /// Moves other's callable here and empties other. Copied as bytes (relying on GCC/Clang union and memcpy
   /// semantics) in word-sized pieces, which -Os keeps as word loads where one 12-byte copy can become a memcpy call

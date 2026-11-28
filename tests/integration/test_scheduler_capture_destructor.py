@@ -1,9 +1,8 @@
 """A callback capture's destructor may call the scheduler on every recycle path.
 
-The scheduler frees a recycled item's callable after releasing its lock, so a
-destructor that schedules a timer neither deadlocks (host, ESP32, LibreTiny)
-nor has its timer lost (ESP8266, RP2). debug_scheduler is on, so the leak check
-also runs while items wait to be freed.
+The scheduler frees a recycled item's callable after releasing its lock, so on
+host a destructor that schedules a timer does not deadlock. debug_scheduler is
+on, so the leak check also runs while items wait to be freed.
 """
 
 from __future__ import annotations
