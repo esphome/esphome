@@ -62,11 +62,11 @@ void NumberCall::perform() {
 
   if (this->operation_ == NUMBER_OP_SET) {
     ESP_LOGV(TAG, "'%s': Setting value", name);
-    if (!this->value_.has_value() || std::isnan(*this->value_)) {
+    if (std::isnan(this->value_)) {
       this->log_perform_warning_(LOG_STR("No value"));
       return;
     }
-    target_value = this->value_.value();
+    target_value = this->value_;
   } else if (this->operation_ == NUMBER_OP_TO_MIN) {
     if (std::isnan(min_value)) {
       this->log_perform_warning_(LOG_STR("min undefined"));
