@@ -440,7 +440,8 @@ class LvglComponent final : public PollingComponent {
   lv_group_t *get_group_for_(lv_obj_t *obj);
   bool is_on_layer_(lv_obj_t *obj);
   /// Move the top and bottom layer widgets from the group of one page to the group of another page.
-  /// Return the widget that had the focus in `from` if it now has the focus in `to`. Else return nullptr.
+  /// Return the widget that had the focus in `from` if it moved to `to`, also when `to` is frozen and does not
+  /// give it the focus. Else return nullptr.
   lv_obj_t *move_layer_objs_(lv_group_t *from, lv_group_t *to);
   /// `moved_focus` is the focused widget that show_page() moved out of the group of the inputs, or nullptr.
   void update_input_group_(lv_obj_t *moved_focus);

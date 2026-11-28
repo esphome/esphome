@@ -303,6 +303,13 @@ api:
       then:
         - lvgl.widget.hide: menu_msgbox
         - script.execute: report
+    # Makes the group of another instance the default group of LVGL
+    - action: menu_show_other_instance_page
+      then:
+        - lvgl.page.show:
+            id: page_b
+            lvgl_id: paged_lvgl
+        - script.execute: report
     # LVGL creates the sidebar, with its back button, when the menu first gets a sidebar page
     - action: menu_show_sidebar
       then:

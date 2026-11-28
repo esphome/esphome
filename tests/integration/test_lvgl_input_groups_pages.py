@@ -166,8 +166,9 @@ async def test_lvgl_input_groups_menu_sidebar(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """The back button LVGL creates when lvgl.menu.set_page first gives a menu a sidebar joins LVGL's default
-    group, which is the group the inputs are on, so the encoder reaches it.
+    """The back button LVGL creates when lvgl.menu.set_page first gives a menu a sidebar joins the group of the
+    menu's page, so the encoder reaches it. It does not join LVGL's default group, which is the group of the
+    msgbox the instance shows, and then the group of another instance.
 
     It uses the menu_lvgl instance, whose reset action hides the msgbox, shows page A with the menu and focuses
     the menu item.
@@ -175,13 +176,13 @@ async def test_lvgl_input_groups_menu_sidebar(
     async with booted_device(
         yaml_config, run_compiled, api_client_connected, ("menu",), prefix="menu_"
     ) as device:
-        # After the test shows another page and a msgbox, the group of page A is the default again when page A shows
         await device.run("reset", page=0, encoder="item")
         await device.run("show_page_b", page=1, encoder="page_b_button")
         await device.run("show_page_a", page=0, encoder="item")
         await device.run("show_msgbox")
+        await device.run("show_other_instance_page")
+        await device.run("show_sidebar")
         await device.run("hide_msgbox", encoder="item")
-        await device.run("show_sidebar", encoder="item")
         await device.move(
             "encoder_right", "encoder", "nav_button", "sidebar_back_button", "item"
         )

@@ -333,7 +333,7 @@ lv_obj_t *LvglComponent::move_layer_objs_(lv_group_t *from, lv_group_t *to) {
     return nullptr;
   // lv_group_focus_obj() does nothing to a frozen group, so a frozen focus on the new page does not change
   lv_group_focus_obj(focused);
-  return lv_group_get_focused(to) == focused ? focused : nullptr;
+  return group_contains(to, focused) ? focused : nullptr;
 }
 
 lv_group_t *LvglComponent::msgbox_group_(lv_obj_t *outer) {
@@ -415,6 +415,10 @@ void LvglComponent::update_input_group_(lv_obj_t *moved_focus) {
                          lv_indev_get_type(active) == LV_INDEV_TYPE_ENCODER;
   if (input_moved && now_focused != nullptr && key_or_no_input)
     lv_obj_add_state(now_focused, LV_STATE_FOCUS_KEY);
+  // The events sent above run user actions. If one of them showed or hid a msgbox or changed the page, its own
+  // update ran first, and this update then moved the inputs back to the group it found at the start.
+  if (this->active_group_() != group)
+    this->update_input_group_(nullptr);
 }
 #endif
 
@@ -1047,9 +1051,9 @@ void LvglComponent::setup() {
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
 #ifdef USE_LVGL_INPUT_GROUPS
   // Codegen leaves the group of the last msgbox as the default group of LVGL. Without pages, show_page() does not
-  // change it.
+  // change it. An on_boot action may already have shown a msgbox, so the default group is not always the root group.
   if (this->pages_.empty())
-    lv_group_set_default(this->default_group_);
+    this->update_input_group();
 #endif
   lv_display_trigger_activity(this->disp_);
   this->update_orientation_();

@@ -1,4 +1,6 @@
 import abc
+from collections.abc import Iterator
+from contextlib import contextmanager
 import contextvars
 
 from esphome import automation, codegen as cg
@@ -21,7 +23,7 @@ from esphome.cpp_generator import (
 from esphome.types import ConfigType
 from esphome.yaml_util import ESPHomeDataBase
 
-from .defines import CONF_LVGL_ID, literal
+from .defines import CONF_LVGL_ID, literal, uses_input_groups
 from .types import lvgl_ns
 
 LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
@@ -450,3 +452,18 @@ def lv_group_create_default(id_: ID) -> MockObj:
     group = cg.Pvariable(id_, lv_expr.group_create())
     cg.add(lv_expr.group_set_default(group))
     return group
+
+
+@contextmanager
+def group_of_parent(parent: Expression) -> Iterator[None]:
+    """
+    Put the focusable widgets that the code generated in this block creates under `parent` at run time in the
+    group of the page or msgbox that shows `parent`. LVGL adds a new widget to its default group, which is
+    global, so it can be the group of another page, msgbox or LVGL instance.
+    """
+    if not uses_input_groups():
+        yield
+        return
+    lv_add(lvgl_static.set_default_group_for(parent))
+    yield
+    lv_add(lvgl_static.restore_default_group(parent))
