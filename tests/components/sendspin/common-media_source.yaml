@@ -5,7 +5,9 @@ media_source:
   - platform: sendspin
     id: media_source_id
     buffer_size: 500000
-    bits_per_sample: 24
+    formats:
+      - sample_rate: 48000
+        bits_per_sample: 24
     initial_static_delay: 5ms
     static_delay_adjustable: true
     fixed_delay: 480us

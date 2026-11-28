@@ -78,6 +78,8 @@ CONF_PRESENT = "present"
 # A static pairing code is exactly 8 decimal digits.
 STATIC_PAIRING_CODE_DIGITS = 8
 
+CONF_FORMATS = "formats"
+
 
 def _validate_static_pairing_code(value: Any) -> str:
     # string_strict so leading zeros survive and `!secret` works.
@@ -151,6 +153,12 @@ MEMORY_LOCATIONS = [MEMORY_PSRAM, MEMORY_INTERNAL]
 MEMORY_LOCATION_ENUM = {
     MEMORY_PSRAM: SendspinMemoryLocation.PREFER_EXTERNAL,
     MEMORY_INTERNAL: SendspinMemoryLocation.PREFER_INTERNAL,
+}
+
+CODEC_RATE_CONSTRAINTS: dict[str, set[int] | None] = {
+    CODEC_FLAC: None,
+    CODEC_PCM: None,
+    CODEC_OPUS: {OPUS_SAMPLE_RATE},
 }
 
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
@@ -634,15 +642,14 @@ async def to_code(config: ConfigType) -> None:
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 
-        # Configures the player role. Each configured codec is advertised for mono and stereo at the
-        # configured sample rate and bits per sample, except Opus, which sendspin-cpp only decodes to
-        # 16 bits per sample. The order is a preference order, both for the codecs themselves and for
-        # stereo over mono.
+        # One entry per combination (format, codec, channel), in preference order.
+        # Codecs with rate constraints are only advertised
+        # for formats whose rate they support (see CODEC_RATE_CONSTRAINTS). Duplicates are removed.
         player_cfg = data.player_config
-        sample_rate = player_cfg[CONF_SAMPLE_RATE]
-        bits_per_sample = player_cfg[CONF_BITS_PER_SAMPLE]
 
-        def _audio_format(codec: str, channels: int) -> cg.StructInitializer:
+        def _audio_format(
+            codec: str, channels: int, sample_rate: int, bits_per_sample: int
+        ) -> cg.StructInitializer:
             return cg.StructInitializer(
                 AudioSupportedFormatObject,
                 ("codec", CODECS[codec]),
@@ -651,11 +658,33 @@ async def to_code(config: ConfigType) -> None:
                 ("bit_depth", 16 if codec == CODEC_OPUS else bits_per_sample),
             )
 
-        audio_format_structs = [
-            _audio_format(codec, channels)
-            for codec in player_cfg[CONF_CODECS]
-            for channels in (2, 1)
-        ]
+        seen = set()
+        audio_format_structs = []
+        for fmt in player_cfg[CONF_FORMATS]:
+            for codec in player_cfg[CONF_CODECS]:
+                allowed_rates = CODEC_RATE_CONSTRAINTS.get(codec)
+                if (
+                    allowed_rates is not None
+                    and fmt[CONF_SAMPLE_RATE] not in allowed_rates
+                ):
+                    continue
+                for channels in player_cfg[CONF_CHANNELS]:
+                    key = (
+                        codec,
+                        fmt[CONF_SAMPLE_RATE],
+                        fmt[CONF_BITS_PER_SAMPLE],
+                        channels,
+                    )
+                    if key not in seen:
+                        seen.add(key)
+                        audio_format_structs.append(
+                            _audio_format(
+                                codec,
+                                channels,
+                                fmt[CONF_SAMPLE_RATE],
+                                fmt[CONF_BITS_PER_SAMPLE],
+                            )
+                        )
 
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)
         if psram_stack:

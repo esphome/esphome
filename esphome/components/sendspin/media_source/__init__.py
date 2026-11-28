@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import media_source, psram
@@ -16,9 +18,11 @@ from .. import (
     CODEC_OPUS,
     CODEC_PCM,
     CODECS,
+    CONF_CHANNELS,
     CONF_CODECS,
     CONF_DECODE_MEMORY,
     CONF_FIXED_DELAY,
+    CONF_FORMATS,
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
     DEFAULT_CODECS,
@@ -30,6 +34,7 @@ from .. import (
     sendspin_ns,
 )
 
+_LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
 
@@ -43,20 +48,62 @@ SendspinMediaSource = sendspin_ns.class_(
 )
 
 
+def _migrate_formats(config: ConfigType) -> ConfigType:
+    """Convert deprecated top-level sample_rate/bits_per_sample to formats list."""
+    has_formats = CONF_FORMATS in config
+    has_old = CONF_SAMPLE_RATE in config or CONF_BITS_PER_SAMPLE in config
+
+    if has_formats and has_old:
+        raise cv.Invalid(
+            "Cannot use both 'formats' and the old 'sample_rate'/'bits_per_sample' keys",
+            path=[CONF_FORMATS],
+        )
+
+    if has_old:
+        _LOGGER.warning(
+            "'sample_rate' and 'bits_per_sample' are deprecated. Use 'formats' instead."
+        )
+        config[CONF_FORMATS] = [
+            {
+                CONF_SAMPLE_RATE: config.get(CONF_SAMPLE_RATE, 48000),
+                CONF_BITS_PER_SAMPLE: config.get(CONF_BITS_PER_SAMPLE, 16),
+            }
+        ]
+    elif not has_formats:
+        config[CONF_FORMATS] = [
+            {
+                CONF_SAMPLE_RATE: 48000,
+                CONF_BITS_PER_SAMPLE: 16,
+            }
+        ]
+
+    seen_rates = set()
+    for fmt in config[CONF_FORMATS]:
+        key = (fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE])
+        if key in seen_rates:
+            raise cv.Invalid(
+                "Duplicate entry in 'formats'",
+                path=[CONF_FORMATS],
+            )
+        seen_rates.add(key)
+
+    return config
+
+
 def _resolve_codecs(config: ConfigType) -> ConfigType:
     """Validate the codec preference list, filling in the default when it is not set."""
-    sample_rate = config[CONF_SAMPLE_RATE]
+    sample_rates = [f[CONF_SAMPLE_RATE] for f in config[CONF_FORMATS]]
     if (codecs := config.get(CONF_CODECS)) is None:
         config[CONF_CODECS] = [
             codec
             for codec in DEFAULT_CODECS
-            if codec != CODEC_OPUS or sample_rate == OPUS_SAMPLE_RATE
+            if codec != CODEC_OPUS or OPUS_SAMPLE_RATE in sample_rates
         ]
         return config
 
     if len(set(codecs)) != len(codecs):
         raise cv.Invalid("Each codec may only be listed once", path=[CONF_CODECS])
-    if CODEC_OPUS in codecs and sample_rate != OPUS_SAMPLE_RATE:
+    if CODEC_OPUS in codecs and OPUS_SAMPLE_RATE not in sample_rates:
         raise cv.Invalid(
             f"Codec '{CODEC_OPUS}' requires a {CONF_SAMPLE_RATE} of {OPUS_SAMPLE_RATE}",
             path=[CONF_CODECS],
@@ -74,8 +121,8 @@ def _register(config: ConfigType) -> ConfigType:
     register_player_config(
         {
             CONF_CODECS: config[CONF_CODECS],
-            CONF_SAMPLE_RATE: config[CONF_SAMPLE_RATE],
-            CONF_BITS_PER_SAMPLE: config[CONF_BITS_PER_SAMPLE],
+            CONF_FORMATS: config[CONF_FORMATS],
+            CONF_CHANNELS: config.get(CONF_CHANNELS, [2, 1]),
             CONF_BUFFER_SIZE: config[CONF_BUFFER_SIZE],
             CONF_INITIAL_STATIC_DELAY: config[CONF_INITIAL_STATIC_DELAY],
             CONF_FIXED_DELAY: config[CONF_FIXED_DELAY],
@@ -103,17 +150,35 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=cv.TimePeriod(microseconds=10000)),
             ),
-            cv.Optional(CONF_SAMPLE_RATE, default=48000): cv.int_range(
-                min=16000, max=96000
+            cv.Optional(CONF_SAMPLE_RATE): cv.int_range(min=16000, max=192000),
+            cv.Optional(CONF_BITS_PER_SAMPLE): cv.one_of(16, 24, int=True),
+            cv.Optional(CONF_FORMATS): cv.All(
+                cv.ensure_list(
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_SAMPLE_RATE): cv.int_range(
+                                min=16000, max=192000
+                            ),
+                            cv.Required(CONF_BITS_PER_SAMPLE): cv.one_of(
+                                16, 24, int=True
+                            ),
+                        }
+                    )
+                ),
+                cv.Length(min=1),
             ),
-            cv.Optional(CONF_BITS_PER_SAMPLE, default=16): cv.one_of(16, 24, int=True),
             cv.Optional(CONF_DECODE_MEMORY): cv.one_of(*MEMORY_LOCATIONS, lower=True),
             cv.Optional(CONF_CODECS): cv.All(
                 cv.ensure_list(cv.enum(CODECS, lower=True)), cv.Length(min=1)
             ),
+            cv.Optional(CONF_CHANNELS, default=[2, 1]): cv.All(
+                cv.ensure_list(cv.one_of(1, 2, int=True)),
+                cv.Length(min=1),
+            ),
         }
     ),
     cv.only_on_esp32,
+    _migrate_formats,
     _resolve_codecs,
     _register,
 )
