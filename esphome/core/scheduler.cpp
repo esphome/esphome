@@ -601,12 +601,12 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Verify no items were leaked during this call() cycle.
-  // All items must be in items_, to_add_, defer_queue_, or the pool.
-  // Safe to check here because:
+  // All items must be in items_, to_add_, defer_queue_, or the pool (items waiting for release_pending_() count as
+  // pool). Safe to check here because:
   // - process_defer_queue_ has already run its cleanup_defer_queue_locked_(),
   //   so defer_queue_ contains no nullptr slots inflating the count.
   // - The while loop above has finished, so no items are held in local variables;
-  //   every item has been returned to a container (items_, to_add_, or pool).
+  //   every item has been returned to a container.
   // Lock needed to get a consistent snapshot of all containers.
   {
     SchedulerLockGuard guard{this->lock_};
