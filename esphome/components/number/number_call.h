@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "number_traits.h"
