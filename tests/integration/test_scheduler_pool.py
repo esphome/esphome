@@ -30,7 +30,9 @@ async def test_scheduler_pool(
     """
     # Patterns to match pool operations
     reuse_pattern = re.compile(r"Reused item from pool \(pool size now: (\d+)\)")
-    recycle_pattern = re.compile(r"Recycled item to pool \(pool size now: (\d+)\)")
+    recycle_pattern = re.compile(
+        r"Recycled (\d+) items to pool \(pool size now: (\d+)\)"
+    )
     pool_full_pattern = re.compile(r"Pool full \(size: (\d+)\), deleting item")
     new_alloc_pattern = re.compile(r"Allocated new item \(pool empty\)")
 
@@ -130,7 +132,12 @@ async def test_scheduler_pool(
         assert phase_futures[phase_num].done(), f"Phase {phase_num} did not complete"
 
     pool_reuse_count = waiter.count(reuse_pattern)
-    pool_recycle_count = waiter.count(recycle_pattern)
+    # One line per scheduler pass gives that pass's count
+    pool_recycle_count = sum(
+        int(match.group(1))
+        for line in waiter.lines
+        if (match := recycle_pattern.search(line))
+    )
     pool_full_count = waiter.count(pool_full_pattern)
     new_alloc_count = waiter.count(new_alloc_pattern)
 
@@ -149,7 +156,7 @@ async def test_scheduler_pool(
     max_pool_size = 0
     for line in waiter.lines:
         if match := recycle_pattern.search(line):
-            max_pool_size = max(max_pool_size, int(match.group(1)))
+            max_pool_size = max(max_pool_size, int(match.group(2)))
     assert max_pool_size > 5, (
         f"Pool should grow past the old cap of 5; observed peak {max_pool_size}"
     )

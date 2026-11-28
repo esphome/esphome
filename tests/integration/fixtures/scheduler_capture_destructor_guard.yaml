@@ -1,0 +1,30 @@
+esphome:
+  name: sched-dtor-guard
+  debug_scheduler: true
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // A capture whose destructor calls the scheduler, which it must not do while the
+          // scheduler frees it. Moving it hands the duty to the copy the scheduler boxes.
+          static int reschedule_key = 0;
+          struct Reschedule {
+            bool armed{true};
+            Reschedule() = default;
+            Reschedule(Reschedule &&other) noexcept : armed(other.armed) { other.armed = false; }
+            ~Reschedule() {
+              if (this->armed)
+                App.scheduler.set_timeout(&reschedule_key, 10, []() { ESP_LOGI("test", "RESCHEDULED_RAN"); });
+            }
+          };
+          static int cancelled_key = 0;
+          static int recycled_key = 0;
+          // SCHEDULER_DONT_RUN frees the capture outside the lock, where rescheduling is allowed
+          App.scheduler.set_timeout(&cancelled_key, SCHEDULER_DONT_RUN, [r = Reschedule()]() {});
+          ESP_LOGI("test", "DONT_RUN_FREED");
+          // Freed when the scheduler recycles the item after it runs: the debug build aborts
+          App.scheduler.set_timeout(&recycled_key, 100, [r = Reschedule()]() { ESP_LOGI("test", "TIMEOUT_RAN"); });
+
+host:
+logger:
+  level: DEBUG

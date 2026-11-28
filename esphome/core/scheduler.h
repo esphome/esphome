@@ -412,9 +412,12 @@ class Scheduler {
   uint32_t __attribute__((noinline)) calculate_interval_offset_(uint32_t delay);
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  // Helper for debug logging in set_timer_common_ - extracted to reduce code size
-  void debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                        uint32_t delay, uint64_t now);
+  // Debug logging for set_timer_common_, called after it releases the lock
+  void debug_log_timer_(size_t pool_size, const LogString *source, bool deferred, SchedulerItem::Type type,
+                        NameType name_type, const char *static_name, uint32_t hash_or_id, uint32_t delay,
+                        uint32_t offset);
+  // Aborts when called on the main loop while recycle_item_main_loop_ frees a callable (the lock is held)
+  void debug_check_not_releasing_() const;
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -703,10 +706,14 @@ class Scheduler {
   // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_size_
   // Verified periodically in call() to catch leaks early.
   size_t debug_live_items_{0};
+  // Items recycled since the last debug_verify_no_leak_(), which logs them outside the lock
+  uint32_t debug_recycled_{0};
+  // Set while recycle_item_main_loop_ frees a callable; main loop only
+  bool debug_releasing_{false};
 
-  // Verify the scheduler memory invariant: all allocated items are accounted for.
+  // Verify the scheduler memory invariant: all allocated items are accounted for. Takes the lock.
   // Returns true if no leak detected. Logs an error and asserts on failure.
-  bool debug_verify_no_leak_() const;
+  bool debug_verify_no_leak_();
 #endif
 };
 
