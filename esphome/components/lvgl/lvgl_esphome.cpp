@@ -433,8 +433,9 @@ void LvglComponent::update_input_group_(lv_obj_t *moved_focus) {
     if (key_or_no_input) {
       lv_obj_add_state(now_focused, LV_STATE_FOCUS_KEY);
     } else {
-      lv_group_set_editing(group, false);
+      // In this order: the FOCUSED event of set_editing() can run an action that deletes the widget
       lv_obj_remove_state(now_focused, LV_STATE_FOCUS_KEY);
+      lv_group_set_editing(group, false);
     }
   }
   // The events sent above run user actions. If one of them showed or hid a msgbox or changed the page, its own
