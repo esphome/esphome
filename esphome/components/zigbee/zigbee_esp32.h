@@ -37,6 +37,31 @@ class ZigbeeAttributeInterface {
   virtual void report() = 0;
 };
 
+template<typename T, typename Owner> class ZigbeeOnValueForwarder final : public ZigbeeAttributeInterface {
+ public:
+  using Callback = void (Owner::*)(T);
+  // only one ZigbeeOnValueForwarder per owner should should set report=true
+  ZigbeeOnValueForwarder(Owner *owner, uint8_t type, Callback callback, bool report)
+      : owner_(owner), type_(type), callback_(callback), report_(report) {}
+
+  void on_value(ezb_zcl_attribute_t attribute) override {
+    if (attribute.data.value && attribute.data.type == this->type_) {
+      (this->owner_->*this->callback_)(*static_cast<T *>(attribute.data.value));
+    }
+  }
+
+  void report() override {
+    if (this->report_)
+      this->owner_->report();
+  }
+
+ protected:
+  Owner *owner_;
+  uint8_t type_;
+  Callback callback_;
+  bool report_;
+};
+
 class ZigbeeComponent final : public Component {
  public:
   void setup() override;
@@ -52,6 +77,7 @@ class ZigbeeComponent final : public Component {
                          uint8_t power_source, uint8_t app_version);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, uint16_t device_id);
+  void update_device_id(uint8_t endpoint_id, uint16_t device_id);
   bool register_device();
 
   template<typename T>

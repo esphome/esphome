@@ -295,7 +295,7 @@ async def setup_light(entity: cg.MockObj, config: ConfigType) -> None:
         return
     from .zigbee_esp32 import add_light
 
-    await add_light(entity, config)
+    CORE.add_job(add_light, entity, config)
 
 
 async def setup_number(

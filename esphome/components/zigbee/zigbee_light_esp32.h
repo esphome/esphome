@@ -1,0 +1,60 @@
+#pragma once
+
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+#ifdef USE_ZIGBEE
+#ifdef USE_LIGHT
+
+#include "zigbee_entity_base_esp32.h"
+#include "esphome/components/light/light_state.h"
+#include "esp_zigbee.h"
+#include "zigbee_esp32.h"
+
+namespace esphome::zigbee {
+
+class ZigbeeLight final : public ZigbeeEntityBase, public light::LightRemoteValuesListener {
+ public:
+  ZigbeeLight(ZigbeeComponent *parent, uint8_t endpoint_id)
+      : ZigbeeEntityBase(parent, endpoint_id),
+        on_off_forwarder_(this, EZB_ZCL_ATTR_TYPE_BOOL, &ZigbeeLight::apply_on_off_, true) {}
+
+  void setup() override;
+  void on_light_remote_values_update() override;
+  void on_value(ezb_zcl_attribute_t attribute) override {};
+  void connect(light::LightState *light_state);
+
+  // After light setup (traits), before zigbee (WIFI)
+  float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
+
+ protected:
+  void schedule_call_();
+  void make_call_();
+  bool loop_internal() override;
+  void set_attr_internal() override;
+  void report_internal(bool has_lock) override;
+  void apply_on_off_(bool on);
+  void apply_level_(uint8_t level);
+  void apply_x_(uint16_t x);
+  void apply_y_(uint16_t y);
+  void apply_ct_(uint16_t ct);
+  void apply_color_();
+  ZigbeeOnValueForwarder<bool, ZigbeeLight> on_off_forwarder_;
+  ZigbeeOnValueForwarder<uint8_t, ZigbeeLight> *level_forwarder_{nullptr};
+  ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *x_forwarder_{nullptr};
+  ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *y_forwarder_{nullptr};
+  ZigbeeOnValueForwarder<uint16_t, ZigbeeLight> *ct_forwarder_{nullptr};
+  light::LightState *light_state_;
+  light::LightCall next_call_ = light::LightCall(nullptr);
+  bool synchronizing_from_zigbee_{false};
+  bool call_pending_{false};
+  bool block_zigbee_{false};
+  uint16_t x_{0xFFFF};
+  uint16_t y_{0xFFFF};
+};
+
+}  // namespace esphome::zigbee
+
+#endif
+#endif
+#endif

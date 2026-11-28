@@ -55,6 +55,7 @@ from .const import (
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_LIGHT,
     CONF_ZIGBEE_NUMBER,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
@@ -62,6 +63,7 @@ from .const import (
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeLight,
     ZigbeeNumber,
 )
 from .const_esp32 import (
@@ -401,12 +403,38 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
 
 
 def validate_light_esp32(config: ConfigType) -> ConfigType:
-    # Implemented in #22283
-    for key in (CONF_USE_DEVICE_TYPE, CONF_REPORT, CONF_ENDPOINT):
-        if key in config:
-            raise cv.Invalid(
-                f"Zigbee option '{key}' is not supported on lights yet", path=[key]
-            )
+    device_type = config.get(CONF_USE_DEVICE_TYPE, True)
+    if not device_type:
+        raise cv.Invalid("Device_type cannot be set to `False` for lights.")
+    ep = {
+        DEVICE_TYPE: "ON_OFF_LIGHT",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "BOOL",
+                    },
+                    # {CONF_ATTRIBUTE_ID: 0x4000, CONF_TYPE: "BOOL", CONF_VALUE: True},
+                    {CONF_ATTRIBUTE_ID: 0x4001, CONF_TYPE: "UINT16", CONF_VALUE: 0},
+                    {CONF_ATTRIBUTE_ID: 0x4002, CONF_TYPE: "UINT16", CONF_VALUE: 0},
+                ],
+            },
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "CLIENT",
+                CONF_ATTRIBUTES: [],
+            },
+        ],
+    }
+    ep_ref: dict[str, Any] = {}
+    config[KEY_ZIGBEE_EP] = ep_ref
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), True, ep_ref=ep_ref)
+    config[CONF_ZIGBEE_LIGHT] = cv.declare_id(ZigbeeLight)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
 
@@ -538,6 +566,25 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity))
 
 
+async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
+    ep_num = config.get(CONF_ENDPOINT)
+    if ep_num is None:
+        ep_num = config[KEY_ZIGBEE_EP][CONF_NUMBER]
+    zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ZIGBEE_LIGHT],
+        zb,
+        ep_num,
+    )
+    await cg.register_component(var, {})
+    if (report := config.get(CONF_REPORT, "default")) not in (
+        "default",
+        "coordinator",
+    ):
+        cg.add(var.set_report(report))
+    cg.add(var.connect(entity))
+
+
 async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
     zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
     var = cg.new_Pvariable(
@@ -552,10 +599,6 @@ async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
         "coordinator",
     ):
         cg.add(var.set_report(report))
-
-
-async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
-    """Placeholder: lights are not exposed over Zigbee yet."""
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(

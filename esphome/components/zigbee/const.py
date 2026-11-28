@@ -68,6 +68,7 @@ ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
+ZigbeeLight = zigbee_ns.class_("ZigbeeLight", cg.Component)
 BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
 AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
@@ -82,6 +83,7 @@ CONF_ZIGBEE_ID = "zigbee_id"
 CONF_ZIGBEE_NUMBER = "zigbee_number"
 CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 CONF_ZIGBEE_SWITCH = "zigbee_switch"
+CONF_ZIGBEE_LIGHT = "zigbee_light"
 POWER_SOURCE = {
     "UNKNOWN": 0x00,  # ZB_ZCL_BASIC_POWER_SOURCE_UNKNOWN
     "MAINS_SINGLE_PHASE": 0x01,  # ZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE
