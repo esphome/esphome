@@ -130,7 +130,7 @@ TEST(BlockDevice, TrimOnlyReachesDevicesThatSupportIt) {
 
 TEST(BlockDevice, NoMediaRejectsEverything) {
   FakeDevice dev(1, 1, BLOCK_FLAG_REMOVABLE);
-  const uint8_t generation = dev.get_media_generation();
+  const uint16_t generation = dev.get_media_generation();
   dev.remove_media();
   EXPECT_FALSE(dev.has_media());
   EXPECT_NE(dev.get_media_generation(), generation);

@@ -74,7 +74,7 @@ class BlockDevice {
     return static_cast<uint64_t>(this->geometry_.block_size) * this->geometry_.block_count;
   }
   /// Changes each time media is inserted or removed, so a user can tell that its cached state is stale.
-  uint8_t get_media_generation() const { return this->media_generation_; }
+  uint16_t get_media_generation() const { return this->media_generation_; }
   DeviceMutex &mutex() { return this->mutex_; }
 
  protected:
@@ -92,7 +92,7 @@ class BlockDevice {
 
   BlockGeometry geometry_{};
   DeviceMutex mutex_;
-  uint8_t media_generation_{0};
+  uint16_t media_generation_{0};
 };
 
 }  // namespace esphome::storage
