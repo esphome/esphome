@@ -427,6 +427,9 @@ void ImprovBLEComponent::process_incoming_data_() {
 }
 
 void ImprovBLEComponent::on_wifi_connect_timeout_() {
+  // The session already ended, as when the BLE server went down meanwhile
+  if (this->state_ != improv::STATE_PROVISIONING)
+    return;
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
