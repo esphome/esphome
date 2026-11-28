@@ -1,0 +1,29 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+uart:
+  - id: uart_reader
+    rx_pin: GPIO16
+    baud_rate: 9600
+  - id: uart_idle
+    rx_pin: GPIO17
+    baud_rate: 9600
+
+rdm6300:
+  - id: reader
+    uart_id: uart_reader
+  - id: idle_reader
+    uart_id: uart_idle
+
+binary_sensor:
+  - platform: rdm6300
+    rdm6300_id: reader
+    id: card_a
+    uid: 7616525
+  - platform: rdm6300
+    rdm6300_id: reader
+    id: card_b
+    uid: 4294967295

@@ -20,9 +20,10 @@ void TTP229LSFComponent::loop() {
     return;
   touched = i2c::i2ctohs(touched);
   touched = reverse_bits(touched);
-  for (auto *channel : this->channels_) {
-    channel->process(touched);
-  }
+#ifdef USE_TTP229_LSF_CHANNELS_PUBLISHER
+  if (this->channels_publisher_ != nullptr)
+    this->channels_publisher_(touched);
+#endif
 }
 
 }  // namespace esphome::ttp229_lsf

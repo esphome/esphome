@@ -1,16 +1,16 @@
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_COL, CONF_ROW
+from esphome.core import HexInt
 from esphome.types import ConfigType
 
-from .. import CONF_SX1509_ID, SX1509Component, sx1509_ns
+from .. import CONF_SX1509_ID, KEY_DATA, KEYPAD_PUBLISHER, SX1509Component, sx1509_ns
 
 DEPENDENCIES = ["sx1509"]
 
-SX1509BinarySensor = sx1509_ns.class_("SX1509BinarySensor", binary_sensor.BinarySensor)
-
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(SX1509BinarySensor).extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
     {
         cv.GenerateID(CONF_SX1509_ID): cv.use_id(SX1509Component),
         cv.Required(CONF_ROW): cv.int_range(min=0, max=7),
@@ -22,6 +22,6 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(SX1509BinarySensor).extend(
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_SX1509_ID])
-    cg.add(var.set_row_col(config[CONF_ROW], config[CONF_COL]))
-
-    cg.add(hub.register_keypad_binary_sensor(var))
+    # The key data has the column bit in the high byte and the row bit in the low byte
+    key = HexInt((1 << (config[CONF_COL] + 8)) | (1 << config[CONF_ROW]))
+    KEYPAD_PUBLISHER.add(hub, sx1509_ns.publish_key(parent_ref(var), KEY_DATA, key))
