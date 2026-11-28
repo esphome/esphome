@@ -78,8 +78,9 @@ class SchedulerCallback {
 #endif
     this->boxed_.release(this->boxed_.obj);
   }
-  /// Moves other's callable here and empties other. Copied as bytes (relying on GCC/Clang union and memcpy
-  /// semantics) in word-sized pieces, which -Os keeps as word loads where one 12-byte copy can become a memcpy call
+  /// Moves other's callable here; other must not be run or released afterwards (only debug builds clear it).
+  /// Copied as bytes (relying on GCC/Clang union and memcpy semantics) in word-sized pieces, which -Os keeps as
+  /// word loads where one 12-byte copy can become a memcpy call
   void take_(SchedulerCallback &other) {
     this->invoke_ = other.invoke_;
     auto *dst = static_cast<unsigned char *>(__builtin_assume_aligned(this->bytes_, alignof(uintptr_t)));
