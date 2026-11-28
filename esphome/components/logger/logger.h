@@ -13,11 +13,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
-#ifdef ESPHOME_DEBUG_SCHEDULER
-#include "esphome/core/scheduler.h"
-#include "esphome/core/time_64.h"
-#endif
-
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
 #include "task_log_buffer_esp32.h"
@@ -46,6 +41,16 @@ struct device;
 // ESP32 UART or USB Serial/JTAG console
 #if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
 #define USE_LOGGER_WAIT_TX_DONE
+#endif
+
+#ifdef ESPHOME_DEBUG_SCHEDULER
+namespace esphome {
+// Defined in scheduler.cpp and time_64.cpp: on_message skips lines with these tags
+extern const char *const SCHEDULER_LOG_TAG;
+#ifndef USE_NATIVE_64BIT_TIME
+extern const char *const TIME_64_LOG_TAG;
+#endif
+}  // namespace esphome
 #endif
 
 namespace esphome::logger {
