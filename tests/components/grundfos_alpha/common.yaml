@@ -1,0 +1,31 @@
+ble_client:
+  - mac_address: 01:02:03:04:05:17
+    id: grundfos_alpha_blec
+
+genibus_ble:
+  id: grundfos_alpha_bus
+  ble_client_id: grundfos_alpha_blec
+
+grundfos_alpha:
+  id: grundfos_alpha_pump
+  genibus_id: grundfos_alpha_bus
+  address: 0xE7
+  update_interval: 30s
+
+sensor:
+  - platform: grundfos_alpha
+    grundfos_alpha_id: grundfos_alpha_pump
+    flow:
+      name: Pump flow
+    head:
+      name: Pump head
+    medium_temperature:
+      name: Pump medium temperature
+    voltage:
+      name: Pump voltage
+    current:
+      name: Pump current
+    power:
+      name: Pump power
+    speed:
+      name: Pump speed
