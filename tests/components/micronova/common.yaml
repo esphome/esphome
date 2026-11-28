@@ -16,6 +16,8 @@ number:
       step: 1
     power_level:
       name: Micronova Power level
+      power_level_offset: 136
+      ram_write_address: 0x37
       update_interval: 10s
 
 sensor:
