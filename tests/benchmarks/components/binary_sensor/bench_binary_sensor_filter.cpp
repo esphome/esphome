@@ -45,21 +45,33 @@ static void BinarySensorFilter_Invert(benchmark::State &state) {
 }
 BENCHMARK(BinarySensorFilter_Invert);
 
+// Same shape as the function codegen emits for delayed_on
+static optional<bool> delayed_on_fn(Filter *filter, bool x) {
+  if (x)
+    return delay_output(filter, DELAY_MS, x);
+  return cancel_and_pass(filter, x);
+}
+
 // Benchmark: delayed_on bounce, set_timeout on press and cancel on release
 static void BinarySensorFilter_DelayedOn(benchmark::State &state) {
   BinarySensor sensor;
-  DelayedOnFilter filter;
-  filter.set_delay([]() -> uint32_t { return DELAY_MS; });
+  ApplyFilter<delayed_on_fn> filter;
   sensor.add_filter(&filter);
   publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
 BENCHMARK(BinarySensorFilter_DelayedOn);
 
+// Same shape as the function codegen emits for delayed_off
+static optional<bool> delayed_off_fn(Filter *filter, bool x) {
+  if (!x)
+    return delay_output(filter, DELAY_MS, x);
+  return cancel_and_pass(filter, x);
+}
+
 // Benchmark: delayed_off bounce, cancel on press and set_timeout on release
 static void BinarySensorFilter_DelayedOff(benchmark::State &state) {
   BinarySensor sensor;
-  DelayedOffFilter filter;
-  filter.set_delay([]() -> uint32_t { return DELAY_MS; });
+  ApplyFilter<delayed_off_fn> filter;
   sensor.add_filter(&filter);
   publish_bounce(state, sensor, /*run_scheduler=*/true, /*bounce=*/true);
 }
