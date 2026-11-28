@@ -1,0 +1,25 @@
+# Frees an SDA line held low by the sensor before the I2C setup: pulses SCL until SDA rises, then a STOP.
+substitutions:
+  name: s30unst
+packages:
+  common: !include s30common.yaml
+esphome:
+  on_boot:
+    priority: 1100
+    then:
+      - lambda: |-
+          pinMode(4, INPUT_PULLUP);
+          pinMode(5, INPUT_PULLUP);
+          ESP_LOGI("unst", "before: SDA=%d SCL=%d", digitalRead(4), digitalRead(5));
+          for (int r = 0; r < 50 && digitalRead(4) == 0; r++) {
+            for (int i = 0; i < 20; i++) {
+              pinMode(5, OUTPUT); digitalWrite(5, LOW); delayMicroseconds(50);
+              pinMode(5, INPUT_PULLUP);
+              uint32_t t = micros(); while (digitalRead(5) == 0 && micros() - t < 200000) {}
+              delayMicroseconds(50);
+            }
+            delay(100);
+          }
+          // STOP: SDA low then release while SCL high
+          pinMode(4, OUTPUT); digitalWrite(4, LOW); delayMicroseconds(50); pinMode(4, INPUT_PULLUP); delayMicroseconds(50);
+          ESP_LOGI("unst", "after: SDA=%d SCL=%d", digitalRead(4), digitalRead(5));

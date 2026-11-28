@@ -28,16 +28,21 @@ on_canalsat:
     - logger.log:
         format: "on_canalsat: %u %u"
         args: ["x.address", "x.command"]
-# on_canalsatld:
-#   then:
-#     - logger.log:
-#         format: "on_canalsatld: %u %u"
-#         args: ["x.address", "x.command"]
+on_canalsatld:
+  then:
+    - logger.log:
+        format: "on_canalsatld: %u %u"
+        args: ["x.address", "x.command"]
 on_coolix:
   then:
     - logger.log:
         format: "on_coolix: %lu %lu"
         args: ["(unsigned long) x.first", "(unsigned long) x.second"]
+on_denon:
+  then:
+    - logger.log:
+        format: "on_denon: %u %u"
+        args: ["x.address", "x.command"]
 on_dish:
   then:
     - logger.log:

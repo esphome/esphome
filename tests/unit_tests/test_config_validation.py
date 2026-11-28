@@ -4,6 +4,7 @@ import io
 import json
 import logging
 from pathlib import Path
+import re
 import string
 from unittest.mock import patch
 
@@ -139,7 +140,10 @@ def test_validate_id_name__valid(value):
     assert actual == value
 
 
-@pytest.mark.parametrize("value", ("id of mine", "id-4", "{name_id}", "id::name"))
+@pytest.mark.parametrize(
+    "value",
+    ("id of mine", "id-4", "{name_id}", "id::name", "looping_components_storage"),
+)
 def test_validate_id_name__invalid(value):
     with pytest.raises(Invalid):
         cv.validate_id_name(value)
@@ -320,6 +324,21 @@ def test_bind_key__rejects_non_hex_pair_length() -> None:
     # "format XX" branch rather than the hex-value branch.
     with pytest.raises(Invalid, match="Bind key must be format XX"):
         cv.bind_key("0123456789ABCDEF0123456789ABCDE")
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        " A A A A A A A A A A A A A A A A",
+        "0123456789ABCDEF0123456789ABCD-B",
+        "+E123456789ABCDEF0123456789ABCDE",
+    ),
+)
+def test_bind_key__rejects_sign_padded_pairs(value: str) -> None:
+    # int(part, 16) accepts surrounding whitespace and a +/- sign, which would
+    # silently validate a key different from the one the user typed.
+    with pytest.raises(Invalid, match="hex values"):
+        cv.bind_key(value)
 
 
 def test_bind_key__direct_call_with_name_validates_with_that_name() -> None:
@@ -1597,6 +1616,12 @@ def test_validate_id_name_reserved() -> None:
         cv.validate_id_name("alarm")
 
 
+@pytest.mark.parametrize("name", ["App", "app_lists", "AppList"])
+def test_validate_id_name_reserved_core_names(name: str) -> None:
+    with pytest.raises(Invalid, match="reserved internally"):
+        cv.validate_id_name(name)
+
+
 def test_validate_id_name_integration_conflict() -> None:
     CORE.loaded_integrations = {"mqtt"}
     with pytest.raises(
@@ -2783,6 +2808,45 @@ def test_enum_valid_with_hyphen() -> None:
     assert result.enum_value == 1
 
 
+@pytest.mark.parametrize(
+    ("unit", "value", "expected"),
+    [
+        ("ms", "100ms", 100),
+        ("ms", "0.2s", 200),
+        ("ms", {"milliseconds": 200}, 200),
+        ("us", "1100 us", 1100),
+        ("us", "1.1ms", 1100),
+    ],
+)
+def test_time_period_enum_valid(unit: str, value: object, expected: int) -> None:
+    mapping = {100: "A", 200: "B", 1100: "C"}
+    result = cv.time_period_enum(mapping, unit=unit)(value)
+    reference = cv.enum(mapping, int=True)(expected)
+    assert result == reference
+    assert type(result) is type(reference)
+    assert result.enum_value == reference.enum_value
+
+
+@pytest.mark.parametrize(
+    ("unit", "value", "match"),
+    [
+        ("ms", "150ms", "Unknown value '150ms', valid options are 100ms, 200ms"),
+        ("ms", "1100us", "Maximum precision is milliseconds"),
+        ("ms", "-100ms", "value must be at least"),
+        ("ms", 100, "has no time"),
+        ("us", "100ns", "Maximum precision is microseconds"),
+    ],
+)
+def test_time_period_enum_invalid(unit: str, value: object, match: str) -> None:
+    with pytest.raises(Invalid, match=match):
+        cv.time_period_enum({100: "A", 200: "B"}, unit=unit)(value)
+
+
+def test_time_period_enum_schema_extract() -> None:
+    extracted = cv.time_period_enum({100: "A", 200: "B"})(SCHEMA_EXTRACT)
+    assert list(extracted) == ["100ms", "200ms"]
+
+
 # ---------------------------------------------------------------------------
 # lambda_ / returning_lambda
 # ---------------------------------------------------------------------------
@@ -2982,6 +3046,38 @@ def test_typed_schema_with_enum() -> None:
     result = schema({"type": "foo"})
     assert result["type"] == "foo"
     assert result["type"].enum_value == 42
+
+
+def test_typed_schema_reused_validator_follows_a_replaced_entry() -> None:
+    schemas = {"foo": cv.Schema({cv.Optional("x"): cv.int_})}
+    schema = cv.typed_schema(schemas)
+    assert schema({"type": "foo", "x": 5}) == {"type": "foo", "x": 5}
+    assert schema({"type": "foo", "x": 6}) == {"type": "foo", "x": 6}
+    schemas["foo"] = cv.Schema({cv.Optional("x"): cv.string})
+    assert schema({"type": "foo", "x": 5}) == {"type": "foo", "x": "5"}
+
+
+@pytest.mark.parametrize("combinator", ["All", "Any"])
+def test_direct_calls_match_voluptuous(combinator: str) -> None:
+    validators = (cv.int_, cv.Range(min=0, max=10))
+    ours = getattr(cv, combinator)(*validators)
+    theirs = getattr(vol, combinator)(*validators)
+    for value in ("5", 3, "x", 11, "7"):
+        try:
+            expected = theirs(value)
+        except vol.Invalid as err:
+            with pytest.raises(type(err), match=re.escape(str(err))):
+                ours(value)
+        else:
+            assert ours(value) == expected
+
+
+def test_direct_any_compiles_only_the_branches_it_tries() -> None:
+    validator = cv.Any(cv.int_, cv.possibly_negative_percentage)
+    assert validator("5") == 5
+    assert len(validator._direct_schemas) == 1
+    assert validator("50%") == 0.5
+    assert len(validator._direct_schemas) == 2
 
 
 # ---------------------------------------------------------------------------

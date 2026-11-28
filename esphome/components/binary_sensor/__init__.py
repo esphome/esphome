@@ -1,4 +1,5 @@
 from logging import getLogger
+from typing import Any
 
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
@@ -137,22 +138,18 @@ ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.templa
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTrigger = binary_sensor_ns.class_(
-    "MultiClickTrigger", automation.Trigger.template(), cg.Component
-)
+MultiClickBase = binary_sensor_ns.class_("MultiClickBase", automation.FiringComponent)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
 TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter)
-DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter)
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
-LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
-StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
+AutorepeatFilterTiming = binary_sensor_ns.struct("AutorepeatFilterTiming")
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter)
 
 _LOGGER = getLogger(__name__)
@@ -163,6 +160,15 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 
 def register_filter(name, filter_type, schema):
     return FILTER_REGISTRY.register(name, filter_type, schema)
+
+
+ApplyFilter = binary_sensor_ns.class_("ApplyFilter", Filter)
+APPLY_FILTER = automation.ApplyFilterDomain(
+    FILTER_REGISTRY,
+    ApplyFilter,
+    cg.optional.template(cg.bool_),
+    ((Filter.operator("ptr"), "filter"), (cg.bool_, "x")),
+)
 
 
 @register_filter("invert", InvertFilter, {})
@@ -182,38 +188,47 @@ async def timeout_filter_to_code(config, filter_id):
     return var
 
 
+_DELAY_EITHER = automation.ApplyCall(
+    "return binary_sensor::delay_output(filter, {}, x);",
+    ((automation.WHOLE_CONFIG, cg.uint32),),
+)
+# The delay for the edge is picked in the generated code, so only that value is evaluated
+_DELAY_SCHEMA = cv.templatable(cv.positive_time_period_milliseconds)
+_DELAY_ON_OFF_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TIME_ON): _DELAY_SCHEMA,
+        cv.Required(CONF_TIME_OFF): _DELAY_SCHEMA,
+    }
+)
+_DELAY_ON_OFF = automation.ApplyCall(
+    "return binary_sensor::delay_output(filter, x ? {} : {}, x);",
+    ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
+)
+
+
 @register_filter(
     "delayed_on_off",
-    DelayedOnOffFilter,
+    ApplyFilter,
     cv.Any(
-        cv.templatable(cv.positive_time_period_milliseconds),
-        cv.Schema(
-            {
-                cv.Required(CONF_TIME_ON): cv.templatable(
-                    cv.positive_time_period_milliseconds
-                ),
-                cv.Required(CONF_TIME_OFF): cv.templatable(
-                    cv.positive_time_period_milliseconds
-                ),
-            }
-        ),
+        _DELAY_SCHEMA,
+        _DELAY_ON_OFF_SCHEMA,
         msg="'delayed_on_off' filter requires either a delay time to be used for both "
         "turn-on and turn-off delays, or two parameters 'time_on' and 'time_off' if "
         "different delay times are required.",
     ),
 )
-async def delayed_on_off_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id)
-    if isinstance(config, dict):
-        template_ = await cg.templatable(config[CONF_TIME_ON], [], cg.uint32)
-        cg.add(var.set_on_delay(template_))
-        template_ = await cg.templatable(config[CONF_TIME_OFF], [], cg.uint32)
-        cg.add(var.set_off_delay(template_))
-    else:
-        template_ = await cg.templatable(config, [], cg.uint32)
-        cg.add(var.set_on_delay(template_))
-        cg.add(var.set_off_delay(template_))
-    return var
+async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
+    if isinstance(config, core.Lambda):
+        # One function per edge, so each keeps its own static state as before
+        config = {CONF_TIME_ON: config, CONF_TIME_OFF: config}
+    statement, schema = (
+        (_DELAY_ON_OFF, _DELAY_ON_OFF_SCHEMA)
+        if isinstance(config, dict)
+        else (_DELAY_EITHER, _DELAY_SCHEMA)
+    )
+    return await APPLY_FILTER.build(
+        "delayed_on_off", config, filter_id, statement, schema=schema
+    )
 
 
 @register_filter(
@@ -238,61 +253,65 @@ async def delayed_off_filter_to_code(config, filter_id):
     return var
 
 
+AUTOREPEAT_TIMING_SCHEMA = cv.Schema(
+    {
+        cv.Optional(
+            CONF_DELAY, default=DEFAULT_DELAY
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_OFF, default=DEFAULT_TIME_OFF
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_ON, default=DEFAULT_TIME_ON
+        ): cv.positive_time_period_milliseconds,
+    }
+)
+
+
 @register_filter(
     "autorepeat",
     AutorepeatFilter,
-    cv.All(
-        cv.ensure_list(
-            {
-                cv.Optional(
-                    CONF_DELAY, default=DEFAULT_DELAY
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_OFF, default=DEFAULT_TIME_OFF
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_ON, default=DEFAULT_TIME_ON
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
-        cv.Length(max=254),
-    ),
+    cv.All(cv.ensure_list(AUTOREPEAT_TIMING_SCHEMA), cv.Length(max=254)),
 )
-async def autorepeat_filter_to_code(config, filter_id):
-    if len(config) > 0:
-        timings = [
-            cg.StructInitializer(
-                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
-                ("delay", conf[CONF_DELAY]),
-                ("time_off", conf[CONF_TIME_OFF]),
-                ("time_on", conf[CONF_TIME_ON]),
-            )
-            for conf in config
-        ]
-    else:
-        timings = [
-            cg.StructInitializer(
-                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
-                ("delay", cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds),
-                (
-                    "time_off",
-                    cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
-                ),
-                (
-                    "time_on",
-                    cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
-                ),
-            )
-        ]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
-
-
-@register_filter("lambda", LambdaFilter, cv.returning_lambda)
-async def lambda_filter_to_code(config, filter_id):
-    lambda_ = await cg.process_lambda(
-        config, [(bool, "x")], return_type=cg.optional.template(bool)
+async def autorepeat_filter_to_code(config: list[ConfigType], filter_id: ID) -> MockObj:
+    config = config or [AUTOREPEAT_TIMING_SCHEMA({})]
+    timings = [
+        cg.StructInitializer(
+            AutorepeatFilterTiming,
+            ("delay", conf[CONF_DELAY].total_milliseconds),
+            ("time_off", conf[CONF_TIME_OFF].total_milliseconds),
+            ("time_on", conf[CONF_TIME_ON].total_milliseconds),
+        )
+        for conf in config
+    ]
+    # A never-run delay ends the table, so the filter stores no count.
+    timings.append(
+        cg.StructInitializer(
+            AutorepeatFilterTiming, ("delay", cg.RawExpression("SCHEDULER_DONT_RUN"))
+        )
     )
-    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
+    table = cg.shared_progmem_array(
+        "binary_sensor_autorepeat_timings",
+        AutorepeatFilterTiming,
+        cg.ArrayInitializer(*timings),
+    )
+    return cg.new_Pvariable(filter_id, table)
+
+
+@register_filter("lambda", ApplyFilter, cv.returning_lambda)
+async def lambda_filter_to_code(config, filter_id):
+    # The body is its own function of x, so it cannot see or clash with the filter parameter
+    lambda_ = await cg.process_lambda(
+        config, [(bool, "x")], return_type=APPLY_FILTER.return_type
+    )
+    fn = automation.apply_static_function(
+        filter_id,
+        APPLY_FILTER.return_type,
+        [(cg.bool_, "x")],
+        lambda_.body_lines,
+        suffix="lambda",
+    )
+    return APPLY_FILTER.new(filter_id, [f"return {fn}(x);"])
 
 
 @register_filter(
@@ -490,7 +509,7 @@ _BINARY_SENSOR_SCHEMA = (
             ),
             cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickBase),
                     cv.Required(CONF_TIMING): cv.All(
                         [parse_multi_click_timing_str],
                         validate_multi_click_timing,
@@ -601,13 +620,16 @@ async def _build_binary_sensor_automations(var, config):
         table = cg.shared_progmem_array(
             "multi_click_timing", MultiClickTriggerEvent, cg.ArrayInitializer(*timings)
         )
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
+        callback = await automation.build_component_automation(
+            conf,
+            automation.FireCallback,
+            template_args=[MultiClickBase],
+            ctor_args=(var, table, len(timings)),
+        )
         if (
             cooldown := conf[CONF_INVALID_COOLDOWN]
         ).total_milliseconds != DEFAULT_INVALID_COOLDOWN_MS:
-            cg.add(trigger.set_invalid_cooldown(cooldown))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+            cg.add(callback.set_invalid_cooldown(cooldown))
 
 
 @setup_entity("binary_sensor")

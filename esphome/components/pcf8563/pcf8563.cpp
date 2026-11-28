@@ -8,10 +8,17 @@ namespace esphome::pcf8563 {
 
 ESPHOME_LOG_TAG(TAG, "PCF8563");
 
+static constexpr uint8_t CONTROL_1_REG = 0x00;
+static constexpr uint8_t CONTROL_1_STOP = 0x20;
+static constexpr uint8_t CALENDAR_REG = 0x02;
+static constexpr uint8_t CALENDAR_LEN = 7;
+// Control_1, Control_2, then the calendar
+static constexpr uint8_t READ_LEN = CALENDAR_REG + CALENDAR_LEN;
+static constexpr uint8_t VOLTAGE_LOW_BIT = 0x80;  // In the seconds register
+
 void PCF8563Component::setup() {
-  if (!this->read_rtc_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
+  uint8_t raw[READ_LEN];
+  this->setup_check(this->read_bytes(CONTROL_1_REG, raw, READ_LEN));
 }
 
 void PCF8563Component::update() { this->read_time(); }
@@ -23,27 +30,22 @@ void PCF8563Component::dump_config() {
 }
 
 void PCF8563Component::read_time() {
-  if (!this->read_rtc_()) {
+  uint8_t raw[READ_LEN];
+  if (!this->read_bytes(CONTROL_1_REG, raw, READ_LEN)) {
+    ESP_LOGE(TAG, "Can't read I2C data.");
     return;
   }
-  if (pcf8563_.reg.stop) {
+  if ((raw[CONTROL_1_REG] & CONTROL_1_STOP) != 0) {
     ESP_LOGW(TAG, "RTC halted, not syncing to system clock.");
     return;
   }
-  if (this->pcf8563_.reg.voltage_low) {
+  if ((raw[CALENDAR_REG] & VOLTAGE_LOW_BIT) != 0) {
     ESP_LOGW(TAG, "Voltage-low flag set, RTC time may be invalid; not syncing to system clock.");
     return;
   }
-  ESPTime rtc_time{
-      .second = uint8_t(pcf8563_.reg.second + 10 * pcf8563_.reg.second_10),
-      .minute = uint8_t(pcf8563_.reg.minute + 10u * pcf8563_.reg.minute_10),
-      .hour = uint8_t(pcf8563_.reg.hour + 10u * pcf8563_.reg.hour_10),
-      .day_of_week = uint8_t(pcf8563_.reg.weekday),
-      .day_of_month = uint8_t(pcf8563_.reg.day + 10u * pcf8563_.reg.day_10),
-      .month = uint8_t(pcf8563_.reg.month + 10u * pcf8563_.reg.month_10),
-      .year = uint16_t(pcf8563_.reg.year + 10u * pcf8563_.reg.year_10 + 2000),
-  };
-  rtc_time.recalc_timestamp_utc(false);
+  const ESPTime rtc_time = time::decode_bcd_calendar<time::PCF_BCD_CALENDAR>(&raw[CALENDAR_REG]);
+  ESP_LOGD(TAG, "Read UTC time: %04u-%02u-%02u %02u:%02u:%02u", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
+           rtc_time.hour, rtc_time.minute, rtc_time.second);
   if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
@@ -57,47 +59,15 @@ void PCF8563Component::write_time() {
     ESP_LOGE(TAG, "Invalid system time, not syncing to RTC.");
     return;
   }
-  pcf8563_.reg.year = (now.year - 2000) % 10;
-  pcf8563_.reg.year_10 = (now.year - 2000) / 10 % 10;
-  pcf8563_.reg.month = now.month % 10;
-  pcf8563_.reg.month_10 = now.month / 10;
-  pcf8563_.reg.day = now.day_of_month % 10;
-  pcf8563_.reg.day_10 = now.day_of_month / 10;
-  pcf8563_.reg.weekday = now.day_of_week;
-  pcf8563_.reg.hour = now.hour % 10;
-  pcf8563_.reg.hour_10 = now.hour / 10;
-  pcf8563_.reg.minute = now.minute % 10;
-  pcf8563_.reg.minute_10 = now.minute / 10;
-  pcf8563_.reg.second = now.second % 10;
-  pcf8563_.reg.second_10 = now.second / 10;
-  pcf8563_.reg.stop = false;
-  this->pcf8563_.reg.voltage_low = false;
-
-  this->write_rtc_();
-}
-
-bool PCF8563Component::read_rtc_() {
-  if (!this->read_bytes(0, this->pcf8563_.raw, sizeof(this->pcf8563_.raw))) {
-    ESP_LOGE(TAG, "Can't read I2C data.");
-    return false;
-  }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  STOP:%s CLKOUT:%0u VL:%0u", pcf8563_.reg.hour_10,
-           pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10, pcf8563_.reg.second,
-           pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
-           pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled, pcf8563_.reg.voltage_low);
-
-  return true;
-}
-
-bool PCF8563Component::write_rtc_() {
-  if (!this->write_bytes(0, this->pcf8563_.raw, sizeof(this->pcf8563_.raw))) {
+  // The voltage-low flag is written clear with the seconds
+  uint8_t raw[CALENDAR_LEN];
+  time::encode_bcd_calendar<time::PCF_BCD_CALENDAR>(now, raw);
+  if (!this->update_register(CONTROL_1_REG, CONTROL_1_STOP, 0) || !this->write_bytes(CALENDAR_REG, raw, CALENDAR_LEN)) {
     ESP_LOGE(TAG, "Can't write I2C data.");
-    return false;
+    return;
   }
-  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  OSC:%s CLKOUT:%0u", pcf8563_.reg.hour_10,
-           pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10, pcf8563_.reg.second,
-           pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
-           pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
-  return true;
+  ESP_LOGD(TAG, "Wrote UTC time: %04u-%02u-%02u %02u:%02u:%02u", now.year, now.month, now.day_of_month, now.hour,
+           now.minute, now.second);
 }
+
 }  // namespace esphome::pcf8563

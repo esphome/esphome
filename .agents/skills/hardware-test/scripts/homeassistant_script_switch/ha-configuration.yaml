@@ -1,0 +1,33 @@
+# Throwaway Home Assistant on port 8129: a 20 s script that sets and clears a flag, and a toggle script.
+http:
+  server_port: 8129
+api:
+config:
+onboarding:
+frontend:
+input_boolean:
+  script_ran:
+script:
+  long_job:
+    alias: Long job
+    mode: single
+    sequence:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.script_ran
+      - delay: 20
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.script_ran
+  quick_job:
+    alias: Quick job
+    sequence:
+      - action: input_boolean.toggle
+        target:
+          entity_id: input_boolean.script_ran
+logger:
+  default: warning
+  logs:
+    homeassistant.components.esphome: debug
+    homeassistant.components.script: debug
+    homeassistant.helpers.script: info

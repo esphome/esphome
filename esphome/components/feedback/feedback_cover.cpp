@@ -236,7 +236,7 @@ void FeedbackCover::loop() {
   this->recompute_position_();
 
   // if we initiated the move, check if we reached position or max time
-  // (stoping from endstop sensor is handled in callback)
+  // (stopping from endstop sensor is handled in callback)
   if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
     if (this->is_at_target_()) {
       const bool at_end = this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED;

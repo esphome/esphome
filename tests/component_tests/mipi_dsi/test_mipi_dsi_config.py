@@ -8,7 +8,12 @@ import re
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_SDKCONFIG_OPTIONS,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+)
 
 # Importing the I/O expanders registers their pin schemas with
 # pins.PIN_SCHEMA_REGISTRY so that models whose defaults reference expander-backed
@@ -21,9 +26,11 @@ from esphome.const import (
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_WIDTH,
+    KEY_ESP32,
     KEY_VARIANT,
     PlatformFramework,
 )
+from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -217,6 +224,26 @@ def test_code_generation(
     # assert "backlight_id = new light::LightState(mipi_dsi_dsibacklight_id);" in main_cpp
 
 
+def test_isr_cache_safe(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """The DSI interrupts run while flash is written, so the panel does not miss a frame."""
+    generate_main(component_fixture_path("mipi_dsi.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_LCD_DSI_ISR_CACHE_SAFE") is True
+
+
+def test_isr_cache_safe_not_set_when_executing_from_psram(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """Code run from PSRAM does not wait for the flash, so the option is not needed."""
+    generate_main(component_fixture_path("execute_from_psram.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_LCD_DSI_ISR_CACHE_SAFE" not in sdkconfig
+
+
 def test_unsupported_variant_reported_before_requirements(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -232,3 +259,24 @@ def test_unsupported_variant_reported_before_requirements(
 
     with pytest.raises(cv.Invalid, match=r"This feature is only available on ESP32P4"):
         CONFIG_SCHEMA({"model": "SEEED-RETERMINAL-D1001"})
+
+
+def test_brightness_in_init_sequence(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """The brightness option adds the 0x51 command to the init sequence."""
+
+    main_cpp = generate_main(component_fixture_path("brightness.yaml"))
+
+    def sequence(display_id: str) -> str:
+        seq = re.search(rf"{display_id}->set_init_sequence\((\w+), \d+\);", main_cpp)
+        assert seq is not None
+        values = re.search(rf"{seq.group(1)}\[\] PROGMEM = \{{([^}}]*)\}}", main_cpp)
+        assert values is not None
+        return values.group(1)
+
+    # The brightness command, 81 (0x51), follows INVOFF (0x20)
+    assert "32, 0, 81, 1, 0, 0, 255, 17," in sequence("zero")
+    assert "32, 0, 81, 1, 128, 0, 255, 17," in sequence("half")
+    assert "32, 0, 0, 255, 17," in sequence("unset")

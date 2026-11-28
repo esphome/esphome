@@ -13,8 +13,6 @@ replies.
 - `run.sh LABEL` builds, flashes, captures 90 s and writes `out-ezo<LABEL>.events`. Compare dev and the PR: the
   replies, callback texts, read values and the wait before each read (912 ms for reads and calibration, 304 ms for
   the rest) must match; differences in queue limits are the PR's intended change.
-- Call plain `millis()` in a fake: Arduino builds define a `millis()` macro (`esphome::millis()`), so
-  `esphome::millis()` breaks there, and on ESP-IDF the plain name resolves through `using namespace esphome`.
 - Found with it: dev read past its 32-byte buffer on an unterminated reply (a custom callback got 56 bytes), and
   two queued address changes both went to the first new address.
 - Results: https://github.com/esphome/esphome/pull/21840#issuecomment-6493565259

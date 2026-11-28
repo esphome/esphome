@@ -50,6 +50,9 @@ INTEGRATION_TESTS_PATH = "tests/integration/"
 # reader (determine-jobs) and writer (update_integration_test_durations)
 INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
 
+# Per-component YAML file that the C++ unit test and benchmark builds load
+BENCHMARK_YAML_FILENAME = "benchmark.yaml"
+
 
 def all_integration_test_files() -> list[str]:
     """Return all integration test file paths, sorted, relative to repo root."""
@@ -539,9 +542,9 @@ _TRANSIENT_GH_ERROR_RE = re.compile(
     r"|temporary failure"
 )
 
-# Same retry policy as git network commands in esphome/git.py: 3 attempts
-# with 2s/4s backoff.
-_GH_MAX_ATTEMPTS = 3
+# Same retry policy as esphome/net_retry.py's NETWORK_MAX_ATTEMPTS: 5 attempts
+# with 2s/4s/8s/16s backoff.
+_GH_MAX_ATTEMPTS = 5
 
 
 def run_gh_command(

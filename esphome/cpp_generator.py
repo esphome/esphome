@@ -1,5 +1,6 @@
 import abc
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import inspect
 import math
 import re
@@ -23,9 +24,9 @@ from esphome.core import (
 )
 from esphome.helpers import (
     cpp_string_escape,
-    ensure_unique_string,
     indent,
     indent_all_but_first_and_last,
+    unique_name,
 )
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
@@ -215,18 +216,24 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
-        body = f"{self.content}\n"
-        if self.source is not None:
-            body = f"{self.source.as_line_directive}\n{body}"
-        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
-        if "#line " in body:
-            body += f"{LINE_DIRECTIVE_RESET}\n"
-        cpp += f"{body}}}"
+        cpp += "".join(f"{line}\n" for line in self.body_lines)
+        cpp += "}"
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
         return "".join(str(part) for part in self.parts)
+
+    @property
+    def body_lines(self) -> list[str]:
+        """The body with its source line mark, as the statements of a function."""
+        lines = [self.content]
+        if self.source is not None:
+            lines.insert(0, self.source.as_line_directive)
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if any("#line " in line for line in lines):
+            lines.append(LINE_DIRECTIVE_RESET)
+        return lines
 
 
 # pylint: disable=abstract-method
@@ -455,16 +462,20 @@ class LineComment(Statement):
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
-    __slots__ = ("constexpr",)
+    __slots__ = ("constexpr", "align")
 
-    def __init__(self, type_, name, rhs, constexpr: bool = True):
+    def __init__(
+        self, type_, name, rhs, constexpr: bool = True, align: int | None = None
+    ):
         super().__init__(type_, "", name, rhs)
         self.constexpr = constexpr
+        self.align = align
 
     def __str__(self):
+        prefix = "" if self.align is None else f"alignas({self.align}) "
         if self.constexpr:
-            return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
-        return f"ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
+            return f"{prefix}static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"{prefix}ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -477,24 +488,44 @@ class StaticConstAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] = {self.rhs}"
 
 
-def progmem_array(id_, rhs) -> "MockObj":
+def progmem_array(id_, rhs, *, align: int | None = None) -> "MockObj":
+    """Emit a ``static constexpr`` PROGMEM array and return a reference to it.
+
+    ``align`` prefixes the declaration with ``alignas(align)``. Without it the array
+    only gets its element type's alignment (1 byte for a byte array), so data read
+    through a cast, such as a flatbuffer model buffer, needs this to stay aligned.
+    """
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
-    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
+    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, align=align)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
 
+_CONFIG_ID_NAMES = "config_id_names"
+
+
 def unique_global_id(name: str, type_: "MockObjClass") -> ID:
     """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
     from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
+    from esphome.config_validation import RESERVED_IDS_SET
 
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    # The config is final during code generation, so its ids are collected once per run.
+    if (config_ids := CORE.data.get(_CONFIG_ID_NAMES)) is None:
+        config_ids = CORE.data[_CONFIG_ID_NAMES] = {
+            str(i) for i, _ in iter_ids(CORE.config)
+        }
+    unique = unique_name(
+        name,
+        lambda c: (
+            c in config_ids
+            or c in RESERVED_IDS_SET
+            or c in CORE.loaded_integrations
+            or ID(c) in CORE.variables
+        ),
+    )
+    return ID(unique, is_declaration=True, type=type_)
 
 
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
@@ -567,6 +598,13 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
+def _owned_static_name(owner: ID, suffix: str, type_: "MockObjClass") -> tuple[ID, str]:
+    if not isinstance(owner, ID) or owner.type is None:
+        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    base = unique_global_id(f"{owner.id}_{suffix}", type_)
+    return base, _pstorage_name(owner.type, base)
+
+
 def static_buffer(
     owner: ID,
     type_: "MockObjClass",
@@ -583,22 +621,41 @@ def static_buffer(
     evaluated, so pass the result once; it is nullptr if the allocation fails.
     ``align`` prefixes the declaration with ``alignas(align)``.
     """
-    if not isinstance(owner, ID) or owner.type is None:
-        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
     if psram and align is not None and align > 4:
         raise EsphomeError(
             "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
         )
+    base, name = _owned_static_name(owner, "buffer", type_)
     # Same condition as the USE_PSRAM define: psram is configured and not disabled
     if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
         return MockObj(f"psram_buffer<{type_}>({size})", ".")
-    base = unique_global_id(f"{owner.id}_buffer", type_)
-    name = _pstorage_name(owner.type, base)
     prefix = "" if align is None else f"alignas({align}) "
     CORE.add_global(RawStatement(f"{prefix}static {type_} {name}[{size}];"))
     buffer = MockObj(name, ".")
     CORE.register_variable(base, buffer)
     return buffer
+
+
+def static_storage(
+    owner: ID, type_: "MockObjClass", count: "int | str | Expression"
+) -> "MockObj":
+    """Emit raw aligned file-scope storage for ``count`` ``type_`` objects and return a ``std::span<type_>``.
+
+    For ``StaticFixedVector::init()``, which constructs the elements in place and never frees it.
+    """
+    if isinstance(count, int) and count == 0:
+        return MockObj(f"std::span<{type_}>()", ".")
+    base, name = _owned_static_name(owner, "storage", type_)
+    CORE.add_global(
+        RawStatement(
+            f"alignas({type_}) static unsigned char {name}[sizeof({type_}) * ({count})];"
+        )
+    )
+    storage = MockObj(
+        f"std::span<{type_}>(reinterpret_cast<{type_} *>({name}), {count})", "."
+    )
+    CORE.register_variable(base, storage)
+    return storage
 
 
 def static_const_array(id_, rhs) -> "MockObj":
@@ -767,6 +824,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         pointer_type = id_.type
         storage_name = _pstorage_name(actual_type, id_.id)
 
+        address = f"reinterpret_cast<{pointer_type} *>({storage_name})"
         # Declare aligned byte array for the object storage
         CORE.add_global(
             RawStatement(
@@ -780,22 +838,26 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
                 f"static {pointer_type}",
                 "*const ",
                 id_,
-                MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
+                MockObj(address),
             )
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
         CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
+        CORE.data.setdefault(_STATIC_POINTER_ADDRESSES, {})[id_.id] = address
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
         CORE.add(AssignmentExpression(None, None, id_, rhs))
+        if (address := static_pointer_address(rhs)) is not None:
+            CORE.data[_STATIC_POINTER_ADDRESSES][id_.id] = address
 
     CORE.register_variable(id_, obj)
     return obj
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
+_STATIC_POINTER_ADDRESSES = "static_pointer_addresses"
 
 
 def is_static_pointer(obj: SafeExpType) -> bool:
@@ -807,6 +869,13 @@ def is_static_pointer(obj: SafeExpType) -> bool:
     return isinstance(obj, MockObj) and str(obj.base) in CORE.data.get(
         _STATIC_POINTER_IDS, ()
     )
+
+
+def static_pointer_address(obj: SafeExpType) -> str | None:
+    """Constant address expression of a static Pvariable or an alias of one, else None."""
+    if not isinstance(obj, MockObj):
+        return None
+    return CORE.data.get(_STATIC_POINTER_ADDRESSES, {}).get(str(obj.base))
 
 
 def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
@@ -826,6 +895,28 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     return Pvariable(id_, rhs)
 
 
+def declare_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+) -> Callable[[list[str | Statement]], RawExpression]:
+    """Declare ``static <return_type> <name>(parameters)`` now; return the function that emits the body later.
+
+    The body goes after the user includes, where every id is in scope.
+    """
+    signature = (
+        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
+    )
+    add_global(RawStatement(f"{signature};"))
+
+    def define(body: list[str | Statement]) -> RawExpression:
+        lines = indent("\n".join(map(str, body)))
+        add_global_after_includes(RawStatement(f"{signature} {{\n{lines}\n}}"))
+        return RawExpression(name)
+
+    return define
+
+
 def static_function(
     name: str,
     return_type: SafeExpType,
@@ -834,19 +925,56 @@ def static_function(
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
-
-    The declaration goes with the other globals, so a template argument can name the function
-    at once; the body goes after the user includes, where every id and everything those
-    headers declare is in scope.
     """
-    signature = (
-        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
+    return declare_static_function(name, return_type, parameters)(body)
+
+
+@dataclass
+class SharedStaticFunctions:
+    """Functions emitted by ``shared_static_function``, by signature and body."""
+
+    functions: dict[tuple[str, str, str], RawExpression] = field(default_factory=dict)
+
+
+def shared_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+    *,
+    share: bool = True,
+) -> RawExpression:
+    """Emit ``static_function`` once per signature and body, so templates on it (``ApplyAction<fn>``) fold too.
+
+    ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
+    """
+    if not share:
+        return _new_static_function(name, return_type, parameters, body)
+    data: SharedStaticFunctions = CORE.data.setdefault(
+        "shared_static_function", SharedStaticFunctions()
     )
-    add_global(RawStatement(f"{signature};"))
-    add_global_after_includes(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
+    key = (
+        str(safe_exp(return_type)),
+        str(ParameterListExpression(*parameters)),
+        "\n".join(map(str, body)),
     )
-    return RawExpression(name)
+    if (fn := data.functions.get(key)) is None:
+        fn = data.functions[key] = _new_static_function(
+            name, return_type, parameters, body
+        )
+    return fn
+
+
+def _new_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str | Statement],
+) -> RawExpression:
+    id_ = unique_global_id(name, None)
+    fn = static_function(id_.id, return_type, parameters, body)
+    CORE.register_variable(id_, fn)
+    return fn
 
 
 def add(expression: Expression | Statement, prepend: bool = False):
@@ -1376,9 +1504,10 @@ class MockObjClass(MockObj):
         return self._parents
 
     def inherits_from(self, other: "MockObjClass") -> bool:
-        if str(self) == str(other):
+        other_name = str(other)
+        if str(self) == other_name:
             return True
-        return any(str(parent) == str(other) for parent in self._parents)
+        return any(str(parent) == other_name for parent in self._parents)
 
     def const_ref(self) -> MockObj:
         """``const T &``, for a parameter that takes this type by reference."""
@@ -1416,7 +1545,7 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     """
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context.
-    This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    This is for use where the lambda call is used as an expression (a value, or a void call).
     Use only where the surrounding scope declares the lambda's parameters with the same types.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
@@ -1424,15 +1553,17 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     # Developer error if this is called with a lambda that doesn't have a return type
     assert lamb.return_type is not None, "Lambda must have a return type to be called"
     expr = lamb.content.strip()
-    # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
-    # A braced return such as `return {};` needs the lambda's return type, so it is called.
+    # A lone `return <expr>;` reduces to the expression; a longer body, a braced (`return {};`)
+    # or a bare (`return;`) return is called.
+    body = expr[6:-1].strip()
     if (
         re.match(r"^return\b", expr)
         and expr.endswith(";")
         and expr.count(";") == 1
-        and not expr[6:].lstrip().startswith("{")
+        and body
+        and not body.startswith("{")
     ):
-        expr = RawExpression(expr[6:-1].strip())
+        expr = RawExpression(body)
         # Don't cast if the return type is a class
         if isinstance(lamb.return_type, MockObjClass):
             return expr

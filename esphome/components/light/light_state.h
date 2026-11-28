@@ -15,6 +15,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
+#include <concepts>
 #include <strings.h>
 #include <vector>
 
@@ -46,6 +47,8 @@ class LightTargetStateReachedListener {
 };
 
 struct LightStateRTCState {
+  // User-provided so GCC stores the defaults instead of copying a constant, which is RAM on ESP8266
+  LightStateRTCState() {}  // NOLINT(modernize-use-equals-default)
   // Group 4-byte aligned members first
   float brightness{1.0f};
   float color_brightness{1.0f};
@@ -60,7 +63,10 @@ struct LightStateRTCState {
   // Group smaller members at the end
   ColorMode color_mode{ColorMode::UNKNOWN};
   bool state{false};
+  // Zeroed so a saved copy has no unset padding bytes
+  uint8_t reserved_[2]{};
 };
+static_assert(sizeof(LightStateRTCState) == 44, "the saved layout must not change");
 
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
@@ -146,15 +152,39 @@ class LightState : public EntityBase, public Component {
 
   /** Add a listener for remote values changes.
    * Listener is notified when the light's remote values change (state, brightness, color, etc.)
-   * Lazily allocates the listener vector on first registration.
+   * Lazily allocates the callback list it shares with add_remote_values_callback() on first registration.
    */
   void add_remote_values_listener(LightRemoteValuesListener *listener);
+  /// For a listener of a derived type with a public override: a final one is called directly, without the vtable.
+  template<typename T>
+    requires(std::derived_from<T, LightRemoteValuesListener> && !std::same_as<T, LightRemoteValuesListener> &&
+             requires(T *l) { l->on_light_remote_values_update(); })
+  void add_remote_values_listener(T *listener) {
+    this->remote_values_callback_.add([listener]() { listener->on_light_remote_values_update(); });
+  }
 
   /** Add a listener for target state reached.
    * Listener is notified when the light finishes a transition and reaches its target state.
-   * Lazily allocates the listener vector on first registration.
+   * Lazily allocates the callback list it shares with add_target_state_reached_callback() on first registration.
    */
   void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
+  /// For a listener of a derived type with a public override: a final one is called directly, without the vtable.
+  template<typename T>
+    requires(std::derived_from<T, LightTargetStateReachedListener> &&
+             !std::same_as<T, LightTargetStateReachedListener> &&
+             requires(T *l) { l->on_light_target_state_reached(); })
+  void add_target_state_reached_listener(T *listener) {
+    this->target_state_reached_callback_.add([listener]() { listener->on_light_target_state_reached(); });
+  }
+
+  /// Called on every publish_state(), in one list with the remote values listeners.
+  template<typename F> void add_remote_values_callback(F &&callback) {
+    this->remote_values_callback_.add(std::forward<F>(callback));
+  }
+  /// Called each time the light reaches its target, in one list with the target state reached listeners.
+  template<typename F> void add_target_state_reached_callback(F &&callback) {
+    this->target_state_reached_callback_.add(std::forward<F>(callback));
+  }
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length) {
@@ -223,17 +253,24 @@ class LightState : public EntityBase, public Component {
   void set_resume_effect(bool resume_effect) { this->resume_effect_ = resume_effect; }
 #endif  // USE_LIGHT_RESUME_EFFECT
 
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// Set whether setup() writes the initial state to the output, instead of the first loop().
+  void set_write_on_setup(bool write_on_setup) { this->write_on_setup_ = write_on_setup; }
+#endif  // USE_LIGHT_WRITE_ON_SETUP
+
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects() const { return !this->effects_.empty(); }
 
   /// Get all effects for this light state.
   const ConstVector<LightEffect *> &get_effects() const { return this->effects_; }
 
+#ifdef USE_LIGHT_EFFECTS
   /// Codegen only: point at the generated table of this light's effects, which must outlive it.
   /// Codegen caps the count at 65535, so an effect index always fits the uint16_t active index.
   void add_effects(LightEffect *const *effects, size_t count) {
     this->effects_ = ConstVector<LightEffect *>(effects, count);
   }
+#endif
 
   /// Get the total number of effects available for this light.
   size_t get_effect_count() const { return this->effects_.size(); }
@@ -321,6 +358,10 @@ class LightState : public EntityBase, public Component {
   // The two halves of loop()
   void apply_effect_and_transformer_();
   void write_if_pending_();
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// The write of a loop() pass, without its effect and transition steps; setup() calls it with write_on_setup.
+  virtual void write_start_up_state() { this->write_if_pending_(); }
+#endif  // USE_LIGHT_WRITE_ON_SETUP
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
@@ -369,8 +410,13 @@ class LightState : public EntityBase, public Component {
   LightOutput *output_;
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+#ifdef USE_LIGHT_EFFECTS
   /// List of effects for this light.
   ConstVector<LightEffect *> effects_;
+#else
+  // No light has effects; the effect paths fold away
+  static constexpr ConstVector<LightEffect *> effects_ PROGMEM{};
+#endif
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
 
@@ -382,16 +428,18 @@ class LightState : public EntityBase, public Component {
    * starting with the beginning of the transition.
    *
    * Lazily allocated - only created when a listener is actually registered.
+   * Holds the listeners and the on_turn_on and on_state callbacks in registration order.
    */
-  std::unique_ptr<std::vector<LightRemoteValuesListener *>> remote_values_listeners_;
+  LazyCallbackManager<void()> remote_values_callback_;
 
   /** Listeners for target state reached.
    * Notified when the state of current_values and remote_values are equal
    * (when the transition is finished).
    *
    * Lazily allocated - only created when a listener is actually registered.
+   * Holds the listeners and the on_turn_off callbacks in registration order.
    */
-  std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
+  LazyCallbackManager<void()> target_state_reached_callback_;
 
   /// Callback that resolves the boot-time state — called once during setup, then cleared.
   /// Values live in flash as function body; no per-instance data storage beyond this pointer.
@@ -411,8 +459,12 @@ class LightState : public EntityBase, public Component {
   const GammaTable *gamma_table_{nullptr};
 #endif  // USE_LIGHT_GAMMA_LUT
 
+#ifdef USE_LIGHT_EFFECTS
   /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
   uint16_t active_effect_index_{};
+#else
+  static constexpr uint16_t active_effect_index_{0};
+#endif
 #ifdef USE_LIGHT_RESUME_EFFECT
   /// The effect index that was active when the light was last turned off; shares the active index's word
   uint16_t previous_effect_index_{0};
@@ -432,6 +484,10 @@ class LightState : public EntityBase, public Component {
   /// Whether a plain turn-on restores the effect that was active when the light was turned off.
   bool resume_effect_ : 1 {false};
 #endif  // USE_LIGHT_RESUME_EFFECT
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  /// Whether setup() writes the initial state; the output must be set up before the light.
+  bool write_on_setup_ : 1 {false};
+#endif  // USE_LIGHT_WRITE_ON_SETUP
 };
 
 }  // namespace esphome::light

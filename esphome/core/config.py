@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 import logging
 import os
 from pathlib import Path
@@ -45,9 +44,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_URL,
     CONF_VERSION,
-    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
-    PLATFORM_ESP32,
     PLATFORM_HOST,
     PLATFORM_RP2,
     PlatformFramework,
@@ -58,8 +55,11 @@ from esphome.core import (
     KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
     TimePeriodMilliseconds,
+    app_lists,
     coroutine_with_priority,
 )
+from esphome.core.entity_types import ENTITY_PLATFORMS
+from esphome.cpp_helpers import add_component_counts
 import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
@@ -77,6 +77,7 @@ CONF_RELATION = "relation"
 CONF_SBOM = "sbom"
 CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
+CONF_FRIENDLY_NAME_SEPARATOR = "friendly_name_separator"
 
 # Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
 DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
@@ -115,18 +116,10 @@ def make_app_name_cpp(
     return cpp_string_escape(value), None, len(value.encode("utf-8"))
 
 
-StartupTrigger = cg.esphome_ns.class_(
-    "StartupTrigger", cg.Component, automation.Trigger.template()
-)
-ShutdownTrigger = cg.esphome_ns.class_(
-    "ShutdownTrigger", cg.Component, automation.Trigger.template()
-)
-LoopTrigger = cg.esphome_ns.class_(
-    "LoopTrigger", cg.Component, automation.Trigger.template()
-)
-ProjectUpdateTrigger = cg.esphome_ns.class_(
-    "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
-)
+StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
+ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
+LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
+ProjectUpdateCallback = cg.esphome_ns.class_("ProjectUpdateCallback", cg.Component)
 Device = cg.esphome_ns.class_("Device")
 DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
 DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
@@ -161,6 +154,23 @@ def validate_hostname(config):
             "as it can cause problems with some DHCP and local name services. "
             "For more information, see https://esphome.io/guides/faq/#why-shouldnt-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
+        )
+    return config
+
+
+# DeviceInfoResponse sends the friendly name as a short string (encode_short_string_force in api/proto.h)
+FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN = 127
+
+
+def validate_friendly_name_with_suffix(config: ConfigType) -> ConfigType:
+    if not config[CONF_NAME_ADD_MAC_SUFFIX] or not config[CONF_FRIENDLY_NAME]:
+        return config
+    full = f"{config[CONF_FRIENDLY_NAME]}{config[CONF_FRIENDLY_NAME_SEPARATOR]}{_MAC_SUFFIX_PLACEHOLDER}"
+    if (length := len(full.encode("utf-8"))) > FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN:
+        raise cv.Invalid(
+            f"friendly_name with {CONF_FRIENDLY_NAME_SEPARATOR} and the MAC suffix is {length} "
+            f"bytes; at most {FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN} fit",
+            path=[CONF_FRIENDLY_NAME],
         )
     return config
 
@@ -227,13 +237,13 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
         # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
         max_loop = 600  # 2 * 300ms default for other platforms
         if CORE.is_esp32:
-            max_loop = (
-                2
-                * fv.full_config.get()[PLATFORM_ESP32][
-                    CONF_WATCHDOG_TIMEOUT
-                ].total_milliseconds
-                // 5
-            )
+            from esphome.components.esp32 import task_wdt_timeout_ms
+
+            wdt_ms = task_wdt_timeout_ms()
+            if wdt_ms == 0:
+                # Task watchdog disabled: the loop sleep is not capped
+                return config
+            max_loop = 2 * wdt_ms // 5
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
         if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
@@ -423,19 +433,19 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_LOOP): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopCallback),
                 }
             ),
             cv.Optional(
@@ -448,6 +458,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
             ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(
+                CONF_FRIENDLY_NAME_SEPARATOR, default=_APP_FRIENDLY_NAME_MAC_SEP
+            ): cv.All(cv.string_no_slash, cv.ByteLength(max=3)),
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
@@ -479,7 +492,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                ProjectUpdateTrigger
+                                ProjectUpdateCallback
                             ),
                         }
                     ),
@@ -500,6 +513,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_hostname,
+    validate_friendly_name_with_suffix,
 )
 
 
@@ -785,24 +799,15 @@ async def _add_environment_variables(env_vars: dict[str, str]) -> None:
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
-    for conf in config.get(CONF_ON_BOOT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_LOOP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-
-# Datetime component has special subtypes that need additional defines
-DATETIME_SUBTYPES = {"date", "time", "datetime"}
+    for key, component_class in (
+        (CONF_ON_BOOT, StartupCallback),
+        (CONF_ON_SHUTDOWN, ShutdownCallback),
+        (CONF_ON_LOOP, LoopCallback),
+    ):
+        for conf in config.get(key, []):
+            await automation.build_component_automation(
+                conf, component_class, conf.get(CONF_PRIORITY)
+            )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -813,15 +818,11 @@ async def _add_platform_defines() -> None:
         if count <= 0:
             continue
 
-        define_name = f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT"
-        cg.add_define(define_name, count)
-
-        # Datetime subtypes only use USE_DATETIME_* defines
-        if platform_name in DATETIME_SUBTYPES:
-            cg.add_define(f"USE_DATETIME_{platform_name.upper()}")
-        else:
-            # Regular platforms use USE_* defines
-            cg.add_define(f"USE_{platform_name.upper()}")
+        # Entity list types get their defines with the lists (esphome/core/app_lists.py)
+        if platform_name in ENTITY_PLATFORMS:
+            continue
+        cg.add_define(f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT", count)
+        cg.add_define(app_lists.use_define(platform_name))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -841,28 +842,6 @@ async def _add_controller_registry_dispatch() -> None:
         )
     )
     cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_looping_components() -> None:
-    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
-    # happens in core to_code() so it lands before safe_mode's early return.
-    entries = CORE.data.get("looping_component_entries", [])
-
-    # Build constexpr sum for the exact count, deduplicating by type
-    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
-    type_counts = Counter(entries)
-    terms = [
-        f"({count} * HasLoopOverride<{cpp_type}>::value)"
-        for cpp_type, count in type_counts.items()
-    ] or ["0"]
-    constexpr_expr = " + \\\n  ".join(terms)
-    cg.add_global(
-        cg.RawStatement(
-            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
-            f"  {constexpr_expr};"
-        )
-    )
 
 
 @coroutine_with_priority(CoroPriority.CORE)
@@ -899,25 +878,27 @@ async def to_code(config: ConfigType) -> None:
 
     name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
     friendly_expr, friendly_len = _emit_app_name(
-        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
+        friendly_name,
+        _APP_FRIENDLY_NAME_BUF_VAR,
+        config[CONF_FRIENDLY_NAME_SEPARATOR],
     )
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
-    # Define component count for static allocation
-    cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+    CORE.add_job(add_component_counts)
 
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
+    # Pre-init the list with exact capacity so calculate_looping_components_()
+    # can skip the counting pass; the storage is emitted by add_component_counts()
     cg.add(
         cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+            "App.looping_components_.init(std::span<Component *>("
+            "looping_components_storage, ESPHOME_LOOPING_COMPONENT_COUNT))"
         )
     )
 
     CORE.add_job(_add_platform_defines)
+    app_lists.schedule_emit()
     CORE.add_job(_add_controller_registry_dispatch)
-    CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
 
@@ -945,8 +926,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
     if config[CONF_SUSPEND_LOOP]:
         cg.add_define("ESPHOME_SUSPEND_LOOP")
-    if CONF_LOOP_INTERVAL in config:
-        cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
+    cg.add_optional(cg.App.set_loop_interval, config.get(CONF_LOOP_INTERVAL))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
@@ -977,10 +957,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_PROJECT_VERSION", project_conf[CONF_VERSION])
         cg.add_define("ESPHOME_PROJECT_VERSION_30", project_conf[CONF_VERSION][:29])
         for conf in project_conf.get(CONF_ON_UPDATE, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await cg.register_component(trigger, conf)
-            await automation.build_automation(
-                trigger, [(cg.std_string, "version")], conf
+            await automation.build_component_automation(
+                conf,
+                ProjectUpdateCallback,
+                args=[(cg.std_string, "version")],
             )
 
     if config[CONF_PLATFORMIO_OPTIONS]:
@@ -1000,7 +980,6 @@ async def to_code(config: ConfigType) -> None:
 
     if all_areas:
         cg.add_define("USE_AREAS")
-        cg.add_define("ESPHOME_AREA_COUNT", len(all_areas))
 
         for area_conf in all_areas:
             area_id: core.ID = area_conf[CONF_ID]
@@ -1010,16 +989,14 @@ async def to_code(config: ConfigType) -> None:
             area_var = cg.new_Pvariable(area_id)
             cg.add(area_var.set_area_id(area_id_hash))
             cg.add(area_var.set_name(area_name))
-            cg.add(cg.App.register_area(area_var))
+            app_lists.add_to_list("AREA", area_var)
 
     # Process devices
     devices: list[dict[str, str | core.ID]] = config[CONF_DEVICES]
     if not devices:
         return
 
-    # Define device count for static allocation
     cg.add_define("USE_DEVICES")
-    cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
 
     # When every device shares one relation the getter returns it as a constant,
     # so only a mix of relations needs a per-device field
@@ -1053,7 +1030,7 @@ async def to_code(config: ConfigType) -> None:
         ):
             cg.add(dev.set_relation(relation))
 
-        cg.add(cg.App.register_device(dev))
+        app_lists.add_to_list("DEVICE", dev)
 
 
 # Platform-specific source files for core

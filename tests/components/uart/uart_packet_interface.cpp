@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <functional>
 #include <vector>
 #include <cstdint>
 #include <cstring>
@@ -397,6 +398,44 @@ TEST_F(UartPacketInterfaceTest, UnfinishedFrameDoesNotHideNext) {
   feed(uart_, interface_, {0x7E, 0xAA, 0x7E, 0x01, 0x02, 0x7E});
 
   EXPECT_EQ(received_packets_, (std::vector<std::vector<uint8_t>>{{0xAA}, {0x01, 0x02}}));
+}
+
+// A UART that runs a callback after each write, as a UART debug automation can
+class HookedUARTComponent : public MockUARTComponent {
+ public:
+  using MockUARTComponent::write_array;
+  void write_array(const uint8_t *data, size_t len) override {
+    MockUARTComponent::write_array(data, len);
+    if (this->on_write)
+      this->on_write();
+  }
+  std::function<void()> on_write;
+};
+
+// A frame is written in pieces, so a send made between them would put its frame inside the first
+TEST(UartPacketInterfaceNestedTest, NestedSendRefused) {
+  HookedUARTComponent uart;
+  uint8_t rx_buffer[512]{};
+  UartPacketInterface interface(rx_buffer);
+  interface.set_uart_parent(&uart);
+  std::vector<uint8_t> data(40, 0x11);
+  std::vector<uint8_t> other = {0x22};
+  bool nested = true;
+  int writes = 0;
+  uart.on_write = [&]() {
+    if (writes++ == 0)
+      nested = interface.send_to_interface(PacketBuffer(other), {});
+  };
+  EXPECT_TRUE(interface.send_to_interface(PacketBuffer(data), {}));
+  EXPECT_FALSE(nested);
+  std::vector<uint8_t> expected(42, 0x11);
+  expected.front() = expected.back() = 0x7E;
+  EXPECT_EQ(uart.written_data, expected);
+  // Once the first send is done, the next one goes through
+  uart.on_write = nullptr;
+  uart.clear();
+  EXPECT_TRUE(interface.send_to_interface(PacketBuffer(other), {}));
+  EXPECT_EQ(uart.written_data, (std::vector<uint8_t>{0x7E, 0x22, 0x7E}));
 }
 
 }  // namespace esphome::uart::testing

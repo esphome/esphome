@@ -12,7 +12,12 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
+from esphome.components.esp32 import (
+    CONF_EXECUTE_FROM_PSRAM,
+    VARIANT_ESP32P4,
+    add_idf_sdkconfig_option,
+    only_on_variant,
+)
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_COLOR_DEPTH,
@@ -38,10 +43,13 @@ from esphome.components.mipi import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_BRIGHTNESS,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
+    CONF_FRAMEWORK,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
@@ -50,7 +58,9 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_TRANSFORM,
     CONF_WIDTH,
+    KEY_ESP32,
 )
+from esphome.core import CORE
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
@@ -97,7 +107,7 @@ def model_schema(config: ConfigType) -> cv.Schema:
     # Dimensions are optional if the model has a default width
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
-    return display.FULL_DISPLAY_SCHEMA.extend(
+    schema = display.FULL_DISPLAY_SCHEMA.extend(
         {
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(MipiDsi),
@@ -138,6 +148,8 @@ def model_schema(config: ConfigType) -> cv.Schema:
             model.option(CONF_VSYNC_FRONT_PORCH): cv.int_,
         }
     )
+    # Allowed for every model so that schema extraction shows it; _config_schema rejects it where it is not supported
+    return schema.extend({model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t})
 
 
 @model_schema_extractor(MODELS, model_schema)
@@ -155,6 +167,15 @@ def _config_schema(config: ConfigType) -> ConfigType:
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()
     config = model_schema(config)(config)
+    if (
+        CONF_BRIGHTNESS in config
+        and model.get_default(CONF_BRIGHTNESS, None) is None
+        and model.name != "CUSTOM"
+    ):
+        raise cv.Invalid(
+            f"Display model {model.name} does not support setting brightness with a DSI command",
+            path=[CONF_BRIGHTNESS],
+        )
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
@@ -187,6 +208,13 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
+    # While flash is written (NVS, OTA) the cache is off; a DSI interrupt that waits for it makes the
+    # panel miss a frame, seen as a white flash. Code run from PSRAM does not wait for the flash.
+    if not CORE.config[KEY_ESP32][CONF_FRAMEWORK][CONF_ADVANCED][
+        CONF_EXECUTE_FROM_PSRAM
+    ]:
+        add_idf_sdkconfig_option("CONFIG_LCD_DSI_ISR_CACHE_SAFE", True)
+
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))

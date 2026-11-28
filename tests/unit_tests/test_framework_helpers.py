@@ -2,6 +2,7 @@
 
 # pylint: disable=protected-access
 
+import errno
 import gzip
 import hashlib
 import importlib.util
@@ -1677,15 +1678,15 @@ class TestDownloadFromMirrors:
 
     def test_transient_failure_exhausts_sweeps(self, tmp_path: Path) -> None:
         """A persistent transient error gives up after the configured number
-        of passes, with 2s/4s backoff, and still lists the attempted URL."""
+        of passes, with doubling backoff, and still lists the attempted URL."""
         with (
             patch("requests.get", side_effect=req.ConnectionError("down")) as mock_get,
             patch("esphome.framework_helpers.time.sleep") as mock_sleep,
             pytest.raises(EsphomeError, match="all mirrors") as ei,
         ):
             download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
-        assert mock_get.call_count == 3
-        assert mock_sleep.call_args_list == [call(2), call(4)]
+        assert mock_get.call_count == 5
+        assert mock_sleep.call_args_list == [call(2), call(4), call(8), call(16)]
         assert "https://mirror1.com/f" in str(ei.value)
 
     def test_mixed_permanent_and_transient_retries_sweep(self, tmp_path: Path) -> None:
@@ -2677,3 +2678,57 @@ def test_downloaded_bytes_reports_what_is_on_disk(tmp_path: Path) -> None:
     assert framework_helpers.downloaded_bytes(dest) == 3
     dest.write_bytes(b"abcdef")
     assert framework_helpers.downloaded_bytes(dest, 4) == 4
+
+
+def test_install_lock_holds_a_lock_file_under_root(tmp_path: Path) -> None:
+    """The lock file is <root>/<name>.lock, created with its folder, and freed after."""
+    from filelock import FileLock, Timeout
+
+    root = tmp_path / "tools"
+    other = FileLock(str(root / "sdk-v1.lock"))
+    with framework_helpers.install_lock(root, "sdk-v1"):
+        assert (root / "sdk-v1.lock").exists()
+        with pytest.raises(Timeout):
+            other.acquire(timeout=0)
+    other.acquire(timeout=0)
+    other.release()
+
+
+def test_install_lock_waits_for_another_build_holding_it(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A held lock is waited on, never mistaken for a filesystem that cannot
+    lock (filelock's Timeout is an OSError as well), and the wait is reported
+    once."""
+    from filelock import Timeout
+
+    with caplog.at_level(logging.INFO), patch("filelock.FileLock") as file_lock:
+        file_lock.return_value.acquire.side_effect = [
+            Timeout("sdk.lock"),
+            Timeout("sdk.lock"),
+            None,
+        ]
+        with framework_helpers.install_lock(tmp_path, "sdk"):
+            pass
+
+    assert file_lock.return_value.acquire.call_count == 3
+    file_lock.return_value.release.assert_called_once()
+    assert caplog.text.count("Waiting for another build installing sdk") == 1
+    assert "continuing without a lock" not in caplog.text
+
+
+def test_install_lock_runs_unlocked_where_the_filesystem_cannot_lock(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """No soft-lock fallback: its marker outlives a killed build and would hang
+    every later one, so the install goes ahead without a lock."""
+    with patch("filelock.FileLock") as file_lock:
+        file_lock.return_value.acquire.side_effect = OSError(
+            errno.ENOSYS, "Function not implemented"
+        )
+        with framework_helpers.install_lock(tmp_path, "sdk"):
+            pass
+
+    assert Path(file_lock.call_args.args[0]) == tmp_path / "sdk.lock"
+    assert file_lock.call_args.kwargs == {"fallback_to_soft": False}
+    assert "continuing without a lock" in caplog.text

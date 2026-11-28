@@ -6,6 +6,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -17,6 +18,16 @@ namespace esphome::duco {
 static constexpr uint8_t FUNCTION_NODE = 0x0c;       // discovery, status and mode of a node
 static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data (sensors, serial number)
 static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
+static constexpr uint8_t FUNCTION_ERRORS = 0x30;     // the active errors of a node
+
+/// Network type of a virtual node, such as a box sensor (BS) built into the box.
+static constexpr uint8_t NETWORK_TYPE_VIRTUAL = 3;
+
+/// The name of a node, taking its network type into account.
+const LogString *node_type_name(uint8_t type, uint8_t network_type);
+
+/// The network type of a node
+const LogString *network_type_name(uint8_t type);
 
 /// A received message; data points into the receive buffer and is valid only during the callback.
 struct DucoMessage {
@@ -24,6 +35,9 @@ struct DucoMessage {
   const uint8_t *data;
   uint8_t size;
 };
+
+/// The network type of a node answer; a one-byte answer has no network type.
+inline uint8_t node_network_type(const DucoMessage &message) { return message.size >= 2 ? message.data[1] : 0; }
 
 class DucoDevice;
 
@@ -53,8 +67,9 @@ class Duco : public uart::UARTDevice, public Component {
   void send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
-  // The longest answer to a request sent here is 25 bytes (node status), the longest request 9
-  static constexpr size_t MAX_FRAME_SIZE = 32;
+  // The longest answer to a request sent here is 39 bytes (box serial number), the longest request 9.
+  // An error answer is 1 + 5 bytes per error, so one with more than eight errors is dropped.
+  static constexpr size_t MAX_FRAME_SIZE = 48;
   static constexpr size_t MAX_REQUEST_DATA = 9;
 
   bool parse_byte_(uint8_t byte);
@@ -89,7 +104,9 @@ class DucoDiscovery : public DucoDevice {
  protected:
   static constexpr uint8_t NODE_COUNT = 0x45;
 
-  std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
+  static constexpr uint8_t NODE_TYPE_MASK = 0x3F;
+  static constexpr uint8_t NETWORK_TYPE_SHIFT = 6;
+  std::array<uint8_t, NODE_COUNT> node_types_{};  // low six bits: node type; high two bits: network type
   uint8_t next_node_{0};
   uint8_t attempts_{0};
 };

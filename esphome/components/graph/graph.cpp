@@ -131,7 +131,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
     yrange = ymax - ymin;
   }
 
-  // Store graph limts
+  // Store graph limits
   this->graph_limit_max_ = ymax;
   this->graph_limit_min_ = ymin;
 

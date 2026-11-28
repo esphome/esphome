@@ -1,11 +1,12 @@
 from collections.abc import Callable
 from pathlib import Path
 import textwrap
-from typing import NamedTuple, TypedDict
+from types import ModuleType
+from typing import TYPE_CHECKING, Literal, NamedTuple, NotRequired, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import CONF_BOARD, KEY_CORE, KEY_TARGET_FRAMEWORK
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
@@ -20,9 +21,13 @@ from .const import (
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
+    KEY_VARIANT_RESOLVED,
     KEY_ZEPHYR,
     zephyr_ns,
 )
+
+if TYPE_CHECKING:
+    from .variants import ZephyrManifest, ZephyrVariant, ZephyrVariantResolved
 
 CODEOWNERS = ["@tomaszduda23"]
 DOMAIN = "zephyr"
@@ -87,6 +92,11 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    # Add port 0 even when no component claims a port (see zephyr_require_cdc_acm())
+    cdc_acm_required: bool
+    # The active variant with its resolved manifest and version; set by the chips in a
+    # platform's zephyr_variants, not by nrf52
+    variant_resolved: NotRequired["ZephyrVariantResolved"]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -99,6 +109,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
         cdc_acm_users={},
+        cdc_acm_required=False,
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -111,6 +122,61 @@ def zephyr_set_core_data(config: ConfigType) -> None:
 
 def zephyr_data() -> ZephyrData:
     return CORE.data[KEY_ZEPHYR]
+
+
+def _get_data() -> ZephyrData | dict[str, object]:
+    """Raise if the platform schema, which sets the target framework, has not run yet."""
+    if (data := CORE.data.get(KEY_ZEPHYR)) is not None:
+        return data
+    if (framework := CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_FRAMEWORK)) is None:
+        raise RuntimeError("Zephyr variant read before the platform schema set it")
+    if framework == KEY_ZEPHYR:
+        raise RuntimeError("Zephyr build without Zephyr data")
+    return {}
+
+
+def _variant_resolved() -> "ZephyrVariantResolved | None":
+    """The active variant with the manifest and version its `framework:` block resolved
+    to; None as for zephyr_variant_name()."""
+    return _get_data().get(KEY_VARIANT_RESOLVED)
+
+
+def zephyr_variant() -> "ZephyrVariant | None":
+    """The active variant's ZephyrVariant; None as for zephyr_variant_name()."""
+    resolved = _variant_resolved()
+    return resolved.variant if resolved is not None else None
+
+
+def zephyr_variant_name() -> str | None:
+    """The active chip from a platform's zephyr_variants; None for nrf52 and others."""
+    variant = zephyr_variant()
+    return variant.name if variant is not None else None
+
+
+def zephyr_variant_family_module() -> ModuleType | None:
+    """The active variant's family module; None without one, or as for zephyr_variant_name()."""
+    variant = zephyr_variant()
+    return variant.family_module if variant is not None else None
+
+
+def zephyr_variant_family_name() -> str | None:
+    """The active variant's family name, e.g. "stm32"; None without one, or as for
+    zephyr_variant_name()."""
+    family = zephyr_variant_family_module()
+    return family.FAMILY if family is not None else None
+
+
+def zephyr_framework_type() -> str | None:
+    """The active `framework: type:`, e.g. "zephyr"; None as for zephyr_variant_name()."""
+    manifest = zephyr_manifest()
+    return manifest.framework_type if manifest is not None else None
+
+
+def zephyr_manifest() -> "ZephyrManifest | None":
+    """The manifest the active variant's `framework: type:` selected; None as for
+    zephyr_variant_name()."""
+    resolved = _variant_resolved()
+    return resolved.manifest if resolved is not None else None
 
 
 def zephyr_add_prj_conf(
@@ -190,10 +256,7 @@ def zephyr_to_code(config: ConfigType) -> None:
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
     # c++ support
-    zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
-    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -209,10 +272,18 @@ async def _cdc_acm_to_code() -> None:
     _cdc_acm_add_ports()
 
 
-def zephyr_setup_preferences() -> None:
+PreferenceStorage = Literal["NVS", "ZMS"]
+
+
+def zephyr_setup_preferences(storage: PreferenceStorage = "NVS") -> None:
+    """Store preferences through the settings subsystem.
+
+    `storage` picks the Zephyr storage backend: NVS for flash, ZMS for RRAM and MRAM.
+    """
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf(storage, True)
+    zephyr_add_prj_conf(f"SETTINGS_{storage}", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 
@@ -264,28 +335,98 @@ def zephyr_claim_cdc_acm(
     users.append(new)
 
 
-def _cdc_acm_add_ports() -> None:
-    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
-    users = zephyr_data()["cdc_acm_users"]
-    if not users:
+def zephyr_use_usb_device_next() -> bool:
+    """Return True when the build uses the new Zephyr USB device stack.
+
+    The new stack (device_next) is used from nRF Connect SDK 3.4.1, where the
+    legacy stack is deprecated. Older SDKs keep the legacy stack.
+    """
+    return CORE.is_nrf52 and CORE.framework_version >= cv.Version(3, 4, 1)
+
+
+def _disable_board_cdc_acm_overlay() -> str:
+    """Disable the CDC ACM port that boards with a USB serial backend add.
+
+    On boards without that port the overlay adds an empty disabled node, which
+    does nothing, so it is safe on every board.
+    """
+    return """
+        &zephyr_udc0 {
+            board_cdc_acm_uart: board_cdc_acm_uart {
+                status = "disabled";
+            };
+        };
+    """
+
+
+def zephyr_enable_usb_cdc_acm() -> None:
+    """Enable the USB device stack with the CDC ACM class."""
+    zephyr_add_prj_conf("SERIAL", True)
+    # DTR (port opened) and the bit rate are read with uart_line_ctrl_get()
+    zephyr_add_prj_conf("UART_LINE_CTRL", True)
+    if zephyr_use_usb_device_next():
+        zephyr_add_prj_conf("USB_DEVICE_STACK", False)
+        zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", True)
+        zephyr_add_prj_conf("USBD_CDC_ACM_CLASS", True)
+        # The serial number string descriptor is read from the chip ID
+        zephyr_add_prj_conf("HWINFO", True)
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USBD_CDC_ACM_LOG_LEVEL_WRN", True)
+        # Boards with a USB serial backend (xiao_ble, feather_nrf52840, ...) start their own USB
+        # device at boot with their own CDC ACM port. usb_device.cpp sets up the device instead,
+        # and only the ports ESPHome adds may be on the bus.
+        zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", False)
+        zephyr_add_overlay_builder(_disable_board_cdc_acm_overlay)
         return
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
-    zephyr_add_prj_conf("SERIAL", True)
     # prevent device to go to susspend, without this communication stop working in python
     # there should be a way to solve it
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+
+
+def zephyr_enable_cdc_acm_rate_callback() -> None:
+    """Make the bit rate a USB host sets on a CDC ACM port reach zephyr::CdcAcm."""
+    cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
+    # The new stack reports the rate with a USB device message, so it needs no option
+    if not zephyr_use_usb_device_next():
+        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+
+
+def zephyr_require_cdc_acm() -> None:
+    """Make sure the USB device has a CDC ACM port, even when no component claims one.
+
+    For users that only watch the bit rate the host sets (DFU), which works on any
+    port. On the legacy stack, boards with a USB serial backend keep their own port.
+    """
+    zephyr_enable_usb_cdc_acm()
+    if zephyr_use_usb_device_next():
+        zephyr_data()["cdc_acm_required"] = True
+
+
+def zephyr_enable_poweroff() -> None:
+    """Enable sys_poweroff(); Zigbee builds leave it out and stay awake instead."""
+    if "zigbee" not in CORE.loaded_integrations:
+        zephyr_add_prj_conf("POWEROFF", True)
+
+
+def _cdc_acm_add_ports() -> None:
+    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
+    data = zephyr_data()
+    ids = sorted(data["cdc_acm_users"])
+    if not ids and data["cdc_acm_required"]:
+        ids = [0]
+    if not ids:
+        return
+    zephyr_enable_usb_cdc_acm()
     nodes = "".join(
         f"""
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
                     compatible = "zephyr,cdc-acm-uart";
                 }};"""
-        for id in sorted(users)
+        for id in ids
     )
     zephyr_add_overlay(
         f"""
