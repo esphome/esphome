@@ -333,10 +333,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         sets, `is_failed()` in `loop()` (core stops calling it), a value the config validation already limits, a
         `default:` in a `switch` over every value of an `enum class` the component sets itself (keep it when the
         value is cast from bus data).
-    *   **Entities belong to the main loop:** entity state, traits and `*Call` objects are not thread-safe, and
-        options such as a fan's preset modes or a select's options are set during setup. Do not add locks,
-        revalidation or bounds checks for another thread, or a callback inside `perform()`, changing an entity under
-        a pending call; code on another thread hands its work to the loop with `defer()`. Reviews do not ask for them.
+    *   **Entities belong to the main loop:** entities and their traits are not thread-safe, and options such as a
+        fan's preset modes or a select's options are set during setup. Code on another task hands the change to the
+        loop with `defer()`, as web_server does: it fills a `*Call` on its own task and defers `call.perform()`. Do not
+        add locks, revalidation or bounds checks against an entity changing under a pending call, or ask for them.
     *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
         as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
     *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale
