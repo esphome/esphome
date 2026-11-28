@@ -91,7 +91,7 @@ class Scheduler {
 
   // Execute all scheduled items that are ready
   // @param now Fresh timestamp from millis() - must not be stale/cached
-  // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
+  // @return Timestamp of the last item that ran, a fresh millis() if it freed pending callables, else `now`
   uint32_t call(uint32_t now);
 
   // Reclaim memory held by the post-boot peak. Frees every SchedulerItem in the

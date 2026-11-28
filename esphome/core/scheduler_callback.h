@@ -14,7 +14,8 @@ namespace esphome {
 /// Type-erased scheduler callable, built from a callable at the call site: inline when small and trivially
 /// copyable, else heap-boxed. A function taking SchedulerCallback && must pass it to the scheduler once, on every
 /// path: one that is dropped leaks its box and what it captured. A boxed capture's destructor runs after the
-/// scheduler lock is released, so it may call the scheduler.
+/// scheduler lock is released, so it may call the scheduler: at the end of the call() pass that recycled it, or of
+/// the next one when it was recycled outside call(). A SCHEDULER_DONT_RUN callable is freed at once, in the call.
 /// Not Callback::create_boxed() (helpers.h): this keeps release inline and shares one ::operator delete for all
 /// trivially destructible boxes.
 class SchedulerCallback {
