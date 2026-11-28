@@ -47,6 +47,8 @@ DOMAIN = "micro_wake_word"
 CONF_TASK_CORE = "task_core"
 
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
+CONF_INFERENCE_INTERVAL = "inference_interval"
+CONF_OUTPUT_INDEX = "output_index"
 CONF_MODELS = "models"
 CONF_RING_BUFFER_DURATION = "ring_buffer_duration"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
@@ -326,7 +328,7 @@ MODEL_SOURCE_SCHEMA = cv.Any(
     msg="Not a valid model name, local path, http(s) url, or github shorthand",
 )
 
-MODEL_SCHEMA = cv.Schema(
+_BASE_MODEL_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(WakeWordModel),
         cv.Optional(CONF_MODEL): MODEL_SOURCE_SCHEMA,
@@ -337,8 +339,17 @@ MODEL_SCHEMA = cv.Schema(
     }
 )
 
+MODEL_SCHEMA = _BASE_MODEL_SCHEMA.extend(
+    {
+        # The class to detect, for a model with several output classes
+        cv.Optional(CONF_OUTPUT_INDEX): cv.int_range(min=0, max=255),
+        # Feature slices between two inferences of a model without internal state
+        cv.Optional(CONF_INFERENCE_INTERVAL): cv.int_range(min=1, max=255),
+    }
+)
+
 # Provides a default VAD model that could be overridden
-VAD_MODEL_SCHEMA = MODEL_SCHEMA.extend(
+VAD_MODEL_SCHEMA = _BASE_MODEL_SCHEMA.extend(
     cv.Schema(
         {
             cv.Optional(
@@ -638,6 +649,11 @@ async def to_code(config):
                 default_enabled,
                 model_parameters[CONF_INTERNAL],
             )
+
+            if (output_index := model_parameters.get(CONF_OUTPUT_INDEX)) is not None:
+                cg.add(wake_word_model.set_output_index(output_index))
+            if (interval := model_parameters.get(CONF_INFERENCE_INTERVAL)) is not None:
+                cg.add(wake_word_model.set_inference_interval(interval))
 
             for lang in manifest[KEY_TRAINED_LANGUAGES]:
                 cg.add(wake_word_model.add_trained_language(lang))

@@ -123,16 +123,31 @@ bool StreamingModel::load_model_() {
       return false;
     }
 
-    // Verify output tensor matches expected values
-    TfLiteTensor *output = this->interpreter_->output(0);
-    if ((output->dims->size != 2) || (output->dims->data[0] != 1) || (output->dims->data[1] != 1)) {
-      ESP_LOGE(TAG, "Streaming model tensor output dimension is not 1x1.");
+    // The slices of one input are counted in 8 bits.
+    if ((input->dims->data[1] <= 0) || (input->dims->data[1] > UINT8_MAX)) {
+      ESP_LOGE(TAG, "Streaming model input must hold 1 to 255 feature slices.");
       return false;
     }
 
-    if (output->type != kTfLiteUInt8) {
-      ESP_LOGE(TAG, "Streaming model tensor output is not uint8.");
+    // Verify output tensor matches expected values
+    TfLiteTensor *output = this->interpreter_->output(0);
+    if ((output->dims->size != 2) || (output->dims->data[0] != 1) || (output->dims->data[1] <= this->output_index_)) {
+      ESP_LOGE(TAG, "Streaming model tensor output is not 1xN with a class %u.", this->output_index_);
       return false;
+    }
+
+    if ((output->type != kTfLiteUInt8) && (output->type != kTfLiteInt8)) {
+      ESP_LOGE(TAG, "Streaming model tensor output is not uint8 or int8.");
+      return false;
+    }
+
+    if (this->inference_interval_ > 0) {
+      const int stride = input->dims->data[1];
+      this->window_ = RAMAllocator<int8_t>().make_unique_array_for_overwrite(stride * PREPROCESSOR_FEATURE_SIZE);
+      if (this->window_ == nullptr) {
+        ESP_LOGE(TAG, "Could not allocate the model's input window.");
+        return false;
+      }
     }
   }
 
@@ -208,6 +223,9 @@ size_t StreamingModel::probe_arena_size_() {
 void StreamingModel::unload_model() {
   this->interpreter_.reset();
   this->current_stride_step_ = 0;
+  this->window_slices_ = 0;
+  this->slices_since_inference_ = 0;
+  this->window_.reset();
   this->unprocessed_probability_status_ = false;
 #ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
   this->model_copy_.reset();
@@ -250,17 +268,7 @@ bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCES
   }
 
   if (this->loaded_) {
-    TfLiteTensor *input = this->interpreter_->input(0);
-
-    uint8_t stride = this->interpreter_->input(0)->dims->data[1];
-    this->current_stride_step_ = this->current_stride_step_ % stride;
-
-    std::memmove(
-        (int8_t *) (tflite::GetTensorData<int8_t>(input)) + PREPROCESSOR_FEATURE_SIZE * this->current_stride_step_,
-        features, PREPROCESSOR_FEATURE_SIZE);
-    ++this->current_stride_step_;
-
-    if (this->current_stride_step_ >= stride) {
+    if (this->add_features_(features)) {
       TfLiteStatus invoke_status = this->interpreter_->Invoke();
       if (invoke_status != kTfLiteOk) {
         ESP_LOGW(TAG, "Streaming interpreter invoke failed");
@@ -272,7 +280,10 @@ bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCES
       ++this->last_n_index_;
       if (this->last_n_index_ == this->sliding_window_size_)
         this->last_n_index_ = 0;
-      this->recent_streaming_probabilities_[this->last_n_index_] = output->data.uint8[0];  // probability;
+      // An int8 probability has the same 1/256 scale as a uint8 one, offset by its zero point of -128.
+      this->recent_streaming_probabilities_[this->last_n_index_] =
+          output->type == kTfLiteInt8 ? static_cast<uint8_t>(output->data.int8[this->output_index_] - INT8_MIN)
+                                      : output->data.uint8[this->output_index_];
       this->unprocessed_probability_status_ = true;
     }
     if (this->recent_streaming_probabilities_[this->last_n_index_] < this->probability_cutoff_) {
@@ -281,6 +292,35 @@ bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCES
       this->ignore_windows_ = std::min(this->ignore_windows_ + 1, 0);
     }
   }
+  return true;
+}
+
+bool StreamingModel::add_features_(const int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
+  TfLiteTensor *input = this->interpreter_->input(0);
+  int8_t *input_data = tflite::GetTensorData<int8_t>(input);
+  const uint8_t stride = input->dims->data[1];
+
+  if (this->window_ == nullptr) {
+    // Slices fill the input in order, and the model runs once per full stride.
+    this->current_stride_step_ = this->current_stride_step_ % stride;
+    std::memmove(input_data + PREPROCESSOR_FEATURE_SIZE * this->current_stride_step_, features,
+                 PREPROCESSOR_FEATURE_SIZE);
+    ++this->current_stride_step_;
+    return this->current_stride_step_ >= stride;
+  }
+
+  // Drop the oldest slice and append the new one.
+  const size_t kept = static_cast<size_t>(stride - 1) * PREPROCESSOR_FEATURE_SIZE;
+  std::memmove(this->window_.get(), this->window_.get() + PREPROCESSOR_FEATURE_SIZE, kept);
+  std::memcpy(this->window_.get() + kept, features, PREPROCESSOR_FEATURE_SIZE);
+  if (this->window_slices_ < stride)
+    ++this->window_slices_;
+  if (this->slices_since_inference_ < this->inference_interval_)
+    ++this->slices_since_inference_;
+  if ((this->window_slices_ < stride) || (this->slices_since_inference_ < this->inference_interval_))
+    return false;
+  this->slices_since_inference_ = 0;
+  std::memcpy(input_data, this->window_.get(), kept + PREPROCESSOR_FEATURE_SIZE);
   return true;
 }
 
@@ -436,7 +476,7 @@ DetectionEvent VADModel::determine_detected() {
   return detection_event;
 }
 
-bool StreamingModel::register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver) {
+bool StreamingModel::register_streaming_ops_(tflite::MicroMutableOpResolver<21> &op_resolver) {
   if (op_resolver.AddCallOnce() != kTfLiteOk)
     return false;
   if (op_resolver.AddVarHandle() != kTfLiteOk)
@@ -476,6 +516,8 @@ bool StreamingModel::register_streaming_ops_(tflite::MicroMutableOpResolver<20> 
   if (op_resolver.AddPack() != kTfLiteOk)
     return false;
   if (op_resolver.AddSplitV() != kTfLiteOk)
+    return false;
+  if (op_resolver.AddSoftmax() != kTfLiteOk)
     return false;
 
   return true;

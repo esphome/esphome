@@ -25,7 +25,13 @@ struct TfLiteTensor {
 
 namespace esphome::micro_wake_word::testing {
 inline std::vector<std::array<int8_t, 120>> invocations;
-}
+/// The output tensor the next interpreter reports: its type, class count and raw bytes.
+inline int output_type = kTfLiteUInt8;
+inline int output_classes = 1;
+/// The slices the next interpreter's input declares; its storage holds three.
+inline int input_slices = 3;
+inline std::array<uint8_t, 4> output_bytes{};
+}  // namespace esphome::micro_wake_word::testing
 namespace tflite {
 struct Model {
   int version() const { return TFLITE_SCHEMA_VERSION; }
@@ -70,6 +76,7 @@ template<int N> class MicroMutableOpResolver {
   int AddPad() { return kTfLiteOk; }
   int AddPack() { return kTfLiteOk; }
   int AddSplitV() { return kTfLiteOk; }
+  int AddSoftmax() { return kTfLiteOk; }
 };
 class MicroInterpreter {
  public:
@@ -78,7 +85,10 @@ class MicroInterpreter {
     // Fresh tensor rows are observable poison, so missing input is not mistaken for new feature slices.
     this->input_bytes_.fill(85);
     this->input_.data.int8 = this->input_bytes_.data();
-    this->output_.data.uint8 = &this->probability_;
+    this->output_.data.uint8 = esphome::micro_wake_word::testing::output_bytes.data();
+    this->output_.type = esphome::micro_wake_word::testing::output_type;
+    this->output_dimensions_.data[1] = esphome::micro_wake_word::testing::output_classes;
+    this->input_dimensions_.data[1] = esphome::micro_wake_word::testing::input_slices;
   }
   int AllocateTensors() { return kTfLiteOk; }
   int Invoke() {
@@ -93,7 +103,6 @@ class MicroInterpreter {
   std::array<int8_t, 120> input_bytes_{};
   TfLiteIntArray input_dimensions_{3, {1, 3, 40}}, output_dimensions_{2, {1, 1, 0}};
   TfLiteTensor input_{&this->input_dimensions_, kTfLiteInt8, {}}, output_{&this->output_dimensions_, kTfLiteUInt8, {}};
-  uint8_t probability_{0};
 };
 template<typename T> T *GetTensorData(TfLiteTensor *tensor) { return reinterpret_cast<T *>(tensor->data.int8); }
 }  // namespace tflite

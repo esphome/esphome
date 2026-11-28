@@ -37,3 +37,6 @@ micro_wake_word:
       id: hey_jarvis_model
     - model: okay_nabu
       sliding_window_size: 5
+      # Build coverage of the options only; a streaming model must not set inference_interval.
+      output_index: 0
+      inference_interval: 1
