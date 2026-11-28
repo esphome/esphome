@@ -601,12 +601,12 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Verify no items were leaked during this call() cycle.
-  // All items must be in items_, to_add_, defer_queue_, or the pool.
-  // Safe to check here because:
+  // All items must be in items_, to_add_, defer_queue_, or the pool (items waiting for release_pending_() count as
+  // pool). Safe to check here because:
   // - process_defer_queue_ has already run its cleanup_defer_queue_locked_(),
   //   so defer_queue_ contains no nullptr slots inflating the count.
   // - The while loop above has finished, so no items are held in local variables;
-  //   every item has been returned to a container (items_, to_add_, or pool).
+  //   every item has been returned to a container.
   // Lock needed to get a consistent snapshot of all containers.
   {
     SchedulerLockGuard guard{this->lock_};
@@ -774,11 +774,11 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (!boxed)
     item->callback.release_();  // empties it for the destructor check
   // Logged before the item is reachable: an on_message handler that schedules must not reuse it here
-  ESP_LOGD(TAG, "Recycled item (pool size now: %zu)", this->scheduler_item_pool_size_ + 1);
+  this->scheduler_item_pool_size_++;
+  ESP_LOGD(TAG, "Recycled item (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
   item->next_free = head;
   head = item;
-  this->scheduler_item_pool_size_++;
 }
 
 void Scheduler::release_pending_() {
@@ -830,7 +830,6 @@ void Scheduler::trim_freelist() {
     freed++;
   }
   this->scheduler_item_pool_head_ = nullptr;
-  this->scheduler_item_pool_size_ -= freed;
 
   // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
   // by doubling and otherwise keeps the peak). Reclaim that slack as well.
@@ -841,6 +840,7 @@ void Scheduler::trim_freelist() {
 #endif
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
+  this->scheduler_item_pool_size_ -= freed;
   ESP_LOGD(TAG, "Freelist trimmed (%zu items freed)", freed);
 #else
   (void) freed;
@@ -875,8 +875,8 @@ Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
   if (this->scheduler_item_pool_head_ != nullptr) {
     SchedulerItem *item = this->scheduler_item_pool_head_;
     this->scheduler_item_pool_head_ = item->next_free;
-    this->scheduler_item_pool_size_--;
 #ifdef ESPHOME_DEBUG_SCHEDULER
+    this->scheduler_item_pool_size_--;
     ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
     return item;

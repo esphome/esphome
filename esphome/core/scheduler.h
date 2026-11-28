@@ -703,11 +703,11 @@ class Scheduler {
   // app's concurrent-timer high-water mark; the previous fixed cap caused steady-state new/delete
   // churn on devices with many timers (see https://github.com/esphome/backlog/issues/52).
   SchedulerItem *scheduler_item_pool_head_{nullptr};
-  size_t scheduler_item_pool_size_{0};  // includes the items waiting for release_pending_()
   // Recycled items whose callables are not freed yet, linked through next_free. Only the main loop touches it.
   SchedulerItem *pending_release_head_{nullptr};
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
+  size_t scheduler_item_pool_size_{0};  // counts the items waiting for release_pending_() too
   // Leak detection: tracks total live SchedulerItem allocations.
   // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_size_
   // Verified periodically in call() to catch leaks early.
