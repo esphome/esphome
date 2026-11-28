@@ -51,4 +51,28 @@ TEST(DateTimeCall, OutOfRangeFieldsAreDropped) {
   EXPECT_FALSE(entity.second.has_value());
 }
 
+TEST(DateTimeCall, BadMonthDropsMonthAndDayButKeepsYear) {
+  TestDateTime entity;
+  entity.make_call().set_datetime(2026, 13, 1, 0, 0, 0).perform();
+  EXPECT_EQ(entity.year, optional<uint16_t>(2026));
+  EXPECT_FALSE(entity.month.has_value());
+  EXPECT_FALSE(entity.day.has_value());
+  EXPECT_EQ(entity.hour, optional<uint8_t>(0));
+}
+
+TEST(DateTimeCall, BadDayDropsOnlyTheDay) {
+  TestDateTime entity;
+  entity.make_call().set_datetime(2026, 2, 30, 0, 0, 0).perform();
+  EXPECT_EQ(entity.year, optional<uint16_t>(2026));
+  EXPECT_EQ(entity.month, optional<uint8_t>(2));
+  EXPECT_FALSE(entity.day.has_value());
+}
+
+// 255 is the unset marker; it was out of range before, so it now reads as "not set"
+TEST(DateTimeCall, MaxByteReadsAsUnset) {
+  TestDateTime entity;
+  entity.make_call().set_hour(255).perform();
+  EXPECT_FALSE(entity.hour.has_value());
+}
+
 }  // namespace esphome::datetime::testing
