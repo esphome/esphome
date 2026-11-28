@@ -31,14 +31,8 @@ uint32_t SerialProxy::stall_spent_ms = 0;
 
 void SerialProxy::setup() {
   // Set up modem control pins if configured
-  if (this->rts_pin_ != nullptr) {
-    this->rts_pin_->setup();
-    this->rts_pin_->digital_write(this->rts_state_);
-  }
-  if (this->dtr_pin_ != nullptr) {
-    this->dtr_pin_->setup();
-    this->dtr_pin_->digital_write(this->dtr_state_);
-  }
+  setup_output_pin(this->rts_pin_, this->rts_state_);
+  setup_output_pin(this->dtr_pin_, this->dtr_state_);
 #ifdef USE_API
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
@@ -258,8 +252,7 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
   uart_comp->set_parity(PARITY_MAP[parity]);
   uart_comp->set_flow_control(uart_flow_control);
 
-  // load_settings() is available on ESP8266 and ESP32 platforms
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#ifdef USE_UART_LOAD_SETTINGS
   uart_comp->load_settings(true);
 #endif
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
@@ -433,10 +426,11 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
   if (this->usb_channel_ != nullptr) {
     msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_USB;
     // Covers a removed device, a channel the device has no CDC function for and a failed channel setup
-    if (!this->usb_channel_->is_connected()) {
+    auto *client = this->usb_channel_->get_parent();
+    // A device still being set up is not connected yet: its removal would not be reported
+    if (!this->usb_channel_->is_connected() || !client->is_connected()) {
       return;
     }
-    auto *client = this->usb_channel_->get_parent();
     const uint8_t interface_number = this->usb_channel_->get_interface_number();
     msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
     if (!client->get_device_info(scratch)) {

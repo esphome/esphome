@@ -294,8 +294,8 @@ def test_run_git_command_network_gives_up_after_max_attempts(
     ):
         git.run_git_command(["git", "fetch", "--", "origin"], network=True)
 
-    assert mock_subprocess_run.call_count == 3
-    assert [c.args[0] for c in mock_sleep.call_args_list] == [2, 4]
+    assert mock_subprocess_run.call_count == 5
+    assert [c.args[0] for c in mock_sleep.call_args_list] == [2, 4, 8, 16]
 
 
 @pytest.mark.parametrize(

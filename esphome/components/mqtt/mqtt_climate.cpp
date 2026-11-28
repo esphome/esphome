@@ -16,43 +16,21 @@ using namespace esphome::climate;
 // Climate mode MQTT strings indexed by ClimateMode enum (0-6): OFF, HEAT_COOL, COOL, HEAT, FAN_ONLY, DRY, AUTO
 PROGMEM_STRING_TABLE(ClimateMqttModeStrings, "off", "heat_cool", "cool", "heat", "fan_only", "dry", "auto", "unknown");
 
-static ProgmemStr climate_mode_to_mqtt_str(ClimateMode mode) {
-  return ClimateMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), ClimateMqttModeStrings::LAST_INDEX);
-}
-
 // Climate action MQTT strings indexed by ClimateAction enum (0,2-7): OFF, (gap), COOLING, HEATING, IDLE, DRYING, FAN,
 // DEFROSTING
 PROGMEM_STRING_TABLE(ClimateMqttActionStrings, "off", "unknown", "cooling", "heating", "idle", "drying", "fan",
                      "defrosting", "unknown");
 
-static ProgmemStr climate_action_to_mqtt_str(ClimateAction action) {
-  return ClimateMqttActionStrings::get_progmem_str(static_cast<uint8_t>(action), ClimateMqttActionStrings::LAST_INDEX);
-}
-
 // Climate fan mode MQTT strings indexed by ClimateFanMode enum (0-9)
 PROGMEM_STRING_TABLE(ClimateMqttFanModeStrings, "on", "off", "auto", "low", "medium", "high", "middle", "focus",
                      "diffuse", "quiet", "unknown");
 
-static ProgmemStr climate_fan_mode_to_mqtt_str(ClimateFanMode fan_mode) {
-  return ClimateMqttFanModeStrings::get_progmem_str(static_cast<uint8_t>(fan_mode),
-                                                    ClimateMqttFanModeStrings::LAST_INDEX);
-}
-
 // Climate swing mode MQTT strings indexed by ClimateSwingMode enum (0-3): OFF, BOTH, VERTICAL, HORIZONTAL
 PROGMEM_STRING_TABLE(ClimateMqttSwingModeStrings, "off", "both", "vertical", "horizontal", "unknown");
-
-static ProgmemStr climate_swing_mode_to_mqtt_str(ClimateSwingMode swing_mode) {
-  return ClimateMqttSwingModeStrings::get_progmem_str(static_cast<uint8_t>(swing_mode),
-                                                      ClimateMqttSwingModeStrings::LAST_INDEX);
-}
 
 // Climate preset MQTT strings indexed by ClimatePreset enum (0-7)
 PROGMEM_STRING_TABLE(ClimateMqttPresetStrings, "none", "home", "away", "boost", "comfort", "eco", "sleep", "activity",
                      "unknown");
-
-static ProgmemStr climate_preset_to_mqtt_str(ClimatePreset preset) {
-  return ClimateMqttPresetStrings::get_progmem_str(static_cast<uint8_t>(preset), ClimateMqttPresetStrings::LAST_INDEX);
-}
 
 void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
@@ -307,7 +285,8 @@ bool MQTTClimateComponent::publish_state_() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   // mode
   bool success = true;
-  if (!this->publish(this->get_mode_state_topic_to(topic_buf), climate_mode_to_mqtt_str(this->device_->mode)))
+  if (!this->publish(this->get_mode_state_topic_to(topic_buf),
+                     ClimateMqttModeStrings::get_progmem_str(this->device_->mode)))
     success = false;
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
@@ -351,7 +330,7 @@ bool MQTTClimateComponent::publish_state_() {
         success = false;
     } else if (this->device_->preset.has_value()) {
       if (!this->publish(this->get_preset_state_topic_to(topic_buf),
-                         climate_preset_to_mqtt_str(this->device_->preset.value())))
+                         ClimateMqttPresetStrings::get_progmem_str(this->device_->preset.value())))
         success = false;
     } else if (!this->publish(this->get_preset_state_topic_to(topic_buf), "")) {
       success = false;
@@ -359,7 +338,8 @@ bool MQTTClimateComponent::publish_state_() {
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
-    if (!this->publish(this->get_action_state_topic_to(topic_buf), climate_action_to_mqtt_str(this->device_->action)))
+    if (!this->publish(this->get_action_state_topic_to(topic_buf),
+                       ClimateMqttActionStrings::get_progmem_str(this->device_->action)))
       success = false;
   }
 
@@ -369,7 +349,7 @@ bool MQTTClimateComponent::publish_state_() {
         success = false;
     } else if (this->device_->fan_mode.has_value()) {
       if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf),
-                         climate_fan_mode_to_mqtt_str(this->device_->fan_mode.value())))
+                         ClimateMqttFanModeStrings::get_progmem_str(this->device_->fan_mode.value())))
         success = false;
     } else if (!this->publish(this->get_fan_mode_state_topic_to(topic_buf), "")) {
       success = false;
@@ -378,7 +358,7 @@ bool MQTTClimateComponent::publish_state_() {
 
   if (traits.get_supports_swing_modes()) {
     if (!this->publish(this->get_swing_mode_state_topic_to(topic_buf),
-                       climate_swing_mode_to_mqtt_str(this->device_->swing_mode)))
+                       ClimateMqttSwingModeStrings::get_progmem_str(this->device_->swing_mode)))
       success = false;
   }
 

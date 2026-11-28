@@ -12,9 +12,14 @@
 #include "esphome/core/automation.h"
 #endif
 
+// Platforms whose UARTs apply changed settings with load_settings()
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_ZEPHYR)
+#define USE_UART_LOAD_SETTINGS
+#endif
+
 namespace esphome::uart {
 
-enum UARTParityOptions {
+enum UARTParityOptions : uint8_t {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
@@ -32,7 +37,7 @@ enum UARTFlowControl : uint8_t {
 };
 
 #ifdef USE_UART_DEBUGGER
-enum UARTDirection {
+enum UARTDirection : uint8_t {
   UART_DIRECTION_RX,
   UART_DIRECTION_TX,
   UART_DIRECTION_BOTH,
@@ -121,6 +126,14 @@ class UARTComponent {
   // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
   virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
 
+#ifdef USE_UART_TX_BREAK
+  // Holds the TX line at the level opposite to idle (low for a pin that is not inverted) until released.
+  // flush() before it; no read or write on the bus meanwhile: a LibreTiny hardware port is closed for it and
+  // loses its RX buffer. load_settings() applies a held break again. Needs uart.request_tx_break() in codegen.
+  // @return false when the bus cannot do it, e.g. no TX pin of the microcontroller (see the platform files).
+  virtual bool set_tx_break(bool enable) { return false; }
+#endif
+
   // Sets the TX (transmit) pin for the UART bus.
   // @param tx_pin Pointer to the internal GPIO pin used for transmission.
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
@@ -202,7 +215,7 @@ class UARTComponent {
   // @return Flow control option.
   UARTFlowControl get_flow_control() const { return this->flow_control_; }
 
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#ifdef USE_UART_LOAD_SETTINGS
   /**
    * Load the UART settings.
    * @param dump_config If true (default), output the new settings to logs; otherwise, change settings quietly.
@@ -227,7 +240,7 @@ class UARTComponent {
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
   void load_settings() { this->load_settings(true); }
-#endif  // USE_ESP8266 || USE_ESP32
+#endif  // USE_UART_LOAD_SETTINGS
 
 #ifdef USE_UART_DEBUGGER
   template<typename F> void add_debug_callback(F &&callback) { this->debug_callback_.add(std::forward<F>(callback)); }

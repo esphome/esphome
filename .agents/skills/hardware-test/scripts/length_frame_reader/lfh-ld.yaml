@@ -1,0 +1,9 @@
+# Run file: ld2410 cases on an ESP8266. Copy it with another name for the base build; lfh-tu-parts.yaml (baud 9600)
+# or lfh-raw-parts.yaml (#22884 only) in place of the ld2410 parts, lfh-common-bw.yaml for the BW15 kit.
+substitutions:
+  name: lfh-ld
+  board: d1_mini
+  baud: "256000"
+packages:
+  common: !include lfh-common.yaml
+  parts: !include lfh-ld-parts.yaml

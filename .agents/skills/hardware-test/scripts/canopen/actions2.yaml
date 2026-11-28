@@ -1,0 +1,77 @@
+script:
+  # the phases every client suite runs first; the suite waits for it, then runs its own tail
+  - id: phases
+    then:
+      - lambda: cot::phase_values(id(hub));
+      - delay: 3s
+      - script.execute: actions2
+      - delay: 4s
+      - lambda: cot::phase_strings(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_wrap(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_limits(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_bad(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_queue(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_queue_mixed(id(hub));
+      - delay: 3s
+  - id: actions2
+    then:
+      - logger.log: "PHASE actions2"
+      # write: on_success + on_error, lambda node_id and value
+      - canopen.sdo_write:
+          node_id: !lambda "return 0x20;"
+          index: 0x2001
+          value: !lambda "return 0x4321;"
+          size: 2
+          on_success: [logger.log: "A2 write on_success fired"]
+          on_error: [logger.log: {format: "A2 write on_error %s 0x%08x (unexpected)", args: ["cot::res_s(result)", "(unsigned) abort_code"]}]
+      - lambda: ESP_LOGI("cot", "A2 lambda after write ran");
+      # write: on_error only, to a bad index
+      - canopen.sdo_write:
+          node_id: 0x20
+          index: 0x2FFE
+          value: 1
+          size: 1
+          on_error: [logger.log: {format: "A2 write bad index on_error %s 0x%08x (expect ABORT 0x06020000)", args: ["cot::res_s(result)", "(unsigned) abort_code"]}]
+      - lambda: ESP_LOGI("cot", "A2 lambda after on_error-only write ran");
+      # write: on_error only, absent node
+      - canopen.sdo_write:
+          node_id: 0x33
+          index: 0x2000
+          value: 1
+          size: 1
+          on_error: [logger.log: {format: "A2 write absent node on_error %s 0x%08x (expect TIMEOUT 0x05040000)", args: ["cot::res_s(result)", "(unsigned) abort_code"]}]
+      # read: on_value + on_error, success
+      - canopen.sdo_read:
+          node_id: 0x20
+          index: 0x2001
+          size: 2
+          on_value: [logger.log: {format: "A2 read on_value x=0x%x (expect 0x4321)", args: ["(unsigned) x"]}]
+          on_error: [logger.log: {format: "A2 read on_error %s 0x%08x (unexpected)", args: ["cot::res_s(result)", "(unsigned) abort_code"]}]
+      - lambda: ESP_LOGI("cot", "A2 lambda after read ran");
+      # read: on_value + on_error, bad index
+      - canopen.sdo_read:
+          node_id: 0x20
+          index: 0x2FFF
+          on_value: [logger.log: "A2 bad read on_value (unexpected)"]
+          on_error: [logger.log: {format: "A2 bad read on_error %s 0x%08x (expect ABORT 0x06020000)", args: ["cot::res_s(result)", "(unsigned) abort_code"]}]
+      # read: on_value + on_error, absent node via lambda node id
+      - canopen.sdo_read:
+          node_id: !lambda "return 0x33;"
+          index: 0x1000
+          on_value: [logger.log: "A2 absent read on_value (unexpected)"]
+          on_error: [logger.log: {format: "A2 absent read on_error %s 0x%08x (expect TIMEOUT 0x05040000)", args: ["cot::res_s(result)", "(unsigned) abort_code"]}]
+      # no on_* at all
+      - canopen.sdo_write: {node_id: 0x20, index: 0x2000, value: 0x77, size: 1}
+      - canopen.sdo_read: {node_id: 0x20, index: 0x2000, size: 1}
+      - lambda: ESP_LOGI("cot", "A2 lambda after bare write and read ran");
+      # confirms the bare write
+      - canopen.sdo_read:
+          node_id: 0x20
+          index: 0x2000
+          size: 1
+          on_value: [logger.log: {format: "A2 read after bare write x=0x%x (expect 0x77)", args: ["(unsigned) x"]}]

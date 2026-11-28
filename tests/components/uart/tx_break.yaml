@@ -1,0 +1,8 @@
+# set_tx_break() of the bus is built and called once. The source path is relative to the build directory
+# (tests/test_build_components/build/).
+external_components:
+  - source: ../common/uart_tx_break/components
+    components: [uart_tx_break_test]
+
+uart_tx_break_test:
+  - uart_id: uart_id

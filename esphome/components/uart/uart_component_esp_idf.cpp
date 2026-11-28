@@ -1,12 +1,14 @@
 #ifdef USE_ESP32
 
 #include "uart_component_esp_idf.h"
+#include <algorithm>
 #include <cinttypes>
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
+#include "esp_clk_tree.h"
 #include "hal/uart_ll.h"
 #include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
@@ -38,6 +40,19 @@ ESPHOME_LOG_TAG(TAG, "uart");
 static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
 }
+
+// Hardware FIFO size of a UART: 128 bytes, 16 on the LP UART.
+static constexpr size_t hw_fifo_len(uart_port_t uart_num) {
+#if (SOC_UART_LP_NUM >= 1)
+  return (uart_num < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN;
+#else
+  return SOC_UART_FIFO_LEN;
+#endif
+}
+
+// RX thresholds stay this many bytes below the hardware FIFO size.
+static constexpr uint8_t RX_FIFO_HEADROOM = 6;
+static constexpr size_t max_rx_threshold(uart_port_t uart_num) { return hw_fifo_len(uart_num) - RX_FIFO_HEADROOM; }
 
 // clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
 static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
@@ -99,7 +114,24 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
   uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
-  uart_config.rx_flow_ctrl_thresh = 122;
+  uart_config.rx_flow_ctrl_thresh = max_rx_threshold(this->uart_num_);
+#if (SOC_UART_LP_NUM >= 1)
+  // lp_source_clk shares source_clk's storage, and an HP clock there trips a HAL assert in uart_param_config().
+  // XTAL_D2 is the more precise clock; below the lowest rate its divider reaches, the default clock takes over.
+  if (this->uart_num_ >= SOC_UART_HP_NUM) {
+#if defined(USE_ESP32_VARIANT_ESP32C5) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32P4)
+    uint32_t xtal_d2_freq = 0;
+    esp_clk_tree_src_get_freq_hz(static_cast<soc_module_clk_t>(LP_UART_SCLK_XTAL_D2),
+                                 ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &xtal_d2_freq);
+    // Compare in the divider's 1/16 steps: an integer part of UART_CLKDIV_V with a fraction does not run (4883 baud)
+    const bool xtal_d2_fits = (xtal_d2_freq << 4) / this->baud_rate_ <= (UART_CLKDIV_V << 4);
+    uart_config.lp_source_clk = xtal_d2_fits ? LP_UART_SCLK_XTAL_D2 : LP_UART_SCLK_DEFAULT;
+#else
+    // Other LP UARTs, such as the ESP32-S31's, have no XTAL_D2 but a prescaler, so the default clock fits.
+    uart_config.lp_source_clk = LP_UART_SCLK_DEFAULT;
+#endif
+  }
+#endif
 
   return uart_config;
 }
@@ -137,15 +169,16 @@ void IDFUARTComponent::setup() {
   }
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
 
-#if (SOC_UART_LP_NUM >= 1)
-  size_t fifo_len = ((this->uart_num_ < SOC_UART_HP_NUM) ? SOC_UART_FIFO_LEN : SOC_LP_UART_FIFO_LEN);
-#else
-  size_t fifo_len = SOC_UART_FIFO_LEN;
-#endif
-  if (this->rx_buffer_size_ <= fifo_len) {
+  size_t fifo_len = hw_fifo_len(this->uart_num_);
+  if (this->rx_pin_ == nullptr) {
+    // Nothing arrives without an RX pin; ESP-IDF still requires more than the hardware FIFO
+    this->rx_buffer_size_ = fifo_len + 1;
+  } else if (this->rx_buffer_size_ <= fifo_len) {
     ESP_LOGW(TAG, "rx_buffer_size is too small, must be greater than %zu", fifo_len);
     this->rx_buffer_size_ = fifo_len * 2;
   }
+  // Above the FIFO size the RX full interrupt never fires; on the LP UART even the 10 ms default can pass it.
+  this->rx_full_threshold_ = std::min(this->rx_full_threshold_, max_rx_threshold(this->uart_num_));
 
   this->load_settings(false);
 }
@@ -267,8 +300,27 @@ uint32_t IDFUARTComponent::line_inversion_mask_() {
   if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RTS_INV;
   }
+#ifdef USE_UART_TX_BREAK
+  // the idle level of an inverted TX signal is the break level; in the mask, so a settings reload applies it again
+  if (this->tx_break_)
+    invert ^= UART_SIGNAL_TXD_INV;
+#endif
   return invert;
 }
+
+#ifdef USE_UART_TX_BREAK
+bool IDFUARTComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr || this->is_failed())
+    return false;
+  const bool previous = this->tx_break_;
+  this->tx_break_ = enable;
+  if (uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_()) == ESP_OK)
+    return true;
+  // not applied: a settings reload must not apply it later
+  this->tx_break_ = previous;
+  return false;
+}
+#endif
 
 esp_err_t IDFUARTComponent::apply_line_settings_() {
   // uart_param_config() resets these; call after every use of it.
@@ -384,6 +436,7 @@ void IDFUARTComponent::dump_config() {
 
 void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
   if (this->is_ready()) {
+    rx_full_threshold = std::min(rx_full_threshold, max_rx_threshold(this->uart_num_));
     esp_err_t err = uart_set_rx_full_threshold(this->uart_num_, rx_full_threshold);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));

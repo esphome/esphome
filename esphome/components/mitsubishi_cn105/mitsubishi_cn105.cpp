@@ -1,4 +1,5 @@
 #include "mitsubishi_cn105.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <array>
@@ -12,10 +13,6 @@ ESPHOME_LOG_TAG(TAG, "mitsubishi_cn105.driver");
 static constexpr uint32_t RESPONSE_TIMEOUT_MS = 2000;
 
 static constexpr size_t REQUEST_PAYLOAD_LEN = 0x10;
-static constexpr size_t HEADER_LEN = 5;
-static constexpr uint8_t PREAMBLE = 0xFC;
-static constexpr uint8_t HEADER_BYTE_1 = 0x01;
-static constexpr uint8_t HEADER_BYTE_2 = 0x30;
 
 static constexpr uint8_t PACKET_TYPE_CONNECT_REQUEST = 0x5A;
 static constexpr uint8_t PACKET_TYPE_CONNECT_RESPONSE = 0x7A;
@@ -36,6 +33,10 @@ static constexpr uint32_t WIND_DOWN_READ_INTERVAL_MS = 10000;
 
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - sum_bytes(bytes, length));
+}
+
+static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
+  ESP_LOGVV_HEX(TAG, data, len, MAX_FRAME_SIZE, "%s (%zu): %s", prefix, len);
 }
 
 template<std::size_t PayloadSize>
@@ -85,7 +86,7 @@ bool MitsubishiCN105::update() {
             ESP_LOGI(TAG, "No operating status response, climate action stays idle");
             this->wind_down_reads_ = 0;
           }
-          this->frame_parser_.reset();
+          this->reader_.reset();
           this->set_state_(State::STATUS_UPDATED);
           return this->take_status_changed_();
         }
@@ -98,9 +99,21 @@ bool MitsubishiCN105::update() {
       break;
   }
 
-  return this->frame_parser_.read_and_parse(this->device_, [this](uint8_t type, const uint8_t *payload, size_t len) {
-    return this->process_rx_packet_(type, payload, len);
-  });
+  bool changed = false;
+  const auto handle = [this, &changed](const uint8_t *frame, size_t len) {
+    const size_t len_without_checksum = len - 1;
+    if (checksum(frame, len_without_checksum) != frame[len_without_checksum]) {
+      dump_buffer_vv("RX invalid: checksum mismatch", frame, len);
+      return false;
+    }
+    dump_buffer_vv("RX", frame, len);
+    changed |= this->process_rx_packet_(frame[1], frame + HEADER_LEN, len_without_checksum - HEADER_LEN);
+    return true;
+  };
+  if (!this->device_.read_frames(this->reader_, handle, get_loop_time_ms(), this->last_rx_ms_)) {
+    ESP_LOGW(TAG, "UART read failed while data available");
+  }
+  return changed;
 }
 
 void MitsubishiCN105::set_state_(State new_state) {
@@ -210,7 +223,7 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::READ_TIMEOUT:
-      this->frame_parser_.reset();
+      this->reader_.reset();
       this->status_update_wait_credit_ms_ = 0;
       this->set_state_(State::CONNECTING);
       break;
@@ -344,7 +357,7 @@ bool MitsubishiCN105::take_status_changed_() {
 }
 
 void MitsubishiCN105::send_packet_(std::span<const uint8_t> packet) {
-  FrameParser::dump_buffer_vv("TX", packet.data(), packet.size());
+  dump_buffer_vv("TX", packet.data(), packet.size());
   this->device_.write_array(packet.data(), packet.size());
   this->operation_start_ms_ = get_loop_time_ms();
 }
@@ -531,104 +544,11 @@ void MitsubishiCN105::apply_settings_() {
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
 }
 
-const LogString *MitsubishiCN105::state_to_string(State state) {
-  switch (state) {
-    case State::NOT_CONNECTED:
-      return LOG_STR("Not connected");
-    case State::CONNECTING:
-      return LOG_STR("Connecting");
-    case State::CONNECTED:
-      return LOG_STR("Connected");
-    case State::UPDATING_STATUS:
-      return LOG_STR("UpdatingStatus");
-    case State::STATUS_UPDATED:
-      return LOG_STR("StatusUpdated");
-    case State::DEFERRED_STATUS_REQUEST:
-      return LOG_STR("DeferredStatusRequest");
-    case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      return LOG_STR("ScheduleNextStatusUpdate");
-    case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
-      return LOG_STR("WaitingForScheduledStatusUpdate");
-    case State::APPLYING_SETTINGS:
-      return LOG_STR("ApplyingSettings");
-    case State::SETTINGS_APPLIED:
-      return LOG_STR("SettingsApplied");
-    case State::READ_TIMEOUT:
-      return LOG_STR("ReadTimeout");
-  }
-  return LOG_STR("Unknown");
-}
+// Indexed by State
+PROGMEM_STRING_TABLE(StateStrings, "Not connected", "Connecting", "Connected", "UpdatingStatus", "StatusUpdated",
+                     "DeferredStatusRequest", "ScheduleNextStatusUpdate", "WaitingForScheduledStatusUpdate",
+                     "ApplyingSettings", "SettingsApplied", "ReadTimeout", "Unknown");
 
-template<typename Callback>
-bool MitsubishiCN105::FrameParser::read_and_parse(uart::UARTDevice &device, Callback &&callback) {
-  uint8_t watchdog = 64;
-  while (device.available() > 0 && watchdog-- > 0) {
-    uint8_t &value = this->read_buffer_[this->read_pos_];
-    if (!device.read_byte(&value)) {
-      ESP_LOGW(TAG, "UART read failed while data available");
-      return false;
-    }
-
-    switch (++this->read_pos_) {
-      case 1:
-        if (value != PREAMBLE) {
-          this->reset_and_dump_buffer_("RX ignoring preamble");
-        }
-        continue;
-
-      case 2:
-        continue;
-
-      case 3:
-        if (value != HEADER_BYTE_1) {
-          this->reset_and_dump_buffer_("RX invalid: header 1 mismatch");
-        }
-        continue;
-
-      case 4:
-        if (value != HEADER_BYTE_2) {
-          this->reset_and_dump_buffer_("RX invalid: header 2 mismatch");
-        }
-        continue;
-
-      case HEADER_LEN:
-        static_assert(READ_BUFFER_SIZE > HEADER_LEN);
-        if (this->read_buffer_[HEADER_LEN - 1] >= READ_BUFFER_SIZE - HEADER_LEN) {
-          this->reset_and_dump_buffer_("RX invalid: payload too large");
-        }
-        continue;
-
-      default:
-        break;
-    }
-
-    const size_t len_without_checksum = HEADER_LEN + static_cast<size_t>(this->read_buffer_[HEADER_LEN - 1]);
-    if (this->read_pos_ <= len_without_checksum) {
-      continue;
-    }
-
-    if (checksum(this->read_buffer_, len_without_checksum) != value) {
-      this->reset_and_dump_buffer_("RX invalid: checksum mismatch");
-      continue;
-    }
-
-    dump_buffer_vv("RX", this->read_buffer_, this->read_pos_);
-    const bool processed =
-        callback(this->read_buffer_[1], this->read_buffer_ + HEADER_LEN, len_without_checksum - HEADER_LEN);
-    this->read_pos_ = 0;
-    return processed;
-  }
-
-  return false;
-}
-
-void MitsubishiCN105::FrameParser::reset_and_dump_buffer_(const char *prefix) {
-  dump_buffer_vv(prefix, this->read_buffer_, this->read_pos_);
-  this->read_pos_ = 0;
-}
-
-void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
-  ESP_LOGVV_HEX(TAG, data, len, READ_BUFFER_SIZE, "%s (%zu): %s", prefix, len);
-}
+const LogString *MitsubishiCN105::state_to_string(State state) { return StateStrings::get_log_str(state); }
 
 }  // namespace esphome::mitsubishi_cn105

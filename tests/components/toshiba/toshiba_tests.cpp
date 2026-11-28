@@ -198,6 +198,66 @@ TEST(ToshibaGeneric, WaveformIsUnchangedByTheSharedPath) {
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x30, 0xC3, 0x00, 0xF2}, GENERIC), 9);
 }
 
+/// A generic frame at 24 C with the given mode and fan byte
+static std::vector<uint8_t> generic_frame(uint8_t mode_fan) {
+  return {0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x70, mode_fan, 0x00, static_cast<uint8_t>(0x01 ^ 0x70 ^ mode_fan)};
+}
+
+struct GenericCode {
+  climate::ClimateMode mode;
+  climate::ClimateFanMode fan;
+  uint8_t mode_fan;
+};
+
+TEST(ToshibaGeneric, SendsEveryModeAndFanSpeed) {
+  static constexpr GenericCode CASES[] = {
+      {climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_FAN_AUTO, 0x00},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_AUTO, 0x01},
+      {climate::CLIMATE_MODE_DRY, climate::CLIMATE_FAN_AUTO, 0x02},
+      {climate::CLIMATE_MODE_HEAT, climate::CLIMATE_FAN_AUTO, 0x03},
+      {climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_FAN_AUTO, 0x04},
+      {climate::CLIMATE_MODE_OFF, climate::CLIMATE_FAN_AUTO, 0x07},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_QUIET, 0x21},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_LOW, 0x41},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_MEDIUM, 0x81},  // speed 3, not 2
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_HIGH, 0xC1},    // speed 5, not 4
+  };
+  for (const auto &c : CASES) {
+    SCOPED_TRACE(static_cast<int>(c.mode_fan));
+    Fixture f(MODEL_GENERIC);
+    f.command(c.mode, 24, c.fan);
+    expect_frame(f.last_frame(), waveform(generic_frame(c.mode_fan), GENERIC), 9);
+  }
+}
+
+TEST(ToshibaGeneric, ReceivesEveryModeAndFanSpeed) {
+  static constexpr GenericCode CASES[] = {
+      {climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_FAN_AUTO, 0x00},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_AUTO, 0x01},
+      {climate::CLIMATE_MODE_DRY, climate::CLIMATE_FAN_AUTO, 0x02},
+      {climate::CLIMATE_MODE_HEAT, climate::CLIMATE_FAN_AUTO, 0x03},
+      {climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_FAN_AUTO, 0x04},
+      {climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_FAN_AUTO, 0x05},  // unassigned mode
+      {climate::CLIMATE_MODE_OFF, climate::CLIMATE_FAN_AUTO, 0x07},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_QUIET, 0x21},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_LOW, 0x41},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_MEDIUM, 0x61},  // speed 2, only received
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_MEDIUM, 0x81},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_HIGH, 0xA1},  // speed 4, only received
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_HIGH, 0xC1},
+      {climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_AUTO, 0xE1},  // unassigned speed
+  };
+  for (const auto &c : CASES) {
+    SCOPED_TRACE(static_cast<int>(c.mode_fan));
+    Fixture f(MODEL_GENERIC);
+    f.command(climate::CLIMATE_MODE_DRY, 20, climate::CLIMATE_FAN_LOW);
+    ASSERT_TRUE(receive(f.climate, generic_frame(c.mode_fan), GENERIC));
+    EXPECT_EQ(f.climate.mode, c.mode);
+    EXPECT_EQ(f.climate.fan_mode, c.fan);
+    EXPECT_FLOAT_EQ(f.climate.target_temperature, 24);
+  }
+}
+
 // The RAC-PT1411HWRU sends its main message, then a separate swing packet
 // wrapped in packet spaces; both use the generic timings.
 static void expect_swing_packet(const remote_base::RawTimings &actual, const std::vector<uint8_t> &bytes) {

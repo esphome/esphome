@@ -9,6 +9,8 @@
 #include <span>
 #include <string>
 
+#include "esphome/core/time_utc.h"
+
 #ifdef USE_TIME_TIMEZONE
 #include "esphome/components/time/posix_tz.h"
 #endif
@@ -76,11 +78,11 @@ struct ESPTime {
   /// @copydoc strftime(const std::string &format)
   std::string strftime(const char *format);
 
-  /// Check if this ESPTime is valid (year >= 2019 and the requested fields are in range).
+  /// Check if this ESPTime is valid (year >= internal::MIN_VALID_YEAR and the requested fields are in range).
   /// @param check_day_of_week validate day_of_week (not always available when constructing from date/time fields)
   /// @param check_day_of_year validate day_of_year (not always available when constructing from date/time fields)
   bool is_valid(bool check_day_of_week = true, bool check_day_of_year = true) const {
-    return this->year >= 2019 && this->fields_in_range(check_day_of_week, check_day_of_year);
+    return this->year >= internal::MIN_VALID_YEAR && this->fields_in_range(check_day_of_week, check_day_of_year);
   }
 
   /// Check if time fields are in range.

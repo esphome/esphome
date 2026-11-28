@@ -1,4 +1,5 @@
 #include "fujitsu_general.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome::fujitsu_general {
 
@@ -73,6 +74,23 @@ constexpr uint16_t FUJITSU_GENERAL_TRL_SPACE = 8000;
 
 constexpr uint32_t FUJITSU_GENERAL_CARRIER_FREQUENCY = 38000;
 
+using climate_ir::find_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, FUJITSU_GENERAL_MODE_AUTO},
+    {climate::CLIMATE_MODE_COOL, FUJITSU_GENERAL_MODE_COOL},
+    {climate::CLIMATE_MODE_DRY, FUJITSU_GENERAL_MODE_DRY},
+    {climate::CLIMATE_MODE_FAN_ONLY, FUJITSU_GENERAL_MODE_FAN},
+    {climate::CLIMATE_MODE_HEAT, FUJITSU_GENERAL_MODE_HEAT},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, FUJITSU_GENERAL_FAN_AUTO},     {climate::CLIMATE_FAN_HIGH, FUJITSU_GENERAL_FAN_HIGH},
+    {climate::CLIMATE_FAN_MEDIUM, FUJITSU_GENERAL_FAN_MEDIUM}, {climate::CLIMATE_FAN_LOW, FUJITSU_GENERAL_FAN_LOW},
+    {climate::CLIMATE_FAN_QUIET, FUJITSU_GENERAL_FAN_SILENT},
+};
+
 void FujitsuGeneralClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     ESP_LOGV(TAG, "Transmit off");
@@ -109,45 +127,9 @@ void FujitsuGeneralClimate::transmit_state() {
     set_nibble(remote_state, FUJITSU_GENERAL_POWER_ON_NIBBLE, FUJITSU_GENERAL_POWER_ON);
   }
 
-  // Set mode
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_COOL);
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_HEAT);
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_DRY);
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_FAN);
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    default:
-      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_AUTO);
-      break;
-  }
-
-  // Set fan
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_HIGH:
-      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_HIGH);
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_MEDIUM);
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_LOW);
-      break;
-    case climate::CLIMATE_FAN_QUIET:
-      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_SILENT);
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_AUTO);
-      break;
-  }
+  set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, to_ir_code(MODES, this->mode, FUJITSU_GENERAL_MODE_AUTO));
+  set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE,
+             to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), FUJITSU_GENERAL_FAN_AUTO));
 
   // Set swing
   switch (this->swing_mode) {
@@ -218,20 +200,10 @@ uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
 
 uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
 
-// These decoders use if chains rather than switches: on ESP8266 the compiler turns a dense switch
-// into a lookup table in .rodata, which lives in RAM there.
 climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode) {
   const uint8_t mode = mode_field & FUJITSU_GENERAL_MODE_MASK;
-  if (mode == FUJITSU_GENERAL_MODE_COOL)
-    return climate::CLIMATE_MODE_COOL;
-  if (mode == FUJITSU_GENERAL_MODE_HEAT)
-    return climate::CLIMATE_MODE_HEAT;
-  if (mode == FUJITSU_GENERAL_MODE_DRY)
-    return climate::CLIMATE_MODE_DRY;
-  if (mode == FUJITSU_GENERAL_MODE_FAN)
-    return climate::CLIMATE_MODE_FAN_ONLY;
-  if (mode == FUJITSU_GENERAL_MODE_AUTO)
-    return climate::CLIMATE_MODE_HEAT_COOL;
+  if (const auto entry = find_ir_code(MODES, mode, true))
+    return static_cast<climate::ClimateMode>(entry->value);
   // A state frame means the unit is on, so never keep OFF.
   ESP_LOGW(TAG, "Received unassigned mode %X, keeping the current mode", mode);
   return current_mode == climate::CLIMATE_MODE_OFF ? climate::CLIMATE_MODE_HEAT_COOL : current_mode;
@@ -239,20 +211,14 @@ climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode curren
 
 optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<climate::ClimateFanMode> current_mode) {
   const uint8_t fan = fan_field & FUJITSU_GENERAL_FAN_MASK;
-  if (fan == FUJITSU_GENERAL_FAN_HIGH)
-    return climate::CLIMATE_FAN_HIGH;
-  if (fan == FUJITSU_GENERAL_FAN_MEDIUM)
-    return climate::CLIMATE_FAN_MEDIUM;
-  if (fan == FUJITSU_GENERAL_FAN_LOW)
-    return climate::CLIMATE_FAN_LOW;
-  if (fan == FUJITSU_GENERAL_FAN_SILENT)
-    return climate::CLIMATE_FAN_QUIET;
-  if (fan == FUJITSU_GENERAL_FAN_AUTO)
-    return climate::CLIMATE_FAN_AUTO;
+  if (const auto entry = find_ir_code(FANS, fan, true))
+    return static_cast<climate::ClimateFanMode>(entry->value);
   ESP_LOGW(TAG, "Received unassigned fan speed %X, keeping the current fan mode", fan);
   return current_mode;
 }
 
+// An if chain rather than a switch: on ESP8266 the compiler turns a dense switch into a lookup table in .rodata,
+// which lives in RAM there.
 climate::ClimateSwingMode decode_swing_mode(uint8_t swing_field) {
   const uint8_t swing = swing_field & FUJITSU_GENERAL_SWING_MASK;
   if (swing == FUJITSU_GENERAL_SWING_VERTICAL)

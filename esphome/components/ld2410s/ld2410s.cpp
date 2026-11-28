@@ -9,16 +9,12 @@ namespace esphome::ld2410s {
 
 ESPHOME_LOG_TAG(TAG, "ld2410s");
 
-static constexpr uint8_t SHORT_DATA_FRAME_HEADER = 0x6E;
-static constexpr uint8_t SHORT_DATA_FRAME_FOOTER[] PROGMEM = {0x62};
-static constexpr uint8_t SHORT_DATA_FRAME_SIZE = 5;  // header, state, distance low, distance high, footer
-static constexpr uint8_t STD_DATA_FRAME_HEADER[] PROGMEM = {0xF4, 0xF3, 0xF2, 0xF1};
-static constexpr uint8_t STD_DATA_FRAME_FOOTER[] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
-static constexpr uint8_t CMD_FRAME_HEADER[] PROGMEM = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[] PROGMEM = {0x04, 0x03, 0x02, 0x01};
-static constexpr uint8_t LONG_HEADER_SIZE = 4;
-static constexpr uint8_t LENGTH_FIELD_SIZE = 2;
-static constexpr uint8_t LONG_PAYLOAD_POS = LONG_HEADER_SIZE + LENGTH_FIELD_SIZE;
+using ld24xx::CMD_FRAME_FOOTER;
+using ld24xx::CMD_FRAME_HEADER;
+static constexpr uint8_t SHORT_DATA_FRAME_FOOTER = 0x62;
+using ld24xx::HEADER_FOOTER_SIZE;
+// After the header and the two byte length
+static constexpr uint8_t LONG_PAYLOAD_POS = ld24xx::PayloadLength::PAYLOAD_AT;
 
 static constexpr uint16_t CMD_CONFIRMATION = 0x0100;  // set in the command word of an acknowledgement
 static constexpr uint16_t CONFIG_MODE_START_CMD = 0x00FF;
@@ -98,10 +94,11 @@ void LD2410SComponent::dump_config() {
 }
 
 void LD2410SComponent::loop() {
-  if (!this->read_available<16>([this](uint8_t b) { this->receive_byte_(b); })) {
+  const uint32_t now = App.get_loop_component_start_time();
+  auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  if (!this->read_frames<16>(this->reader_, handler, now, this->last_rx_)) {
     ESP_LOGV(TAG, "UART read failed");
   }
-  const uint32_t now = App.get_loop_component_start_time();
   if (this->sequence_ == nullptr) {
     if (!this->init_done_) {
       this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now);
@@ -211,7 +208,7 @@ void LD2410SComponent::run_sequence_(uint32_t now) {
 
 void LD2410SComponent::send_command_(uint16_t command) {
   uint8_t frame[CMD_FRAME_MAX_SIZE];
-  progmem_memcpy(frame, CMD_FRAME_HEADER, LONG_HEADER_SIZE);
+  progmem_memcpy(frame, CMD_FRAME_HEADER, HEADER_FOOTER_SIZE);
   uint8_t pos = LONG_PAYLOAD_POS;
   put_le16(frame + pos, command);
   pos += 2;
@@ -240,138 +237,41 @@ void LD2410SComponent::send_command_(uint16_t command) {
     default:
       break;
   }
-  put_le16(frame + LONG_HEADER_SIZE, pos - LONG_PAYLOAD_POS);  // payload length
+  put_le16(frame + HEADER_FOOTER_SIZE, pos - LONG_PAYLOAD_POS);  // payload length
   progmem_memcpy(&frame[pos], CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
   pos += sizeof(CMD_FRAME_FOOTER);
   this->write_array(frame, pos);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(CMD_FRAME_MAX_SIZE)];
-  ESP_LOGVV(TAG, "> %s", format_hex_pretty_to(hex_buf, frame, pos, ' '));
-#endif
+  ESP_LOGVV_HEX(TAG, frame, pos, CMD_FRAME_MAX_SIZE, "> %s");
 }
 
-void LD2410SComponent::receive_byte_(uint8_t byte) {
-  if (this->rx_len_ >= RX_BUFFER_SIZE) {
-    this->reset_frame_();
-  }
-  this->rx_buffer_[this->rx_len_++] = byte;
-
-  if (this->frame_type_ == FrameType::NONE) {
-    if (this->rx_len_ == 1 && byte == SHORT_DATA_FRAME_HEADER) {
-      this->frame_type_ = FrameType::SHORT_DATA;
-      this->expected_len_ = SHORT_DATA_FRAME_SIZE;
-      return;
-    }
-    // The two long headers are told apart once all four bytes are in
-    uint8_t std_header[LONG_HEADER_SIZE];
-    uint8_t cmd_header[LONG_HEADER_SIZE];
-    progmem_memcpy(std_header, STD_DATA_FRAME_HEADER, LONG_HEADER_SIZE);
-    progmem_memcpy(cmd_header, CMD_FRAME_HEADER, LONG_HEADER_SIZE);
-    const bool std_prefix = memcmp(this->rx_buffer_, std_header, this->rx_len_) == 0;
-    const bool cmd_prefix = memcmp(this->rx_buffer_, cmd_header, this->rx_len_) == 0;
-    if (std_prefix || cmd_prefix) {
-      if (this->rx_len_ == LONG_HEADER_SIZE) {
-        this->frame_type_ = std_prefix ? FrameType::STD_DATA : FrameType::COMMAND;
-      }
-      return;
-    }
-    // Not a header: drop what was collected, and try this byte as the start of the next frame
-    const bool retry = this->rx_len_ > 1;
-    this->reset_frame_();
-    if (retry) {
-      this->receive_byte_(byte);
-    }
-    return;
-  }
-
-  if (this->expected_len_ == 0) {
-    if (this->rx_len_ < LONG_PAYLOAD_POS) {
-      return;
-    }
-    // Standard data and command frames carry a little-endian payload length after the header
-    const uint16_t payload_len =
-        encode_uint16(this->rx_buffer_[LONG_HEADER_SIZE + 1], this->rx_buffer_[LONG_HEADER_SIZE]);
-    if (payload_len > RX_BUFFER_SIZE - LONG_PAYLOAD_POS - sizeof(CMD_FRAME_FOOTER)) {
-      ESP_LOGV(TAG, "Dropping frame with a %u byte payload, larger than the receive buffer", payload_len);
-      this->count_dropped_frame_();
-      this->reset_frame_();
-      return;
-    }
-    this->expected_len_ = LONG_PAYLOAD_POS + payload_len + sizeof(CMD_FRAME_FOOTER);
-    return;
-  }
-
-  if (this->rx_len_ < this->expected_len_) {
-    return;
-  }
-  if (this->handle_frame_() || this->rescanning_) {
-    this->reset_frame_();
-    return;
-  }
-  // A truncated long frame swallowed the bytes that followed it; try them again as new frames, once
-  uint8_t rest[RX_BUFFER_SIZE];
-  const uint8_t rest_len = this->rx_len_ - 1;
-  memcpy(rest, &this->rx_buffer_[1], rest_len);
-  this->reset_frame_();
-  this->rescanning_ = true;
-  for (uint8_t i = 0; i < rest_len; i++) {
-    this->receive_byte_(rest[i]);
-  }
-  this->rescanning_ = false;
-}
-
-bool LD2410SComponent::handle_frame_() {
-  const uint8_t *footer_src;
-  uint8_t footer_size = sizeof(CMD_FRAME_FOOTER);
-  uint8_t payload_pos = LONG_PAYLOAD_POS;
-  switch (this->frame_type_) {
-    case FrameType::SHORT_DATA:
-      footer_src = SHORT_DATA_FRAME_FOOTER;
-      footer_size = sizeof(SHORT_DATA_FRAME_FOOTER);
-      payload_pos = 1;
-      break;
-    case FrameType::STD_DATA:
-      footer_src = STD_DATA_FRAME_FOOTER;
-      break;
-    default:
-      footer_src = CMD_FRAME_FOOTER;
-      break;
-  }
-  uint8_t footer[sizeof(CMD_FRAME_FOOTER)];
-  progmem_memcpy(footer, footer_src, footer_size);
-  if (memcmp(&this->rx_buffer_[this->rx_len_ - footer_size], footer, footer_size) != 0) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(RX_BUFFER_SIZE)];
-    ESP_LOGV(TAG, "Footer does not match header: %s",
-             format_hex_pretty_to(hex_buf, this->rx_buffer_, this->rx_len_, ' '));
-#endif
+bool LD2410SComponent::handle_frame_(const uint8_t *frame, uint8_t len) {
+  const uint8_t type = frame[0];
+  const bool short_frame = type == ShortDataFrameFormat::FIRST;
+  if (short_frame ? frame[len - 1] != SHORT_DATA_FRAME_FOOTER : !ld24xx::has_footer(frame, len)) {
+    ESP_LOGV_HEX(TAG, frame, len, RX_BUFFER_SIZE, "Footer does not match header: %s");
     this->count_dropped_frame_();
     return false;
   }
-  const uint8_t *payload = &this->rx_buffer_[payload_pos];
-  const uint16_t payload_len = this->rx_len_ - payload_pos - footer_size;
-  switch (this->frame_type_) {
-    case FrameType::SHORT_DATA:
-    case FrameType::STD_DATA:
-      if (!this->handle_data_frame_(payload, payload_len)) {
-        this->count_dropped_frame_();
-        break;
-      }
-      this->last_frame_at_ = App.get_loop_component_start_time();
-      this->dropped_frames_ = 0;
-      break;
-    default:
-      this->handle_command_ack_(payload, payload_len);
-      break;
+  const uint8_t payload_pos = short_frame ? 1 : LONG_PAYLOAD_POS;
+  const uint8_t *payload = &frame[payload_pos];
+  const uint16_t payload_len = len - payload_pos - (short_frame ? 1 : HEADER_FOOTER_SIZE);
+  if (type == ld24xx::CmdFrameFormat::FIRST) {
+    return this->handle_command_ack_(payload, payload_len);
   }
+  if (!this->handle_data_frame_(payload, payload_len, type == ld24xx::DataFrameFormat::FIRST)) {
+    this->count_dropped_frame_();
+    return false;
+  }
+  this->last_frame_at_ = App.get_loop_component_start_time();
+  this->dropped_frames_ = 0;
   return true;
 }
 
-bool LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) {
+bool LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len, bool standard) {
   // Short frames carry [state][distance low][distance high]; standard frames put a type byte first, and the
   // module only sends them before the init sequence switches it to minimal output
   const uint8_t *data = payload;
-  if (this->frame_type_ == FrameType::STD_DATA) {
+  if (standard) {
     if (len < 4 || payload[0] != DATA_TYPE_STANDARD) {
       if (len >= 1) {
         ESP_LOGV(TAG, "Ignoring data frame type %02X", payload[0]);
@@ -392,21 +292,21 @@ bool LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) 
   return true;
 }
 
-void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len) {
+bool LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len) {
   if (len < 4) {
     ESP_LOGV(TAG, "Acknowledgement too short (%u bytes)", len);
-    return;
+    return false;
   }
   const uint16_t command_word = encode_uint16(payload[1], payload[0]);
   const uint16_t ack = encode_uint16(payload[3], payload[2]);
   if (!this->awaiting_ack_) {
     ESP_LOGV(TAG, "Unexpected acknowledgement %04X", command_word);
-    return;
+    return true;
   }
   const uint16_t command = this->current_command_();
   if (command_word != (command | CMD_CONFIRMATION)) {
     ESP_LOGV(TAG, "Unexpected acknowledgement %04X", command_word);
-    return;
+    return true;
   }
 #ifdef USE_LD2410S_PARAMETERS
   if (ack != 0 && command == PARAMETERS_WRITE_CMD) {
@@ -415,29 +315,29 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     ESP_LOGW(TAG, "Module rejected the parameters, ack %04X", ack);
     this->send_command_(CONFIG_MODE_END_CMD);
     this->restart_init_(App.get_loop_component_start_time() + COMMAND_GAP_MS);
-    return;
+    return true;
   }
 #endif
   if (ack != 0) {
     // Leave the command pending so the timeout resends it
     ESP_LOGW(TAG, "Module rejected command %04X, ack %04X", command, ack);
-    return;
+    return true;
   }
   // A short answer leaves the read pending the same way, so init cannot finish without the values
 #ifdef USE_LD2410S_PARAMETERS
   if (command == PARAMETERS_READ_CMD && !this->handle_parameters_(&payload[4], len - 4))
-    return;
+    return false;
 #endif
 #ifdef USE_LD2410S_VERSION
   if (command == VERSION_READ_CMD && !this->handle_version_(&payload[4], len - 4))
-    return;
+    return false;
 #endif
   this->awaiting_ack_ = false;
   this->step_timeouts_ = 0;
   const uint32_t now = App.get_loop_component_start_time();
   this->next_send_at_ = now + COMMAND_GAP_MS;
   if (++this->step_ < this->sequence_len_) {
-    return;
+    return true;
   }
   const bool was_init = this->sequence_ == INIT_SEQUENCE;
   this->sequence_ = nullptr;
@@ -447,6 +347,7 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     this->last_frame_at_ = now;
     this->status_clear_warning();
   }
+  return true;
 }
 
 #ifdef USE_LD2410S_PARAMETERS

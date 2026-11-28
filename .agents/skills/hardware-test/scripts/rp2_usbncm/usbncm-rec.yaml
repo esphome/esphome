@@ -1,0 +1,38 @@
+# USB NCM device with the boot recorder: prints the previous boot's verdict, USB times, event ring and snapshots.
+esphome:
+  includes:
+    - boot_recorder.hpp
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: br_start();
+  on_shutdown:
+    - priority: 1000
+      then:
+        - lambda: br_on_shutdown();
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=panic
+      - -Wl,--wrap=tud_network_xmit
+      - -Wl,--wrap=dcd_event_handler
+      - -Wl,--wrap=tud_task_ext
+      - -Wl,--wrap=netd_reset
+      - -Wl,--wrap=netd_open
+      - -Wl,--wrap=netd_control_xfer_cb
+      - -Wl,--wrap=netd_xfer_cb
+      - -Wl,--wrap=usbd_edpt_xfer
+      - -Wl,--wrap=tud_network_can_xmit
+packages:
+  common: !include common.yaml
+safe_mode:
+  on_safe_mode:
+    - lambda: br_enter_safe_mode();
+interval:
+  - interval: 100ms
+    then:
+      - lambda: br_beat();
+  - interval: 20s
+    then:
+      - lambda: |-
+          br_report();
+          ESP_LOGI("pdiag", "uptime %u ms", (unsigned) millis());
