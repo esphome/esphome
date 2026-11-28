@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <string>
 #include <vector>
 
 #include "esphome/components/ble_device_base/adv_payload.h"
@@ -63,6 +64,28 @@ const std::vector<uint8_t> NAME_ELEMENT = {0x04, 0x09, 'e', 's', 'p'};
 const std::vector<uint8_t> MANUFACTURER_ELEMENT = {0x05, 0xFF, 0x4C, 0x00, 0x23, 0x77};
 const std::vector<uint8_t> TX_POWER_ELEMENT = {0x02, 0x0A, 0xFD};
 const std::vector<uint8_t> UUID16_ELEMENT = {0x03, 0x03, 0x0A, 0x18};
+
+std::array<ESPBTUUID, 16> sequential_uuid16s() {
+  std::array<ESPBTUUID, 16> uuids;
+  for (size_t i = 0; i < uuids.size(); i++)
+    uuids[i] = ESPBTUUID::from_uint16(static_cast<uint16_t>(0x1800 + i));
+  return uuids;
+}
+
+std::vector<uint8_t> uuid16_list(uint8_t type, uint16_t first, uint16_t last) {
+  std::vector<uint8_t> out = {static_cast<uint8_t>(1 + (last - first + 1) * 2), type};
+  for (uint32_t v = first; v <= last; v++) {
+    out.push_back(v & 0xFF);
+    out.push_back(v >> 8);
+  }
+  return out;
+}
+
+const std::vector<uint8_t> OTHER_UUID_ELEMENT = concat({{0x11, 0x07}, {OTHER_RAW.begin(), OTHER_RAW.end()}});
+const std::array<ESPBTUUID, 2> UUID16_AND_IMPROV = {ESPBTUUID::from_uint16(0x180A), improv_uuid()};
+const std::array<ESPBTUUID, 2> IMPROV_AND_OTHER = {improv_uuid(), ESPBTUUID::from_raw(OTHER_RAW.data())};
+const std::array<ESPBTUUID, 1> IMPROV_ONLY = {improv_uuid()};
+const std::array<ESPBTUUID, 16> UUID16S = sequential_uuid16s();
 }  // namespace
 
 TEST(AdvPayload, UuidSize) {
@@ -145,12 +168,9 @@ TEST(AdvPayload, Only128BitUuidWhenItFits) {
 }
 
 TEST(AdvPayload, Partial16BitList) {
-  std::array<ESPBTUUID, 16> uuids;
-  for (size_t i = 0; i < uuids.size(); i++)
-    uuids[i] = ESPBTUUID::from_uint16(static_cast<uint16_t>(0x1800 + i));
   AdvPayload adv;
   adv.add_flags(FLAGS);
-  adv.add_uuids(uuids);
+  adv.add_uuids(UUID16S);
   ASSERT_EQ(adv.size(), 3u + 2u + 13u * 2u);
   EXPECT_EQ(adv.data()[3], 27);
   EXPECT_EQ(adv.data()[4], 0x02);
@@ -212,70 +232,58 @@ TEST(BuildAdvPackets, PriorityUuidOwnsTheAdvertisingPacket) {
             concat({APPEARANCE_ELEMENT, NAME_ELEMENT, MANUFACTURER_ELEMENT, TX_POWER_ELEMENT, UUID16_ELEMENT}));
 }
 
-TEST(BuildAdvPackets, WithoutPriorityScanResponseCarriesWhatDidNotFit) {
-  const ESPBTUUID uuids[] = {ESPBTUUID::from_uint16(0x180A), improv_uuid()};
-  AdvPayload adv;
-  AdvPayload rsp;
-  build_adv_packets(improv_server_content(uuids, false), adv, rsp);
-  // No room for the 128-bit UUID in the advertising packet
-  EXPECT_EQ(bytes(adv),
-            concat({FLAGS_ELEMENT, APPEARANCE_ELEMENT, MANUFACTURER_ELEMENT, UUID16_ELEMENT, IMPROV_DATA_ELEMENT}));
-  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_UUID_ELEMENT}));
-}
+struct SplitCase {
+  const char *name;
+  std::span<const ESPBTUUID> uuids;
+  bool full_content;  // appearance, manufacturer data and service data; else only the name and UUIDs
+  bool service_data;
+  bool name_in_adv;
+  std::vector<uint8_t> adv;
+  std::vector<uint8_t> rsp;
+};
 
-TEST(BuildAdvPackets, WithoutPrioritySecond128BitUuidGoesToScanResponse) {
-  const ESPBTUUID uuids[] = {improv_uuid(), ESPBTUUID::from_raw(OTHER_RAW.data())};
-  AdvContent content = improv_server_content(uuids, false);
-  content.manufacturer_data = {};
-  content.service_data = {};
-  content.appearance = 0;
+class BuildAdvPacketsWithoutPriority : public ::testing::TestWithParam<SplitCase> {};
+
+// The scan response carries only what did not fit in the advertising packet
+TEST_P(BuildAdvPacketsWithoutPriority, ScanResponseCarriesWhatDidNotFit) {
+  const SplitCase &c = GetParam();
+  AdvContent content = improv_server_content(c.uuids, false);
+  if (!c.full_content) {
+    content.manufacturer_data = {};
+    content.appearance = 0;
+  }
+  if (!c.service_data)
+    content.service_data = {};
+  content.name_in_adv = c.name_in_adv;
   AdvPayload adv;
   AdvPayload rsp;
   build_adv_packets(content, adv, rsp);
-  EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, IMPROV_UUID_ELEMENT}));
-  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, {0x11, 0x07}, {OTHER_RAW.begin(), OTHER_RAW.end()}}));
+  EXPECT_EQ(bytes(adv), c.adv);
+  EXPECT_EQ(bytes(rsp), c.rsp);
 }
 
-TEST(BuildAdvPackets, WithoutPriorityPartial16BitListContinuesInScanResponse) {
-  std::array<ESPBTUUID, 16> uuids;
-  for (size_t i = 0; i < uuids.size(); i++)
-    uuids[i] = ESPBTUUID::from_uint16(static_cast<uint16_t>(0x1800 + i));
-  AdvContent content = improv_server_content(uuids, false);
-  content.manufacturer_data = {};
-  content.service_data = {};
-  content.appearance = 0;
-  AdvPayload adv;
-  AdvPayload rsp;
-  build_adv_packets(content, adv, rsp);
-  ASSERT_EQ(adv.size(), 3u + 2u + 13u * 2u);
-  EXPECT_EQ(adv.data()[4], 0x02);  // incomplete list, 0x1800 to 0x180C
-  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, {0x07, 0x03, 0x0D, 0x18, 0x0E, 0x18, 0x0F, 0x18}}));
-}
-
-TEST(BuildAdvPackets, WithoutPriorityServiceDataThatDoesNotFitGoesToScanResponse) {
-  const ESPBTUUID uuids[] = {improv_uuid()};
-  AdvContent content = improv_server_content(uuids, false);
-  content.manufacturer_data = {};
-  content.appearance = 0;
-  content.name_in_adv = true;
-  AdvPayload adv;
-  AdvPayload rsp;
-  build_adv_packets(content, adv, rsp);
-  EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, NAME_ELEMENT, IMPROV_UUID_ELEMENT}));
-  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_DATA_ELEMENT}));
-}
-
-TEST(BuildAdvPackets, NameInAdvertisingPacket) {
-  AdvContent content = improv_server_content({}, false);
-  content.manufacturer_data = {};
-  content.service_data = {};
-  content.appearance = 0;
-  content.name_in_adv = true;
-  AdvPayload adv;
-  AdvPayload rsp;
-  build_adv_packets(content, adv, rsp);
-  EXPECT_EQ(bytes(adv), concat({FLAGS_ELEMENT, NAME_ELEMENT}));
-  EXPECT_EQ(bytes(rsp), concat({NAME_ELEMENT, TX_POWER_ELEMENT}));
-}
+INSTANTIATE_TEST_SUITE_P(Split, BuildAdvPacketsWithoutPriority,
+                         ::testing::Values(SplitCase{"Uuid128", UUID16_AND_IMPROV, true, true, false,
+                                                     concat({FLAGS_ELEMENT, APPEARANCE_ELEMENT, MANUFACTURER_ELEMENT,
+                                                             UUID16_ELEMENT, IMPROV_DATA_ELEMENT}),
+                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_UUID_ELEMENT})},
+                                           SplitCase{"SecondUuid128", IMPROV_AND_OTHER, false, false, false,
+                                                     concat({FLAGS_ELEMENT, IMPROV_UUID_ELEMENT}),
+                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT, OTHER_UUID_ELEMENT})},
+                                           SplitCase{"Partial16BitList", UUID16S, false, false, false,
+                                                     concat({FLAGS_ELEMENT, uuid16_list(0x02, 0x1800, 0x180C)}),
+                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT,
+                                                             uuid16_list(0x03, 0x180D, 0x180F)})},
+                                           SplitCase{"ServiceData", IMPROV_ONLY, false, true, true,
+                                                     concat({FLAGS_ELEMENT, NAME_ELEMENT, IMPROV_UUID_ELEMENT}),
+                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT, IMPROV_DATA_ELEMENT})},
+                                           SplitCase{"NameInAdvertisingPacket",
+                                                     {},
+                                                     false,
+                                                     false,
+                                                     true,
+                                                     concat({FLAGS_ELEMENT, NAME_ELEMENT}),
+                                                     concat({NAME_ELEMENT, TX_POWER_ELEMENT})}),
+                         [](const ::testing::TestParamInfo<SplitCase> &info) { return std::string(info.param.name); });
 
 }  // namespace esphome::ble_device_base::testing

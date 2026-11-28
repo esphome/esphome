@@ -20,9 +20,9 @@ class AdvPayload {
 
   /// How many UUIDs of each width went out, so the other packet only carries the rest.
   struct UuidsSent {
-    uint8_t short16{0};
-    uint8_t short32{0};
-    uint8_t full{0};
+    uint8_t short16;
+    uint8_t short32;
+    uint8_t full;
   };
 
   const uint8_t *data() const { return this->buf_.data(); }
@@ -55,25 +55,22 @@ class AdvPayload {
     if (this->left_() > 2)
       this->add_(0x0A, reinterpret_cast<const uint8_t *>(&dbm), 1);
   }
-  /// 16 and 32-bit lists (partial when they do not all fit), then the first 128-bit UUID; `skip` and the UUIDs
-  /// counted in `sent` are left out, and `sent` grows by what this packet takes.
-  void add_uuids(std::span<const ESPBTUUID> uuids, const ESPBTUUID &skip, UuidsSent &sent) {
+  /// 16 and 32-bit lists (partial when they do not all fit), then the next 128-bit UUID. Leaves out `skip` and the
+  /// UUIDs counted in `sent`, and returns `sent` plus what this packet took.
+  UuidsSent add_uuids(std::span<const ESPBTUUID> uuids, const ESPBTUUID &skip = {}, UuidsSent sent = {}) {
     this->add_short_uuids_(uuids, skip, 2, 0x02, sent.short16);
     this->add_short_uuids_(uuids, skip, 4, 0x04, sent.short32);
     if (this->left_() < 18)
-      return;
+      return sent;
     size_t index = 0;
     for (const auto &uuid : uuids) {
-      if (uuid != skip && uuid_size(uuid) == 16 && index++ == sent.full) {
+      if (listed_(uuid, skip, 16) && index++ == sent.full) {
         this->add_(0x07, uuid.uuid128(), 16);
         sent.full++;
-        return;
+        break;
       }
     }
-  }
-  void add_uuids(std::span<const ESPBTUUID> uuids, const ESPBTUUID &skip = {}) {
-    UuidsSent sent;
-    this->add_uuids(uuids, skip, sent);
+    return sent;
   }
   /// Raw service data element (its first bytes are the UUID); dropped whole when it does not fit.
   bool add_service_data(std::span<const uint8_t> data) {
@@ -104,6 +101,9 @@ class AdvPayload {
 
  protected:
   size_t left_() const { return MAX_LEN - this->len_; }
+  static bool listed_(const ESPBTUUID &uuid, const ESPBTUUID &skip, size_t size) {
+    return uuid != skip && uuid_size(uuid) == size;
+  }
   void add_(uint8_t type, const uint8_t *value, size_t len) {
     this->buf_[this->len_++] = len + 1;
     this->buf_[this->len_++] = type;
@@ -113,21 +113,18 @@ class AdvPayload {
   void add_short_uuids_(std::span<const ESPBTUUID> uuids, const ESPBTUUID &skip, size_t size, uint8_t partial_type,
                         uint8_t &sent) {
     const size_t count =
-        std::count_if(uuids.begin(), uuids.end(), [&](const auto &u) { return u != skip && uuid_size(u) == size; }) -
-        sent;
+        std::count_if(uuids.begin(), uuids.end(), [&](const auto &u) { return listed_(u, skip, size); }) - sent;
     if (count == 0 || this->left_() < 2 + size)
       return;
     size_t fit = std::min(count, (this->left_() - 2) / size);
     this->buf_[this->len_++] = 1 + fit * size;
     this->buf_[this->len_++] = fit < count ? partial_type : partial_type + 1;
-    const size_t first = sent;
-    sent += fit;
     size_t index = 0;
     for (const auto &uuid : uuids) {
       if (fit == 0)
         break;
       uint32_t value;
-      if (uuid == skip || uuid_size(uuid, &value) != size || index++ < first)
+      if (uuid == skip || uuid_size(uuid, &value) != size || index++ < sent)
         continue;
       if (size == 2) {
         put_le16(this->buf_.data() + this->len_, value);
@@ -135,6 +132,7 @@ class AdvPayload {
         put_le32(this->buf_.data() + this->len_, value);
       }
       this->len_ += size;
+      sent++;
       fit--;
     }
   }
@@ -169,11 +167,11 @@ inline void build_adv_packets(const AdvContent &content, AdvPayload &adv, AdvPay
   rsp.add_name(content.name, content.name_len);
   extras.add_manufacturer_data(content.manufacturer_data);
   rsp.add_tx_power(content.tx_power_dbm);
-  AdvPayload::UuidsSent sent;
+  AdvPayload::UuidsSent sent{};
   if (priority) {
     adv.add_uuids({&content.priority_uuid, 1});
   } else {
-    adv.add_uuids(content.uuids, {}, sent);
+    sent = adv.add_uuids(content.uuids);
   }
   rsp.add_uuids(content.uuids, content.priority_uuid, sent);
   if (!adv.add_service_data(content.service_data) && !priority)
