@@ -11,7 +11,7 @@ from esphome.components.const import (
     CONF_BYTE_ORDER,
     CONF_DRAW_ROUNDING,
 )
-from esphome.components.display import CONF_SHOW_TEST_CARD
+from esphome.components.display import CONF_SHOW_TEST_CARD, requires_buffer
 from esphome.components.esp32 import (
     CONF_EXECUTE_FROM_PSRAM,
     VARIANT_ESP32P4,
@@ -39,7 +39,6 @@ from esphome.components.mipi import (
     map_sequence,
     model_schema_extractor,
     power_of_two,
-    requires_buffer,
 )
 import esphome.config_validation as cv
 from esphome.const import (

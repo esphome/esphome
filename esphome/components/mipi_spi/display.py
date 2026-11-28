@@ -10,7 +10,7 @@ from esphome.components.const import (
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
 )
-from esphome.components.display import CONF_SHOW_TEST_CARD
+from esphome.components.display import CONF_SHOW_TEST_CARD, requires_buffer
 from esphome.components.mipi import (
     CONF_PIXEL_MODE,
     CONF_USE_AXIS_FLIPS,
@@ -26,7 +26,6 @@ from esphome.components.mipi import (
     map_sequence,
     model_schema_extractor,
     power_of_two,
-    requires_buffer,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.spi import CONF_SPI_MODE, TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
