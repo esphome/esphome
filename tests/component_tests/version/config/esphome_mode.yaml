@@ -1,0 +1,10 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+text_sensor:
+  - platform: version
+    name: "ESPHome Version"
+    hide_hash: true
