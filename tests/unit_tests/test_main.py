@@ -2528,6 +2528,22 @@ def test_command_upload_reads_the_ota_key_first() -> None:
     upload.assert_called_once()
 
 
+def test_command_upload_factory_failure_warns() -> None:
+    """A failed --factory upload reports the failure and returns its exit code."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, platform=PLATFORM_ESP32
+    )
+    args = MockArgs()
+    args.device = ["dev.local"]
+    args.factory = True
+    with (
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch("esphome.__main__._upload_factory_image", return_value=1) as factory,
+    ):
+        assert command_upload(args, CORE.config) == 1
+    factory.assert_called_once()
+
+
 def test_read_ota_key_stores_prompted_key() -> None:
     """The key lands on args and never in argv."""
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -8698,6 +8714,185 @@ def test_upload_with_config_ignores_the_password_environment(
         "ESPHOME_OTA_PASSWORD is set but an upload with a configuration does "
         "not use it" in caplog.text
     )
+
+
+def _set_target_platform(build_path: Path) -> None:
+    """Point CORE at the esp32 target and a build path (properties read them)."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    CORE.build_path = build_path
+    CORE.name = "test"
+
+
+def _touch_factory_artifacts(build_path: Path) -> None:
+    """Create the three factory artifacts at the paths the preflight checks."""
+    _set_target_platform(build_path)
+    for binary in (CORE.bootloader_bin, CORE.partition_table_bin, CORE.firmware_bin):
+        p = Path(binary)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"x")
+
+
+def test_upload_factory_image_composes_the_three_ota_types_in_order(
+    monkeypatch: pytest.MonkeyPatch, setup_core: Path
+) -> None:
+    """--factory sends bootloader, partition table and app in that order,
+    pins later stages to the resolved device and waits between steps."""
+    from esphome.__main__ import OTA_REBOOT_WAIT_SECONDS, _upload_factory_image
+
+    sent: list[tuple[bool, bool, list[str]]] = []
+    sleeps: list[int] = []
+
+    def fake_upload(config, devices, args):
+        sent.append((args.partition_table, args.bootloader, list(devices)))
+        if len(sent) == 3:
+            return 0, None  # the last step: nothing left to pin
+        return 0, "1.2.3.4"
+
+    monkeypatch.setattr("esphome.__main__._upload_via_native_api", fake_upload)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    _touch_factory_artifacts(setup_core)
+    config = {"ota": [{"platform": "esphome", "port": 3232}]}
+    args = SimpleNamespace(partition_table=False, bootloader=False, file=None)
+    assert _upload_factory_image(config, args, ["1.2.3.4", "5.6.7.8"]) == 0
+    assert [s[:2] for s in sent] == [(False, True), (True, False), (False, False)]
+    assert [s[2] for s in sent] == [
+        ["1.2.3.4", "5.6.7.8"],
+        ["1.2.3.4"],
+        ["1.2.3.4"],
+    ]
+    assert sleeps == [OTA_REBOOT_WAIT_SECONDS, OTA_REBOOT_WAIT_SECONDS]
+
+
+def test_upload_factory_image_stops_on_a_failed_step(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    setup_core: Path,
+) -> None:
+    """A failed step aborts the remaining ones and returns its exit code."""
+    from esphome.__main__ import _upload_factory_image
+
+    sent: list[tuple[bool, bool]] = []
+    sleeps: list[int] = []
+
+    def fake_upload(config, devices, args):
+        sent.append((args.partition_table, args.bootloader))
+        return 1, None
+
+    monkeypatch.setattr("esphome.__main__._upload_via_native_api", fake_upload)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    _touch_factory_artifacts(setup_core)
+    config = {"ota": [{"platform": "esphome", "port": 3232}]}
+    args = SimpleNamespace(partition_table=False, bootloader=False, file=None)
+    assert _upload_factory_image(config, args, ["1.2.3.4"]) == 1
+    assert sent == [(False, True)]
+    assert sleeps == []
+    assert "Failed to upload the bootloader." in caplog.text
+
+
+def test_upload_factory_image_requires_the_esphome_ota_platform(
+    monkeypatch: pytest.MonkeyPatch, setup_core: Path
+) -> None:
+    """Without an esphome OTA platform the flag has nothing to drive."""
+    from esphome.__main__ import _upload_factory_image
+
+    def fake_upload(config, devices, args):  # pragma: no cover - must not run
+        raise AssertionError("no upload should run")
+
+    monkeypatch.setattr("esphome.__main__._upload_via_native_api", fake_upload)
+    config = {"ota": [{"platform": "http_request"}]}
+    args = SimpleNamespace(partition_table=False, bootloader=False, file=None)
+    with pytest.raises(
+        EsphomeError, match="--factory requires the esphome OTA platform"
+    ):
+        _upload_factory_image(config, args, ["1.2.3.4"])
+
+
+def test_upload_factory_image_rejects_single_type_flags(
+    monkeypatch: pytest.MonkeyPatch, setup_core: Path
+) -> None:
+    """--factory composes all stages itself; the single-type flags and
+    --file would change what the steps upload."""
+    from esphome.__main__ import _upload_factory_image
+
+    config = {"ota": [{"platform": "esphome", "port": 3232}]}
+    for override in (
+        {"bootloader": True},
+        {"partition_table": True},
+        {"file": "factory.bin"},
+    ):
+        fields = {"partition_table": False, "bootloader": False, "file": None}
+        fields.update(override)
+        args = SimpleNamespace(**fields)
+        with pytest.raises(EsphomeError, match="cannot be combined with"):
+            _upload_factory_image(config, args, ["1.2.3.4"])
+
+
+def test_upload_factory_image_preflights_the_artifacts(
+    monkeypatch: pytest.MonkeyPatch, setup_core: Path
+) -> None:
+    """A missing artifact fails before any flash is written."""
+    from esphome.__main__ import _upload_factory_image
+
+    def fake_upload(config, devices, args):  # pragma: no cover - must not run
+        raise AssertionError("no upload should run")
+
+    monkeypatch.setattr("esphome.__main__._upload_via_native_api", fake_upload)
+    _set_target_platform(setup_core)
+    config = {"ota": [{"platform": "esphome", "port": 3232}]}
+    args = SimpleNamespace(partition_table=False, bootloader=False, file=None)
+    with pytest.raises(EsphomeError, match="--factory needs the bootloader image"):
+        _upload_factory_image(config, args, ["1.2.3.4"])
+
+
+def test_command_upload_factory_flag_drives_the_factory_flow(
+    monkeypatch: pytest.MonkeyPatch, setup_core: Path
+) -> None:
+    """--factory routes upload into the factory flow instead of upload_program."""
+    from esphome.__main__ import command_upload
+
+    factory_calls: list[SimpleNamespace] = []
+    program_calls: list[SimpleNamespace] = []
+
+    monkeypatch.setattr("esphome.__main__._read_ota_key", lambda args, config: None)
+    monkeypatch.setattr(
+        "esphome.__main__.choose_upload_log_host",
+        lambda **kwargs: ["1.2.3.4"],
+    )
+    monkeypatch.setattr(
+        "esphome.__main__._upload_factory_image",
+        lambda config, args, devices: factory_calls.append(args) or 0,
+    )
+    monkeypatch.setattr(
+        "esphome.__main__.upload_program",
+        lambda config, args, devices: program_calls.append(args) or (0, None),
+    )
+
+    config = {"ota": [{"platform": "esphome", "port": 3232}]}
+
+    args = SimpleNamespace(device=None, factory=True)
+    assert command_upload(args, config) == 0
+    assert len(factory_calls) == 1
+    assert program_calls == []
+
+    args = SimpleNamespace(device=None, factory=False)
+    assert command_upload(args, config) == 0
+    assert len(program_calls) == 1
+    assert len(factory_calls) == 1
+
+
+def test_upload_without_config_rejects_the_factory_flag() -> None:
+    """Without a configuration --factory has nothing to compose."""
+    from esphome.__main__ import command_upload_without_config
+
+    args = SimpleNamespace(
+        file=None,
+        device=None,
+        factory=True,
+        partition_table=False,
+        bootloader=False,
+    )
+    with pytest.raises(EsphomeError, match="--factory builds the complete image"):
+        command_upload_without_config(args)
 
 
 def test_run_esphome_warns_for_a_password_another_command_ignores(
