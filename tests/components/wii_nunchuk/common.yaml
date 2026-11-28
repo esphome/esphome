@@ -1,0 +1,26 @@
+wii_nunchuk:
+  id: nunchuk
+  i2c_id: i2c_bus
+  update_interval: 100ms
+
+sensor:
+  - platform: wii_nunchuk
+    wii_nunchuk_id: nunchuk
+    joystick_x:
+      name: Joystick X
+    joystick_y:
+      name: Joystick Y
+    acceleration_x:
+      name: Acceleration X
+    acceleration_y:
+      name: Acceleration Y
+    acceleration_z:
+      name: Acceleration Z
+
+binary_sensor:
+  - platform: wii_nunchuk
+    wii_nunchuk_id: nunchuk
+    c_button:
+      name: C Button
+    z_button:
+      name: Z Button
