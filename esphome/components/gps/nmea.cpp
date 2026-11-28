@@ -127,11 +127,24 @@ bool parse_coordinate(const char *s, const char *hemisphere, char positive, char
   return true;
 }
 
-/// Parse hhmmss[.ss]; the fraction is ignored.
+/// Parse hhmmss[.s...]; digits past milliseconds are dropped.
 bool parse_time(const char *s, GPSData &data) {
-  return parse_two_digits(s, 23, data.hour) && parse_two_digits(s + 2, 59, data.minute) &&
-         parse_two_digits(s + 4, 60, data.second) &&
-         (s[6] == '\0' || (s[6] == '.' && s[7] != '\0' && all_digits(s + 7)));
+  if (!parse_two_digits(s, 23, data.hour) || !parse_two_digits(s + 2, 59, data.minute) ||
+      !parse_two_digits(s + 4, 60, data.second))
+    return false;
+#ifdef USE_GPS_MILLISECOND
+  data.millisecond = 0;
+#endif
+  if (s[6] == '\0')
+    return true;
+  if (s[6] != '.' || s[7] == '\0' || !all_digits(s + 7))
+    return false;
+#ifdef USE_GPS_MILLISECOND
+  uint16_t scale = 100;
+  for (const char *p = s + 7; *p != '\0' && scale != 0; p++, scale /= 10)
+    data.millisecond += (*p - '0') * scale;
+#endif
+  return true;
 }
 
 /// Parse ddmmyy.
@@ -178,10 +191,17 @@ bool parse_gga(const Fields &f, GPSData &data) {
   // Without a fix the time can come from the receiver's own clock, which may be wrong
   if (quality == 0)
     return true;
-  return parse_optional(f[1], GPS_FIELD_TIME, data, [&data](const char *s) { return parse_time(s, data); }) &&
-         parse_location(f, 2, data) && parse_optional(f[9], GPS_FIELD_ALTITUDE, data, [&data](const char *s) {
-           return parse_decimal(s, 3, data.altitude_e3);
-         });
+  if (!parse_optional(f[1], GPS_FIELD_TIME, data, [&data](const char *s) { return parse_time(s, data); }) ||
+      !parse_location(f, 2, data) || !parse_optional(f[9], GPS_FIELD_ALTITUDE, data, [&data](const char *s) {
+        return parse_decimal(s, 3, data.altitude_e3);
+      }))
+    return false;
+#ifdef USE_GPS_GEOID_SEPARATION
+  return parse_optional(f[11], GPS_FIELD_GEOID_SEPARATION, data,
+                        [&data](const char *s) { return parse_decimal(s, 3, data.geoid_separation_e3); });
+#else
+  return true;
+#endif
 }
 
 // $--RMC,time,status,lat,N,lon,E,speed,course,date,variation,E[,mode[,nav status]]*hh

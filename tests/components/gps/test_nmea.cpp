@@ -25,13 +25,14 @@ TEST(GPSNmea, Gga) {
   EXPECT_EQ(data.latitude_e7, 481173000);
   EXPECT_EQ(data.longitude_e7, 115166667);
   EXPECT_EQ(data.altitude_e3, 545400);
+  EXPECT_EQ(data.geoid_separation_e3, 46900);
   EXPECT_EQ(data.satellites, 8);
   EXPECT_EQ(data.hdop_e2, 90);
   EXPECT_EQ(data.hour, 12);
   EXPECT_EQ(data.minute, 35);
   EXPECT_EQ(data.second, 19);
-  EXPECT_EQ(data.updated,
-            GPS_FIELD_TIME | GPS_FIELD_LOCATION | GPS_FIELD_SATELLITES | GPS_FIELD_HDOP | GPS_FIELD_ALTITUDE);
+  EXPECT_EQ(data.updated, GPS_FIELD_TIME | GPS_FIELD_LOCATION | GPS_FIELD_SATELLITES | GPS_FIELD_HDOP |
+                              GPS_FIELD_ALTITUDE | GPS_FIELD_GEOID_SEPARATION);
   EXPECT_EQ(data.valid, data.updated);
 }
 
@@ -120,6 +121,29 @@ TEST(GPSNmea, RmcWithoutFixSetsNothing) {
   ASSERT_TRUE(parse(with_checksum("$GNRMC,090552.42,V,,,,,,,021225,,,N,V"), data));
   EXPECT_EQ(data.updated, 0);
   EXPECT_EQ(data.valid, 0);
+}
+
+TEST(GPSNmea, TimeFraction) {
+  GPSData data;
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090552.42,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,"), data));
+  EXPECT_EQ(data.second, 52);
+  EXPECT_EQ(data.millisecond, 420);
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090553.1239,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,"), data));
+  EXPECT_EQ(data.millisecond, 123);
+  ASSERT_TRUE(parse("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", data));
+  EXPECT_EQ(data.millisecond, 0);
+}
+
+TEST(GPSNmea, GeoidSeparation) {
+  GPSData data;
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090552.42,3351.123,S,15112.765,E,1,08,0.9,45.4,M,-12.25,M,,"), data));
+  EXPECT_EQ(data.geoid_separation_e3, -12250);
+  EXPECT_FLOAT_EQ(data.geoid_separation(), -12.25f);
+  EXPECT_TRUE(data.is_updated(GPS_FIELD_GEOID_SEPARATION));
+  ASSERT_TRUE(parse(with_checksum("$GNGGA,090553.42,3351.123,S,15112.765,E,1,08,0.9,45.4,M,,M,,"), data));
+  EXPECT_FALSE(data.is_updated(GPS_FIELD_GEOID_SEPARATION));
+  EXPECT_TRUE(data.has(GPS_FIELD_GEOID_SEPARATION));
+  EXPECT_EQ(data.geoid_separation_e3, -12250);
 }
 
 TEST(GPSNmea, LeapDayAndLeapSecond) {

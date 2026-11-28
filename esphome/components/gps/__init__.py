@@ -19,8 +19,11 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+CONF_FIELD_AGE = "field_age"
+CONF_GEOID_SEPARATION = "geoid_separation"
 CONF_GPS_ID = "gps_id"
 CONF_HDOP = "hdop"
+CONF_MILLISECOND = "millisecond"
 
 ICON_ALTIMETER = "mdi:altimeter"
 ICON_COMPASS = "mdi:compass"
@@ -43,6 +46,21 @@ GPSListener = gps_ns.class_("GPSListener")
 MULTI_CONF = True
 
 _register_listener = cg.slot_list("GPS_LISTENER_COUNT", "register_listener", DOMAIN)
+
+
+def request_field_age() -> None:
+    """Compile in GPS::get_age(), which costs 4 bytes of RAM per field."""
+    cg.add_define("USE_GPS_FIELD_AGE")
+
+
+def request_millisecond() -> None:
+    """Compile in GPSData::millisecond, parsed from the fraction of the time."""
+    cg.add_define("USE_GPS_MILLISECOND")
+
+
+def request_geoid_separation() -> None:
+    """Compile in GPSData::geoid_separation_e3, parsed from GGA sentences."""
+    cg.add_define("USE_GPS_GEOID_SEPARATION")
 
 
 async def register_listener(hub: MockObj, var: MockObj) -> None:
@@ -97,6 +115,10 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            # For lambdas; components that need these request them
+            cv.Optional(CONF_FIELD_AGE, default=False): cv.boolean,
+            cv.Optional(CONF_MILLISECOND, default=False): cv.boolean,
+            cv.Optional(CONF_GEOID_SEPARATION, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("20s"))
@@ -107,6 +129,12 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True
 
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
+    if config[CONF_FIELD_AGE]:
+        request_field_age()
+    if config[CONF_MILLISECOND]:
+        request_millisecond()
+    if config[CONF_GEOID_SEPARATION]:
+        request_geoid_separation()
 
     # Pre-create all sensor variables so automations that reference
     # sibling sensors don't deadlock waiting for unregistered IDs.
