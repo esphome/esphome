@@ -2,9 +2,9 @@
 
 #include "http_request.h"
 
-#if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
-#if defined(USE_RP2)
+#if defined(USE_RP2) || defined(USE_LIBRETINY)
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 #endif

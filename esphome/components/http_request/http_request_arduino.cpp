@@ -1,6 +1,6 @@
 #include "http_request_arduino.h"
 
-#if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include <cstring>
 
@@ -81,6 +81,9 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
   if (secure) {
     container->client_.setInsecure();
   }
+  bool status = container->client_.begin(url);
+#elif defined(USE_LIBRETINY)
+  // without a CA certificate, LibreTiny's HTTPClient opens https URLs with an unverified TLS client
   bool status = container->client_.begin(url);
 #endif
 
