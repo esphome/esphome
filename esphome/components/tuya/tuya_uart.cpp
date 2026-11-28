@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 
@@ -96,6 +97,10 @@ void TuyaUART::dump_mcu_config_() {
     ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
   }
 #endif
+#ifdef USE_TUYA_WEATHER
+  ESP_LOGCONFIG(TAG, "  Weather service: update interval %" PRIu32 " s (0 = on request only), enabled: %s",
+                this->weather_update_interval_ / 1000, YESNO(this->weather_enabled_));
+#endif
 }
 
 void warn_too_long(size_t len) {
@@ -127,12 +132,20 @@ bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
 void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
   TuyaCommandType command_type = (TuyaCommandType) command;
 
+#ifdef USE_TUYA_WEATHER
+  // an ack that comes before the frame has left is not for it
+  if (this->weather_tx_active_ && command_type == TuyaCommandType::WEATHER_DATA && !this->finish_weather_tx_())
+    return;
+#endif
   if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
     this->expected_response_.reset();
     this->command_queue_.erase(command_queue_.begin());
     this->init_retries_ = 0;
   }
 
+#ifdef USE_TUYA_WEATHER
+  bool answer_weather = false;
+#endif
   switch (command_type) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
@@ -140,6 +153,9 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
       if (buffer[0] == 0) {
         ESP_LOGI(TAG, "MCU restarted");
         this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
+#ifdef USE_TUYA_WEATHER
+        this->reset_weather_();
+#endif
       }
       if (this->init_state_ == TuyaInitState::INIT_HEARTBEAT) {
         this->init_state_ = TuyaInitState::INIT_PRODUCT;
@@ -242,8 +258,15 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
         this->init_state_ = TuyaInitState::INIT_DONE;
         this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_mcu_config_(); });
         this->mark_initialized_();
+#ifdef USE_TUYA_WEATHER
+        answer_weather = this->weather_enabled_ && !this->weather_answer_queued_();
+#endif
       }
       this->handle_datapoints_(buffer, len);
+#ifdef USE_TUYA_WEATHER
+      if (answer_weather)
+        this->answer_weather_enable_();
+#endif
 
       if (command_type == TuyaCommandType::DATAPOINT_REPORT_SYNC) {
         this->send_command_(
@@ -299,9 +322,22 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
       ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
       break;
     }
+#ifdef USE_TUYA_WEATHER
+    case TuyaCommandType::WEATHER_ENABLE:
+      this->handle_weather_enable_(buffer, len);
+      break;
+    case TuyaCommandType::WEATHER_DATA:
+      this->handle_weather_ack_();
+      break;
+#endif
     case TuyaCommandType::EXTENDED_SERVICES: {
       uint8_t subcommand = buffer[0];
       switch ((TuyaExtendedServicesCommandType) subcommand) {
+#ifdef USE_TUYA_WEATHER
+        case TuyaExtendedServicesCommandType::REQUEST_WEATHER:
+          this->handle_weather_request_();
+          break;
+#endif
         case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
           this->send_command_(
               TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
@@ -431,6 +467,12 @@ void TuyaUART::send_raw_command_(TuyaCommand command) {
     case TuyaCommandType::DATAPOINT_QUERY:
       this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT_ASYNC;
       break;
+#ifdef USE_TUYA_WEATHER
+    case TuyaCommandType::WEATHER_DATA:
+      this->expected_response_ = TuyaCommandType::WEATHER_DATA;
+      this->weather_in_flight_ = true;
+      break;
+#endif
     default:
       break;
   }
@@ -443,6 +485,18 @@ void TuyaUART::send_raw_command_(TuyaCommand command) {
 #endif
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command.cmd, len_hi, len_lo});
+#ifdef USE_TUYA_WEATHER
+  if (command.cmd == TuyaCommandType::WEATHER_DATA) {
+    // written in loop passes from a buffer of its own, at the earliest all on the wire at weather_tx_end_
+    const uint32_t baud = this->parent_->get_baud_rate();
+    this->weather_tx_end_ = millis() + (baud == 0 ? 0 : (7 + command.payload.size()) * 10000 / baud);
+    this->weather_buffer_ = std::move(command.payload);
+    this->weather_tx_active_ = true;
+    this->weather_tx_offset_ = 0;
+    this->weather_tx_last_ = App.get_loop_component_start_time();
+    return;
+  }
+#endif
   if (!command.payload.empty())
     this->write_array(command.payload.data(), command.payload.size());
 
@@ -450,7 +504,46 @@ void TuyaUART::send_raw_command_(TuyaCommand command) {
   this->write_byte(sum_bytes(command.payload.data(), command.payload.size(), header_sum));
 }
 
+#ifdef USE_TUYA_WEATHER
+void TuyaUART::continue_weather_tx_() {
+  // a callback of a write below can queue a command and come back here
+  if (this->handling_frame_)
+    return;
+  this->handling_frame_ = true;
+  const std::vector<uint8_t> &payload = this->weather_buffer_;
+  const size_t at = this->weather_tx_offset_;
+  const size_t chunk = std::min(payload.size() - at, this->parent_->paced_write_room(this->weather_tx_last_));
+  if (at < payload.size() && chunk != 0) {
+    this->weather_tx_offset_ += chunk;
+    this->weather_tx_last_ = App.get_loop_component_start_time();
+    this->write_array(payload.data() + at, chunk);
+  } else if (at == payload.size()) {
+    this->weather_tx_offset_++;
+    const uint8_t header_sum = 0x55 + 0xAA + 0x21 + (uint8_t) (payload.size() >> 8) + (uint8_t) payload.size();
+    this->write_byte(sum_bytes(payload.data(), payload.size(), header_sum));
+  }
+  this->finish_weather_tx_();
+  this->handling_frame_ = false;
+}
+
+// The reply wait starts when the frame has left the UART, not when its last byte was handed to it
+bool TuyaUART::finish_weather_tx_() {
+  if (this->weather_tx_offset_ <= this->weather_buffer_.size() ||
+      static_cast<int32_t>(millis() - this->weather_tx_end_) < 0)
+    return false;
+  this->weather_tx_active_ = false;
+  this->last_command_timestamp_ = millis();
+  return true;
+}
+#endif
+
 void TuyaUART::process_command_queue_() {
+#ifdef USE_TUYA_WEATHER
+  if (this->weather_tx_active_) {
+    this->continue_weather_tx_();
+    return;
+  }
+#endif
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
 
@@ -465,6 +558,14 @@ void TuyaUART::process_command_queue_() {
         this->init_retries_ = 0;
       }
     } else {
+#ifdef USE_TUYA_WEATHER
+      if (this->command_queue_.front().cmd == TuyaCommandType::WEATHER_DATA) {
+        const bool handling = this->handling_frame_;
+        this->handling_frame_ = true;
+        this->handle_weather_lost_();
+        this->handling_frame_ = handling;
+      }
+#endif
       this->command_queue_.erase(command_queue_.begin());
     }
   }
@@ -475,7 +576,12 @@ void TuyaUART::process_command_queue_() {
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && !this->reader_.receiving() && !this->handling_frame_ &&
       !this->expected_response_.has_value()) {
     this->reader_.drop_kept();
-    this->send_raw_command_(command_queue_.front());
+    // a callback of a write can queue a command: it is not sent from inside this one
+    this->handling_frame_ = true;
+    TuyaCommand &head = this->command_queue_.front();
+    // the payload of a weather frame moves out of the queue, to the buffer it is written from
+    this->send_raw_command_(head.cmd == TuyaCommandType::WEATHER_DATA ? std::move(head) : head);
+    this->handling_frame_ = false;
     if (!this->expected_response_.has_value())
       this->command_queue_.erase(command_queue_.begin());
   }
