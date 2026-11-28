@@ -36,19 +36,10 @@ void BLEServer::loop() {
   }
   switch (this->state_) {
     case RUNNING: {
-      // Start all services that are pending to start
-      if (!this->services_to_start_.empty()) {
-        size_t write_idx = 0;
-        for (auto *service : this->services_to_start_) {
-          if (service->is_created()) {
-            service->start();  // Needs to be called once per characteristic in the service
-          }
-          // Remove services that have started or are starting
-          if (!service->is_starting() && !service->is_running()) {
-            this->services_to_start_[write_idx++] = service;
-          }
-        }
-        this->services_to_start_.erase(this->services_to_start_.begin() + write_idx, this->services_to_start_.end());
+      // Covers services re-created by ble.enable too; start() adds one characteristic per call
+      for (auto &entry : this->services_) {
+        if (entry.service->should_start() && entry.service->is_created())
+          entry.service->start();
       }
       break;
     }
@@ -278,10 +269,8 @@ void BLEServer::ble_before_disabled_event_handler() {
   this->release_advertising_();
   // Delete all clients
   this->client_count_ = 0;
-  // Delete all services; the started ones are queued again, as only loop() adds their characteristics once re-created
+  // Delete all services
   for (auto &entry : this->services_) {
-    if (entry.service->should_start() && entry.service != this->device_information_service_)
-      this->services_to_start_.push_back(entry.service);
     entry.service->do_delete();
   }
   this->registered_ = false;
