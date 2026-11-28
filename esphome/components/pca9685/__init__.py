@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_EXTERNAL_CLOCK_INPUT,
-    CONF_FREQUENCY,
-    CONF_ID,
-    CONF_PHASE_BALANCER,
-)
+from esphome.const import CONF_EXTERNAL_CLOCK_INPUT, CONF_FREQUENCY, CONF_PHASE_BALANCER
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -52,9 +47,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await i2c.new_i2c_component(config)
     cg.add_optional(var.set_frequency, config.get(CONF_FREQUENCY))
     cg.add(var.set_extclk(config[CONF_EXTERNAL_CLOCK_INPUT]))
     cg.add(var.set_phase_balancer(config[CONF_PHASE_BALANCER]))
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
