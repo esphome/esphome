@@ -365,7 +365,7 @@ TEST(HoermannHcpReadWrite, EveryEndOpensNoStartWindow) {
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
   ASSERT_TRUE(door.close_door());
   EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
-  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0A00}));
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0061}));
   ASSERT_EQ(door.get_door_state(), DoorState::VENT);
   ASSERT_TRUE(door.vent_door());
   EXPECT_EQ(poll_command(door).first, 0x0100);  // COMMAND_VENT
@@ -553,6 +553,36 @@ TEST(HoermannHcpWrite, VentIsDecodedFromTheStateLowByte) {
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0000}));
   ASSERT_EQ(door.get_door_state(), DoorState::STOPPED);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0061}));
+  EXPECT_EQ(door.get_door_state(), DoorState::VENT);
+}
+
+// Movement states for half-open and vent positions are decoded
+// correctly from all four observed movement codes.
+TEST(HoermannHcpWrite, HalfOpenAndVentMovementStatesAreDecoded) {
+  HoermannHcp door;
+
+  // Closed -> half open
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0560}));
+  EXPECT_EQ(door.get_door_state(), DoorState::MOVE_HALF);
+
+  // Open -> half open
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0660}));
+  EXPECT_EQ(door.get_door_state(), DoorState::MOVE_HALF);
+
+  // Closed -> vent
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0960}));
+  EXPECT_EQ(door.get_door_state(), DoorState::MOVE_VENTING);
+
+  // Open -> vent
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0A60}));
+  EXPECT_EQ(door.get_door_state(), DoorState::MOVE_VENTING);
+
+  // Half-open resting position
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x8060}));
+  EXPECT_EQ(door.get_door_state(), DoorState::HALF_OPEN);
+
+  // Vent resting position
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0010, 0x0061}));
   EXPECT_EQ(door.get_door_state(), DoorState::VENT);
 }
 

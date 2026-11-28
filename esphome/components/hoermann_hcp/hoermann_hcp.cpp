@@ -35,10 +35,13 @@ struct DoorStateMapping {
   uint8_t code;
   DoorState state;
 };
+// While moving to half open or vent, bit 0x04 or 0x08 names the target
+// and the low bits encode the direction (0x01 opening, 0x02 closing).
+// Resting at vent is 0x0061 and decoded separately, so 0x0A is a move too.
 static constexpr DoorStateMapping DOOR_STATE_MAPPINGS[] = {
-    {0x01, DoorState::OPENING},      {0x02, DoorState::CLOSING},   {0x05, DoorState::MOVE_HALF},
-    {0x09, DoorState::MOVE_VENTING}, {0x0A, DoorState::VENT},      {0x20, DoorState::OPEN},
-    {0x40, DoorState::CLOSED},       {0x80, DoorState::HALF_OPEN},
+    {0x01, DoorState::OPENING},   {0x02, DoorState::CLOSING},      {0x05, DoorState::MOVE_HALF},
+    {0x06, DoorState::MOVE_HALF}, {0x09, DoorState::MOVE_VENTING}, {0x0A, DoorState::MOVE_VENTING},
+    {0x20, DoorState::OPEN},      {0x40, DoorState::CLOSED},       {0x80, DoorState::HALF_OPEN},
 };
 
 // The hub rejects a reply whose register count does not match the request, so an unrecognized block length
