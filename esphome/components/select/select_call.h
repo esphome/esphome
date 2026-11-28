@@ -40,10 +40,14 @@ class SelectCall {
  protected:
   __attribute__((always_inline)) inline optional<size_t> calculate_target_index_(const char *name);
 
+  // SIZE_MAX is never an option index; byte-sized operation so the call fits the scheduler's 12-byte inline slot
+  static constexpr size_t NO_INDEX = SIZE_MAX;
+
   Select *const parent_;
-  optional<size_t> index_;
-  SelectOperation operation_{SELECT_OP_NONE};
+  size_t index_{NO_INDEX};
+  uint8_t operation_{SELECT_OP_NONE};
   bool cycle_{false};
 };
+static_assert(sizeof(void *) != 4 || sizeof(SelectCall) <= 12, "SelectCall must stay within 12 bytes on 32-bit");
 
 }  // namespace esphome::select
