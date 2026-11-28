@@ -1,6 +1,7 @@
 """Tests for the shared Zephyr variant code."""
 
 from collections.abc import Callable
+from dataclasses import replace
 from importlib import import_module
 import logging
 import pkgutil
@@ -18,6 +19,7 @@ from esphome.components.zephyr import (
     zephyr_variant_name,
 )
 from esphome.components.zephyr.const import KEY_BOOTLOADER
+from esphome.components.zephyr.framework_helpers import FrameworkSource
 from esphome.components.zephyr.variants import (
     ZEPHYR_MAINLINE,
     ZephyrManifest,
@@ -44,6 +46,13 @@ from esphome.core import CORE
 
 _MANIFEST: ZephyrManifest = ZephyrManifest(
     framework_type="zephyr",
+    source=FrameworkSource(
+        name="Zephyr",
+        url="https://example.com/zephyr",
+        optional=("hal_.*",),
+        required=frozenset(),
+    ),
+    workspace_prefix="zephyr",
     default_version="4.5.0",
     min_version=cv.Version(4, 4, 0),
 )
@@ -54,6 +63,13 @@ _VARIANT: ZephyrVariant = ZephyrVariant(
 )
 _VENDOR_MANIFEST: ZephyrManifest = ZephyrManifest(
     framework_type="vendor",
+    source=FrameworkSource(
+        name="Vendor",
+        url="https://example.com/vendor",
+        optional=(),
+        required=frozenset(),
+    ),
+    workspace_prefix="vendor",
     default_version="2.0.0",
     min_version=cv.Version(2, 0, 0),
 )
@@ -127,10 +143,8 @@ def test_version_below_the_minimum_is_rejected(version: str) -> None:
 
 
 def test_release_meets_a_prerelease_minimum() -> None:
-    manifest = ZephyrManifest(
-        framework_type="zephyr",
-        default_version="4.5.0",
-        min_version=cv.Version(4, 5, 0, "rc2"),
+    manifest = replace(
+        _MANIFEST, default_version="4.5.0", min_version=cv.Version(4, 5, 0, "rc2")
     )
     variant = ZephyrVariant(name="chip1", manifest=manifest)
     for version in ("4.5.0", "4.5.0-rc10"):

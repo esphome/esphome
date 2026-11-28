@@ -5,10 +5,19 @@ import time
 
 from esphome.build_helpers.tools_cache import ZEPHYR_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError
-from esphome.framework_helpers import install_lock
+from esphome.framework_helpers import get_python_env_executable_path, install_lock
 
-from .framework_helpers import ensure_venv
+from .framework_helpers import (
+    ensure_venv,
+    ensure_zephyr_requirements,
+    fetch_missing_west_projects,
+    install_framework,
+    patch_gen_defines_dts_path,
+    patch_west_build_source_dir_relpath,
+    workspace_installed,
+)
 from .sdk_install import ensure_sdk
+from .variants import ZephyrManifest
 
 _REQUIREMENTS: Path = Path(__file__).parent / "requirements.txt"
 # The SDK versions in use are unknown; a partial download untouched this long has no owner,
@@ -22,8 +31,9 @@ def get_zephyr_tools_path() -> Path:
     return tools_cache_path(*ZEPHYR_TOOLS_CACHE)
 
 
-def _get_python_env_path(version: str) -> Path:
-    return get_zephyr_tools_path() / "penvs" / version
+def _get_python_env_path(framework_path: Path) -> Path:
+    # One venv per workspace, so one workspace's pip install can't change another's
+    return get_zephyr_tools_path() / "penvs" / framework_path.name
 
 
 def _get_toolchain_path(sdk_version: str, toolchain: str) -> Path:
@@ -32,13 +42,50 @@ def _get_toolchain_path(sdk_version: str, toolchain: str) -> Path:
     )
 
 
-def check_and_install(version: str) -> None:
-    with install_lock(get_zephyr_tools_path(), f"penv-{version}"):
-        _check_and_install(version)
+def _get_framework_path(manifest: ZephyrManifest, version: str) -> Path:
+    return (
+        get_zephyr_tools_path()
+        / "frameworks"
+        / f"{manifest.workspace_prefix}-{version}"
+    )
 
 
-def _check_and_install(version: str) -> None:
-    ensure_venv(_get_python_env_path(version), _REQUIREMENTS, version)
+def check_and_install(
+    manifest: ZephyrManifest, version: str, projects: frozenset[str]
+) -> None:
+    """Install the workspace with the ``projects`` the build needs beyond the
+    manifest's required ones; a workspace only gains projects, since the builds of
+    one version share it."""
+    framework_path = _get_framework_path(manifest, version)
+    with install_lock(get_zephyr_tools_path(), framework_path.name):
+        _check_and_install(manifest, version, framework_path, projects)
+
+
+def _check_and_install(
+    manifest: ZephyrManifest,
+    version: str,
+    framework_path: Path,
+    projects: frozenset[str],
+) -> None:
+    python_env_path = _get_python_env_path(framework_path)
+    env_python_path = get_python_env_executable_path(python_env_path, "python")
+    install_venv = ensure_venv(python_env_path, _REQUIREMENTS, version)
+
+    wanted = set(projects | manifest.source.required)
+    if not workspace_installed(framework_path):
+        install_framework(
+            env_python_path, framework_path, manifest.source, version, wanted
+        )
+        (framework_path / ".ready").touch()
+    else:
+        fetch_missing_west_projects(
+            env_python_path, framework_path, manifest.source, version, wanted
+        )
+    # Every run: existing installs need these too, and they are no-ops once applied
+    patch_gen_defines_dts_path(framework_path)
+    patch_west_build_source_dir_relpath(framework_path)
+
+    ensure_zephyr_requirements(python_env_path, framework_path, install_venv, version)
 
 
 def _read_sdk_version(framework_path: Path) -> str:

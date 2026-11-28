@@ -23,6 +23,7 @@ from esphome.types import ConfigType
 
 from . import zephyr_data, zephyr_set_core_data
 from .const import KEY_BOOTLOADER, KEY_VARIANT_RESOLVED, KEY_ZEPHYR, VERSION_RECOMMENDED
+from .framework_helpers import FrameworkSource
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ class ZephyrManifest:
 
     # The `framework: type:` value that selects this manifest
     framework_type: str
+    source: FrameworkSource
+    # Prefix of the workspace folder, so manifests with the same version string don't share one
+    workspace_prefix: str
     default_version: str
     min_version: cv.Version
 
@@ -63,8 +67,41 @@ class ZephyrVariant:
 
 ZEPHYR_MAINLINE: ZephyrManifest = ZephyrManifest(
     framework_type="zephyr",
+    source=FrameworkSource(
+        name="Zephyr",
+        url="https://github.com/zephyrproject-rtos/zephyr",
+        # Every vendor HAL is fetched only when a build needs it. nrf_hw_models are
+        # BabbleSim's nRF models; their module needs hal_nordic, and no variant
+        # builds for BabbleSim
+        optional=("hal_.*", "nrf_hw_models"),
+        # Projects in Zephyr's hal group that match "hal_.*" but belong to no SoC
+        # family: Xtensa, the Arm Ethos-U NPU, and the external chip libraries any
+        # board can carry
+        required=frozenset(
+            {
+                "hal_afbr",
+                "hal_ethos_u",
+                "hal_infineon",
+                "hal_st",
+                "hal_tdk",
+                "hal_wurthelektronik",
+                "hal_xtensa",
+            }
+        ),
+    ),
+    workspace_prefix="zephyr",
     default_version="4.5.0",
     min_version=cv.Version(4, 5, 0),
+)
+
+
+# The nRF Connect SDK as nrf52 installs it
+NRF_CONNECT_SDK: FrameworkSource = FrameworkSource(
+    name="nRF Connect SDK",
+    url="https://github.com/nrfconnect/sdk-nrf",
+    optional=(".*",),
+    # Projects every build needs; components add others with include_west_project()
+    required=frozenset({"cmsis", "hal_nordic", "nrfxlib", "zephyr"}),
 )
 
 
