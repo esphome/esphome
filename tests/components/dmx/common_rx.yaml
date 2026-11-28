@@ -1,0 +1,84 @@
+# Shared DMX RX configuration
+
+dmx:
+  id: dmx_bus
+  mode: rx
+  uart_num: ${dmx_uart_num}
+  tx_pin: ${dmx_tx_pin}
+  rx_pin: ${dmx_rx_pin}
+  tx_interval: ${dmx_tx_interval}
+
+# Home Assistant Numbers voor kanaalselectie
+number:
+  - platform: template
+    name: "DMX Channel"
+    id: selected_channel
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 1
+    restore_value: true
+
+  - platform: template
+    name: "DMX Channel Front"
+    id: ch_front
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 10
+    restore_value: true
+
+  - platform: template
+    name: "DMX Channel Back"
+    id: ch_back
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 20
+    restore_value: true
+
+  - platform: template
+    name: "DMX Channel Side"
+    id: ch_side
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 30
+    restore_value: true
+
+# DMX ontvangst-sensors
+sensor:
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel_id: selected_channel
+    name: "DMX Value"
+    id: dmx_value
+
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel: 1
+    name: "DMX Channel 1 (fixed)"
+    id: dmx_channel_1
+
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel_id: ch_front
+    name: "Value Front"
+
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel_id: ch_back
+    name: "Value Back"
+
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel_id: ch_side
+    name: "Value Side"
