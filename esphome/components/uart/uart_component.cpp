@@ -36,7 +36,9 @@ size_t UARTComponent::paced_write_room(uint32_t last_write_us) {
 uint8_t UARTComponent::frame_bits_() const {
   if (this->data_bits_ == 0)
     return DEFAULT_FRAME_BITS;
-  return 1 + this->data_bits_ + this->stop_bits_ + (this->parity_ != UART_CONFIG_PARITY_NONE ? 1 : 0);
+  // usb_uart stores 1.5 stop bits as 3; count it as 2, which errs towards less room
+  return 1 + this->data_bits_ + std::min<uint8_t>(this->stop_bits_, 2) +
+         (this->parity_ != UART_CONFIG_PARITY_NONE ? 1 : 0);
 }
 
 size_t UARTComponent::paced_room_(uint32_t span_us) const {

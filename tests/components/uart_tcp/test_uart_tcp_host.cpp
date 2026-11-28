@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <numeric>
 #include <vector>
 
 #include "esphome/components/uart_tcp/uart_tcp.h"
@@ -196,8 +197,11 @@ TEST_F(UartTcpClient, CountsFromWhenABlockingWriteReturned) {
   this->pass();
   this->pass();
   // 300 baud: one 100-ms interval and one byte is 4 bytes. The next pass, under a byte time after the write
-  // returned, gets nothing: counting the 100 ms the write blocked would give 3 more.
-  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{4}));
+  // returned, gets at most the part of a byte the host clock left over: counting the 100 ms the write blocked
+  // would give 3 more.
+  ASSERT_FALSE(this->uart_.writes.empty());
+  EXPECT_EQ(this->uart_.writes[0], 4U);
+  EXPECT_LE(std::accumulate(this->uart_.writes.begin() + 1, this->uart_.writes.end(), size_t{0}), 1U);
 }
 
 TEST_F(UartTcpClient, FullUartHoldsSocketBytesUntilThereIsRoom) {

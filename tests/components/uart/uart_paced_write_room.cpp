@@ -91,6 +91,9 @@ TEST_F(PacedWriteRoom, ElevenBitFramesTakeLonger) {
   EXPECT_EQ(this->uart_.paced_room_(10000), 8u);
   this->uart_.set_parity(UART_CONFIG_PARITY_NONE);
   EXPECT_EQ(this->uart_.paced_room_(10000), 9u);
+  // usb_uart stores 1.5 stop bits as 3, counted as 2: 11 bits like 8E1
+  this->uart_.set_stop_bits(3);
+  EXPECT_EQ(this->uart_.paced_room_(10000), 8u);
 }
 
 TEST_F(PacedWriteRoom, StampKeepsThePartOfAByte) {
