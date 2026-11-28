@@ -1,0 +1,2 @@
+packages:
+  tflite_audio: !include common.yaml

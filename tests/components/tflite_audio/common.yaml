@@ -1,0 +1,9 @@
+# ESPHome build test: the audio kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
+tflite_audio:
+  - id: test_audio
+    model: "../../components/tflite_audio/model.tflite"
+    probability_cutoff: 0.5
+    sliding_window_size: 10
+    features_step_size: 20
