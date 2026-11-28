@@ -165,7 +165,7 @@ TEST(UBXNav, TimeUtcOnlyWithKnownLeapSeconds) {
   p[19] = 0x07;
   ASSERT_TRUE(decode_nav(UBX_NAV_TIMEUTC, p.data(), p.size(), 1234, d, fix));
   EXPECT_EQ(d.utc, 1795608000);
-  EXPECT_EQ(d.utc_millis, 1234u);
+  EXPECT_EQ(d.utc_millis, 1234u - 420u);  // back to the whole second
   EXPECT_EQ(d.year, 2026);
   EXPECT_EQ(d.hour, 12);
   EXPECT_EQ(d.millisecond, 420);

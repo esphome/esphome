@@ -209,8 +209,7 @@ bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms,
       t.minute = data.minute;
       t.second = data.second;
       t.recalc_timestamp_utc(false);
-      data.utc = t.timestamp;
-      data.utc_millis = now_ms;
+      geolocation::set_utc(data, t.timestamp, now_ms);
       data.updated |= geolocation::GEOLOCATION_FIELD_TIME | geolocation::GEOLOCATION_FIELD_DATE;
       return true;
     }
