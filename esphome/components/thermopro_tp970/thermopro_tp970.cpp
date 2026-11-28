@@ -75,6 +75,7 @@ void ThermoProTP970::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
                                          esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT:
+    case ESP_GATTC_CLOSE_EVT:
       this->handle_ = 0;
       this->invalidate_();
       break;
