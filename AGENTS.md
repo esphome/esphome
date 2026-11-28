@@ -335,9 +335,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         value is cast from bus data).
     *   **Entities belong to the main loop:** entities and their traits are not thread-safe. Options such as a fan's
         preset modes or a select's options are usually set during setup, and a later change happens on the loop too.
-        Code on another task hands the change to the loop with `defer()`, as web_server does: it fills a `*Call` on its
-        own task and defers `call.perform()`. Do not add locks, revalidation or bounds checks against an entity
-        changing under a pending call, from another task or a callback inside `perform()`, or ask for them.
+        Code outside the loop hands the change to it with `defer()`, as web_server does: its request handlers run
+        outside the main loop on every platform, fill a `*Call` there and defer `call.perform()`. Do not add locks,
+        revalidation or bounds checks against an entity changing under a pending call, from another task or a
+        callback inside `perform()`, or ask for them.
     *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
         as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
     *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale
