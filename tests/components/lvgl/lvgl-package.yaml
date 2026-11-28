@@ -1746,6 +1746,103 @@ lvgl:
                                 start_value: 0
                                 end_value: 360
                                 rounded: true
+                  - chart:
+                      id: lv_chart_id
+                      width: 200
+                      height: 120
+                      point_count: 5
+                      type: line
+                      update_mode: shift
+                      x_axis:
+                        grid_lines: 4
+                      y_axis:
+                        min_value: 0
+                        max_value: !lambda return 100;
+                        grid_lines: 4
+                      secondary_y_axis:
+                        min_value: 0
+                        max_value: 1.0
+                        multiplier: 100
+                      series:
+                        - id: lv_chart_primary
+                          color: 0xFF0000
+                          values: [10, 30, nan, 50, 40]
+                        - id: lv_chart_secondary
+                          color: 0x00FF00
+                          y_axis: secondary
+                          values: [0.5, 0.2, 0.8, 0.1, 0.6]
+                  - chart:
+                      id: lv_scatter_chart_id
+                      indicator:
+                        width: 6
+                        height: 6
+                      width: 200
+                      height: 120
+                      point_count: 5
+                      type: scatter
+                      x_axis:
+                        min_value: 0
+                        max_value: 100
+                      secondary_x_axis:
+                        min_value: -50
+                        max_value: 50
+                      y_axis:
+                        min_value: 0
+                        max_value: 100
+                      series:
+                        - id: lv_scatter_series
+                          x_axis: secondary
+                          y_axis: secondary
+                          points:
+                            - {x: 10, y: 20}
+                            - {x: 30, y: 60}
+                            - {x: 50, y: 40}
+                  - chart:
+                      id: lv_stacked_chart_id
+                      type: stacked
+                      point_count: 3
+                      series:
+                        - values: [10, 20, 30]
+                        - values: [30, 20, 10]
+                  - button:
+                      id: chart_update_button
+                      on_click:
+                        - lvgl.chart.series.append:
+                            id: lv_chart_primary
+                            value: !lambda return random_uint32() % 100;
+                        - lvgl.chart.series.append:
+                            id: lv_chart_primary
+                            value: !lambda return NAN;
+                        - lvgl.chart.series.set:
+                            id: lv_chart_primary
+                            index: !lambda return random_uint32() % 5;
+                            value: 25
+                        - lvgl.chart.series.update:
+                            id: lv_chart_primary
+                            color: !lambda return lv_color_hex(0x00FF00);
+                            hidden: false
+                        - lvgl.chart.series.clear: lv_chart_secondary
+                        - lvgl.chart.series.set:
+                            id: lv_chart_secondary
+                            values:
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                        - lvgl.chart.series.append:
+                            id: lv_scatter_series
+                            point:
+                              x: !lambda return random_uint32() % 100;
+                              y: !lambda return random_uint32() % 100;
+                        - lvgl.chart.update:
+                            id: lv_chart_id
+                            update_mode: circular
+                            y_axis:
+                              grid_lines: 2
+                      widgets:
+                        - label:
+                            text: "Update chart"
     - id: page3
       layout: Horizontal
       pad_all: 6px

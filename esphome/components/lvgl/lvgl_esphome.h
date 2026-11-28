@@ -20,6 +20,8 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/component.h"
 
+#include <algorithm>
+#include <cmath>
 #include <list>
 #include <lvgl.h>
 #include <map>
@@ -121,6 +123,55 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 
 #ifdef USE_LVGL_METER
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
+#endif
+
+#ifdef USE_LVGL_CHART
+/// The limit of a scaled chart value: the largest float below 2^31, so a cast to int32_t cannot overflow, and a
+/// value never becomes LV_CHART_POINT_NONE (INT32_MAX) or reaches it by adding 1.
+static constexpr float CHART_POINT_LIMIT = 2147483520.0f;
+
+/// Scale a chart value to LVGL's integer points, rounded and limited to +/-CHART_POINT_LIMIT.
+/// NaN gives LV_CHART_POINT_NONE, which leaves a gap.
+inline int32_t chart_point_value(float value, float multiplier) {
+  if (std::isnan(value))
+    return LV_CHART_POINT_NONE;
+  return static_cast<int32_t>(std::clamp(std::round(value * multiplier), -CHART_POINT_LIMIT, CHART_POINT_LIMIT));
+}
+
+/// Set an axis range from bounds scaled as chart_point_value(). A NaN bound uses LVGL's default range of 0 to 100,
+/// and an empty range is widened by 1, since LVGL divides by its width when it draws a bar chart. Both are logged
+/// at verbose level, since a sensor gives NaN until its first reading.
+void chart_set_axis_range(lv_obj_t *chart, lv_chart_axis_t axis, float min, float max, float multiplier);
+
+/// As chart_point_value(), for a stacked chart. LVGL draws nothing for a value of 0 or less there, and logs a
+/// warning for each one at every redraw, so those are stored as gaps.
+inline int32_t chart_stacked_point_value(float value, float multiplier) {
+  const int32_t point = chart_point_value(value, multiplier);
+  return point <= 0 ? LV_CHART_POINT_NONE : point;
+}
+
+/// The storage slot of the point `index` places from the left of the chart.
+/// In SHIFT mode the chart is drawn from the series start point. An index out of range, which only a lambda can
+/// give, is logged and returned unchanged, so LVGL ignores it.
+uint32_t chart_point_slot(lv_obj_t *chart, lv_chart_series_t *series, uint32_t index);
+
+/// The Y value LVGL stores for a scatter point. LVGL only checks Y for a gap, so a NaN in X stores a gap in Y too.
+inline int32_t chart_point_y_value(float x, float y, float y_multiplier) {
+  return std::isnan(x) ? LV_CHART_POINT_NONE : chart_point_value(y, y_multiplier);
+}
+
+/// Append a scatter point, scaled as chart_point_value(); NaN in either coordinate leaves a gap.
+inline void chart_set_next_point(lv_obj_t *chart, lv_chart_series_t *series, float x, float y, float x_multiplier,
+                                 float y_multiplier) {
+  lv_chart_set_next_value2(chart, series, chart_point_value(x, x_multiplier), chart_point_y_value(x, y, y_multiplier));
+}
+
+/// Set the scatter point `index` places from the left of the chart, as chart_set_next_point() does.
+inline void chart_set_point(lv_obj_t *chart, lv_chart_series_t *series, uint32_t index, float x, float y,
+                            float x_multiplier, float y_multiplier) {
+  lv_chart_set_series_value_by_id2(chart, series, chart_point_slot(chart, series, index),
+                                   chart_point_value(x, x_multiplier), chart_point_y_value(x, y, y_multiplier));
+}
 #endif
 
 #ifdef USE_LVGL_LIST

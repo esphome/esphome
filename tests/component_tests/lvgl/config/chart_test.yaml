@@ -1,0 +1,157 @@
+esphome:
+  name: test-chart
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin: GPIO3
+
+sensor:
+  - platform: template
+    id: shadow_sensor
+    on_value:
+      - lvgl.chart.series.append:
+          id: x
+          value: !lambda return x;
+
+lvgl:
+  widgets:
+    - chart:
+        id: line_chart
+        type: line
+        point_count: 2
+        items:
+          line_width: 2
+        series:
+          - id: line_series
+            values: [10, 20]
+          - id: line_series_2
+            hidden: true
+    - chart:
+        id: scatter_chart
+        type: scatter
+        point_count: 2
+        series:
+          - id: scatter_series
+            points:
+              - {x: 10, y: 20}
+              - {x: 30, y: 40}
+    - chart:
+        id: scaled_chart
+        x_axis:
+          grid_lines: 0
+        y_axis:
+          min_value: -0.5
+          max_value: 1.5
+          multiplier: 10
+          grid_lines: 4
+        series:
+          - id: scaled_series
+            values: [1.25, nan, -2.5]
+    - chart:
+        id: gap_chart
+        type: scatter
+        point_count: 3
+        series:
+          - id: gap_series
+            points:
+              - {x: 10, y: 20}
+              - {x: nan, y: 30}
+              - {x: 30, y: 40}
+    - chart:
+        id: stacked_chart
+        type: stacked
+        point_count: 4
+        series:
+          - id: stacked_series
+            values: [0, 0.4, -1, 5]
+    - chart:
+        id: bar_chart
+        type: bar
+        indicator:
+          width: 8
+        y_axis:
+          min_value: 0
+          max_value: !lambda return 100;
+        series:
+          - id: x
+    - button:
+        on_click:
+          - lvgl.widget.refresh: bar_chart
+          - lvgl.chart.series.append:
+              id: stacked_series
+              value: !lambda return -2.0f;
+          - lvgl.chart.series.append:
+              id: stacked_series
+              value: 0
+          - lvgl.chart.series.append:
+              id: gap_series
+              point:
+                x: nan
+                y: !lambda return 5;
+          - lvgl.chart.series.set:
+              id: gap_series
+              index: 1
+              point:
+                x: !lambda return NAN;
+                y: 3
+          - lvgl.chart.series.append:
+              id: scaled_series
+              value: !lambda return 0.5f;
+          - lvgl.chart.series.set:
+              id: scaled_series
+              values:
+                - !lambda return 1.0f;
+                - 2
+          - lvgl.chart.update:
+              id: scaled_chart
+              x_axis:
+                grid_lines: 2
+          - lvgl.chart.update:
+              id: bar_chart
+              update_mode: circular
+              y_axis:
+                min_value: -10
+                max_value: 10
+          - lvgl.chart.series.append:
+              id: line_series
+              value: !lambda return 30;
+          - lvgl.chart.series.set:
+              id: line_series
+              values: [1, 2]
+          - lvgl.chart.series.append:
+              id: scatter_series
+              point:
+                x: !lambda return 50;
+                y: !lambda return 60;
+          - lvgl.chart.series.set:
+              id: line_series
+              index: !lambda return 1;
+              value: 5
+          - lvgl.chart.series.set:
+              id: scatter_series
+              index: 0
+              point: {x: 1, y: 2}
+          - lvgl.chart.series.set:
+              id: scatter_series
+              points:
+                - {x: 3, y: 4}
+                - {x: 5, y: 6}
+          - lvgl.chart.series.clear: line_series_2
+          - lvgl.chart.series.update:
+              id: line_series_2
+              color: 0x00FF00
+              hidden: !lambda return false;
