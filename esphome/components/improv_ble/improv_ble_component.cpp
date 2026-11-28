@@ -130,6 +130,7 @@ void ImprovBLEComponent::loop() {
       this->state_callback_.call(this->state_, this->error_state_);
 #endif
     }
+    this->save_connecting_sta_();
     this->release_advertising_();
     this->incoming_data_.clear();
     return;
@@ -335,6 +336,12 @@ void ImprovBLEComponent::start() {
 
 void ImprovBLEComponent::stop() {
   this->should_start_ = false;
+  if (this->state_ == improv::STATE_STOPPED) {
+    // No session to show a client, as when BLE is down; keep the server from starting the service on ble.enable
+    if (this->service_ != nullptr)
+      this->service_->set_should_start(false);
+    return;
+  }
   // Wait before stopping the service to ensure all BLE clients see the state change.
   // This prevents clients from repeatedly reconnecting and wasting resources by allowing
   // them to observe that the device is provisioned before the service disappears.
@@ -430,6 +437,7 @@ void ImprovBLEComponent::process_incoming_data_() {
 }
 
 void ImprovBLEComponent::on_wifi_connect_timeout_() {
+  this->connecting_sta_ = {};
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
@@ -445,9 +453,9 @@ void ImprovBLEComponent::check_wifi_connection_() {
     return;
   }
 
+  // Also saves an attempt whose session ended (BLE went down) before Wi-Fi connected
+  this->save_connecting_sta_();
   if (this->state_ == improv::STATE_PROVISIONING) {
-    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
-    this->connecting_sta_ = {};
     this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
 
     // Build the URL list directly into a stack buffer with no heap allocation
@@ -477,6 +485,13 @@ void ImprovBLEComponent::check_wifi_connection_() {
 
   this->set_state_(improv::STATE_PROVISIONED);
   this->stop();
+}
+
+void ImprovBLEComponent::save_connecting_sta_() {
+  if (this->connecting_sta_.get_ssid().empty() || !wifi::global_wifi_component->is_connected())
+    return;
+  wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+  this->connecting_sta_ = {};
 }
 
 void ImprovBLEComponent::advertise_service_data_() {

@@ -119,6 +119,7 @@ class ImprovBLEComponent final : public Component, public improv_base::ImprovBas
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   void check_wifi_connection_();
+  void save_connecting_sta_();
   bool check_identify_();
   void advertise_service_data_();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
