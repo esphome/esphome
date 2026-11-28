@@ -379,6 +379,11 @@ TEST(FujitsuGeneralTemperatureTest, EncodesPerModel) {
   // Out of range targets clamp rather than overflow the six bit field.
   EXPECT_EQ(encode_temperature(MODEL_ARRAH2E, 55), 56);
   EXPECT_EQ(encode_temperature(MODEL_ARREW4E, 5), 16);
+  // ARRAH2E advertises whole degrees, so a fractional target rounds before scaling instead of
+  // becoming a quarter degree value the old nibble encoding could not send.
+  EXPECT_EQ(encode_temperature(MODEL_ARRAH2E, 23.5), 32);
+  EXPECT_EQ(encode_temperature(MODEL_ARRAH2E, 23.4), 28);
+  EXPECT_EQ(encode_temperature(MODEL_ARRAH2E, 22.4), 24);
 }
 
 TEST(FujitsuGeneralTemperatureTest, DecodesPerModel) {
@@ -411,10 +416,18 @@ TEST(FujitsuGeneralTransmitTest, SendsTheModelProtocolByteAndTemperatureEncoding
                                            0x71, 0x01, 0x00, 0x00, 0x00, 0x00, 0x20, 0x3D};
   const std::vector<uint8_t> arrew4e_23_5 = {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x31,
                                              0x7D, 0x01, 0x00, 0x00, 0x00, 0x00, 0x20, 0x31};
+  // The frame ARRAH2E produced for a fractional target before the model option existed
+  const std::vector<uint8_t> arrah2e_23_5 = {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30,
+                                             0x81, 0x01, 0x00, 0x00, 0x00, 0x00, 0x20, 0x2E};
 
   Fixture arrah2e;
   arrah2e.sut.make_call().set_mode(climate::CLIMATE_MODE_COOL).set_target_temperature(22).perform();
   EXPECT_EQ(arrah2e.sent(), arrah2e_22);
+
+  // A fractional target still sends whole degrees on this model, as it did before the model option
+  Fixture arrah2e_fractional;
+  arrah2e_fractional.sut.make_call().set_mode(climate::CLIMATE_MODE_COOL).set_target_temperature(23.5f).perform();
+  EXPECT_EQ(arrah2e_fractional.sent(), arrah2e_23_5);
 
   Fixture arrew4e;
   arrew4e.sut.set_model(MODEL_ARREW4E);

@@ -197,7 +197,9 @@ uint8_t encode_temperature(Model model, float temperature) {
   const float clamped = clamp<float>(temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX);
   if (model == MODEL_ARREW4E)
     return (uint8_t) roundf((clamped - FUJITSU_GENERAL_TEMP_MIN / 2.0f) * 2.0f);
-  return (uint8_t) roundf((clamped - FUJITSU_GENERAL_TEMP_MIN) * 4.0f);
+  // Quantise to the whole degrees this model advertises, rounded before scaling so a fractional
+  // target sends the same value it always did.
+  return (uint8_t) ((roundf(clamped) - FUJITSU_GENERAL_TEMP_MIN) * 4.0f);
 }
 
 float decode_temperature(Model model, uint8_t field) {
