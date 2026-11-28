@@ -3,15 +3,24 @@ import logging
 import re
 
 from esphome import automation
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP, CONF_TAP
+from esphome.components.sensor import (
+    TEMPERATURE as TEMPERATURE_KIND,
+    new_sensor,
+    sensor_schema,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_ON_ERROR,
     CONF_ON_SUCCESS,
+    CONF_TEMPERATURE,
     CONF_THRESHOLD,
+    CONF_TYPE,
     CONF_UPDATE_INTERVAL,
+    ICON_THERMOMETER,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
@@ -55,6 +64,41 @@ DATA_PUBLISHER = cg.HubFunction(
     define="USE_MOTION_DATA_PUBLISHER",
 )
 DATA = DATA_PUBLISHER.param("data")
+
+# Each IMU's on-chip temperature sensor adds its publish of a new reading
+TEMPERATURE_PUBLISHER = cg.HubFunction(
+    "temperature",
+    cg.void,
+    [(cg.float_, "temperature")],
+    define="USE_MOTION_TEMPERATURE_PUBLISHER",
+)
+TEMPERATURE = TEMPERATURE_PUBLISHER.param("temperature")
+
+
+def temperature_sensor_schema(
+    hub_id_key: str,
+    hub_class: MockObjClass,
+    *,
+    accuracy_decimals: int = 2,
+    type_key: bool = True,
+) -> cv.Schema:
+    """Schema of an IMU temperature sensor; `type_key` adds the optional `type: temperature`."""
+    schema = sensor_schema(
+        kind=TEMPERATURE_KIND,
+        icon=ICON_THERMOMETER,
+        accuracy_decimals=accuracy_decimals,
+    ).extend({cv.GenerateID(hub_id_key): cv.use_id(hub_class)})
+    if type_key:
+        schema = schema.extend({cv.Optional(CONF_TYPE): cv.one_of(CONF_TEMPERATURE)})
+    return schema
+
+
+async def temperature_sensor_to_code(config: ConfigType, hub_id_key: str) -> None:
+    """Create an IMU temperature sensor and publish it from its hub's readings."""
+    var = await new_sensor(config)
+    hub = await cg.get_variable(config[hub_id_key])
+    TEMPERATURE_PUBLISHER.add(hub, parent_ref(var).publish_state(TEMPERATURE))
+
 
 SENSOR_SCHEMA = cv.Schema(
     {
