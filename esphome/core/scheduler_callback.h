@@ -57,9 +57,11 @@ class SchedulerCallback {
   SchedulerCallback() : invoke_(nullptr) {}  // a SchedulerItem's slot, filled by take_()
 
   void run_() { this->invoke_(this); }
+  /// Only a boxed callable has a destructor to run; an inline one is trivially copyable
+  bool is_boxed_() const { return this->invoke_ == &SchedulerCallback::invoke_boxed; }
   /// Frees a boxed callable
   void release_() {
-    const bool boxed = this->invoke_ == &SchedulerCallback::invoke_boxed;
+    const bool boxed = this->is_boxed_();
 #ifdef ESPHOME_DEBUG_SCHEDULER
     this->invoke_ = nullptr;  // empty for the destructor's check
 #endif
