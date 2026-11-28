@@ -53,6 +53,29 @@ enum class DestructorAction {
 static constexpr int SCHEDULED = 32;  // more than to_add_ holds, so the destructor makes it grow
 static constexpr uint32_t VICTIM_ID = 1000;
 
+// Fails the test within 5 s if it deadlocks (a capture's destructor run under the scheduler's mutex); stops and joins
+// its thread when the test ends, assertion failures included
+class DeadlockWatchdog {
+ public:
+  DeadlockWatchdog()
+      : thread_([this]() {
+          for (int i = 0; i < 500 && !this->done_; i++)
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          if (!this->done_) {
+            std::fprintf(stderr, "Deadlock: a capture's destructor could not call the scheduler\n");
+            std::_Exit(1);
+          }
+        }) {}
+  ~DeadlockWatchdog() {
+    this->done_ = true;
+    this->thread_.join();
+  }
+
+ private:
+  std::atomic<bool> done_{false};
+  std::thread thread_;
+};
+
 class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<FreedBy, DestructorAction>> {
  protected:
   // Runs for at least ms and at least a few passes, so a host pause cannot end it before follow-up timers run
@@ -64,6 +87,7 @@ class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<Fr
     }
   }
 
+  DeadlockWatchdog watchdog_;
   Scheduler scheduler_;
   DestructorComponent component_;
 };
@@ -72,15 +96,6 @@ class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<Fr
 // the mutex, so a watchdog turns a hang into a failure
 TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   const auto [freed_by, action] = GetParam();
-  std::atomic<bool> done{false};
-  std::thread watchdog([&done]() {
-    for (int i = 0; i < 500 && !done; i++)
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    if (!done) {
-      std::fprintf(stderr, "Deadlock: a capture's destructor could not call the scheduler\n");
-      std::_Exit(1);
-    }
-  });
 
   auto token = std::make_shared<int>(0);
   int scheduled_ran = 0;
@@ -175,8 +190,6 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   this->run_for_(5);
   EXPECT_FALSE(this->scheduler_.next_schedule_in(millis()).has_value());
   this->scheduler_.trim_freelist();
-  done = true;
-  watchdog.join();
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -191,6 +204,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 class SchedulerPendingRelease : public ::testing::Test {
  protected:
+  DeadlockWatchdog watchdog_;
   Scheduler scheduler_;
   DestructorComponent component_;
 };
