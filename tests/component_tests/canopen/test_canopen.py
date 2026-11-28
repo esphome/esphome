@@ -1,6 +1,7 @@
 """Tests for the canopen component."""
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,8 @@ from esphome.components.canopen import CONFIG_SCHEMA, SDO_WRITE_SCHEMA
 from esphome.config import read_config
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
+
+from ..helpers import get_define_value
 
 
 def _config(**kwargs):
@@ -19,14 +22,19 @@ def test_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Node options become setters, triggers become callbacks."""
+    """Heartbeat clients become monitor_node() calls, node options setters, triggers callbacks."""
     main_cpp = generate_main(component_config_path("canopen.yaml"))
 
     assert "canopen::CANopenComponent(can_bus, 16)" in main_cpp
     assert "canopen_node->set_heartbeat_interval(2000);" in main_cpp
+    assert "canopen_node->monitor_node(1, 3000);" in main_cpp
+    assert "canopen_node->monitor_node(2, 500);" in main_cpp
+    # sized by the hub's heartbeat clients
+    assert get_define_value("ESPHOME_CANOPEN_HEARTBEAT_CLIENTS") == "2"
     assert "canopen_node->set_start_operational(false);" in main_cpp
     for callback in (
         "add_on_nmt_state_callback",
+        "add_on_node_event_callback",
         "add_on_heartbeat_callback",
         "add_on_emcy_callback",
     ):
@@ -42,13 +50,19 @@ def test_codegen(
     # sdo_write: a negative value is passed as is, write_sdo() masks it to `size` bytes; no on_success: nullptr
     assert (
         "::canopen_node->write_sdo(1, 0x1017, 0x00, -1, 2, canopen::sdo_write_reply"
-        "<nullptr, esphome__lambdaaction_id_4__fn>, nullptr);"
+        "<nullptr, esphome__lambdaaction_id_5__fn>, nullptr);"
     ) in main_cpp
+    # canopen.nmt: no action class, a static function calling the hub
+    assert (
+        "canopen_node->send_nmt(1, canopen::NMTCommand::NMT_COMMAND_PRE_OPERATIONAL);"
+        in main_cpp
+    )
 
 
 def test_defaults() -> None:
     config = CONFIG_SCHEMA(_config())
     assert config["heartbeat_interval"].total_milliseconds == 5000
+    assert config["heartbeat_clients"] == []
     assert config["nmt_startup"] == "operational"
     assert config["identity"] == {
         "vendor_id": 0,
@@ -62,6 +76,22 @@ def test_defaults() -> None:
 def test_node_id_range(node_id: int) -> None:
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA(_config(node_id=node_id))
+
+
+def test_heartbeat_client_own_node_id() -> None:
+    with pytest.raises(cv.Invalid, match="own id"):
+        CONFIG_SCHEMA(_config(heartbeat_clients=[{"node_id": 0x10, "timeout": "1s"}]))
+
+
+@pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
+def test_heartbeat_client_timeout_fits_uint16(timeout: str, valid: bool) -> None:
+    """0x1016 stores the consumer timeout as uint16 milliseconds."""
+    config = _config(heartbeat_clients=[{"node_id": 0x01, "timeout": timeout}])
+    if valid:
+        CONFIG_SCHEMA(config)
+    else:
+        with pytest.raises(cv.Invalid, match="at most"):
+            CONFIG_SCHEMA(config)
 
 
 @pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
@@ -111,6 +141,43 @@ def test_sdo_write_value_fits_size(value: int, size: int, valid: bool) -> None:
             SDO_WRITE_SCHEMA(config)
 
 
+@pytest.mark.parametrize(
+    ("yaml", "monitor"),
+    [("canopen.yaml", True), ("node.yaml", False)],
+)
+def test_node_monitor_only_when_used(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    yaml: str,
+    monitor: bool,
+) -> None:
+    """CANopenNode's heartbeat consumer is built only for heartbeat_clients."""
+    generate_main(component_config_path(yaml))
+    assert ("USE_CANOPEN_NODE_MONITOR" in _defines()) == monitor
+    assert ("-DCO_CONFIG_HB_CONS=0" in CORE.build_flags) != monitor
+
+
+@pytest.mark.parametrize(
+    ("yaml", "warned"),
+    [
+        ("node_event_unmonitored.yaml", True),
+        ("node_event_other_hub_monitors.yaml", True),
+        ("canopen.yaml", False),
+    ],
+)
+def test_node_event_without_monitored_nodes(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+    yaml: str,
+    warned: bool,
+) -> None:
+    """on_node_event on a hub that monitors no node is warned about, even when another hub monitors one."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path(yaml))
+    assert ("on_node_event never fires" in caplog.text) == warned
+
+
 def test_local_nodes(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -129,6 +196,17 @@ def test_local_nodes(
         "node_c->set_next_local(node_a);",
     ]
     assert "node_d->set_next_local(" not in main_cpp
+    assert "USE_CANOPEN_LOCAL_NODES" in _defines()
+
+
+def test_single_node_has_no_local_queue(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """One node per canbus: the queue between local nodes isn't compiled."""
+    main_cpp = generate_main(component_config_path("canopen.yaml"))
+    assert "set_next_local(" not in main_cpp
+    assert "USE_CANOPEN_LOCAL_NODES" not in _defines()
 
 
 def test_local_nodes_same_id(
@@ -197,9 +275,11 @@ def test_client_only_codegen(
     "option",
     [
         {"heartbeat_interval": "1s"},
+        {"heartbeat_clients": [{"node_id": 1, "timeout": "1s"}]},
         {"nmt_startup": "pre_operational"},
         {"identity": {"vendor_id": 1}},
         {"device_name": "x"},
+        {"nmt_master": True},
     ],
 )
 def test_client_only_rejects_node_options(option: dict) -> None:
@@ -248,6 +328,7 @@ def test_client_only_invalid(
 @pytest.mark.parametrize(
     ("yaml", "message"),
     [
+        ("client_only_nmt.yaml", "canopen.nmt needs a CANopen node"),
         (
             "sdo_client_false_used.yaml",
             "has sdo_client: false, but the SDO client is used",
@@ -271,6 +352,22 @@ def test_sdo_client_auto(
     """A node compiles the client only if something uses it."""
     generate_main(component_config_path("node.yaml"))
     assert "USE_CANOPEN_SDO_CLIENT" not in _defines()
+
+
+@pytest.mark.parametrize(
+    ("yaml", "master"),
+    [("nmt_master_true.yaml", True), ("node.yaml", False)],
+)
+def test_nmt_master_only_when_used(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    yaml: str,
+    master: bool,
+) -> None:
+    """nmt_master: true compiles the NMT master without a canopen.nmt action (send_nmt() from lambdas)."""
+    generate_main(component_config_path(yaml))
+    assert ("USE_CANOPEN_NMT_MASTER" in _defines()) == master
+    assert ("-DCO_CONFIG_NMT=0x03" in CORE.build_flags) == master
 
 
 def test_sdo_client_true(

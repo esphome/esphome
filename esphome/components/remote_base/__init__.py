@@ -789,6 +789,22 @@ def coolix_dumper(var, config):
     pass
 
 
+# Denon
+DENON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.int_range(min=0, max=31),
+        cv.Required(CONF_COMMAND): cv.uint8_t,
+    }
+)
+DenonData, DenonBinarySensor, DenonTrigger, _, DenonDumper = register_simple_protocol(
+    "denon",
+    "Denon",
+    DENON_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+)
+
+
 # Dish
 DISH_SCHEMA = cv.Schema(
     {

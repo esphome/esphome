@@ -1,0 +1,45 @@
+esphome:
+  name: p4-test
+
+esp32:
+  board: esp32-p4-evboard
+  framework:
+    type: esp-idf
+
+psram:
+  speed: 200MHz
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+display:
+  - platform: mipi_dsi
+    id: zero
+    model: custom
+    dimensions:
+      width: 480
+      height: 800
+    lane_bit_rate: 1Gbps
+    init_sequence:
+      - [0xA0, 0x01]
+    brightness: 0
+  - platform: mipi_dsi
+    id: half
+    model: custom
+    dimensions:
+      width: 480
+      height: 800
+    lane_bit_rate: 1Gbps
+    init_sequence:
+      - [0xA0, 0x01]
+    brightness: 128
+  - platform: mipi_dsi
+    id: unset
+    model: custom
+    dimensions:
+      width: 480
+      height: 800
+    lane_bit_rate: 1Gbps
+    init_sequence:
+      - [0xA0, 0x01]

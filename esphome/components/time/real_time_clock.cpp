@@ -1,5 +1,9 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
+#include "esphome/core/time_utc.h"
+#ifdef USE_TIME_TRIGGERS
+#include "esphome/core/application.h"
+#endif
 #ifdef USE_HOST
 #include <sys/time.h>
 #elif defined(USE_ZEPHYR)
@@ -13,7 +17,6 @@
 #if defined(USE_RP2) || defined(USE_ZEPHYR)
 #include <sys/time.h>
 #endif
-#include <cerrno>
 #include <cinttypes>
 #include <cstdlib>
 
@@ -21,21 +24,7 @@ namespace esphome::time {
 
 ESPHOME_LOG_TAG(TAG, "time");
 
-RealTimeClock::RealTimeClock() = default;
-
-ESPTime __attribute__((noinline)) RealTimeClock::now() {
-#ifdef USE_TIME_TIMEZONE
-  time_t epoch = this->timestamp_now();
-  struct tm local_tm;
-  if (epoch_to_local_tm(epoch, get_global_tz(), &local_tm)) {
-    return ESPTime::from_c_tm(&local_tm, epoch);
-  }
-  // Fallback to UTC if parsing failed
-  return ESPTime::from_epoch_utc(epoch);
-#else
-  return ESPTime::from_epoch_local(this->timestamp_now());
-#endif
-}
+ESPTime __attribute__((noinline)) RealTimeClock::now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
 
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
@@ -60,10 +49,9 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
   // Skip if time is already synchronized to avoid unnecessary writes, log spam,
   // and prevent clock jumping backwards due to network latency
-  constexpr time_t min_valid_epoch = 1546300800;  // January 1, 2019
   time_t current_time = this->timestamp_now();
   // Check if time is valid (year >= 2019) before comparing
-  if (current_time >= min_valid_epoch) {
+  if (current_time >= esphome::internal::MIN_VALID_EPOCH) {
     // Unsigned subtraction handles wraparound correctly, then cast to signed
     int32_t diff = static_cast<int32_t>(epoch - static_cast<uint32_t>(current_time));
     if (diff >= -1 && diff <= 1) {
@@ -107,5 +95,42 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 
   this->time_sync_callback_.call();
 }
+
+#ifdef USE_TIME_TRIGGERS
+// How far the clock may move between checks before it counts as a time sync instead of skipped seconds
+static constexpr uint32_t MAX_TIMESTAMP_DRIFT = 900;
+
+void RealTimeClock::start_on_time_checks() {
+  App.scheduler.set_interval(this, 1000, [this]() { this->check_time_(); });
+}
+
+void RealTimeClock::check_time_() {
+  ESPTime time = this->now();
+  if (!time.is_valid())
+    return;
+
+  const uint32_t epoch = static_cast<uint32_t>(time.timestamp);
+  const uint32_t last = this->last_check_;
+  if (last != 0) {
+    if (last > epoch && last - epoch > MAX_TIMESTAMP_DRIFT) {
+      ESP_LOGW(TAG, "Time has jumped back!");
+    } else if (last >= epoch) {
+      return;
+    } else if (epoch - last > MAX_TIMESTAMP_DRIFT) {
+      ESP_LOGW(TAG, "Time has jumped ahead!");
+      this->last_check_ = epoch;
+      return;
+    } else if (epoch - last > 1) {
+      for (ESPTime skipped = ESPTime::from_epoch_local(last + 1); skipped < time; skipped.increment_second()) {
+        if (skipped.is_valid())
+          this->time_callback_.call(skipped);
+      }
+    }
+  }
+
+  this->last_check_ = epoch;
+  this->time_callback_.call(time);
+}
+#endif
 
 }  // namespace esphome::time

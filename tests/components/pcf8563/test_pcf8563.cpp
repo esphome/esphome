@@ -13,6 +13,8 @@ namespace esphome::pcf8563::testing {
 static constexpr uint8_t ADDRESS = 0x51;
 static constexpr uint8_t VL_SECONDS_REG = 0x02;
 static constexpr uint8_t VOLTAGE_LOW_BIT = 0x80;
+static constexpr uint8_t WEEKDAYS_REG = 0x06;
+static constexpr uint8_t CHIP_DAYS_PER_WEEK = 7;  // The chip counts weekdays 0-6, Sunday = 0
 static constexpr const char *VOLTAGE_LOW_WARNING = "Voltage-low flag set";
 
 static uint8_t to_bcd(int value) { return ((value / 10) << 4) | (value % 10); }
@@ -57,7 +59,7 @@ class PCF8563Test : public ::testing::Test {
     reg[0x03] = to_bcd(now.minute);
     reg[0x04] = to_bcd(now.hour);
     reg[0x05] = to_bcd(now.day_of_month);
-    reg[0x06] = now.day_of_week;
+    reg[WEEKDAYS_REG] = now.day_of_week - 1;
     reg[0x07] = to_bcd(now.month);
     reg[0x08] = to_bcd(now.year - 2000);
   }
@@ -101,6 +103,20 @@ TEST_F(PCF8563Test, WriteTimeClearsVoltageLowFlag) {
   EXPECT_EQ(this->bus_.registers[VL_SECONDS_REG] & VOLTAGE_LOW_BIT, 0);
   this->read_time_();
   EXPECT_EQ(this->syncs_, 1u);
+}
+
+// Seven steps from the written value visit every weekday once, and each has to read back as a valid time.
+// Only the weekday moves, so the time read back is still the host's time.
+TEST_F(PCF8563Test, WeekdayRoundTripsThroughSundayAndSaturday) {
+  this->rtc_.setup();
+  this->rtc_.write_time();
+  uint8_t &weekday = this->bus_.registers[WEEKDAYS_REG];
+  for (uint8_t step = 0; step < CHIP_DAYS_PER_WEEK; step++) {
+    weekday = (weekday + 1) % CHIP_DAYS_PER_WEEK;
+    const unsigned syncs_before = this->syncs_;
+    this->read_time_();
+    EXPECT_EQ(this->syncs_, syncs_before + 1) << "chip weekday " << unsigned(weekday);
+  }
 }
 
 }  // namespace esphome::pcf8563::testing

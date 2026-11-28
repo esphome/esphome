@@ -3,6 +3,11 @@ canopen:
     canbus_id: can_bus
     node_id: 0x10
     heartbeat_interval: 1s
+    heartbeat_clients:
+      - node_id: 0x01
+        timeout: 3s
+      - node_id: 0x02
+        timeout: 5s
     identity:
       vendor_id: 0x12345678
       product_code: 0x2A
@@ -18,6 +23,18 @@ canopen:
             lambda: "return state == esphome::canopen::NMTState::NMT_STATE_PRE_OPERATIONAL;"
           then:
             - lambda: "id(canopen_node).set_nmt_state(esphome::canopen::NMTState::NMT_STATE_OPERATIONAL);"
+    on_node_event:
+      - logger.log:
+          format: "node 0x%02x %s, %s"
+          args:
+            - node_id
+            - LOG_STR_ARG(esphome::canopen::node_event_to_string(event))
+            - LOG_STR_ARG(esphome::canopen::nmt_state_to_string(state))
+      - if:
+          condition:
+            lambda: "return event == esphome::canopen::NodeEvent::NODE_EVENT_OFFLINE;"
+          then:
+            - logger.log: "a monitored node went offline"
     on_heartbeat:
       - lambda: |-
           if (state == esphome::canopen::NMTState::NMT_STATE_BOOTUP)
@@ -45,6 +62,15 @@ esphome:
         const uint8_t data[2] = {0x01, 0x02};
         id(canopen_node).send_frame(0x210, data, sizeof(data));
 
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          if (!id(canopen_node).is_node_online(0x01))
+            ESP_LOGW("canopen_test", "node 0x01 offline");
+          ESP_LOGD("canopen_test", "node 0x02: %s",
+                   LOG_STR_ARG(esphome::canopen::nmt_state_to_string(id(canopen_node).get_node_state(0x02))));
+
 script:
   - id: canopen_sdo
     then:
@@ -65,6 +91,10 @@ script:
           node_id: !lambda "return 0x02;"
           index: 0x6040
           value: !lambda "return 0x0F;"
+      - canopen.nmt:
+          id: canopen_node
+          node_id: 0
+          command: start
       - canopen.sdo_read:
           id: canopen_client
           node_id: 0x10

@@ -34,7 +34,6 @@ from esphome.const import (
     CONF_RGB_ORDER,
     CONF_SETUP_PRIORITY,
     CONF_STATE,
-    CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
 from esphome.core import (
@@ -55,7 +54,12 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import Expression, MockObj, MockObjClass
+from esphome.cpp_generator import (
+    Expression,
+    MockObj,
+    MockObjClass,
+    VariableDeclarationExpression,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -89,9 +93,6 @@ from .types import (  # noqa: F401
     LightOutput,
     LightState,
     LightStateRTCState,
-    LightStateTrigger,
-    LightTurnOffTrigger,
-    LightTurnOnTrigger,
     PowerEstimation,
     light_ns,
 )
@@ -457,21 +458,9 @@ LIGHT_SCHEMA = (
                 *LEGACY_RESTORE_MODES, upper=True, space="_"
             ),
             cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
-            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE): auto.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(),
+            cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(),
+            cv.Optional(CONF_ON_STATE): auto.validate_automation(),
             cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
             cv.Optional(CONF_RESUME_EFFECT, default=False): cv.boolean,
             cv.Optional(CONF_WRITE_ON_SETUP, default=False): cv.boolean,
@@ -640,6 +629,73 @@ def _effects_table(effects: list[MockObj]) -> MockObj:
     )
 
 
+def _register_callbacks(
+    light_var: MockObj, light_id: ID, method: str, suffix: str, callbacks: list[MockObj]
+) -> None:
+    """Register the callbacks as one: alone, or called in order from a generated function."""
+    if not callbacks:
+        return
+    callback = callbacks[0]
+    if len(callbacks) > 1:
+        callback = auto.apply_static_function(
+            light_id,
+            cg.void,
+            [],
+            [cg.statement(MockObj(cb)()) for cb in callbacks],
+            suffix=suffix,
+        )
+    cg.add(getattr(light_var, method)(callback))
+
+
+async def _light_triggers_to_code(
+    light_var: MockObj, light_id: ID, config: ConfigType
+) -> None:
+    """Build on_turn_on, on_turn_off and on_state as callbacks on the light's two callback lists.
+
+    Built in that order, as the Trigger objects were, so a lambda can name an automation built
+    before it. Each on_turn_on keeps the state it last saw in a static of its own.
+    """
+    light = auto.parent_ref(light_var)
+    on_turn_on: list[MockObj] = []
+    for index, conf in enumerate(config.get(CONF_ON_TURN_ON, [])):
+        last_id = cg.unique_global_id(f"{light_var}_on_turn_on_{index}_last", cg.bool_)
+        last = MockObj(last_id)
+        CORE.register_variable(last_id, last)
+        cg.add_global(VariableDeclarationExpression(cg.bool_, "", last, static=True))
+        when = light_ns.update_turned_on(last, light.remote_values.is_on())
+        on_turn_on.append(
+            await auto.build_trigger_callback([], conf, [], when=str(when))
+        )
+    on_turn_off = [
+        await auto.build_trigger_callback(
+            [],
+            conf,
+            [],
+            when="!{parent}->current_values.is_on()",
+            parent=light_var,
+        )
+        for conf in config.get(CONF_ON_TURN_OFF, [])
+    ]
+    on_state = [
+        await auto.build_trigger_callback([], conf, [])
+        for conf in config.get(CONF_ON_STATE, [])
+    ]
+    _register_callbacks(
+        light_var,
+        light_id,
+        "add_remote_values_callback",
+        "remote_values",
+        on_turn_on + on_state,
+    )
+    _register_callbacks(
+        light_var,
+        light_id,
+        "add_target_state_reached_callback",
+        "target_state_reached",
+        on_turn_off,
+    )
+
+
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     # All 8 legacy restore_mode values, and the restore_state key, are just different
@@ -715,15 +771,7 @@ async def setup_light_core_(light_var, config, output_var):
         cg.add_define("USE_LIGHT_EFFECTS")
         cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        await auto.build_automation(trigger, [], conf)
+    await _light_triggers_to_code(light_var, config[CONF_ID], config)
 
     if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:
         cg.add(output_var.set_correction(*color_correct))
