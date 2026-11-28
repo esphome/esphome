@@ -1,0 +1,9 @@
+# ESPHome build test: the segmentation kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
+tflite_segmentation:
+  - id: test_segmentation
+    model: "../../components/tflite_segmentation/model.tflite"
+    input_width: 32
+    input_height: 20
+    input_channels: 3
