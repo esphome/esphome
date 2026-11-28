@@ -61,9 +61,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
+    await sensor.register_sensor(var, config)
 
     cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
     cg.add(var.set_auto_gain_threshold_high(config[CONF_AUTO_GAIN_THRESHOLD_HIGH]))
