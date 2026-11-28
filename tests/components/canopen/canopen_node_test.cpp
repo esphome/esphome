@@ -4,16 +4,9 @@
 #include <vector>
 
 #include "esphome/components/canopen/canopen_node.h"
+#include "fake_canbus.h"
 
 namespace esphome::canopen::testing {
-
-// the hub's event sources are protected: raise them as CANopenNode's heartbeat consumer / frame callbacks do
-class EventHub : public CANopenComponent {
- public:
-  EventHub() : CANopenComponent(nullptr, 0x10) {}
-  void node_event(uint8_t node_id, NodeEvent event, NMTState state) { this->node_event_(node_id, event, state); }
-  void emcy(uint8_t node_id, const Emergency &emergency) { this->emcy_callback_.call(node_id, emergency); }
-};
 
 class RecordingNode : public CANopenNode {
  public:
@@ -32,7 +25,7 @@ class RecordingNode : public CANopenNode {
 };
 
 TEST(CanopenNode, HooksForOwnNodeOnly) {
-  EventHub hub;
+  TestHub hub{nullptr};
   RecordingNode drive(&hub, 0x21);
   RecordingNode other(&hub, 0x22);
 
@@ -51,7 +44,7 @@ TEST(CanopenNode, HooksForOwnNodeOnly) {
 }
 
 TEST(CanopenHub, NmtStateBeforeSetup) {
-  EventHub hub;
+  TestHub hub{nullptr};
   EXPECT_EQ(hub.get_nmt_state(), NMTState::NMT_STATE_UNKNOWN);
   EXPECT_FALSE(hub.set_nmt_state(NMTState::NMT_STATE_OPERATIONAL));
   uint8_t value = 1;
@@ -59,7 +52,7 @@ TEST(CanopenHub, NmtStateBeforeSetup) {
 }
 
 TEST(CanopenNode, NodeIdAndUnmonitoredState) {
-  EventHub hub;
+  TestHub hub{nullptr};
   RecordingNode drive(&hub, 0x21);
 
   EXPECT_EQ(drive.get_node_id(), 0x21);
@@ -71,7 +64,7 @@ TEST(CanopenNode, NodeIdAndUnmonitoredState) {
 }
 
 TEST(CanopenNode, ForwardsWithNodeIdAndContext) {
-  EventHub hub;
+  TestHub hub{nullptr};
   RecordingNode drive(&hub, 0x21);
   struct Result {
     void *context{nullptr};
@@ -114,7 +107,7 @@ class MultiNode : public OtherBase, public CANopenNode {
 };
 
 TEST(CanopenNode, FromContextWithOtherBases) {
-  EventHub hub;
+  TestHub hub{nullptr};
   MultiNode drive(&hub, 0x21);
   static void *seen = nullptr;
   seen = nullptr;

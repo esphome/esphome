@@ -86,6 +86,9 @@ class TestHub : public CANopenComponent {
   // a received frame, as the canbus callback delivers it (processed right away)
   void frame(uint32_t can_id, const std::vector<uint8_t> &data) { this->on_frame_(make_frame(can_id, data)); }
   void frame(const canbus::CanFrame &f) { this->on_frame_(f); }
+  // the hub's event sources, raised as CANopenNode's heartbeat consumer / frame callbacks do
+  void node_event(uint8_t node_id, NodeEvent event, NMTState state) { this->node_event_(node_id, event, state); }
+  void emcy(uint8_t node_id, const Emergency &emergency) { this->emcy_callback_.call(node_id, emergency); }
 };
 
 // A hub without node id (only its SDO client sends) on a FakeCanbus, recording the replies of its requests.

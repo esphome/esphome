@@ -6,14 +6,9 @@
 #include <type_traits>
 #include <vector>
 
-#include "esphome/core/defines.h"  // before CANopenNode: clang-tidy gets the CO_CONFIG_* values from it
 #include "esphome/core/helpers.h"
 
-#define OD_DEFINITION
-// Use the library search path: quoted includes match our canopen.h on Windows.
-#include <CANopen.h>
-
-#include "od_handler.h"
+#include "od_handler.h"  // CANopenNode's CANopen.h, after esphome/core/defines.h
 
 namespace esphome::canopen {
 
@@ -54,11 +49,14 @@ class ObjectDictionary {
   OD_t *od() { return &this->od_; }
 
   // --- Handlers (od_handler.h, od_handler.cpp) ---
-  // Calls handler->od_read() / od_write() (an OdObject subclass) for every access to an entry added before.
+  // Calls handler->od_read() / od_write() (an OdObject subclass) for every access to that entry.
   template<typename T> void set_object(uint16_t index, T *handler) {
     static_assert(std::is_base_of_v<OdObject, T>, "OD handlers derive from canopen::OdObject");
     this->set_extension_(index, OD_extension_t{handler, &read_trampoline<T>, &write_trampoline<T>, {}});
   }
+  // write() and read() transfer the value's bytes exactly: a fixed-size entry takes exactly its size. CANopenNode's
+  // ODA_STR string handling (shorter writes, reads up to the terminator) isn't applied; the OD attributes don't
+  // include it.
   // Writes a value through the entry's handler, as an SDO download does. Needs write access. After finalize().
   OdResult write(uint16_t index, uint8_t sub, const void *data, size_t len);
   // Reads a value through the entry's handler, as an SDO upload does, into data (max_len bytes); *len is the number of
@@ -77,7 +75,7 @@ class ObjectDictionary {
     uint8_t sub_count;
     uint8_t type;
     uint16_t object;
-    uint16_t extension;  // position + 1, 0 = none
+    uint16_t extension{0};  // position + 1, 0 = none
   };
   // what add_*() collects until finalize()
   struct Pending {
@@ -101,6 +99,8 @@ class ObjectDictionary {
   void set_extension_(uint16_t index, const OD_extension_t &extension);
   // finalize(): links the sorted entries to their handlers; false for a handler without an entry or a second handler
   bool attach_handlers_(std::vector<PendingEntry> &entries);
+  // the entry's sub for an access; DEVICE_STATE before finalize()
+  OdResult get_sub_(uint16_t index, uint8_t sub, OD_IO_t *io);
   template<typename T>
   static ODR_t read_trampoline(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *count_read) {
     size_t done = 0;

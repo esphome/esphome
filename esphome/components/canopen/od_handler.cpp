@@ -37,12 +37,16 @@ bool ObjectDictionary::attach_handlers_(std::vector<PendingEntry> &entries) {
   return ok;
 }
 
-OdResult ObjectDictionary::read(uint16_t index, uint8_t sub, void *data, size_t max_len, size_t *len) {
-  *len = 0;
+OdResult ObjectDictionary::get_sub_(uint16_t index, uint8_t sub, OD_IO_t *io) {
   if (!this->finalized())
     return OdResult::OD_RESULT_DEVICE_STATE;
+  return static_cast<OdResult>(OD_getSub(this->find(index), sub, io, false));
+}
+
+OdResult ObjectDictionary::read(uint16_t index, uint8_t sub, void *data, size_t max_len, size_t *len) {
+  *len = 0;
   OD_IO_t io;
-  auto ret = static_cast<OdResult>(OD_getSub(OD_find(&this->od_, index), sub, &io, false));
+  auto ret = this->get_sub_(index, sub, &io);
   if (ret != OdResult::OD_RESULT_OK)
     return ret;
   if ((io.stream.attribute & ODA_SDO_R) == 0)
@@ -62,19 +66,15 @@ OdResult ObjectDictionary::read(uint16_t index, uint8_t sub, void *data, size_t 
 }
 
 size_t ObjectDictionary::value_size(uint16_t index, uint8_t sub) {
-  if (!this->finalized())
-    return 0;
   OD_IO_t io;
-  if (OD_getSub(OD_find(&this->od_, index), sub, &io, false) != ODR_OK)
+  if (this->get_sub_(index, sub, &io) != OdResult::OD_RESULT_OK)
     return 0;
   return io.stream.dataLength;
 }
 
 OdResult ObjectDictionary::write(uint16_t index, uint8_t sub, const void *data, size_t len) {
-  if (!this->finalized())
-    return OdResult::OD_RESULT_DEVICE_STATE;
   OD_IO_t io;
-  auto ret = static_cast<OdResult>(OD_getSub(OD_find(&this->od_, index), sub, &io, false));
+  auto ret = this->get_sub_(index, sub, &io);
   if (ret != OdResult::OD_RESULT_OK)
     return ret;
   if ((io.stream.attribute & ODA_SDO_W) == 0)

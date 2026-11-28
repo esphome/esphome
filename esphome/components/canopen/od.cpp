@@ -25,7 +25,7 @@ void ObjectDictionary::add_var(uint16_t index, OD_attr_t attr, void *data, OD_si
   Pending *p = this->pending_(index);
   if (p == nullptr)
     return;
-  p->entries.push_back(PendingEntry{index, 1, ODT_VAR, static_cast<uint16_t>(p->vars.size()), 0});
+  p->entries.push_back(PendingEntry{index, 1, ODT_VAR, static_cast<uint16_t>(p->vars.size())});
   p->vars.push_back(OD_obj_var_t{data, multi_byte(attr, len), len});
 }
 
@@ -35,7 +35,7 @@ void ObjectDictionary::add_array(uint16_t index, OD_attr_t attr, uint8_t *count,
   if (p == nullptr)
     return;
   p->entries.push_back(
-      PendingEntry{index, static_cast<uint8_t>(n + 1), ODT_ARR, static_cast<uint16_t>(p->arrays.size()), 0});
+      PendingEntry{index, static_cast<uint8_t>(n + 1), ODT_ARR, static_cast<uint16_t>(p->arrays.size())});
   p->arrays.push_back(OD_obj_array_t{count, data, ODA_SDO_R, multi_byte(attr, elem_len), elem_len, elem_len});
 }
 
@@ -44,7 +44,7 @@ void ObjectDictionary::add_record(uint16_t index, const RecordSub *subs, size_t 
   if (p == nullptr)
     return;
   p->entries.push_back(
-      PendingEntry{index, static_cast<uint8_t>(count), ODT_REC, static_cast<uint16_t>(p->records.size()), 0});
+      PendingEntry{index, static_cast<uint8_t>(count), ODT_REC, static_cast<uint16_t>(p->records.size())});
   for (size_t i = 0; i < count; i++) {
     const RecordSub &s = subs[i];
     p->records.push_back(OD_obj_record_t{s.data, s.sub, multi_byte(s.attr, s.len), s.len});
@@ -56,7 +56,7 @@ void ObjectDictionary::add_string(uint16_t index, const char *str) {
   if (p == nullptr)
     return;
   OD_size_t len = std::strlen(str);
-  p->entries.push_back(PendingEntry{index, 1, ODT_VAR, static_cast<uint16_t>(p->vars.size()), 0});
+  p->entries.push_back(PendingEntry{index, 1, ODT_VAR, static_cast<uint16_t>(p->vars.size())});
   // no ODA_MB: a string has no byte order
   p->vars.push_back(OD_obj_var_t{const_cast<char *>(str), ODA_SDO_R, len > 0 ? len : 1});
 }

@@ -16,7 +16,6 @@ class CANopenNode {
   // the constructor registers hub callbacks that capture this, and they can't be removed: no copies (or moves)
   CANopenNode(const CANopenNode &) = delete;
   CANopenNode &operator=(const CANopenNode &) = delete;
-  virtual ~CANopenNode() = default;
 
   CANopenComponent *get_canopen() const { return this->canopen_; }
   uint8_t get_node_id() const { return this->node_id_; }
@@ -60,6 +59,9 @@ class CANopenNode {
 #endif
 
  protected:
+  // not deleted through a CANopenNode pointer
+  ~CANopenNode() = default;
+
   // Events of this node, see NodeEvent. on_node_nmt_changed() also follows on_node_online() (unknown -> state) and
   // on_node_offline() (state -> unknown): act on online / reset, use nmt_changed as state information.
   virtual void on_node_online() {}
