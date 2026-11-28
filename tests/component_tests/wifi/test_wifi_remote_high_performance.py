@@ -89,3 +89,25 @@ def test_defaults_are_kept(
     generate_main(_write(tmp_path, chip, hosted_variant, False))
     for name in _C6_VALUES:
         assert sdkconfig_option(name) is None, name
+
+
+def test_c5_host_with_coprocessor_gets_the_settings(
+    generate_main: Callable[[str | Path], str],
+    tmp_path: Path,
+) -> None:
+    """With use_coprocessor the host's own radio is idle; the C6 values go to the co-processor."""
+    config = tmp_path / "test.yaml"
+    config.write_text(
+        "esphome:\n  name: test\n\n"
+        "esp32:\n  variant: esp32c5\n  framework: {type: esp-idf}\n\n"
+        "esp32_hosted:\n  type: spi\n  variant: ESP32C6\n  reset_pin: GPIO25\n"
+        "  handshake_pin: GPIO1\n  data_ready_pin: GPIO0\n  miso_pin: GPIO9\n"
+        "  mosi_pin: GPIO10\n  clk_pin: GPIO8\n  cs_pin: GPIO7\n\n"
+        "wifi:\n  use_coprocessor: true\n"
+        '  ssid: "test_ssid"\n  password: "test_password"\n'
+    )
+    require_high_performance_wifi()
+    generate_main(config)
+    for name, value in _C6_VALUES.items():
+        assert sdkconfig_option(name) == value, name
+    assert sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM") is None

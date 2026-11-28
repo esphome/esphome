@@ -50,6 +50,10 @@
 #include "esphome/components/provisioning/provisioning.h"
 #endif
 
+#ifdef USE_WIFI_REMOTE
+#include "esphome/components/watchdog/watchdog.h"
+#endif
+
 namespace esphome::wifi {
 
 ESPHOME_LOG_TAG(TAG, "wifi");
@@ -443,6 +447,11 @@ static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 31000;
 /// still busy with the previous connection attempt.
 static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 46000;
 
+#ifdef USE_WIFI_REMOTE
+// Covers the co-processor's 5 s bring-up and RPC timeouts while Wi-Fi starts
+static constexpr uint32_t REMOTE_START_WDT_TIMEOUT_MS = 60000;
+#endif
+
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
     case WiFiRetryPhase::INITIAL_CONNECT:
@@ -707,6 +716,10 @@ void WiFiComponent::setup() {
 #endif
 
   if (this->enable_on_boot_) {
+#ifdef USE_WIFI_REMOTE
+    // Waiting for a missing co-processor (5 s timeouts) would otherwise trip the task watchdog
+    watchdog::WatchdogManager wdt(REMOTE_START_WDT_TIMEOUT_MS);
+#endif
 #ifdef USE_ESP32
     this->wifi_lazy_init_();
 #endif
@@ -1541,6 +1554,9 @@ void WiFiComponent::enable() {
 
   ESP_LOGD(TAG, "Enabling");
   this->state_ = WIFI_COMPONENT_STATE_OFF;
+#ifdef USE_WIFI_REMOTE
+  watchdog::WatchdogManager wdt(REMOTE_START_WDT_TIMEOUT_MS);
+#endif
 #ifdef USE_ESP32
   // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
   // start() can safely run.

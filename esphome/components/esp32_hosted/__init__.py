@@ -358,6 +358,9 @@ async def to_code(config: ConfigType) -> None:
     # which is enforced at validation time.
     idf_ver = esp32.idf_version()
     os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
+    # esp_wifi_remote and wifi_remote_over_eppp PRIV_REQUIRE esp-tls, whose Kconfig
+    # selects MBEDTLS_TLS_ENABLED; the mbedTLS trim must not assume TLS is out.
+    esp32.include_builtin_idf_component("esp-tls")
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.5")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
