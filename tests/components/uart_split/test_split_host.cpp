@@ -1,0 +1,407 @@
+#include <gtest/gtest.h>
+
+#include <cstring>
+#include <functional>
+#include <utility>
+
+#include "esphome/components/uart_split/uart_split.h"
+
+#ifdef USE_HOST
+
+namespace esphome::uart_split::testing {
+
+class FakeUart : public uart::UARTComponent {
+ public:
+  void write_array(const uint8_t *data, size_t len) override {
+    if (this->on_write_) {
+      this->on_write_();
+    }
+    for (size_t i = 0; i < len && this->tx_len_ < sizeof(this->tx_); i++) {
+      this->tx_[this->tx_len_++] = data[i];
+    }
+  }
+  bool peek_byte(uint8_t *data) override {
+    if (this->rx_pos_ >= this->rx_len_) {
+      return false;
+    }
+    *data = this->rx_[this->rx_pos_];
+    return true;
+  }
+  bool read_array(uint8_t *data, size_t len) override {
+    if (this->rx_len_ - this->rx_pos_ < len) {
+      return false;
+    }
+    std::memcpy(data, this->rx_ + this->rx_pos_, len);
+    this->rx_pos_ += len;
+    if (this->on_read_) {
+      // Once: a debugger fires after the read, and what it writes must not start another one.
+      std::function<void()> on_read = std::move(this->on_read_);
+      this->on_read_ = nullptr;
+      on_read();
+    }
+    return true;
+  }
+  size_t available() override { return this->rx_len_ - this->rx_pos_; }
+  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+  void set_rx_full_threshold(size_t threshold) override { this->rx_full_threshold_ = threshold; }
+  void set_rx_timeout(size_t timeout) override { this->rx_timeout_ = timeout; }
+
+  void rx(const uint8_t *data, size_t len) {
+    for (size_t i = 0; i < len && this->rx_len_ < sizeof(this->rx_); i++) {
+      this->rx_[this->rx_len_++] = data[i];
+    }
+  }
+  void rx_fill(size_t len) {
+    for (size_t i = 0; i < len && this->rx_len_ < sizeof(this->rx_); i++) {
+      this->rx_[this->rx_len_++] = static_cast<uint8_t>(i);
+    }
+  }
+
+  // Runs inside write_array(), like bytes that arrive while a full TX FIFO takes the write.
+  std::function<void()> on_write_;
+  // Runs once, after a successful read_array(), like a UARTDebugger.
+  std::function<void()> on_read_;
+  uint8_t tx_[32]{};
+  size_t tx_len_{0};
+
+ protected:
+  void check_logger_conflict() override {}
+
+  uint8_t rx_[1024]{};
+  size_t rx_len_{0};
+  size_t rx_pos_{0};
+};
+
+class UartSplitCopy : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    this->tap_.set_rx_only(true);
+    this->tap_.set_mirror_tx(true);
+    this->quiet_.set_rx_only(true);
+    this->split_.add_output(&this->bus_);
+    this->split_.add_output(&this->tap_);
+    this->split_.add_output(&this->quiet_);
+  }
+
+  void TearDown() override {
+    // The loop requester is shared by all tests; read everything so the split stops requesting.
+    for (int i = 0; i < 5; i++) {
+      for (UartSplitOutput *output : {&this->bus_, &this->tap_, &this->quiet_}) {
+        drain(output);
+      }
+      this->split_.loop();
+    }
+  }
+
+  uint8_t read_one(uart::UARTComponent *uart) {
+    uint8_t byte = 0;
+    EXPECT_TRUE(uart->read_byte(&byte));
+    return byte;
+  }
+
+  static void fill(UartSplitOutput *output, size_t len) {
+    const uint8_t byte = 0x00;
+    for (size_t i = 0; i < len; i++) {
+      ASSERT_TRUE(output->inject_rx(&byte, 1));
+    }
+  }
+
+  static void drain(UartSplitOutput *output) {
+    uint8_t byte = 0;
+    while (output->read_byte(&byte)) {
+    }
+  }
+
+  FakeUart pins_;
+  UartSplit split_{&this->pins_};
+  UartSplitOutput bus_{&this->split_};
+  UartSplitOutput tap_{&this->split_};
+  UartSplitOutput quiet_{&this->split_};
+};
+
+TEST_F(UartSplitCopy, OutputsReportTheSettingsOfThePins) {
+  this->pins_.set_baud_rate(19200);
+  this->pins_.set_data_bits(7);
+  this->pins_.set_parity(uart::UART_CONFIG_PARITY_EVEN);
+  this->pins_.set_stop_bits(2);
+  this->split_.setup();
+  for (UartSplitOutput *output : {&this->bus_, &this->tap_, &this->quiet_}) {
+    EXPECT_EQ(output->get_baud_rate(), 19200u);
+    EXPECT_EQ(output->get_data_bits(), 7);
+    EXPECT_EQ(output->get_parity(), uart::UART_CONFIG_PARITY_EVEN);
+    EXPECT_EQ(output->get_stop_bits(), 2);
+  }
+}
+
+TEST_F(UartSplitCopy, SettingsChangedOnAnOutputAreRestored) {
+  this->pins_.set_baud_rate(19200);
+  this->bus_.set_baud_rate(115200);
+  this->bus_.set_parity(uart::UART_CONFIG_PARITY_ODD);
+  this->bus_.copy_settings();
+  EXPECT_EQ(this->bus_.get_baud_rate(), 19200u);
+  EXPECT_EQ(this->bus_.get_parity(), this->pins_.get_parity());
+}
+
+TEST_F(UartSplitCopy, OutputReportsTheRxFullThresholdAndTimeoutOfThePins) {
+  // An ESP32 UART at 9600 baud hands over its bytes once more than 8 are in, or after 2 characters of silence.
+  this->pins_.set_rx_full_threshold(8);
+  this->pins_.set_rx_timeout(2);
+  this->bus_.copy_settings();
+  EXPECT_EQ(this->bus_.get_rx_full_threshold(), 8u);
+  EXPECT_EQ(this->bus_.get_rx_timeout(), 2u);
+}
+
+TEST_F(UartSplitCopy, OutputReportsItsBufferSize) { EXPECT_EQ(this->bus_.get_rx_buffer_size(), RX_BUFFER_SIZE); }
+
+TEST_F(UartSplitCopy, ReceivedByteReachesEveryOutput) {
+  const uint8_t byte = 0x11;
+  this->pins_.rx(&byte, 1);
+  this->split_.loop();
+  EXPECT_EQ(this->read_one(&this->bus_), 0x11);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x11);
+  EXPECT_EQ(this->read_one(&this->quiet_), 0x11);
+  EXPECT_EQ(this->pins_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, SentByteIsMirroredOnlyToBoth) {
+  const uint8_t byte = 0x22;
+  this->bus_.write_array(&byte, 1);
+  EXPECT_EQ(this->pins_.tx_len_, 1u);
+  EXPECT_EQ(this->pins_.tx_[0], 0x22);
+  EXPECT_EQ(this->bus_.available(), 0u);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x22);
+  EXPECT_EQ(this->quiet_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, MirroredWriteComesAfterWhatWasReceivedBefore) {
+  const uint8_t received = 0x11;
+  const uint8_t sent = 0x22;
+  this->pins_.rx(&received, 1);
+  this->bus_.write_array(&sent, 1);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x11);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x22);
+  EXPECT_EQ(this->read_one(&this->bus_), 0x11);
+  EXPECT_EQ(this->bus_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, BytesReceivedWhileWritingComeAfterTheWrite) {
+  const uint8_t received = 0x11;
+  const uint8_t sent[] = {0xA1, 0xA2};
+  const uint8_t echo[] = {0xE1, 0xE2};
+  this->pins_.rx(&received, 1);
+  this->pins_.on_write_ = [this, &echo]() { this->pins_.rx(echo, sizeof(echo)); };
+  this->bus_.write_array(sent, sizeof(sent));
+  this->pins_.on_write_ = nullptr;
+  this->split_.loop();
+  for (uint8_t expected : {0x11, 0xA1, 0xA2, 0xE1, 0xE2}) {
+    EXPECT_EQ(this->read_one(&this->tap_), expected);
+  }
+}
+
+TEST_F(UartSplitCopy, BytesHeldBackForAFullWriterComeAfterItsWrite) {
+  // The full writer holds the read, so 0x11 waits in the parent and is not handed on before the write.
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  const uint8_t received = 0x11;
+  const uint8_t sent = 0x22;
+  this->pins_.rx(&received, 1);
+  this->bus_.write_array(&sent, 1);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x22);
+}
+
+TEST_F(UartSplitCopy, BytesAWriterHasNoRoomForComeAfterItsWrite) {
+  // The writer has room for 4 of the 10 waiting bytes and holds the read, so 4..9 wait in the parent until after the
+  // write.
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE - 4);
+  this->pins_.rx_fill(10);
+  const uint8_t sent = 0xAA;
+  this->bus_.write_array(&sent, 1);
+  drain(&this->bus_);
+  this->split_.loop();
+  for (uint8_t expected : {0, 1, 2, 3, 0xAA, 4, 5, 6, 7, 8, 9}) {
+    EXPECT_EQ(this->read_one(&this->tap_), expected);
+  }
+}
+
+TEST_F(UartSplitCopy, WriteFromADebuggerDoesNotStartASecondPass) {
+  // The debugger writes inside the read. Its byte comes first on tap, and the 100 bytes of the read keep their order.
+  const uint8_t sent = 0xAA;
+  this->pins_.rx_fill(100);
+  this->pins_.on_read_ = [this, &sent]() { this->bus_.write_array(&sent, 1); };
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->bus_.available(), 100u);
+  for (uint8_t i = 0; i < 100; i++) {
+    EXPECT_EQ(this->read_one(&this->bus_), i);
+  }
+  EXPECT_EQ(this->tap_.available(), 101u);
+  EXPECT_EQ(this->read_one(&this->tap_), sent);
+  for (uint8_t i = 0; i < 100; i++) {
+    EXPECT_EQ(this->read_one(&this->tap_), i);
+  }
+}
+
+TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {
+  const uint8_t byte = 0x33;
+  this->tap_.write_array(&byte, 1);
+  EXPECT_EQ(this->pins_.tx_len_, 0u);
+  EXPECT_EQ(this->tap_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, ReceiveOnlyOutputTakesEveryWrite) {
+  // A paced writer like uart_tcp keeps reading its socket, and so sees its client leave.
+  EXPECT_EQ(this->tap_.available_for_write(), RX_BUFFER_SIZE);
+  EXPECT_EQ(this->quiet_.available_for_write(), RX_BUFFER_SIZE);
+  // A known room: the writer is not paced to the baud rate.
+  EXPECT_EQ(this->tap_.paced_write_room(0), RX_BUFFER_SIZE);
+}
+
+TEST_F(UartSplitCopy, ReceiveOnlyFlushConfirmsNothing) {
+  EXPECT_EQ(this->tap_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS);
+  EXPECT_EQ(this->bus_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS);
+}
+
+TEST_F(UartSplitCopy, FullWriterStopsTheRead) {
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  const uint8_t byte = 0x44;
+  this->pins_.rx(&byte, 1);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 1u);
+  EXPECT_EQ(this->tap_.available(), 0u);
+  drain(&this->bus_);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->read_one(&this->bus_), 0x44);
+  EXPECT_EQ(this->read_one(&this->tap_), 0x44);
+}
+
+TEST_F(UartSplitCopy, WriterRoomLimitsTheRead) {
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE - 6);
+  this->pins_.rx_fill(20);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 14u);
+  EXPECT_EQ(this->bus_.available(), RX_BUFFER_SIZE);
+  EXPECT_EQ(this->tap_.available(), 6u);
+}
+
+TEST_F(UartSplitCopy, StalledWriterStopsHoldingTheReadAtHalfTheParentBuffer) {
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  this->pins_.rx_fill(127);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 127u);
+  EXPECT_EQ(this->tap_.available(), 0u);
+  // 128 bytes waiting: the writer drops them, the others get them.
+  this->pins_.rx_fill(1);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->tap_.available(), 128u);
+  EXPECT_EQ(this->quiet_.available(), 128u);
+  EXPECT_EQ(this->bus_.available(), RX_BUFFER_SIZE);
+  // Until it has been read empty, the writer no longer holds anything back.
+  this->pins_.rx_fill(1);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->tap_.available(), 129u);
+}
+
+TEST_F(UartSplitCopy, UnknownParentBufferNeverHoldsTheReadForAFullWriter) {
+  // A USB channel with buffer_size 64 reports no size and never holds 128 bytes.
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  this->pins_.rx_fill(10);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->tap_.available(), 10u);
+}
+
+TEST_F(UartSplitCopy, UnknownParentBufferStillHoldsTheReadForAWriterWithRoom) {
+  // The writer reads and has 36 bytes free, so the other 64 wait in the parent instead of being dropped.
+  fill(&this->bus_, RX_BUFFER_SIZE - 36);
+  this->pins_.rx_fill(100);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 64u);
+  EXPECT_EQ(this->bus_.available(), RX_BUFFER_SIZE);
+  EXPECT_EQ(this->tap_.available(), 36u);
+}
+
+TEST_F(UartSplitCopy, WriterReadEmptyHoldsTheReadAgain) {
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  EXPECT_TRUE(this->bus_.start_dropping());
+  drain(&this->bus_);
+  this->pins_.rx_fill(1);
+  this->split_.loop();
+  EXPECT_EQ(this->bus_.available(), 1u);
+  fill(&this->bus_, RX_BUFFER_SIZE - 1);
+  this->pins_.rx_fill(1);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 1u);
+}
+
+TEST_F(UartSplitCopy, FullReceiveOnlyOutputDoesNotStopTheRead) {
+  fill(&this->tap_, RX_BUFFER_SIZE);
+  this->pins_.rx_fill(10);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->bus_.available(), 10u);
+  EXPECT_EQ(this->tap_.available(), RX_BUFFER_SIZE);
+}
+
+TEST_F(UartSplitCopy, ReadsMoreThanOneChunkPerPass) {
+  this->pins_.rx_fill(200);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 0u);
+  EXPECT_EQ(this->bus_.available(), 200u);
+  EXPECT_EQ(this->tap_.available(), 200u);
+}
+
+TEST_F(UartSplitCopy, ReadsAtMostOneOutputBufferPerPass) {
+  this->pins_.rx_fill(300);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 300u - RX_BUFFER_SIZE);
+  EXPECT_EQ(this->bus_.available(), RX_BUFFER_SIZE);
+}
+
+TEST_F(UartSplitCopy, MoreWaitingThanOnePassMovesRunsTheLoopWithoutWaiting) {
+  // 230400 baud brings 23040 bytes a second; 256 bytes per 16 ms pass would not keep up.
+  this->pins_.rx_fill(300);
+  this->split_.loop();
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
+  drain(&this->bus_);
+  this->split_.loop();
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+  EXPECT_EQ(this->pins_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, StalledWriterDoesNotKeepTheLoopRunning) {
+  this->pins_.set_rx_buffer_size(256);
+  fill(&this->bus_, RX_BUFFER_SIZE);
+  this->pins_.rx_fill(10);
+  this->split_.loop();
+  EXPECT_EQ(this->pins_.available(), 10u);
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+}
+
+TEST_F(UartSplitCopy, DroppedWriteDoesNotHideADroppedReceive) {
+  const uint8_t byte = 0x66;
+  this->tap_.write_array(&byte, 1);
+  EXPECT_TRUE(this->tap_.start_dropping());
+  EXPECT_FALSE(this->tap_.start_dropping());
+}
+
+TEST_F(UartSplitCopy, EmptyBufferEndsARunOfDrops) {
+  EXPECT_TRUE(this->tap_.start_dropping());
+  fill(&this->tap_, 1);
+  this->tap_.end_dropping_if_empty();
+  EXPECT_FALSE(this->tap_.start_dropping());
+  drain(&this->tap_);
+  this->tap_.end_dropping_if_empty();
+  EXPECT_TRUE(this->tap_.start_dropping());
+}
+
+}  // namespace esphome::uart_split::testing
+
+#endif

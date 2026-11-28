@@ -705,6 +705,8 @@ KEY_UART_EXCLUSIVE = "uart_exclusive"
 class UARTData:
     # (UART, the UART whose settings it runs with), in the order they were declared.
     settings_sources: list[tuple[ID, ID]] = field(default_factory=list)
+    # UARTs that drop what is written to them.
+    receive_only: list[ID] = field(default_factory=list)
     # UARTs whose received bytes do not keep the timing of a serial line.
     unclocked: list[ID] = field(default_factory=list)
 
@@ -722,6 +724,31 @@ def inherit_settings(uart_id: ID, source_id: ID) -> None:
     CONFIG_SCHEMA: the devices' final validation can run before that of the caller.
     """
     _get_data().settings_sources.append((uart_id, source_id))
+
+
+def mark_receive_only(uart_id: ID) -> None:
+    """Reject devices that require TX on uart_id, a UART that drops what is written to it.
+
+    Call it from CONFIG_SCHEMA, like inherit_settings().
+    """
+    _get_data().receive_only.append(uart_id)
+
+
+def _receive_only_uart(uart_id: ID) -> str | None:
+    """Return the name of the receive-only UART that a write to uart_id ends in, or None."""
+    data = _get_data()
+    sources = {str(uart): source for uart, source in data.settings_sources}
+    # By name: a generated id is named only after the schemas ran.
+    receive_only = {str(uart) for uart in data.receive_only}
+    seen = set()
+    # A repeated name ends the walk on a loop.
+    while (name := str(uart_id)) not in seen:
+        if name in receive_only:
+            return name
+        seen.add(name)
+        if (uart_id := sources.get(name)) is None:
+            return None
+    return None
 
 
 def _settings_source(uart_id: ID) -> ID | None:
@@ -810,6 +837,16 @@ def final_validate_device_schema(
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
+        if require_tx and (receive_only_name := _receive_only_uart(uart_id)):
+            # A chain ends in another UART than the one that is named, so name that one.
+            ends_in = (
+                "it is receive-only"
+                if receive_only_name == str(uart_id)
+                else f"its writes end in the receive-only {receive_only_name}"
+            )
+            raise cv.Invalid(
+                f"Component {name} requires the uart referenced by {uart_bus} to transmit, but {ends_in}"
+            )
         if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
