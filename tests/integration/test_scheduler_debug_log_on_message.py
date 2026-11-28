@@ -4,7 +4,9 @@ neither deadlocks the scheduler at boot nor keeps triggering itself."""
 from __future__ import annotations
 
 import re
+from typing import Any
 
+from aioesphomeapi import LogLevel
 import pytest
 
 from .log_utils import LineWaiter
@@ -20,16 +22,26 @@ async def test_scheduler_debug_log_on_message(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """The device boots, the automation's delays run, and it stops triggering itself."""
+    """The device boots, the automation's delays run, it stops triggering itself, and other listeners such as
+    an API log subscriber still get the scheduler's lines."""
     waiter = LineWaiter()
+    api_scheduler_lines: list[str] = []
+
+    def on_log(msg: Any) -> None:
+        text = msg.message.decode("utf-8", errors="replace")
+        if "][scheduler" in text:
+            api_scheduler_lines.append(text)
 
     async with (
         run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await assert_device_name(client, "sched-debug-log")
+        client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
         first = await waiter.wait_for("FIRST_SNAPSHOT", timeout=10.0)
         second = await waiter.wait_for("SECOND_SNAPSHOT", timeout=10.0)
+
+    assert api_scheduler_lines, "the API log subscriber got no scheduler lines"
 
     first_count = int(SNAPSHOT.search(first).group(2))
     second_count = int(SNAPSHOT.search(second).group(2))
