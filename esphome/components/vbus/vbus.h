@@ -2,6 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
+#ifdef USE_VBUS_TX
+#include "vbus_tx.h"
+#endif
 #ifdef USE_VBUS_DATAGRAM
 #include "esphome/core/helpers.h"
 #endif
@@ -34,6 +37,15 @@ class VBus final : public uart::UARTDevice, public Component {
   void loop() override;
 
   void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
+#ifdef USE_VBUS_TX
+  void set_transmitter(VBusTransmitter *transmitter) { this->transmitter_ = transmitter; }
+#ifdef USE_VBUS_SEND_ACTION
+  bool request_datagram(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true) {
+    return this->transmitter_ != nullptr &&
+           this->transmitter_->request_datagram(command, value_id, value, expect_reply);
+  }
+#endif
+#endif
 #ifdef USE_VBUS_DATAGRAM
   template<typename F> void add_on_datagram_callback(F &&callback) {
     this->datagram_callback_.add(std::forward<F>(callback));
@@ -41,7 +53,12 @@ class VBus final : public uart::UARTDevice, public Component {
 #endif
 
  protected:
+#ifdef USE_VBUS_TX
+  friend class VBusTransmitter;
+  VBusTransmitter *transmitter_{nullptr};
+#endif
   int state_{0};
+  uint32_t last_rx_ms_{0};
   std::vector<uint8_t> buffer_;
   uint8_t protocol_;
   uint16_t source_;

@@ -1,21 +1,89 @@
+from dataclasses import dataclass, field
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_DESTINATION
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.const import CONF_COMMAND, CONF_ID, CONF_SOURCE, CONF_UART_ID, CONF_VALUE
+from esphome.core import CORE, ID
+from esphome.core.config import get_loop_interval
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@ssieb"]
-DOMAIN = "vbus"
-
+CODEOWNERS = ["@ssieb", "@labodj"]
 DEPENDENCIES = ["uart"]
-
+DOMAIN = "vbus"
 MULTI_CONF = True
+FILTER_SOURCE_FILES = filter_source_files_from_defines({"vbus_tx.cpp": "USE_VBUS_TX"})
 
 vbus_ns = cg.esphome_ns.namespace("vbus")
 VBus = vbus_ns.class_("VBus", uart.UARTDevice, cg.Component)
+VBusTransmitter = vbus_ns.class_("VBusTransmitter", uart.UARTDevice, cg.Component)
 
 CONF_VBUS_ID = "vbus_id"
 CONF_ON_DATAGRAM = "on_datagram"
+CONF_TRANSMIT = "transmit"
+CONF_LEASE_DURATION = "lease_duration"
+CONF_VALUE_ID = "value_id"
+CONF_EXPECT_REPLY = "expect_reply"
+
+
+@dataclass
+class VBusData:
+    """Action users recorded for final configuration validation."""
+
+    tx_actions: list[ID] = field(default_factory=list)
+
+
+def _get_data() -> VBusData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = VBusData()
+    return CORE.data[DOMAIN]
+
+
+def validate_address(value: object) -> int:
+    address = cv.uint16_t(value)
+    if address == 0 or address & 0x8080:
+        raise cv.Invalid(
+            "A VBus address must be nonzero and have both byte high bits clear"
+        )
+    return address
+
+
+def validate_transmit(config: ConfigType) -> ConfigType:
+    if config[CONF_SOURCE] == config[CONF_DESTINATION]:
+        raise cv.Invalid("VBus source and controller destination must differ")
+    return config
+
+
+def validate_command(value: object) -> int:
+    command = cv.uint16_t(value)
+    if command & 0x8080 or command in (0x0500, 0x0600):
+        raise cv.Invalid(
+            "Command must have both byte high bits clear; bus grants and releases are managed internally"
+        )
+    return command
+
+
+TRANSMIT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(VBusTransmitter),
+            cv.Optional(CONF_SOURCE, default=0x0020): validate_address,
+            cv.Required(CONF_DESTINATION): validate_address,
+            cv.Optional(CONF_LEASE_DURATION, default="500ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(milliseconds=200),
+                    max=cv.TimePeriod(milliseconds=1000),
+                ),
+            ),
+        }
+    ),
+    validate_transmit,
+)
 
 CONF_DELTASOL_BS_PLUS = "deltasol_bs_plus"
 CONF_DELTASOL_BS_2009 = "deltasol_bs_2009"
@@ -29,16 +97,46 @@ CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(VBus),
         cv.Optional(CONF_ON_DATAGRAM): automation.validate_automation({}),
+        cv.Optional(CONF_TRANSMIT): TRANSMIT_SCHEMA,
     }
 )
 
-FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "vbus",
-    baud_rate=9600,
-    data_bits=8,
-    parity="NONE",
-    stop_bits=1,
-)
+
+def final_validate(config: ConfigType) -> None:
+    transmit = config.get(CONF_TRANSMIT)
+    if transmit is None and config[CONF_ID] in _get_data().tx_actions:
+        raise cv.Invalid("VBus actions require transmit to be configured on this hub")
+    if transmit is not None:
+        uart_id = config[CONF_UART_ID]
+        if uart.is_unclocked(uart_id):
+            raise cv.Invalid(
+                "VBus transmit requires a UART that preserves serial line timing"
+            )
+        if get_loop_interval().total_milliseconds > 50:
+            raise cv.Invalid(
+                "VBus transmit requires esphome.loop_interval of at most 50ms"
+            )
+        # A busy RX line must become visible on the first byte, even without an idle gap.
+        if (
+            CORE.is_esp32
+            and uart.CONF_RX_TIMEOUT in (rx_config := fv.get_declaring_config(uart_id))
+            and rx_config.setdefault(uart.CONF_RX_FULL_THRESHOLD, 1) != 1
+        ):
+            raise cv.Invalid(
+                "Set rx_full_threshold to 1 on the VBus UART when using transmit"
+            )
+    uart.final_validate_device_schema(
+        "vbus",
+        baud_rate=9600,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
+        require_rx=transmit is not None,
+        require_tx=transmit is not None,
+    )(config)
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:
@@ -58,3 +156,62 @@ async def to_code(config: ConfigType) -> None:
                 ],
                 conf,
             )
+
+    if transmit := config.get(CONF_TRANSMIT):
+        cg.add_define("USE_VBUS_TX")
+        tx = cg.new_Pvariable(transmit[CONF_ID], var)
+        await cg.register_component(tx, transmit)
+        await uart.register_uart_device(tx, config)
+        cg.add(var.set_transmitter(tx))
+        cg.add(tx.set_source(transmit[CONF_SOURCE]))
+        cg.add(tx.set_destination(transmit[CONF_DESTINATION]))
+        cg.add(tx.set_lease_duration(transmit[CONF_LEASE_DURATION]))
+        if config[CONF_ID] in _get_data().tx_actions:
+            cg.add_define("USE_VBUS_SEND_ACTION")
+
+
+def validate_tx_action(config: ConfigType) -> ConfigType:
+    _get_data().tx_actions.append(config[CONF_ID])
+    return config
+
+
+TX_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(VBus)})
+
+
+def validate_send(config: ConfigType) -> ConfigType:
+    if (
+        config[CONF_COMMAND] in (0x0200, 0x0300, 0x0400)
+        and config[CONF_EXPECT_REPLY] is False
+    ):
+        raise cv.Invalid(
+            "Standard P2 read/write requests require expect_reply to be true"
+        )
+    return config
+
+
+SEND_SCHEMA = cv.All(
+    TX_ID_SCHEMA.extend(
+        {
+            cv.Required(CONF_COMMAND): cv.templatable(validate_command),
+            cv.Optional(CONF_VALUE_ID, default=0): cv.templatable(cv.uint16_t),
+            cv.Optional(CONF_VALUE, default=0): cv.templatable(cv.uint32_t),
+            cv.Optional(CONF_EXPECT_REPLY, default=True): cv.templatable(cv.boolean),
+        }
+    ),
+    validate_send,
+    validate_tx_action,
+)
+
+automation.register_apply_action(
+    "vbus.send_datagram",
+    SEND_SCHEMA,
+    automation.ApplyCall(
+        "request_datagram({}, {}, {}, {})",
+        (
+            (CONF_COMMAND, cg.uint16),
+            (CONF_VALUE_ID, cg.uint16),
+            (CONF_VALUE, cg.uint32),
+            (CONF_EXPECT_REPLY, cg.bool_),
+        ),
+    ),
+)
