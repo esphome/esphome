@@ -1,0 +1,11 @@
+image:
+  - platform: camera_image
+    id: test_camera_image
+    camera_id: test_camera
+    format: JPEG
+    type: RGB565
+    update_interval: 1s
+    on_image:
+      - logger.log: "Camera image decoded"
+    on_error:
+      - logger.log: "Camera image failed"
