@@ -102,6 +102,36 @@ TEST(SchedulerCallbackStorage, DontRunFreesTheBox) {
   EXPECT_EQ(token.use_count(), 1);
 }
 
+// A capture whose destructor reschedules the same key: SCHEDULER_DONT_RUN must cancel the old timer before freeing
+// the box, or the cancel would remove the replacement
+TEST(SchedulerCallbackStorage, DontRunCancelsBeforeFreeing) {
+  struct Rearm {
+    Scheduler *scheduler;
+    CallbackStorageComponent *component;
+    bool *ran;
+    bool armed{true};
+    Rearm(Scheduler *s, CallbackStorageComponent *c, bool *r) : scheduler(s), component(c), ran(r) {}
+    Rearm(Rearm &&other) noexcept : scheduler(other.scheduler), component(other.component), ran(other.ran) {
+      other.armed = false;  // only the last owner, the boxed copy, reschedules
+    }
+    ~Rearm() {
+      if (this->armed)
+        this->scheduler->set_timeout(this->component, "key", 1, [r = this->ran]() { *r = true; });
+    }
+  };
+  Scheduler scheduler;
+  CallbackStorageComponent component;
+  bool old_ran = false;
+  bool new_ran = false;
+  scheduler.set_timeout(&component, "key", 1, [&old_ran]() { old_ran = true; });
+  scheduler.set_timeout(&component, "key", SCHEDULER_DONT_RUN,
+                        [rearm = Rearm(&scheduler, &component, &new_ran)]() { (void) rearm; });
+  run_due(scheduler);
+  EXPECT_FALSE(old_ran);
+  EXPECT_TRUE(new_ran);
+  scheduler.trim_freelist();
+}
+
 // A std::function handed in as an lvalue is copied into a box, as an rvalue moved; both run
 TEST(SchedulerCallbackStorage, StdFunctionArgumentsStillWork) {
   Scheduler scheduler;
