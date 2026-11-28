@@ -668,3 +668,31 @@ class TestGC9107Dimensions:
         _, templateargs = get_instance(config)
 
         assert templateargs[5:11] == [128, 128, 2, 1, 2, 1]
+
+
+class TestJD9853Dimensions:
+    """The JD9853 panel shows 296 of the 320 rows in the controller memory."""
+
+    @pytest.mark.parametrize("rotation", [0, 180])
+    def test_jd9853_pads_bottom_rows(
+        self,
+        rotation: int,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """The 24 unused rows are a pad, so a mirrored row axis still lands on the panel."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={
+                KEY_BOARD: "esp32dev",
+                KEY_VARIANT: VARIANT_ESP32,
+            },
+        )
+
+        config = validated_config(
+            {"model": "JD9853", "dc_pin": 16, "cs_pin": 5, "rotation": rotation}
+        )
+        _, templateargs = get_instance(config)
+
+        # WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, PAD_WIDTH, PAD_HEIGHT
+        assert templateargs[5:11] == [240, 296, 0, 0, 0, 24]
+        assert templateargs[12] is True
