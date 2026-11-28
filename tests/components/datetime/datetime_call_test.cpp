@@ -32,6 +32,36 @@ TEST(DateTimeCall, UnsetFieldsStayUnset) {
   EXPECT_EQ(entity.got, (Fields{{}, {}, {}, 7, {}, {}}));
 }
 
+struct SingleSetter {
+  void (*set)(DateTimeCall &call);
+  Fields want;
+};
+
+class DateTimeCallSingleSetter : public ::testing::TestWithParam<SingleSetter> {};
+
+// Each setter marks only its own field, for zero and for the type's maximum (checked before validation)
+TEST_P(DateTimeCallSingleSetter, SetsOnlyItsField) {
+  TestDateTime entity;
+  auto call = entity.make_call();
+  GetParam().set(call);
+  EXPECT_EQ(fields_of(call), GetParam().want);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Cases, DateTimeCallSingleSetter,
+    ::testing::Values(SingleSetter{[](DateTimeCall &c) { c.set_year(0); }, {0, {}, {}, {}, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_year(65535); }, {65535, {}, {}, {}, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_month(0); }, {{}, 0, {}, {}, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_month(255); }, {{}, 255, {}, {}, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_day(0); }, {{}, {}, 0, {}, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_day(255); }, {{}, {}, 255, {}, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_hour(0); }, {{}, {}, {}, 0, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_hour(255); }, {{}, {}, {}, 255, {}, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_minute(0); }, {{}, {}, {}, {}, 0, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_minute(255); }, {{}, {}, {}, {}, 255, {}}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_second(0); }, {{}, {}, {}, {}, {}, 0}},
+                      SingleSetter{[](DateTimeCall &c) { c.set_second(255); }, {{}, {}, {}, {}, {}, 255}}));
+
 // 255 and 65535 are ordinary values: set, then rejected by validation like any other out-of-range value
 TEST(DateTimeCall, MaxValuesAreSet) {
   TestDateTime entity;
