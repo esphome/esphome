@@ -2,7 +2,7 @@
 
 #include "receiver_mitsubishi_heavy.h"
 
-#if defined(USE_ARDUINO) || defined(USE_ESP32)
+#if defined(USE_ARDUINO) || defined(USE_ESP32) || defined(ESPHOME_HEATPUMPIR_UNIT_TEST)
 
 #include <cmath>
 #include <IRSender.h>
@@ -17,7 +17,8 @@ namespace esphome::heatpumpir {
 // as they define conflicting symbols like millis() in the global namespace.
 class IRSenderESPHome : public IRSender {
  public:
-  IRSenderESPHome(remote_base::RemoteTransmitterBase *transmitter) : IRSender(0), transmit_(transmitter->transmit()) {}
+  IRSenderESPHome(remote_base::RemoteTransmitterBase *transmitter)
+      : IRSender(0), transmitter_(transmitter), transmit_(transmitter->transmit()) {}
 
   void setFrequency(int frequency) override {  // NOLINT(readability-identifier-naming)
     auto *data = this->transmit_.get_data();
@@ -26,10 +27,14 @@ class IRSenderESPHome : public IRSender {
 
   void space(int space_length) override {
     if (space_length) {
-      auto *data = this->transmit_.get_data();
-      data->space(space_length);
+      this->transmit_.get_data()->space(space_length);
     } else {
+      // space(0) ends a HeatpumpIR message. Send it, then start a fresh transmit so
+      // the next message is not appended to the previous timings.
+      const uint32_t frequency = this->transmit_.get_data()->get_carrier_frequency();
       this->transmit_.perform();
+      this->transmit_ = this->transmitter_->transmit();
+      this->transmit_.get_data()->set_carrier_frequency(frequency);
     }
   }
 
@@ -39,6 +44,7 @@ class IRSenderESPHome : public IRSender {
   }
 
  protected:
+  remote_base::RemoteTransmitterBase *transmitter_;
   remote_base::RemoteTransmitterBase::TransmitCall transmit_;
 };
 
