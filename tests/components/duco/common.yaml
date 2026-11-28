@@ -38,6 +38,14 @@ text_sensor:
 select:
   - platform: duco
     name: Mode
+  - platform: duco
+    mode:
+      - name: Mode Node 2
+        address: 2
+      - name: Mode Node 3
+        address: 3
+      - name: Mode Node 4
+        address: 4
 
 sensor:
   - platform: duco
@@ -58,8 +66,14 @@ sensor:
       name: Flow Level
       update_interval: 5s
     time_remaining:
-      name: Mode Time Remaining
-      update_interval: 5s
+      - name: Mode Time Remaining
+        update_interval: 5s
+      - address: 2
+        name: Mode Time Remaining Bathroom
+      - address: 3
+        name: Mode Time Remaining Bedroom
+      - address: 4
+        name: Mode Time Remaining Livingroom
     bypass:
       name: Bypass
     temperature_oda:

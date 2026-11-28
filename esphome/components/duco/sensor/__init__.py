@@ -106,11 +106,13 @@ SENSORS = {
     ),
     CONF_TIME_REMAINING: (
         DucoReading.DUCO_READING_TIME_REMAINING,
-        BOX_NODE,
-        _schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
+        None,
+        cv.ensure_list(
+            _schema(
+                unit_of_measurement=UNIT_SECOND,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_DURATION,
+            ).extend({cv.Optional(CONF_ADDRESS, default=BOX_NODE): cv.int_range(1, 68)})
         ),
     ),
     CONF_TEMPERATURE_ODA: (

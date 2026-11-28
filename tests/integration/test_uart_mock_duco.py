@@ -30,6 +30,9 @@ EXPECTED_SENSORS = {
     "filter_remaining": 120.0,
     "flow_level": 45.0,
     "time_remaining": 21930.0,
+    "time_remaining_node_2": 600.0,
+    "time_remaining_node_3": 0.0,
+    "time_remaining_node_4": 3600.0,
     "bypass": 50.0,
     "temperature_oda": -3.5,
     "temperature_sup": 19.5,
@@ -65,7 +68,10 @@ async def test_uart_mock_duco(
             key: require_entity(entities, key, SensorInfo, exact=True)
             for key in EXPECTED_SENSORS
         }
-        mode = require_entity(entities, "mode", SelectInfo)
+        mode = require_entity(entities, "mode", SelectInfo, exact=True)
+        mode_2 = require_entity(entities, "mode_node_2", SelectInfo, exact=True)
+        mode_3 = require_entity(entities, "mode_node_3", SelectInfo, exact=True)
+        mode_4 = require_entity(entities, "mode_node_4", SelectInfo, exact=True)
         comfort = require_entity(entities, "comfort_temperature", NumberInfo)
         comfort_zone_1 = require_entity(
             entities, "comfort_temperature_zone_1", NumberInfo
@@ -102,6 +108,9 @@ async def test_uart_mock_duco(
                 key,
             )
         await wait_for(lambda: state_of(mode) == "MAN1", "mode")
+        await wait_for(lambda: state_of(mode_2) == "MAN2", "node 2 mode")
+        await wait_for(lambda: state_of(mode_3) == "MAN3", "node 3 mode")
+        await wait_for(lambda: state_of(mode_4) == "AUTO", "node 4 mode")
         await wait_for(lambda: state_of(comfort) == pytest.approx(21.0), "comfort")
         await wait_for(
             lambda: state_of(comfort_zone_1) == pytest.approx(21.1), "zone 1 comfort"
@@ -138,8 +147,20 @@ async def test_uart_mock_duco(
         await waiter.wait_for("Time set to")
 
         client.select_command(mode.key, "CNT2")
-        await waiter.wait_for("Mode set to 09")
+        await waiter.wait_for("Mode address 1 set to 09")
         await wait_for(lambda: state_of(mode) == "CNT2", "new mode")
+        client.select_command(mode_2.key, "AUTO")
+        await waiter.wait_for("Mode address 2 set to 00")
+        await wait_for(lambda: state_of(mode_2) == "AUTO", "new node 2 mode")
+        client.select_command(mode_3.key, "MAN1x2")
+        await waiter.wait_for("Mode address 3 set to 84")
+        await wait_for(lambda: state_of(mode_3) == "MAN1x2", "new node 3 mode")
+        client.select_command(mode_4.key, "MAN2")
+        await waiter.wait_for("Mode address 4 set to 05")
+        await wait_for(lambda: state_of(mode_4) == "MAN2", "new node 4 mode")
+        assert state_of(mode) == "CNT2"
+        assert state_of(mode_2) == "AUTO"
+        assert state_of(mode_3) == "MAN1x2"
 
         client.number_command(comfort.key, 22.3)
         await waiter.wait_for("Comfort set to 223")
