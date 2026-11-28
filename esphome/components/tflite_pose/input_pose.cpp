@@ -27,6 +27,8 @@ bool PoseDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   if (this->count_ != keypoints) {
     this->keypoints_ = RAMAllocator<Keypoint>().make_unique_array_for_overwrite(keypoints);
     if (!this->keypoints_) {
+      // The old buffer is gone, so a later tensor of the old size has to allocate again.
+      this->count_ = 0;
       ESP_LOGE(TAG, "Could not allocate the %zu keypoints", keypoints);
       return false;
     }
