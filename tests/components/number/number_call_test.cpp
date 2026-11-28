@@ -22,9 +22,9 @@ class NumberCallTest : public ::testing::Test {
   ApplyNumber<record> number_;
 };
 
-TEST_F(NumberCallTest, SetValueReachesControl) {
-  this->number_.make_call().set_value(4).perform();
-  EXPECT_EQ(controlled, (std::vector<float>{4}));
+TEST_F(NumberCallTest, ZeroIsAValueNotUnset) {
+  this->number_.make_call().set_value(0).perform();
+  EXPECT_EQ(controlled, (std::vector<float>{0}));
 }
 
 // An unset value (NAN internally) and an explicit NAN are both rejected without calling control()
