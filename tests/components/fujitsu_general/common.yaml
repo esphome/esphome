@@ -5,9 +5,9 @@ climate:
     id: fujitsu_ac
 
   - platform: fujitsu_general
-    name: Fujitsu General Climate Alternate Header
+    name: Fujitsu General Climate ARREW4E
     transmitter_id: xmitr
-    state_header_byte: 0x31
+    model: arrew4e
 
 button:
   - platform: fujitsu_general

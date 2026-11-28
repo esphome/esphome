@@ -240,10 +240,9 @@ constexpr CapturedFrame CAPTURED_FRAMES[] = {
 TEST(FujitsuGeneralCaptureTest, DecodesEveryCapturedFrame) {
   for (const auto &frame : CAPTURED_FRAMES) {
     SCOPED_TRACE(frame.label);
-    // Read through the component's own nibble helper and field indices, so this also fails if the
-    // frame layout the header records ever stops matching what on_receive() reads.
-    EXPECT_EQ(get_nibble(frame.bytes, FUJITSU_GENERAL_TEMPERATURE_NIBBLE) + FUJITSU_GENERAL_TEMP_MIN,
-              frame.temperature);
+    // Read through the component's own field accessors, so this also fails if the frame layout the
+    // header records ever stops matching what on_receive() reads.
+    EXPECT_EQ(decode_temperature(MODEL_ARRAH2E, get_temperature_field(frame.bytes)), frame.temperature);
     // The turn on flag is only written by transmit_state(), so this pins the frame layout rather
     // than a decode path.
     EXPECT_EQ(get_nibble(frame.bytes, FUJITSU_GENERAL_POWER_ON_NIBBLE) != 0, frame.turn_on);
@@ -370,22 +369,63 @@ TEST(FujitsuGeneralTransmitTest, SendsEveryCapturedStateFrame) {
   }
 }
 
-TEST(FujitsuGeneralTransmitTest, StateHeaderByteIsOverridableForRemotesThatSendADifferentValue) {
-  // Captured from a remote that sends 0x31 in the state header byte. Units paired with such a
-  // remote ignore state frames carrying the 0x30 default, so the byte has to be configurable.
-  const std::vector<uint8_t> alternate = {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x31,
-                                          0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x2E};
+TEST(FujitsuGeneralTemperatureTest, EncodesPerModel) {
+  // The two encodings only agree at 24 degrees, so everything here uses another temperature.
+  EXPECT_EQ(encode_temperature(MODEL_ARRAH2E, 22), 24);  // (22 - 16) * 4
+  EXPECT_EQ(encode_temperature(MODEL_ARREW4E, 22), 28);  // (22 - 8) * 2
+  EXPECT_EQ(encode_temperature(MODEL_ARREW4E, 23.5), 31);
+  EXPECT_EQ(encode_temperature(MODEL_ARRAH2E, 30), 56);
+  EXPECT_EQ(encode_temperature(MODEL_ARREW4E, 30), 44);
+  // Out of range targets clamp rather than overflow the six bit field.
+  EXPECT_EQ(encode_temperature(MODEL_ARRAH2E, 55), 56);
+  EXPECT_EQ(encode_temperature(MODEL_ARREW4E, 5), 16);
+}
 
-  Fixture f;
-  f.send_mode(climate::CLIMATE_MODE_HEAT);
-  const auto default_frame = f.sent();
-  ASSERT_EQ(default_frame.size(), alternate.size());
-  EXPECT_EQ(default_frame[7], 0x30);  // the default is unchanged
+TEST(FujitsuGeneralTemperatureTest, DecodesPerModel) {
+  EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARRAH2E, 24), 22.0f);
+  EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARRAH2E, 56), 30.0f);
+  EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARREW4E, 28), 22.0f);
+  EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARREW4E, 31), 23.5f);
+  EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARREW4E, 44), 30.0f);
+  // Both models read 24 degrees out of the same field value, which is why a difference confined to
+  // the protocol byte looked like the whole story.
+  EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARRAH2E, 32), 24.0f);
+  EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARREW4E, 32), 24.0f);
+}
 
-  Fixture g;
-  g.sut.set_state_header_byte(0x31);
-  g.sut.make_call().set_mode(climate::CLIMATE_MODE_HEAT_COOL).set_target_temperature(24).perform();
-  EXPECT_EQ(g.sent(), alternate);
+TEST(FujitsuGeneralTemperatureTest, RoundTripsEveryStep) {
+  for (float temperature = 16.0f; temperature <= 30.0f; temperature += 1.0f) {
+    SCOPED_TRACE(temperature);
+    EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARRAH2E, encode_temperature(MODEL_ARRAH2E, temperature)), temperature);
+  }
+  for (float temperature = 16.0f; temperature <= 30.0f; temperature += 0.5f) {
+    SCOPED_TRACE(temperature);
+    EXPECT_FLOAT_EQ(decode_temperature(MODEL_ARREW4E, encode_temperature(MODEL_ARREW4E, temperature)), temperature);
+  }
+}
+
+TEST(FujitsuGeneralTransmitTest, SendsTheModelProtocolByteAndTemperatureEncoding) {
+  const std::vector<uint8_t> arrah2e_22 = {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30,
+                                           0x61, 0x01, 0x00, 0x00, 0x00, 0x00, 0x20, 0x4E};
+  const std::vector<uint8_t> arrew4e_22 = {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x31,
+                                           0x71, 0x01, 0x00, 0x00, 0x00, 0x00, 0x20, 0x3D};
+  const std::vector<uint8_t> arrew4e_23_5 = {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x31,
+                                             0x7D, 0x01, 0x00, 0x00, 0x00, 0x00, 0x20, 0x31};
+
+  Fixture arrah2e;
+  arrah2e.sut.make_call().set_mode(climate::CLIMATE_MODE_COOL).set_target_temperature(22).perform();
+  EXPECT_EQ(arrah2e.sent(), arrah2e_22);
+
+  Fixture arrew4e;
+  arrew4e.sut.set_model(MODEL_ARREW4E);
+  arrew4e.sut.make_call().set_mode(climate::CLIMATE_MODE_COOL).set_target_temperature(22).perform();
+  EXPECT_EQ(arrew4e.sent(), arrew4e_22);
+
+  // The ARREW4E encoding carries half degrees, which the ARRAH2E one cannot express.
+  Fixture half_degree;
+  half_degree.sut.set_model(MODEL_ARREW4E);
+  half_degree.sut.make_call().set_mode(climate::CLIMATE_MODE_COOL).set_target_temperature(23.5f).perform();
+  EXPECT_EQ(half_degree.sent(), arrew4e_23_5);
 }
 
 }  // namespace esphome::fujitsu_general::testing

@@ -10,10 +10,17 @@ namespace esphome::fujitsu_general {
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
 
-// State header. The second byte varies between remote models: units whose remote sends 0x31 ignore
-// state frames carrying 0x30, so it is overridable with state_header_byte in YAML.
+// State header. The second byte is the "protocol version" in IRremoteESP8266, and it also selects
+// how the temperature is encoded: see the Model enum below.
 constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE0 = 0x09;
-constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE1 = 0x30;
+constexpr uint8_t FUJITSU_GENERAL_PROTOCOL_ARRAH2E = 0x30;
+constexpr uint8_t FUJITSU_GENERAL_PROTOCOL_ARREW4E = 0x31;
+
+/// Remote models differ in that protocol byte and in the temperature encoding.
+enum Model : uint8_t {
+  MODEL_ARRAH2E = 0,  /// 0x30 protocol byte, temperature in whole degrees
+  MODEL_ARREW4E = 1,  /// 0x31 protocol byte, temperature in half degrees
+};
 
 // Stateless util commands the button platform sends; OFF is a util message too but changes the
 // climate state, so it stays with transmit_state() in the .cpp
@@ -70,11 +77,34 @@ constexpr void set_nibble(uint8_t *message, uint8_t nibble, uint8_t value) {
 }
 
 // Nibble indices of the state frame fields.
-constexpr uint8_t FUJITSU_GENERAL_TEMPERATURE_NIBBLE = 16;
 constexpr uint8_t FUJITSU_GENERAL_POWER_ON_NIBBLE = 17;
 constexpr uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
 constexpr uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
 constexpr uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
+
+// The temperature shares byte 8 with the power and Fahrenheit flags: bits 0 and 1 are those, bits
+// 2-7 hold the temperature. Encoding the value in degrees differs between models.
+constexpr uint8_t FUJITSU_GENERAL_TEMPERATURE_BYTE = 8;
+constexpr uint8_t FUJITSU_GENERAL_TEMPERATURE_SHIFT = 2;
+constexpr uint8_t FUJITSU_GENERAL_TEMPERATURE_MASK = 0b00111111;
+
+constexpr uint8_t get_temperature_field(const uint8_t *message) {
+  return (message[FUJITSU_GENERAL_TEMPERATURE_BYTE] >> FUJITSU_GENERAL_TEMPERATURE_SHIFT) &
+         FUJITSU_GENERAL_TEMPERATURE_MASK;
+}
+
+constexpr void set_temperature_field(uint8_t *message, uint8_t value) {
+  message[FUJITSU_GENERAL_TEMPERATURE_BYTE] =
+      (message[FUJITSU_GENERAL_TEMPERATURE_BYTE] &
+       ~(FUJITSU_GENERAL_TEMPERATURE_MASK << FUJITSU_GENERAL_TEMPERATURE_SHIFT)) |
+      ((value & FUJITSU_GENERAL_TEMPERATURE_MASK) << FUJITSU_GENERAL_TEMPERATURE_SHIFT);
+}
+
+/// Field value for a target temperature in degrees. Mirrors setTemp() in IRremoteESP8266.
+uint8_t encode_temperature(Model model, float temperature);
+
+/// Target temperature in degrees for a field value. Mirrors getTemp() in IRremoteESP8266.
+float decode_temperature(Model model, uint8_t field);
 
 /// Unassigned values keep the current mode, except that OFF becomes HEAT_COOL.
 climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode);
@@ -96,8 +126,11 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
   /// Transmit a util message that does not change the climate state (economy, vane steps)
   void transmit_util(uint8_t command);
 
-  /// Override the second state-header byte, for remote models that transmit a different value
-  void set_state_header_byte(uint8_t byte) { this->state_header_byte_ = byte; }
+  /// Select the remote model, which fixes the protocol byte and the temperature step
+  void set_model(Model model) {
+    this->model_ = model;
+    this->temperature_step_ = model == MODEL_ARREW4E ? 0.5f : 1.0f;
+  }
 
  protected:
   /// Transmit via IR the state of this climate controller.
@@ -118,8 +151,7 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
   // true if currently on - fujitsus transmit an on flag on when the remote moves from off to on
   bool power_{false};
 
-  // second state-header byte, 0x30 unless the remote model sends something else
-  uint8_t state_header_byte_{FUJITSU_GENERAL_STATE_HEADER_BYTE1};
+  Model model_{MODEL_ARRAH2E};
 };
 
 }  // namespace esphome::fujitsu_general
