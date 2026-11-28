@@ -9,11 +9,11 @@ from esphome import automation, external_files, git
 from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
+from esphome.components.const import CONF_TASK_CORE
 from esphome.components.http_request import validate_url
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
-    CONF_FRAMEWORK,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MICROPHONE,
@@ -27,12 +27,10 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
     CONF_USERNAME,
-    PLATFORM_ESP32,
     TYPE_GIT,
     TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,9 +40,6 @@ CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
 
 DOMAIN = "micro_wake_word"
-
-
-CONF_TASK_CORE = "task_core"
 
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_MODELS = "models"
@@ -413,27 +408,6 @@ def _download_http_models(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_task_core(config: ConfigType) -> ConfigType:
-    if config[CONF_TASK_CORE] != 1:
-        return config
-    esp32.only_on_variant(
-        supported=[
-            esp32.VARIANT_ESP32,
-            esp32.VARIANT_ESP32S3,
-            esp32.VARIANT_ESP32P4,
-            esp32.VARIANT_ESP32H4,
-            esp32.VARIANT_ESP32S31,
-        ],
-        msg_prefix="micro_wake_word task_core: 1",
-    )(config)
-    sdkconfig = fv.full_config.get()[PLATFORM_ESP32][CONF_FRAMEWORK][
-        esp32.CONF_SDKCONFIG_OPTIONS
-    ]
-    if sdkconfig.get("CONFIG_FREERTOS_UNICORE") == "y":
-        raise cv.Invalid("task_core: 1 requires FreeRTOS dual-core mode")
-    return config
-
-
 # The capture buffer holds at least one feature window and at most a second of audio
 MIN_RING_BUFFER_DURATION = cv.TimePeriod(milliseconds=120)
 MAX_RING_BUFFER_DURATION = cv.TimePeriod(seconds=1)
@@ -546,7 +520,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         },
         extra=cv.ALLOW_EXTRA,
     ),
-    _validate_task_core,
+    esp32.final_validate_task_core,
     _feature_step_size_validate,
 )
 
