@@ -25,7 +25,77 @@ event:
     event_types:
       - template_event_type1
 
+  - platform: template
+    name: Dimmer
+    id: dimmer_event
+    event_types:
+      - press
+      - rotate_left
+      - rotate_right
+    variables:
+      number_of_presses:
+        type: int
+        event_types: [press]
+      steps:
+        type: int
+        event_types: [rotate_left, rotate_right]
+      speed: float
+      long_press: bool
+      action:
+        type: string
+        max_length: 7
+      label: string
+    on_event:
+      - then:
+          - logger.log:
+              format: "%s: presses %d, steps %d, speed %.1f, long %d, %s, %s"
+              args:
+                - event_type.c_str()
+                - (int) number_of_presses
+                - (int) steps
+                - speed
+                - (int) long_press
+                - action.c_str()
+                - label.c_str()
+      # A delay keeps a copy of the values for later
+      - then:
+          - delay: 10ms
+          - logger.log:
+              format: "steps %d, %s"
+              args: [(int) steps, action.c_str()]
+
 button:
+  - platform: template
+    name: Turn Dimmer
+    on_press:
+      - event.trigger:
+          id: dimmer_event
+          event_type: press
+          data:
+            number_of_presses: 2
+            long_press: true
+      - event.trigger:
+          id: dimmer_event
+          event_type: !lambda return "rotate_right";
+          data:
+            steps: !lambda return -2;
+            speed: 1.5
+            action: start
+            label: !lambda |-
+              return id(some_event).has_event() ? "turned" : "first turn";
+      - event.trigger:
+          id: dimmer_event
+          event_type: rotate_left
+      - lambda: |-
+          // How components trigger an event with values and read them back
+          id(dimmer_event).trigger("rotate_left", {{1, 3}, {2, 0.5f}, {4, "repeat"}, {5, std::string("long text")}});
+          auto data = id(dimmer_event).get_last_event_data();
+          for (uint8_t i = 0; i < data.size(); i++) {
+            if (data.has(i) && data.variable(i).type == event::EVENT_VARIABLE_TYPE_INT)
+              ESP_LOGD("test", "%s=%d", LOG_STR_ARG(data.variable(i).name), (int) data.get_int(i));
+          }
+          ESP_LOGD("test", "speed %.1f, %s", data.get_float(2), data.get_string(4).c_str());
+
   - platform: template
     name: Trigger Event
     on_press:
