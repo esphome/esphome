@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     PLATFORM_ESP32,
 )
+from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import CONF_TAPS, resampler_ns, validate_taps
@@ -20,6 +22,41 @@ DEPENDENCIES = ["microphone"]
 ResamplerMicrophone = resampler_ns.class_(
     "ResamplerMicrophone", cg.Component, microphone.Microphone
 )
+CONF_FAST_DECIMATION = "fast_decimation"
+
+
+def _validate_fast_decimation(config: ConfigType) -> ConfigType:
+    if not config[CONF_FAST_DECIMATION]:
+        return config
+    if CORE.target_framework != "esp-idf":
+        raise cv.Invalid("fast_decimation requires the ESP-IDF framework")
+    source = config[CONF_MICROPHONE]
+    if source[CONF_BITS_PER_SAMPLE] != 16 or len(source[CONF_CHANNELS]) != 1:
+        raise cv.Invalid("fast_decimation requires mono 16-bit microphone input")
+    return config
+
+
+def _validate_decimator_source(config: ConfigType) -> ConfigType:
+    if not config[CONF_FAST_DECIMATION]:
+        return config
+    from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.esp32.const import VARIANT_ESP32
+
+    if get_esp32_variant() != VARIANT_ESP32:
+        raise cv.Invalid("fast_decimation currently supports only classic ESP32")
+    source_config = fv.get_declaring_config(config[CONF_MICROPHONE][CONF_MICROPHONE])
+    source_rate = source_config.get(CONF_SAMPLE_RATE)
+    target_rate = config[CONF_SAMPLE_RATE]
+    if (
+        source_rate is None
+        or source_rate <= target_rate
+        or source_rate % target_rate != 0
+        or not 2 <= source_rate // target_rate <= 16
+    ):
+        raise cv.Invalid(
+            "fast_decimation requires an integer source/output sample-rate ratio from 2:1 to 16:1"
+        )
+    return config
 
 
 def _set_stream_limits(config: ConfigType) -> ConfigType:
@@ -49,24 +86,35 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SAMPLE_RATE, default=16000): cv.int_range(8000, 48000),
             cv.Optional(CONF_FILTERS, default=16): cv.int_range(min=2, max=1024),
             cv.Optional(CONF_TAPS, default=16): validate_taps,
+            cv.Optional(CONF_FAST_DECIMATION, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32]),
+    _validate_fast_decimation,
     _set_stream_limits,
 )
 
 
-FINAL_VALIDATE_SCHEMA = cv.Schema(
-    {
-        cv.Required(
-            CONF_MICROPHONE
-        ): microphone.final_validate_microphone_source_schema("resampler"),
-    },
-    extra=cv.ALLOW_EXTRA,
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(
+                CONF_MICROPHONE
+            ): microphone.final_validate_microphone_source_schema("resampler"),
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+    _validate_decimator_source,
 )
 
 
 async def to_code(config: ConfigType) -> None:
+    if config[CONF_FAST_DECIMATION]:
+        from esphome.components.esp32 import add_idf_component
+
+        # ESP-SR requires 1.8.0, while other users can use newer 1.8.x releases.
+        add_idf_component(name="espressif/esp-dsp", ref="~1.8.0")
+        cg.add_define("USE_DSP_DECIMATOR")
     mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
     var = cg.new_Pvariable(config[CONF_ID], mic_source)
     await cg.register_component(var, config)
@@ -75,3 +123,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_target_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_filters(config[CONF_FILTERS]))
     cg.add(var.set_taps(config[CONF_TAPS]))
+    if config[CONF_FAST_DECIMATION]:
+        cg.add(var.set_fast_decimation(True))
