@@ -1,13 +1,18 @@
 // CANopenNode driver functions (301/CO_driver.h) on top of ESPHome canbus. CANptr is the CANopenComponent.
 // Everything runs on the main loop: frames are received by CANopenComponent::on_frame_() (the canbus callback),
-// handed to CANopenNode's receive buffers and the frame listeners by receive_(), and sent by transmit().
+// handed to CANopenNode's receive buffers and the frame listeners by receive_(), and sent by transmit(). Frames between
+// local nodes go through each receiver's queue (queue_local_(), deliver_local_()).
 #include "canopen.h"
 
+#include <array>
 #include <cstring>
 
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome::canopen {
+
+ESPHOME_LOG_TAG(TAG, "canopen");
 
 void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
   if (buf->bufferFull) {
@@ -29,13 +34,40 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   const uint8_t len = frame.payload_length();
   if (frame.use_extended_id || len > 8)
     return;
-  const bool taken =
-      this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
+  const uint16_t ident = (frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0);
+#ifdef USE_CANOPEN_LOCAL_NODES
+  if (this->bus_frame_staged_) {
+    // an earlier local node queued this frame for us, behind the older local frames and ahead of its replies
+    this->bus_frame_staged_ = false;
+    this->deliver_local_();
+    return;
+  }
+  // queued for the other local nodes before we send anything: what we send while handling our older local frames or
+  // this one is on the bus after it
+  for (CANopenComponent *node = this->next_local_; node != nullptr && node != this; node = node->next_local_)
+    node->stage_bus_frame_(ident, frame.data, len);
+  // frames other local nodes sent before are older: they go first
+  this->deliver_local_();
+#endif
+  this->handle_frame_(ident, frame.data, len);
+}
+
+#ifdef USE_CANOPEN_LOCAL_NODES
+void CANopenComponent::stage_bus_frame_(uint16_t ident, const uint8_t *data, uint8_t len) {
+  if (this->local_queue_.capacity() == 0 || this->is_failed())
+    return;  // not set up: no canbus callback either
+  // set even when the queue is full and the frame is lost: otherwise this node would take itself for the first one
+  this->bus_frame_staged_ = true;
+  this->queue_local_(ident, data, len);
+}
+#endif
+
+void CANopenComponent::handle_frame_(uint16_t ident, const uint8_t *data, uint8_t len) {
+  const bool taken = this->receive_(ident, data, len);
   this->hold_flush_ = true;
 #ifdef USE_CANOPEN_SDO_CLIENT
   // A reply for the running request is handled right away; CANopenNode restarts its response timer for it (and may
-  // send the next segment), so the time loop() charges starts again here. A reply from another local node comes by
-  // receive_() and waits for loop().
+  // send the next segment), so the time loop() charges starts again here.
   if (CO_FLAG_READ(this->co_->SDOclient->CANrxNew)) {
     this->process_sdo_(0);
     this->sdo_last_ms_ = App.get_loop_component_start_time();
@@ -74,12 +106,53 @@ bool CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len
 }
 
 bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len) {
-  if (this->canbus_->send_data(ident & 0x7FF, false, ident & 0x800, data, len) != canbus::ERROR_OK)
+#ifdef USE_CANOPEN_LOCAL_NODES
+  // the caller's buffer may change while send_data() runs (a log handler sending a frame from it): the local nodes get
+  // the bytes the bus got
+  std::array<uint8_t, 8> payload{};
+  if (len != 0)
+    memcpy(payload.data(), data, len);
+  if (this->canbus_->send_data(ident & 0x7FF, false, ident & 0x800, payload.data(), len) != canbus::ERROR_OK)
     return false;
   for (CANopenComponent *node = this->next_local_; node != nullptr && node != this; node = node->next_local_)
-    node->receive_(ident, data, len);
+    node->queue_local_(ident, payload.data(), len);
   return true;
+#else
+  return this->canbus_->send_data(ident & 0x7FF, false, ident & 0x800, data, len) == canbus::ERROR_OK;
+#endif
 }
+
+#ifdef USE_CANOPEN_LOCAL_NODES
+
+// Called from another node's transmit(), maybe inside its processing or a log handler: only queues, doesn't log.
+void CANopenComponent::queue_local_(uint16_t ident, const uint8_t *data, uint8_t len) {
+  if (this->local_queue_.capacity() == 0 || this->is_failed())
+    return;  // not set up
+  LocalFrame f{ident, len, {}};
+  if (len != 0)
+    memcpy(f.data.data(), data, len);
+  if (!this->local_queue_.push(f)) {
+    this->local_dropped_++;
+    return;
+  }
+  // enable_loop() may log (and is meant for a component's own context): only set the flag, the next pass enables it
+  this->enable_loop_soon_any_context();
+}
+
+void CANopenComponent::deliver_local_() {
+  // only the frames queued before this pass: what handling them makes this node send goes to the others' queues
+  for (auto n = this->local_queue_.size(); n > 0; n--) {
+    const LocalFrame f = this->local_queue_.front();
+    this->local_queue_.pop();
+    this->handle_frame_(f.ident, f.data.data(), f.len);
+  }
+  if (this->local_dropped_ != 0) {
+    ESP_LOGW(TAG, "%u frames from other local nodes lost (queue of %u full)", (unsigned) this->local_dropped_,
+             (unsigned) LOCAL_QUEUE_SIZE);
+    this->local_dropped_ = 0;
+  }
+}
+#endif  // USE_CANOPEN_LOCAL_NODES
 
 }  // namespace esphome::canopen
 
@@ -154,9 +227,12 @@ CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer) {
     CANmodule->firstCANtxMessage = false;
     return CO_ERROR_NO;
   }
-  // queued behind the others; CO_CANmodule_process() resends it from loop()
-  buffer->bufferFull = true;
-  CANmodule->CANtxCount++;
+  // queued behind the others; CO_CANmodule_process() resends it from loop(). Counted once: a send re-entered from a log
+  // handler inside transmit_buffer() may have queued this buffer already.
+  if (!buffer->bufferFull) {
+    buffer->bufferFull = true;
+    CANmodule->CANtxCount++;
+  }
   static_cast<esphome::canopen::CANopenComponent *>(CANmodule->CANptr)->enable_loop();
   return CO_ERROR_NO;
 }
