@@ -115,6 +115,8 @@ class CANopenComponent : public Component {
   ObjectDictionary &get_od() { return this->od_; }
 
   // --- OD access through the handlers (od_handler.cpp) ---
+  // Both transfer the value's bytes exactly: a fixed-size entry takes exactly its size. CANopenNode's ODA_STR string
+  // handling (shorter writes, reads up to the terminator) isn't applied; the hub's OD attributes don't include it.
   // Writes a value to our own OD through its handler, as an SDO download does (e.g. for commands received in other
   // frames). Synchronous; needs write access.
   OdResult write_od(uint16_t index, uint8_t sub, const void *data, size_t len) {
