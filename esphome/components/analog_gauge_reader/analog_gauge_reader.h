@@ -38,7 +38,7 @@ inline constexpr float MAX_EXACT_STEPS = 1e15f;
 struct DialConfig {
   /// Dial name used in logs. Points to a string literal.
   const char *id{""};
-  /// Crop buffer, a static array from codegen: crop_w * crop_h * channels bytes.
+  /// Crop buffer from codegen, in PSRAM when available: crop_w * crop_h * channels bytes.
   uint8_t *crop{nullptr};
   sensor::Sensor *value_sensor{nullptr};
   sensor::Sensor *confidence_sensor{nullptr};
@@ -236,7 +236,7 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   }
   void add_dial(DialConfig config) { this->dials_.push_back(std::move(config)); }
 #ifdef USE_ANALOG_GAUGE_READER_COLOR
-  /// Holds one converted crop; a static array from codegen, sized for the largest crop.
+  /// Holds one converted crop; a buffer from codegen, sized for the largest crop.
   void set_scratch_buffer(uint8_t *buffer) { this->scratch_buffer_ = buffer; }
 #endif
 

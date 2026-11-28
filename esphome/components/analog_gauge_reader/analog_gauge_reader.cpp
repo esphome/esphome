@@ -24,6 +24,17 @@ void AnalogGaugeReader::setup() {
   // The loop only has work between a request and its frame.
   this->disable_loop();
 
+  bool buffers_allocated = true;
+  for (const auto &dial : this->dials_)
+    buffers_allocated = buffers_allocated && dial.crop != nullptr;
+#ifdef USE_ANALOG_GAUGE_READER_COLOR
+  buffers_allocated = buffers_allocated && this->scratch_buffer_ != nullptr;
+#endif
+  if (!buffers_allocated) {
+    this->mark_failed(LOG_STR("Could not allocate the dial buffers"));
+    return;
+  }
+
   if (!this->detector_.reserve(this->max_crop_w_, this->max_crop_h_)) {
     this->mark_failed(LOG_STR("Could not allocate the detector buffers"));
     return;

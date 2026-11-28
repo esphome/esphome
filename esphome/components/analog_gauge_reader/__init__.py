@@ -306,15 +306,19 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ID],
             cg.uint8,
             max(d[CONF_CROP_W] * d[CONF_CROP_H] for d in dials),
+            psram=True,
         )
         cg.add(var.set_scratch_buffer(scratch))
 
+    # A few large dials do not fit in internal RAM, so the crops go to PSRAM when
+    # the build has it. setup() checks the allocations.
     for dial in dials:
         channels = 3 if _needs_color(dial) else 1
         crop = cg.static_buffer(
             config[CONF_ID],
             cg.uint8,
             dial[CONF_CROP_W] * dial[CONF_CROP_H] * channels,
+            psram=True,
         )
         calibration = None
         if points := dial.get(CONF_CALIBRATION):
