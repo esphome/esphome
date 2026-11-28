@@ -28,9 +28,6 @@ void ThermoProTP970::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
   LOG_SENSOR("  ", "Notification Count", this->notification_count_sensor_);
 #endif
-#ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Temperature Stream", this->temperature_stream_binary_sensor_);
-#endif
 }
 
 void ThermoProTP970::invalidate_() {
@@ -43,10 +40,6 @@ void ThermoProTP970::invalidate_() {
     this->ambient_temperature_sensor_->publish_state(NAN);
   if (this->battery_level_sensor_ != nullptr)
     this->battery_level_sensor_->publish_state(NAN);
-#endif
-#ifdef USE_BINARY_SENSOR
-  if (this->temperature_stream_binary_sensor_ != nullptr)
-    this->temperature_stream_binary_sensor_->publish_state(false);
 #endif
 }
 
@@ -64,10 +57,6 @@ void ThermoProTP970::publish_reading_(const TemperatureReading &reading) {
     this->battery_level_sensor_->publish_state(reading.battery_level);
   if (this->notification_count_sensor_ != nullptr)
     this->notification_count_sensor_->publish_state(this->notification_count_);
-#endif
-#ifdef USE_BINARY_SENSOR
-  if (this->temperature_stream_binary_sensor_ != nullptr)
-    this->temperature_stream_binary_sensor_->publish_state(true);
 #endif
 }
 

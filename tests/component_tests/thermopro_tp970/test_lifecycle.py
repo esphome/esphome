@@ -17,7 +17,6 @@ def test_driver_lifecycle(tmp_path: Path) -> None:
         "components/ble_client/ble_client.h",
         "components/esp32_ble/ble_uuid.h",
         "components/sensor/sensor.h",
-        "components/binary_sensor/binary_sensor.h",
     )
     for header in headers:
         target = tmp_path / "esphome" / header

@@ -18,9 +18,3 @@ sensor:
       name: TP970 Battery Level
     notification_count:
       name: TP970 Temperature Notifications
-
-binary_sensor:
-  - platform: thermopro_tp970
-    thermopro_tp970_id: thermopro_tp970_hub
-    temperature_stream:
-      name: TP970 Temperature Stream

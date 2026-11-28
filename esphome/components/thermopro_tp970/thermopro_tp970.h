@@ -5,9 +5,6 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
 #include "thermopro_tp970_protocol.h"
 
 #ifdef USE_ESP32
@@ -26,9 +23,6 @@ class ThermoProTP970 : public Component, public ble_client::BLEClientNode {
   SUB_SENSOR(ambient_temperature)
   SUB_SENSOR(battery_level)
   SUB_SENSOR(notification_count)
-#endif
-#ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(temperature_stream)
 #endif
 
  protected:
