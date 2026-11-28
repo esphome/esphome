@@ -35,6 +35,7 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
+    SCHEDULER_DONT_RUN,
 )
 from esphome.cpp_generator import RawExpression
 from esphome.types import ConfigType
@@ -339,6 +340,11 @@ def _customise_schema(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = _customise_schema
 
 
+def _never_updates(config: ConfigType) -> bool:
+    interval = config.get(CONF_UPDATE_INTERVAL)
+    return interval is not None and interval.total_milliseconds == SCHEDULER_DONT_RUN
+
+
 def _final_validate(config: ConfigType) -> None:
     # IT8951 reads from SPI (DevInfo, VCOM, register reads) so MISO is required.
     spi.final_validate_device_schema("it8951", require_miso=True, require_mosi=True)(
@@ -349,8 +355,12 @@ def _final_validate(config: ConfigType) -> None:
         if display.has_external_writer(config[CONF_ID]):
             if CONF_UPDATE_INTERVAL not in config:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
-        else:
-            config[CONF_SHOW_TEST_CARD] = True
+        elif not _never_updates(config):
+            # Only a default: an explicit show_test_card is respected. A display that is
+            # never updated on its own gets its content some other way (for example a
+            # lambda filling the framebuffer before component.update), and the test card
+            # would clear that content on the first update.
+            config.setdefault(CONF_SHOW_TEST_CARD, True)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
