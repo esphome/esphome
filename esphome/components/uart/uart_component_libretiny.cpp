@@ -16,6 +16,14 @@
 #include <SoftwareSerial.h>
 #endif
 
+#if defined(USE_BK72XX) || defined(USE_LN882X)
+#include <sdk_private.h>
+#endif
+#ifdef USE_LN882X
+// The SDK's open port handles (components/serial/serial.c), declared as in libretiny/core.cpp; not in its header.
+extern "C" Serial_t *serial_handles[SER_PORT_NUM];
+#endif
+
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
@@ -91,6 +99,7 @@ void LibreTinyUARTComponent::open_hardware_port_([[maybe_unused]] pin_size_t tx_
     return;
   // LN882x: the port needs its SDK handle, at boot and after an end()
   libretiny::ensure_serial_handle(this->hardware_idx_);
+  this->port_baud_rate_ = this->baud_rate_;
 #ifdef USE_UART_LIBRETINY_PIN_ROUTING
   // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen). setPins()
   // replaces a left-out pin (PIN_INVALID) with the port's default, so default-pin ports start as before.
@@ -158,6 +167,76 @@ void LibreTinyUARTComponent::setup() {
 #endif
   this->mark_failed(LOG_STR("SoftwareSerial is not implemented for this chip."));
 #endif
+}
+
+void LibreTinyUARTComponent::load_settings(bool dump_config) {
+#ifdef USE_UART_TX_BREAK
+  // A held break has closed the port; releasing it opens the port with the new settings
+  if (this->tx_break_)
+    return;
+#endif
+  // Only a hardware port this component has started can change its settings: LibreTiny's SoftwareSerial ignores a
+  // second begin(), and before or after a failed setup() the port may be the logger's.
+  SerialClass *hardware = hardware_serial(this->hardware_idx_);
+  if (hardware == nullptr || this->serial_ != hardware || !*hardware) {
+    ESP_LOGW(TAG, "Only a started hardware UART can load new settings");
+    return;
+  }
+  // Bytes still to be sent would otherwise go out at the new settings. flush() returns once the FIFO is empty, and
+  // on BK72xx it waits for the other port too, so this waits for the FIFO of this port, then one more character.
+  // A character is a start bit, up to 8 data bits, parity and 2 stop bits.
+  const uint32_t char_us = 12 * 1000000 / this->port_baud_rate_ + 1;
+#if defined(USE_BK72XX)
+  // The FIFO holds fewer than 256 bytes (8-bit count): if it does not drain by then, the settings stay unchanged
+  const uint32_t start = micros();
+  while (!uart_is_tx_fifo_empty(this->hardware_idx_ - 1)) {
+    if (micros() - start > 256 * char_us) {
+      ESP_LOGW(TAG, "TX did not finish; settings not changed");
+      return;
+    }
+  }
+  delay_microseconds_safe(char_us);
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+  // flush() here gives up after about 1 ms: wait for the 16-byte FIFO and the shift register instead
+  delay_microseconds_safe(17 * char_us);
+#elif defined(USE_LN882X)
+  // flush() returns while two characters are still in the UART (holding and shift register)
+  hardware->flush();
+  delay_microseconds_safe(2 * char_us);
+#else
+  hardware->flush();
+  delay_microseconds_safe(char_us);
+#endif
+  this->port_baud_rate_ = this->baud_rate_;
+#if defined(USE_LN882X)
+  // The LN882x core keeps 8N1. Its configure() zeroes the port while its RX interrupt is live, which a byte arriving
+  // then turns into an endless interrupt loop, so only the baud rate is set. The warning comes after the change: a
+  // log automation could close the port.
+  serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
+  if (this->get_config() != SERIAL_8N1) {
+    ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
+  }
+#elif defined(USE_BK72XX)
+  // BK72xx configure() registers the port with the SDK again on every call, growing its device table on the heap;
+  // uart_hw_set_change() only rewrites the port's registers, the way configure() ends.
+  bk_uart_config_t cfg{};
+  cfg.baud_rate = this->baud_rate_;
+  cfg.data_width = static_cast<uart_data_width_t>(this->data_bits_ - 5);
+  cfg.parity = this->parity_ == UART_CONFIG_PARITY_EVEN  ? BK_PARITY_EVEN
+               : this->parity_ == UART_CONFIG_PARITY_ODD ? BK_PARITY_ODD
+                                                         : BK_PARITY_NO;
+  cfg.stop_bits = this->stop_bits_ == 2 ? BK_STOP_BITS_2 : BK_STOP_BITS_1;
+  cfg.flow_control = FLOW_CTRL_DISABLED;
+  // LibreTiny's port 1 is the SDK's UART1_PORT (0)
+  uart_hw_set_change(this->hardware_idx_ - 1, &cfg);
+#else
+  // Changes the settings in place, on the pins setup() chose
+  hardware->configure(this->baud_rate_, this->get_config());
+#endif
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
+    this->dump_config();
+  }
 }
 
 void LibreTinyUARTComponent::dump_config() {
