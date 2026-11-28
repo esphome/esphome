@@ -11,6 +11,7 @@ from .. import (
     FIX_PUBLISHER,
     GEOLOCATION_CHILD_SCHEMA,
     geolocation_ns,
+    request_millisecond,
 )
 
 DEPENDENCIES = ["geolocation"]
@@ -34,3 +35,5 @@ async def to_code(config: ConfigType) -> None:
     await time_.register_time(var, config)
     await cg.register_component(var, config)
     FIX_PUBLISHER.add(parent, parent_ref(var).on_fix(FIX))
+    # The fraction of the second keeps the clock from lagging up to a second
+    request_millisecond()

@@ -33,4 +33,18 @@ TEST(GeolocationCurrentUtc, NoWrapAfter49Days) {
   EXPECT_EQ(current_utc(d, received_at + (1ULL << 32)), 0);
 }
 
+TEST(GeolocationCurrentUtc, FractionOfTheSecondCounts) {
+  GeolocationData d{};
+  d.millisecond = 900;  // 12:34:56.900 at 1000 ms
+  set_utc(d, 1795608000, 1000);
+  EXPECT_EQ(current_utc(d, 1099), 1795608000);
+  EXPECT_EQ(current_utc(d, 1100), 1795608001);
+  EXPECT_EQ(current_utc(d, 1200), 1795608001);
+}
+
+TEST(GeolocationFieldAge, SaturatesInsteadOfWrapping) {
+  EXPECT_EQ(age_ms(1000, 3000), 2000u);
+  EXPECT_EQ(age_ms(1000, 1000 + (1ULL << 32) + 1000), UINT32_MAX);
+}
+
 }  // namespace esphome::geolocation::testing

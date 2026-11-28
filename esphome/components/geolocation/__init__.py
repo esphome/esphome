@@ -39,7 +39,7 @@ FIX = FIX_PUBLISHER.param("data")
 
 
 def request_field_age() -> None:
-    """Compile in GeolocationComponent::get_age(), which costs 4 bytes of RAM per field."""
+    """Compile in GeolocationComponent::get_age(), which costs 8 bytes of RAM per field."""
     cg.add_define("USE_GEOLOCATION_FIELD_AGE")
 
 

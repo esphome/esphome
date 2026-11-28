@@ -9,7 +9,11 @@ namespace esphome::geolocation {
 class GeolocationTime final : public time::RealTimeClock {
  public:
   explicit GeolocationTime(GeolocationComponent *parent) : parent_(parent) {}
-  void update() override { this->sync_(this->parent_->get_data()); }
+  void update() override {
+    // A stale UTC fails this sync; the next fix then syncs instead of waiting for the next interval
+    this->has_time_ = false;
+    this->sync_(this->parent_->get_data());
+  }
   void on_fix(const GeolocationData &data) {
     if (!this->has_time_)
       this->sync_(data);

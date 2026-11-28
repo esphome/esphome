@@ -30,7 +30,7 @@ static_assert(GEOLOCATION_FIELD_GEOID_SEPARATION == 1 << (GEOLOCATION_FIELD_COUN
 /// The latest solution of a receiver as scaled integers; a name ending in eN is the value times 10^N. A value is
 /// set once has() gives true for its field.
 struct GeolocationData {
-  uint64_t utc_millis{0};   ///< millis_64() when utc was received
+  uint64_t utc_millis{0};   ///< millis_64() at the whole second of utc, see set_utc()
   time_t utc{0};            ///< UTC of the solution, 0 when there is none
   int32_t latitude_e7{0};   ///< degrees, north positive
   int32_t longitude_e7{0};  ///< degrees, east positive
@@ -77,6 +77,22 @@ struct GeolocationData {
 /// Receivers send UTC at least once a second; an older one means the receiver stopped sending it.
 static constexpr uint64_t MAX_UTC_AGE_MS = 10000;
 
+/// Store the UTC `timestamp` of a solution received at `now_ms` (a millis_64() value). With the millisecond of the
+/// time compiled in and set, utc_millis is moved back by it, so current_utc() advances at the receiver's second.
+inline void set_utc(GeolocationData &data, time_t timestamp, uint64_t now_ms) {
+  data.utc = timestamp;
+#ifdef USE_GEOLOCATION_MILLISECOND
+  now_ms -= data.millisecond;
+#endif
+  data.utc_millis = now_ms;
+}
+
+/// Milliseconds from `since_ms` to `now_ms` (millis_64() values), at most UINT32_MAX.
+inline uint32_t age_ms(uint64_t since_ms, uint64_t now_ms) {
+  const uint64_t age = now_ms - since_ms;
+  return age > UINT32_MAX ? UINT32_MAX : static_cast<uint32_t>(age);
+}
+
 /// The UTC of `data` advanced to `now_ms` (a millis_64() value), or 0 when it has none or it is stale.
 inline time_t current_utc(const GeolocationData &data, uint64_t now_ms) {
   if (data.utc == 0)
@@ -91,14 +107,6 @@ inline time_t current_utc(const GeolocationData &data, uint64_t now_ms) {
 class GeolocationComponent : public PollingComponent {
  public:
   void update() override {
-#ifdef USE_GEOLOCATION_FIELD_AGE
-    // Hold old timestamps at 2^31 ms in the past so millis() rollover can't make a stale field look fresh.
-    const uint32_t now = millis();
-    for (auto &ms : this->updated_ms_) {
-      if (now - ms > AGE_LIMIT_MS)
-        ms = now - AGE_LIMIT_MS;
-    }
-#endif
 #ifdef USE_GEOLOCATION_DATA_PUBLISHER
     if (this->data_publisher_ != nullptr)
       this->data_publisher_(this->data_);
@@ -107,11 +115,11 @@ class GeolocationComponent : public PollingComponent {
 
   const GeolocationData &get_data() const { return this->data_; }
 #ifdef USE_GEOLOCATION_FIELD_AGE
-  /// Milliseconds since a message last set the field (one bit), or UINT32_MAX if none has.
+  /// Milliseconds since a message last set the field (one bit), or UINT32_MAX if none has or it was 49 days ago.
   uint32_t get_age(GeolocationField field) const {
     if (!this->data_.has(field))
       return UINT32_MAX;
-    return millis() - this->updated_ms_[__builtin_ctz(field)];
+    return age_ms(this->updated_ms_[__builtin_ctz(field)], millis_64());
   }
 #endif
 
@@ -125,7 +133,7 @@ class GeolocationComponent : public PollingComponent {
  protected:
   void publish_fix_() {
 #ifdef USE_GEOLOCATION_FIELD_AGE
-    const uint32_t now = millis();
+    const uint64_t now = millis_64();
     for (uint8_t i = 0; i != GEOLOCATION_FIELD_COUNT; i++) {
       if (this->data_.updated & (1 << i))
         this->updated_ms_[i] = now;
@@ -139,8 +147,8 @@ class GeolocationComponent : public PollingComponent {
 
   GeolocationData data_{};
 #ifdef USE_GEOLOCATION_FIELD_AGE
-  static constexpr uint32_t AGE_LIMIT_MS = 0x80000000u;
-  uint32_t updated_ms_[GEOLOCATION_FIELD_COUNT]{};  ///< millis() when a message last set each field
+  // 64 bits, so an age can't wrap however long the sensors don't poll
+  uint64_t updated_ms_[GEOLOCATION_FIELD_COUNT]{};  ///< millis_64() when a message last set each field
 #endif
 };
 

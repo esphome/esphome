@@ -42,8 +42,7 @@ void NMEAGNSS::handle_line_(char *line, size_t len) {
     t.minute = d.minute;
     t.second = d.second;
     t.recalc_timestamp_utc(false);
-    d.utc = t.timestamp;
-    d.utc_millis = millis_64();
+    geolocation::set_utc(d, t.timestamp, millis_64());
   }
   this->publish_fix_();
 }
