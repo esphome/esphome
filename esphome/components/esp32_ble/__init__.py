@@ -37,7 +37,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE, EsphomeError, TimePeriod
 import esphome.final_validate as fv
 from esphome.helpers import IS_WINDOWS
 from esphome.types import ConfigType
@@ -272,6 +272,8 @@ CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
+CONF_CLASSIC_BT = "classic_bt"
+CONF_CLASSIC_MAX_ACL_CONNECTIONS = "classic_max_acl_connections"
 
 # BLE connection limits
 # ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
@@ -386,7 +388,9 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int,
             cv.Range(min=1, max=64),
         ),
-        cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
+        cv.Optional(CONF_CLASSIC_BT, default=False): cv.boolean,
+        cv.Optional(CONF_CLASSIC_MAX_ACL_CONNECTIONS): cv.int_range(min=1, max=7),
+        cv.Optional(CONF_MAX_CONNECTIONS): cv.All(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
         ),
         cv.Optional(CONF_USE_PSRAM): cv.All(
@@ -473,6 +477,19 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
+def validate_classic_bt_target(path: list[str] | None = None) -> None:
+    """Validate the controller target for Classic users during final validation."""
+    if get_esp32_variant() != const.VARIANT_ESP32:
+        raise cv.Invalid(
+            "Bluetooth Classic requires the original ESP32",
+            path=path,
+        )
+    if ESP32_HOSTED_DOMAIN in fv.full_config.get(CORE.config):
+        raise cv.Invalid(
+            "Bluetooth Classic requires the local ESP32 controller", path=path
+        )
+
+
 def validate_name_with_mac_suffix(config: ConfigType) -> None:
     """With name_add_mac_suffix the ASCII "-AABBCC" is appended, leaving the name 7 fewer bytes."""
     if (name := config.get(CONF_NAME)) is None:
@@ -490,6 +507,13 @@ def validate_name_with_mac_suffix(config: ConfigType) -> None:
 
 def final_validation(config: ConfigType) -> None:
     validate_variant(config)
+    if config[CONF_CLASSIC_BT]:
+        validate_classic_bt_target(path=[CONF_CLASSIC_BT])
+    if not config[CONF_CLASSIC_BT] and CONF_CLASSIC_MAX_ACL_CONNECTIONS in config:
+        raise cv.Invalid(
+            "classic_max_acl_connections requires classic_bt: true",
+            path=[CONF_CLASSIC_MAX_ACL_CONNECTIONS],
+        )
     validate_name_with_mac_suffix(config)
 
     # ESP32-C2 has very limited RAM (~272KB). Without releasing BLE IRAM,
@@ -504,8 +528,14 @@ def final_validation(config: ConfigType) -> None:
     # Set GATT Client/Server sdkconfig options based on which components are loaded
     full_config = fv.full_config.get()
 
-    # Validate connection slots usage
-    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+    # Resolve the deprecated tracker option before validating or generating limits.
+    max_connections = config.setdefault(
+        CONF_MAX_CONNECTIONS,
+        # Legacy tracker configurations accepted zero; keep the controller default
+        # for that value since the original ESP32 requires at least one BLE link.
+        full_config.get("esp32_ble_tracker", {}).get(CONF_MAX_CONNECTIONS)
+        or DEFAULT_MAX_CONNECTIONS,
+    )
     validate_connection_slots(max_connections)
 
     # Check if hosted bluetooth is being used
@@ -528,20 +558,28 @@ def final_validation(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
 
-    # Handle max_connections: check for deprecated location in esp32_ble_tracker
-    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+    classic_connections = (
+        config.get(CONF_CLASSIC_MAX_ACL_CONNECTIONS, 1)
+        if config[CONF_CLASSIC_BT]
+        else 0
+    )
+    _configure_connection_limits(max_connections, classic_connections)
 
-    # Use value from tracker if esp32_ble doesn't have it explicitly set (backward compat)
-    if "esp32_ble_tracker" in full_config:
-        tracker_config = full_config["esp32_ble_tracker"]
-        if "max_connections" in tracker_config and CONF_MAX_CONNECTIONS not in config:
-            max_connections = tracker_config["max_connections"]
 
-    # Set CONFIG_BT_ACL_CONNECTIONS to the maximum connections needed + 1 for ADV/SCAN
-    # This is the Bluedroid host stack total instance limit (range 1-9, default 4)
-    # Total instances = ADV/SCAN (1) + connection slots (max_connections)
-    # Shared between client (tracker/ble_client) and server
-    add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", max_connections + 1)
+def _configure_connection_limits(
+    max_connections: int, classic_connections: int
+) -> None:
+    # ESPHome reserves one additional slot for BLE advertising/scanning.
+    host_capacity = max_connections + 1 + classic_connections
+    if classic_connections and host_capacity > IDF_MAX_CONNECTIONS:
+        raise cv.Invalid(
+            f"{max_connections} BLE connections + {classic_connections} Classic connections "
+            f"+ 1 advertising/scanning slot require {host_capacity} Bluedroid slots; "
+            f"maximum is {IDF_MAX_CONNECTIONS} on ESP32. Reduce max_connections "
+            "or classic_max_acl_connections.",
+            path=[CONF_MAX_CONNECTIONS],
+        )
+    add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", host_capacity)
 
     # Set controller-specific max connections for ESP32 (classic)
     # CONFIG_BTDM_CTRL_BLE_MAX_CONN is ESP32-specific controller limit (just connections, not ADV/SCAN)
@@ -550,6 +588,28 @@ def final_validation(config: ConfigType) -> None:
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
+
+
+def request_classic_bt() -> None:
+    """Enable Classic alongside BLE for components that need BR/EDR."""
+    config = CORE.config[DOMAIN]
+    classic_connections = config.get(CONF_CLASSIC_MAX_ACL_CONNECTIONS, 1)
+    try:
+        validate_classic_bt_target()
+        _configure_connection_limits(
+            config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS),
+            classic_connections,
+        )
+    except cv.Invalid as err:
+        # A component can first request Classic during code generation.
+        raise EsphomeError(f"esp32_ble: {err.msg}") from err
+    cg.add_define("USE_ESP32_BLE_CLASSIC_BT")
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
+    add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
+    add_idf_sdkconfig_option(
+        "CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN", classic_connections
+    )
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN", 0)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -577,6 +637,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
     request_bluetooth()
+
+    if config[CONF_CLASSIC_BT]:
+        request_classic_bt()
 
     # Replace Bluedroid's only two sscanf callers so the C library's scanf engine is
     # not linked; see bluedroid_hex_wraps.cpp. The ROM only provides sscanf for newlib,

@@ -1,0 +1,1 @@
+<<: !include test-classic.esp32-idf.yaml
