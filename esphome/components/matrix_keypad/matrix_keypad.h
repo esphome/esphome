@@ -6,6 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include <cstdlib>
+#include <memory>
 #include <utility>
 
 namespace esphome::matrix_keypad {
@@ -37,6 +38,15 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
 #endif
 
  protected:
+  void press_key_(int key);
+  void release_key_(int key);
+
+  struct KeyState {
+    uint32_t active_start{0};
+    bool active{false};
+    bool pressed{false};
+  };
+
   std::vector<GPIOPin *> rows_;
   std::vector<GPIOPin *> columns_;
   const uint8_t *keys_{nullptr};
@@ -46,6 +56,7 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   int pressed_key_ = -1;
   uint32_t active_start_{0};
   int active_key_{-1};
+  std::unique_ptr<KeyState[]> key_states_;
 
   std::vector<MatrixKeypadListener *> listeners_{};
 #ifdef MATRIX_KEYPAD_ON_KEY_COUNT
