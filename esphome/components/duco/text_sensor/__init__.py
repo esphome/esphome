@@ -14,7 +14,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["duco"]
-CODEOWNERS = ["@kokx"]
+CODEOWNERS = ["@kokx", "@w1ll14m"]
 
 DucoTextSensor = duco_ns.class_("DucoTextSensor", DucoDevice, text_sensor.TextSensor)
 DucoTextReading = duco_ns.enum("DucoTextReading", is_class=True)
@@ -22,6 +22,7 @@ DucoTextReading = duco_ns.enum("DucoTextReading", is_class=True)
 CONF_ERROR = "error"
 CONF_UPTIME = "uptime"
 CONF_NODE_TYPE = "node_type"
+CONF_NODE_NETWORK_TYPE = "node_network_type"
 
 # key: (what is read, lowest address, update interval); address 0 of a serial number is the box itself
 TEXT_SENSORS = {
@@ -30,6 +31,11 @@ TEXT_SENSORS = {
     CONF_ERROR: (DucoTextReading.DUCO_TEXT_READING_ERROR, 1, "60s"),
     CONF_UPTIME: (DucoTextReading.DUCO_TEXT_READING_UPTIME, 1, "60s"),
     CONF_NODE_TYPE: (DucoTextReading.DUCO_TEXT_READING_NODE_TYPE, 1, "300s"),
+    CONF_NODE_NETWORK_TYPE: (
+        DucoTextReading.DUCO_TEXT_READING_NODE_NETWORK_TYPE,
+        1,
+        "300s",
+    ),
 }
 
 

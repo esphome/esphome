@@ -107,7 +107,10 @@ ISOLATED_COMPONENTS = {
     "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "virtual_uart": "Defines two UARTs of its own - merged with a package uart bus, uart_id of other components is ambiguous",
+    "web_server_idf": "Its HTTPS variant (test-ssl) can't be merged with web_server or captive_portal, and grouped runs skip variants",
     "brizlabs_led_string": "Takes SPI2_HOST for itself, which the shared spi: test bus also uses",
+    "vl53l4cx": "Rejects sharing its I2C bus with vl53l0x, vl53l1x or vl6180x, which grouping puts on the same i2c_bus",
 }
 
 

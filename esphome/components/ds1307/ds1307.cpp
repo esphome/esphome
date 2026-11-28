@@ -8,10 +8,13 @@ namespace esphome::ds1307 {
 
 ESPHOME_LOG_TAG(TAG, "ds1307");
 
+static constexpr uint8_t CALENDAR_REG = 0x00;
+static constexpr uint8_t CALENDAR_LEN = 7;
+static constexpr uint8_t CLOCK_HALT_BIT = 0x80;  // In the seconds register
+
 void DS1307Component::setup() {
-  if (!this->read_rtc_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
+  uint8_t raw[CALENDAR_LEN];
+  this->setup_check(this->read_bytes(CALENDAR_REG, raw, CALENDAR_LEN));
 }
 
 void DS1307Component::update() { this->read_time(); }
@@ -23,23 +26,18 @@ void DS1307Component::dump_config() {
 }
 
 void DS1307Component::read_time() {
-  if (!this->read_rtc_()) {
+  uint8_t raw[CALENDAR_LEN];
+  if (!this->read_bytes(CALENDAR_REG, raw, CALENDAR_LEN)) {
+    ESP_LOGE(TAG, "Can't read I2C data.");
     return;
   }
-  if (ds1307_.reg.ch) {
+  if ((raw[0] & CLOCK_HALT_BIT) != 0) {
     ESP_LOGW(TAG, "RTC halted, not syncing to system clock.");
     return;
   }
-  ESPTime rtc_time{
-      .second = uint8_t(ds1307_.reg.second + 10 * ds1307_.reg.second_10),
-      .minute = uint8_t(ds1307_.reg.minute + 10u * ds1307_.reg.minute_10),
-      .hour = uint8_t(ds1307_.reg.hour + 10u * ds1307_.reg.hour_10),
-      .day_of_week = uint8_t(ds1307_.reg.weekday),
-      .day_of_month = uint8_t(ds1307_.reg.day + 10u * ds1307_.reg.day_10),
-      .month = uint8_t(ds1307_.reg.month + 10u * ds1307_.reg.month_10),
-      .year = uint16_t(ds1307_.reg.year + 10u * ds1307_.reg.year_10 + 2000),
-  };
-  rtc_time.recalc_timestamp_utc(false);
+  const ESPTime rtc_time = time::decode_bcd_calendar<time::DS_BCD_CALENDAR>(raw);
+  ESP_LOGD(TAG, "Read UTC time: %04u-%02u-%02u %02u:%02u:%02u", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
+           rtc_time.hour, rtc_time.minute, rtc_time.second);
   if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
@@ -53,46 +51,15 @@ void DS1307Component::write_time() {
     ESP_LOGE(TAG, "Invalid system time, not syncing to RTC.");
     return;
   }
-  ds1307_.reg.year = (now.year - 2000) % 10;
-  ds1307_.reg.year_10 = (now.year - 2000) / 10 % 10;
-  ds1307_.reg.month = now.month % 10;
-  ds1307_.reg.month_10 = now.month / 10;
-  ds1307_.reg.day = now.day_of_month % 10;
-  ds1307_.reg.day_10 = now.day_of_month / 10;
-  ds1307_.reg.weekday = now.day_of_week;
-  ds1307_.reg.hour = now.hour % 10;
-  ds1307_.reg.hour_10 = now.hour / 10;
-  ds1307_.reg.minute = now.minute % 10;
-  ds1307_.reg.minute_10 = now.minute / 10;
-  ds1307_.reg.second = now.second % 10;
-  ds1307_.reg.second_10 = now.second / 10;
-  ds1307_.reg.ch = false;
-
-  this->write_rtc_();
-}
-
-bool DS1307Component::read_rtc_() {
-  if (!this->read_bytes(0, this->ds1307_.raw, sizeof(this->ds1307_.raw))) {
-    ESP_LOGE(TAG, "Can't read I2C data.");
-    return false;
-  }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s RS:%0u SQWE:%s OUT:%s", ds1307_.reg.hour_10,
-           ds1307_.reg.hour, ds1307_.reg.minute_10, ds1307_.reg.minute, ds1307_.reg.second_10, ds1307_.reg.second,
-           ds1307_.reg.year_10, ds1307_.reg.year, ds1307_.reg.month_10, ds1307_.reg.month, ds1307_.reg.day_10,
-           ds1307_.reg.day, ONOFF(ds1307_.reg.ch), ds1307_.reg.rs, ONOFF(ds1307_.reg.sqwe), ONOFF(ds1307_.reg.out));
-
-  return true;
-}
-
-bool DS1307Component::write_rtc_() {
-  if (!this->write_bytes(0, this->ds1307_.raw, sizeof(this->ds1307_.raw))) {
+  // The clock halt bit is written clear, so this also starts a halted clock
+  uint8_t raw[CALENDAR_LEN];
+  time::encode_bcd_calendar<time::DS_BCD_CALENDAR>(now, raw);
+  if (!this->write_bytes(CALENDAR_REG, raw, CALENDAR_LEN)) {
     ESP_LOGE(TAG, "Can't write I2C data.");
-    return false;
+    return;
   }
-  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s RS:%0u SQWE:%s OUT:%s", ds1307_.reg.hour_10,
-           ds1307_.reg.hour, ds1307_.reg.minute_10, ds1307_.reg.minute, ds1307_.reg.second_10, ds1307_.reg.second,
-           ds1307_.reg.year_10, ds1307_.reg.year, ds1307_.reg.month_10, ds1307_.reg.month, ds1307_.reg.day_10,
-           ds1307_.reg.day, ONOFF(ds1307_.reg.ch), ds1307_.reg.rs, ONOFF(ds1307_.reg.sqwe), ONOFF(ds1307_.reg.out));
-  return true;
+  ESP_LOGD(TAG, "Wrote UTC time: %04u-%02u-%02u %02u:%02u:%02u", now.year, now.month, now.day_of_month, now.hour,
+           now.minute, now.second);
 }
+
 }  // namespace esphome::ds1307

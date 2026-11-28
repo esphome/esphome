@@ -1,0 +1,9 @@
+# software UART on GPIO12/14, report on the logger only
+substitutions:
+  name: sdd
+  tx: GPIO12
+  rx: GPIO14
+  log_uart: UART0
+  report: '// logger only'
+packages:
+  c: !include common.yaml

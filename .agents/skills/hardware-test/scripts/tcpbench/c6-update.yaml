@@ -1,0 +1,23 @@
+# Update the C6 co-processor over SDIO from the P4 with ESPHome's own update platform. Image from the
+# ESPHome-published manifest https://esphome.github.io/esp-hosted-firmware/manifest/esp32c6.json (v3.1.0 here); put
+# network_adapter_esp32c6.bin next to this file. 16MB flash because the image is embedded; a 60 s watchdog because
+# firmware that predates the version RPC never answers it (each call blocks 5 s).
+substitutions:
+  name: c6up
+packages:
+  base: !include p4-wifi6-base.yaml
+esp32:
+  flash_size: 16MB
+  watchdog_timeout: 60s
+update:
+  - platform: esp32_hosted
+    id: c6fw
+    name: Coprocessor Firmware
+    type: embedded
+    path: network_adapter_esp32c6.bin
+    sha256: 4ac31b47eb3bf7e239e657173dcb317433a2cc7799a4ec518aeda9856d06d614
+    on_update_available:
+      then:
+        - delay: 20s
+        - logger.log: {format: "C6UPDATE starting", level: INFO}
+        - update.perform: c6fw

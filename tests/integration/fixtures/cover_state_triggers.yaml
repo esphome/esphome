@@ -1,0 +1,85 @@
+esphome:
+  name: cover-state-triggers
+host:
+api:
+logger:
+  level: DEBUG
+
+cover:
+  - platform: template
+    name: "Door"
+    id: door
+    has_position: true
+    restore_mode: NO_RESTORE
+    # Two automations for one state: the first all inline, the second republishing.
+    on_opened:
+      - then:
+          - logger.log: "TRIG opened A"
+      - then:
+          - logger.log: "TRIG opened B"
+          # Republishes the state it fired on; must not fire again.
+          - cover.template.publish:
+              id: door
+              tilt: 0.5
+    on_closed:
+      - delay: 50ms
+      - logger.log: "TRIG closed delayed"
+    on_opening:
+      - logger.log: "TRIG opening"
+      # Republishes the operation it fired on; must not fire again.
+      - cover.template.publish:
+          id: door
+          current_operation: OPENING
+    on_closing:
+      - logger.log: "TRIG closing"
+    on_idle:
+      - logger.log: "TRIG idle"
+
+button:
+  - platform: template
+    name: "Step closed_idle"
+    on_press:
+      - cover.template.publish:
+          id: door
+          position: 0.0
+          current_operation: IDLE
+      - logger.log: "STEP closed_idle done"
+  - platform: template
+    name: "Step opening"
+    on_press:
+      - cover.template.publish:
+          id: door
+          position: 0.3
+          current_operation: OPENING
+      - logger.log: "STEP opening done"
+  - platform: template
+    name: "Step open_idle"
+    on_press:
+      - cover.template.publish:
+          id: door
+          position: 1.0
+          current_operation: IDLE
+      - logger.log: "STEP open_idle done"
+  - platform: template
+    name: "Step tilt_only"
+    on_press:
+      - cover.template.publish:
+          id: door
+          tilt: 0.2
+      - logger.log: "STEP tilt_only done"
+  - platform: template
+    name: "Step closing"
+    on_press:
+      - cover.template.publish:
+          id: door
+          position: 0.6
+          current_operation: CLOSING
+      - logger.log: "STEP closing done"
+  - platform: template
+    name: "Step closed_again"
+    on_press:
+      - cover.template.publish:
+          id: door
+          position: 0.0
+          current_operation: IDLE
+      - logger.log: "STEP closed_again done"

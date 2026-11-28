@@ -3,6 +3,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <utility>
 #ifdef USE_NETWORK
 
 namespace esphome::network {
@@ -13,8 +15,17 @@ ESPHOME_LOG_TAG(TAG, "network");
 void fill_ip6_addresses(esp_netif_t *netif, IPAddresses &addresses) {
   esp_ip6_addr_t ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   size_t count = esp_netif_get_all_ip6(netif, ip6s);
-  // Slot 0 holds the IPv4 address
-  if (count > addresses.size() - 1) {
+  // Slot 0 holds the IPv4 address; without IPv4 the first IPv6 address takes it, so it reads as the primary one
+  constexpr size_t first = USE_NETWORK_IPV4 ? 1 : 0;
+  if constexpr (first == 0) {
+    // Lead with a routable address; the link-local one comes first from esp-netif and is useless off-link
+    for (size_t i = 1; i < count; i++) {
+      if (esp_netif_ip6_get_addr_type(&ip6s[0]) != ESP_IP6_ADDR_IS_LINK_LOCAL)
+        break;
+      std::swap(ip6s[0], ip6s[i]);
+    }
+  }
+  if (count > addresses.size() - first) {
     // Warn once per interface
     static esp_netif_t *warned[3]{};
     for (auto &slot : warned) {
@@ -24,14 +35,14 @@ void fill_ip6_addresses(esp_netif_t *netif, IPAddresses &addresses) {
       if (slot == nullptr) {
         slot = netif;
         ESP_LOGW(TAG, "%s has %zu IPv6 addresses, only %zu are reported", esp_netif_get_desc(netif), count,
-                 addresses.size() - 1);
+                 addresses.size() - first);
         break;
       }
     }
-    count = addresses.size() - 1;
+    count = addresses.size() - first;
   }
   for (size_t i = 0; i < count; i++) {
-    addresses[i + 1] = IPAddress(&ip6s[i]);
+    addresses[i + first] = IPAddress(&ip6s[i]);
   }
 }
 #endif

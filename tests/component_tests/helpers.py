@@ -8,6 +8,7 @@ from esphome.config import Config
 from esphome.const import CONF_ID
 from esphome.core import ID
 from esphome.types import ConfigType
+from tests.testing_helpers import get_define_value  # noqa: F401  # re-exported for the component tests
 
 INTERNAL_BIT = 1 << 24
 
@@ -15,8 +16,8 @@ INTERNAL_BIT = 1 << 24
 def extract_packed_value(main_cpp: str, var_name: str) -> int:
     """Extract the packed-fields argument from the entity's configure call.
 
-    Matches both legacy form ``var->configure_entity_(name, hash, packed)`` and the
-    combined form ``App.register_<entity>(var, name, hash, packed)``.
+    Matches ``var->configure_entity_(name, hash, packed)`` and the listed entities'
+    ``esphome::Application::configure_<entity>(var, name, hash, packed)``.
     """
     escaped_var = re.escape(var_name)
     name_re = r'ESPHOME_PSTR\("(?:\\.|[^"\\])*"\)'
@@ -24,27 +25,62 @@ def extract_packed_value(main_cpp: str, var_name: str) -> int:
         rf"{escaped_var}->configure_entity_\(" + name_re + r",\s*\w+,\s*(\d+)\)"
     )
     combined_pattern = (
-        rf"App\.register_\w+\(\s*{escaped_var}\s*,\s*" + name_re + r",\s*\w+,\s*(\d+)\)"
+        rf"esphome::Application::configure_\w+\(\s*{escaped_var}\s*,\s*"
+        + name_re
+        + r",\s*\w+,\s*(\d+)\)"
     )
     match = re.search(combined_pattern, main_cpp) or re.search(legacy_pattern, main_cpp)
     assert match, f"configure call not found for {var_name}"
     return int(match.group(1))
 
 
-def get_define_value(name: str) -> str | None:
-    """Rendered value of a CORE define, or None when absent.
+def static_function_body(main_cpp: str, name: str) -> str:
+    """Body of the generated ``static void name(...)`` function, without its braces."""
+    match = re.search(
+        rf"static void {re.escape(name)}\([^;{{]*\) \{{\n(.*?)\n\}}",
+        main_cpp,
+        re.DOTALL,
+    )
+    assert match is not None, f"{name} not defined"
+    return match.group(1)
 
-    Values are codegen expressions (IntLiteral); they are compared rendered.
-    A value-less define (e.g. USE_BK72XX_BLE) is present but renders as the
-    string "None", while an absent define returns the None object — easy to
-    conflate in assertions, so use this helper for valued defines only.
-    """
-    from esphome.core import CORE
 
-    for define in CORE.defines:
-        if define.name == name:
-            return str(define.value)
-    return None
+def constructed(main_cpp: str, var: str) -> str:
+    """The expression placement-new builds ``var`` with, e.g. ``Foo<bar>()``."""
+    match = re.search(rf"\bnew\({var}\) (.*?);\n", main_cpp, re.DOTALL)
+    assert match is not None, var
+    return match.group(1)
+
+
+def function_body(main_cpp: str, name: str) -> str:
+    """The body of the generated ``static void name(...)``."""
+    match = re.search(
+        rf"static void {name}\([^;{{]*\) \{{(.*?)\n\}}\n", main_cpp, re.DOTALL
+    )
+    assert match is not None, name
+    return match.group(1)
+
+
+def callback_function(main_cpp: str, var: str) -> str:
+    """The function a callback component ``var`` is built on, its first template argument."""
+    match = re.match(r"[\w:]+<(\w+)[,>]", constructed(main_cpp, var))
+    assert match is not None, var
+    return match.group(1)
+
+
+def delayed_automation(
+    main_cpp: str, function: str, args: str = "", types: str = ""
+) -> str:
+    """The Automation that ``function`` triggers with ``args``, checked to hold a delay."""
+    match = re.fullmatch(
+        rf"\n  ::(\w+)->trigger\({re.escape(args)}\);",
+        function_body(main_cpp, function),
+    )
+    assert match is not None, function
+    automation = match.group(1)
+    assert f"new({automation}) Automation<{types}>();" in main_cpp
+    assert re.search(rf"{automation}->add_action\(delayaction_id\w*\);", main_cpp)
+    return automation
 
 
 # ESPBTUUID constant for ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD (bytes in BLE wire order).

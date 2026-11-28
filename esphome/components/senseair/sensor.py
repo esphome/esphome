@@ -3,14 +3,7 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CO2,
-    CONF_ID,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-)
+from esphome.const import CONF_CO2, CONF_HOURS, CONF_ID, ICON_MOLECULE_CO2
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -25,11 +18,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SenseAirComponent),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
         }
     )
@@ -72,3 +61,15 @@ for _name, _call in (
     automation.register_apply_action(
         _name, CALIBRATION_ACTION_SCHEMA, automation.ApplyCall(_call)
     )
+
+
+automation.register_apply_action(
+    "senseair.abc_set_period",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(SenseAirComponent),
+            cv.Required(CONF_HOURS): cv.templatable(cv.uint16_t),
+        }
+    ),
+    automation.ApplyCall("abc_set_period({})", ((CONF_HOURS, cg.uint16),)),
+)

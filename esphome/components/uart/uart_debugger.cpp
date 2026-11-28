@@ -1,7 +1,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_UART_DEBUGGER
 
-#include <vector>
+#include <algorithm>
 #include "uart_debugger.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -75,7 +75,7 @@ bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
-  trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
+  this->fire(this->last_direction_, this->bytes_, this->debug_prefix_);
   this->bytes_.clear();
   this->is_triggering_ = false;
 }
@@ -95,108 +95,129 @@ void UARTDummyReceiver::loop() {
 // TCP connection(s). Without these delays, debug log lines could go
 // missing when UART devices block the main loop for too long.
 
-void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, StringRef prefix) {
-  std::string res;
-  if (direction == UART_DIRECTION_RX) {
-    res += "<<< ";
-  } else {
-    res += ">>> ";
+#ifdef ESPHOME_LOGGER_TX_BUFFER_SIZE
+// The logger's header "\033[0;36m[D][uart_debug:NNN]: " plus its colour reset and terminator take 33 bytes of
+// tx_buffer_size (3-digit line number, checked in flush_()); a longer message is cut, so a frame continues on the
+// next line instead
+static constexpr size_t LOG_LINE_ROOM = ESPHOME_LOGGER_TX_BUFFER_SIZE - 33;
+#else
+static constexpr size_t LOG_LINE_ROOM = 479;
+#endif
+// Capped so a large tx_buffer_size costs no more stack
+static constexpr size_t DEBUG_LINE_SIZE = std::min<size_t>(LOG_LINE_ROOM, 512);
+
+// Escape letters for bytes 7 to 13
+static constexpr uint8_t STRING_ESCAPES[] PROGMEM = {'a', 'b', 't', 'n', 'v', 'f', 'r'};
+
+namespace {
+// Builds a frame's log text; a part that does not fit one logger line is logged and the text continues on the next.
+// Characters, not string literals: those would sit in RAM on ESP8266.
+class DebugLine {
+ public:
+  // A prefix gets at most half the line, so a frame always has room
+  DebugLine(UARTDirection direction, StringRef prefix)
+      : prefix_(prefix),
+        prefix_len_(std::min(prefix.size(), DEBUG_LINE_SIZE / 2)),
+        limit_(DEBUG_LINE_SIZE - prefix_len_) {
+    const char arrow = direction == UART_DIRECTION_RX ? '<' : '>';
+    this->append(arrow, arrow, arrow, ' ');
   }
-  size_t len = bytes.size();
-  char buf[5];
-  for (size_t i = 0; i < len; i++) {
-    if (i > 0) {
-      res += separator;
+  template<typename... Rest> void append(char c, Rest... rest) {
+    if (this->pos_ == this->limit_)
+      this->flush_();
+    this->buf_[this->pos_++] = c;
+    if constexpr (sizeof...(rest) > 0)
+      this->append(rest...);
+  }
+  void append_hex(uint8_t byte) {
+    this->append(format_hex_pretty_char(byte >> 4), format_hex_pretty_char(byte & 0x0F));
+  }
+  /// Separator before every item but the first; an item of up to item_len chars that would not fit starts a new line.
+  void next_item(uint8_t separator, size_t item_len) {
+    if (!this->first_item_) {
+      this->append(static_cast<char>(separator));
+      if (this->pos_ + item_len > this->limit_)
+        this->flush_();
     }
-    buf_append_printf(buf, sizeof(buf), 0, "%02X", bytes[i]);
-    res += buf;
+    this->first_item_ = false;
   }
-  ESP_LOGD(TAG, "%s%s", prefix.c_str(), res.c_str());
-  delay(10);
+  void log() {
+    this->flush_();
+    delay(10);
+  }
+
+ protected:
+  void flush_() {
+    static_assert(__LINE__ < 1000, "LOG_LINE_ROOM assumes the ESP_LOGD below has a 3-digit line number");
+    ESP_LOGD(TAG, "%.*s%.*s", static_cast<int>(this->prefix_len_), this->prefix_.c_str(), static_cast<int>(this->pos_),
+             this->buf_);
+    this->pos_ = 0;
+  }
+
+  StringRef prefix_;
+  size_t prefix_len_;
+  size_t limit_;
+  char buf_[DEBUG_LINE_SIZE];
+  size_t pos_{0};
+  bool first_item_{true};
+};
+}  // namespace
+
+void UARTDebug::log_hex(UARTDirection direction, std::span<const uint8_t> bytes, uint8_t separator, StringRef prefix) {
+  DebugLine line(direction, prefix);
+  for (uint8_t byte : bytes) {
+    line.next_item(separator, 2);
+    line.append_hex(byte);
+  }
+  line.log();
 }
 
-void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes, StringRef prefix) {
-  std::string res;
-  if (direction == UART_DIRECTION_RX) {
-    res += "<<< \"";
-  } else {
-    res += ">>> \"";
-  }
-  size_t len = bytes.size();
-  char buf[5];
-  for (size_t i = 0; i < len; i++) {
-    if (bytes[i] == 7) {
-      res += "\\a";
-    } else if (bytes[i] == 8) {
-      res += "\\b";
-    } else if (bytes[i] == 9) {
-      res += "\\t";
-    } else if (bytes[i] == 10) {
-      res += "\\n";
-    } else if (bytes[i] == 11) {
-      res += "\\v";
-    } else if (bytes[i] == 12) {
-      res += "\\f";
-    } else if (bytes[i] == 13) {
-      res += "\\r";
-    } else if (bytes[i] == 27) {
-      res += "\\e";
-    } else if (bytes[i] == 34) {
-      res += "\\\"";
-    } else if (bytes[i] == 39) {
-      res += "\\'";
-    } else if (bytes[i] == 92) {
-      res += "\\\\";
-    } else if (bytes[i] < 32 || bytes[i] > 127) {
-      buf_append_printf(buf, sizeof(buf), 0, "\\x%02X", bytes[i]);
-      res += buf;
+void UARTDebug::log_string(UARTDirection direction, std::span<const uint8_t> bytes, StringRef prefix) {
+  DebugLine line(direction, prefix);
+  line.append('"');
+  for (uint8_t byte : bytes) {
+    if (byte >= 7 && byte <= 13) {
+      line.append('\\', static_cast<char>(progmem_read_byte(&STRING_ESCAPES[byte - 7])));
+    } else if (byte == 27) {
+      line.append('\\', 'e');
+    } else if (byte == '"' || byte == '\'' || byte == '\\') {
+      line.append('\\', static_cast<char>(byte));
+    } else if (byte < 32 || byte > 127) {
+      line.append('\\', 'x');
+      line.append_hex(byte);
     } else {
-      res += bytes[i];
+      line.append(static_cast<char>(byte));
     }
   }
-  res += '"';
-  ESP_LOGD(TAG, "%s%s", prefix.c_str(), res.c_str());
-  delay(10);
+  line.append('"');
+  line.log();
 }
 
-void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, StringRef prefix) {
-  std::string res;
-  size_t len = bytes.size();
-  if (direction == UART_DIRECTION_RX) {
-    res += "<<< ";
-  } else {
-    res += ">>> ";
+void UARTDebug::log_int(UARTDirection direction, std::span<const uint8_t> bytes, uint8_t separator, StringRef prefix) {
+  DebugLine line(direction, prefix);
+  char num[UINT32_MAX_STR_SIZE];
+  for (uint8_t byte : bytes) {
+    const size_t len = uint32_to_str(num, byte);
+    line.next_item(separator, len);
+    for (size_t i = 0; i < len; i++)
+      line.append(num[i]);
   }
-  char buf[4];  // max 3 digits for uint8_t (255) + null
-  for (size_t i = 0; i < len; i++) {
-    if (i > 0) {
-      res += separator;
-    }
-    buf_append_printf(buf, sizeof(buf), 0, "%u", bytes[i]);
-    res += buf;
-  }
-  ESP_LOGD(TAG, "%s%s", prefix.c_str(), res.c_str());
-  delay(10);
+  line.log();
 }
 
-void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator, StringRef prefix) {
-  std::string res;
-  size_t len = bytes.size();
-  if (direction == UART_DIRECTION_RX) {
-    res += "<<< ";
-  } else {
-    res += ">>> ";
+void UARTDebug::log_binary(UARTDirection direction, std::span<const uint8_t> bytes, uint8_t separator,
+                           StringRef prefix) {
+  DebugLine line(direction, prefix);
+  for (uint8_t byte : bytes) {
+    line.next_item(separator, 17);
+    line.append('0', 'b');
+    for (int bit = 7; bit >= 0; bit--)
+      line.append((byte >> bit) & 1 ? '1' : '0');
+    line.append(' ', '(', '0', 'x');
+    line.append_hex(byte);
+    line.append(')');
   }
-  char buf[20];
-  for (size_t i = 0; i < len; i++) {
-    if (i > 0) {
-      res += separator;
-    }
-    buf_append_printf(buf, sizeof(buf), 0, "0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(bytes[i]), bytes[i]);
-    res += buf;
-  }
-  ESP_LOGD(TAG, "%s%s", prefix.c_str(), res.c_str());
-  delay(10);
+  line.log();
 }
 
 }  // namespace esphome::uart

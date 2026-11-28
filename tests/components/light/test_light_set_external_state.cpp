@@ -63,6 +63,23 @@ class TurnOffOnPublish : public LightRemoteValuesListener {
   LightState *state_;
 };
 
+// Overrides privately, so only the base-pointer registration can call it
+class PrivatePublishListener final : public LightRemoteValuesListener {
+ public:
+  int published{0};
+
+ private:
+  void on_light_remote_values_update() override { this->published++; }
+};
+
+class PrivateReachedListener final : public LightTargetStateReachedListener {
+ public:
+  int reached{0};
+
+ private:
+  void on_light_target_state_reached() override { this->reached++; }
+};
+
 LightColorValues on_at(float brightness) {
   LightColorValues values;
   values.set_color_mode(ColorMode::BRIGHTNESS);
@@ -174,6 +191,20 @@ TEST(LightStateExternal, SaysNothingWhenNothingChanges) {
   EXPECT_TRUE(state.set_external_state(on_at(0.5f)));
   EXPECT_TRUE(state.set_external_state(on_at(0.5f)));
   EXPECT_EQ(listener.reached, 1);
+}
+
+TEST(LightStateListeners, ListenersWithPrivateOverridesRegister) {
+  CountingOutput output;
+  LightState state(&output);
+  PrivatePublishListener publish;
+  PrivateReachedListener reached;
+  state.add_remote_values_listener(&publish);
+  state.add_target_state_reached_listener(&reached);
+  state.loop();
+
+  EXPECT_TRUE(state.set_external_state(on_at(0.5f)));
+  EXPECT_EQ(publish.published, 1);
+  EXPECT_EQ(reached.reached, 1);
 }
 
 }  // namespace esphome::light::testing

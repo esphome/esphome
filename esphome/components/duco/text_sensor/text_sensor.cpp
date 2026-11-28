@@ -69,8 +69,7 @@ static size_t format_errors(const uint8_t *records, uint8_t count, char *text, s
       const int16_t description_index = progmem_string_table_find<ErrorCodes>(text + code_start, pos - code_start);
       pos = buf_append_str(text, size, pos, "  ");
       pos = buf_append_str_p(text, size, pos,
-                             reinterpret_cast<ESPHOME_PGM_P>(
-                                 ErrorDescriptions::get_progmem_str(description_index, ErrorDescriptions::LAST_INDEX)));
+                             reinterpret_cast<ESPHOME_PGM_P>(ErrorDescriptions::get_progmem_str(description_index)));
     }
     pos = buf_append_str(text, size, pos, "\n");
   }
@@ -100,6 +99,7 @@ void DucoTextSensor::update() {
       this->parent_->send(this, FUNCTION_NODE_DATA, {0x01, this->address_, 0x00, 0x49, 0x04});
       break;
     case DucoTextReading::DUCO_TEXT_READING_NODE_TYPE:
+    case DucoTextReading::DUCO_TEXT_READING_NODE_NETWORK_TYPE:
       this->parent_->send(this, FUNCTION_NODE, {0x01, this->address_});
       break;
   }
@@ -123,7 +123,11 @@ void DucoTextSensor::receive_response(const DucoMessage &message) {
       break;
     case DucoTextReading::DUCO_TEXT_READING_NODE_TYPE:
       if (message.size >= 1)
-        this->publish_state(reinterpret_cast<ProgmemStr>(node_type_name(node_type_byte(message))));
+        this->publish_state(reinterpret_cast<ProgmemStr>(node_type_name(message.data[0], node_network_type(message))));
+      break;
+    case DucoTextReading::DUCO_TEXT_READING_NODE_NETWORK_TYPE:
+      if (message.size >= 2)
+        this->publish_state(reinterpret_cast<ProgmemStr>(network_type_name(message.data[1])));
       break;
   }
 }
