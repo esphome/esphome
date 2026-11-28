@@ -13,7 +13,7 @@
 #endif
 
 // Platforms whose UARTs apply changed settings with load_settings()
-#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_ZEPHYR) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_ZEPHYR)
 #define USE_UART_LOAD_SETTINGS
 #endif
 
@@ -215,7 +215,7 @@ class UARTComponent {
   // @return Flow control option.
   UARTFlowControl get_flow_control() const { return this->flow_control_; }
 
-#ifdef USE_UART_LOAD_SETTINGS
+#if defined(USE_UART_LOAD_SETTINGS) || defined(USE_LIBRETINY)
   /**
    * Load the UART settings.
    * @param dump_config If true (default), output the new settings to logs; otherwise, change settings quietly.
@@ -245,7 +245,7 @@ class UARTComponent {
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
   void load_settings() { this->load_settings(true); }
-#endif  // USE_UART_LOAD_SETTINGS
+#endif  // USE_UART_LOAD_SETTINGS || USE_LIBRETINY
 
 #ifdef USE_UART_DEBUGGER
   template<typename F> void add_debug_callback(F &&callback) { this->debug_callback_.add(std::forward<F>(callback)); }

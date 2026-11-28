@@ -187,15 +187,21 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
   // A character is a start bit, up to 8 data bits, parity and 2 stop bits.
   const uint32_t char_us = 12 * 1000000 / this->port_baud_rate_ + 1;
 #if defined(USE_BK72XX)
+  // The FIFO holds fewer than 256 bytes (8-bit count): if it does not drain by then, the settings stay unchanged
+  const uint32_t start = micros();
   while (!uart_is_tx_fifo_empty(this->hardware_idx_ - 1)) {
+    if (micros() - start > 256 * char_us) {
+      ESP_LOGW(TAG, "TX did not finish; settings not changed");
+      return;
+    }
   }
-  delayMicroseconds(char_us);
+  delay_microseconds_safe(char_us);
 #elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
   // flush() here gives up after about 1 ms: wait for the 16-byte FIFO and the shift register instead
-  delayMicroseconds(17 * char_us);
+  delay_microseconds_safe(17 * char_us);
 #else
   hardware->flush();
-  delayMicroseconds(char_us);
+  delay_microseconds_safe(char_us);
 #endif
   this->port_baud_rate_ = this->baud_rate_;
 #if defined(USE_LN882X)
