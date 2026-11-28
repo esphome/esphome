@@ -1,0 +1,7 @@
+substitutions:
+  cs_pin: GPIO12
+  irq_pin: GPIO13
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  trf7962a: !include common.yaml
