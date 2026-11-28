@@ -33,6 +33,21 @@ sensor:
     name: "Publish Target"
     id: sensor_publish_target
 
+  - platform: copy
+    source_id: source_sensor
+    name: "Delta Filters"
+    filters:
+      - delta: 5%
+      - delta:
+          min_value: 1
+          max_value: 10%
+          baseline: !lambda |-
+            float half = x / 2.0f;
+            return half * 2.0f;
+      - delta:
+          max_value: 3
+          baseline: 20.0
+
   # A YAML id equal to a generated list's name must not clash with that list
   - platform: template
     name: "List Name Clash"
@@ -293,11 +308,3 @@ sensor:
       - rh_correction:
           sensor_id: source_sensor
           temperature_offset: !lambda return -10.0;
-
-  - platform: copy
-    source_id: source_sensor
-    name: "Delta Filter Number Baseline"
-    filters:
-      - delta:
-          max_value: 3
-          baseline: 20.0

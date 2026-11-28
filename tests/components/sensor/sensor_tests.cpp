@@ -63,4 +63,22 @@ TEST(RHCorrectionFilter, DropsTheUpdateOnNaN) {
   EXPECT_FALSE(nan_offset.filter.new_value(40.0f).has_value());
 }
 
+// The integration test cannot publish these references or an infinite value without a max
+TEST(DeltaFilter, InfiniteOrNaNReferenceNeverPasses) {
+  EXPECT_FALSE(delta_passes(5.0f, INFINITY, 1.0f));
+  EXPECT_FALSE(delta_passes(5.0f, -INFINITY, 0.0f));
+  EXPECT_FALSE(delta_passes(5.0f, NAN, 0.0f));
+  EXPECT_FALSE(delta_passes<true>(5.0f, -INFINITY, 0.05f));
+  EXPECT_FALSE(delta_passes<true>(5.0f, NAN, 0.05f));
+  EXPECT_FALSE((delta_passes<false, true>(5.0f, -INFINITY, 1.0f, 0.5f)));
+  // max_value: .inf with an absolute min
+  EXPECT_FALSE((delta_passes<false, false>(5.0f, INFINITY, 1.0f, INFINITY)));
+  EXPECT_FALSE((delta_passes<false, false>(5.0f, -INFINITY, 1.0f, INFINITY)));
+}
+
+TEST(DeltaFilter, InfiniteValueWithoutMaxPasses) {
+  EXPECT_TRUE(delta_passes(INFINITY, 10.0f, 2.0f));
+  EXPECT_TRUE(delta_passes(-INFINITY, 10.0f, 2.0f));
+}
+
 }  // namespace esphome::sensor::testing
