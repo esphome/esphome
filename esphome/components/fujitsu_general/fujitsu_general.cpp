@@ -23,10 +23,6 @@ constexpr uint8_t FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH = 7;
 // Turns the unit off; a util message, but transmit_state() owns it because it changes the climate state
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_OFF = 0x02;
 
-// State header
-constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE0 = 0x09;
-constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE1 = 0x30;
-
 // State footer
 constexpr uint8_t FUJITSU_GENERAL_STATE_FOOTER_BYTE0 = 0x20;
 
@@ -111,16 +107,13 @@ void FujitsuGeneralClimate::transmit_state() {
   remote_state[4] = FUJITSU_GENERAL_COMMON_BYTE4;
   remote_state[5] = FUJITSU_GENERAL_MESSAGE_TYPE_STATE;
   remote_state[6] = FUJITSU_GENERAL_STATE_HEADER_BYTE0;
-  remote_state[7] = FUJITSU_GENERAL_STATE_HEADER_BYTE1;
+  remote_state[7] = this->model_ == MODEL_ARREW4E ? FUJITSU_GENERAL_PROTOCOL_ARREW4E : FUJITSU_GENERAL_PROTOCOL_ARRAH2E;
 
   // unknown, does not appear to change with any remote settings
   remote_state[14] = FUJITSU_GENERAL_STATE_FOOTER_BYTE0;
 
   // Set temperature
-  uint8_t temperature_clamped =
-      (uint8_t) roundf(clamp<float>(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
-  uint8_t temperature_offset = temperature_clamped - FUJITSU_GENERAL_TEMP_MIN;
-  set_nibble(remote_state, FUJITSU_GENERAL_TEMPERATURE_NIBBLE, temperature_offset);
+  set_temperature_field(remote_state, encode_temperature(this->model_, this->target_temperature));
 
   // Set power on
   if (!this->power_) {
@@ -199,6 +192,21 @@ uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
 }
 
 uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
+
+uint8_t encode_temperature(Model model, float temperature) {
+  const float clamped = clamp<float>(temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX);
+  if (model == MODEL_ARREW4E)
+    return (uint8_t) roundf((clamped - FUJITSU_GENERAL_TEMP_MIN / 2.0f) * 2.0f);
+  // Quantise to the whole degrees this model advertises, rounded before scaling so a fractional
+  // target sends the same value it always did.
+  return (uint8_t) ((roundf(clamped) - FUJITSU_GENERAL_TEMP_MIN) * 4.0f);
+}
+
+float decode_temperature(Model model, uint8_t field) {
+  if (model == MODEL_ARREW4E)
+    return field / 2.0f + FUJITSU_GENERAL_TEMP_MIN / 2.0f;
+  return field / 4.0f + FUJITSU_GENERAL_TEMP_MIN;
+}
 
 climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode) {
   const uint8_t mode = mode_field & FUJITSU_GENERAL_MODE_MASK;
@@ -292,10 +300,9 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   if (recv_message_type == FUJITSU_GENERAL_MESSAGE_TYPE_STATE) {
-    const uint8_t recv_tempertature = get_nibble(recv_message, FUJITSU_GENERAL_TEMPERATURE_NIBBLE);
-    const uint8_t offset_temperature = recv_tempertature + FUJITSU_GENERAL_TEMP_MIN;
-    this->target_temperature = offset_temperature;
-    ESP_LOGV(TAG, "Received temperature %d", offset_temperature);
+    const float recv_temperature = decode_temperature(this->model_, get_temperature_field(recv_message));
+    this->target_temperature = recv_temperature;
+    ESP_LOGV(TAG, "Received temperature %.1f", recv_temperature);
 
     const uint8_t recv_mode = get_nibble(recv_message, FUJITSU_GENERAL_MODE_NIBBLE);
     ESP_LOGV(TAG, "Received mode %X", recv_mode);
