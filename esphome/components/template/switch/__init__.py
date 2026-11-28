@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TURN_ON_ACTION,
 )
 
-from .. import template_ns
+from .. import WIZARD_ROLE_SCHEMA, register_wizard_role, template_ns
 
 TemplateSwitch = template_ns.class_("TemplateSwitch", switch.Switch, cg.Component)
 
@@ -50,8 +50,10 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
+    .extend(WIZARD_ROLE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     validate,
+    register_wizard_role,
 )
 
 
