@@ -357,13 +357,14 @@ void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) 
 void VoiceAssistant::loop() {
   if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
       this->state_ != State::STOPPING_MICROPHONE) {
+    // Before the state change, so a disconnect reaches on_idle with or without a running microphone
+    this->continuous_ = false;
     if (this->mic_source_->is_running() || (this->mic_source2_ && this->mic_source2_->is_running()) ||
         this->state_ == State::STARTING_MICROPHONE) {
       this->set_state_(State::STOP_MICROPHONE, State::IDLE);
     } else {
       this->set_state_(State::IDLE, State::IDLE);
     }
-    this->continuous_ = false;
     this->signal_stop_();
     this->clear_buffers_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
@@ -726,6 +727,7 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
     // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
     this->end_pending_ = false;
     this->end_run_();
+    this->release_pending_idle_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     this->wake_word_audio_requested_ = false;
 #endif
@@ -787,6 +789,32 @@ void VoiceAssistant::set_state_(State state) {
       this->end_session_();
     }
   }
+  // A new request replaces the one whose on_idle was waiting
+  if (old_state == State::IDLE && state != State::IDLE)
+    this->idle_pending_ = false;
+  if (old_state != State::IDLE && state == State::IDLE && !this->continuous_) {
+    // A start before Home Assistant's run ends would be stopped by its late RUN_END, so wait for it
+    if (this->end_pending_ && this->run_active_) {
+      this->idle_pending_ = true;
+    } else {
+      this->defer_idle_trigger_();
+    }
+  }
+}
+
+void VoiceAssistant::release_pending_idle_() {
+  if (!this->idle_pending_)
+    return;
+  this->idle_pending_ = false;
+  this->defer_idle_trigger_();
+}
+
+void VoiceAssistant::defer_idle_trigger_() {
+  // Deferred after on_end, so a stop in on_end cannot cancel a start from on_idle
+  this->defer([this]() {
+    if (this->state_ == State::IDLE)
+      this->idle_trigger_.trigger();
+  });
 }
 
 void VoiceAssistant::end_run_() {
@@ -803,6 +831,7 @@ void VoiceAssistant::end_session_() {
     if (this->api_client_ != nullptr)
       this->end_trigger_.trigger();
   });
+  this->release_pending_idle_();
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
