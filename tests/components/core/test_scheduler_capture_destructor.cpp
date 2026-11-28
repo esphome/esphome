@@ -54,16 +54,16 @@ static constexpr uint32_t VICTIM_ID = 1000;
 
 class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<FreedBy, DestructorAction>> {
  protected:
-  void run_for(uint32_t ms) {
+  void run_for_(uint32_t ms) {
     const uint32_t end = millis() + ms;
     while (static_cast<int32_t>(end - millis()) > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      this->scheduler.call(millis());
+      this->scheduler_.call(millis());
     }
   }
 
-  Scheduler scheduler;
-  DestructorComponent component;
+  Scheduler scheduler_;
+  DestructorComponent component_;
 };
 
 // On the base scheduler these destructors ran with the lock held: the host mutex deadlocked, so a watchdog
@@ -88,12 +88,12 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   bool rescheduled_ran = false;
   bool destructor_ran = false;
 
-  this->scheduler.set_timeout(&this->component, "other", 50, [&other_ran]() { other_ran = true; });
-  this->scheduler.set_interval(&this->component, "interval", 1, [&interval_runs]() { interval_runs++; });
-  this->scheduler.process_to_add();
+  this->scheduler_.set_timeout(&this->component_, "other", 50, [&other_ran]() { other_ran = true; });
+  this->scheduler_.set_interval(&this->component_, "interval", 1, [&interval_runs]() { interval_runs++; });
+  this->scheduler_.process_to_add();
 
-  Scheduler *s = &this->scheduler;
-  Component *c = &this->component;
+  Scheduler *s = &this->scheduler_;
+  Component *c = &this->component_;
   std::function<void()> on_free = [&, s, c, action = action]() {
     destructor_ran = true;
     switch (action) {
@@ -117,36 +117,36 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
 
   switch (freed_by) {
     case FreedBy::FREED_BY_AFTER_RUN:
-      this->scheduler.set_timeout(c, VICTIM_ID, 1, std::move(victim));
+      this->scheduler_.set_timeout(c, VICTIM_ID, 1, std::move(victim));
       break;
     case FreedBy::FREED_BY_CANCELLED_IN_TO_ADD:
-      this->scheduler.set_timeout(c, VICTIM_ID, 10000, std::move(victim));
-      this->scheduler.cancel_timeout(c, VICTIM_ID);
-      this->scheduler.process_to_add();  // recycled while merging to_add_
+      this->scheduler_.set_timeout(c, VICTIM_ID, 10000, std::move(victim));
+      this->scheduler_.cancel_timeout(c, VICTIM_ID);
+      this->scheduler_.process_to_add();  // recycled while merging to_add_
       break;
     case FreedBy::FREED_BY_CANCELLED_IN_HEAP:
-      this->scheduler.set_timeout(c, VICTIM_ID, 1, std::move(victim));
-      this->scheduler.process_to_add();
-      this->scheduler.cancel_timeout(c, VICTIM_ID);  // recycled by cleanup_() or the run loop
+      this->scheduler_.set_timeout(c, VICTIM_ID, 1, std::move(victim));
+      this->scheduler_.process_to_add();
+      this->scheduler_.cancel_timeout(c, VICTIM_ID);  // recycled by cleanup_() or the run loop
       break;
     case FreedBy::FREED_BY_BULK_CLEANUP:
       // "other" and "interval" stay at the top of the heap, so the removed items below need a full cleanup
-      this->scheduler.set_timeout(c, VICTIM_ID, 10000, std::move(victim));
+      this->scheduler_.set_timeout(c, VICTIM_ID, 10000, std::move(victim));
       for (uint32_t i = 1; i <= 5; i++)
-        this->scheduler.set_timeout(c, VICTIM_ID + i, 10000, [token]() {});
-      this->scheduler.process_to_add();
+        this->scheduler_.set_timeout(c, VICTIM_ID + i, 10000, [token]() {});
+      this->scheduler_.process_to_add();
       for (uint32_t i = 0; i <= 5; i++)
-        this->scheduler.cancel_timeout(c, VICTIM_ID + i);
+        this->scheduler_.cancel_timeout(c, VICTIM_ID + i);
       break;
     case FreedBy::FREED_BY_DEFER_QUEUE:
-      this->scheduler.set_timeout(c, VICTIM_ID, 0, std::move(victim));
+      this->scheduler_.set_timeout(c, VICTIM_ID, 0, std::move(victim));
       break;
     case FreedBy::FREED_BY_DONT_RUN:
-      this->scheduler.set_timeout(c, VICTIM_ID, SCHEDULER_DONT_RUN, std::move(victim));
+      this->scheduler_.set_timeout(c, VICTIM_ID, SCHEDULER_DONT_RUN, std::move(victim));
       break;
   }
 
-  this->run_for(80);
+  this->run_for_(80);
   EXPECT_TRUE(destructor_ran);
   switch (action) {
     case DestructorAction::DESTRUCTOR_ACTION_SCHEDULE_MANY:
@@ -165,10 +165,10 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   }
   EXPECT_EQ(token.use_count(), 1);  // every capture was freed
 
-  this->scheduler.cancel_interval(c, "interval");
-  this->run_for(5);
-  EXPECT_FALSE(this->scheduler.next_schedule_in(millis()).has_value());
-  this->scheduler.trim_freelist();
+  this->scheduler_.cancel_interval(c, "interval");
+  this->run_for_(5);
+  EXPECT_FALSE(this->scheduler_.next_schedule_in(millis()).has_value());
+  this->scheduler_.trim_freelist();
   done = true;
   watchdog.join();
 }
@@ -185,46 +185,46 @@ INSTANTIATE_TEST_SUITE_P(
 
 class SchedulerPendingRelease : public ::testing::Test {
  protected:
-  Scheduler scheduler;
-  DestructorComponent component;
+  Scheduler scheduler_;
+  DestructorComponent component_;
 };
 
 // A timer a destructor schedules during call() is merged before call() returns, so sleep planning sees it
 TEST_F(SchedulerPendingRelease, TimerScheduledByADestructorIsVisibleAfterOneCall) {
-  Scheduler *s = &this->scheduler;
-  Component *c = &this->component;
+  Scheduler *s = &this->scheduler_;
+  Component *c = &this->component_;
   auto token = std::make_shared<int>(0);
-  this->scheduler.set_timeout(c, VICTIM_ID, 1, OnFree([s, c]() { s->set_timeout(c, "late", 200, []() {}); }, token));
-  this->scheduler.process_to_add();
+  this->scheduler_.set_timeout(c, VICTIM_ID, 1, OnFree([s, c]() { s->set_timeout(c, "late", 200, []() {}); }, token));
+  this->scheduler_.process_to_add();
   std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  this->scheduler.call(millis());
+  this->scheduler_.call(millis());
   EXPECT_EQ(token.use_count(), 1);
-  const auto next = this->scheduler.next_schedule_in(millis());
+  const auto next = this->scheduler_.next_schedule_in(millis());
   ASSERT_TRUE(next.has_value());
   EXPECT_LE(*next, 200u);
-  this->scheduler.cancel_timeout(c, "late");
-  this->scheduler.call(millis());
+  this->scheduler_.cancel_timeout(c, "late");
+  this->scheduler_.call(millis());
 }
 
 // A capture recycled after call() (by a cancel merged in the component phase, or by next_schedule_in()'s own
 // cleanup) asks for a tick right away, and that tick frees it
 TEST_F(SchedulerPendingRelease, RecycledAfterCallAsksForATick) {
-  Component *c = &this->component;
+  Component *c = &this->component_;
   auto token = std::make_shared<int>(0);
-  this->scheduler.set_timeout(c, VICTIM_ID, 10000, OnFree([]() {}, token));
-  this->scheduler.process_to_add();
-  this->scheduler.call(millis());
-  this->scheduler.cancel_timeout(c, VICTIM_ID);  // after the scheduler phase: next_schedule_in() cleans it up
-  EXPECT_EQ(this->scheduler.next_schedule_in(millis()), optional<uint32_t>(0));
-  this->scheduler.call(millis());
+  this->scheduler_.set_timeout(c, VICTIM_ID, 10000, OnFree([]() {}, token));
+  this->scheduler_.process_to_add();
+  this->scheduler_.call(millis());
+  this->scheduler_.cancel_timeout(c, VICTIM_ID);  // after the scheduler phase: next_schedule_in() cleans it up
+  EXPECT_EQ(this->scheduler_.next_schedule_in(millis()), optional<uint32_t>(0));
+  this->scheduler_.call(millis());
   EXPECT_EQ(token.use_count(), 1);
-  EXPECT_FALSE(this->scheduler.next_schedule_in(millis()).has_value());
+  EXPECT_FALSE(this->scheduler_.next_schedule_in(millis()).has_value());
 
-  this->scheduler.set_timeout(c, VICTIM_ID, 10000, OnFree([]() {}, token));
-  this->scheduler.cancel_timeout(c, VICTIM_ID);
-  this->scheduler.process_to_add();  // the component phase's merge recycles it
-  EXPECT_EQ(this->scheduler.next_schedule_in(millis()), optional<uint32_t>(0));
-  this->scheduler.call(millis());
+  this->scheduler_.set_timeout(c, VICTIM_ID, 10000, OnFree([]() {}, token));
+  this->scheduler_.cancel_timeout(c, VICTIM_ID);
+  this->scheduler_.process_to_add();  // the component phase's merge recycles it
+  EXPECT_EQ(this->scheduler_.next_schedule_in(millis()), optional<uint32_t>(0));
+  this->scheduler_.call(millis());
   EXPECT_EQ(token.use_count(), 1);
 }
 
