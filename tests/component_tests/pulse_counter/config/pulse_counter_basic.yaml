@@ -1,0 +1,11 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: pulse_counter
+    id: counter_4
+    pin: 4
+    use_pcnt: false

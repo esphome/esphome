@@ -17,12 +17,6 @@ enum HLW8012SensorModels {
   HLW8012_SENSOR_MODEL_BL0937
 };
 
-#ifdef HAS_PCNT
-#define USE_PCNT true
-#else
-#define USE_PCNT false
-#endif
-
 class HLW8012Component final : public PollingComponent {
   SUB_SENSOR(voltage)
   SUB_SENSOR(current)
@@ -30,9 +24,6 @@ class HLW8012Component final : public PollingComponent {
   SUB_SENSOR(energy)
 
  public:
-  HLW8012Component()
-      : cf_store_(*pulse_counter::get_storage(USE_PCNT)), cf1_store_(*pulse_counter::get_storage(USE_PCNT)) {}
-
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -49,6 +40,12 @@ class HLW8012Component final : public PollingComponent {
   void set_cf1_pin(InternalGPIOPin *cf1_pin) { cf1_pin_ = cf1_pin; }
 
  protected:
+#ifdef HAS_PCNT
+  using Storage = pulse_counter::HwPulseCounterStorage;
+#else
+  using Storage = pulse_counter::BasicPulseCounterStorage;
+#endif
+
   uint32_t nth_value_{0};
   bool current_mode_{false};
   uint32_t change_mode_at_{0};
@@ -59,9 +56,9 @@ class HLW8012Component final : public PollingComponent {
   uint64_t cf_total_pulses_{0};
   GPIOPin *sel_pin_;
   InternalGPIOPin *cf_pin_;
-  pulse_counter::PulseCounterStorageBase &cf_store_;
+  Storage cf_store_;
   InternalGPIOPin *cf1_pin_;
-  pulse_counter::PulseCounterStorageBase &cf1_store_;
+  Storage cf1_store_;
 
   float voltage_multiplier_{0.0f};
   float current_multiplier_{0.0f};
