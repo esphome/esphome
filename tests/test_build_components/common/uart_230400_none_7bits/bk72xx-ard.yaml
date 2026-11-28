@@ -1,0 +1,6 @@
+uart:
+  - id: uart_bus
+    tx_pin: TX1
+    rx_pin: RX1
+    baud_rate: 230400
+    data_bits: 7

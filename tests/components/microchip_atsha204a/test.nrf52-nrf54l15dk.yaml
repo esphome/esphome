@@ -1,0 +1,3 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/nrf52-nrf54l15dk.yaml
+  microchip_atsha204a: !include common.yaml

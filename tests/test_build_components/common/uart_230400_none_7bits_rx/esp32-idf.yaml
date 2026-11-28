@@ -1,0 +1,6 @@
+uart:
+  - id: uart_rx_bus
+    rx_pin: GPIO21
+    baud_rate: 230400
+    data_bits: 7
+    rx_buffer_size: 1024

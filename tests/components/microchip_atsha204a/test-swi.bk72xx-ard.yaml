@@ -1,0 +1,16 @@
+packages:
+  uart_230400_none_7bits: !include ../../test_build_components/common/uart_230400_none_7bits/bk72xx-ard.yaml
+
+bk72xx:
+  framework:
+    options:
+      LT_SERIAL_BUFFER_SIZE: 1024
+
+microchip_atsha204a:
+  type: swi_uart
+  uart_id: uart_bus
+  wake_pin:
+    number: P6
+    mode:
+      output: true
+      open_drain: true
