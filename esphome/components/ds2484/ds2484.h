@@ -27,6 +27,7 @@ class DS2484OneWireBus final : public one_wire::OneWireBus, public i2c::I2CDevic
  protected:
   void reset_search() override;
   uint64_t search_int() override;
+  static constexpr uint32_t BUSY_TIMEOUT_US = 5000;
   bool read_status_(uint8_t *);
   bool wait_for_completion_();
   void write8_(uint8_t);
