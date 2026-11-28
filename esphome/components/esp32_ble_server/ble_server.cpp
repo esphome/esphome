@@ -37,6 +37,9 @@ void BLEServer::loop() {
   switch (this->state_) {
     case RUNNING: {
       // Covers services re-created by ble.enable too; start() adds one characteristic per call
+      if (!this->start_pending_)
+        break;
+      this->start_pending_ = false;
       for (auto &entry : this->services_) {
         if (entry.service->should_start() && entry.service->is_created())
           entry.service->start();
@@ -202,6 +205,12 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       this->registered_ = true;
       break;
     }
+    // A service or characteristic was created, so a pending start can move on
+    case ESP_GATTS_CREATE_EVT:
+    case ESP_GATTS_ADD_CHAR_EVT:
+    case ESP_GATTS_ADD_CHAR_DESCR_EVT:
+      this->start_pending_ = true;
+      break;
     default:
       break;
   }
