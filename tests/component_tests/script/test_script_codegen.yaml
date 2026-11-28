@@ -11,6 +11,23 @@ globals:
     type: int
 
 script:
+  # Built before the scripts it waits for. The scripts that need an Automation take a bool,
+  # so the inline scripts without parameters do not share their mode class.
+  - id: waits_early
+    parameters:
+      unused: bool
+    then:
+      - script.wait: late_target
+      - script.wait: with_delay
+
+  # Has a parameter of the class an inline script had before it was known
+  - id: waits_with_param
+    parameters:
+      other: script::SingleScript<>*
+    then:
+      - script.wait: late_target
+      - lambda: other->execute();
+
   # Inline actions only
   - id: inline_single
     then:
@@ -24,7 +41,9 @@ script:
   - id: inline_restart
     mode: restart
     on_stop:
-      - logger.log: "RESTART stopped"
+      automation_id: restart_stop_auto
+      then:
+        - logger.log: "RESTART stopped"
     then:
       - logger.log: "RESTART run"
       - script.execute: inline_restart
@@ -90,16 +109,57 @@ script:
 
   # Not all inline
   - id: with_delay
+    parameters:
+      unused: bool
     then:
       - logger.log: "DELAY before"
       - delay: 1s
       - logger.log: "DELAY after"
 
   - id: manual_automation
+    parameters:
+      unused: bool
     automation_id: manual_automation_id
     then:
       - logger.log: "MANUAL"
 
   - id: waits
+    parameters:
+      unused: bool
     then:
       - script.wait: inline_single
+
+  - id: late_target
+    then:
+      - logger.log: "LATE target"
+
+  # Queued with an int: the delay script needs an Automation, so the inline one uses it too
+  - id: mixed_inline
+    mode: queued
+    parameters:
+      n: int
+    then:
+      - logger.log:
+          format: "MIXED inline %d"
+          args: [n]
+
+  - id: mixed_delay
+    mode: queued
+    parameters:
+      n: int
+    then:
+      - delay: 1s
+      - logger.log: "MIXED delay"
+
+  - id: waits_mixed
+    parameters:
+      unused: bool
+    then:
+      - script.wait: mixed_inline
+
+  # Uses Automations named by hand in earlier scripts
+  - id: reaches_named
+    then:
+      - lambda: |-
+          id(manual_automation_id)->stop();
+          id(restart_stop_auto)->stop();

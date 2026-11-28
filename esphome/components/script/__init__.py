@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from typing import Any
 
 from esphome import automation
@@ -13,12 +14,14 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "script"
 script_ns = cg.esphome_ns.namespace("script")
-Script = script_ns.class_("Script", automation.Trigger.template())
+Script = script_ns.class_("Script")
+AutomationScript = script_ns.class_(
+    "AutomationScript", Script, automation.Trigger.template()
+)
+FunctionBody = script_ns.class_("FunctionBody", Script)
+FunctionScript = script_ns.class_("FunctionScript", Script)
+FunctionPointerScript = script_ns.class_("FunctionPointerScript", Script)
 ScriptWaitAction = script_ns.class_("ScriptWaitAction", automation.Action, cg.Component)
-SingleScript = script_ns.class_("SingleScript", Script)
-RestartScript = script_ns.class_("RestartScript", Script)
-QueueingScript = script_ns.class_("QueueingScript", Script, cg.Component)
-ParallelScript = script_ns.class_("ParallelScript", Script)
 
 CONF_SINGLE = "single"
 CONF_QUEUED = "queued"
@@ -26,12 +29,35 @@ CONF_PARALLEL = "parallel"
 CONF_MAX_RUNS = "max_runs"
 CONF_SCRIPT_STOP = "script.stop"
 
-SCRIPT_MODES = {
-    CONF_SINGLE: SingleScript,
-    CONF_RESTART: RestartScript,
-    CONF_QUEUED: QueueingScript,
-    CONF_PARALLEL: ParallelScript,
+
+def _mode(
+    name: str, *parents: cg.MockObjClass
+) -> tuple[cg.MockObjClass, cg.MockObjClass]:
+    """The class of a mode with an Automation, and its template on the class that runs."""
+    return (
+        script_ns.class_(f"{name}Script", AutomationScript, *parents),
+        script_ns.class_(f"{name}Mode", Script, *parents),
+    )
+
+
+MODES = {
+    CONF_SINGLE: _mode("Single"),
+    CONF_RESTART: _mode("Restart"),
+    CONF_QUEUED: _mode("Queueing", cg.Component),
+    CONF_PARALLEL: _mode("Parallel"),
 }
+SCRIPT_MODES = {mode: classes[0] for mode, classes in MODES.items()}
+
+
+@dataclass
+class ScriptData:
+    # By script id: the Script<...> base, which script.wait is templated on
+    bases: dict[str, cg.MockObj] = field(default_factory=dict)
+
+
+def _data() -> ScriptData:
+    return CORE.data.setdefault(DOMAIN, ScriptData())
+
 
 PARAMETER_TYPE_TRANSLATIONS = {
     "string": "std::string",
@@ -184,27 +210,80 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    # Register all variables first, so that scripts can use other scripts
-    triggers = []
+    # Register all variables first, so that scripts can use other scripts. Each is created
+    # once its actions are built, which decides its class, in the place it was declared.
+    bases = _data().bases
+    scripts = []
     for conf in config:
         template, func_args = parameters_to_template(conf[CONF_PARAMETERS])
-        trigger = cg.new_Pvariable(conf[CONF_ID], template)
+        id_ = conf[CONF_ID].copy()
+        id_.type = id_.type.template(template)
+        late = cg.LatePvariable(id_)
+        bases[id_.id] = Script.template(template)
+        script = late.var
         # Add a human-readable name to the script
-        cg.add(trigger.set_name(cg.LogStringLiteral(conf[CONF_ID].id)))
+        cg.add(script.set_name(cg.LogStringLiteral(id_.id)))
 
-        cg.add_optional(trigger.set_max_runs, conf.get(CONF_MAX_RUNS))
+        cg.add_optional(script.set_max_runs, conf.get(CONF_MAX_RUNS))
 
         if conf[CONF_MODE] == CONF_QUEUED:
-            await cg.register_component(trigger, conf)
+            await cg.register_component(script, conf)
 
-        triggers.append((trigger, func_args, conf))
+        scripts.append((late, template, func_args, conf))
 
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
-    for trigger, func_args, conf in triggers:
-        await automation.build_automation(trigger, func_args, conf)
+
+    def define(
+        late: cg.LatePvariable,
+        template: cg.TemplateArguments,
+        conf: ConfigType,
+        plan: automation.AutomationPlan,
+        direct: bool,
+    ) -> None:
+        script_class = late.id.type
+        ctor_args = []
+        if not direct:
+            plan.build(late.var)
+        else:
+            # The class or its constructor names the function, so it is declared in the script's place
+            fn = plan.run_function(late.var, late.global_slot.add)
+            mode_class = MODES[conf[CONF_MODE]][1].template(
+                FunctionBody.template(template), *template
+            )
+            if conf[CONF_MODE] == CONF_QUEUED:
+                # One class for all of them: a per-script class would also copy the
+                # Component vtable, which costs more flash than the pointer's RAM
+                script_class = FunctionPointerScript.template(mode_class, *template)
+                ctor_args = [fn]
+            else:
+                script_class = FunctionScript.template(mode_class, fn, *template)
+        late.define(script_class, *ctor_args)
+
+    # A mode's code is compiled once only if all its scripts with the same parameters take one
+    # path, so one that needs an Automation keeps the rest on it. Those, and every on_stop, are
+    # created at once so later scripts can use a hand-named Automation.
+    needs_automation = set()
+    pending = []
+    for late, template, func_args, conf in scripts:
+        plan = await automation.plan_automation(func_args, conf)
+        if plan.direct:
+            pending.append((late, template, conf, plan))
+        else:
+            needs_automation.add((conf[CONF_MODE], str(template)))
+            define(late, template, conf, plan, direct=False)
         if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
-            await automation.build_automation(trigger.get_stop_trigger(), [], stop_conf)
+            await automation.build_automation(
+                late.var.get_stop_trigger(), [], stop_conf
+            )
+    for late, template, conf, plan in pending:
+        define(
+            late,
+            template,
+            conf,
+            plan,
+            (conf[CONF_MODE], str(template)) not in needs_automation,
+        )
 
 
 @automation.register_action(
@@ -294,8 +373,12 @@ automation.register_apply_action(
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    template_arg = cg.TemplateArguments(full_id.type, *template_arg)
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    # Waits on the script's Script<...> base, so it does not depend on the class its actions
+    # decide; a Script declared by another component is waited on with its own class
+    script_class = _data().bases.get(full_id.id, full_id.type)
+    var = cg.new_Pvariable(
+        action_id, cg.TemplateArguments(script_class, *template_arg), paren
+    )
     await cg.register_component(var, {})
     return var
 

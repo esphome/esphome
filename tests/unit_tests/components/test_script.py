@@ -1,22 +1,35 @@
 """Tests for the script component's config validation."""
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components.const import CONF_ON_STOP
 from esphome.components.script import (
     CONF_SCRIPT_STOP,
-    SingleScript,
+    SCRIPT_MODES,
+    Script,
+    ScriptWaitAction,
     default_script_stop_ids,
+    script_wait_action_to_code,
     to_code,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
-from esphome.core import ID
-from esphome.cpp_generator import MockObj
+from esphome.core import CORE, ID
+
+
+def _plan(made: list[MagicMock]) -> Any:
+    """A plan_automation stand-in whose plans need an Automation; ``made`` collects them."""
+
+    async def plan(args: Any, config: Any) -> Any:
+        made.append(MagicMock(direct=False))
+        return made[-1]
+
+    return plan
 
 
 def test_bare_script_stop_defaults_to_enclosing_script() -> None:
@@ -103,58 +116,83 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
     stop_conf = {CONF_THEN: []}
     config = [
         {
-            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID("my_script", is_declaration=True, type=SCRIPT_MODES["single"]),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
             CONF_ON_STOP: stop_conf,
         },
         {
-            CONF_ID: ID("other_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID(
+                "other_script", is_declaration=True, type=SCRIPT_MODES["single"]
+            ),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
         },
     ]
     with (
-        patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
         patch(
             "esphome.automation.build_automation", new_callable=AsyncMock
         ) as build_automation,
+        patch(
+            "esphome.automation.plan_automation", side_effect=_plan(plans := [])
+        ) as plan_automation,
     ):
-        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
         await to_code(config)
 
     add_define.assert_called_once_with("USE_SCRIPT_ON_STOP")
 
+    assert [c.args for c in plan_automation.await_args_list] == [
+        ([], config[0]),
+        ([], config[1]),
+    ]
+    assert [str(plan.build.call_args.args[0]) for plan in plans] == [
+        "my_script",
+        "other_script",
+    ]
     assert [
         (str(c.args[0]), *c.args[1:]) for c in build_automation.await_args_list
-    ] == [
-        ("my_script", [], config[0]),
-        ("my_script->get_stop_trigger()", [], stop_conf),
-        ("other_script", [], config[1]),
-    ]
+    ] == [("my_script->get_stop_trigger()", [], stop_conf)]
 
 
 @pytest.mark.asyncio
 async def test_no_on_stop_define_without_on_stop() -> None:
     config = [
         {
-            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID("my_script", is_declaration=True, type=SCRIPT_MODES["single"]),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
         }
     ]
     with (
-        patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
-        patch("esphome.automation.build_automation", new_callable=AsyncMock),
+        patch("esphome.automation.plan_automation", side_effect=_plan([])),
     ):
-        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
         await to_code(config)
 
     add_define.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_script_wait_on_script_declared_elsewhere() -> None:
+    """A Script that the script: list did not declare is waited on with its own class."""
+    other = cg.esphome_ns.class_("OtherScript", Script)
+    other_id = ID("other_script", is_declaration=True, type=other)
+    cg.new_Pvariable(other_id)
+    action_id = ID("wait_action", is_declaration=True, type=ScriptWaitAction)
+
+    with patch("esphome.codegen.register_component", new_callable=AsyncMock):
+        var = await script_wait_action_to_code(
+            {CONF_ID: ID("other_script", type=Script)},
+            action_id,
+            cg.TemplateArguments(),
+            [],
+        )
+
+    assert str(var) == "wait_action"
+    assert "script::ScriptWaitAction<OtherScript>" in CORE.cpp_global_section
