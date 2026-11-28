@@ -139,7 +139,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       SchedulerLockGuard guard{this->lock_};
       this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* find_first= */ true);
     }
-    // No item keeps it; after the cancel, so a capture's destructor that schedules the same key survives
+    // Freed after the cancel, so a capture's destructor that reschedules this key is not cancelled
     func.release_();
     return;
   }
@@ -750,15 +750,14 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
+  // Free and log before pooling, so nothing they run can be handed this item while a cleanup still lists it
+  item->callback.release_();
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_ + 1);
+#endif
   item->next_free = this->scheduler_item_pool_head_;
   this->scheduler_item_pool_head_ = item;
   this->scheduler_item_pool_size_++;
-  // Last outside debug builds, so the free is a tail call; the item may already be reused while it runs, which is
-  // safe as release_() reads nothing after the free. Before the debug log, whose on_message could reuse the item
-  item->callback.release_();
-#ifdef ESPHOME_DEBUG_SCHEDULER
-  ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_);
-#endif
 }
 
 // Shrink a SchedulerItem* vector's capacity to its current size.
@@ -855,6 +854,11 @@ Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
 }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
+void SchedulerCallback::report_dropped() {
+  ESP_LOGE(TAG, "SchedulerCallback dropped before reaching the scheduler");
+  ESPHOME_ABORT_WITH_REASON("SchedulerCallback dropped before reaching the scheduler");
+}
+
 bool Scheduler::debug_verify_no_leak_() const {
   // Invariant: every live SchedulerItem must be in exactly one container.
   // debug_live_items_ tracks allocations minus deletions.

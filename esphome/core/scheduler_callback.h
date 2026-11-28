@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -44,8 +43,11 @@ class SchedulerCallback {
   SchedulerCallback(const SchedulerCallback &) = delete;
   SchedulerCallback &operator=(const SchedulerCallback &) = delete;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  // Catches one dropped before reaching the scheduler, at the call site
-  ~SchedulerCallback() { assert(this->invoke_ == nullptr); }
+  // Catches one dropped before reaching the scheduler, at the call site (also with NDEBUG)
+  ~SchedulerCallback() {
+    if (this->invoke_ != nullptr)
+      report_dropped();
+  }
 #endif
 
  private:
@@ -54,7 +56,7 @@ class SchedulerCallback {
   SchedulerCallback() : invoke_(nullptr) {}  // a SchedulerItem's slot, filled by take_()
 
   void run_() { this->invoke_(this); }
-  /// Frees a boxed callable; reads nothing after the free, so callers may make it their last step
+  /// Frees a boxed callable
   void release_() {
     const bool boxed = this->invoke_ == &SchedulerCallback::invoke_boxed;
 #ifdef ESPHOME_DEBUG_SCHEDULER
@@ -73,6 +75,9 @@ class SchedulerCallback {
       __builtin_memcpy(dst + i, src + i, sizeof(uintptr_t));
     other.invoke_ = nullptr;
   }
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  [[noreturn]] static void report_dropped();  // defined in scheduler.cpp
+#endif
   static void invoke_boxed(SchedulerCallback *self) { self->boxed_.run(self->boxed_.obj); }
 
   void (*invoke_)(SchedulerCallback *self);
