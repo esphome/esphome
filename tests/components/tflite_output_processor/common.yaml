@@ -1,0 +1,13 @@
+tflite_output_processor:
+
+esphome:
+  on_boot:
+    - lambda: |-
+        // Post-process a 3-class float output with the two most common modes.
+        using esphome::tflite_output_processor::OutputProcessing;
+        using esphome::tflite_output_processor::process_output;
+        const float raw_output[3] = {0.1f, 2.5f, -0.4f};
+        const auto argmax = process_output(raw_output, 3, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, true);
+        const auto softmax = process_output(raw_output, 3, OutputProcessing::OUTPUT_PROCESSING_SOFTMAX, 1.0f, false);
+        ESP_LOGI("tflite_output_processor", "argmax = %d (%.3f), softmax = %d (%.3f)", static_cast<int>(argmax.value),
+                 argmax.confidence, static_cast<int>(softmax.value), softmax.confidence);
