@@ -350,6 +350,11 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
     return false;
   }
   if (this->input_pipeline_ != nullptr) {
+    // Checked here, so a pipeline never has to.
+    if (src_data == nullptr) {
+      ESP_LOGE(TAG, "Null input data pointer");
+      return false;
+    }
     static constexpr size_t MAX_INPUTS = 8;
     const size_t input_count = this->model_handler_.input_count();
     if (input_count > MAX_INPUTS) {

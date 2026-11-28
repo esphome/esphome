@@ -40,6 +40,16 @@ class Decoder : public tflite_output_processor::OutputDecoder {
   std::function<void()> during_decode;
 };
 
+class Pipeline : public InputPipeline {
+ public:
+  bool fill(TfLiteTensor *, const uint8_t *, size_t) override {
+    ++this->calls;
+    return true;
+  }
+  const char *name() const override { return "test"; }
+  unsigned calls{0};
+};
+
 class ResultLifecycleTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -133,6 +143,17 @@ TEST_F(ResultLifecycleTest, ADecoderFailureReleasesTheReservation) {
   decoder.succeeds = true;
   EXPECT_TRUE(this->run());
   EXPECT_EQ(this->notified, 1u);
+}
+
+TEST_F(ResultLifecycleTest, ANullPayloadNeverReachesThePipeline) {
+  Pipeline pipeline;
+  this->helper.set_input_pipeline(&pipeline);
+  this->subscribe();
+  EXPECT_FALSE(this->helper.run(nullptr, sizeof(this->input)));
+  EXPECT_EQ(pipeline.calls, 0u);
+  EXPECT_EQ(this->notified, 0u);
+  EXPECT_TRUE(this->run());
+  EXPECT_EQ(pipeline.calls, 1u);
 }
 
 TEST_F(ResultLifecycleTest, ASameTaskReentryIsRejectedInsteadOfDeadlocking) {
