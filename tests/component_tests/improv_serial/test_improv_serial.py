@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from esphome.components.improv_serial import CONSOLE_RX_BUFFER_SIZE
 from esphome.core import CORE
 
 
@@ -29,6 +30,9 @@ def test_transport_defines(
     """Each transport compiles in only the code it uses."""
     generate_main(component_config_path(config))
 
-    defines = {d.name for d in CORE.defines}
+    defines = {d.name: str(d.value) for d in CORE.defines}
     assert ("USE_LOGGER_CONSOLE" in defines) is console
+    assert defines.get("ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE") == (
+        str(CONSOLE_RX_BUFFER_SIZE) if console else None
+    )
     assert ("USE_IMPROV_SERIAL_UART" in defines) is uart

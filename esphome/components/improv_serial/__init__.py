@@ -17,6 +17,9 @@ improv_serial_ns = cg.esphome_ns.namespace("improv_serial")
 
 ImprovSerialComponent = improv_serial_ns.class_("ImprovSerialComponent", cg.Component)
 
+# One host frame at a time; the largest (Wi-Fi settings) is 110 bytes and the ring keeps one slot free
+CONSOLE_RX_BUFFER_SIZE = 128
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -72,4 +75,4 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_IMPROV_SERIAL_UART")
     # The Zephyr logger has no console, so Improv there stays a no-op
     elif not CORE.using_zephyr:
-        request_console()
+        request_console(CONSOLE_RX_BUFFER_SIZE)

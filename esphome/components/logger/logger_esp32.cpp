@@ -83,13 +83,12 @@ static bool init_usb_serial_jtag() {
   fcntl(fileno(stdin), F_SETFL, 0);
 
   usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
+  // ESP-IDF requires more than one 64-byte packet; stdin reads this ring too, so a stdin reader calls request_console()
+  uint32_t rx_buffer_size = 65;
 #ifdef USE_LOGGER_CONSOLE
-  usb_serial_jtag_config.rx_buffer_size = 512;
-#else
-  // Nothing reads this ring without a console user; stdin reads it too, so a stdin reader calls request_console().
-  // ESP-IDF requires more than one 64-byte packet, so this is the minimum.
-  usb_serial_jtag_config.rx_buffer_size = 65;
+  rx_buffer_size = std::max<uint32_t>(rx_buffer_size, ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE);
 #endif
+  usb_serial_jtag_config.rx_buffer_size = rx_buffer_size;
   usb_serial_jtag_config.tx_buffer_size = USB_SERIAL_JTAG_TX_BUFFER_SIZE;
 
   esp_err_t ret = ESP_OK;
@@ -123,10 +122,12 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
   uart_config.source_clk = UART_SCLK_DEFAULT;
 #endif
   uart_param_config(uart_num, &uart_config);
-  // Only console users (improv_serial) read this port, through console_read(); the RX buffer stays at the minimum.
-  // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
-  const int min_rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
-  uart_driver_install(uart_num, min_rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
+  // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes); only console users read this port.
+  int rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
+#ifdef USE_LOGGER_CONSOLE
+  rx_buffer_size = std::max(rx_buffer_size, ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE);
+#endif
+  uart_driver_install(uart_num, rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
 #if defined(CONFIG_PM_ENABLE) && defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && \
     (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
   // Always flush before going to light sleep. Could be disabled for devices

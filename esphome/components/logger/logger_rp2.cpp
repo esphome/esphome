@@ -29,12 +29,18 @@ void Logger::pre_setup() {
 #if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
     this->hw_serial_ = &Serial;
     Serial.begin(this->baud_rate_);
-#elif defined(USE_LOGGER_UART_SELECTION_UART1)
-    this->hw_serial_ = &Serial2;
-    Serial2.begin(this->baud_rate_);
 #else
-    this->hw_serial_ = &Serial1;
-    Serial1.begin(this->baud_rate_);
+#ifdef USE_LOGGER_UART_SELECTION_UART1
+    SerialUART &uart = Serial2;
+#else
+    SerialUART &uart = Serial1;
+#endif
+#ifdef USE_LOGGER_CONSOLE
+    // The core's default 32-byte receive queue is smaller than one Improv frame
+    uart.setFIFOSize(ESPHOME_LOGGER_CONSOLE_RX_BUFFER_SIZE);
+#endif
+    this->hw_serial_ = &uart;
+    uart.begin(this->baud_rate_);
 #endif
   }
   global_logger = this;
