@@ -112,6 +112,8 @@ void ImprovBLEComponent::setup_characteristics() {
 void ImprovBLEComponent::loop() {
   if (!global_ble_server->is_running()) {
     if (this->state_ != improv::STATE_STOPPED) {
+      // Offered again once ble.enable brings the server back, unless provisioning ended it
+      this->should_start_ = this->state_ != improv::STATE_PROVISIONED;
       this->state_ = improv::STATE_STOPPED;
 #ifdef USE_IMPROV_BLE_STATE_CALLBACK
       this->state_callback_.call(this->state_, this->error_state_);
