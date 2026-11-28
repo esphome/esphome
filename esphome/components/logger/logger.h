@@ -571,7 +571,7 @@ void on_message_callback(void * /*instance*/, uint8_t level, const char *tag, co
     return;
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // The scheduler logs these from inside itself, some with its lock held: an automation that schedules
-  // would re-enter it, and its own timers would log again and trigger it forever
+  // would re-enter it, and its own timers would log again and trigger it forever. Its errors are skipped too.
   if (tag == SCHEDULER_LOG_TAG)
     return;
 #endif

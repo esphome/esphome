@@ -1,12 +1,5 @@
-"""Test that a logger on_message automation can use the scheduler with debug_scheduler on.
-
-Regression test: with debug_scheduler, the scheduler logs at DEBUG from inside
-itself, some lines with its lock held. An on_message automation with a delay
-then took the same non-recursive lock again and hung the main loop at boot (an
-ESP32 hung until the task watchdog fired). Its delays also logged again, so the
-automation kept triggering itself. on_message now skips the scheduler's own
-lines, so the device boots and goes idle.
-"""
+"""With debug_scheduler, on_message skips the scheduler's own lines, so an automation that runs a delay
+neither deadlocks the scheduler at boot nor keeps triggering itself."""
 
 from __future__ import annotations
 
