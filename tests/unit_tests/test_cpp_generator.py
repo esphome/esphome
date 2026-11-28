@@ -1183,6 +1183,54 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
 
 
+def test_new_static_function_declaration_sink() -> None:
+    """A placed declaration goes to the sink only, under a name unique against config ids."""
+    CORE.config = {}
+    cg.new_Pvariable(
+        ID("esphome__s__fn", is_declaration=True, type=ct.esphome_ns.class_("C"))
+    )
+    declarations: list[cg.Statement] = []
+    fn = cg.new_static_function(
+        "esphome__s__fn", ct.void, [], ["return;"], declarations.append
+    )
+    assert str(fn) == "esphome__s__fn_2"
+    assert [str(st) for st in declarations] == ["static void esphome__s__fn_2();"]
+    assert not any("esphome__s__fn_2" in str(st) for st in CORE.global_statements)
+
+
+def test_late_pvariable_is_created_where_declared() -> None:
+    """A late variable is registered at once and emitted in its place, like new_Pvariable."""
+    id_ = ID("late", is_declaration=True, type=ct.esphome_ns.class_("Late"))
+    late = cg.LatePvariable(id_)
+    assert CORE.variables[id_] is late.var
+    CORE.add_global(cg.RawStatement("int after;"))
+    cg.add(cg.RawStatement("after();"))
+    late.global_slot.add(cg.RawStatement("int before_late;"))
+    final = ct.esphome_ns.class_("Final").template(ct.int32)
+    late.define(final, 5)
+    assert id_.type is final
+    globals_ = CORE.cpp_global_section
+    assert globals_.index("int before_late;") < globals_.index(
+        "Final<int32_t> *const late"
+    )
+    assert globals_.index("Final<int32_t> *const late") < globals_.index("int after;")
+    main = CORE.cpp_main_section
+    assert main.index("new(late) Final<int32_t>(5);") < main.index("after();")
+
+
+def test_late_pvariable_is_a_static_pointer_before_define() -> None:
+    """A late variable may go in a constexpr=False table before define() is called."""
+    CORE.config = {}
+    late = cg.LatePvariable(ID("late", is_declaration=True, type=ct.uint8))
+    table = cg.shared_progmem_array(
+        "table",
+        ct.uint8.operator("ptr"),
+        cg.ArrayInitializer(late.var),
+        constexpr=False,
+    )
+    assert str(table) == "table"
+
+
 def test_declare_static_function_defines_the_body_later() -> None:
     """The declaration is emitted at once; the body only when define() is called."""
     define = cg.declare_static_function("esphome__act__fn", ct.void, [])

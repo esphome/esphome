@@ -21,6 +21,7 @@ from esphome.core import (
     TimePeriodMinutes,
     TimePeriodNanoseconds,
     TimePeriodSeconds,
+    coroutine_with_priority,
 )
 from esphome.helpers import (
     cpp_string_escape,
@@ -803,6 +804,18 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     if type_ is not None:
         id_.type = type_
 
+    _emit_pvariable(id_, rhs, CORE.add_global, CORE.add)
+    CORE.register_variable(id_, obj)
+    return obj
+
+
+def _emit_pvariable(
+    id_: ID,
+    rhs: SafeExpType,
+    add_global_: Callable[[Expression | Statement], object],
+    add_: Callable[[Expression | Statement], object],
+) -> None:
+    """Emit the storage, declaration and construction of the pointer variable ``id_``."""
     if isinstance(rhs, MockObj) and rhs.is_new_expr:
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
@@ -826,14 +839,14 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
 
         address = f"reinterpret_cast<{pointer_type} *>({storage_name})"
         # Declare aligned byte array for the object storage
-        CORE.add_global(
+        add_global_(
             RawStatement(
                 f"alignas({actual_type}) static unsigned char {storage_name}[sizeof({actual_type})];"
             )
         )
         # Pointer declaration uses id_.type to preserve the declared base-class
         # pointer type for downstream callers (polymorphism through base ptr).
-        CORE.add_global(
+        add_global_(
             AssignmentExpression(
                 f"static {pointer_type}",
                 "*const ",
@@ -842,18 +855,75 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
             )
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
-        CORE.add(ExpressionStatement(placement_new))
+        add_(ExpressionStatement(placement_new))
         CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
         CORE.data.setdefault(_STATIC_POINTER_ADDRESSES, {})[id_.id] = address
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
-        CORE.add_global(decl)
-        CORE.add(AssignmentExpression(None, None, id_, rhs))
+        add_global_(decl)
+        add_(AssignmentExpression(None, None, id_, rhs))
         if (address := static_pointer_address(rhs)) is not None:
             CORE.data[_STATIC_POINTER_ADDRESSES][id_.id] = address
 
-    CORE.register_variable(id_, obj)
-    return obj
+
+class _StatementSlot(Statement):
+    """A place for statements that are added later."""
+
+    __slots__ = ("statements",)
+
+    def __init__(self) -> None:
+        self.statements: list[Statement] = []
+
+    def add(self, expression: Expression | Statement) -> None:
+        self.statements.append(statement(expression))
+
+    def __str__(self) -> str:
+        return "\n".join(str(item).rstrip() for item in self.statements)
+
+
+class LatePvariable:
+    """A pointer variable registered now, so other code can refer to ``var``, and created by
+    ``define()`` in the place it was declared, once its class is known."""
+
+    def __init__(self, id_: ID) -> None:
+        self.id = id_
+        self.var = MockObj(id_, "->")
+        # Global declarations that must come before the variable can be added here
+        self.global_slot = _StatementSlot()
+        self._main_slot = _StatementSlot()
+        CORE.add_global(self.global_slot)
+        CORE.add(self._main_slot)
+        CORE.register_variable(id_, self.var)
+        # define() always places it in static storage; until then it has no address
+        CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
+        CORE.add_job(_require_late_defined, self)
+
+    def define(self, type_: "MockObjClass", *args: SafeExpType) -> None:
+        """Create the variable as ``type_`` with the constructor arguments ``args``."""
+        if static_pointer_address(self.var) is not None:
+            raise EsphomeError(f"{self.id} was already defined")
+        self.id.type = type_
+        _emit_pvariable(
+            self.id, type_.new(*args), self.global_slot.add, self._main_slot.add
+        )
+
+
+# Below every finite priority, so the job runs only once every other job,
+# including FINAL ones and to_code tasks pushed down by waiting, is done.
+AFTER_ALL_JOBS = float("-inf")
+
+
+@coroutine_with_priority(AFTER_ALL_JOBS)
+async def _require_late_defined(late: LatePvariable) -> None:
+    if static_pointer_address(late.var) is None:
+        raise no_static_address_error(late.var)
+
+
+def no_static_address_error(var: SafeExpType) -> EsphomeError:
+    """The error for a variable whose static address is still unknown when it is emitted."""
+    return EsphomeError(
+        f"{var} has no static address: it was declared with LatePvariable but never defined"
+    )
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
@@ -899,6 +969,7 @@ def declare_static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> Callable[[list[str | Statement]], RawExpression]:
     """Declare ``static <return_type> <name>(parameters)`` now; return the function that emits the body later.
 
@@ -907,7 +978,7 @@ def declare_static_function(
     signature = (
         f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
     )
-    add_global(RawStatement(f"{signature};"))
+    (add_global_ or add_global)(RawStatement(f"{signature};"))
 
     def define(body: list[str | Statement]) -> RawExpression:
         lines = indent("\n".join(map(str, body)))
@@ -922,11 +993,16 @@ def static_function(
     return_type: SafeExpType,
     parameters: TemplateArgsType,
     body: list[str | Statement],
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
+
+    The declaration goes with the other globals, or to ``add_global_`` (e.g. a ``LatePvariable``'s
+    place), so a template argument can name the function at once; the body goes after the user
+    includes, where every id and everything those headers declare is in scope.
     """
-    return declare_static_function(name, return_type, parameters)(body)
+    return declare_static_function(name, return_type, parameters, add_global_)(body)
 
 
 @dataclass
@@ -949,7 +1025,7 @@ def shared_static_function(
     ``share=False`` always emits a new function, for user lambda code that may keep ``static`` state.
     """
     if not share:
-        return _new_static_function(name, return_type, parameters, body)
+        return new_static_function(name, return_type, parameters, body)
     data: SharedStaticFunctions = CORE.data.setdefault(
         "shared_static_function", SharedStaticFunctions()
     )
@@ -959,20 +1035,22 @@ def shared_static_function(
         "\n".join(map(str, body)),
     )
     if (fn := data.functions.get(key)) is None:
-        fn = data.functions[key] = _new_static_function(
+        fn = data.functions[key] = new_static_function(
             name, return_type, parameters, body
         )
     return fn
 
 
-def _new_static_function(
+def new_static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
     body: list[str | Statement],
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> RawExpression:
+    """``static_function`` under a name made unique against every registered id."""
     id_ = unique_global_id(name, None)
-    fn = static_function(id_.id, return_type, parameters, body)
+    fn = static_function(id_.id, return_type, parameters, body, add_global_)
     CORE.register_variable(id_, fn)
     return fn
 

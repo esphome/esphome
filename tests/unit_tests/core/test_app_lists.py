@@ -2,6 +2,7 @@ import pytest
 
 from esphome import codegen as cg
 from esphome.core import CORE, ID, EsphomeError, app_lists
+from esphome.coroutine import FakeAwaitable
 from tests.testing_helpers import get_define_value
 
 
@@ -172,4 +173,81 @@ def test_device_and_area_count_override_is_rejected(upper: str) -> None:
         EsphomeError,
         match=f"ESPHOME_{upper}_COUNT is defined as 4 elsewhere.*devices and areas come from the YAML",
     ):
+        CORE.flush_tasks()
+
+
+def test_late_variable_listed_before_define_gets_its_final_address() -> None:
+    """The list keeps the variable and reads its address at emit time, after define()."""
+    late = cg.LatePvariable(
+        ID("late_sensor", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+    late.define(cg.esphome_ns.class_("FinalSensor"))
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert _global_lines()[-1].endswith(
+        "PROGMEM = {reinterpret_cast<FinalSensor *>(esphome__late_sensor__pstorage)};"
+    )
+
+
+def test_late_variable_never_defined_is_rejected() -> None:
+    cg.LatePvariable(
+        ID("late_never", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    with pytest.raises(EsphomeError, match="late_never has no static address"):
+        CORE.flush_tasks()
+
+
+def test_late_variable_defined_by_a_builder_that_waited_below_final() -> None:
+    """The list and the never-defined check run after all jobs, so a slow builder still counts."""
+    late = cg.LatePvariable(
+        ID("late_slow", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+
+    async def slow_builder() -> None:
+        # Each yield lowers the task's priority by one; 1500 puts it below FINAL
+        for _ in range(1500):
+            await FakeAwaitable(iter([None]))
+        late.define(cg.esphome_ns.class_("SlowSensor"))
+
+    app_lists.schedule_emit()
+    CORE.add_job(slow_builder)
+    CORE.flush_tasks()
+    assert _global_lines()[-1].endswith(
+        "PROGMEM = {reinterpret_cast<SlowSensor *>(esphome__late_slow__pstorage)};"
+    )
+
+
+def test_late_variable_defined_twice_is_rejected() -> None:
+    late = cg.LatePvariable(
+        ID("late_twice", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    late.define(cg.esphome_ns.class_("First"))
+    with pytest.raises(EsphomeError, match="late_twice was already defined"):
+        late.define(cg.esphome_ns.class_("Second"))
+
+
+def test_listed_late_variable_never_defined_is_rejected() -> None:
+    late = cg.LatePvariable(
+        ID("late_listed", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+    app_lists.schedule_emit()
+    with pytest.raises(EsphomeError, match="late_listed has no static address"):
+        CORE.flush_tasks()
+
+
+def test_late_variable_listed_after_emit_was_scheduled_is_rejected() -> None:
+    """With the lists queued first, they are the first to find the missing address."""
+    app_lists.schedule_emit()
+    late = cg.LatePvariable(
+        ID("late_after", is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
+    )
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", late.var)
+    with pytest.raises(EsphomeError, match="late_after has no static address"):
         CORE.flush_tasks()
