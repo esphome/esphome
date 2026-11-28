@@ -1,0 +1,15 @@
+esphome:
+  name: aec-fast-info
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+packages:
+  aec: !include test.esp32-idf.yaml
+
+logger:
+  level: INFO
+  logs:
+    i2s_aec_microphone: INFO
