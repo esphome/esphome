@@ -1,0 +1,14 @@
+# ESPHome build test: the CTC kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
+esphome:
+  on_boot:
+    - lambda: |-
+        char text[16];
+        ESP_LOGD("test", "%zu", id(test_ctc_decoder).text(text, sizeof(text)));
+
+tflite_ctc:
+  - id: test_ctc
+    decoder_id: test_ctc_decoder
+    model: "../../components/tflite_ctc/model.tflite"
+    labels: ["a", "b", "c"]
