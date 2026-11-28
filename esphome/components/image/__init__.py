@@ -9,8 +9,10 @@ from PIL import Image, UnidentifiedImageError
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
+from esphome.components.const.css_colors import CSS_COLORS
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BACKGROUND_COLOR,
     CONF_DEFAULTS,
     CONF_FILE,
     CONF_FILES,
@@ -19,6 +21,7 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import CORE
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,6 +60,31 @@ TRANSPARENCY_TYPES = (
 
 # Shared validator for the image platform schemas and `_drop_incompatible_byte_order`.
 validate_byte_order = cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True)
+
+
+@schema_extractor("one_of")
+def validate_background_color(value: object) -> int | list[str]:
+    """Validate an RGB background color (0xRRGGBB, #RRGGBB, #RGB, or CSS color name)."""
+    if value == SCHEMA_EXTRACT:
+        return ["hex color (0xRRGGBB, #RRGGBB, #RGB)", *CSS_COLORS]
+    if isinstance(value, bool):
+        raise cv.Invalid(f"Invalid background color '{value}'")
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in CSS_COLORS:
+            return CSS_COLORS[s]
+        if s.startswith("#"):
+            hex_str = s[1:]
+            if len(hex_str) == 3:
+                hex_str = "".join(c * 2 for c in hex_str)
+            if len(hex_str) == 6 and all(c in "0123456789abcdef" for c in hex_str):
+                return int(hex_str, 16)
+            raise cv.Invalid(f"Invalid hex color '{value}'")
+        if not s.startswith("0x"):
+            raise cv.Invalid(
+                f"Invalid background color '{value}': expected 0xRRGGBB, #RRGGBB, #RGB, or CSS color name"
+            )
+    return cv.hex_int_range(0, 0xFFFFFF)(value)
 
 
 def get_image_type_enum(type):
@@ -430,6 +458,17 @@ def validate_settings(value, path=()):
         and CONF_INVERT_ALPHA not in type_class.allow_config
     ):
         raise cv.Invalid("No alpha channel to invert")
+    if CONF_BACKGROUND_COLOR in value:
+        if transparency == CONF_ALPHA_CHANNEL:
+            raise cv.Invalid(
+                "background_color cannot be used with transparency: alpha_channel",
+                path=path,
+            )
+        if conf_type == "BINARY":
+            raise cv.Invalid(
+                "background_color cannot be used with type: BINARY",
+                path=path,
+            )
     if value.get(CONF_BYTE_ORDER) is not None and not type_class.is_endian():
         raise cv.Invalid(
             f"Image format '{conf_type}' does not support byte order configuration",

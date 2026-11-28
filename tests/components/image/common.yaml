@@ -53,6 +53,7 @@ image:
     file: ../../pnglogo.png
     type: RGB565
     transparency: chroma_key
+    background_color: "0x0F1929"
   - platform: file
     id: rgb565_alpha_image
     file: ../../pnglogo.png

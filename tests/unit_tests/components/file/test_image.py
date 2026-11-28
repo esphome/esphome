@@ -5,12 +5,31 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+from PIL import Image
 import pytest
 
 from esphome import yaml_util
+from esphome.components.animation.image import ANIMATION_CONFIG_SCHEMA
 from esphome.components.file import image as file_image
-from esphome.const import CONF_PATH
-from esphome.core import CORE
+from esphome.components.image import (
+    CONF_ALPHA_CHANNEL,
+    CONF_CHROMA_KEY,
+    CONF_OPAQUE,
+    CONF_TRANSPARENCY,
+    validate_background_color,
+    validate_settings,
+)
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BACKGROUND_COLOR,
+    CONF_DITHER,
+    CONF_FILE,
+    CONF_ID,
+    CONF_PATH,
+    CONF_RAW_DATA_ID,
+    CONF_TYPE,
+)
+from esphome.core import CORE, ID
 from esphome.external_files import RemoteFile, url_cache_key
 from esphome.loader import get_component, get_platform
 
@@ -114,3 +133,216 @@ def test_hook_is_wired_to_both_animation_domains() -> None:
     assert (
         get_platform("image", "animation").prefetch_files is file_image.PREFETCH_FILES
     )
+
+
+def test_validate_background_color() -> None:
+    """Background color accepts 0xRRGGBB, #RRGGBB, #RGB, and CSS color names."""
+    assert validate_background_color(0x0F1929) == 0x0F1929
+    assert validate_background_color("0x0F1929") == 0x0F1929
+    assert validate_background_color("0X0f1929") == 0x0F1929
+    assert validate_background_color("#0F1929") == 0x0F1929
+    assert validate_background_color(" #abc ") == 0xAABBCC
+    assert validate_background_color("white") == 0xFFFFFF
+    assert validate_background_color(" White ") == 0xFFFFFF
+    for invalid in (
+        "#12345",
+        "#+12345",
+        "#12_456",
+        "# 12345",
+        "#gggggg",
+        "123456",
+        "notacolor",
+        "",
+        -1,
+        0x1000000,
+        True,
+        False,
+        None,
+        1.5,
+    ):
+        with pytest.raises(cv.Invalid):
+            validate_background_color(invalid)
+
+
+def test_validate_settings_background_color_rejects_incompatible() -> None:
+    """background_color is rejected for alpha_channel and BINARY, allowed for other opaque/chroma_key types."""
+    base = {CONF_TYPE: "RGB565", CONF_BACKGROUND_COLOR: 0x0F1929}
+    validate_settings({**base, CONF_TRANSPARENCY: CONF_OPAQUE})
+    validate_settings({**base, CONF_TRANSPARENCY: CONF_CHROMA_KEY})
+    with pytest.raises(cv.Invalid, match="alpha_channel"):
+        validate_settings({**base, CONF_TRANSPARENCY: CONF_ALPHA_CHANNEL})
+    with pytest.raises(cv.Invalid, match="BINARY"):
+        validate_settings(
+            {
+                CONF_TYPE: "BINARY",
+                CONF_TRANSPARENCY: CONF_OPAQUE,
+                CONF_BACKGROUND_COLOR: 0x0F1929,
+            }
+        )
+
+
+def test_animation_schema_supports_background_color(setup_core: Path) -> None:
+    """Animation platform shares image_schema and validate_settings for background_color."""
+    gif_path = setup_core / "anim.png"
+    Image.new("RGBA", (2, 2), (255, 0, 0, 0)).save(gif_path)
+
+    validated = ANIMATION_CONFIG_SCHEMA(
+        {
+            CONF_ID: "my_anim",
+            CONF_FILE: "anim.png",
+            CONF_TYPE: "RGB565",
+            CONF_BACKGROUND_COLOR: "#112233",
+        }
+    )
+    assert validated[CONF_BACKGROUND_COLOR] == 0x112233
+
+    with pytest.raises(cv.Invalid, match="alpha_channel"):
+        ANIMATION_CONFIG_SCHEMA(
+            {
+                CONF_ID: "my_anim",
+                CONF_FILE: "anim.png",
+                CONF_TYPE: "RGB565",
+                CONF_TRANSPARENCY: CONF_ALPHA_CHANNEL,
+                CONF_BACKGROUND_COLOR: "#112233",
+            }
+        )
+
+
+def test_apply_background_color_opaque_and_chroma_key() -> None:
+    """Semi-transparent edges blend onto background_color for opaque and chroma_key."""
+    # 3 pixels: fully transparent (a=0), semi-transparent white (a=128), opaque red (a=255)
+    src = Image.new("RGBA", (3, 1))
+    src.putdata([(255, 255, 255, 0), (255, 255, 255, 128), (255, 0, 0, 255)])
+    bg = 0x000080  # (0, 0, 128)
+
+    opaque_out = list(
+        file_image._apply_background_color(src, bg, CONF_OPAQUE).get_flattened_data()
+    )
+    assert opaque_out[0] == (0, 0, 128, 255)
+    assert opaque_out[1][3] == 255
+    assert 120 <= opaque_out[1][0] <= 135  # blended white over (0, 0, 128)
+    assert opaque_out[1][2] > 180
+    assert opaque_out[2] == (255, 0, 0, 255)
+
+    chroma_out = list(
+        file_image._apply_background_color(
+            src, bg, CONF_CHROMA_KEY
+        ).get_flattened_data()
+    )
+    assert chroma_out[0][3] == 0  # remains transparent for chroma_key
+    assert chroma_out[1] == opaque_out[1]  # a >= 128 blended and made opaque
+    assert chroma_out[2] == (255, 0, 0, 255)
+
+
+def test_apply_background_color_source_modes() -> None:
+    """_apply_background_color handles P, L, and LA source images cleanly."""
+    bg = 0x102030  # (16, 32, 48)
+
+    # Palette (P) image with palette index 0 transparent and index 1 opaque red
+    p_img = Image.new("P", (2, 1), 0)
+    p_img.putpalette([0, 0, 0, 255, 0, 0] + [0] * (254 * 3))
+    p_img.info["transparency"] = 0
+    p_img.putpixel((1, 0), 1)
+    p_out = list(
+        file_image._apply_background_color(p_img, bg, CONF_OPAQUE).get_flattened_data()
+    )
+    assert p_out == [(16, 32, 48, 255), (255, 0, 0, 255)]
+
+    # Grayscale (L) image: opaque, unchanged RGB
+    l_img = Image.new("L", (1, 1), 200)
+    assert list(
+        file_image._apply_background_color(l_img, bg, CONF_OPAQUE).get_flattened_data()
+    ) == [(200, 200, 200, 255)]
+
+    # Grayscale + Alpha (LA) image with chroma_key
+    la_img = Image.new("LA", (2, 1))
+    la_img.putdata([(200, 0), (200, 255)])
+    la_out = list(
+        file_image._apply_background_color(
+            la_img, bg, CONF_CHROMA_KEY
+        ).get_flattened_data()
+    )
+    assert la_out[0][3] == 0
+    assert la_out[1] == (200, 200, 200, 255)
+
+
+@pytest.mark.asyncio
+async def test_write_image_background_color_png_and_svg(setup_core: Path) -> None:
+    """write_image composites background_color end-to-end for PNG and SVG across formats."""
+    png_path = setup_core / "test.png"
+    src = Image.new("RGBA", (2, 1))
+    src.putdata([(0, 0, 0, 0), (255, 0, 0, 255)])
+    src.save(png_path)
+
+    svg_path = setup_core / "test.svg"
+    svg_path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1">'
+        '<rect x="1" y="0" width="1" height="1" fill="#ff0000"/>'
+        "</svg>"
+    )
+
+    async def _run_write(
+        file_path: Path,
+        image_type: str,
+        transparency: str,
+        bg_color: int,
+        idx: int,
+    ) -> list[int]:
+        config = {
+            CONF_FILE: file_path,
+            CONF_TYPE: image_type,
+            CONF_TRANSPARENCY: transparency,
+            CONF_DITHER: "NONE",
+            file_image.CONF_INVERT_ALPHA: False,
+            CONF_BACKGROUND_COLOR: bg_color,
+            CONF_RAW_DATA_ID: ID(f"raw_{idx}", is_declaration=True, type="uint8_t"),
+        }
+        with patch(
+            "esphome.components.file.image.cg.progmem_array",
+            side_effect=lambda _id, rhs: rhs,
+        ):
+            prog_arr, width, height, _, _, _ = await file_image.write_image(config)
+        assert (width, height) == (2, 1)
+        return [int(x) for x in prog_arr]
+
+    # RGB565 opaque on blue (0x0000FF -> RGB565 0x001F -> LE [0x1F, 0x00])
+    # Red (0xFF0000 -> RGB565 0xF800 -> LE [0x00, 0xF8])
+    assert await _run_write(png_path, "RGB565", CONF_OPAQUE, 0x0000FF, 1) == [
+        0x1F,
+        0x00,
+        0x00,
+        0xF8,
+    ]
+    # RGB565 chroma_key: transparent pixel stays chroma key (r=0,g=1,b=0 -> 0x0020 -> LE [0x20, 0x00])
+    assert await _run_write(png_path, "RGB565", CONF_CHROMA_KEY, 0x0000FF, 2) == [
+        0x20,
+        0x00,
+        0x00,
+        0xF8,
+    ]
+    # RGB opaque (BGR order per pixel)
+    assert await _run_write(png_path, "RGB", CONF_OPAQUE, 0x112233, 3) == [
+        0x33,
+        0x22,
+        0x11,
+        0x00,
+        0x00,
+        0xFF,
+    ]
+    # RGB111 opaque: blue (0,0,1) and red (1,0,0) -> 0b001100_00 = 0x30
+    assert await _run_write(png_path, "RGB111", CONF_OPAQUE, 0x0000FF, 4) == [0x30]
+    # GRAYSCALE opaque: white background (255) + red (76 in ITU-R 601)
+    gs_opaque = await _run_write(png_path, "GRAYSCALE", CONF_OPAQUE, 0xFFFFFF, 5)
+    assert gs_opaque[0] == 255
+    assert 70 <= gs_opaque[1] <= 80
+    # GRAYSCALE chroma_key: transparent pixel becomes chroma key 1
+    gs_chroma = await _run_write(png_path, "GRAYSCALE", CONF_CHROMA_KEY, 0xFFFFFF, 6)
+    assert gs_chroma[0] == 1
+    assert gs_chroma[1] == gs_opaque[1]
+    # SVG opaque on blue
+    assert await _run_write(svg_path, "RGB565", CONF_OPAQUE, 0x0000FF, 7) == [
+        0x1F,
+        0x00,
+        0x00,
+        0xF8,
+    ]
