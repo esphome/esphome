@@ -41,7 +41,6 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await water_heater.new_water_heater(config)
-    await cg.register_component(var, config)
+    var = await uart.new_uart_component(config)
+    await water_heater.register_water_heater(var, config)
     cg.add(var.set_communication_timeout(config[CONF_COMMUNICATION_TIMEOUT]))
-    await uart.register_uart_device(var, config)

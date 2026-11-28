@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_COLOR,
     CONF_COUNT,
     CONF_FINGER_ID,
-    CONF_ID,
     CONF_NEW_PASSWORD,
     CONF_NUM_SCANS,
     CONF_ON_ENROLLMENT_DONE,
@@ -135,12 +134,10 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    var = await uart.new_uart_component(config)
     if CONF_PASSWORD in config:
         password = config[CONF_PASSWORD]
         cg.add(var.set_password(password))
-    await uart.register_uart_device(var, config)
 
     if CONF_NEW_PASSWORD in config:
         new_password = config[CONF_NEW_PASSWORD]
