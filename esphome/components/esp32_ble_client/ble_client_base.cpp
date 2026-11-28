@@ -600,11 +600,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   return true;
 }
 
-// clients can't call defer() directly since it's protected.
-void BLEClientBase::run_later(std::function<void()> &&f) {  // NOLINT
-  this->defer(std::move(f));
-}
-
 void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     // This event is sent by the server when it requests security

@@ -10,6 +10,7 @@
 #endif
 
 #include <array>
+#include <utility>
 #include <vector>
 
 #include <esp_bt_defs.h>
@@ -30,7 +31,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   float get_setup_priority() const override;
   void dump_config() override;
 
-  void run_later(std::function<void()> &&f);  // NOLINT
+  // Clients can't call defer() directly since it's protected
+  template<typename F> void run_later(F &&f) { this->defer(std::forward<F>(f)); }  // NOLINT
 #ifdef USE_ESP32_BLE_DEVICE
   bool parse_device(const espbt::ESPBTDevice &device) override;
 #endif
