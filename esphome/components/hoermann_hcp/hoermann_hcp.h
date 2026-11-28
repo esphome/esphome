@@ -116,6 +116,10 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void drop_command_();
   void clear_light_request_();
   void push_command_registers_(modbus::RegisterValues &registers);
+  // Answers a block the controller asked for that we do not serve, in the shape it can accept: the echoed counter,
+  // the ordinary status code, then zeros. Used for an unknown read address and for an unmodelled read length.
+  void push_status_shape_(modbus::RegisterValues &registers, uint16_t counter, uint16_t command,
+                          uint16_t number_of_registers);
   // Decide at the fetch what goes into a status answer, against the door as it stands then.
   const HoermannHcpCommand *take_command_();
   const HoermannHcpCommand *take_light_command_();

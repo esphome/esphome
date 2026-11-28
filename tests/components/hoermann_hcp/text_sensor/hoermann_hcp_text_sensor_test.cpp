@@ -100,7 +100,7 @@ TEST(HoermannHcpTextSensorTest, NothingChangesWithoutASensor) {
     EXPECT_EQ(response[2], 0x0000);
   }
   // Answered as an ordinary 2-register read, not acknowledged.
-  EXPECT_THAT(transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14), ::testing::ElementsAre(0x8504, 0x0400));
+  EXPECT_THAT(transfer(door, FIRST_HALF | 0x05, SUB_SERIAL, SERIAL, 14), ::testing::ElementsAre(0x8500, 0x04FE));
 }
 
 // Like Hoermann's own bus accessory, the first status poll gets an ordinary answer and the next one carries the
