@@ -49,6 +49,7 @@ from .const import (
     BACNET_UNITS,
     CONF_CLUSTER,
     CONF_ENDPOINT,
+    CONF_MANUFACTURER_CODE,
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
@@ -498,6 +499,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         cg.add(var.set_sleepy(True))
     if (keep_alive := config.get(CONF_POLLING_INTERVAL, 3000)) != 3000:
         cg.add(var.set_keep_alive(keep_alive))
+    cg.add_optional(var.set_manufacturer_code, config.get(CONF_MANUFACTURER_CODE))
     cg.add(
         var.set_basic_cluster(
             config[CONF_MODEL],
