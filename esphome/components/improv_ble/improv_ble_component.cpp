@@ -120,8 +120,11 @@ void ImprovBLEComponent::setup_characteristics() {
 void ImprovBLEComponent::loop() {
   if (!global_ble_server->is_running()) {
     if (this->state_ != improv::STATE_STOPPED) {
-      // Offered again once ble.enable brings the server back, unless a stop() is pending or the window closed
+      // Offered again once ble.enable brings the server back, unless a stop() is pending or the window closed;
+      // the server restarts the service on its own, so it gets the same answer
       this->should_start_ = !this->cancel_timeout(STOP_SERVICE_TIMEOUT_ID) && !provisioning_closed();
+      this->service_->set_should_start(this->should_start_);
+      this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
       this->state_ = improv::STATE_STOPPED;
 #ifdef USE_IMPROV_BLE_STATE_CALLBACK
       this->state_callback_.call(this->state_, this->error_state_);
@@ -427,9 +430,6 @@ void ImprovBLEComponent::process_incoming_data_() {
 }
 
 void ImprovBLEComponent::on_wifi_connect_timeout_() {
-  // The session already ended, as when the BLE server went down meanwhile
-  if (this->state_ != improv::STATE_PROVISIONING)
-    return;
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR

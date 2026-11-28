@@ -52,8 +52,8 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   BLEService *get_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   void enqueue_start_service(BLEService *service) {
-    service->set_should_start();
-    this->start_pending_ = true;
+    service->set_should_start(true);
+    this->enable_loop();
   }
   void set_device_information_service(BLEService *service) { this->device_information_service_ = service; }
 
@@ -149,7 +149,6 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   std::vector<uint8_t> manufacturer_data_{};
   esp_gatt_if_t gatts_if_{0};
   bool registered_{false};
-  bool start_pending_{true};
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
   bool pairing_enabled_{true};
 #endif

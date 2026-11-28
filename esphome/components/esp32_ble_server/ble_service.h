@@ -54,8 +54,8 @@ class BLEService final {
   bool is_stopped() { return this->state_ == STOPPED; }
   bool is_deleted() { return this->state_ == DELETED; }
   bool should_start() const { return this->should_start_; }
-  /// Start the service once it and its characteristics are created, and again whenever BLE is enabled
-  void set_should_start() { this->should_start_ = true; }
+  /// Whether the server starts the service once it and its characteristics are created, also after ble.enable
+  void set_should_start(bool should_start) { this->should_start_ = should_start; }
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
