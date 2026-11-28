@@ -1,4 +1,5 @@
 #include "gps.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -64,7 +65,7 @@ void GPS::handle_line_(char *line, size_t len) {
     return;
   const GPSData &d = this->data_;
 #ifdef USE_GPS_FIELD_AGE
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   for (uint8_t i = 0; i != GPS_FIELD_COUNT; i++) {
     if (d.updated & (1 << i))
       this->updated_ms_[i] = now;
