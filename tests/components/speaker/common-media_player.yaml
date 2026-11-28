@@ -9,6 +9,7 @@ psram:
 media_player:
   - platform: speaker
     id: speaker_media_player_id
+    audio_pipeline_core: 1
     announcement_pipeline:
       speaker: speaker_id
       format: NONE
