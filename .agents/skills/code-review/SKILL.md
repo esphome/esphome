@@ -102,6 +102,15 @@ performance nit, because it fragments a small shared heap. Flag:
   `get_setup_priority()` returning `setup_priority::DATA`).
 - Wrap string literals passed as printf `%s` args in `LOG_STR_LITERAL()`.
 - Required, invariant dependencies should be constructor parameters, not setters.
+- Almost everything, including `setup()`, `loop()` and every entity, runs only on the main loop and is not
+  thread-safe. Tasks and network callbacks reach the loop through the scheduler (`defer()`, `set_timeout()`); RP2's
+  lwIP callbacks run in a low-priority interrupt the scheduler supports. Hardware interrupt handlers (ISRs) use
+  `enable_loop_soon_any_context()`. Nothing calls a component's `setup()` or `loop()` from outside the loop. Options
+  such as a fan's preset modes are usually set at setup, and any later change also happens on the loop. web_server's
+  handlers, which run outside the loop on every platform, fill a `*Call` (only reading the entity, which is accepted)
+  and defer `call.perform()`. Do not ask for locks or revalidation against an entity changing under a pending call,
+  from another task or a callback inside `perform()`; the one exception is a call's stored index into options a
+  runtime setter can replace, which the call checks before `perform()` applies it.
 - Callback registration methods must be templated (`template<typename F>`), not
   typed as `std::function`, so lightweight forwarders avoid a heap allocation.
 - Two-space indent, `using` over `typedef`, wrap at 120 columns.

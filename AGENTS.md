@@ -333,6 +333,18 @@ file does, and it is the authority when they disagree. The most useful starting 
         sets, `is_failed()` in `loop()` (core stops calling it), a value the config validation already limits, a
         `default:` in a `switch` over every value of an `enum class` the component sets itself (keep it when the
         value is cast from bus data).
+    *   **Entities belong to the main loop:** almost everything, including `setup()`, `loop()` and every entity,
+        runs only on the main loop and is not thread-safe. Code on another task or in a network callback gets work
+        onto the loop through the scheduler (`defer()`, `set_timeout()`), including RP2's lwIP callbacks, which run in a
+        low-priority interrupt the scheduler supports; a hardware interrupt handler (ISR) instead records the work
+        and calls `enable_loop_soon_any_context()`. Never call a
+        component's `setup()` or `loop()` from outside the loop. Options such as a fan's preset modes or a select's
+        options are usually set during setup, and a later change happens on the loop too. web_server shows the
+        pattern: its request handlers run outside the main loop on every platform, fill a `*Call` there (only
+        reading the entity, which is accepted) and defer `call.perform()`. Do not add locks or revalidation against
+        an entity changing under a pending call, from another task or a callback inside `perform()`, or ask for
+        them. One exception: a call that stores an index into options a runtime setter can replace checks that
+        index before `perform()` applies it.
     *   **Member layout:** order fields so the compiler adds no padding (usually largest first), store small codes
         as `uint8_t`, declare `enum class X : uint8_t`, and pack flags into one byte.
     *   **Work out constants in Python:** math that only depends on the configuration (register bytes, scale
