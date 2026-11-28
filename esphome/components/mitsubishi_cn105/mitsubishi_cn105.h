@@ -2,6 +2,7 @@
 
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/finite_set_mask.h"
+#include "esphome/core/frame_reader.h"
 
 #include <cmath>
 #include <span>
@@ -9,6 +10,19 @@
 namespace esphome::mitsubishi_cn105 {
 
 uint32_t get_loop_time_ms();
+
+// PREAMBLE, packet type, HEADER_BYTE_1, HEADER_BYTE_2, payload length, payload, checksum
+static constexpr size_t MAX_FRAME_SIZE = 32;
+static constexpr size_t HEADER_LEN = 5;
+static constexpr uint8_t PREAMBLE = 0xFC;
+static constexpr uint8_t HEADER_BYTE_1 = 0x01;
+static constexpr uint8_t HEADER_BYTE_2 = 0x30;
+
+// The type byte sits between PREAMBLE and the fixed header bytes, so FrameHeader cannot check them
+inline bool frame_header_valid(const uint8_t *frame) { return frame[2] == HEADER_BYTE_1 && frame[3] == HEADER_BYTE_2; }
+// One checksum byte follows the payload
+using PayloadLength = PayloadLengthU8<LengthField{.offset = HEADER_LEN - 1, .trailer = 1}>;
+using Frame = FrameFormat<FrameHeader<PREAMBLE>, PayloadLength, CheckFirstBytes<HEADER_LEN, frame_header_valid>>;
 
 class MitsubishiCN105 {
  public:
@@ -118,21 +132,6 @@ class MitsubishiCN105 {
     READ_TIMEOUT
   };
 
-  class FrameParser {
-   public:
-    template<typename Callback> bool read_and_parse(uart::UARTDevice &device, Callback &&callback);
-    void reset() { read_pos_ = 0; }
-    static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
-
-   protected:
-    void reset_and_dump_buffer_(const char *prefix);
-
-   private:
-    static constexpr size_t READ_BUFFER_SIZE = 32;
-    uint8_t read_buffer_[READ_BUFFER_SIZE];
-    uint8_t read_pos_{0};
-  };
-
   enum class PropertyId : uint8_t {
     TEMPERATURE = 0,
     POWER = 1,
@@ -207,11 +206,12 @@ class MitsubishiCN105 {
   uint32_t telemetry_request_min_interval_ms_{60000};
   uint32_t last_telemetry_update_ms_{0};
   uint32_t wind_down_read_ms_{0};
+  uint32_t last_rx_ms_{0};
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
   PropertyContext property_context_;
-  FrameParser frame_parser_;
+  LengthFrameReader<MAX_FRAME_SIZE, Frame> reader_;
   uint8_t current_status_msg_type_{0};
 
   static constexpr uint8_t REMOTE_TEMPERATURE_DISABLED = 0;

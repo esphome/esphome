@@ -57,6 +57,24 @@ static constexpr uint8_t HITACHI_BYTE19 = 0x08;      // byte 19
 // Header, 21 bytes of 8 bits, two dividers and the footer mark
 static constexpr uint32_t WHIRLPOOL_FRAME_TIMINGS = 2 + WHIRLPOOL_STATE_LENGTH * 16 + 2 * 2 + 1;
 
+using climate_ir::find_ir_code;
+using climate_ir::from_ir_code;
+using climate_ir::IRCode;
+using climate_ir::to_ir_code;
+
+// Off is not listed: it is sent as a power toggle or state
+static constexpr IRCode MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, WHIRLPOOL_AUTO}, {climate::CLIMATE_MODE_HEAT, WHIRLPOOL_HEAT},
+    {climate::CLIMATE_MODE_COOL, WHIRLPOOL_COOL},      {climate::CLIMATE_MODE_DRY, WHIRLPOOL_DRY},
+    {climate::CLIMATE_MODE_FAN_ONLY, WHIRLPOOL_FAN},
+};
+static constexpr IRCode FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, WHIRLPOOL_FAN_AUTO},
+    {climate::CLIMATE_FAN_HIGH, WHIRLPOOL_FAN_HIGH},
+    {climate::CLIMATE_FAN_MEDIUM, WHIRLPOOL_FAN_MED},
+    {climate::CLIMATE_FAN_LOW, WHIRLPOOL_FAN_LOW},
+};
+
 WhirlpoolClimate::WhirlpoolClimate()
     : climate_ir::ClimateIR(
           WHIRLPOOL_DG11J1_3A_TEMP_MIN, WHIRLPOOL_DG11J1_3A_TEMP_MAX, 1.0f, true, true,
@@ -81,37 +99,13 @@ void WhirlpoolClimate::transmit_state() {
     remote_state[15] = 1;
   }
   this->powered_on_assumed = powered_on;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      // set fan auto
-      // set temp auto temp
-      // set sleep false
-      remote_state[3] = WHIRLPOOL_AUTO;
-      remote_state[15] = 0x17;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      remote_state[3] = WHIRLPOOL_HEAT;
-      remote_state[15] = 6;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      remote_state[3] = WHIRLPOOL_COOL;
-      remote_state[15] = 6;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      remote_state[3] = WHIRLPOOL_DRY;
-      remote_state[15] = 6;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state[3] = WHIRLPOOL_FAN;
-      remote_state[15] = 6;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-      // These remotes keep the cool code in the power-off frame
-      if (this->is_hisense_arg_() || this->is_hitachi_hcra31newh_())
-        remote_state[3] = WHIRLPOOL_COOL;
-      break;
-    default:
-      break;
+  if (const auto entry = find_ir_code(MODES, this->mode, false)) {
+    remote_state[3] = entry->code;
+    // Auto also sets fan auto, auto temperature and sleep off
+    remote_state[15] = this->mode == climate::CLIMATE_MODE_HEAT_COOL ? 0x17 : 6;
+  } else if (this->mode == climate::CLIMATE_MODE_OFF && (this->is_hisense_arg_() || this->is_hitachi_hcra31newh_())) {
+    // These remotes keep the cool code in the power-off frame
+    remote_state[3] = WHIRLPOOL_COOL;
   }
 
   const bool hisense_arg = this->is_hisense_arg_();
@@ -127,19 +121,7 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   // Fan speed
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
-    case climate::CLIMATE_FAN_HIGH:
-      remote_state[2] |= WHIRLPOOL_FAN_HIGH;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      remote_state[2] |= WHIRLPOOL_FAN_MED;
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      remote_state[2] |= WHIRLPOOL_FAN_LOW;
-      break;
-    default:
-      break;
-  }
+  remote_state[2] |= to_ir_code(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), WHIRLPOOL_FAN_AUTO);
 
   // Swing
   ESP_LOGV(TAG, "send swing %s", this->send_swing_cmd_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
@@ -328,25 +310,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (powered_on_assumed) {
     auto mode = remote_state[3] & 0x7;
     ESP_LOGV(TAG, "Mode: %02X", mode);
-    switch (mode) {
-      case WHIRLPOOL_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case WHIRLPOOL_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case WHIRLPOOL_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case WHIRLPOOL_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case WHIRLPOOL_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      default:
-        break;
-    }
+    this->mode = from_ir_code(MODES, mode, this->mode);
   }
 
   // Set received temp; Hisense ARG sends fixed values in auto and fan-only
@@ -363,21 +327,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Set received fan speed
   auto fan = remote_state[2] & WHIRLPOOL_FAN_MASK;
   ESP_LOGVV(TAG, "Fan: %02X", fan);
-  switch (fan) {
-    case WHIRLPOOL_FAN_HIGH:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case WHIRLPOOL_FAN_MED:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case WHIRLPOOL_FAN_LOW:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case WHIRLPOOL_FAN_AUTO:
-    default:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-  }
+  this->fan_mode = from_ir_code(FANS, fan, climate::CLIMATE_FAN_AUTO);
 
   // Set received swing status
   if (hisense_arg) {

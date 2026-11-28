@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+import re
 
 from esphome import automation, preferences
 import esphome.codegen as cg
@@ -83,8 +84,8 @@ from esphome.const import (
     Framework,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID, CoroPriority, HexInt, Lambda, coroutine_with_priority
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import sanitize, snake_case
 from esphome.mqtt_topics import (
@@ -92,10 +93,14 @@ from esphome.mqtt_topics import (
     per_board_suffix,
     prefix_gets_mac_suffix,
 )
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["network"]
 DOMAIN = "mqtt"
+
+_SHA1_FINGERPRINT_RE = re.compile(
+    r"(?:[0-9a-fA-F]{40}|(?:[0-9a-fA-F]{2}:){19}[0-9a-fA-F]{2})"
+)
 
 
 def AUTO_LOAD():
@@ -105,6 +110,7 @@ def AUTO_LOAD():
 
 
 CONF_TLS = "tls"
+CONF_SSL_FINGERPRINTS = "ssl_fingerprints"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 CONF_PERSIST_SUBSCRIPTIONS = "persist_subscriptions"
@@ -166,7 +172,6 @@ def _topic_source(topic: str) -> cg.MockObj:
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
-MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
 # A topic the firmware builds from a suffix, unless the config key replaces the whole topic
@@ -363,7 +368,8 @@ def _derive_tls(config: ConfigType) -> ConfigType:
             "transport 'ws' is unencrypted; remove the TLS options "
             "or switch to transport 'wss'"
         )
-    config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
+    tls = config.get(CONF_TLS) or CONF_SSL_FINGERPRINTS in config
+    config.setdefault(CONF_PORT, 8883 if tls else 1883)
     return config
 
 
@@ -378,6 +384,18 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     # MQTT needs 1 socket for the broker connection
     socket.consume_sockets(1, "mqtt")(config)
     return config
+
+
+def normalize_fingerprint(fingerprint: str) -> str:
+    """Return the SHA1 fingerprint as 40 lowercase hex digits without colons."""
+    return fingerprint.strip().replace(":", "").lower()
+
+
+def validate_fingerprint(value: str) -> str:
+    """Check the SHA1 fingerprint, returning it unchanged so a !secret round-trips."""
+    if _SHA1_FINGERPRINT_RE.fullmatch(value.strip()) is None:
+        raise cv.Invalid("fingerprint must be a SHA1 hash with 40 hexadecimal digits")
+    return value
 
 
 # The parsed JSON document is freed once the automation returns
@@ -460,6 +478,15 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
+            ),
+            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
+                cv.only_on_esp8266,
+                cv.ensure_list(cv.string, validate_fingerprint),
+                cv.Length(
+                    min=1,
+                    max=1,
+                    msg="ESP8266 MQTT TLS supports exactly one fingerprint",
+                ),
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -658,9 +685,12 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # Add required libraries for ESP8266 and LibreTiny
-    if CORE.is_esp8266 or CORE.is_libretiny:
+    if CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+    elif CORE.is_esp8266:
+        # https://github.com/esphome-libs/async-mqtt-client, with BearSSL support
+        cg.add_library("esphome/AsyncMqttClient-esphome", "2.3.0")
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
@@ -783,6 +813,15 @@ async def to_code(config):
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
 
+    if fingerprints := config.get(CONF_SSL_FINGERPRINTS):
+        cg.extern_progmem_array(
+            "esphome::mqtt::SSL_FINGERPRINT",
+            cg.uint8,
+            [HexInt(b) for b in bytes.fromhex(normalize_fingerprint(fingerprints[0]))],
+        )
+        cg.add(var.set_ssl_fingerprint())
+        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
+
     # The client queues subscriptions until it connects, so they can be made at construction.
     for conf in config.get(CONF_ON_MESSAGE, []):
         callback = await automation.build_trigger_callback(
@@ -864,24 +903,44 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 @automation.register_action(
     "mqtt.publish_json",
-    MQTTPublishJsonAction,
+    automation.ApplyAction,
     MQTT_PUBLISH_JSON_ACTION_SCHEMA,
     synchronous=True,
 )
-async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(var.set_topic(template_))
-
-    args_ = args + [(cg.JsonObject, "root")]
-    lambda_ = await cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
-    cg.add(var.set_payload(lambda_))
-    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
-    cg.add(var.set_retain(template_))
-    return var
+async def mqtt_publish_json_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    parent = await automation.apply_parent(config)
+    # Lambdas are bound in order before the publish
+    statements: list[str] = []
+    values: dict[str, str] = {}
+    for key, type_, const_fn in (
+        (CONF_TOPIC, cg.std_string, automation.flash_string),
+        (CONF_QOS, cg.uint8, None),
+        (CONF_RETAIN, cg.bool_, None),
+    ):
+        if isinstance(value := config[key], Lambda):
+            statements.append(
+                await automation.bind_lambda(value, args, type_, f"esphome__{key}")
+            )
+            values[key] = f"esphome__{key}"
+        else:
+            values[key] = (
+                const_fn(config, value) if const_fn else str(cg.safe_exp(value))
+            )
+    # The payload gets its own copies of the trigger args, as any lambda does
+    payload = await cg.process_lambda(
+        config[CONF_PAYLOAD], [*args, (cg.JsonObject, "root")], return_type=cg.void
+    )
+    build = (
+        f"[&]({cg.JsonObject} root) {{ {automation.immediate_lambda_call(payload)}; }}"
+    )
+    topic, qos, retain = (values[key] for key in (CONF_TOPIC, CONF_QOS, CONF_RETAIN))
+    statements.append(f"{parent}->publish_json({topic}, {build}, {qos}, {retain});")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 def get_default_topic_for(data, component_type, name, suffix):

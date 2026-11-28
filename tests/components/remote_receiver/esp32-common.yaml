@@ -61,6 +61,11 @@ binary_sensor:
       device: 0x25
       command: 0x02
   - platform: remote_receiver
+    name: Denon Remote Input
+    denon:
+      address: 2
+      command: 121
+  - platform: remote_receiver
     name: Dish Remote Input
     dish:
       command: 0x10

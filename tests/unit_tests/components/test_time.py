@@ -9,13 +9,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.components.time import (
+    DAYS_OF_WEEK_FIELD,
+    HOURS_FIELD,
     _load_tzdata,
     _parse_cron_part,
-    validate_cron_days_of_week,
-    validate_cron_hours,
     validate_tz,
 )
 import esphome.config_validation as cv
+
+validate_cron_hours = HOURS_FIELD.validator()
+validate_cron_days_of_week = DAYS_OF_WEEK_FIELD.validator()
 
 
 def test_star_slash_seconds() -> None:

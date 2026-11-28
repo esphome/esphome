@@ -20,6 +20,7 @@ from esphome.components.esp32 import (
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
     MBEDTLS_NON_P256_CURVE_OPTIONS,
+    MBEDTLS_RARE_TLS_CURVE_OPTIONS,
     MBEDTLS_RSA_OPTIONS,
     MBEDTLS_TLS_EXTRA_OPTIONS,
     MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS,
@@ -32,10 +33,12 @@ from esphome.components.esp32 import (
     _ota_downgrade_protection_errors,
     _reconcile_mbedtls_sdkconfig,
     _reconcile_network_sdkconfig,
+    _reconcile_unused_idf_features,
     _reconcile_vfs_fatfs_sdkconfig,
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
     idf_version,
+    require_fatfs,
     require_idf_version,
 )
 from esphome.components.esp32.boards import BOARDS, STANDARD_BOARDS
@@ -736,6 +739,20 @@ def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
     assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
 
+def test_require_fatfs_reincludes_only_fatfs() -> None:
+    """require_fatfs() sets the flag and takes only fatfs off the default exclusions."""
+    CORE.data[KEY_ESP32] = {
+        KEY_EXCLUDE_COMPONENTS: set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+    }
+
+    require_fatfs()
+
+    assert CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] is True
+    assert CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] == set(
+        DEFAULT_EXCLUDED_IDF_COMPONENTS
+    ) - {"fatfs"}
+
+
 _BUNDLE_OPTIONS = (
     "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
     "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN",
@@ -897,8 +914,9 @@ _IDF61 = cv.Version(6, 1, 1)
             id="idf61_remote_enterprise_off",
         ),
         pytest.param(
-            # With TLS kept, the curves, PEM, large-key MPI and SHA-384 (for
-            # certificate chains) stay; the unused cipher modes still go.
+            # With TLS kept, the curves servers use (P-256, P-384, P-521,
+            # X25519), PEM, large-key MPI and SHA-384 (for certificate chains)
+            # stay; Brainpool, secp256k1 and the unused cipher modes go.
             PlatformFramework.ESP32_IDF,
             _IDF6,
             MbedtlsSdkconfigData(tls_required=True),
@@ -907,10 +925,11 @@ _IDF61 = cv.Version(6, 1, 1)
                 **_TLS_CLIENT_ONLY,
                 **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
+                **dict.fromkeys(MBEDTLS_RARE_TLS_CURVE_OPTIONS, False),
                 **_CIPHER_MODES_OFF,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
-            id="idf6_tls_keeps_curves",
+            id="idf6_tls_keeps_common_curves",
         ),
         pytest.param(
             # A user sdkconfig_options value wins over a curve trim.
@@ -925,6 +944,62 @@ _IDF61 = cv.Version(6, 1, 1)
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_user_curve_wins",
+        ),
+        pytest.param(
+            # A user choice for a rare curve still wins with TLS on.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED": RawSdkconfigValue("y")},
+            {
+                "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **dict.fromkeys(
+                    (
+                        option
+                        for option in MBEDTLS_RARE_TLS_CURVE_OPTIONS
+                        if option != "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED"
+                    ),
+                    False,
+                ),
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_tls_user_rare_curve_wins",
+        ),
+        pytest.param(
+            # Wi-Fi Enterprise keeps the rare curves for private RADIUS PKIs.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": True},
+            {
+                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": True,
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_eap_keeps_rare_curves",
+        ),
+        pytest.param(
+            # So does esp_wifi_remote's Enterprise option on IDF 6.1.
+            PlatformFramework.ESP32_IDF,
+            _IDF61,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": RawSdkconfigValue("y")},
+            {
+                "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_remote_eap_keeps_rare_curves",
         ),
         pytest.param(
             # A P-384 app signing key keeps the P-384 curve.
@@ -2100,8 +2175,8 @@ def test_reconcile_network_sdkconfig(
             },
             id="user_preset_wins_over_require",
         ),
-        # require_fatfs() with no user preset: long filenames on the heap, 255 chars,
-        # four volumes.
+        # require_fatfs() with no user preset: long filenames on the stack, 255 chars,
+        # four volumes, one shared sector buffer per volume and 512 byte sectors.
         pytest.param(
             {},
             True,
@@ -2112,9 +2187,13 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": True,
                 "CONFIG_VFS_SUPPORT_DIR": True,
                 "CONFIG_FATFS_LFN_NONE": False,
-                "CONFIG_FATFS_LFN_HEAP": True,
+                "CONFIG_FATFS_LFN_STACK": True,
                 "CONFIG_FATFS_MAX_LFN": 255,
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
+                "CONFIG_FATFS_PER_FILE_CACHE": False,
+                "CONFIG_WL_SECTOR_SIZE_4096": False,
+                "CONFIG_WL_SECTOR_SIZE_512": True,
+                "CONFIG_FATFS_API_ENCODING_UTF_8": True,
             },
             id="fatfs_required_defaults",
         ),
@@ -2131,6 +2210,10 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_DIR": True,
                 "CONFIG_FATFS_LFN_STACK": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
+                "CONFIG_FATFS_PER_FILE_CACHE": False,
+                "CONFIG_WL_SECTOR_SIZE_4096": False,
+                "CONFIG_WL_SECTOR_SIZE_512": True,
+                "CONFIG_FATFS_API_ENCODING_UTF_8": True,
             },
             id="fatfs_user_lfn_stack_untouched",
         ),
@@ -2163,6 +2246,10 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_DIR": True,
                 "CONFIG_FATFS_LFN_NONE": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
+                "CONFIG_FATFS_PER_FILE_CACHE": False,
+                "CONFIG_WL_SECTOR_SIZE_4096": False,
+                "CONFIG_WL_SECTOR_SIZE_512": True,
+                "CONFIG_FATFS_API_ENCODING_UTF_8": True,
             },
             id="fatfs_user_lfn_none_untouched",
         ),
@@ -2207,8 +2294,9 @@ def test_network_wifi_only_reconciles_end_to_end(
     assert "esp_wifi" not in excluded
     assert "wpa_supplicant" not in excluded
     assert "esp_phy" in excluded
-    # With wifi present mdns keeps its predefined interfaces.
-    assert "CONFIG_MDNS_PREDEF_NETIF_STA" not in sdkconfig
+    # With wifi (no AP) mdns keeps only its predefined STA interface.
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_STA") is True
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_AP") is False
     # WiFi stack stays enabled (no ethernet) and no Bluetooth requested.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
     assert "CONFIG_BT_ENABLED" not in sdkconfig
@@ -3042,3 +3130,42 @@ def test_task_watchdog_sdkconfig_and_define(
     assert sdkconfig["CONFIG_ESP_TASK_WDT_PANIC"] is True
     assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0"] is False
     assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1"] is False
+
+
+_UNUSED_IDF_FEATURES_OFF = {
+    "CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT": False,
+    "CONFIG_ESP_TLS_USE_DS_PERIPHERAL": False,
+}
+
+
+@pytest.mark.parametrize(
+    ("framework", "preset", "expected"),
+    [
+        pytest.param(
+            PlatformFramework.ESP32_IDF, {}, _UNUSED_IDF_FEATURES_OFF, id="idf"
+        ),
+        pytest.param(PlatformFramework.ESP32_ARDUINO, {}, {}, id="arduino_skipped"),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            {"CONFIG_ESP_TLS_USE_DS_PERIPHERAL": RawSdkconfigValue("y")},
+            {
+                **_UNUSED_IDF_FEATURES_OFF,
+                "CONFIG_ESP_TLS_USE_DS_PERIPHERAL": RawSdkconfigValue("y"),
+            },
+            id="user_value_wins",
+        ),
+    ],
+)
+def test_reconcile_unused_idf_features(
+    set_core_config: SetCoreConfigCallable,
+    framework: PlatformFramework,
+    preset: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    """Unused ESP-IDF features default off on ESP-IDF builds; user values win."""
+    set_core_config(framework)
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: dict(preset)}
+
+    asyncio.run(_reconcile_unused_idf_features())
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected

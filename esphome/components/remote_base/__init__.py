@@ -64,7 +64,7 @@ from esphome.core import (
     coroutine,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, StaticCastExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
@@ -472,14 +472,13 @@ async def _transmit_value(
     type_: SafeExpType,
     const_fn: Callable[[Any], Any] = cg.safe_exp,
 ) -> str:
-    """Argument text for one templatable transmit value.
-
-    A lambda keeps the trigger's own argument types and is always called, so its body may
-    modify its by-value arguments.
-    """
+    """Argument text for one templatable transmit value."""
     if isinstance(value, Lambda):
-        lamb = await cg.process_lambda(value, args, return_type=type_)
-        return str(automation.immediate_lambda_call(lamb))
+        expr = await automation.call_user_lambda(value, args, type_)
+        if isinstance(expr, cg.RawExpression):
+            # Used as an operand (.transmit, [0]): the cast binds as a whole and converts like the lambda's return
+            expr = StaticCastExpression(type_, expr)
+        return str(expr)
     return str(const_fn(value))
 
 
@@ -788,6 +787,22 @@ def coolix_trigger(var, config):
 @register_dumper("coolix", CoolixDumper)
 def coolix_dumper(var, config):
     pass
+
+
+# Denon
+DENON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.int_range(min=0, max=31),
+        cv.Required(CONF_COMMAND): cv.uint8_t,
+    }
+)
+DenonData, DenonBinarySensor, DenonTrigger, _, DenonDumper = register_simple_protocol(
+    "denon",
+    "Denon",
+    DENON_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+)
 
 
 # Dish

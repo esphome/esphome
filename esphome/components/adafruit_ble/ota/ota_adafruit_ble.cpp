@@ -4,21 +4,25 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-#include <cstring>
 #include <hal/nrf_power.h>
+#ifdef USE_ADAFRUIT_BLE_TRIGGER
+#include <cstring>
 #include <zephyr/bluetooth/gatt.h>
+#endif
 
 namespace esphome::adafruit_ble {
 
 ESPHOME_LOG_TAG(TAG, "adafruit_ble");
 
+// GPREGRET value the Adafruit nRF52 bootloader reads to enter OTA (BLE DFU) mode
+static constexpr uint8_t DFU_GPREGRET_OTA = 0xA8;
+
+#ifdef USE_ADAFRUIT_BLE_TRIGGER
 // Written by the upload tool (dfu.py) to ask for a restart into the bootloader,
 // which then serves the DFU transfer. The bootloader only advertises its own DFU
 // service while it is in DFU mode, so this service is what identifies the
 // running application.
 static constexpr uint8_t DFU_TRIGGER_MAGIC[] = {'D', 'F', 'U'};
-// GPREGRET value the Adafruit nRF52 bootloader reads to enter OTA (BLE DFU) mode
-static constexpr uint8_t DFU_GPREGRET_OTA = 0xA8;
 
 // Matches the MCUmgr BLE transport default: a paired (authenticated) link once pairing is enabled
 #ifdef CONFIG_BT_SMP
@@ -50,6 +54,7 @@ BT_GATT_SERVICE_DEFINE(  // NOLINT
                            BT_GATT_CHRC_WRITE, DFU_TRIGGER_PERM, nullptr, dfu_trigger_write, nullptr));
 
 OTAComponent::OTAComponent() { global_ota_component = this; }
+#endif
 
 void OTAComponent::request_dfu_mode() {
   // Restart from the main loop, so the OTA listeners run there and the write is answered first

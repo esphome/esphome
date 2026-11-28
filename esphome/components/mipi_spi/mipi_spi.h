@@ -138,13 +138,9 @@ class MipiSpi : public display::Display,
   // reset the display, and write the init sequence
   void setup() override {
     this->spi_setup();
-    if (this->dc_pin_ != nullptr) {
-      this->dc_pin_->setup();
-      this->dc_pin_->digital_write(false);
-    }
+    setup_output_pin(this->dc_pin_, false);
     for (auto *pin : this->enable_pins_) {
-      pin->setup();
-      pin->digital_write(true);
+      setup_output_pin(pin, true);
     }
     // required delay after reset is already in the init sequence, don't duplicate
     pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});

@@ -8,18 +8,18 @@ from esphome.const import (
     CONF_PERMITTIVITY,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_MOISTURE,
+    ICON_COUNTER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_PERCENT,
-    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
+
+ICON_SINE_WAVE = "mdi:sine-wave"
 
 smt100_ns = cg.esphome_ns.namespace("smt100")
 SMT100 = smt100_ns.class_("SMT100Component", cg.PollingComponent, uart.UARTDevice)
@@ -31,6 +31,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(SMT100),
             cv.Optional(CONF_COUNTS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -39,26 +40,22 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_PERMITTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_SINE_WAVE,
                 accuracy_decimals=2,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=2
             ),
         }
     )

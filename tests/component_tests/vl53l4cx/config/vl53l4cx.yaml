@@ -1,0 +1,42 @@
+esphome:
+  name: vl53l4cx-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: i2c_bus
+    sda: GPIO21
+    scl: GPIO22
+  - id: i2c_bus_2
+    sda: GPIO18
+    scl: GPIO19
+    frequency: 400kHz
+
+sensor:
+  - platform: vl53l4cx
+    i2c_id: i2c_bus
+    id: garage
+    name: Garage Distance
+    address: 0x2C
+    enable_pin: GPIO32
+    interrupt_pin: GPIO35
+    target: farthest
+    min_distance: 100mm
+    update_interval: never
+  - platform: vl53l4cx
+    i2c_id: i2c_bus_2
+    id: defaults
+    name: Defaults
+  - platform: vl53l4cx
+    i2c_id: mux_channel
+    name: Muxed
+    update_interval: 20ms
+
+tca9548a:
+  - id: mux
+    i2c_id: i2c_bus
+    address: 0x70
+    channels:
+      - bus_id: mux_channel
+        channel: 0
