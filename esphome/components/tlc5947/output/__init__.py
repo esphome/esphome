@@ -1,9 +1,9 @@
 from esphome.components import output
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_NUM_CHIPS
 from esphome.types import ConfigType
 
-from .. import TLC5947
+from .. import CHANNELS_PER_CHIP, TLC5947
 
 DEPENDENCIES = ["tlc5947"]
 
@@ -19,7 +19,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
-    platform="tlc5947", hub_key=CONF_TLC5947_ID
+    platform="tlc5947",
+    hub_key=CONF_TLC5947_ID,
+    channel_count=lambda hub: hub[CONF_NUM_CHIPS] * CHANNELS_PER_CHIP,
 )
 
 

@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+tlc5947:
+  id: tlc5947_hub
+  clock_pin: 5
+  data_pin: 4
+  lat_pin: 14
+  num_chips: 2
+
+output:
+  - platform: tlc5947
+    id: out
+    channel: 47
