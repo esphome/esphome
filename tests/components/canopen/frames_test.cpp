@@ -89,6 +89,19 @@ INSTANTIATE_TEST_SUITE_P(States, NmtStateToString,
                                            std::make_pair(NMTState::NMT_STATE_UNKNOWN, "unknown"),
                                            std::make_pair(static_cast<NMTState>(3), "unknown")));
 
+class NodeEventToString : public ::testing::TestWithParam<std::pair<NodeEvent, const char *>> {};
+
+TEST_P(NodeEventToString, Name) {
+  EXPECT_STREQ(LOG_STR_ARG(node_event_to_string(GetParam().first)), GetParam().second);
+}
+
+INSTANTIATE_TEST_SUITE_P(Events, NodeEventToString,
+                         ::testing::Values(std::make_pair(NodeEvent::NODE_EVENT_ONLINE, "online"),
+                                           std::make_pair(NodeEvent::NODE_EVENT_OFFLINE, "offline"),
+                                           std::make_pair(NodeEvent::NODE_EVENT_NMT_CHANGED, "NMT changed"),
+                                           std::make_pair(NodeEvent::NODE_EVENT_RESET, "reset"),
+                                           std::make_pair(static_cast<NodeEvent>(9), "unknown")));
+
 class FramesTest : public ::testing::Test {
  protected:
   struct Received {

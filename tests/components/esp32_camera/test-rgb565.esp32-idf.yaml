@@ -1,0 +1,7 @@
+# Non-JPEG sensor output converted to JPEG, so the conversion code builds too
+packages:
+  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-idf.yaml
+  esp32_camera: !include common.yaml
+
+esp32_camera:
+  pixel_format: RGB565

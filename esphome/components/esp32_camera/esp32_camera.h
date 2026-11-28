@@ -85,6 +85,12 @@ enum ESP32SpecialEffect {
   ESP32_SPECIAL_EFFECT_SEPIA = 6U,
 };
 
+enum class FramebufferTaskState : uint8_t {
+  FRAMEBUFFER_TASK_STATE_STOPPED,   // not running, or about to end
+  FRAMEBUFFER_TASK_STATE_RUNNING,   // fetching frames from the driver
+  FRAMEBUFFER_TASK_STATE_STOPPING,  // asked to end at its next frame
+};
+
 #ifdef USE_ESP32_CAMERA_CAPTURE
 enum class CaptureState : uint8_t {
   CAPTURE_STATE_IDLE,       // no single image capture running
@@ -147,8 +153,14 @@ class ESP32Camera final : public camera::Camera {
   void set_power_down_pin(uint8_t pin) { this->config_.pin_pwdn = pin; }
   /* -- image */
   void set_pixel_format(ESP32CameraPixelFormat format);
+  /// After setup(), a new size takes effect on update_camera_parameters(), which starts the camera driver again:
+  /// the frame buffers are allocated as at boot, a failure is logged and leaves the camera down, and any window is
+  /// cleared. The camera comes back with the next update_camera_parameters() that succeeds.
   void set_frame_size(ESP32CameraFrameSize size);
-  void set_jpeg_quality(uint8_t quality) { this->config_.jpeg_quality = quality; }
+  /// Set the JPEG quality, 6 (best) to 63. Returns false and keeps the current value when it is out of range.
+  /// After setup(), JPEG output takes a new value on update_camera_parameters(), and frames converted from
+  /// another format use it from the next frame on.
+  bool set_jpeg_quality(int quality);
   void set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
   void set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
   void set_contrast(int contrast) { this->contrast_ = contrast; }
@@ -232,6 +244,10 @@ class ESP32Camera final : public camera::Camera {
   /* internal methods */
   bool has_requested_image_() const;
   bool can_return_image_() const;
+  bool start_driver_(bool restart);
+  bool start_framebuffer_task_();
+  void release_current_image_(bool return_frame);
+  void restart_driver_step_();
 #ifdef USE_ESP32_CAMERA_CAPTURE
   void cancel_capture_();
   bool advance_capture_(uint32_t now, uint8_t requesters);
@@ -279,6 +295,8 @@ class ESP32Camera final : public camera::Camera {
   uint32_t idle_update_interval_{15000};
 
   esp_err_t init_error_{ESP_OK};
+  bool driver_restart_pending_{false};
+  std::atomic<FramebufferTaskState> task_state_{FramebufferTaskState::FRAMEBUFFER_TASK_STATE_STOPPED};
   std::shared_ptr<ESP32CameraImage> current_image_;
   std::atomic<uint8_t> single_requesters_{0};
   std::atomic<uint8_t> stream_requesters_{0};

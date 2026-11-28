@@ -249,4 +249,39 @@ TEST_P(SdoCancellation, CancelledBufferTransferStopsAfterTheFirstSegment) {
 
 INSTANTIATE_TEST_SUITE_P(ReadAndWrite, SdoCancellation, ::testing::Bool());
 
+// On a node, the NMT master's frame waits in another TX buffer of the driver: it goes out with the abort, which keeps
+// the client's own buffer until it has left.
+TEST(SdoCancellationNode, PendingAbortSurvivesAnNmtCommand) {
+  FakeCanbus bus;
+  TestHub hub(&bus);
+  hub.setup();
+  ASSERT_FALSE(hub.is_failed());
+  hub.loop();  // the boot-up heartbeat, before the bus is blocked
+  bus.sent.clear();
+  int callbacks = 0, other_callbacks = 0;
+  auto on_result = [](void *context, const SDOReply & /*reply*/) { (*static_cast<int *>(context))++; };
+
+  bus.busy = true;
+  ASSERT_TRUE(hub.read_sdo<uint16_t>(0x21, 0x6041, 0, on_result, &callbacks));
+  hub.loop();
+  ASSERT_TRUE(hub.send_nmt(0x23, NMTCommand::NMT_COMMAND_START));
+  hub.cancel_sdo(&callbacks);
+  ASSERT_TRUE(hub.read_sdo<uint16_t>(0x22, 0x6041, 0, on_result, &other_callbacks));
+  hub.loop();  // the abort is still blocked: its buffer isn't reused for node 0x22
+  bus.busy = false;
+  hub.loop();
+  hub.loop();
+  EXPECT_EQ(bus.count(0x622), 0u);  // the guard after the abort holds every node
+  advance_loop_clock(60);
+  hub.loop();
+
+  ASSERT_EQ(bus.count(0x621), 1u);
+  EXPECT_EQ(bus.find(0x621)->data[0], 0x80);
+  EXPECT_EQ(bus.count(0), 1u);  // the NMT command
+  EXPECT_EQ(bus.count(0x622), 1u);
+  hub.frame(0x5A2, {0x4B, 0x41, 0x60, 0, 0x27, 0, 0, 0});
+  EXPECT_EQ(other_callbacks, 1);
+  EXPECT_EQ(callbacks, 0);
+}
+
 }  // namespace esphome::canopen::testing
