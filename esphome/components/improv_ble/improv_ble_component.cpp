@@ -488,7 +488,14 @@ void ImprovBLEComponent::check_wifi_connection_() {
 void ImprovBLEComponent::save_connecting_sta_() {
   if (this->connecting_sta_.get_ssid().empty() || !wifi::global_wifi_component->is_connected())
     return;
-  wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+  std::array<char, wifi::SSID_BUFFER_SIZE> ssid;
+  const char *joined = wifi::global_wifi_component->wifi_ssid_to(ssid);
+  // Empty while a disconnect is still on its way; check again on the next pass
+  if (joined[0] == '\0')
+    return;
+  // Only for the network Improv asked for: the captive portal may have set another one since
+  if (this->connecting_sta_.get_ssid() == joined)
+    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
   this->connecting_sta_ = {};
 }
 
