@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::uart {
@@ -17,10 +18,14 @@ class SoftwareSerialRxDecoder {
   /// Configure framing and buffer; drops all state. Follow with reset().
   void setup(uint32_t bit_ticks, uint8_t data_bits, bool parity, uint8_t stop_bits, uint8_t *buffer,
              size_t buffer_size) {
-    this->bit_ticks_ = bit_ticks;
     this->data_bits_ = data_bits;
     this->stop_bit_ = data_bits + (parity ? 1 : 0);
-    this->max_run_ticks_ = bit_ticks * (this->stop_bit_ + stop_bits + 2);
+    this->run_bits_ = this->stop_bit_ + stop_bits + 2;
+    this->set_bit_ticks_(bit_ticks);
+#ifdef USE_UART_AUTO_BAUD
+    this->nominal_bit_ticks_ = bit_ticks;
+    this->nominal_max_run_ticks_ = this->max_run_ticks_;
+#endif
     this->buffer_ = buffer;
     this->buffer_size_ = buffer_size;
     this->in_pos_ = 0;
@@ -28,12 +33,19 @@ class SoftwareSerialRxDecoder {
     this->reset(0, true);
   }
 
+#ifdef USE_UART_AUTO_BAUD
+  uint32_t bit_ticks() const { return this->bit_ticks_; }
+#endif
+
   /// Forget any partial frame; `level` is the current line level.
   void reset(uint32_t now, bool level) {
     this->bit_ = RX_IDLE;
     this->cur_byte_ = 0;
     this->last_level_ = level;
     this->last_edge_ = now;
+#ifdef USE_UART_AUTO_BAUD
+    this->sync_timing_ = false;
+#endif
   }
 
   /// ISR. True to wake the loop: a byte was pushed, or the line went high in an
@@ -45,6 +57,11 @@ class SoftwareSerialRxDecoder {
       return false;
     // LX106 has no divider, so count
     uint32_t delta = now - this->last_edge_;
+#ifdef USE_UART_AUTO_BAUD
+    // A start bit after the line idled longer than a frame at the nominal rate
+    const bool idle_start = !level && delta > this->nominal_max_run_ticks_;
+    const uint8_t run_bit = this->bit_;
+#endif
     if (delta > this->max_run_ticks_)
       delta = this->max_run_ticks_;
     delta += this->bit_ticks_ / 2;
@@ -54,6 +71,10 @@ class SoftwareSerialRxDecoder {
       bits++;
     }
     const bool pushed = this->consume_run_(bits, last_level);
+#ifdef USE_UART_AUTO_BAUD
+    if (this->sync_timing_ || idle_start)
+      this->auto_baud_edge_(now, last_level, run_bit, idle_start);
+#endif
     this->last_edge_ = now;
     this->last_level_ = level;
     return pushed || (level && this->bit_ != RX_IDLE);
@@ -79,6 +100,10 @@ class SoftwareSerialRxDecoder {
       cur |= ((1U << this->data_bits_) - 1) & ~((1U << bit) - 1);
     this->push_byte(cur);
     this->bit_ = RX_IDLE;
+#ifdef USE_UART_AUTO_BAUD
+    if (this->sync_timing_)
+      this->end_sync_frame_(true, cur, bit + 1);
+#endif
   }
 
   /// Drops the byte when full; holds buffer_size - 1 bytes.
@@ -119,6 +144,40 @@ class SoftwareSerialRxDecoder {
   }
 
  protected:
+  void ESPHOME_ALWAYS_INLINE set_bit_ticks_(uint32_t bit_ticks) {
+    this->bit_ticks_ = bit_ticks;
+    this->max_run_ticks_ = bit_ticks * this->run_bits_;
+  }
+
+#ifdef USE_UART_AUTO_BAUD
+  /// Runs before last_edge_ moves to `now`; the consumed run began at last_edge_ on frame bit run_bit + 1.
+  void ESPHOME_ALWAYS_INLINE auto_baud_edge_(uint32_t now, bool run_level, uint8_t run_bit, bool idle_start) {
+    const uint8_t bit = this->bit_;
+    if (this->sync_timing_) {
+      if (bit != RX_IDLE)
+        return;
+      // Frame ended on this run; a low stop bit is a framing error
+      this->end_sync_frame_(run_level, this->cur_byte_, run_bit + 1);
+    }
+    if (idle_start && bit == RX_IDLE) {
+      this->bit_ticks_ = this->nominal_bit_ticks_;
+      this->max_run_ticks_ = this->nominal_max_run_ticks_;
+      this->sync_start_ = now;
+      this->sync_timing_ = true;
+    }
+  }
+
+  /// `bits`: bit times from the start edge to last_edge_, the frame's last edge.
+  /// Inlined into the IRAM ISR; a flash copy would fault while flash is busy.
+  void ESPHOME_ALWAYS_INLINE end_sync_frame_(bool framed, uint8_t value, uint8_t bits) {
+    this->sync_timing_ = false;
+    // A byte ending in a long run of ones leaves too few edges to time; 0 is a frame that broke at its start
+    if (!framed || value != UART_AUTO_BAUD_SYNC_BYTE || bits == 0 || bits < this->data_bits_)
+      return;
+    this->set_bit_ticks_((this->last_edge_ - this->sync_start_ + bits / 2) / bits);
+  }
+#endif
+
   uint32_t tail_ticks_(uint8_t bit) const {
     return (this->stop_bit_ + 1 - bit) * this->bit_ticks_ + this->bit_ticks_ / 2;
   }
@@ -168,12 +227,23 @@ class SoftwareSerialRxDecoder {
   size_t buffer_size_{0};
   volatile size_t in_pos_{0};
   size_t out_pos_{0};  // reader only
+#ifdef USE_UART_AUTO_BAUD
+  // Touched only by the ISR, and by setup() and finalize() with the ISR detached or masked
+  uint32_t nominal_bit_ticks_{0};
+  uint32_t nominal_max_run_ticks_{0};
+  uint32_t sync_start_{0};
+#endif
   /// Next frame bit (data, parity, then stop at stop_bit_) or RX_IDLE.
   volatile uint8_t bit_{RX_IDLE};
   volatile uint8_t cur_byte_{0};
   volatile bool last_level_{true};
   uint8_t data_bits_{8};
   uint8_t stop_bit_{8};
+  /// Longest run counted, in bits: one more than a frame.
+  uint8_t run_bits_{11};
+#ifdef USE_UART_AUTO_BAUD
+  bool sync_timing_{false};
+#endif
 };
 
 }  // namespace esphome::uart
