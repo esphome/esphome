@@ -102,9 +102,9 @@ performance nit, because it fragments a small shared heap. Flag:
   `get_setup_priority()` returning `setup_priority::DATA`).
 - Wrap string literals passed as printf `%s` args in `LOG_STR_LITERAL()`.
 - Required, invariant dependencies should be constructor parameters, not setters.
-- Entities belong to the main loop and are not thread-safe; options such as a fan's preset modes are fixed after
-  setup. Other tasks defer the change to the loop (web_server fills a `*Call` and defers `call.perform()`). Do not ask
-  for locks or revalidation against an entity changing during a call.
+- Entities belong to the main loop and are not thread-safe; options such as a fan's preset modes are usually set at
+  setup, and any later change also happens on the loop. Other tasks defer the change to the loop (web_server fills a
+  `*Call` and defers `call.perform()`). Do not ask for locks or revalidation against another task changing an entity.
 - Callback registration methods must be templated (`template<typename F>`), not
   typed as `std::function`, so lightweight forwarders avoid a heap allocation.
 - Two-space indent, `using` over `typedef`, wrap at 120 columns.
