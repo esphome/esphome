@@ -18,6 +18,7 @@ TimeBasedCover = time_based_ns.class_("TimeBasedCover", cover.Cover, cg.Componen
 
 CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
 CONF_MANUAL_CONTROL = "manual_control"
+CONF_RERUN_ACTION_WHILE_MOVING = "rerun_action_while_moving"
 
 CONFIG_SCHEMA = (
     cover.cover_schema(TimeBasedCover)
@@ -31,6 +32,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_HAS_BUILT_IN_ENDSTOP, default=False): cv.boolean,
             cv.Optional(CONF_MANUAL_CONTROL, default=False): cv.boolean,
             cv.Optional(CONF_ASSUMED_STATE, default=True): cv.boolean,
+            cv.Optional(CONF_RERUN_ACTION_WHILE_MOVING, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -58,3 +60,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_has_built_in_endstop(config[CONF_HAS_BUILT_IN_ENDSTOP]))
     cg.add(var.set_manual_control(config[CONF_MANUAL_CONTROL]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    cg.add(var.set_rerun_action_while_moving(config[CONF_RERUN_ACTION_WHILE_MOVING]))
