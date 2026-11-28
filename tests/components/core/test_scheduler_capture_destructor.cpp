@@ -250,4 +250,26 @@ TEST_F(SchedulerPendingRelease, RecycledAfterCallAsksForATick) {
   EXPECT_EQ(token.use_count(), 1);
 }
 
+// A burst of boxed callbacks in one pass (MQTT's per-message defer) frees each capture before the next one runs, so
+// its item is pooled and reused instead of every callback that schedules allocating a new one
+class SchedulerBurstRelease : public SchedulerPendingRelease, public ::testing::WithParamInterface<uint32_t> {};
+
+TEST_P(SchedulerBurstRelease, CaptureIsFreedBeforeTheNextCallbackRuns) {
+  Component *c = &this->component_;
+  const uint32_t delay = GetParam();
+  auto first = std::make_shared<int>(0);
+  std::weak_ptr<int> first_weak = first;
+  this->scheduler_.set_timeout(c, 1u, delay, [first]() {});
+  first.reset();
+  bool first_freed = false;
+  this->scheduler_.set_timeout(c, 2u, delay, [first_weak, &first_freed]() { first_freed = first_weak.expired(); });
+  this->scheduler_.process_to_add();
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  this->scheduler_.call(millis());
+  EXPECT_TRUE(first_freed);
+  EXPECT_TRUE(first_weak.expired());
+}
+
+INSTANTIATE_TEST_SUITE_P(DeferAndTimeout, SchedulerBurstRelease, ::testing::Values(0u, 1u));
+
 }  // namespace esphome::core::testing

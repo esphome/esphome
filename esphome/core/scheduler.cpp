@@ -675,6 +675,9 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   // Guard publishes the item's identity + dispatch time, then times the callback.
   LoopBlockingGuard guard{component, source, now};
   item->callback.run_();
+  // A timeout's capture is freed now, outside the lock, so its item is pooled at once and a burst reuses it
+  if (item->type == SchedulerItem::TIMEOUT && item->callback.is_boxed_())
+    item->callback.release_boxed_();
   uint32_t end = guard.finish();
   // Feed the watchdog after each scheduled item (both main heap and defer
   // queue paths go through here). A run of back-to-back callbacks cannot
@@ -756,7 +759,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
 }
 
 // Recycle a SchedulerItem. A boxed callable is freed and pooled by release_pending_() after the lock is released, so
-// its destructor may call the scheduler; an inline one is pooled now.
+// its destructor may call the scheduler; an inline or already freed one is pooled now.
 // IMPORTANT: Caller must hold the scheduler lock.
 void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
