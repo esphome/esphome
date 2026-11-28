@@ -11,6 +11,10 @@
 
 #include "esphome/core/parse_float.h"
 
+#ifdef ESPHOME_PARSE_FLOAT_LIBC
+#error "str_to_float would call the wrapped strtof and recurse; the strtof wrap needs ESPHome's own parser"
+#endif
+
 namespace esphome::libretiny {}
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
