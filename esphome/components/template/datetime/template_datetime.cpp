@@ -83,13 +83,15 @@ void TemplateDateTime::control(const datetime::DateTimeCall &call) {
   }
 
   if (this->restore_value_) {
+    // Optimistic: the live state, since an on_value callback during publish_state() may have changed it
+    const bool live = this->optimistic_;
     datetime::DateTimeEntityRestoreState temp = {};
-    temp.year = year;
-    temp.month = month;
-    temp.day = day;
-    temp.hour = hour;
-    temp.minute = minute;
-    temp.second = second;
+    temp.year = live ? this->year_ : year;
+    temp.month = live ? this->month_ : month;
+    temp.day = live ? this->day_ : day;
+    temp.hour = live ? this->hour_ : hour;
+    temp.minute = live ? this->minute_ : minute;
+    temp.second = live ? this->second_ : second;
 
     this->pref_.save(&temp);
   }
