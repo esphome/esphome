@@ -26,6 +26,8 @@ class ESP32Preferences final : public PreferencesMixin<ESP32Preferences> {
   /// One-shot read of a stored preference by key, without allocating a backend
   bool load_from_key(uint32_t type, uint8_t *data, size_t len);
   bool sync();
+  /// Write only this key's pending save, see ESPPreferenceObject::sync()
+  bool sync_key(uint32_t key);
   bool reset();
 
   uint32_t nvs_handle;

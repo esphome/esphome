@@ -10,6 +10,7 @@ class ESP32PreferenceBackend final {
  public:
   bool save(const uint8_t *data, size_t len);
   bool load(uint8_t *data, size_t len);
+  bool sync();
 
   uint32_t key{0};
   uint32_t nvs_handle{0};   // NVS (flash) path
