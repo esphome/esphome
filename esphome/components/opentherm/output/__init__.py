@@ -3,7 +3,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_MAX_VALUE, CONF_MIN_VALUE
 
 from .. import const, generate, input, schema, validate
 
@@ -21,6 +21,8 @@ async def new_openthermoutput(
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)
     cg.add(var.set_id(cg.RawExpression(f'"{key}_{config[CONF_ID]}"')))
+    generate.add_property_set(var, CONF_MIN_VALUE, config)
+    generate.add_property_set(var, CONF_MAX_VALUE, config)
     input.generate_setters(var, config)
     return var
 

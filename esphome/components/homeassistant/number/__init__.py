@@ -30,11 +30,9 @@ FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 
 async def to_code(config: ConfigType) -> None:
+    # The bounds come from Home Assistant into the number's own RAM, not a flash table
     var = await number.new_number(
-        config,
-        min_value=0,
-        max_value=0,
-        step=0,
+        config, min_value=0, max_value=0, step=0, range_in_flash=False
     )
     # 1 state + min/max/step fetches in HomeassistantNumber::subscribe()
     setup_home_assistant_entity(var, config, state_subscription_count=4, services=True)

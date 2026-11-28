@@ -15,3 +15,6 @@ number:
   - platform: homeassistant
     entity_id: input_number.some_input
     id: ha_input_number
+  - platform: copy
+    source_id: ha_number
+    id: copy_of_ha_number

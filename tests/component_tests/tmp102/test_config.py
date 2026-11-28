@@ -93,7 +93,11 @@ def test_threshold_numbers_enable_configuration_once(
     assert "tmp102::TMP102_LIMIT_HIGH" in source
     assert "tmp102::TMP102_LIMIT_LOW" in source
     assert "set_restore_value(false)" in source
-    assert "set_max_value(127.9375f)" in source
+    assert (
+        "number::NumberRange number_range[] PROGMEM = {{-55.0f, 127.9375f, 0.0625f}};"
+        in source
+    )
+    assert source.count("->set_range(number_range);") == 2
     defines = " ".join(define.name for define in CORE.defines)
     assert "USE_TMP102_NUMBER" in defines
     assert "USE_TMP102_CONFIGURE" in defines
@@ -106,7 +110,7 @@ def test_threshold_numbers_use_sensor_thresholds(
     source = generate_main(component_config_path("numbers_inherit.yaml"))
     assert source.count("set_configuration(") == 1
     assert "set_configuration(144, 17920, 15360)" in source
-    assert "set_max_value(150.0f)" in source
+    assert "150.0f, 0.0625f}};" in source
 
 
 def test_threshold_number_initial_value_is_rejected(
