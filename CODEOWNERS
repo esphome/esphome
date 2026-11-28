@@ -14,6 +14,8 @@ esphome/core/* @esphome/core
 # Integrations
 esphome/components/a01nyub/* @MrSuicideParrot
 esphome/components/a02yyuw/* @TH-Braemer
+esphome/components/a2dp_source/* @mbrudka
+esphome/components/a2dp_source/speaker/* @mbrudka
 esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adafruit_ble/* @omersiar
