@@ -338,7 +338,7 @@ inline float stof(const StringRef &str, size_t *pos = nullptr) {
   return internal::parse_number<float>(str, pos, str_to_float);
 }
 inline double stod(const StringRef &str, size_t *pos = nullptr) {
-  return internal::parse_number<double>(str, pos, std::strtod);
+  return internal::parse_number<double>(str, pos, std::strtod);  // NOLINT: a double needs libc's strtod
 }
 // NOLINTEND(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 
