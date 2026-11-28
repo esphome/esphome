@@ -69,57 +69,57 @@ ESPTime DateTimeEntity::state_as_esptime() const {
 }
 
 void DateTimeCall::validate_() {
-  if (this->year_.has_value() && (this->year_ < 1970 || this->year_ > 3000)) {
+  if (this->year_ != NO_YEAR && (this->year_ < 1970 || this->year_ > 3000)) {
     ESP_LOGE(TAG, "Year must be between 1970 and 3000");
-    this->year_.reset();
-    this->month_.reset();
-    this->day_.reset();
+    this->year_ = NO_YEAR;
+    this->month_ = NO_FIELD;
+    this->day_ = NO_FIELD;
   }
-  if (this->month_.has_value() && (this->month_ < 1 || this->month_ > 12)) {
+  if (this->month_ != NO_FIELD && (this->month_ < 1 || this->month_ > 12)) {
     ESP_LOGE(TAG, "Month must be between 1 and 12");
-    this->month_.reset();
-    this->day_.reset();
+    this->month_ = NO_FIELD;
+    this->day_ = NO_FIELD;
   }
-  if (this->day_.has_value()) {
+  if (this->day_ != NO_FIELD) {
     uint16_t year = 0;
     uint8_t month = 0;
-    if (this->month_.has_value()) {
-      month = *this->month_;
+    if (this->month_ != NO_FIELD) {
+      month = this->month_;
     } else {
       if (this->parent_->month != 0) {
         month = this->parent_->month;
       } else {
         ESP_LOGE(TAG, "Month must be set to validate day");
-        this->day_.reset();
+        this->day_ = NO_FIELD;
       }
     }
-    if (this->year_.has_value()) {
-      year = *this->year_;
+    if (this->year_ != NO_YEAR) {
+      year = this->year_;
     } else {
       if (this->parent_->year != 0) {
         year = this->parent_->year;
       } else {
         ESP_LOGE(TAG, "Year must be set to validate day");
-        this->day_.reset();
+        this->day_ = NO_FIELD;
       }
     }
-    if (this->day_.has_value() && *this->day_ > days_in_month(month, year)) {
+    if (this->day_ != NO_FIELD && this->day_ > days_in_month(month, year)) {
       ESP_LOGE(TAG, "Day must be between 1 and %d for month %d", days_in_month(month, year), month);
-      this->day_.reset();
+      this->day_ = NO_FIELD;
     }
   }
 
-  if (this->hour_.has_value() && this->hour_ > 23) {
+  if (this->hour_ != NO_FIELD && this->hour_ > 23) {
     ESP_LOGE(TAG, "Hour must be between 0 and 23");
-    this->hour_.reset();
+    this->hour_ = NO_FIELD;
   }
-  if (this->minute_.has_value() && this->minute_ > 59) {
+  if (this->minute_ != NO_FIELD && this->minute_ > 59) {
     ESP_LOGE(TAG, "Minute must be between 0 and 59");
-    this->minute_.reset();
+    this->minute_ = NO_FIELD;
   }
-  if (this->second_.has_value() && this->second_ > 59) {
+  if (this->second_ != NO_FIELD && this->second_ > 59) {
     ESP_LOGE(TAG, "Second must be between 0 and 59");
-    this->second_.reset();
+    this->second_ = NO_FIELD;
   }
 }
 
@@ -127,23 +127,23 @@ void DateTimeCall::perform() {
   this->validate_();
   ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
 
-  if (this->year_.has_value()) {
-    ESP_LOGV(TAG, " Year: %d", *this->year_);
+  if (this->year_ != NO_YEAR) {
+    ESP_LOGV(TAG, " Year: %d", this->year_);
   }
-  if (this->month_.has_value()) {
-    ESP_LOGV(TAG, " Month: %d", *this->month_);
+  if (this->month_ != NO_FIELD) {
+    ESP_LOGV(TAG, " Month: %d", this->month_);
   }
-  if (this->day_.has_value()) {
-    ESP_LOGV(TAG, " Day: %d", *this->day_);
+  if (this->day_ != NO_FIELD) {
+    ESP_LOGV(TAG, " Day: %d", this->day_);
   }
-  if (this->hour_.has_value()) {
-    ESP_LOGV(TAG, " Hour: %d", *this->hour_);
+  if (this->hour_ != NO_FIELD) {
+    ESP_LOGV(TAG, " Hour: %d", this->hour_);
   }
-  if (this->minute_.has_value()) {
-    ESP_LOGV(TAG, " Minute: %d", *this->minute_);
+  if (this->minute_ != NO_FIELD) {
+    ESP_LOGV(TAG, " Minute: %d", this->minute_);
   }
-  if (this->second_.has_value()) {
-    ESP_LOGV(TAG, " Second: %d", *this->second_);
+  if (this->second_ != NO_FIELD) {
+    ESP_LOGV(TAG, " Second: %d", this->second_);
   }
   this->parent_->control(*this);
 }

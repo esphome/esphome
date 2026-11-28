@@ -100,25 +100,33 @@ class DateTimeCall {
     return *this;
   }
 
-  optional<uint16_t> get_year() const { return this->year_; }
-  optional<uint8_t> get_month() const { return this->month_; }
-  optional<uint8_t> get_day() const { return this->day_; }
-  optional<uint8_t> get_hour() const { return this->hour_; }
-  optional<uint8_t> get_minute() const { return this->minute_; }
-  optional<uint8_t> get_second() const { return this->second_; }
+  optional<uint16_t> get_year() const { return value_or_none(this->year_, NO_YEAR); }
+  optional<uint8_t> get_month() const { return value_or_none(this->month_, NO_FIELD); }
+  optional<uint8_t> get_day() const { return value_or_none(this->day_, NO_FIELD); }
+  optional<uint8_t> get_hour() const { return value_or_none(this->hour_, NO_FIELD); }
+  optional<uint8_t> get_minute() const { return value_or_none(this->minute_, NO_FIELD); }
+  optional<uint8_t> get_second() const { return value_or_none(this->second_, NO_FIELD); }
 
  protected:
+  // Unset fields hold a value validate_() would reject anyway, so the call fits the scheduler's 12-byte inline slot
+  static constexpr uint16_t NO_YEAR = 0xFFFF;
+  static constexpr uint8_t NO_FIELD = 0xFF;
+  template<typename T> static optional<T> value_or_none(T value, T none) {
+    return value == none ? optional<T>{} : optional<T>{value};
+  }
+
   void validate_();
 
   DateTimeEntity *parent_;
 
-  optional<uint16_t> year_;
-  optional<uint8_t> month_;
-  optional<uint8_t> day_;
-  optional<uint8_t> hour_;
-  optional<uint8_t> minute_;
-  optional<uint8_t> second_;
+  uint16_t year_{NO_YEAR};
+  uint8_t month_{NO_FIELD};
+  uint8_t day_{NO_FIELD};
+  uint8_t hour_{NO_FIELD};
+  uint8_t minute_{NO_FIELD};
+  uint8_t second_{NO_FIELD};
 };
+static_assert(sizeof(void *) != 4 || sizeof(DateTimeCall) <= 12, "DateTimeCall must stay within 12 bytes on 32-bit");
 
 inline DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
