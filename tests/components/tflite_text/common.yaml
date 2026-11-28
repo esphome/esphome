@@ -1,0 +1,8 @@
+# ESPHome build test: the text kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
+tflite_text:
+  - id: test_text
+    model: "../../components/tflite_text/model.tflite"
+    tokenizer:
+      vocabulary: "../../components/tflite_text/vocab.txt"
