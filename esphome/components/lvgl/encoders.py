@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
 
 from .defines import (
-    CONF_DEFAULT_GROUP,
     CONF_ENCODERS,
     CONF_ENTER_BUTTON,
     CONF_INITIAL_FOCUS,
@@ -14,12 +13,17 @@ from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
     CONF_RIGHT_BUTTON,
+    DOMAIN,
     add_lv_use,
 )
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t, lv_key_t
 from .widgets import get_widgets
+
+add_ungrouped_input = cg.slot_list(
+    "LVGL_UNGROUPED_INPUT_COUNT", "add_ungrouped_input", DOMAIN
+)
 
 ENCODERS_CONFIG = cv.ensure_list(
     ENCODER_SCHEMA.extend(
@@ -40,12 +44,6 @@ ENCODERS_CONFIG = cv.ensure_list(
         }
     )
 )
-
-
-def get_default_group(config):
-    default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
-    cg.add(lv.group_set_default(default_group))
-    return default_group
 
 
 async def encoders_to_code(var, config, default_group):
@@ -74,6 +72,7 @@ async def encoders_to_code(var, config, default_group):
             lv_assign(group, lv_expr.group_create())
         else:
             group = default_group
+            cg.add(add_ungrouped_input(var, listener.get_drv()))
         lv.indev_set_group(listener.get_drv(), group)
 
 

@@ -4,6 +4,7 @@ from esphome.const import CONF_BUTTON, CONF_HIDDEN, CONF_ID, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_types import nullptr
+from esphome.types import ConfigType, Expression
 
 from ..defines import (
     CONF_BODY,
@@ -14,13 +15,24 @@ from ..defines import (
     CONF_MSGBOXES,
     CONF_SRC,
     CONF_TITLE,
+    DOMAIN,
     TYPE_FLEX,
     add_lv_use,
     add_warning,
     literal,
+    uses_input_groups,
 )
 from ..lv_validation import lv_bool, lv_image, lv_text, pixels_or_percent
-from ..lvcode import EVENT_ARG, LambdaContext, LocalVariable, lv, lv_expr, lv_obj
+from ..lvcode import (
+    EVENT_ARG,
+    LambdaContext,
+    LocalVariable,
+    lv,
+    lv_add,
+    lv_expr,
+    lv_group_create_default,
+    lv_obj,
+)
 from ..schemas import (
     STYLE_SCHEMA,
     STYLED_TEXT_SCHEMA,
@@ -29,7 +41,7 @@ from ..schemas import (
     part_schema,
 )
 from ..styles import LVStyle
-from ..types import LV_EVENT, lv_obj_t
+from ..types import LV_EVENT, lv_group_t, lv_obj_t
 from . import Widget, WidgetType, add_widgets, set_obj_properties, widget_to_code
 from .button import button_spec, lv_button_t
 from .img import CONF_IMAGE
@@ -37,6 +49,8 @@ from .label import CONF_LABEL
 from .obj import obj_spec
 
 CONF_MSGBOX = "msgbox"
+
+add_msgbox = cg.slot_list("LVGL_MSGBOX_COUNT", "add_msgbox", DOMAIN)
 
 OUTER_STYLE = LVStyle(
     "msgbox_outer",
@@ -105,14 +119,19 @@ MSGBOX_SCHEMA = container_schema(
 )
 
 
-async def msgbox_to_code(top_layer, conf):
+async def msgbox_to_code(
+    lv_component: Expression,
+    top_layer: Expression,
+    conf: ConfigType,
+    group: Expression | None,
+) -> None:
     """
     Construct a message box. This consists of a full-screen translucent background enclosing a centered container
     with an optional title, body, close button and a set of footer buttons.
     Header buttons can be added - they can be image buttons only.
     The body of the message box may have any widgets the user wants to add.
     :param conf: The config data
-    :return: code to add to the init lambda
+    :param group: The input group of the msgbox, or None if the build has no input groups
     """
     add_lv_use(
         TYPE_FLEX,
@@ -132,6 +151,9 @@ async def msgbox_to_code(top_layer, conf):
     outer_widget = Widget.create(outer_id.id, outer, obj_spec, conf)
     msgbox = cg.Pvariable(messagebox_id, lv_expr.msgbox_create(outer))
     outer_widget.move_to_foreground = True
+    if group is not None:
+        outer_widget.msgbox_lvgl_component = lv_component
+        cg.add(add_msgbox(lv_component, outer, group))
     msgbox_widget = Widget.create(messagebox_id, msgbox, obj_spec, conf)
     msgbox_widget.outer = outer_widget
     text = await lv_text.process(conf[CONF_BODY].get(CONF_TEXT, ""))
@@ -153,6 +175,8 @@ async def msgbox_to_code(top_layer, conf):
 
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
         outer_widget.set_flag(CONF_HIDDEN, True)
+        if group is not None:
+            lv_add(lv_component.update_input_group())
     if close_button:
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_add_close_button(msgbox)
@@ -173,4 +197,9 @@ async def msgbox_to_code(top_layer, conf):
 async def msgboxes_to_code(lv_component, config):
     top_layer = lv_expr.disp_get_layer_top(lv_component.get_disp())
     for conf in config.get(CONF_MSGBOXES, ()):
-        await msgbox_to_code(top_layer, conf)
+        msgbox_group = None
+        if uses_input_groups():
+            msgbox_group = lv_group_create_default(
+                cg.unique_global_id(f"{conf[CONF_ID].id}_group", lv_group_t)
+            )
+        await msgbox_to_code(lv_component, top_layer, conf, msgbox_group)

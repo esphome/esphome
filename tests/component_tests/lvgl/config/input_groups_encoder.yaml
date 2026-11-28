@@ -1,0 +1,39 @@
+esphome:
+  name: test-input-groups-encoder
+
+host:
+  mac_address: "62:23:45:AF:B3:E1"
+
+display:
+  - platform: snapshot
+    id: encoder_display
+    dimensions:
+      width: 100
+      height: 100
+
+binary_sensor:
+  - platform: template
+    id: encoder_left
+  - platform: template
+    id: encoder_right
+  - platform: template
+    id: encoder_enter
+
+lvgl:
+  id: encoder_lvgl
+  displays: encoder_display
+  encoders:
+    - id: page_encoder
+      enter_button: encoder_enter
+      sensor:
+        left_button: encoder_left
+        right_button: encoder_right
+  pages:
+    - id: encoder_page_a
+      widgets:
+        - button:
+            id: encoder_a_button
+    - id: encoder_page_b
+      widgets:
+        - button:
+            id: encoder_b_button

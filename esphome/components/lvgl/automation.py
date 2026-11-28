@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_HIDDEN,
     CONF_ID,
+    CONF_PAGES,
     CONF_POSITION,
     CONF_ROTATION,
     CONF_TIMEOUT,
@@ -36,6 +37,7 @@ from .defines import (
     get_options,
     get_refreshed_widgets,
     literal,
+    uses_input_groups,
 )
 from .layout import layout_validator
 from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
@@ -76,7 +78,16 @@ from .widgets import (
 # successive compilations / unit tests via ``CORE.reset()``.
 
 
+def update_msgbox_input_group(widget: Widget) -> None:
+    """Move the inputs to the correct group after an action shows, hides or restacks a msgbox."""
+    if widget.msgbox_lvgl_component is not None:
+        lv_add(widget.msgbox_lvgl_component.update_input_group())
+
+
 async def layers_to_code(lv_component, config):
+    if (pages := config.get(CONF_PAGES)) and uses_input_groups():
+        # The layer widgets use the group of the current page. At boot, this is the first page.
+        lv.group_set_default((await cg.get_variable(pages[0][CONF_ID])).group)
     if top_conf := config.get(CONF_TOP_LAYER):
         top_layer = lv_expr.display_get_layer_top(lv_component.get_disp())
         with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
@@ -310,6 +321,7 @@ async def obj_enable_to_code(config, action_id, template_arg, args):
 async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
         widget.set_flag(CONF_HIDDEN, True)
+        update_msgbox_input_group(widget)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_hide, action_id, template_arg, args)
@@ -323,6 +335,7 @@ async def obj_show_to_code(config, action_id, template_arg, args):
         widget.set_flag(CONF_HIDDEN, False)
         if widget.move_to_foreground:
             lv_obj.move_foreground(widget.obj)
+        update_msgbox_input_group(widget)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_show, action_id, template_arg, args)
@@ -365,6 +378,7 @@ async def obj_set_z_index_to_code(config, action_id, template_arg, args):
                 )
         else:
             lv_obj.move_to_index(widget.obj, position)
+        update_msgbox_input_group(widget)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config[CONF_ID])]
     return await action_to_code(widgets, do_set_z_index, action_id, template_arg, args)
@@ -410,33 +424,38 @@ async def widget_focus(config, action_id, template_arg, args):
         group = StaticCastExpression(
             lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
         )
-    elif group := config.get(CONF_GROUP):
-        group = await lv_global(group)
     else:
-        group = lv_expr.group_get_default()
+        lv_comp = await lvgl_parent(config)
+        if group := config.get(CONF_GROUP):
+            group = await lv_global(group)
+        else:
+            group = lv_comp.get_focus_group()
 
     async with LambdaContext(parameters=args, where=action_id) as context:
         if widget:
+            # Read after focusing: on_focus can move a layer widget to another page's group
             lv.group_focus_freeze(group, False)
             lv.group_focus_obj(widget.obj)
             if config[CONF_EDITING]:
                 lv.group_set_editing(group, True)
+            if config[CONF_FREEZE]:
+                lv.group_focus_freeze(group, True)
+        elif config[CONF_ACTION] == "MARK":
+            context.add(lv_comp.set_focus_mark(group))
+            if config[CONF_FREEZE]:
+                lv.group_focus_freeze(group, True)
         else:
-            action = config[CONF_ACTION]
-            lv_comp = await lvgl_parent(config)
-            if action == "MARK":
-                context.add(lv_comp.set_focus_mark(group))
-            else:
-                lv.group_focus_freeze(group, False)
-                if action == "RESTORE":
-                    context.add(lv_comp.restore_focus_mark(group))
-                elif action == "NEXT":
-                    lv.group_focus_next(group)
+            # Read once: on_focus can show a msgbox, which changes get_focus_group()
+            with LocalVariable("group", lv_group_t, group) as focus_group:
+                lv.group_focus_freeze(focus_group, False)
+                if config[CONF_ACTION] == "RESTORE":
+                    context.add(lv_comp.restore_focus_mark(focus_group))
+                elif config[CONF_ACTION] == "NEXT":
+                    lv.group_focus_next(focus_group)
                 else:
-                    lv.group_focus_prev(group)
-
-        if config[CONF_FREEZE]:
-            lv.group_focus_freeze(group, True)
+                    lv.group_focus_prev(focus_group)
+                if config[CONF_FREEZE]:
+                    lv.group_focus_freeze(focus_group, True)
     return await context_action(context, action_id, template_arg, args)
 
 

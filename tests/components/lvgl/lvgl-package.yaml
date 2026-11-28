@@ -189,6 +189,9 @@ lvgl:
       - label:
           id: anim_label
           text: anim
+      - button:
+          id: top_layer_button
+          align: bottom_right
   animations:
     - id: anim_slide
       duration: 1s

@@ -36,7 +36,6 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_BUILD_FLAGS,
     CONF_ESPHOME,
-    CONF_GROUP,
     CONF_ID,
     CONF_LOG_LEVEL,
     CONF_ON_IDLE,
@@ -62,21 +61,23 @@ from .automation import layers_to_code, lvgl_update
 from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
     CONF_ANIMATIONS,
+    CONF_DEFAULT_GROUP,
     LOGGER,
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
 )
-from .encoders import (
-    ENCODERS_CONFIG,
-    encoders_to_code,
-    get_default_group,
-    initial_focus_to_code,
-)
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool
-from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
+from .lvcode import (
+    LvContext,
+    LvglComponent,
+    lv_event_t_ptr,
+    lv_group_create_default,
+    lvgl_static,
+)
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -218,13 +219,6 @@ def multi_conf_validate(configs: list[dict]):
     display_list = [disp for disps in displays for disp in disps]
     if len(display_list) != len(set(display_list)):
         raise cv.Invalid("A display ID may be used in only one LVGL instance")
-    for config in configs:
-        for item in (df.CONF_ENCODERS, df.CONF_KEYPADS):
-            for enc in config.get(item, ()):
-                if CONF_GROUP not in enc:
-                    raise cv.Invalid(
-                        f"'{item}' must have an explicit group set when using multiple LVGL instances"
-                    )
     # The hidden styles a `theme:` block creates are tracked in a single map shared
     # by all LVGL instances (keyed only by widget type, not by instance), so a
     # second instance's `theme:` would silently lose to whichever instance is
@@ -435,8 +429,9 @@ async def to_code(configs):
     else:
         df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
-    default_group = get_default_group(config_0)
     df.get_options()[df.CONF_DEBUG_OUTLINE] = config_0[df.CONF_DEBUG_OUTLINE]
+    if df.store_input_groups(configs):
+        cg.add_define("USE_LVGL_INPUT_GROUPS")
 
     # Create theme lambdas before any widgets.
     async with LvContext():
@@ -489,6 +484,9 @@ async def to_code(configs):
             cg.add(lv_component.set_refresh_interval(refr_time.total_milliseconds))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
+        default_group = lv_group_create_default(config[CONF_DEFAULT_GROUP])
+        cg.add(lv_component.set_default_group(default_group))
+
         lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
             cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
@@ -499,6 +497,9 @@ async def to_code(configs):
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
+            # The order of the calls below is important. LVGL adds each new widget to its default group. With input
+            # groups, each page and msgbox makes its own group the default before it creates its widgets. The layers
+            # use the group of the first page. A widget created after these calls goes into the last default group.
             await add_pages(lv_component, config)
             await layers_to_code(lv_component, config)
             await lvgl_update(lv_component, config)

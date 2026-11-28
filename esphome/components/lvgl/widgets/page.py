@@ -13,6 +13,7 @@ from ..defines import (
     CONF_SKIP,
     LV_ANIM,
     literal,
+    uses_input_groups,
 )
 from ..lv_validation import lv_bool, lv_milliseconds
 from ..lvcode import (
@@ -21,11 +22,12 @@ from ..lvcode import (
     context_action,
     lv_add,
     lv_global,
+    lv_group_create_default,
     lvgl_parent,
     lvgl_static,
 )
 from ..schemas import LVGL_SCHEMA
-from ..types import lv_page_t
+from ..types import lv_group_t, lv_page_t
 from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_ON_LOAD = "on_load"
@@ -143,7 +145,13 @@ async def add_pages(lv_component, config):
     for pconf in config.get(CONF_PAGES, ()):
         id = pconf[CONF_ID]
         skip = pconf[CONF_SKIP]
-        var = cg.new_Pvariable(id, skip)
+        if uses_input_groups():
+            page_group = lv_group_create_default(
+                cg.unique_global_id(f"{id.id}_group", lv_group_t)
+            )
+            var = cg.new_Pvariable(id, skip, page_group)
+        else:
+            var = cg.new_Pvariable(id, skip)
         page = Widget.create(id, var, page_spec, pconf)
         lv_add(lv_component.add_page(var))
         # Set outer config first

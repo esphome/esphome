@@ -135,6 +135,19 @@ void LvglComponent::rotate_coordinates(int32_t &x, int32_t &y) const {
   }
 }
 
+#ifdef USE_LVGL_INPUT_GROUPS
+// Do the same checks that lv_group_focus_next() does before it moves the focus to a widget
+static bool can_take_focus(lv_obj_t *obj) {
+  if (lv_obj_has_state(obj, LV_STATE_DISABLED))
+    return false;
+  for (; obj != nullptr; obj = lv_obj_get_parent(obj)) {
+    if (lv_obj_is_hidden(obj))
+      return false;
+  }
+  return true;
+}
+#endif
+
 static void rounder_cb(lv_event_t *event) {
   auto *comp = static_cast<LvglComponent *>(lv_event_get_user_data(event));
   auto *area = static_cast<lv_area_t *>(lv_event_get_param(event));
@@ -266,36 +279,194 @@ void LvglComponent::add_page(LvPageType *page) {
 void LvglComponent::show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time) {
   if (index >= this->pages_.size())
     return;
+#ifdef USE_LVGL_INPUT_GROUPS
+  lv_group_t *previous_group = this->pages_[this->current_page_]->group;
+#endif
   this->current_page_ = index;
+#ifdef USE_LVGL_INPUT_GROUPS
+  lv_group_t *target = this->pages_[index]->group;
+  lv_obj_t *moved_focus = this->move_layer_objs_(previous_group, target);
+  // Focus events during the move can show another page. The bound stops an action that changes page on every move.
+  for (size_t hops = 0; hops != this->pages_.size(); hops++) {
+    lv_group_t *shown = this->pages_[this->current_page_]->group;
+    if (shown == target)
+      break;
+    moved_focus = this->move_layer_objs_(target, shown);
+    target = shown;
+  }
+#endif
   if (anim == LV_SCREEN_LOAD_ANIM_NONE) {
     lv_screen_load(this->pages_[this->current_page_]->obj);
   } else {
     lv_screen_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
   }
+#ifdef USE_LVGL_INPUT_GROUPS
+  this->update_input_group_(moved_focus);
+#endif
 }
+
+#ifdef USE_LVGL_INPUT_GROUPS
+static bool group_contains(lv_group_t *group, lv_obj_t *obj) {
+  for (uint32_t index = 0; index != lv_group_get_obj_count(group); index++) {
+    if (lv_group_get_obj_by_index(group, index) == obj)
+      return true;
+  }
+  return false;
+}
+
+bool LvglComponent::is_on_layer_(lv_obj_t *obj) {
+  lv_obj_t *screen = lv_obj_get_screen(obj);
+  return screen == lv_display_get_layer_top(this->disp_) || screen == lv_display_get_layer_bottom(this->disp_);
+}
+
+// Event handlers run in these LVGL calls and can delete widgets. Thus no widget pointer is kept across a call,
+// except the old focus. The old focus is used only after group_contains() finds it in `to`. The loop moves
+// forward, so the layer widgets keep their order in the new group.
+lv_obj_t *LvglComponent::move_layer_objs_(lv_group_t *from, lv_group_t *to) {
+  if (from == to)
+    return nullptr;
+  lv_obj_t *focused = lv_group_get_focused(from);
+  // lv_group_add_obj() removes the widget from `from` but does not stop edit mode. Then the next widget that gets
+  // the focus in `from` is in edit mode.
+  if (focused != nullptr && this->is_on_layer_(focused))
+    lv_group_set_editing(from, false);
+  for (uint32_t index = 0; index < lv_group_get_obj_count(from);) {
+    lv_obj_t *obj = lv_group_get_obj_by_index(from, index);
+    if (this->is_on_layer_(obj)) {
+      lv_group_add_obj(to, obj);
+    } else {
+      index++;
+    }
+  }
+  if (focused == nullptr || !group_contains(to, focused))
+    return nullptr;
+  // lv_group_focus_obj() does nothing to a frozen group, so a frozen focus on the new page does not change
+  lv_group_focus_obj(focused);
+  return group_contains(to, focused) ? focused : nullptr;
+}
+
+lv_group_t *LvglComponent::msgbox_group_(lv_obj_t *outer) {
+  for (const auto &msgbox : this->msgboxes_) {
+    if (msgbox.outer == outer)
+      return msgbox.group;
+  }
+  return nullptr;
+}
+
+lv_group_t *LvglComponent::active_group_() {
+  lv_obj_t *top_layer = lv_display_get_layer_top(this->disp_);
+  // LVGL draws the last child on top, so the last visible msgbox is the topmost msgbox
+  for (uint32_t index = lv_obj_get_child_count(top_layer); index-- != 0;) {
+    lv_obj_t *child = lv_obj_get_child(top_layer, static_cast<int32_t>(index));
+    if (lv_obj_is_hidden(child))
+      continue;
+    if (lv_group_t *group = this->msgbox_group_(child))
+      return group;
+  }
+  if (!this->pages_.empty())
+    return this->pages_[this->current_page_]->group;
+  return this->default_group_;
+}
+
+lv_group_t *LvglComponent::get_group_for_(lv_obj_t *obj) {
+  for (lv_obj_t *ancestor = obj; ancestor != nullptr; ancestor = lv_obj_get_parent(ancestor)) {
+    if (lv_group_t *group = this->msgbox_group_(ancestor))
+      return group;
+  }
+  if (this->pages_.empty())
+    return this->default_group_;
+  lv_obj_t *screen = lv_obj_get_screen(obj);
+  for (LvPageType *page : this->pages_) {
+    if (page->obj == screen)
+      return page->group;
+  }
+  if (this->is_on_layer_(obj))
+    return this->pages_[this->current_page_]->group;
+  return this->default_group_;
+}
+
+void LvglComponent::update_input_group_(lv_obj_t *moved_focus) {
+  lv_group_t *group = this->active_group_();
+  lv_group_set_default(group);
+  // lv_group_add_obj() gives the focus to the first widget in a group before codegen hides or disables it. Do
+  // this check before the inputs move, because the press check below must use the new focus.
+  lv_obj_t *focused = lv_group_get_focused(group);
+  if (focused == nullptr || !can_take_focus(focused)) {
+    // lv_group_focus_next() does not stop edit mode, so stop it first. This also sends FOCUSED to the old widget,
+    // as LVGL does on all changes of edit mode.
+    lv_group_set_editing(group, false);
+    lv_group_focus_next(group);
+  }
+  bool input_moved = false;
+  for (lv_indev_t *indev : this->ungrouped_inputs_) {
+    lv_group_t *previous = lv_indev_get_group(indev);
+    if (previous == group)
+      continue;
+    // Events since show_page() can delete it. group_contains() only compares addresses.
+    if (moved_focus != nullptr && !group_contains(this->pages_[this->current_page_]->group, moved_focus))
+      moved_focus = nullptr;
+    // LVGL sends the release to the widget that has the focus in the group at that time. If the pressed widget
+    // moved into the new group with the focus, the press continues. Else the press stops here, as LVGL stops a
+    // pointer press when its widget is removed.
+    lv_obj_t *pressed = moved_focus != nullptr ? moved_focus : lv_group_get_focused(previous);
+    bool press_continues = pressed != nullptr && pressed == lv_group_get_focused(group);
+    if (lv_indev_get_state(indev) == LV_INDEV_STATE_PRESSED && !press_continues) {
+      lv_indev_wait_release(indev);
+      // A keypad sends PRESSED after the ENTER key event. A reset of an encoder can make LVGL use a null widget.
+      if (lv_indev_get_type(indev) == LV_INDEV_TYPE_KEYPAD)
+        lv_indev_reset(indev, nullptr);
+      if (pressed != nullptr && lv_obj_has_state(pressed, LV_STATE_PRESSED))
+        lv_obj_send_event(pressed, LV_EVENT_PRESS_LOST, indev);
+    }
+    lv_indev_set_group(indev, group);
+    input_moved = true;
+  }
+  // The default theme shows the focus ring only on a widget in the FOCUS_KEY state. When no input is active, LVGL
+  // sets that state only if no pointer exists and a keypad or encoder is on the group. The focus of this group was
+  // set before the inputs moved to it, so it can be without that state. A pointer change clears an old ring and
+  // edit mode, as the pointer's click focus did when all pages shared one group.
+  lv_obj_t *now_focused = lv_group_get_focused(group);
+  lv_indev_t *active = lv_indev_active();
+  bool key_or_no_input = active == nullptr || lv_indev_get_type(active) == LV_INDEV_TYPE_KEYPAD ||
+                         lv_indev_get_type(active) == LV_INDEV_TYPE_ENCODER;
+  if (input_moved && now_focused != nullptr) {
+    if (key_or_no_input) {
+      lv_obj_add_state(now_focused, LV_STATE_FOCUS_KEY);
+    } else {
+      // In this order: the FOCUSED event of set_editing() can run an action that deletes the widget
+      lv_obj_remove_state(now_focused, LV_STATE_FOCUS_KEY);
+      lv_group_set_editing(group, false);
+    }
+  }
+  // The events sent above run user actions. If one of them showed or hid a msgbox or changed the page, its own
+  // update ran first, and this update then moved the inputs back to the group it found at the start.
+  if (this->active_group_() != group)
+    this->update_input_group_(nullptr);
+}
+#endif
 
 void LvglComponent::show_next_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
-  size_t start = this->current_page_;
+  size_t index = this->current_page_;
   do {
-    this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
-    if (this->current_page_ == start)
+    index = (index + 1) % this->pages_.size();
+    if (index == this->current_page_)
       return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
-  } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
-  this->show_page(this->current_page_, anim, time);
+  } while (this->pages_[index]->skip);  // skip empty pages()
+  this->show_page(index, anim, time);
 }
 
 void LvglComponent::show_prev_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
-  size_t start = this->current_page_;
+  size_t index = this->current_page_;
   do {
-    this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();
-    if (this->current_page_ == start)
+    index = (index + this->pages_.size() - 1) % this->pages_.size();
+    if (index == this->current_page_)
       return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
-  } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
-  this->show_page(this->current_page_, anim, time);
+  } while (this->pages_[index]->skip);  // skip empty pages()
+  this->show_page(index, anim, time);
 }
 
 size_t LvglComponent::get_current_page() const { return this->current_page_; }
@@ -793,6 +964,9 @@ LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buf
       update_when_display_idle_(update_when_display_idle),
       rotation_type_(rotation_type) {
   this->disp_ = lv_display_create(240, 240);
+  // Set this here, not in setup(). An action that runs before setup(), such as on_boot, finds this component
+  // through the display of a widget.
+  lv_display_set_user_data(this->disp_, this);
 }
 
 void LvglComponent::set_resolution_() const {
@@ -858,7 +1032,6 @@ void LvglComponent::setup() {
   this->set_resolution_();
   lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_DEFAULT);
   lv_display_set_flush_cb(this->disp_, static_flush_cb);
-  lv_display_set_user_data(this->disp_, this);
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
   lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
@@ -899,7 +1072,14 @@ void LvglComponent::setup() {
     esp_log_printf_(LOG_LEVEL_MAP[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
+
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
+#ifdef USE_LVGL_INPUT_GROUPS
+  // Codegen leaves the group of the last msgbox as the default group of LVGL. Without pages, show_page() does not
+  // change it. An on_boot action may already have shown a msgbox, so the default group is not always the root group.
+  if (this->pages_.empty())
+    this->update_input_group();
+#endif
   lv_display_trigger_activity(this->disp_);
   this->update_orientation_();
 }

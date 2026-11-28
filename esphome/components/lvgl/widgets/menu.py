@@ -34,6 +34,7 @@ from ..lvcode import (
     LambdaContext,
     LocalVariable,
     LvConditional,
+    group_of_parent,
     lv,
     lv_add,
     lv_expr,
@@ -319,7 +320,9 @@ async def menu_set_page(config, action_id, template_arg, args):
 
     async def do_set_page(w: Widget):
         if sidebar:
-            lv.menu_set_sidebar_page(w.obj, page.obj)
+            # LVGL creates the sidebar's back button when the menu first gets a sidebar page
+            with group_of_parent(w.obj):
+                lv.menu_set_sidebar_page(w.obj, page.obj)
         else:
             lv.menu_set_page(w.obj, page.obj)
 

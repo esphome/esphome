@@ -170,7 +170,11 @@ class LvglComponent;
 
 class LvPageType : public Parented<LvglComponent> {
  public:
+#ifdef USE_LVGL_INPUT_GROUPS
+  LvPageType(bool skip, lv_group_t *group) : skip(skip), group(group) {}
+#else
   LvPageType(bool skip) : skip(skip) {}
+#endif
 
   void setup(size_t index) {
     this->index = index;
@@ -182,7 +186,17 @@ class LvPageType : public Parented<LvglComponent> {
   lv_obj_t *obj{};
   size_t index{};
   bool skip;
+#ifdef USE_LVGL_INPUT_GROUPS
+  lv_group_t *group;
+#endif
 };
+
+#ifdef USE_LVGL_INPUT_GROUPS
+struct LvMsgboxGroup {
+  lv_obj_t *outer;
+  lv_group_t *group;
+};
+#endif
 
 using event_callback_t = void(lv_event_t *);
 
@@ -304,6 +318,22 @@ class LvglComponent final : public PollingComponent {
   }
 #endif
 
+  void set_default_group(lv_group_t *group) { this->default_group_ = group; }
+#ifdef USE_LVGL_INPUT_GROUPS
+  SLOT_LIST(lv_indev_t, ungrouped_inputs_, add_ungrouped_input, LVGL_UNGROUPED_INPUT_COUNT)
+  SLOT_LIST_REQUIRES(LVGL_MSGBOX_COUNT)
+  void add_msgbox(lv_obj_t *outer, lv_group_t *group) { this->msgboxes_.push_back({outer, group}); }
+  /// Move the inputs that have no group of their own to the group of the topmost visible msgbox or the current page.
+  void update_input_group() { this->update_input_group_(nullptr); }
+  lv_group_t *get_focus_group() { return this->active_group_(); }
+  /// Make the group of the page or msgbox that shows `parent` the default group of LVGL.
+  /// Then the list entries that an action adds to `parent` go into that group.
+  static void set_default_group_for(lv_obj_t *parent) { lv_group_set_default(for_obj(parent)->get_group_for_(parent)); }
+  /// Make the group of the inputs the default group of LVGL again. Use it after set_default_group_for().
+  static void restore_default_group(lv_obj_t *parent) { lv_group_set_default(for_obj(parent)->active_group_()); }
+#else
+  lv_group_t *get_focus_group() { return this->default_group_; }
+#endif
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
   void show_next_page(lv_screen_load_anim_t anim, uint32_t time);
@@ -365,6 +395,7 @@ class LvglComponent final : public PollingComponent {
 
   uint8_t *draw_buf_{};
   lv_display_t *disp_{};
+  lv_group_t *default_group_{};
   // The display's own periodic refresh timer, effectively paused while the display is busy (see
   // displays_busy_()) so LVGL neither renders nor flushes to it, without losing track of
   // invalidated areas. Other timers (indev reading, animations, ...) keep running as normal.
@@ -396,6 +427,26 @@ class LvglComponent final : public PollingComponent {
   RotationType rotation_type_;
 #ifdef USE_ESP32_VARIANT_ESP32P4
   ppa_client_handle_t ppa_client_{};
+#endif
+
+#ifdef USE_LVGL_INPUT_GROUPS
+  static LvglComponent *for_obj(lv_obj_t *obj) {
+    return static_cast<LvglComponent *>(lv_display_get_user_data(lv_obj_get_display(obj)));
+  }
+  /// Return nullptr if `outer` is not the outer widget of a msgbox.
+  lv_group_t *msgbox_group_(lv_obj_t *outer);
+  lv_group_t *active_group_();
+  /// Return the group of the msgbox or page that shows `obj`. A layer widget is in the group of the current page.
+  lv_group_t *get_group_for_(lv_obj_t *obj);
+  bool is_on_layer_(lv_obj_t *obj);
+  /// Move the top and bottom layer widgets from the group of one page to the group of another page.
+  /// Return the widget that had the focus in `from` if it moved to `to`, also when `to` is frozen and does not
+  /// give it the focus. Else return nullptr.
+  lv_obj_t *move_layer_objs_(lv_group_t *from, lv_group_t *to);
+  /// `moved_focus` is the focused widget that show_page() moved out of the group of the inputs, or nullptr.
+  void update_input_group_(lv_obj_t *moved_focus);
+
+  [[no_unique_address]] SlotList<LvMsgboxGroup, LVGL_MSGBOX_COUNT> msgboxes_;
 #endif
 };
 

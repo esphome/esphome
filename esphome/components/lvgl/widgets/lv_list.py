@@ -38,6 +38,7 @@ from ..lvcode import (
     LocalVariable,
     LvConditional,
     LvCountdown,
+    group_of_parent,
     lv,
     lv_add,
     lv_expr,
@@ -350,15 +351,16 @@ async def list_add_to_code(config, action_id, template_arg, args):
         index = None
         if (idx := config.get(CONF_INDEX)) is not None:
             index = await lv_int.process(idx)
-        await _build_dynamic_widget(
-            w_type_name,
-            w_conf,
-            w.obj,
-            config[CONF_ID],
-            w.obj,
-            top_level=True,
-            index=index,
-        )
+        with group_of_parent(w.obj):
+            await _build_dynamic_widget(
+                w_type_name,
+                w_conf,
+                w.obj,
+                config[CONF_ID],
+                w.obj,
+                top_level=True,
+                index=index,
+            )
 
     return await action_to_code(widgets, do_add, action_id, template_arg, args)
 
