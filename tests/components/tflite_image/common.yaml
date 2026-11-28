@@ -1,0 +1,14 @@
+# ESPHome build test: the image kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
+tflite_image:
+  - id: test_image
+    model: "../../components/tflite_image/model.tflite"
+    input_width: 32
+    input_height: 20
+    input_channels: 3
+    frame_width: 640
+    frame_height: 480
+    on_result:
+      - lambda: |-
+          ESP_LOGI("tflite_image", "inference finished");
