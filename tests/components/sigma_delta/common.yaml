@@ -1,0 +1,25 @@
+speaker:
+  - platform: sigma_delta
+    id: sigma_delta_speaker_id
+    pin: ${pin}
+    sample_rate: 22050
+    audio_dac: sigma_delta_audio_dac
+
+audio_dac:
+  - platform: es8156
+    id: sigma_delta_audio_dac
+    i2c_id: i2c_bus
+
+esphome:
+  on_boot:
+    then:
+      - speaker.volume_set:
+          id: sigma_delta_speaker_id
+          volume: 0.5
+      - speaker.play:
+          id: sigma_delta_speaker_id
+          data: [0, 16, 32, 16, 0, 240, 224, 240]
+      - speaker.mute_on:
+          id: sigma_delta_speaker_id
+      - speaker.stop:
+          id: sigma_delta_speaker_id
