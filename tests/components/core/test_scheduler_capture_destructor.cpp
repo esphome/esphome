@@ -270,7 +270,10 @@ TEST_P(SchedulerBurstRelease, CaptureIsFreedBeforeTheNextCallbackRuns) {
   this->scheduler_.set_timeout(c, 1u, delay, [first]() {});
   first.reset();
   bool first_freed = false;
-  this->scheduler_.set_timeout(c, 2u, delay, [first_weak, &first_freed]() { first_freed = first_weak.expired(); });
+  // A later deadline for the timeout case: the heap does not order equal deadlines (defers keep FIFO order)
+  const uint32_t second_delay = delay == 0 ? 0 : delay + 1;
+  this->scheduler_.set_timeout(c, 2u, second_delay,
+                               [first_weak, &first_freed]() { first_freed = first_weak.expired(); });
   this->scheduler_.process_to_add();
   std::this_thread::sleep_for(std::chrono::milliseconds(5));
   this->scheduler_.call(millis());
