@@ -96,6 +96,8 @@ VALUES = {
     CONF_ALTITUDE: ("ALTITUDE", "altitude()"),
     CONF_SATELLITES: ("SATELLITES", "satellites"),
     CONF_HDOP: ("HDOP", "hdop()"),
+    CONF_HORIZONTAL_ACCURACY: ("HORIZONTAL_ACCURACY", "horizontal_accuracy()"),
+    CONF_VERTICAL_ACCURACY: ("VERTICAL_ACCURACY", "vertical_accuracy()"),
 }
 
 

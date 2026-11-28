@@ -114,10 +114,29 @@ uint16_t parse_protocol_version(const uint8_t *payload, uint16_t len) {
   return 0;
 }
 
-static double degrees_1e7(const uint8_t *p) { return encode_value_le<int32_t>(p) * 1e-7; }
-static float millimeters(const uint8_t *p) { return encode_value_le<int32_t>(p) / 1000.0f; }
+using gnss::GNSSData;
 
-bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms, gnss::GNSSData &data, bool &fix) {
+/// A ground speed in mm/s as knots times 1000
+static uint32_t knots_e3(int64_t mm_per_s) {
+  return mm_per_s <= 0 ? 0 : static_cast<uint32_t>((mm_per_s * 3600 + 926) / 1852);
+}
+/// A heading in 1e-5 degrees as 1e-2 degrees, 360 as 0
+static uint16_t course_e2(int32_t heading_e5) {
+  const int32_t e2 = (heading_e5 + 500) / 1000;
+  return static_cast<uint16_t>(e2 >= 36000 || e2 < 0 ? 0 : e2);
+}
+
+static void set_position(GNSSData &data, const uint8_t *lon, const uint8_t *height_msl, const uint8_t *h_acc) {
+  data.longitude_e7 = encode_value_le<int32_t>(lon);
+  data.latitude_e7 = encode_value_le<int32_t>(lon + 4);
+  data.altitude_e3 = encode_value_le<int32_t>(height_msl);  // mm
+  data.horizontal_accuracy_e3 = encode_value_le<uint32_t>(h_acc);
+  data.vertical_accuracy_e3 = encode_value_le<uint32_t>(h_acc + 4);
+  data.updated |= gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_HORIZONTAL_ACCURACY |
+                  gnss::GNSS_FIELD_VERTICAL_ACCURACY;
+}
+
+bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms, GNSSData &data, bool &fix) {
   switch (msg_id) {
     case UBX_NAV_PVT: {
       // 84 bytes in protocol 14, 92 from 15; the fields read here are the same
@@ -126,40 +145,36 @@ bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms,
       const uint8_t fix_type = p[20];
       fix = fix_type >= 2 && fix_type <= 4 && (p[21] & 0x01) != 0;
       data.satellites = p[23];
-      data.longitude = degrees_1e7(p + 24);
-      data.latitude = degrees_1e7(p + 28);
-      data.altitude = millimeters(p + 36);
-      data.horizontal_accuracy = encode_value_le<uint32_t>(p + 40) / 1000.0f;
-      data.vertical_accuracy = encode_value_le<uint32_t>(p + 44) / 1000.0f;
-      data.speed = encode_value_le<int32_t>(p + 60) * 0.0036f;  // mm/s
-      data.course = encode_value_le<int32_t>(p + 64) * 1e-5f;
+      set_position(data, p + 24, p + 36, p + 40);
+      data.speed_e3 = knots_e3(encode_value_le<int32_t>(p + 60));
+      data.course_e2 = course_e2(encode_value_le<int32_t>(p + 64));
+      data.updated |= gnss::GNSS_FIELD_SATELLITES | gnss::GNSS_FIELD_SPEED | gnss::GNSS_FIELD_COURSE;
       return true;
     }
     case UBX_NAV_POSLLH:
       if (len < 28)
         return false;
-      data.longitude = degrees_1e7(p + 4);
-      data.latitude = degrees_1e7(p + 8);
-      data.altitude = millimeters(p + 16);
-      data.horizontal_accuracy = encode_value_le<uint32_t>(p + 20) / 1000.0f;
-      data.vertical_accuracy = encode_value_le<uint32_t>(p + 24) / 1000.0f;
+      set_position(data, p + 4, p + 16, p + 20);
       return true;
     case UBX_NAV_VELNED:
       if (len < 36)
         return false;
-      data.speed = encode_value_le<uint32_t>(p + 20) * 0.036f;  // cm/s
-      data.course = encode_value_le<int32_t>(p + 24) * 1e-5f;
+      data.speed_e3 = knots_e3(static_cast<int64_t>(encode_value_le<uint32_t>(p + 20)) * 10);  // cm/s
+      data.course_e2 = course_e2(encode_value_le<int32_t>(p + 24));
+      data.updated |= gnss::GNSS_FIELD_SPEED | gnss::GNSS_FIELD_COURSE;
       return true;
     case UBX_NAV_SOL:
       if (len < 52)
         return false;
       fix = p[10] >= 2 && p[10] <= 4 && (p[11] & 0x01) != 0;
       data.satellites = p[47];
+      data.updated |= gnss::GNSS_FIELD_SATELLITES;
       return true;
     case UBX_NAV_DOP:
       if (len < 18)
         return false;
-      data.hdop = encode_value_le<uint16_t>(p + 12) * 0.01f;
+      data.hdop_e2 = encode_value_le<uint16_t>(p + 12);
+      data.updated |= gnss::GNSS_FIELD_HDOP;
       return true;
     case UBX_NAV_TIMEUTC: {
       if (len < 20)
@@ -167,16 +182,23 @@ bool decode_nav(uint8_t msg_id, const uint8_t *p, uint16_t len, uint64_t now_ms,
       // validUTC: the receiver knows the current leap seconds
       if ((p[19] & 0x04) == 0)
         return true;
+      data.year = encode_value_le<uint16_t>(p + 12);
+      data.month = p[14];
+      data.day = p[15];
+      data.hour = p[16];
+      data.minute = p[17];
+      data.second = p[18];
       ESPTime t{};
-      t.year = encode_value_le<uint16_t>(p + 12);
-      t.month = p[14];
-      t.day_of_month = p[15];
-      t.hour = p[16];
-      t.minute = p[17];
-      t.second = p[18];
+      t.year = data.year;
+      t.month = data.month;
+      t.day_of_month = data.day;
+      t.hour = data.hour;
+      t.minute = data.minute;
+      t.second = data.second;
       t.recalc_timestamp_utc(false);
       data.utc = t.timestamp;
       data.utc_millis = now_ms;
+      data.updated |= gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_DATE;
       return true;
     }
     default:

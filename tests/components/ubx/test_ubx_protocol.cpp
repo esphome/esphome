@@ -111,13 +111,28 @@ TEST(UBXNav, PvtWithA3dFix) {
   ASSERT_TRUE(decode_nav(UBX_NAV_PVT, p.data(), p.size(), 0, d, fix));
   EXPECT_TRUE(fix);
   EXPECT_EQ(d.satellites, 9);
-  EXPECT_NEAR(d.latitude, 48.053795, 1e-7);
-  EXPECT_NEAR(d.longitude, 17.365705, 1e-7);
-  EXPECT_FLOAT_EQ(d.altitude, 122.0f);
-  EXPECT_FLOAT_EQ(d.horizontal_accuracy, 2.5f);
-  EXPECT_FLOAT_EQ(d.vertical_accuracy, 4.0f);
-  EXPECT_FLOAT_EQ(d.speed, 36.0f);
-  EXPECT_FLOAT_EQ(d.course, 90.0f);
+  EXPECT_EQ(d.latitude_e7, 480537950);
+  EXPECT_EQ(d.longitude_e7, 173657050);
+  EXPECT_EQ(d.altitude_e3, 122000);
+  EXPECT_EQ(d.horizontal_accuracy_e3, 2500u);
+  EXPECT_EQ(d.vertical_accuracy_e3, 4000u);
+  EXPECT_EQ(d.speed_e3, 19438u);  // 10 m/s in knots
+  EXPECT_NEAR(d.speed_kmh(), 36.0f, 0.01f);
+  EXPECT_EQ(d.course_e2, 9000);
+  EXPECT_EQ(d.updated, gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_SPEED |
+                           gnss::GNSS_FIELD_COURSE | gnss::GNSS_FIELD_SATELLITES |
+                           gnss::GNSS_FIELD_HORIZONTAL_ACCURACY | gnss::GNSS_FIELD_VERTICAL_ACCURACY);
+}
+
+TEST(UBXNav, VelnedInCentimetersAndAFullCircle) {
+  std::vector<uint8_t> p(36, 0);
+  put_le32(p.data() + 20, 1000);      // 10 m/s
+  put_le32(p.data() + 24, 35999999);  // rounds to 360 degrees
+  gnss::GNSSData d{};
+  bool fix = false;
+  ASSERT_TRUE(decode_nav(UBX_NAV_VELNED, p.data(), p.size(), 0, d, fix));
+  EXPECT_EQ(d.speed_e3, 19438u);
+  EXPECT_EQ(d.course_e2, 0);
 }
 
 TEST(UBXNav, LegacySolCarriesTheFix) {
@@ -146,6 +161,9 @@ TEST(UBXNav, TimeUtcOnlyWithKnownLeapSeconds) {
   ASSERT_TRUE(decode_nav(UBX_NAV_TIMEUTC, p.data(), p.size(), 1234, d, fix));
   EXPECT_EQ(d.utc, 1795608000);
   EXPECT_EQ(d.utc_millis, 1234u);
+  EXPECT_EQ(d.year, 2026);
+  EXPECT_EQ(d.hour, 12);
+  EXPECT_EQ(d.updated, gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_DATE);
 }
 
 TEST(UBXNav, ShortMessagesAreRejected) {
@@ -153,7 +171,7 @@ TEST(UBXNav, ShortMessagesAreRejected) {
   gnss::GNSSData d{};
   bool fix = false;
   EXPECT_FALSE(decode_nav(UBX_NAV_POSLLH, p.data(), p.size(), 0, d, fix));
-  EXPECT_TRUE(std::isnan(d.latitude));
+  EXPECT_EQ(d.updated, 0);
 }
 
 }  // namespace esphome::ubx::testing

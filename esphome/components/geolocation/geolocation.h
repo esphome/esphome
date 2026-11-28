@@ -54,7 +54,7 @@ struct GeolocationData {
   uint8_t second{0};
   uint8_t satellites{0};
   uint16_t updated{0};  ///< GeolocationField bits set by the last message
-  uint16_t valid{0};    ///< GeolocationField bits set by any message so far
+  uint16_t valid{0};    ///< GeolocationField bits with a value; a platform clears those it no longer trusts
 
   bool has(GeolocationField field) const { return (this->valid & field) != 0; }
   bool is_updated(GeolocationField field) const { return (this->updated & field) != 0; }

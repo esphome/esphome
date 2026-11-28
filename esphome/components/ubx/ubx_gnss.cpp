@@ -29,6 +29,12 @@ enum : uint8_t {
 };
 static constexpr uint8_t STEP_DONE = 0xFF;
 
+static constexpr uint16_t TIME_FIELDS = gnss::GNSS_FIELD_TIME | gnss::GNSS_FIELD_DATE;
+// Values that mean nothing without a fix
+static constexpr uint16_t FIX_FIELDS = gnss::GNSS_FIELD_LOCATION | gnss::GNSS_FIELD_ALTITUDE | gnss::GNSS_FIELD_SPEED |
+                                       gnss::GNSS_FIELD_COURSE | gnss::GNSS_FIELD_HORIZONTAL_ACCURACY |
+                                       gnss::GNSS_FIELD_VERTICAL_ACCURACY;
+
 // NAV-TIMEUTC comes last in each epoch, so it completes one
 static constexpr uint8_t PVT_MESSAGES[] = {UBX_NAV_DOP, UBX_NAV_PVT, UBX_NAV_TIMEUTC};
 static constexpr uint8_t LEGACY_MESSAGES[] = {UBX_NAV_POSLLH, UBX_NAV_DOP, UBX_NAV_SOL, UBX_NAV_VELNED,
@@ -38,12 +44,8 @@ void UBXGNSS::setup() { this->start_setup_(); }
 
 void UBXGNSS::clear_data_() {
   // UTC is kept: the time source ignores it once it is stale
-  const gnss::GNSSData cleared{};
-  const time_t utc = this->data_.utc;
-  const uint64_t utc_millis = this->data_.utc_millis;
-  this->data_ = cleared;
-  this->data_.utc = utc;
-  this->data_.utc_millis = utc_millis;
+  this->data_.valid &= TIME_FIELDS;
+  this->data_.updated = 0;
 }
 
 void UBXGNSS::start_setup_() {
@@ -203,15 +205,23 @@ void UBXGNSS::handle_frame_() {
 
 void UBXGNSS::commit_epoch_() {
   auto &e = this->epoch_;
-  if (!this->fix_) {
-    e.latitude = e.longitude = NAN;
-    e.altitude = e.speed = e.course = e.horizontal_accuracy = e.vertical_accuracy = NAN;
-  }
+  if (!this->fix_)
+    e.updated &= ~FIX_FIELDS;
   // The last valid UTC stays; the time source ignores it once it is stale
-  if (e.utc == 0) {
+  uint16_t kept = 0;
+  if (!e.is_updated(gnss::GNSS_FIELD_TIME)) {
     e.utc = this->data_.utc;
     e.utc_millis = this->data_.utc_millis;
+    e.year = this->data_.year;
+    e.month = this->data_.month;
+    e.day = this->data_.day;
+    e.hour = this->data_.hour;
+    e.minute = this->data_.minute;
+    e.second = this->data_.second;
+    kept = this->data_.valid & TIME_FIELDS;
   }
+  // Only what this epoch carries is valid, so a lost fix shows as no position
+  e.valid = e.updated | kept;
   this->data_ = e;
   this->last_epoch_ms_ = App.get_loop_component_start_time();
   this->status_clear_warning();
