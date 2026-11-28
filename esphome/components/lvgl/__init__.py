@@ -351,7 +351,7 @@ async def to_code(configs):
         if get_esp32_variant() == VARIANT_ESP32P4:
             add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
             # The LVGL PPA driver uses cache functions added in ESP-IDF 6.0
-            if idf_version() >= cv.Version(6, 0, 0):
+            if "lvgl_ortho" not in CORE.config and idf_version() >= cv.Version(6, 0, 0):
                 df.add_define("LV_USE_PPA", "1")
             else:
                 df.add_define("LV_USE_PPA", "0")
@@ -567,6 +567,14 @@ async def to_code(configs):
         lv_image_formats.add("RGB888")
     for fmt in lv_image_formats:
         df.add_define(f"LV_DRAW_SW_SUPPORT_{fmt}", "1")
+
+    if "lvgl_ortho" in CORE.config:
+        df.add_define("LV_USE_FLOAT", "1")
+        df.add_define("LV_USE_MATRIX", "1")
+        df.add_define("LV_DRAW_TRANSFORM_USE_MATRIX", "1")
+        # Two-core rendering requires real LVGL cache and text mutexes.
+        if CORE.config["lvgl_ortho"]["cores"] == 2:
+            df.add_define("LV_USE_OS", "LV_OS_FREERTOS")
 
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
