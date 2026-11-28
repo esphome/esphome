@@ -47,10 +47,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     # Without a debounce time the device is set to 1 ms; NATIVE is the only mode that takes one
     debounce = config.get(CONF_DEBOUNCE)
-    var = await binary_sensor.new_binary_sensor(
+    var = await i2c.new_i2c_component(
         config,
         config[CONF_DEBOUNCE_MODE],
         1 if debounce is None else debounce.total_milliseconds,
     )
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    await binary_sensor.register_binary_sensor(var, config)
