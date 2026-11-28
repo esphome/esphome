@@ -11,6 +11,7 @@ import pytest
 
 from esphome.components.libretiny import FILTER_SOURCE_FILES
 from esphome.components.libretiny.const import (
+    FAMILY_LN882H,
     FAMILY_RTL8710B,
     FAMILY_RTL8720C,
     KEY_LIBRETINY,
@@ -27,7 +28,11 @@ from esphome.core import CORE
             {"millis", "micros", "delay", "delayMicroseconds"},
         ),
         ("rtl8720c.yaml", FAMILY_RTL8720C, {"micros", "delayMicroseconds"}),
-        ("ln882x.yaml", None, set()),
+        (
+            "ln882x.yaml",
+            FAMILY_LN882H,
+            {"micros", "delayMicroseconds", "vApplicationTickHook"},
+        ),
         ("bk72xx.yaml", None, set()),
         ("bk7238.yaml", None, set()),
     ],
@@ -40,10 +45,16 @@ def test_time_wraps(
     expected: set[str],
 ) -> None:
     generate_main(component_config_path(config))
-    for func in ("millis", "micros", "delay", "delayMicroseconds"):
+    for func in (
+        "millis",
+        "micros",
+        "delay",
+        "delayMicroseconds",
+        "vApplicationTickHook",
+    ):
         assert (f"-Wl,--wrap={func}" in CORE.build_flags) is (func in expected)
     excluded = FILTER_SOURCE_FILES()
-    for source in ("rtl8710b_micros.c", "rtl8720c_micros.c"):
+    for source in ("rtl8710b_micros.c", "rtl8720c_micros.c", "ln882h_micros.c"):
         assert (source in excluded) is (
             family is None or source != f"{family.lower()}_micros.c"
         )
