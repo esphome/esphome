@@ -115,6 +115,7 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_JPEG_DECODER_ID],
         PIXEL_FORMAT_RGB888.enum_value,
         config[CONF_ROTATION],
+        0,  # no preallocation: the buffer is sized by the first decoded frame
     )
     listener = cg.new_Pvariable(config[CONF_LISTENER_ID], var)
     cg.add(listener.set_decoder(decoder))
