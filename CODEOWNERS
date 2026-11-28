@@ -744,7 +744,7 @@ esphome/components/usb_cdc_acm/* @kbx81
 esphome/components/usb_host/* @clydebarrow
 esphome/components/usb_uart/* @clydebarrow
 esphome/components/valve/* @esphome/core
-esphome/components/vbus/* @ssieb
+esphome/components/vbus/* @labodj @ssieb
 esphome/components/veml3235/* @kbx81
 esphome/components/veml6040/* @aalaei
 esphome/components/veml7700/* @latonita
