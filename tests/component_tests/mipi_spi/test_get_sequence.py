@@ -8,12 +8,13 @@ from esphome.components.mipi import (
     BRIGHTNESS,
     CONF_INVERT_COLORS,
     CONF_PIXEL_MODE,
+    MODE_BGR,
     SLPOUT,
     SWRESET,
     DriverChip,
 )
 from esphome.components.mipi_spi.display import MODELS
-from esphome.const import CONF_BRIGHTNESS
+from esphome.const import CONF_BRIGHTNESS, CONF_COLOR_ORDER
 
 # A minimal config with no reset pin: enough for get_sequence(add_madctl=False) to run
 # without needing a full display configuration.
@@ -119,3 +120,12 @@ def test_es3c35p_waits_after_reset_and_issues_its_own_slpout() -> None:
     assert _count_subsequence(sequence, (SLPOUT, 0, 120, 255)) == 1
     assert _count_subsequence(sequence, (SLPOUT, 0, 10, 255)) == 0
     assert "ES3C35P-NS" in MODELS
+
+
+def test_es3c28p_uses_unmirrored_portrait_madctl() -> None:
+    """DFUNCTR sets the ES3C28P's source scan direction, so portrait MADCTL is BGR only."""
+    model = MODELS["ES3C28P"]
+    config = {CONF_COLOR_ORDER: MODE_BGR}
+
+    assert model.get_madctl(model.get_transform(config), config) == 0x08
+    assert "ES3N28P" in MODELS
