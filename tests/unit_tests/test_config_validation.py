@@ -3775,3 +3775,12 @@ def test_every_platformio_only_platform_rejects_arduino_toolchain(
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(Invalid, match="Unsupported toolchain 'arduino'"):
         module.CONFIG_SCHEMA(dict(minimal_config))
+
+
+def test_git_schema_password_is_sensitive() -> None:
+    """A git source password is tagged for redaction and keeps its value."""
+    config = cv.GIT_SCHEMA(
+        {"url": "https://example.com/repo.git", "password": "hunter2"}
+    )
+    assert isinstance(config["password"], Sensitive)
+    assert config["password"] == "hunter2"

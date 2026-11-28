@@ -115,6 +115,12 @@ class SensitiveInt(Sensitive, int):
     __slots__ = ()
 
 
+class SensitiveFloat(Sensitive, float):
+    """Marker subclass for a float credential (a password written as ``1234.5``)."""
+
+    __slots__ = ()
+
+
 class SensitiveHexInt(core.HexInt, SensitiveInt):
     """Keep hexadecimal formatting and code generation for sensitive integers."""
 
@@ -1586,6 +1592,8 @@ class ESPHomeDumper(yaml.SafeDumper):
         # integers have to be forwarded explicitly.
         if isinstance(value, int):
             return self.represent_int(value)
+        if isinstance(value, float):
+            return self.represent_float(value)
         return self.represent_stringify(value)
 
     # pylint: disable=arguments-renamed
