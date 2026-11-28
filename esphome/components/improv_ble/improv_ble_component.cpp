@@ -488,10 +488,7 @@ void ImprovBLEComponent::check_wifi_connection_() {
 void ImprovBLEComponent::save_connecting_sta_() {
   if (this->connecting_sta_.get_ssid().empty() || !wifi::global_wifi_component->is_connected())
     return;
-  // Only for the network Improv asked for, in case another provisioner changed it since
-  std::array<char, wifi::SSID_BUFFER_SIZE> ssid;
-  if (this->connecting_sta_.get_ssid() == wifi::global_wifi_component->wifi_ssid_to(ssid))
-    wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
+  wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
   this->connecting_sta_ = {};
 }
 
