@@ -1,0 +1,6 @@
+# ESPHome build test: the tabular kind is the configuration entry and
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
+tflite_tabular:
+  - id: test_tabular
+    model: "../../components/tflite_tabular/model.tflite"

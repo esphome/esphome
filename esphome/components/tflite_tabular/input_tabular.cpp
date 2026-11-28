@@ -1,0 +1,40 @@
+#include "input_tabular.h"
+
+#ifdef USE_TFLITE_MICRO_HELPER
+
+#include <cstring>
+
+#include "esphome/core/log.h"
+
+namespace esphome::tflite_tabular {
+
+ESPHOME_LOG_TAG(TAG, "tflite_tabular");
+
+bool TabularInputPipeline::fill_all(TfLiteTensor *const *inputs, size_t count, const uint8_t *src, size_t size) {
+  if (count != 1) {
+    ESP_LOGE(TAG, "A tabular model has one input, this one has %zu", count);
+    return false;
+  }
+  return this->fill(inputs[0], src, size);
+}
+
+bool TabularInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t size) {
+  if (input == nullptr || src == nullptr) {
+    ESP_LOGE(TAG, "fill called without a tensor or features");
+    return false;
+  }
+  if (input->type != kTfLiteFloat32 || input->data.f == nullptr) {
+    ESP_LOGE(TAG, "The input tensor is not float32");
+    return false;
+  }
+  if (size != input->bytes) {
+    ESP_LOGE(TAG, "The feature vector is %zu bytes, the tensor wants %zu", size, input->bytes);
+    return false;
+  }
+  memcpy(input->data.f, src, size);
+  return true;
+}
+
+}  // namespace esphome::tflite_tabular
+
+#endif  // USE_TFLITE_MICRO_HELPER
