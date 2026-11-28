@@ -1,0 +1,9 @@
+# Per-target ESP-IDF sdkconfig defaults for esp32 static analysis (clang-tidy) only.
+# Read by IDF in addition to sdkconfig.defaults. Enables variant-only components so
+# their headers register for the tidy translation unit (these are normally set at
+# codegen via add_idf_sdkconfig_option, which the stub tidy build skips).
+
+# bt_spp (Bluetooth Classic needs the dual-mode controller to coexist with BLE here)
+CONFIG_BTDM_CTRL_MODE_BTDM=y
+CONFIG_BT_CLASSIC_ENABLED=y
+CONFIG_BT_SPP_ENABLED=y

@@ -1,0 +1,2 @@
+packages:
+  bt_spp: !include common.yaml
