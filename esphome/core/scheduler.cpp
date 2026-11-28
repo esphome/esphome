@@ -314,8 +314,12 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
     return 0;
 #endif
 
+  // Recycled callables still to free (from outside call(), or by cleanup_() here) need a tick right away
+  const bool has_items = this->cleanup_();
+  if (this->pending_release_head_ != nullptr)
+    return 0;
   // If no items, return empty optional
-  if (!this->cleanup_())
+  if (!has_items)
     return {};
 
   SchedulerItem *item = this->items_[0];
@@ -584,12 +588,16 @@ uint32_t HOT Scheduler::call(uint32_t now) {
     has_added_items |= !this->to_add_.empty();
   }
 
+  // Free the callables recycled this pass now that the lock is released: a capture's destructor may call the scheduler.
+  // Then advance `now` past the destructors and merge what they scheduled, so next_schedule_in() sees it.
+  if (this->pending_release_head_ != nullptr) {
+    this->release_pending_();
+    now = millis();
+    has_added_items = true;
+  }
   if (has_added_items) {
     this->process_to_add();
   }
-  // Free the callables recycled this pass now that the lock is released: a capture's destructor may call the scheduler
-  if (this->pending_release_head_ != nullptr)
-    this->release_pending_();
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Verify no items were leaked during this call() cycle.
@@ -750,18 +758,24 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
-// Recycle a SchedulerItem: its callable is freed and the item pooled by release_pending_() once the lock is
-// released, so a capture's destructor may call the scheduler.
+// Recycle a SchedulerItem. A boxed callable is freed and pooled by release_pending_() after the lock is released, so
+// its destructor may call the scheduler; an inline one is pooled now.
 // IMPORTANT: Caller must hold the scheduler lock.
 void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
-  item->next_free = this->pending_release_head_;
-  this->pending_release_head_ = item;
+  const bool boxed = item->callback.is_boxed_();
+  SchedulerItem *&head = boxed ? this->pending_release_head_ : this->scheduler_item_pool_head_;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  if (!boxed)
+    item->callback.release_();  // empties it for the destructor check
+#endif
+  item->next_free = head;
+  head = item;
   this->scheduler_item_pool_size_++;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  ESP_LOGD(TAG, "Queued item for release (pool size now: %zu)", this->scheduler_item_pool_size_);
+  ESP_LOGD(TAG, "Recycled item (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
 }
 

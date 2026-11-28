@@ -33,14 +33,26 @@ struct OnFree {
 };
 
 // Where the scheduler frees the callable
-enum class FreedBy { AFTER_RUN, CANCELLED_IN_TO_ADD, CANCELLED_IN_HEAP, BULK_CLEANUP, DEFER_QUEUE, DONT_RUN };
+enum class FreedBy {
+  FREED_BY_AFTER_RUN,
+  FREED_BY_CANCELLED_IN_TO_ADD,
+  FREED_BY_CANCELLED_IN_HEAP,
+  FREED_BY_BULK_CLEANUP,
+  FREED_BY_DEFER_QUEUE,
+  FREED_BY_DONT_RUN,
+};
 // What the destructor does
-enum class Action { SCHEDULE_MANY, CANCEL_TIMEOUT, CANCEL_INTERVAL, RESCHEDULE_OWN_KEY };
+enum class DestructorAction {
+  DESTRUCTOR_ACTION_SCHEDULE_MANY,
+  DESTRUCTOR_ACTION_CANCEL_TIMEOUT,
+  DESTRUCTOR_ACTION_CANCEL_INTERVAL,
+  DESTRUCTOR_ACTION_RESCHEDULE_OWN_KEY,
+};
 
 static constexpr int SCHEDULED = 32;  // more than to_add_ holds, so the destructor makes it grow
 static constexpr uint32_t VICTIM_ID = 1000;
 
-class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<FreedBy, Action>> {
+class SchedulerCaptureDestructor : public ::testing::TestWithParam<std::tuple<FreedBy, DestructorAction>> {
  protected:
   void run_for(uint32_t ms) {
     const uint32_t end = millis() + ms;
@@ -85,18 +97,18 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   std::function<void()> on_free = [&, s, c, action = action]() {
     destructor_ran = true;
     switch (action) {
-      case Action::SCHEDULE_MANY:
+      case DestructorAction::DESTRUCTOR_ACTION_SCHEDULE_MANY:
         for (uint32_t i = 0; i < SCHEDULED; i++)
           s->set_timeout(c, i, 1, [&scheduled_ran]() { scheduled_ran++; });
         break;
-      case Action::CANCEL_TIMEOUT:
+      case DestructorAction::DESTRUCTOR_ACTION_CANCEL_TIMEOUT:
         s->cancel_timeout(c, "other");
         break;
-      case Action::CANCEL_INTERVAL:
+      case DestructorAction::DESTRUCTOR_ACTION_CANCEL_INTERVAL:
         interval_runs_at_free = interval_runs;
         s->cancel_interval(c, "interval");
         break;
-      case Action::RESCHEDULE_OWN_KEY:
+      case DestructorAction::DESTRUCTOR_ACTION_RESCHEDULE_OWN_KEY:
         s->set_timeout(c, VICTIM_ID, 1, [&rescheduled_ran]() { rescheduled_ran = true; });
         break;
     }
@@ -104,20 +116,20 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   OnFree victim(std::move(on_free), token);
 
   switch (freed_by) {
-    case FreedBy::AFTER_RUN:
+    case FreedBy::FREED_BY_AFTER_RUN:
       this->scheduler.set_timeout(c, VICTIM_ID, 1, std::move(victim));
       break;
-    case FreedBy::CANCELLED_IN_TO_ADD:
+    case FreedBy::FREED_BY_CANCELLED_IN_TO_ADD:
       this->scheduler.set_timeout(c, VICTIM_ID, 10000, std::move(victim));
       this->scheduler.cancel_timeout(c, VICTIM_ID);
       this->scheduler.process_to_add();  // recycled while merging to_add_
       break;
-    case FreedBy::CANCELLED_IN_HEAP:
+    case FreedBy::FREED_BY_CANCELLED_IN_HEAP:
       this->scheduler.set_timeout(c, VICTIM_ID, 1, std::move(victim));
       this->scheduler.process_to_add();
       this->scheduler.cancel_timeout(c, VICTIM_ID);  // recycled by cleanup_() or the run loop
       break;
-    case FreedBy::BULK_CLEANUP:
+    case FreedBy::FREED_BY_BULK_CLEANUP:
       // "other" and "interval" stay at the top of the heap, so the removed items below need a full cleanup
       this->scheduler.set_timeout(c, VICTIM_ID, 10000, std::move(victim));
       for (uint32_t i = 1; i <= 5; i++)
@@ -126,10 +138,10 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
       for (uint32_t i = 0; i <= 5; i++)
         this->scheduler.cancel_timeout(c, VICTIM_ID + i);
       break;
-    case FreedBy::DEFER_QUEUE:
+    case FreedBy::FREED_BY_DEFER_QUEUE:
       this->scheduler.set_timeout(c, VICTIM_ID, 0, std::move(victim));
       break;
-    case FreedBy::DONT_RUN:
+    case FreedBy::FREED_BY_DONT_RUN:
       this->scheduler.set_timeout(c, VICTIM_ID, SCHEDULER_DONT_RUN, std::move(victim));
       break;
   }
@@ -137,17 +149,17 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   this->run_for(80);
   EXPECT_TRUE(destructor_ran);
   switch (action) {
-    case Action::SCHEDULE_MANY:
+    case DestructorAction::DESTRUCTOR_ACTION_SCHEDULE_MANY:
       EXPECT_EQ(scheduled_ran, SCHEDULED);
       break;
-    case Action::CANCEL_TIMEOUT:
+    case DestructorAction::DESTRUCTOR_ACTION_CANCEL_TIMEOUT:
       EXPECT_FALSE(other_ran);
       break;
-    case Action::CANCEL_INTERVAL:
+    case DestructorAction::DESTRUCTOR_ACTION_CANCEL_INTERVAL:
       EXPECT_GE(interval_runs_at_free, 0);
       EXPECT_EQ(interval_runs, interval_runs_at_free);
       break;
-    case Action::RESCHEDULE_OWN_KEY:
+    case DestructorAction::DESTRUCTOR_ACTION_RESCHEDULE_OWN_KEY:
       EXPECT_TRUE(rescheduled_ran);
       break;
   }
@@ -161,11 +173,59 @@ TEST_P(SchedulerCaptureDestructor, DestructorMayCallTheScheduler) {
   watchdog.join();
 }
 
-INSTANTIATE_TEST_SUITE_P(AllPaths, SchedulerCaptureDestructor,
-                         ::testing::Combine(::testing::Values(FreedBy::AFTER_RUN, FreedBy::CANCELLED_IN_TO_ADD,
-                                                              FreedBy::CANCELLED_IN_HEAP, FreedBy::BULK_CLEANUP,
-                                                              FreedBy::DEFER_QUEUE, FreedBy::DONT_RUN),
-                                            ::testing::Values(Action::SCHEDULE_MANY, Action::CANCEL_TIMEOUT,
-                                                              Action::CANCEL_INTERVAL, Action::RESCHEDULE_OWN_KEY)));
+INSTANTIATE_TEST_SUITE_P(
+    AllPaths, SchedulerCaptureDestructor,
+    ::testing::Combine(::testing::Values(FreedBy::FREED_BY_AFTER_RUN, FreedBy::FREED_BY_CANCELLED_IN_TO_ADD,
+                                         FreedBy::FREED_BY_CANCELLED_IN_HEAP, FreedBy::FREED_BY_BULK_CLEANUP,
+                                         FreedBy::FREED_BY_DEFER_QUEUE, FreedBy::FREED_BY_DONT_RUN),
+                       ::testing::Values(DestructorAction::DESTRUCTOR_ACTION_SCHEDULE_MANY,
+                                         DestructorAction::DESTRUCTOR_ACTION_CANCEL_TIMEOUT,
+                                         DestructorAction::DESTRUCTOR_ACTION_CANCEL_INTERVAL,
+                                         DestructorAction::DESTRUCTOR_ACTION_RESCHEDULE_OWN_KEY)));
+
+class SchedulerPendingRelease : public ::testing::Test {
+ protected:
+  Scheduler scheduler;
+  DestructorComponent component;
+};
+
+// A timer a destructor schedules during call() is merged before call() returns, so sleep planning sees it
+TEST_F(SchedulerPendingRelease, TimerScheduledByADestructorIsVisibleAfterOneCall) {
+  Scheduler *s = &this->scheduler;
+  Component *c = &this->component;
+  auto token = std::make_shared<int>(0);
+  this->scheduler.set_timeout(c, VICTIM_ID, 1, OnFree([s, c]() { s->set_timeout(c, "late", 200, []() {}); }, token));
+  this->scheduler.process_to_add();
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  this->scheduler.call(millis());
+  EXPECT_EQ(token.use_count(), 1);
+  const auto next = this->scheduler.next_schedule_in(millis());
+  ASSERT_TRUE(next.has_value());
+  EXPECT_LE(*next, 200u);
+  this->scheduler.cancel_timeout(c, "late");
+  this->scheduler.call(millis());
+}
+
+// A capture recycled after call() (by a cancel merged in the component phase, or by next_schedule_in()'s own
+// cleanup) asks for a tick right away, and that tick frees it
+TEST_F(SchedulerPendingRelease, RecycledAfterCallAsksForATick) {
+  Component *c = &this->component;
+  auto token = std::make_shared<int>(0);
+  this->scheduler.set_timeout(c, VICTIM_ID, 10000, OnFree([]() {}, token));
+  this->scheduler.process_to_add();
+  this->scheduler.call(millis());
+  this->scheduler.cancel_timeout(c, VICTIM_ID);  // after the scheduler phase: next_schedule_in() cleans it up
+  EXPECT_EQ(this->scheduler.next_schedule_in(millis()), optional<uint32_t>(0));
+  this->scheduler.call(millis());
+  EXPECT_EQ(token.use_count(), 1);
+  EXPECT_FALSE(this->scheduler.next_schedule_in(millis()).has_value());
+
+  this->scheduler.set_timeout(c, VICTIM_ID, 10000, OnFree([]() {}, token));
+  this->scheduler.cancel_timeout(c, VICTIM_ID);
+  this->scheduler.process_to_add();  // the component phase's merge recycles it
+  EXPECT_EQ(this->scheduler.next_schedule_in(millis()), optional<uint32_t>(0));
+  this->scheduler.call(millis());
+  EXPECT_EQ(token.use_count(), 1);
+}
 
 }  // namespace esphome::core::testing
