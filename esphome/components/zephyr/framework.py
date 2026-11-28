@@ -14,6 +14,7 @@ from .framework_helpers import (
     install_framework,
     patch_gen_defines_dts_path,
     patch_west_build_source_dir_relpath,
+    workspace_installed,
 )
 from .sdk_install import ensure_sdk
 from .variants import ZephyrManifest
@@ -70,14 +71,12 @@ def _check_and_install(
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     install_venv = ensure_venv(python_env_path, _REQUIREMENTS, version)
 
-    sentinel = framework_path / ".ready"
-    zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
     wanted = set(projects | manifest.source.required)
-    if not sentinel.exists() or not zephyr_reqs.exists():
+    if not workspace_installed(framework_path):
         install_framework(
             env_python_path, framework_path, manifest.source, version, wanted
         )
-        sentinel.touch()
+        (framework_path / ".ready").touch()
     else:
         fetch_missing_west_projects(
             env_python_path, framework_path, manifest.source, version, wanted

@@ -20,6 +20,7 @@ from esphome.components.zephyr.framework_helpers import (
     needs_venv_rebuild,
     patch_gen_defines_dts_path,
     patch_west_build_source_dir_relpath,
+    workspace_installed,
 )
 from esphome.core import EsphomeError
 from esphome.framework_helpers import get_python_env_executable_path
@@ -289,6 +290,20 @@ def test_install_of_only_required_projects_checks_them(
     _install(workspace, {"zephyr"})
 
     assert _subcommands(west) == ["init", "config", "update", "list"]
+
+
+@pytest.mark.parametrize(
+    "missing", [None, ".ready", "zephyr/scripts/requirements.txt", ".west/config"]
+)
+def test_workspace_installed_needs_every_file(
+    tmp_path: Path, missing: str | None
+) -> None:
+    for name in (".ready", "zephyr/scripts/requirements.txt", ".west/config"):
+        if name != missing:
+            (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+            (tmp_path / name).touch()
+
+    assert workspace_installed(tmp_path) is (missing is None)
 
 
 def test_interrupted_download_resumes(workspace: Path, west: MagicMock) -> None:

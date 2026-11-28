@@ -331,6 +331,14 @@ def fetch_missing_west_projects(
         raise EsphomeError(f"Can't update {source.name} {version}")
 
 
+def workspace_installed(framework_path: Path) -> bool:
+    """Whether the workspace finished installing and west can still run in it."""
+    return all(
+        (framework_path / name).is_file()
+        for name in (".ready", "zephyr/scripts/requirements.txt", ".west/config")
+    )
+
+
 def install_framework(
     env_python_path: Path,
     framework_path: Path,
