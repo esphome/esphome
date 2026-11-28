@@ -1,0 +1,23 @@
+storage:
+  - platform: ram_disk
+    id: ram_disk_small
+    size: 16KB
+  - platform: ram_disk
+    id: ram_disk_large_blocks
+    size: 64KB
+    block_size: 4096
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            storage.has_media: ram_disk_small
+          then:
+            - logger.log: RAM disk ready
+      - if:
+          condition:
+            storage.has_media:
+              id: ram_disk_large_blocks
+          then:
+            - logger.log: Large RAM disk ready
