@@ -13,7 +13,8 @@ namespace esphome {
 
 /// Type-erased scheduler callable, built from a callable at the call site: inline when small and trivially
 /// copyable, else heap-boxed. A function taking SchedulerCallback && must pass it to the scheduler once, on every
-/// path: one that is dropped leaks its box and what it captured.
+/// path: one that is dropped leaks its box and what it captured. A boxed capture's destructor runs with the
+/// scheduler lock held (as with std::function before), so it must not call the scheduler.
 class SchedulerCallback {
  public:
   static constexpr size_t INLINE_WORDS = 3;
