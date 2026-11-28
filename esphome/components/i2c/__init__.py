@@ -378,6 +378,7 @@ async def to_code(config: ConfigType) -> None:
                         group1 {{
                             psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
                                 <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
+                            bias-pull-up;
                         }};
                     }};
                     {i2c}_sleep: {i2c}_sleep {{
