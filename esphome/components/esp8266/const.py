@@ -130,7 +130,7 @@ def require_waveform() -> None:
             require_waveform()
     """
     CORE.data.setdefault(KEY_ESP8266, {})[KEY_WAVEFORM_REQUIRED] = True
-    use_timer1("the Arduino waveform generator (esp8266_pwm, ac_dimmer)")
+    use_timer1("the Arduino waveform generator (esp8266_pwm)")
 
 
 def use_timer1(owner: str) -> None:
