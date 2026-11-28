@@ -11,6 +11,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/millis_internal.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/scheduler_callback.h"
 
 // Forward declarations for friend access from codegen-generated setup()
 void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
@@ -415,7 +416,7 @@ class Component {
    * @param interval The interval in ms
    * @param f The function to call
    */
-  void set_interval(const char *name, uint32_t interval, std::function<void()> &&f);  // NOLINT
+  void set_interval(const char *name, uint32_t interval, SchedulerCallback &&f);  // NOLINT
 
   /** Set an interval function with a numeric ID (zero heap allocation).
    *
@@ -423,11 +424,11 @@ class Component {
    * @param interval The interval in ms
    * @param f The function to call
    */
-  void set_interval(uint32_t id, uint32_t interval, std::function<void()> &&f);  // NOLINT
+  void set_interval(uint32_t id, uint32_t interval, SchedulerCallback &&f);  // NOLINT
 
-  void set_interval(InternalSchedulerID id, uint32_t interval, std::function<void()> &&f);  // NOLINT
+  void set_interval(InternalSchedulerID id, uint32_t interval, SchedulerCallback &&f);  // NOLINT
 
-  void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
+  void set_interval(uint32_t interval, SchedulerCallback &&f);  // NOLINT
 
   /** Cancel an interval function.
    *
@@ -460,7 +461,7 @@ class Component {
    * @param timeout The timeout in ms
    * @param f The function to call
    */
-  void set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+  void set_timeout(const char *name, uint32_t timeout, SchedulerCallback &&f);  // NOLINT
 
   /** Set a timeout function with a numeric ID (zero heap allocation).
    *
@@ -468,11 +469,11 @@ class Component {
    * @param timeout The timeout in ms
    * @param f The function to call
    */
-  void set_timeout(uint32_t id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+  void set_timeout(uint32_t id, uint32_t timeout, SchedulerCallback &&f);  // NOLINT
 
-  void set_timeout(InternalSchedulerID id, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+  void set_timeout(InternalSchedulerID id, uint32_t timeout, SchedulerCallback &&f);  // NOLINT
 
-  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
+  void set_timeout(uint32_t timeout, SchedulerCallback &&f);  // NOLINT
 
   /** Cancel a timeout function.
    *
@@ -498,13 +499,13 @@ class Component {
    * @param name The name of the defer function (must have static lifetime)
    * @param f The callback
    */
-  void defer(const char *name, std::function<void()> &&f);  // NOLINT
+  void defer(const char *name, SchedulerCallback &&f);  // NOLINT
 
   /// Defer a callback to the next loop() call.
-  void defer(std::function<void()> &&f);  // NOLINT
+  void defer(SchedulerCallback &&f);  // NOLINT
 
   /// Defer a callback with a numeric ID (zero heap allocation)
-  void defer(uint32_t id, std::function<void()> &&f);  // NOLINT
+  void defer(uint32_t id, SchedulerCallback &&f);  // NOLINT
 
   /// Cancel a defer callback using the specified name, name must not be empty.
   bool cancel_defer(const char *name);  // NOLINT

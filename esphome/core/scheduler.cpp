@@ -132,8 +132,9 @@ uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
 // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
                                       const char *static_name, uint32_t hash_or_id, uint32_t delay,
-                                      std::function<void()> &&func, bool skip_cancel, const LogString *source) {
+                                      SchedulerCallback &&func, bool skip_cancel, const LogString *source) {
   if (delay == SCHEDULER_DONT_RUN) {
+    func.release_();  // no item is made to keep it
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
       SchedulerLockGuard guard{this->lock_};
@@ -170,13 +171,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     }
     item->set_name(name_type, static_name, hash_or_id);
     item->type = type;
-    // Use destroy + placement-new instead of move-assignment.
-    // GCC's std::function::operator=(function&&) does a full swap dance even when the
-    // target is empty. Since recycled/new items always have an empty callback, we can
-    // destroy the empty one (no-op) and move-construct directly, saving ~40 bytes of
-    // swap/destructor code on Xtensa.
-    item->callback.~function();
-    new (&item->callback) std::function<void()>(std::move(func));
+    item->callback.take_(func);
     // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
     this->set_item_removed_(item, false);
 
@@ -240,13 +235,12 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     wake_scheduler_threadsafe();
 }
 
-void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout,
-                                std::function<void()> &&func) {
+void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout, SchedulerCallback &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::STATIC_STRING, name, 0, timeout,
                           std::move(func));
 }
 
-void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func) {
+void HOT Scheduler::set_timeout(Component *component, uint32_t id, uint32_t timeout, SchedulerCallback &&func) {
   this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID, nullptr, id, timeout,
                           std::move(func));
 }
@@ -256,12 +250,11 @@ bool HOT Scheduler::cancel_timeout(Component *component, const char *name) {
 bool HOT Scheduler::cancel_timeout(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
 }
-void HOT Scheduler::set_interval(Component *component, const char *name, uint32_t interval,
-                                 std::function<void()> &&func) {
+void HOT Scheduler::set_interval(Component *component, const char *name, uint32_t interval, SchedulerCallback &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::STATIC_STRING, name, 0, interval,
                           std::move(func));
 }
-void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func) {
+void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t interval, SchedulerCallback &&func) {
   this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID, nullptr, id, interval,
                           std::move(func));
 }
@@ -276,11 +269,11 @@ bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
 // passed through the existing static_name pointer slot. Matching is by raw pointer equality
 // (see matches_item_locked_'s SELF_POINTER branch). No Component pointer is stored, so
 // is_failed() skip and component-based log attribution don't apply.
-void HOT Scheduler::set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func) {
+void HOT Scheduler::set_timeout(const void *self, uint32_t timeout, SchedulerCallback &&func) {
   this->set_timer_common_(nullptr, SchedulerItem::TIMEOUT, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
                           timeout, std::move(func));
 }
-void HOT Scheduler::set_interval(const void *self, uint32_t interval, std::function<void()> &&func) {
+void HOT Scheduler::set_interval(const void *self, uint32_t interval, SchedulerCallback &&func) {
   this->set_timer_common_(nullptr, SchedulerItem::INTERVAL, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
                           interval, std::move(func));
 }
@@ -669,7 +662,7 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   }
   // Guard publishes the item's identity + dispatch time, then times the callback.
   LoopBlockingGuard guard{component, source, now};
-  item->callback();
+  item->callback.run_();
   uint32_t end = guard.finish();
   // Feed the watchdog after each scheduled item (both main heap and defer
   // queue paths go through here). A run of back-to-back callbacks cannot
@@ -756,13 +749,14 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
-  item->callback = nullptr;  // release captured resources
   item->next_free = this->scheduler_item_pool_head_;
   this->scheduler_item_pool_head_ = item;
   this->scheduler_item_pool_size_++;
 #ifdef ESPHOME_DEBUG_SCHEDULER
   ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
+  // Last, so the free is a tail call; next_free does not share the callback's storage
+  item->callback.release_();
 }
 
 // Shrink a SchedulerItem* vector's capacity to its current size.

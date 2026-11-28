@@ -11,6 +11,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/scheduler_callback.h"
 #include "esphome/core/time_64.h"
 
 namespace esphome {
@@ -33,11 +34,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> &&func);
+  void set_timeout(Component *component, const char *name, uint32_t timeout, SchedulerCallback &&func);
   /// Set a timeout with a numeric ID (zero heap allocation)
-  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func);
+  void set_timeout(Component *component, uint32_t id, uint32_t timeout, SchedulerCallback &&func);
   /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> &&func) {
+  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, SchedulerCallback &&func) {
     this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), timeout, std::move(func));
   }
@@ -57,11 +58,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> &&func);
+  void set_interval(Component *component, const char *name, uint32_t interval, SchedulerCallback &&func);
   /// Set an interval with a numeric ID (zero heap allocation)
-  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func);
+  void set_interval(Component *component, uint32_t id, uint32_t interval, SchedulerCallback &&func);
   /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> &&func) {
+  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, SchedulerCallback &&func) {
     this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), interval, std::move(func));
   }
@@ -131,9 +132,9 @@ class Scheduler {
    *
    * If you need either of those, use the existing `(Component *, id)` overloads.
    */
-  void set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func);
+  void set_timeout(const void *self, uint32_t timeout, SchedulerCallback &&func);
   /// Self-keyed interval. See set_timeout(const void *, ...) for semantics.
-  void set_interval(const void *self, uint32_t interval, std::function<void()> &&func);
+  void set_interval(const void *self, uint32_t interval, SchedulerCallback &&func);
   bool cancel_timeout(const void *self);
   bool cancel_interval(const void *self);
 
@@ -159,8 +160,8 @@ class Scheduler {
     // 49.7 days × 65536 = ~8900 years. This ensures correct scheduling
     // even when devices run for months. Split into two fields for better memory
     // alignment on 32-bit systems.
-    uint32_t next_execution_low_;  // Lower 32 bits of execution time (millis value)
-    std::function<void()> callback;
+    uint32_t next_execution_low_;   // Lower 32 bits of execution time (millis value)
+    SchedulerCallback callback;     // owns a boxed callable's heap copy until release_()
     uint16_t next_execution_high_;  // Upper 16 bits (millis_major counter)
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
@@ -201,7 +202,7 @@ class Scheduler {
       name_.static_name = nullptr;
     }
 
-    // Destructor - no dynamic memory to clean up (callback's std::function handles its own)
+    // Pooled items, the only ones deleted, have already released their callable
     ~SchedulerItem() = default;
 
     // Delete copy operations to prevent accidental copies
@@ -279,7 +280,7 @@ class Scheduler {
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
   // `source` is stored (in the union slot) only for SELF_POINTER items; ignored otherwise.
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
-                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool skip_cancel = false,
+                         uint32_t hash_or_id, uint32_t delay, SchedulerCallback &&func, bool skip_cancel = false,
                          const LogString *source = nullptr);
 
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.

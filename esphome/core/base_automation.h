@@ -216,32 +216,17 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     // Users should set max_runs on parallel scripts to limit concurrent executions.
     // Issue #10264: This is a workaround for parallel script delays interfering with each other.
 
-    // Optimization: For no-argument delays (most common case), use direct lambda
-    // to avoid overhead from capturing arguments by value
-    if constexpr (sizeof...(Ts) == 0) {
-      auto f = [this]() { this->play_next_(); };
-      App.scheduler.set_timer_common_(
-          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
-          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
-          std::move(f),
-          /* skip_cancel= */ this->num_running_ > 1,
-          // Record the owning script (if any) so the blocking warning can name it; propagates across
-          // chained delays via the scheduler.
-          /* source= */ App.get_current_source());
-    } else {
-      // For delays with arguments, capture by value to preserve argument values
-      // Arguments must be copied because original references may be invalid after delay
-      // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
-      // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
-      auto f = [this, x...]() mutable { this->play_next_(x...); };
-      App.scheduler.set_timer_common_(
-          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
-          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
-          std::move(f),
-          /* skip_cancel= */ this->num_running_ > 1,
-          // See the no-argument branch above: record the owning script for log attribution.
-          /* source= */ App.get_current_source());
-    }
+    // Arguments are captured by value, as the original references may be gone when the delay ends. `mutable`
+    // passes copies of non-const reference args (e.g. std::string&) to play_next_(const Ts&...) as lvalues.
+    auto f = [this, x...]() mutable { this->play_next_(x...); };
+    App.scheduler.set_timer_common_(
+        /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+        /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
+        std::move(f),
+        /* skip_cancel= */ this->num_running_ > 1,
+        // Record the owning script (if any) so the blocking warning can name it; propagates across
+        // chained delays via the scheduler.
+        /* source= */ App.get_current_source());
   }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */ }
