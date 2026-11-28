@@ -165,7 +165,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Logged after releasing the lock, like the VERBOSE line below
   size_t debug_pool_size;
   const LogString *debug_source;
-  bool debug_deferred = false;
 #endif
   // Take lock early to protect scheduler_item_pool_head_ access
   {
@@ -201,9 +200,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     if (delay == 0 && type == SchedulerItem::TIMEOUT) {
       // Put in defer queue for guaranteed FIFO execution
       target = &this->defer_queue_;
-#ifdef ESPHOME_DEBUG_SCHEDULER
-      debug_deferred = true;
-#endif
     } else
 #endif /* not ESPHOME_THREAD_SINGLE */
     {
@@ -238,8 +234,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif
   }
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_log_timer_(debug_pool_size, debug_source, debug_deferred, type, name_type, static_name, hash_or_id, delay,
-                         offset);
+  this->debug_log_timer_(debug_pool_size, debug_source, type, name_type, static_name, hash_or_id, delay, offset);
 #endif
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   // Logged after releasing the lock: a logger on_message automation can call back into the scheduler.
@@ -770,11 +765,11 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   // Free before pooling, so nothing the free runs can be handed this item while a cleanup still lists it
 #ifdef ESPHOME_DEBUG_SCHEDULER
   this->debug_releasing_ = true;
+#endif
   item->callback.release_();
+#ifdef ESPHOME_DEBUG_SCHEDULER
   this->debug_releasing_ = false;
   this->debug_recycled_++;
-#else
-  item->callback.release_();
 #endif
   item->next_free = this->scheduler_item_pool_head_;
   this->scheduler_item_pool_head_ = item;
@@ -833,7 +828,7 @@ void Scheduler::trim_freelist() {
 }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-void Scheduler::debug_log_timer_(size_t pool_size, const LogString *source, bool deferred, SchedulerItem::Type type,
+void Scheduler::debug_log_timer_(size_t pool_size, const LogString *source, SchedulerItem::Type type,
                                  NameType name_type, const char *static_name, uint32_t hash_or_id, uint32_t delay,
                                  uint32_t offset) {
   if (pool_size != 0) {
@@ -841,15 +836,17 @@ void Scheduler::debug_log_timer_(size_t pool_size, const LogString *source, bool
   } else {
     ESP_LOGD(TAG, "Allocated new item (pool empty)");
   }
-  if (deferred)
-    return;
+#ifndef ESPHOME_THREAD_SINGLE
+  if (delay == 0 && type == SchedulerItem::TIMEOUT)
+    return;  // defer()
+#endif
   // Validate static strings in debug mode
   if (name_type == NameType::STATIC_STRING && static_name != nullptr) {
     validate_static_string(static_name);
   }
 
   SchedulerNameLog name_log;
-  const char *type_str = type == SchedulerItem::TIMEOUT ? LOG_STR_LITERAL("timeout") : LOG_STR_LITERAL("interval");
+  const char *type_str = LOG_STR_ARG(SchedulerItem::type_log_str(type));
   if (type == SchedulerItem::TIMEOUT) {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(source),
              name_log.format(name_type, static_name, hash_or_id), type_str, delay);
@@ -906,8 +903,9 @@ bool Scheduler::debug_verify_no_leak_() {
     recycled = this->debug_recycled_;
     this->debug_recycled_ = 0;
   }
-  if (recycled != 0)
+  if (recycled != 0) {
     ESP_LOGD(TAG, "Recycled %" PRIu32 " items to pool (pool size now: %zu)", recycled, pool);
+  }
   // Invariant: every live SchedulerItem must be in exactly one container.
   if (items + to_add + pool + defer != live) {
     ESP_LOGE(TAG, "SCHEDULER LEAK DETECTED: live=%zu but accounted=%zu (items=%zu to_add=%zu pool=%zu defer=%zu)", live,

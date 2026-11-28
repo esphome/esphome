@@ -264,7 +264,10 @@ class Scheduler {
       // This is correct because millis_major_ that creates these values is also 16 bits.
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
-    const LogString *get_type_str() const { return (type == TIMEOUT) ? LOG_STR("timeout") : LOG_STR("interval"); }
+    static const LogString *type_log_str(Type type) {
+      return (type == TIMEOUT) ? LOG_STR("timeout") : LOG_STR("interval");
+    }
+    const LogString *get_type_str() const { return type_log_str(this->type); }
     // The owning component, or nullptr for SELF_POINTER items (whose slot holds source_name instead).
     // All component access goes through this so SELF_POINTER items read as component-less.
     Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
@@ -413,9 +416,8 @@ class Scheduler {
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Debug logging for set_timer_common_, called after it releases the lock
-  void debug_log_timer_(size_t pool_size, const LogString *source, bool deferred, SchedulerItem::Type type,
-                        NameType name_type, const char *static_name, uint32_t hash_or_id, uint32_t delay,
-                        uint32_t offset);
+  void debug_log_timer_(size_t pool_size, const LogString *source, SchedulerItem::Type type, NameType name_type,
+                        const char *static_name, uint32_t hash_or_id, uint32_t delay, uint32_t offset);
   // Aborts when called on the main loop while recycle_item_main_loop_ frees a callable (the lock is held)
   void debug_check_not_releasing_() const;
 #endif /* ESPHOME_DEBUG_SCHEDULER */
