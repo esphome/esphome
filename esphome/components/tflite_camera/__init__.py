@@ -8,10 +8,7 @@ same as an image entry of tflite_image.
 
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_camera
-from esphome.components.camera_decoder import (
-    OUTPUT_TYPES as OUTPUT_TYPES,
-    ESP32CameraJPEGDecoder,
-)
+from esphome.components.camera_decoder import ESP32CameraJPEGDecoder
 from esphome.components.tflite_image import (
     CONF_FRAME_HEIGHT,
     CONF_FRAME_WIDTH,
