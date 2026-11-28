@@ -335,8 +335,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         value is cast from bus data).
     *   **Entities belong to the main loop:** almost everything, including `setup()`, `loop()` and every entity,
         runs only on the main loop and is not thread-safe. Code on another task or in a network callback gets work
-        onto the loop through the scheduler (`defer()`, `set_timeout()`); an interrupt handler instead records the
-        work and calls `enable_loop_soon_any_context()`, since the scheduler is not interrupt-safe. Never call a
+        onto the loop through the scheduler (`defer()`, `set_timeout()`), including RP2's lwIP callbacks, which run in a
+        low-priority interrupt the scheduler supports; a hardware interrupt handler (ISR) instead records the work
+        and calls `enable_loop_soon_any_context()`. Never call a
         component's `setup()` or `loop()` from outside the loop. Options such as a fan's preset modes or a select's
         options are usually set during setup, and a later change happens on the loop too. web_server shows the
         pattern: its request handlers run outside the main loop on every platform, fill a `*Call` there (only
