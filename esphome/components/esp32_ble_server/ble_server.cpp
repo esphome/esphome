@@ -278,8 +278,10 @@ void BLEServer::ble_before_disabled_event_handler() {
   this->release_advertising_();
   // Delete all clients
   this->client_count_ = 0;
-  // Delete all services
+  // Delete all services; the started ones are queued again, as only loop() adds their characteristics once re-created
   for (auto &entry : this->services_) {
+    if (entry.service->should_start() && entry.service != this->device_information_service_)
+      this->services_to_start_.push_back(entry.service);
     entry.service->do_delete();
   }
   this->registered_ = false;

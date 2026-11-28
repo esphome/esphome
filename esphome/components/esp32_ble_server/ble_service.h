@@ -53,6 +53,7 @@ class BLEService final {
   bool is_starting() { return this->state_ == STARTING; }
   bool is_stopped() { return this->state_ == STOPPED; }
   bool is_deleted() { return this->state_ == DELETED; }
+  bool should_start() const { return this->should_start_; }
 
  protected:
   std::vector<BLECharacteristic *> characteristics_;
