@@ -433,25 +433,29 @@ async def widget_focus(config, action_id, template_arg, args):
 
     async with LambdaContext(parameters=args, where=action_id) as context:
         if widget:
+            # Read after focusing: on_focus can move a layer widget to another page's group
             lv.group_focus_freeze(group, False)
             lv.group_focus_obj(widget.obj)
             if config[CONF_EDITING]:
                 lv.group_set_editing(group, True)
+            if config[CONF_FREEZE]:
+                lv.group_focus_freeze(group, True)
+        elif config[CONF_ACTION] == "MARK":
+            context.add(lv_comp.set_focus_mark(group))
+            if config[CONF_FREEZE]:
+                lv.group_focus_freeze(group, True)
         else:
-            action = config[CONF_ACTION]
-            if action == "MARK":
-                context.add(lv_comp.set_focus_mark(group))
-            else:
-                lv.group_focus_freeze(group, False)
-                if action == "RESTORE":
-                    context.add(lv_comp.restore_focus_mark(group))
-                elif action == "NEXT":
-                    lv.group_focus_next(group)
+            # Read once: on_focus can show a msgbox, which changes get_focus_group()
+            with LocalVariable("group", lv_group_t, group) as focus_group:
+                lv.group_focus_freeze(focus_group, False)
+                if config[CONF_ACTION] == "RESTORE":
+                    context.add(lv_comp.restore_focus_mark(focus_group))
+                elif config[CONF_ACTION] == "NEXT":
+                    lv.group_focus_next(focus_group)
                 else:
-                    lv.group_focus_prev(group)
-
-        if config[CONF_FREEZE]:
-            lv.group_focus_freeze(group, True)
+                    lv.group_focus_prev(focus_group)
+                if config[CONF_FREEZE]:
+                    lv.group_focus_freeze(focus_group, True)
     return await context_action(context, action_id, template_arg, args)
 
 

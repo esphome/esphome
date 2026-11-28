@@ -412,6 +412,9 @@ void LvglComponent::update_input_group_(lv_obj_t *moved_focus) {
     bool press_continues = pressed != nullptr && pressed == lv_group_get_focused(group);
     if (lv_indev_get_state(indev) == LV_INDEV_STATE_PRESSED && !press_continues) {
       lv_indev_wait_release(indev);
+      // A keypad sends PRESSED after the ENTER key event. A reset of an encoder can make LVGL use a null widget.
+      if (lv_indev_get_type(indev) == LV_INDEV_TYPE_KEYPAD)
+        lv_indev_reset(indev, nullptr);
       if (pressed != nullptr && lv_obj_has_state(pressed, LV_STATE_PRESSED))
         lv_obj_send_event(pressed, LV_EVENT_PRESS_LOST, indev);
     }
@@ -420,13 +423,20 @@ void LvglComponent::update_input_group_(lv_obj_t *moved_focus) {
   }
   // The default theme shows the focus ring only on a widget in the FOCUS_KEY state. When no input is active, LVGL
   // sets that state only if no pointer exists and a keypad or encoder is on the group. The focus of this group was
-  // set before the inputs moved to it, so it can be without that state.
+  // set before the inputs moved to it, so it can be without that state. A pointer change clears an old ring and
+  // edit mode, as the pointer's click focus did when all pages shared one group.
   lv_obj_t *now_focused = lv_group_get_focused(group);
   lv_indev_t *active = lv_indev_active();
   bool key_or_no_input = active == nullptr || lv_indev_get_type(active) == LV_INDEV_TYPE_KEYPAD ||
                          lv_indev_get_type(active) == LV_INDEV_TYPE_ENCODER;
-  if (input_moved && now_focused != nullptr && key_or_no_input)
-    lv_obj_add_state(now_focused, LV_STATE_FOCUS_KEY);
+  if (input_moved && now_focused != nullptr) {
+    if (key_or_no_input) {
+      lv_obj_add_state(now_focused, LV_STATE_FOCUS_KEY);
+    } else {
+      lv_group_set_editing(group, false);
+      lv_obj_remove_state(now_focused, LV_STATE_FOCUS_KEY);
+    }
+  }
   // The events sent above run user actions. If one of them showed or hid a msgbox or changed the page, its own
   // update ran first, and this update then moved the inputs back to the group it found at the start.
   if (this->active_group_() != group)
