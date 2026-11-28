@@ -35,6 +35,9 @@ bool ObjectDictionary::attach_handlers_(std::vector<PendingEntry> &entries) {
       it->extension = i + 1;
     }
   }
+  this->extensions_.init(extensions.size());
+  for (const auto &e : extensions)
+    this->extensions_.push_back(e.extension);
   return ok;
 }
 

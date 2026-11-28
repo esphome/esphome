@@ -99,7 +99,8 @@ class ObjectDictionary {
 
   // --- Handlers (od_handler.cpp) ---
   void set_extension_(uint16_t index, const OD_extension_t &extension);
-  // finalize(): links the sorted entries to their handlers; false for a handler without an entry or a second handler
+  // finalize(): links the sorted entries to their handlers and keeps the handlers; false for a handler without an
+  // entry or a second handler
   bool attach_handlers_(std::vector<PendingEntry> &entries);
   // the entry's sub for an access; DEVICE_STATE before finalize()
   OdResult get_sub_(uint16_t index, uint8_t sub, OD_IO_t *io);

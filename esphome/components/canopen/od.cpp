@@ -86,10 +86,6 @@ bool ObjectDictionary::finalize() {
   copy_exact(this->vars_, this->pending_storage_->vars);
   copy_exact(this->arrays_, this->pending_storage_->arrays);
   copy_exact(this->records_, this->pending_storage_->records);
-  const auto &extensions = this->pending_storage_->extensions;
-  this->extensions_.init(extensions.size());
-  for (const auto &e : extensions)
-    this->extensions_.push_back(e.extension);
   // OD_find() expects a blank last element
   this->entries_.init(pending.size() + 1);
   for (const auto &p : pending) {
