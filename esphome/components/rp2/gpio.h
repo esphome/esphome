@@ -14,6 +14,7 @@ class RP2GPIOPin final : public GPIOPin {
   void set_flags(gpio::Flags flags) { flags_ = flags; }
 
   void setup() override { pin_mode(flags_); }
+  bool setup_open_drain(bool pullup);
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;

@@ -55,6 +55,29 @@ void RP2GPIOPin::pin_mode(gpio::Flags flags) {
   pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
 
+bool RP2GPIOPin::setup_open_drain(bool pullup) {
+  // The CYW43 virtual pins have no SIO output-enable register.
+#if defined(PICO_RP2350) && !PICO_RP2350A
+  if (this->pin_ >= 48)
+    return false;
+#else
+  if (this->pin_ >= 30)
+    return false;
+#endif
+  this->flags_ = gpio::FLAG_INPUT;
+  if (pullup)
+    this->flags_ = this->flags_ | gpio::FLAG_PULLUP;
+  this->pin_mode(this->flags_);
+  if (this->pin_ < 32) {
+    sio_hw->gpio_clr = 1u << this->pin_;
+#if defined(PICO_RP2350)
+  } else {
+    sio_hw->gpio_hi_clr = 1u << (this->pin_ - 32);
+#endif
+  }
+  return true;
+}
+
 size_t RP2GPIOPin::dump_summary(char *buffer, size_t len) const { return snprintf(buffer, len, "GPIO%u", this->pin_); }
 
 bool RP2GPIOPin::digital_read() {
@@ -86,6 +109,39 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   // TODO: implement
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_pull_low() {
+  const uint8_t num = static_cast<RP2GPIOPin *>(this->arg_)->get_pin();
+  if (num < 32) {
+    sio_hw->gpio_oe_set = 1u << num;
+#if defined(PICO_RP2350)
+  } else {
+    sio_hw->gpio_hi_oe_set = 1u << (num - 32);
+#endif
+  }
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_release() {
+  const uint8_t num = static_cast<RP2GPIOPin *>(this->arg_)->get_pin();
+  if (num < 32) {
+    sio_hw->gpio_oe_clr = 1u << num;
+#if defined(PICO_RP2350)
+  } else {
+    sio_hw->gpio_hi_oe_clr = 1u << (num - 32);
+#endif
+  }
+}
+
+bool IRAM_ATTR ISRInternalGPIOPin::open_drain_read() {
+  const uint8_t num = static_cast<RP2GPIOPin *>(this->arg_)->get_pin();
+  if (num < 32)
+    return bool(sio_hw->gpio_in & (1u << num));
+#if defined(PICO_RP2350)
+  return bool(sio_hw->gpio_hi_in & (1u << (num - 32)));
+#else
+  return false;
+#endif
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {

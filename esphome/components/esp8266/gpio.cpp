@@ -2,11 +2,8 @@
 
 #include "gpio.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 
 namespace esphome::esp8266 {
-
-ESPHOME_LOG_TAG(TAG, "esp8266");
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   flags =
@@ -72,6 +69,28 @@ void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
   pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
 
+bool ESP8266GPIOPin::setup_open_drain(bool pullup) {
+  if (this->pin_ > 16)
+    return false;
+  if (this->pin_ == 16) {
+    if (pullup)
+      return false;
+    this->flags_ = gpio::FLAG_INPUT;
+    pinMode(this->pin_, INPUT);  // NOLINT
+    GP16O &= ~1;
+    return true;
+  }
+  this->flags_ = gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN;
+  pinMode(this->pin_, pullup ? INPUT_PULLUP : INPUT);  // NOLINT
+  GPOS = 1u << this->pin_;
+  pinMode(this->pin_, OUTPUT_OPEN_DRAIN);  // NOLINT
+  if (pullup) {
+    isr_gpf(this->pin_) |= 1u << GPFPU;
+    this->flags_ = this->flags_ | gpio::FLAG_PULLUP;
+  }
+  return true;
+}
+
 size_t ESP8266GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "GPIO%u", this->pin_);
 }
@@ -115,6 +134,30 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *pin = static_cast<ESP8266GPIOPin *>(this->arg_);
   // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- GPIO_REG_WRITE is MMIO at a fixed address
   GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << pin->get_pin());
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_pull_low() {
+  const uint8_t num = static_cast<ESP8266GPIOPin *>(this->arg_)->get_pin();
+  if (num < 16) {
+    GPOC = 1u << num;
+  } else {
+    GP16O &= ~1;
+    GP16E |= 1;
+  }
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_release() {
+  const uint8_t num = static_cast<ESP8266GPIOPin *>(this->arg_)->get_pin();
+  if (num < 16) {
+    GPOS = 1u << num;
+  } else {
+    GP16E &= ~1;
+  }
+}
+
+bool IRAM_ATTR ISRInternalGPIOPin::open_drain_read() {
+  const uint8_t num = static_cast<ESP8266GPIOPin *>(this->arg_)->get_pin();
+  return num < 16 ? bool(GPI & (1u << num)) : bool(GP16I & 1);
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {

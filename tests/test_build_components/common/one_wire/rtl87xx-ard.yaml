@@ -1,0 +1,7 @@
+substitutions:
+  one_wire_pin: PA18
+
+one_wire:
+  - platform: gpio
+    id: one_wire_bus
+    pin: ${one_wire_pin}

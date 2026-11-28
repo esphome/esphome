@@ -7,12 +7,15 @@
 namespace esphome::host {
 
 class HostGPIOPin final : public GPIOPin {
+  friend class esphome::ISRInternalGPIOPin;
+
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
 
   void setup() override { pin_mode(flags_); }
+  bool setup_open_drain(bool pullup);
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
@@ -33,6 +36,7 @@ class HostGPIOPin final : public GPIOPin {
   uint8_t pin_;
   bool inverted_{};
   gpio::Flags flags_{};
+  bool open_drain_low_{false};
 };
 
 }  // namespace esphome::host
