@@ -217,6 +217,12 @@ class ModemComponent : public Component {
   esp_err_t set_uart_baud_(int baud);
   void not_responding_(int baud);
   void sim_not_ready_(const char *reason);
+  bool sim_restart_due_(uint32_t now) const;
+  ModemState restart_for_sim_(uint32_t now);
+  void reset_sim_wait_() {
+    this->sim_wait_started_ms_ = 0;
+    this->sim_restarts_ = 0;
+  }
   void dump_connect_params_();
   SimResult prepare_sim_();
 #ifdef USE_MODEM_PIN_CODE
@@ -250,6 +256,8 @@ class ModemComponent : public Component {
   uint32_t timeout_{0};
   uint32_t step_delay_ms_{0};
   uint32_t state_started_ms_{0};  // when the IP wait or the PIN unlock wait began
+  // The first failed SIM check since READY or the last restart for the SIM; 0 while the SIM is not being waited for
+  uint32_t sim_wait_started_ms_{0};
   std::atomic<uint32_t> pending_{0};
 #ifdef USE_MODEM_PIN_CODE
   const char *pin_code_{nullptr};
@@ -312,6 +320,7 @@ class ModemComponent : public Component {
   uint8_t idle_polls_{0};     // polls in a row that reported "not searching"
   uint8_t unknown_polls_{0};  // polls in a row with no usable registration state
   uint8_t sim_polls_{0};      // failed SIM status reads in this attempt
+  uint8_t sim_restarts_{0};   // restarts since the SIM was last READY
 #ifdef USE_MODEM_POLL
   uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
   uint8_t poll_ber_{CSQ_UNKNOWN};
@@ -322,7 +331,8 @@ class ModemComponent : public Component {
   bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
   bool resync_{false};        // a command timed out, so CONNECTING syncs again first
   bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
-  bool sim_rf_off_{false};    // ENABLING left the modem at CFUN=4, so a SIM that stays unready may need CFUN=1
+  bool sim_restart_pending_{false};  // restarted for its SIM; run_task_() waits MODEM_RESTART_WAIT_MS
+  bool sim_rf_off_{false};           // ENABLING left the modem at CFUN=4, so a SIM that stays unready may need CFUN=1
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif
