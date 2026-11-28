@@ -104,7 +104,9 @@ void FeedbackCover::set_open_sensor(binary_sensor::BinarySensor *open_feedback) 
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_OPENING) {
       this->endstop_reached_(true);
     }
-    this->set_current_operation_(state ? COVER_OPERATION_OPENING : COVER_OPERATION_IDLE, false);
+    // In a reversal the other sensor may already report the new direction
+    if (state || this->current_operation == COVER_OPERATION_OPENING)
+      this->set_current_operation_(state ? COVER_OPERATION_OPENING : COVER_OPERATION_IDLE, false);
   });
 }
 
@@ -119,7 +121,9 @@ void FeedbackCover::set_close_sensor(binary_sensor::BinarySensor *close_feedback
       this->endstop_reached_(false);
     }
 
-    this->set_current_operation_(state ? COVER_OPERATION_CLOSING : COVER_OPERATION_IDLE, false);
+    // In a reversal the other sensor may already report the new direction
+    if (state || this->current_operation == COVER_OPERATION_CLOSING)
+      this->set_current_operation_(state ? COVER_OPERATION_CLOSING : COVER_OPERATION_IDLE, false);
   });
 }
 
@@ -170,6 +174,10 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
 void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool is_triggered) {
   if (is_triggered) {
     this->current_trigger_operation_ = operation;
+#ifdef USE_BINARY_SENSOR
+  } else if (operation == this->current_trigger_operation_) {
+    this->awaiting_movement_ = false;
+#endif
   }
 
   // if it is setting the actual operation (not triggered one) or
@@ -180,7 +188,12 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
   // but initiated externally
 
 #ifdef USE_BINARY_SENSOR
-  if (!is_triggered || (this->open_feedback_ == nullptr || this->close_feedback_ == nullptr))
+  if (is_triggered && this->open_feedback_ != nullptr && this->close_feedback_ != nullptr) {
+    // max_duration counts from the command, or from the end of a movement being reversed
+    this->awaiting_movement_ = operation != COVER_OPERATION_IDLE && operation != this->current_operation;
+    if (this->awaiting_movement_ && this->current_operation == COVER_OPERATION_IDLE)
+      this->start_dir_time_ = App.get_loop_component_start_time();
+  } else
 #endif
   {
     const uint32_t now = App.get_loop_component_start_time();
@@ -228,7 +241,9 @@ void FeedbackCover::set_open_obstacle_sensor(binary_sensor::BinarySensor *open_o
 #endif
 
 void FeedbackCover::loop() {
-  if (this->current_operation == COVER_OPERATION_IDLE)
+  const bool moving = this->current_operation != COVER_OPERATION_IDLE;
+  // A command waiting for its movement sensor still needs the max_duration check
+  if (!moving && !this->awaiting_movement_)
     return;
   const uint32_t now = App.get_loop_component_start_time();
 
@@ -238,7 +253,7 @@ void FeedbackCover::loop() {
   // if we initiated the move, check if we reached position or max time
   // (stopping from endstop sensor is handled in callback)
   if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
-    if (this->is_at_target_()) {
+    if (moving && this->is_at_target_()) {
       const bool at_end = this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED;
       if (this->has_built_in_endstop_ && at_end) {
         // Don't trigger stop, let the cover stop by itself.
@@ -267,7 +282,7 @@ void FeedbackCover::loop() {
   // update current position at requested interval, regardless of who started the movement
   // so that we also update UI if there was an external movement
   // don't save intermediate positions
-  if (now - this->last_publish_time_ > this->update_interval_) {
+  if (moving && now - this->last_publish_time_ > this->update_interval_) {
     this->publish_state(false);
     this->last_publish_time_ = now;
   }
@@ -350,7 +365,7 @@ bool FeedbackCover::is_at_target_() const {
       return true;
   }
 }
-void FeedbackCover::start_direction_(CoverOperation dir) {
+void FeedbackCover::start_direction_(CoverOperation dir, bool skip_wait) {
   Trigger<> *trig;
 
 #ifdef USE_BINARY_SENSOR
@@ -398,12 +413,13 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 
   // if we are moving and need to move in the opposite direction
   // check if we have a wait time
-  if (this->direction_change_waittime_.has_value() && dir != COVER_OPERATION_IDLE &&
+  if (!skip_wait && this->direction_change_waittime_.has_value() && dir != COVER_OPERATION_IDLE &&
       this->current_operation != COVER_OPERATION_IDLE && dir != this->current_operation) {
     const uint32_t waittime = *this->direction_change_waittime_;
     ESP_LOGD(TAG, "'%s' - Reversing direction.", LOG_STR_ARG(this->get_log_name()));
     this->start_direction_(COVER_OPERATION_IDLE);
-    this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, waittime, [this, dir]() { this->start_direction_(dir); });
+    // The movement sensor may still report the old direction, which would reverse again on every pass
+    this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, waittime, [this, dir]() { this->start_direction_(dir, true); });
   } else {
     this->set_current_operation_(dir, true);
     this->prev_command_trigger_ = trig;
