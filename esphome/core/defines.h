@@ -425,6 +425,8 @@
 #define USE_TMP102_TEXT_SENSOR
 #define USE_TOSHIBA_RAS_25J2KVSG_ND
 #define USE_TOUCHSCREEN
+#define USE_TSDB_AGGREGATES
+#define USE_TSDB_DUMP
 #define USE_TUYA_DUMP_PUBLISHER
 #define USE_UART_DEBUGGER
 #define USE_UART_HARDWARE
@@ -1076,6 +1078,12 @@
 #define ESPHOME_MAX_USB_CDC_INSTANCES 1
 
 // Keep clang-tidy happy.
+
+// Emitted by the tsdb code generator from the configured column count. The
+// largest it uses is set here so static analysis always sees the member types.
+#ifndef TSDB_COLUMN_COUNT
+#define TSDB_COLUMN_COUNT 1
+#endif
 
 // The real value comes from lvgl/gradient.py, which works it out from the configuration. The
 // largest it uses is set here so that static analysis sees every gradient in the component,
