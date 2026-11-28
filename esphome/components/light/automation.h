@@ -17,13 +17,6 @@ bool dim_relative(LightState *state, LightCall &call, float relative_brightness,
 /// Turn on the next or previous configured effect; with `include_none`, "None" is part of the cycle.
 void cycle_effect(LightState *state, bool forward, bool include_none);
 
-/// Codegen use only: whether the light turned on since the report one on_turn_on automation last saw, kept in `last`.
-inline bool update_turned_on(bool &last, bool now) {
-  const bool turned_on = now && !last;
-  last = now;
-  return turned_on;
-}
-
 template<typename... Ts> class AddressableSet final : public Action<Ts...> {
  public:
   explicit AddressableSet(LightState *parent) : parent_(parent) {}

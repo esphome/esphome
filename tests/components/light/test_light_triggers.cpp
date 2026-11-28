@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "esphome/components/light/automation.h"
 #include "esphome/components/light/light_effect.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
 
 // Pins when the light on_turn_on, on_turn_off and on_state automations run. Each run appends one letter to
@@ -42,7 +42,7 @@ class Triggers {
   explicit Triggers(LightState *state) : state_(state) {
     state->add_remote_values_callback([this]() {
       for (auto &on_turn_on : this->on_turn_on_) {
-        if (update_turned_on(on_turn_on.last, this->state_->remote_values.is_on()))
+        if (internal::change_trigger::entered(on_turn_on.last, this->state_->remote_values.is_on()))
           on_turn_on.action();
       }
       for (auto &action : this->on_state_)

@@ -39,14 +39,7 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import (
-    AssignmentExpression,
-    MockObj,
-    MockObjClass,
-    Statement,
-    VariableDeclarationExpression,
-    statement,
-)
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
@@ -101,6 +94,23 @@ _STATE_TRIGGERS = {
     CONF_ON_OPENING: ("current_operation", CoverOperation.COVER_OPERATION_OPENING),
     CONF_ON_IDLE: ("current_operation", CoverOperation.COVER_OPERATION_IDLE),
 }
+
+
+def _state_automation(
+    conf_key: str, member: str, value: SafeExpType
+) -> automation.GroupedAutomation:
+    return automation.GroupedAutomation(
+        conf_key,
+        lambda cover: getattr(cover, member) == value,
+        automation.CHANGE_TRIGGER.entered,
+    )
+
+
+# Each runs once, on the publish that enters its state; a first publish counts as entering.
+_STATE_AUTOMATIONS = tuple(
+    _state_automation(conf_key, member, value)
+    for conf_key, (member, value) in _STATE_TRIGGERS.items()
+)
 
 
 _COVER_SCHEMA = (
@@ -188,7 +198,9 @@ def cover_schema(
 async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
-    await _build_state_triggers(var, config)
+    await automation.build_grouped_callback_automations(
+        var, config, "add_on_state_callback", _STATE_AUTOMATIONS
+    )
 
     mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
     if mqtt_ is not None:
@@ -205,32 +217,6 @@ async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
             cg.add(mqtt_.set_custom_tilt_state_topic(tilt_state_topic))
         if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_tilt_command_topic(tilt_command_topic))
-
-
-async def _build_state_triggers(var: MockObj, config: ConfigType) -> None:
-    """Register one state callback that runs each state trigger once on entering its state.
-
-    Each automation keeps its own flag of whether it saw its state on the last publish, so a
-    publish from an action is seen the same way as with one callback per trigger.
-    """
-    parent = automation.parent_ref(var)
-    seen: list[Statement] = []
-    checks: list[Statement] = []
-    for conf_key, (member, value) in _STATE_TRIGGERS.items():
-        for conf in config.get(conf_key, []):
-            flag = MockObj(f"seen_{len(seen)}")
-            declaration = VariableDeclarationExpression(cg.bool_, "", flag, static=True)
-            seen.append(statement(AssignmentExpression(None, None, declaration, False)))
-            entered = cover_ns.state_entered(flag, getattr(parent, member) == value)
-            target = await automation.build_trigger_callback([], conf, [])
-            run = statement(MockObj(target)())
-            checks.append(cg.RawStatement(f"if ({entered})\n  {run}"))
-    if not checks:
-        return
-    callback = automation.apply_static_function(
-        config[CONF_ID], cg.void, [], seen + checks, suffix="state_triggers"
-    )
-    cg.add(var.add_on_state_callback(callback))
 
 
 async def register_cover(var: MockObj, config: ConfigType) -> None:

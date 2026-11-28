@@ -8,7 +8,9 @@
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include <algorithm>
+#include <cmath>
 #include <concepts>
+#include <cstring>
 #include <functional>
 #include <span>
 #include <type_traits>
@@ -829,6 +831,46 @@ static_assert(sizeof(TriggerOnFalseForwarder) <= sizeof(void *));
 static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
 static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
 static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
+
+// Codegen use only. Under internal, so no YAML id has to be reserved for them.
+namespace internal::change_trigger {
+
+/// Codegen use only: whether `now` is true and `last` was not. Stores `now` in `last`, the copy one automation keeps.
+inline bool entered(bool &last, bool now) {
+  const bool result = now && !last;
+  last = now;
+  return result;
+}
+
+/// Codegen use only: whether `now` is false and `last` was true. Stores `now` in `last`.
+inline bool left(bool &last, bool now) {
+  const bool result = last && !now;
+  last = now;
+  return result;
+}
+
+/// Codegen use only: whether `now` differs from `last`; NaN counts as equal to NaN. Stores `now` in `last`.
+/// `now` may be any type that converts to the copy's type without narrowing.
+template<typename T, typename U>
+  requires(!std::is_same_v<T, const char *>) && requires(U u) { T{u}; }
+bool changed(T &last, U now) {
+  const T value{now};
+  bool result = value != last;
+  if constexpr (std::is_floating_point_v<T>)
+    result = result && !(std::isnan(value) && std::isnan(last));
+  last = value;
+  return result;
+}
+
+/// Codegen use only: whether the null-terminated text `now` differs from `last`; nullptr counts as "".
+/// Keeps the pointer, so the text `now` points to must outlive it and stay unchanged until replaced.
+inline bool changed(const char *&last, const char *now) {
+  const bool result = last != now && strcmp(last != nullptr ? last : "", now != nullptr ? now : "") != 0;
+  last = now;
+  return result;
+}
+
+}  // namespace internal::change_trigger
 
 /// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
 /// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.

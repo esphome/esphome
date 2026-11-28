@@ -10,6 +10,7 @@ import pytest
 from esphome.automation import (
     _COLLECTED_ACTION,
     ACTION_REGISTRY,
+    CHANGE_TRIGGER,
     CONF_CHOICE_ID,
     CONF_CHOOSE,
     IN_RANGE_CHECK,
@@ -28,6 +29,7 @@ from esphome.automation import (
     CallbackAutomation,
     DelayAction,
     ForCondition,
+    GroupedAutomation,
     IfAction,
     LambdaAction,
     LambdaCondition,
@@ -55,6 +57,7 @@ from esphome.automation import (
     build_callback_automations,
     build_component_automation,
     build_condition,
+    build_grouped_callback_automations,
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
@@ -1968,6 +1971,263 @@ async def test_build_callback_automations_when_names_parent(
             f"if (!(::valve->is_fully_open())) return; ::{NEW_OBJ}->trigger(); }}"
         ),
     )
+
+
+def _conf(index: int) -> ConfigType:
+    return {CONF_AUTOMATION_ID: ID(f"automation_{index}"), CONF_THEN: []}
+
+
+def _parent(parent: str, **keys: list[ConfigType]) -> ConfigType:
+    return {CONF_ID: ID(parent), **keys}
+
+
+LIGHT = MockObj("light", "->")
+ON_TURN_ON = GroupedAutomation(
+    "on_turn_on", lambda light: light.remote_values.is_on(), CHANGE_TRIGGER.entered
+)
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_single_unfiltered_registers_its_function(
+    mock_cg: MockCodegen,
+) -> None:
+    """One automation with no filter keeps nothing and is registered as is."""
+    await build_grouped_callback_automations(
+        LIGHT,
+        _parent("light", on_state=[_conf(1)]),
+        "add_remote_values_callback",
+        (GroupedAutomation("on_state"),),
+    )
+    registration, definition = _registered_function(mock_cg)
+    assert (
+        registration == "light->add_remote_values_callback(esphome__automation_1__fn)"
+    )
+    assert "static" not in definition.removeprefix("static void")
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_run_in_order_with_their_own_statics(
+    mock_cg: MockCodegen,
+) -> None:
+    """Each filtered automation gets its own zero-initialised static; one function runs them in order."""
+    await build_grouped_callback_automations(
+        LIGHT,
+        _parent("light", on_state=[_conf(3)], on_turn_on=[_conf(1), _conf(2)]),
+        "add_remote_values_callback",
+        (ON_TURN_ON, GroupedAutomation("on_state")),
+    )
+    registration, definition = _registered_function(mock_cg)
+    assert registration == (
+        "light->add_remote_values_callback(esphome__light__remote_values_callback)"
+    )
+    assert definition == (
+        "static void esphome__light__remote_values_callback() { "
+        "static bool light_on_turn_on_0_last; static bool light_on_turn_on_1_last; "
+        "if (esphome::internal::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "esphome__automation_1__fn(); "
+        "if (esphome::internal::change_trigger::entered(light_on_turn_on_1_last, ::light->remote_values.is_on())) "
+        "esphome__automation_2__fn(); "
+        "esphome__automation_3__fn(); }"
+    )
+
+
+@pytest.mark.parametrize("last_type", [None, bool, cg.bool_])
+@pytest.mark.asyncio
+async def test_grouped_automations_single_filtered_gets_a_function(
+    mock_cg: MockCodegen, last_type: object
+) -> None:
+    """Even one filtered automation is called from the group function, for its static; a Python type works."""
+    entry = GroupedAutomation(
+        "on_turn_on",
+        lambda light: light.remote_values.is_on(),
+        CHANGE_TRIGGER.entered,
+        last_type,
+    )
+    await build_grouped_callback_automations(
+        LIGHT,
+        _parent("light", on_turn_on=[_conf(1)]),
+        "add_remote_values_callback",
+        (entry,),
+    )
+    registration, definition = _registered_function(mock_cg)
+    assert registration == (
+        "light->add_remote_values_callback(esphome__light__remote_values_callback)"
+    )
+    assert "static bool light_on_turn_on_0_last;" in definition
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_copy_a_python_arg_type(mock_cg: MockCodegen) -> None:
+    """A Python type in args becomes its C++ type in the copy handed to the automation."""
+    entry = GroupedAutomation(
+        "on_speed_set",
+        lambda fan: fan.speed,
+        CHANGE_TRIGGER.changed,
+        args=[(int, "x")],
+    )
+    await build_grouped_callback_automations(
+        MockObj("fan", "->"),
+        _parent("fan", on_speed_set=[_conf(1)]),
+        "add_on_state_callback",
+        (entry,),
+    )
+    assert f"::{NEW_OBJ}->trigger(static_cast<int32_t>(::fan->speed));" in _definition(
+        mock_cg, "esphome__automation_1__fn"
+    )
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_filter_then_when(mock_cg: MockCodegen) -> None:
+    """With both, the filter runs on every callback and the automation tests the when filter after it."""
+    entry = GroupedAutomation(
+        "on_turn_on",
+        lambda light: light.remote_values.is_on(),
+        CHANGE_TRIGGER.entered,
+        when="{parent}->is_ready()",
+    )
+    await build_grouped_callback_automations(
+        LIGHT,
+        _parent("light", on_turn_on=[_conf(1)]),
+        "add_remote_values_callback",
+        (entry,),
+    )
+    _, definition = _registered_function(mock_cg)
+    assert (
+        "if (esphome::internal::change_trigger::entered(light_on_turn_on_0_last, ::light->remote_values.is_on())) "
+        "esphome__automation_1__fn();"
+    ) in definition
+    assert "if (!(::light->is_ready())) return;" in _definition(
+        mock_cg, "esphome__automation_1__fn"
+    )
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_when_alone_is_registered_as_is(
+    mock_cg: MockCodegen,
+) -> None:
+    """A lone automation with only a when filter tests it itself and is registered as is."""
+    entry = GroupedAutomation("on_turn_off", when="!{parent}->is_on()")
+    await build_grouped_callback_automations(
+        LIGHT,
+        _parent("light", on_turn_off=[_conf(1)]),
+        "add_target_state_reached_callback",
+        (entry,),
+    )
+    registration, definition = _registered_function(mock_cg)
+    assert registration == (
+        "light->add_target_state_reached_callback(esphome__automation_1__fn)"
+    )
+    assert "if (!(!::light->is_on())) return;" in definition
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_statics_avoid_taken_names(
+    mock_cg: MockCodegen,
+) -> None:
+    """A copy's name is unique against ids already taken, so it cannot hide a config ID."""
+    CORE.register_variable(ID("light_on_turn_on_0_last"), MockObj("taken"))
+    await build_grouped_callback_automations(
+        LIGHT,
+        _parent("light", on_turn_on=[_conf(1)]),
+        "add_remote_values_callback",
+        (ON_TURN_ON,),
+    )
+    _, definition = _registered_function(mock_cg)
+    assert "static bool light_on_turn_on_0_last;" not in definition
+    assert "static bool light_on_turn_on_0_last_" in definition
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_build_in_entry_order_across_lists(
+    mock_cg: MockCodegen,
+) -> None:
+    """Entries on another list are built in entry order; each list is registered once."""
+    entries = (
+        ON_TURN_ON,
+        GroupedAutomation(
+            "on_turn_off", callback_method="add_target_state_reached_callback"
+        ),
+        GroupedAutomation("on_state"),
+    )
+    config = _parent(
+        "light", on_turn_on=[_conf(1)], on_turn_off=[_conf(2)], on_state=[_conf(3)]
+    )
+    await build_grouped_callback_automations(
+        LIGHT, config, "add_remote_values_callback", entries
+    )
+    built = [
+        call.args[0].id
+        for call in mock_cg.new_pvariable.call_args_list
+        if str(call.args[0].id).startswith("automation_")
+    ]
+    assert built == ["automation_1", "automation_2", "automation_3"]
+    registrations = [_squash(call.args[0]) for call in mock_cg.add.call_args_list]
+    assert registrations == [
+        "light->add_remote_values_callback(esphome__light__remote_values_callback)",
+        "light->add_target_state_reached_callback(esphome__automation_2__fn)",
+    ]
+    remote = _definition(mock_cg, "esphome__light__remote_values_callback")
+    assert remote.index("esphome__automation_1__fn") < remote.index(
+        "esphome__automation_3__fn"
+    )
+    assert "esphome__automation_2__fn" not in remote
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"args": [(cg.int_, "x")]}, "on_x: a filter or args need a watched value"),
+        (
+            {"filter": CHANGE_TRIGGER.changed},
+            "on_x: a filter or args need a watched value",
+        ),
+        (
+            {
+                "watched": lambda parent: parent.speed,
+                "args": [(cg.int_, "x"), (cg.int_, "y")],
+            },
+            "on_x: only the watched value can be passed",
+        ),
+        (
+            {"watched": lambda parent: parent.speed, "filter": CHANGE_TRIGGER.changed},
+            "on_x: this filter needs args or last_type",
+        ),
+        (
+            {"watched": lambda parent: parent.speed},
+            "on_x: a watched value without args, or last_type, needs a filter",
+        ),
+        (
+            {"watched": lambda parent: parent.speed, "last_type": cg.int_, "args": []},
+            "on_x: a watched value without args, or last_type, needs a filter",
+        ),
+        (
+            {
+                "watched": lambda parent: parent.name,
+                "args": [(cg.std_string.operator("const").operator("ref"), "x")],
+            },
+            "on_x: the arg type must be a value type",
+        ),
+        (
+            {"watched": lambda parent: parent.name, "args": [(cg.const_char_ptr, "x")]},
+            "on_x: the arg type must be a value type",
+        ),
+    ],
+)
+def test_grouped_automation_rejects_a_missing_value(
+    kwargs: dict[str, object], message: str
+) -> None:
+    """A filter or args without a value to read are rejected when the table is built."""
+    with pytest.raises(ValueError, match=message):
+        GroupedAutomation("on_x", **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_grouped_automations_none_configured(mock_cg: MockCodegen) -> None:
+    """Without automations nothing is registered."""
+    await build_grouped_callback_automations(
+        LIGHT, _parent("light"), "add_remote_values_callback", (ON_TURN_ON,)
+    )
+    mock_cg.add.assert_not_called()
 
 
 @pytest.mark.asyncio

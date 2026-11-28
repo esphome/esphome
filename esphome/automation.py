@@ -38,7 +38,10 @@ from esphome.cpp_generator import (
     LambdaExpression,
     MockObj,
     MockObjClass,
+    Statement,
+    StaticCastExpression,
     TemplateArgsType,
+    VariableDeclarationExpression,
     call_lambda,
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -2479,6 +2482,133 @@ async def build_automation_lists(
             request_slot(str(parent))
             obj = await new_automation(entry.args, conf)
             cg.add(getattr(parent, f"add_{entry.conf_key}_automation")(obj))
+
+
+# Filters for GroupedAutomation: CHANGE_TRIGGER.entered, .left or .changed.
+# Fully qualified, under esphome::internal, so no YAML id can clash with them.
+CHANGE_TRIGGER = (
+    cg.global_ns.namespace("esphome").namespace("internal").namespace("change_trigger")
+)
+_BOOL_FILTERS = (str(CHANGE_TRIGGER.entered), str(CHANGE_TRIGGER.left))
+
+
+@dataclass(frozen=True, slots=True)
+class GroupedAutomation:
+    """An on_* key for build_grouped_callback_automations()."""
+
+    conf_key: str
+    # Reads the value from the parent; read again for args, so a plain read with no side effects
+    watched: Callable[[MockObj], Expression] | None = None
+    # (last, value) -> condition; runs on every callback and updates last
+    filter: Callable[[MockObj, Expression], Expression] | None = None
+    # Type of last; defaults to the first arg's type, else bool
+    last_type: SafeExpType | None = None
+    args: TemplateArgsType = field(default_factory=list)
+    # Tested after the filter; may name {parent}
+    when: str | ApplyCall | None = None
+    # A list other than the builder's
+    callback_method: str | None = None
+
+    def __post_init__(self) -> None:
+        if (self.filter is not None or self.args) and self.watched is None:
+            raise ValueError(f"{self.conf_key}: a filter or args need a watched value")
+        if self.filter is None and (
+            self.last_type is not None or (self.watched is not None and not self.args)
+        ):
+            raise ValueError(
+                f"{self.conf_key}: a watched value without args, or last_type, needs a filter"
+            )
+        if len(self.args) > 1:
+            raise ValueError(f"{self.conf_key}: only the watched value can be passed")
+        # The automation gets a copy, so a reference or pointer type would alias the parent's value
+        if self.args and any(c in str(cg.safe_exp(self.args[0][0])) for c in "&*"):
+            raise ValueError(f"{self.conf_key}: the arg type must be a value type")
+        # Without args or last_type the copy is a bool, which only suits entered and left
+        if (
+            self.filter is not None
+            and not self.args
+            and self.last_type is None
+            and str(self.filter) not in _BOOL_FILTERS
+        ):
+            raise ValueError(f"{self.conf_key}: this filter needs args or last_type")
+
+
+@dataclass(slots=True)
+class _CallbackGroup:
+    """The automations registered on one callback list."""
+
+    statics: list[Statement] = field(default_factory=list)
+    # (filter or None, automation function), in run order
+    calls: list[tuple[str | None, MockObj]] = field(default_factory=list)
+
+
+def _last_value(
+    group: _CallbackGroup, parent: MockObj, entry: GroupedAutomation, index: int
+) -> MockObj:
+    """Declare the static holding one automation's last value."""
+    if entry.last_type is not None:
+        last_type = cg.safe_exp(entry.last_type)
+    else:
+        last_type = cg.safe_exp(entry.args[0][0] if entry.args else cg.bool_)
+    # Unique, so it cannot hide an id the filter names
+    last_id = cg.unique_global_id(f"{parent}_{entry.conf_key}_{index}_last", last_type)
+    last = MockObj(last_id)
+    CORE.register_variable(last_id, last)
+    group.statics.append(
+        cg.statement(VariableDeclarationExpression(last_type, "", last, static=True))
+    )
+    return last
+
+
+def _group_callback(parent_id: ID, method: str, group: _CallbackGroup) -> MockObj:
+    """A lone unfiltered automation as is, else one function running them in order."""
+    if len(group.calls) == 1 and group.calls[0][0] is None:
+        return group.calls[0][1]
+    body = list(group.statics)
+    for condition, target in group.calls:
+        run = cg.statement(MockObj(target)())
+        # No statement builder for if
+        body.append(
+            run if condition is None else cg.RawStatement(f"if ({condition})\n  {run}")
+        )
+    return apply_static_function(
+        parent_id, cg.void, [], body, suffix=method.removeprefix("add_")
+    )
+
+
+async def build_grouped_callback_automations(
+    parent: MockObj,
+    config: ConfigType,
+    callback_method: str,
+    entries: tuple[GroupedAutomation, ...],
+) -> None:
+    """Register each callback list's automations as one callback, in entry then config order."""
+    ref = parent_ref(parent)
+    groups: dict[str, _CallbackGroup] = {}
+    for entry in entries:
+        group = groups.setdefault(
+            entry.callback_method or callback_method, _CallbackGroup()
+        )
+        value = None if entry.watched is None else entry.watched(ref)
+        # A copy, as actions take x by reference and may change the parent
+        forward = (
+            [StaticCastExpression(cg.safe_exp(entry.args[0][0]), value)]
+            if entry.args
+            else None
+        )
+        for index, conf in enumerate(config.get(entry.conf_key, [])):
+            target = await build_trigger_callback(
+                entry.args, conf, [], forward=forward, when=entry.when, parent=parent
+            )
+            condition = None
+            if entry.filter is not None:
+                last = _last_value(group, parent, entry, index)
+                condition = str(entry.filter(last, value))
+            group.calls.append((condition, target))
+    for method, group in groups.items():
+        if group.calls:
+            callback = _group_callback(config[CONF_ID], method, group)
+            cg.add(getattr(parent, method)(callback))
 
 
 @dataclass(frozen=True, slots=True)
