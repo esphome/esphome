@@ -79,6 +79,4 @@ class BLEClientNode {
   sensor::Sensor *name##_sensor_{nullptr}; \
   void set_##name##_sensor(sensor::Sensor *value) { name##_sensor_ = value; }
 #define ESPHOME_LOG_TAG(...)
-#define ESP_LOGW(...)
-#define ESP_LOGCONFIG(...)
 #define LOG_SENSOR(...)

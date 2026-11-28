@@ -21,7 +21,10 @@ def test_driver_lifecycle(tmp_path: Path) -> None:
     for header in headers:
         target = tmp_path / "esphome" / header
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text('#include "lifecycle_stubs.h"\n', encoding="utf-8")
+        content = '#include "lifecycle_stubs.h"\n'
+        if header == "core/log.h":
+            content += "#define ESP_LOGW(...)\n#define ESP_LOGCONFIG(...)\n"
+        target.write_text(content, encoding="utf-8")
     executable = tmp_path / (
         "lifecycle.exe" if sys.platform == "win32" else "lifecycle"
     )
