@@ -813,6 +813,19 @@ def test_waveshare_7p5in_hd_b_uses_the_ssd1677_bwr_driver() -> None:
     )
 
 
+@pytest.mark.parametrize("model_name", ["WAVESHARE-2.13IN-V3", "WAVESHARE-2.9IN-V2"])
+def test_waveshare_partial_refresh_models_keep_the_base_image(model_name: str) -> None:
+    """Waveshare panels with a partial LUT compare each partial update against the base image in RAM 0x26.
+
+    EpaperWaveshare clears RAM 0x26 on every update unless base_image_required is set, which leaves nothing
+    for a partial update to compare against. With it set, only a full update writes that RAM.
+    """
+    model = MODELS[model_name]
+
+    assert model.get_default("partial_update")
+    assert model.base_image_required
+
+
 @pytest.mark.parametrize(
     ("dimensions", "error", "error_key"),
     [
