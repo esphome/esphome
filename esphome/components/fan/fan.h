@@ -44,51 +44,72 @@ class FanCall {
     return *this;
   }
   FanCall &set_state(optional<bool> binary_state) {
-    this->binary_state_ = binary_state;
+    this->binary_state_ = to_byte(binary_state);
     return *this;
   }
-  optional<bool> get_state() const { return this->binary_state_; }
+  optional<bool> get_state() const { return from_byte<bool>(this->binary_state_); }
   FanCall &set_oscillating(bool oscillating) {
     this->oscillating_ = oscillating;
     return *this;
   }
   FanCall &set_oscillating(optional<bool> oscillating) {
-    this->oscillating_ = oscillating;
+    this->oscillating_ = to_byte(oscillating);
     return *this;
   }
-  optional<bool> get_oscillating() const { return this->oscillating_; }
+  optional<bool> get_oscillating() const { return from_byte<bool>(this->oscillating_); }
   FanCall &set_speed(int speed) {
     this->speed_ = speed;
     return *this;
   }
-  optional<int> get_speed() const { return this->speed_; }
+  optional<int> get_speed() const { return this->speed_ == NO_SPEED ? optional<int>{} : optional<int>{this->speed_}; }
   FanCall &set_direction(FanDirection direction) {
-    this->direction_ = direction;
+    this->direction_ = static_cast<uint8_t>(direction);
     return *this;
   }
   FanCall &set_direction(optional<FanDirection> direction) {
-    this->direction_ = direction;
+    this->direction_ = to_byte(direction);
     return *this;
   }
-  optional<FanDirection> get_direction() const { return this->direction_; }
+  optional<FanDirection> get_direction() const { return from_byte<FanDirection>(this->direction_); }
   FanCall &set_preset_mode(const std::string &preset_mode);
   FanCall &set_preset_mode(const char *preset_mode);
   FanCall &set_preset_mode(const char *preset_mode, size_t len);
-  const char *get_preset_mode() const { return this->preset_mode_; }
-  bool has_preset_mode() const { return this->preset_mode_ != nullptr; }
+  const char *get_preset_mode() const;
+  bool has_preset_mode() const { return this->preset_mode_ != UNSET; }
 
   void perform();
 
  protected:
+  friend Fan;
+
+  // Plain bytes with UNSET for "not set", and the preset as an index into the fan's preset list, instead of
+  // optional<> and a pointer, so the call fits the scheduler's 12-byte inline slot
+  // 0x80 rather than 0xFF: Xtensa compares it in one instruction; it also caps the preset index at 127
+  static constexpr int NO_SPEED = INT32_MIN;
+  static constexpr uint8_t UNSET = 0x80;
+  template<typename T> static uint8_t to_byte(optional<T> value) {
+    return value.has_value() ? static_cast<uint8_t>(*value) : UNSET;
+  }
+  template<typename T> static optional<T> from_byte(uint8_t value) {
+    if (value == UNSET)
+      return {};
+    if constexpr (std::is_same_v<T, bool>) {
+      return (value & 1) != 0;  // the setters store 0 or 1, so no normalising
+    } else {
+      return static_cast<T>(value);
+    }
+  }
+
   void validate_();
 
   Fan &parent_;
-  optional<bool> binary_state_;
-  optional<bool> oscillating_;
-  optional<int> speed_;
-  optional<FanDirection> direction_{};
-  const char *preset_mode_{nullptr};  // Pointer to string in traits (after validation)
+  int speed_{NO_SPEED};
+  uint8_t binary_state_{UNSET};
+  uint8_t oscillating_{UNSET};
+  uint8_t direction_{UNSET};
+  uint8_t preset_mode_{UNSET};  // Index into the fan's supported preset modes (after validation)
 };
+static_assert(sizeof(void *) != 4 || sizeof(FanCall) <= 12, "FanCall must stay within 12 bytes on 32-bit");
 
 struct FanRestoreState {
   static constexpr uint8_t NO_PRESET = UINT8_MAX;
