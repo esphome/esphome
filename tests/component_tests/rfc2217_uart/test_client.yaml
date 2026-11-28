@@ -1,0 +1,25 @@
+esphome:
+  name: test
+
+logger:
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+tcp_uart:
+  - id: remote_link
+    host: 192.0.2.10
+    port: 2217
+
+rfc2217_uart:
+  - id: remote_port
+    tcp_uart_id: remote_link
+    baud_rate: 19200
+    data_bits: 7
+    parity: EVEN
+    stop_bits: 2
+    debug:
