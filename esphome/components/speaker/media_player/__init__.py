@@ -49,6 +49,7 @@ CONF_ON_MUTE = "on_mute"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_STREAM = "stream"
+CONF_START_CONDITION = "start_condition"
 
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
@@ -108,6 +109,7 @@ PIPELINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_FORMAT, default="FLAC"): cv.enum(audio.AUDIO_FILE_TYPE_ENUM),
         cv.Optional(CONF_SAMPLE_RATE): cv.int_range(min=1),
         cv.Optional(CONF_NUM_CHANNELS): cv.int_range(1, 2),
+        cv.Optional(CONF_START_CONDITION): cv.returning_lambda,
         cv.Optional(CONF_BITRATE): media_player.validate_mp3_bitrate,
     }
 )
@@ -212,6 +214,19 @@ async def to_code(config):
                     media_player.build_supported_format_struct(
                         media_pipeline_config, _PURPOSE_MAP["MEDIA"]
                     )
+                )
+            )
+
+    for pipeline_config, setter in (
+        (announcement_pipeline_config, var.set_announcement_start_condition),
+        (config.get(CONF_MEDIA_PIPELINE), var.set_media_start_condition),
+    ):
+        if pipeline_config is not None and (
+            start_condition := pipeline_config.get(CONF_START_CONDITION)
+        ):
+            cg.add(
+                setter(
+                    await cg.process_lambda(start_condition, [], return_type=cg.bool_)
                 )
             )
 
