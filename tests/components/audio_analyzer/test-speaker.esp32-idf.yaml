@@ -1,0 +1,6 @@
+substitutions:
+  dout_pin: GPIO25
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  audio_analyzer: !include common-speaker.yaml
