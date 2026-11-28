@@ -13,6 +13,9 @@
 
 #include <atomic>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 namespace esphome::usb_audio {
 
 class USBAudioSpeaker : public speaker::Speaker,
@@ -51,17 +54,29 @@ class USBAudioSpeaker : public speaker::Speaker,
   static constexpr uint8_t COMMAND_STOP = 1 << 1;
   static constexpr uint8_t COMMAND_FINISH = 1 << 2;
   void request_(uint8_t set, uint8_t clear);
+  bool update_commands_(uint8_t set, uint8_t clear, uint8_t unless);
   void deliver_reports_();
   void begin_finishing_();
   void stop_();
+  void credit_dropped_();
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
   /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
   void pad_with_silence_();
   /// Write to the driver, counting the bytes in ring_bytes_ (and in ring_padding_ for silence padding).
   esp_err_t write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding);
+  /// Adds stored bytes to the ring count; a padding count holds taken_lock_.
+  void count_(uint32_t length, bool padding);
+  bool settle_stale_count_();
+  bool take_(uint32_t ring, uint32_t padding_now, uint32_t size, uint32_t accum, int64_t now_us);
+  void queue_report_(int64_t finish_us);
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
-  bool transfers_in_flight_() const;
+  /// Less time than the transfers in flight take has passed since since_us.
+  bool within_in_flight_(uint32_t since_us) const;
+  /// A write is in flight, or the driver raised a transfer event within the time its transfers take.
+  template<std::memory_order O> bool bus_busy_() const {
+    return this->writes_in_flight_.load(O) != 0 || this->within_in_flight_(this->last_event_us_.load(O));
+  }
   bool has_buffered_data_() const;
   uint32_t next_transfer_bytes_(uint32_t &accum) const;
   uint32_t audio_tail_bytes_();
@@ -85,12 +100,12 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t in_flight_us_{0};
   uint32_t report_frames_{0};
   uint32_t pad_remaining_{0};  // Silence still to write while finishing or flushing a tail.
-  // Bytes in the driver's ring buffer: added before each write, since the driver can take a transfer inside it, and
-  // taken off for each transfer it takes. ring_padding_ is the silence padding at its end.
+  // The driver's ring fill and the silence padding at its end; added lock-free, taken off under taken_lock_.
   std::atomic<uint32_t> ring_bytes_{0};
   std::atomic<uint32_t> ring_padding_{0};
-  // Low 32 bits of esp_timer_get_time() when the driver last took a transfer.
+  // micros() at the driver's last take, and at its last take or park.
   std::atomic<uint32_t> last_taken_us_{0};
+  std::atomic<uint32_t> last_event_us_{0};
   // on_transfer_taken() runs on the USB driver's task, which must not block, and inside writes, so its state is
   // guarded by a spinlock and the reports it collects are delivered from loop(). Reset while the stream is stopped.
   portMUX_TYPE taken_lock_ = portMUX_INITIALIZER_UNLOCKED;
@@ -100,6 +115,10 @@ class USBAudioSpeaker : public speaker::Speaker,
   int64_t report_finish_us_{0};
   // When the last transfer taken finishes playing; reset on a start, so the next one starts the chain from now.
   int64_t last_finish_us_{0};
+  // The write being counted (see write_()); only writer_task_ changes the pending fields.
+  std::atomic<TaskHandle_t> writer_task_{nullptr};
+  std::atomic<uint32_t> pending_bytes_{0};
+  bool pending_padding_{false};
   std::atomic<uint8_t> commands_{0};
   // play() calls and silence padding that may be using the device handle; the hub closes a lost device only at zero.
   std::atomic<uint8_t> writes_in_flight_{0};
