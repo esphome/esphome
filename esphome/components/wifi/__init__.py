@@ -538,8 +538,8 @@ def final_validate(config):
         CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
     ):
         _LOGGER.warning(
-            "WPA2 Enterprise ('eap:') is not supported by the esp32_hosted coprocessor "
-            "firmware ESPHome provides"
+            "WPA2 Enterprise ('eap:') needs ESP-Hosted 3.x coprocessor firmware built "
+            "with WPA2 Enterprise support. The 2.x firmware does not have it."
         )
 
 
@@ -962,6 +962,11 @@ async def to_code(config):
             # esp-tls) and needs every trimmed extra.
             require_mbedtls_tls()
             require_mbedtls_tls_extras()
+            if "esp32_hosted" in CORE.loaded_integrations:
+                # Without this the host answers the EAP calls itself with not-supported
+                add_idf_sdkconfig_option(
+                    "CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_ENT", True
+                )
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if manual_ip_entries:

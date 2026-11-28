@@ -1,0 +1,8 @@
+wifi:
+  eap:
+    username: username
+    password: password
+    identity: identity
+
+packages:
+  common: !include common.yaml
