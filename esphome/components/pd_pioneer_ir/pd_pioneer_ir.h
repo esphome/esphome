@@ -22,7 +22,7 @@ class PDPioneerIR : public climate_ir::ClimateIR {
   void setup() override;
 
   void set_fahrenheit(bool value) { this->temperature_step_ = value ? 0.5f : 1.0f; }
-  /// Turns the unit's display on or off; the flag is sent with every command while the unit is on.
+  /// Turns the unit's display on or off
   void set_display_on(bool on);
 
 #ifdef USE_SWITCH

@@ -6,14 +6,15 @@ namespace esphome::pd_pioneer_ir {
 ESPHOME_LOG_TAG(TAG, "pd_pioneer_ir");
 
 void PDPioneerIR::setup() {
-  climate_ir::ClimateIR::setup();
 #ifdef USE_SWITCH
+  // Before the climate publishes its restored state, which an on_state automation may transmit from. Nothing is sent
+  // at boot; the restored setting goes out with the next command.
   if (this->display_switch_ != nullptr) {
-    // Nothing is sent at boot; the restored state goes out with the next command
     this->display_on_ = this->display_switch_->get_initial_write_state().value_or(true);
     this->display_switch_->publish_state(this->display_on_);
   }
 #endif
+  climate_ir::ClimateIR::setup();
   this->publish_state();
 }
 

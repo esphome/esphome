@@ -64,11 +64,30 @@ static Frame decode(const remote_base::RawTimings &raw) {
   return Frame(decoded->data(), decoded->data() + FRAME_SIZE);
 }
 
+/// The display switch as generated with publish="after"
+class DisplaySwitch : public switch_::Switch {
+ public:
+  explicit DisplaySwitch(PDPioneerIR *climate) : climate_(climate) {}
+
+ protected:
+  void write_state(bool state) override {
+    this->climate_->set_display_on(state);
+    this->publish_state(state);
+  }
+  PDPioneerIR *climate_;
+};
+
 struct Fixture {
   CapturingTransmitter transmitter;
   PDPioneerIR climate;
+  DisplaySwitch display{&this->climate};
 
-  Fixture() {
+  explicit Fixture(optional<switch_::SwitchRestoreMode> display_restore = {}, bool inverted = false) {
+    if (display_restore.has_value()) {
+      this->display.set_restore_mode(*display_restore);
+      this->display.set_inverted(inverted);
+      this->climate.set_display_switch(&this->display);
+    }
     // A second fixture in the same test would otherwise restore what the first saved
     if (global_preferences != nullptr)
       global_preferences->reset();
@@ -395,15 +414,44 @@ TEST(PDPioneerIR, DisplayChangeWhileOffSendsNothing) {
 }
 
 TEST(PDPioneerIR, ReceivedDisplayFlagKeepsModeAndEco) {
-  Fixture f;
+  Fixture f(switch_::SWITCH_ALWAYS_ON);
   EXPECT_TRUE(f.receive(even_frame(0x64, 0x01, 0x0B, 0x05, 0x84)));
   EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
+  EXPECT_FALSE(f.display.state);
   EXPECT_TRUE(f.receive(even_frame(0x65, 0x01, 0x0B, 0x05, 0x84)));
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_ECO);
+  // An off frame carries no display flag, so the switch keeps its setting
+  EXPECT_TRUE(f.receive(even_frame(0xA0, 0x01, 0x0B, 0x05, 0x84)));
+  EXPECT_FALSE(f.display.state);
   // The display stays off in what is sent next
   f.command(climate::CLIMATE_MODE_HEAT, 20.0f, climate::CLIMATE_FAN_HIGH);
   EXPECT_EQ(f.last_pair().second, even_frame(0x64, 0x01, 0x0B, 0x05, 0x80));
+  EXPECT_TRUE(f.receive(even_frame(0x24, 0x01, 0x0B, 0x05, 0x84)));
+  EXPECT_TRUE(f.display.state);
 }
+
+struct RestoreCase {
+  switch_::SwitchRestoreMode mode;
+  bool inverted;
+  bool state;
+  uint8_t power;
+};
+
+class DisplayRestore : public ::testing::TestWithParam<RestoreCase> {};
+
+TEST_P(DisplayRestore, SendsNothingAtBootAndGoesOutWithTheFirstOnCommand) {
+  Fixture f(GetParam().mode, GetParam().inverted);
+  EXPECT_TRUE(f.transmitter.frames.empty());
+  EXPECT_EQ(f.display.state, GetParam().state);
+  f.command(climate::CLIMATE_MODE_HEAT, 20.0f, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(f.last_pair().second, even_frame(GetParam().power, 0x01, 0x0B, 0x05, 0x80));
+}
+
+INSTANTIATE_TEST_SUITE_P(PDPioneerIR, DisplayRestore,
+                         ::testing::Values(RestoreCase{switch_::SWITCH_RESTORE_DEFAULT_ON, false, true, 0x24},
+                                           RestoreCase{switch_::SWITCH_RESTORE_DEFAULT_OFF, false, false, 0x64},
+                                           RestoreCase{switch_::SWITCH_ALWAYS_OFF, true, false, 0x24},
+                                           RestoreCase{switch_::SWITCH_ALWAYS_ON, true, true, 0x64}));
 
 }  // namespace esphome::pd_pioneer_ir::testing

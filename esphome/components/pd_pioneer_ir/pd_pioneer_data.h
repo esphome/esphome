@@ -25,7 +25,7 @@ class ControlData {
       this->even_[5] = PWR_ECO;
   }
 
-  /// The display flag shares the power byte; it is only sent with an on command
+  /// The display flag shares the power byte, so call this after set_eco()
   void set_display(bool on) {
     if (!on && this->even_[5] != PWR_OFF)
       this->even_[5] |= DISPLAY_OFF;
