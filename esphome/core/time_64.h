@@ -8,6 +8,11 @@
 
 namespace esphome {
 
+#ifdef ESPHOME_DEBUG_SCHEDULER
+/// time_64's log tag: its rollover line is logged with the clock lock held, so on_message skips it too
+extern const char *const TIME_64_LOG_TAG;
+#endif
+
 class Scheduler;
 
 /// Extends 32-bit millis() to 64-bit using rollover tracking.

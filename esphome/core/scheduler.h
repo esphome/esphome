@@ -18,6 +18,11 @@ namespace esphome {
 
 class Component;
 
+#ifdef ESPHOME_DEBUG_SCHEDULER
+/// The scheduler's log tag, so a logger on_message automation can skip the scheduler's own debug lines
+extern const char *const SCHEDULER_LOG_TAG;
+#endif
+
 class Scheduler {
   // Allow DelayAction to call set_timer_common_ with skip_cancel=true for parallel script delays.
   // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
