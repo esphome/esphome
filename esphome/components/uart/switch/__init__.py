@@ -35,9 +35,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await switch.new_switch(config)
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
+    await switch.register_switch(var, config)
 
     data = config[CONF_DATA]
     single_state = not isinstance(data, dict)

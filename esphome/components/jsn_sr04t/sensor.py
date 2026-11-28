@@ -42,8 +42,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
+    await sensor.register_sensor(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))

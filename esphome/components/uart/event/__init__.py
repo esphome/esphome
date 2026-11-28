@@ -78,9 +78,8 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     event_names = [item[0] for item in config[CONF_EVENT_TYPES]]
-    var = await event.new_event(config, event_types=event_names)
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
+    await event.register_event(var, config, event_types=event_names)
     matchers = []
     max_len = 0
     for event_name, match_data in config[CONF_EVENT_TYPES]:
