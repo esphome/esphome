@@ -1,0 +1,2 @@
+packages:
+  tflite_text: !include common.yaml
